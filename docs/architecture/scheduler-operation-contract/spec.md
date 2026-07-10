@@ -445,11 +445,12 @@ waitForGenerationSettlement(runId: string): Promise<GenerationTerminalState>
 - route schema 使用 `z.string().uuid().length(36)`；empty、非 UUID、前后空白和超长值都在 handler/DB/runtime
   副作用前失败。history cursor 中的 operation id 复用同一 schema。
 - main 在执行副作用前登记 operation，并预分配 `sessionId`。
-- 同 id + 同 input fingerprint 返回既有 state；同 id + 不同 fingerprint 返回
-  `OperationConflictError`，绝不覆盖旧 operation。
+- 同 id + 同 input fingerprint 返回既有 state；同 id + 不同 fingerprint 在 service 内可使用 typed
+  `OperationConflictError`，绝不覆盖旧 operation；route 必须把它映射为 serializable `conflict` output。
 - 新 id 在 insert 前还要查询相同 fingerprint 的所有 `pending/unknown` operation，包括已经 dismiss 的记录。
-  命中时返回 typed `ExistingCreateOperationError` 与 content-free existing operation id/state，不启动新的
-  session/runtime/input。`failed/succeeded` 已 terminal，不阻止用户创建内容相同的新 session。
+  命中时 service 可使用 typed `ExistingCreateOperationError`，route 映射为 serializable `existing` output，
+  携带 content-free old operation identity/state，不启动新的 session/runtime/input。`failed/succeeded` 已
+  terminal，不阻止用户创建内容相同的新 session。
 - fingerprint 只用于冲突检测，和 session 数据保存在同一 SQLite/SQLCipher database；不得另建
   plaintext sidecar。日志不得记录 message、file path、fingerprint 或 payload。
 
@@ -457,8 +458,8 @@ operation id 是 transport identity，fingerprint 是 restart 后丢失 id 时�
 替代。`unknown` 必须先 reconcile：权威 session/runtime/queue 证据能收敛才改成 `succeeded/failed`；仍无法
 证明时继续阻止相同 fingerprint 的新 create。dismiss 不是 abandon，也不授权 retry。
 
-renderer 收到 `ExistingCreateOperationError` 后只显示 content-free “Check existing operation”选择；用户显式
-选择前不把当前 draft 关联旧 operation，也不能换第三个 id继续 create。这样既能找回丢失 id，又不把“相同
+renderer 收到 `kind: 'existing'` output 后只显示 content-free “Check existing operation”选择；用户显式选择
+前不把当前 draft 关联旧 operation，也不能换第三个 id继续 create。这样既能找回丢失 id，又不把“相同
 payload”武断等同于“相同用户意图”。
 
 ### 最小 journal
@@ -522,16 +523,64 @@ queue Promise；它 resolve 是“输入已 durable accepted”的证据，不�
   可以分 commit、分 develop/verify，但必须在同一个 atomic production PR/cutover 中合入；
 - route schema 在 cutover 中新增 operation envelope；新路径允许 `session: null` + `pending/unknown`；
 - 同一个 PR 把全部 production caller 改为传 `operationId`，静态 guard 要求缺失 caller 为 `0`；
-- `operationId` 必须先通过 UUID/length schema；compatibility missing id 和 malformed id 都在任何副作用前
-  finite reject；
-- 为避免 rollout/test 中的旧调用无限等待或继续留下旧 5 秒 unknown，缺少 `operationId` 的请求在任何副作用
-  前立即返回 typed `OperationIdRequiredError`；它是 finite compatibility failure，不启动 create；
+- route schema 直接要求 UUID/length-valid `operationId`；missing/malformed 都是 generic validation rejection，
+  在任何副作用前结束，renderer 不按错误类型分支；
 - 不提供“无 id 就一直等”的 adapter，也不伪造可独立合入的 003A compatibility；
 - 新增 `sessions.getCreateOperation`、cursor-paginated `sessions.listCreateOperations` 和 dismiss route；不新增
   第二条 create command。
 
 内部 Electron main/renderer 同版本交付，因此这里选择 atomic cutover，比维持两套长期 create 语义更稳定。
 若 static inventory 仍发现无 id 的 production caller，整个 `SCH-003` 不得 merge。
+
+### Electron IPC output contract
+
+当前 bridge 直接调用 `ipcRenderer.invoke()`；main 的 `ipcMain.handle()` 也直接让 exception 穿过 Electron，
+没有自定义 error envelope。Electron 对 rejected handler 只保证 renderer 得到 error message，不能依赖 custom
+Error class/prototype、`code`、`operationId` 或 `state`。因此 renderer 需要分支的 domain outcome 必须是正常
+route output，不是 throw。
+
+`sessions.create` output 由 `sessions.routes.ts` 的 Zod discriminated union 唯一定义，最小形状如下；字段名可在
+实现中保持同义，但三类语义不能合并：
+
+```ts
+type SessionCreateOutput =
+  | {
+      kind: 'operation'
+      operation: CreateOperationEnvelope
+      session: SessionWithState | null
+    }
+  | {
+      kind: 'existing'
+      code: 'CREATE_OPERATION_EXISTS'
+      operation: ContentFreeCreateOperationSummary
+    }
+  | {
+      kind: 'conflict'
+      code: 'CREATE_OPERATION_CONFLICT'
+      operation: ContentFreeCreateOperationSummary
+    }
+```
+
+规则：
+
+- `operation` 表示新 operation 或同 id/same fingerprint 的既有 operation；state 可以是
+  `pending/succeeded/failed/unknown`，renderer 从 envelope 读取，不从 Error 读取；
+- `existing` 表示新 id 命中 same fingerprint unresolved row；summary 必须带 old `operationId`、`sessionId`、
+  `state`、`stage`、`dismissedAt`，因此 renderer 能显式 Check；
+- `conflict` 表示 requested id 已属于不同 fingerprint；同样返回原 row 的 content-free identity/state，零
+  副作用且可 Check；
+- internal service 可以抛 typed errors，route adapter 只能用 error class/stable internal code 做 exhaustive
+  mapping；禁止按 `error.message` substring 分类；
+- malformed/missing operation id 只走 generic schema validation rejection；正常 bridge caller 会先在 preload
+  `contract.input.parse()` 失败，其他入口也必须在 main schema guard 失败。renderer 不按错误类型分支，因此不必
+  增加 output variant；若未来 UI 需要区分，也必须增加 variant；
+- unexpected infrastructure/programming error 继续 reject，renderer 只能作为 generic failure 展示，不读取
+  custom fields。
+
+boundary test 不能只直接调用 `dispatchDeepchatRoute()`。必须使用 real Electron IPC，或等价 harness：main route
+output 经过 structured serialization/clone，再由 preload `createBridge()` 和 renderer contract parse。测试覆盖
+`operation/existing/conflict` 三种 variant，并有 negative control 证明 thrown custom Error 过 Electron-like
+boundary 后只剩 message，renderer 逻辑仍不依赖丢失字段。
 
 ### Restart 后的 content-free recovery identity
 
@@ -667,6 +716,8 @@ Restart recovery history (content-free)
 - 同 `operationId` 的重复 create 不会创建第二条 session/runtime/input。
 - 新 id + 相同 fingerprint 的 pending/unknown（含 dismissed）在副作用前返回 existing operation，不能重复
   create。
+- operation/existing/conflict 是 sessions route Zod output variants；renderer 所需 id/state/code 经 structured
+  IPC boundary 后仍存在，不依赖 custom Error fields/message。
 - late DB/runtime/input completion 可用 operation id 查询并收敛；create backend 全程不改变 window binding。
 - cleanup 失败或 incomplete restart 返回 `unknown`，不伪造 `failed`。
 - initial input stage 只在当前 production durable queue resolve 后前进，不等待整轮 generation；无 speculative
@@ -722,6 +773,7 @@ Restart recovery history (content-free)
 | create backend 为 late result 自动 bind window | 拒绝 | main 不知道 renderer intent 是否仍 current；stale success 会抢 active session |
 | dismiss 删除/排除 operation identity | 拒绝 | 会绕过 retry-before-reconcile 和 fingerprint duplicate guard |
 | 为当前不存在的 no-queue agent 新增 accepted-start API | 拒绝 | deepchat/acp 都使用已有 durable queue；零 consumer abstraction 只扩大状态机 |
+| renderer 从 custom Error 的 code/operationId/state 分支 | 拒绝 | Electron invoke rejection 只可靠保留 message；domain outcome 必须是 Zod route output |
 
 ## Open Questions
 

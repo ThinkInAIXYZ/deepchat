@@ -304,7 +304,7 @@ acceptance/rollback，再修改 guard；不能在 SCH-003 内替未来 owner 猜
 - 提前返回 null 会破坏旧 renderer。
 
 三种都不稳定。所以 003A 只作为 backend review commit；003B 集成 renderer 和全部 caller，二者通过后才创建
-一个 production PR。无 operation id 的 compatibility 是“副作用前立即 typed reject”，不是等待策略。
+一个 production PR。无 operation id 由 required Zod schema 在副作用前 generic reject，不是等待策略。
 
 ## Development slice SCH-003A：Session create operation backend
 
@@ -314,7 +314,8 @@ acceptance/rollback，再修改 guard；不能在 SCH-003 内替未来 owner 猜
 - `src/main/routes/sessions/sessionService.ts`、`src/main/routes/index.ts`；
 - `src/main/presenter/agentSessionPresenter/*`；
 - `src/main/presenter/sqlitePresenter/schemaCatalog.ts` 与 domain-specific table；
-- focused table/service/dispatcher/presenter tests。
+- focused table/service/dispatcher/presenter tests；
+- `test/renderer/api/createBridge.test.ts` 或 dedicated session-create boundary test：真实/等价 IPC serialization。
 
 明确不改 `src/shared/types/agent-interface.d.ts` 来承载 operation DTO。
 
@@ -329,21 +330,30 @@ stable error code、dismissed/created/updated timestamps；不保存 prompt、fi
 
 新增/修改 route：
 
-- `sessions.create`：需要 operation id，返回 operation envelope；
+- `sessions.create`：需要 operation id，返回 `kind: operation | existing | conflict` 的 Zod discriminated union；
 - `sessions.getCreateOperation`：按已知 id reconcile；
 - `sessions.listCreateOperations`：cursor pagination，`limit 1..50, default 20`，返回所有 content-free identity
   与 `dismissedAt`；
 - dismiss route：只写 `dismissedAt` 供 UI 折叠；history/fingerprint/retry guard 仍能查到，不删 session/identity。
 
-虽然 schema 可为 staged rollout 暂时 parse optional id，handler 必须在副作用前对 missing id 返回
-`OperationIdRequiredError`。present id 必须满足 UUID 且 length 36；production caller guard 必须为零，后续可把
-schema 收紧为 required。
+schema 直接 required，operation id 必须满足 UUID 且 length 36；missing/malformed 由 generic Zod validation
+在副作用前拒绝，production caller guard 必须为零。renderer 不按 validation Error 的 prototype/code 分支。
+
+create route 的 renderer 分支数据全部在正常 output：
+
+- `operation`：operation envelope + nullable session；
+- `existing`：stable code + old content-free operation identity/state，表示不同新 id 命中 unresolved fingerprint；
+- `conflict`：stable code + 原 operation identity/state，表示同 id 已属于不同 fingerprint。
+
+service 内部仍可用 typed error；route adapter 用 `instanceof` 或 stable internal code exhaustive mapping，禁止按
+message 分类。unexpected error 仍作为 generic IPC rejection。
 
 ### Backend 实施步骤
 
 1. schema validation 后 canonicalize input、计算 DB-only fingerprint、预分配 session id。
-2. 副作用前登记 operation：same id/same fingerprint single-flight；different fingerprint typed conflict；新
-   id 若命中同 fingerprint `pending/unknown`（含 dismissed），返回 existing operation typed error且零 mutation。
+2. 副作用前登记 operation：same id/same fingerprint single-flight；different fingerprint 返回 `conflict`
+   variant；新 id 若命中同 fingerprint `pending/unknown`（含 dismissed），返回 `existing` variant；两者都带
+   old checkable identity/state且零 mutation。
 3. 按 durable boundary 更新 `record_created`、`runtime_ready`、
    `input_not_required/input_accepted`、`completed`。
 4. initial-input stage 只 await 当前 production `queuePendingInput()` durable record；删除 unreachable
@@ -371,12 +381,20 @@ schema 收紧为 required。
 | one cleanup unknown | unknown，不自动 retry |
 | restart incomplete | pending -> unknown，不 replay payload |
 | invalid operation id | missing/empty/whitespace/non-UUID/overlength 全部 pre-effect reject |
+| create output union | operation/existing/conflict 都经 Zod parse；renderer 所需 id/state/code 只来自 output |
+| conflict/existing | 都返回可 Check 的 old identity；DB/runtime/input/event count = 0 |
 | invalid cursor/limit | Zod reject；DB query count = 0 |
 | history | cursor 全量覆盖同毫秒记录、content-free、dismissed 可查、hasMore 正确 |
 | dismiss | recovery UI 折叠；history/retry guard 可见；session/identity 不删除 |
 | unbound create | previous/null main binding 在 pending/success/late success 后完全不变 |
 | create notification | `created` 一次且无 active fields；不发布 `activated` |
 | schema ownership | agent-interface 无 operation DTO duplicate |
+
+IPC boundary test 使用真实 Electron invoke smoke，或等价的 fake `IpcRendererLike`：fake 的 main side 调 route
+adapter，把正常 output `structuredClone` 后交给真实 `createBridge()`/route Zod parse；throw path 则只重建
+`new Error(original.message)`，模拟 Electron 不保留 custom fields。必须断言三种 output variant 仍有完整
+id/state/code，并断言 renderer 没有读取 negative-control Error 上消失的字段。只测
+`dispatchDeepchatRoute(runtime, ...)` 同进程返回值不算覆盖此 gate。
 
 ### 003A 边界
 
@@ -401,8 +419,9 @@ atomic production PR。
 4. succeeded/current 才 upsert，显式 await `sessions.activate(sessionId)` exactly once，再 navigate/onboarding；
    succeeded/stale 只刷新 list，零 activate。
 5. failed/unknown 保留 draft，不自动 create retry；query transient error 也不换 operation id。
-6. create 返回 `ExistingCreateOperationError` 时显示“有一条未确认的相同创建”，提供显式 Check；不自动把当前
-   draft 绑定旧 operation，也不生成第三个 id 重试。该 error 即使指向 dismissed row 也同样处理。
+6. create 返回 `kind: 'existing'` 时显示“有一条未确认的相同创建”，提供显式 Check；不自动把当前 draft
+   绑定旧 operation，也不生成第三个 id 重试。dismissed row 同样处理。`kind: 'conflict'` 也只用 output 中的
+   old identity/state 显示冲突并允许 Check。
 7. app startup 调 cursor history：
    - 只显示 operation 时间/状态，不展示内容；
    - 连续翻页可找回所有 pending/unknown/dismissed identity；
@@ -449,7 +468,10 @@ Restart recovery
 | page leave | polling cleanup，main operation 不取消 |
 | transient reconcile error | 同 id 可重查，不创建新 operation |
 | failed/unknown | draft 保留；retry 先 reconcile；相同 unresolved fingerprint 不创建 |
-| existing operation error | 显示 content-free Check；不自动关联 draft、不再 create；dismissed row 同样拦截 |
+| existing output | 显示 content-free Check；不自动关联 draft、不再 create；dismissed row 同样拦截 |
+| conflict output | 显示 stable conflict copy并可 Check old operation；不读取 Error fields/message |
+| IPC serialization boundary | operation/existing/conflict 经 structured clone + preload/renderer parse 后字段完整 |
+| custom Error negative control | Electron-like rejection 只保留 message；renderer 行为不依赖丢失 code/id/state |
 | restart one/many/many pages | 都可 cursor 找回且需显式选择，不绑定当前 draft |
 | history data | UI/API 不出现 prompt/file/title/provider/fingerprint |
 | dismiss | open panel 折叠；history/duplicate guard 仍见；不删 session |
@@ -516,6 +538,8 @@ pnpm test
 12. 所有 numeric input 是否 finite/nonnegative/bounded validation？
 13. create backend 是否完全不 bind，stale/current activate count 是否分别为 0/1？
 14. 新 id + same unresolved fingerprint（含 dismissed）是否在副作用前返回 existing operation？
+15. renderer domain 分支是否只读 operation/existing/conflict output，而不是 Electron Error custom fields/message？
+16. serialization test 是否真的经过 createBridge/structured boundary，而不是只直调 dispatcher？
 
 ## 完成判定
 
@@ -530,7 +554,8 @@ pnpm test
 7. restart history content-free、cursor-complete、dismissed recoverable、explicit selection；
 8. create backend 不 bind；current/stale activate exactly 1/0，previous binding retained；
 9. 003A/B atomic cutover 完成，missing/malformed id caller count = 0；
-10. cancelGeneration exactly-once settlement 回归通过；
-11. renderer stale/unknown/draft/manual smoke 与 full suite 无新增失败。
+10. operation/existing/conflict 通过 IPC-equivalent serialization boundary；renderer 零 Error-field 分支；
+11. cancelGeneration exactly-once settlement 回归通过；
+12. renderer stale/unknown/draft/manual smoke 与 full suite 无新增失败。
 
 只完成 runner rename、只调大 timeout、只合 backend 或只做 UI，都不能关闭 finding。

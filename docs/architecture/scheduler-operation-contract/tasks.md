@@ -11,6 +11,7 @@
 - [x] 明确 `SCH-003A/B` 为 atomic production cutover，`SCH-003B depends on SCH-003A + SES-003`。
 - [x] inventory 证明 deepchat/acp 共用 durable queue；删除 speculative acceptance slice。
 - [x] 固定 unbound create、cursor history、dismiss retry guard 与 UUID validation contract。
+- [x] 固定 Electron-safe operation/existing/conflict output；renderer 不依赖 custom Error fields。
 - [x] 文档无 `[NEEDS CLARIFICATION]`。
 
 ## SCH-002A：OperationRunner core
@@ -64,6 +65,8 @@
 
 - [ ] 建 backend review branch/commit，基于 SCH-002B。
 - [ ] operation schema/DTO 只写在 `sessions.routes.ts` 并通过 schema/route inference取类型。
+- [ ] `sessions.create` output 是 serializable Zod discriminated union：operation/existing/conflict。
+- [ ] renderer 分支需要的 operationId/sessionId/state/stage/code/dismissedAt 全在 output，不读取 Error fields。
 - [ ] 加 guard：`agent-interface.d.ts` 不得复制 session operation DTO。
 - [ ] operation id schema 使用 UUID + length 36；missing/empty/whitespace/non-UUID/overlength 在任何副作用前
   reject。
@@ -73,8 +76,9 @@
 - [ ] 实现 domain-specific `session_create_operations` additive table。
 - [ ] journal 只存 identity/fingerprint/stage/content-free error/timestamps，不存 raw payload。
 - [ ] operation 开始前登记 identity 并预分配 session id。
-- [ ] 同 id/same fingerprint single-flight；same id/different fingerprint conflict。
-- [ ] 新 id + same fingerprint pending/unknown（含 dismissed）返回 existing operation且零副作用。
+- [ ] 同 id/same fingerprint 返回 operation；same id/different fingerprint 返回 conflict + old checkable identity。
+- [ ] 新 id + same fingerprint pending/unknown（含 dismissed）返回 existing + old checkable identity且零副作用。
+- [ ] internal typed error 由 route adapter按 class/stable code 映射，禁止按 message 分类。
 - [ ] durable stage 覆盖 record/runtime/input_not_required|input_accepted/completed。
 - [ ] inventory/guard 固定 deepchat/acp 都 resolve 到有 durable queue 的 `agentRuntimeAgent`。
 - [ ] await 现有 `queuePendingInput()` record；删除 unreachable `processMessage` fallback；不新增 accepted-start API。
@@ -99,12 +103,14 @@
 - [ ] pending reconciliation 固定 `2_000ms × 15`；到界只留 manual Check，离页/intent 变化清 timer。
 - [ ] succeeded/current 显式 activate exactly once 后导航；succeeded/stale 只刷新且 activate count = 0。
 - [ ] failed/unknown/query error 均不自动 create retry；unknown 先 reconcile，相同 fingerprint unresolved 不重建。
-- [ ] `ExistingCreateOperationError` 显式 Check，不自动绑定当前 draft、不生成新 id；dismissed row 同样拦截。
+- [ ] `kind: existing/conflict` 只读 structured output 并显式 Check，不自动绑定 draft/生成新 id。
 - [ ] startup cursor history 可遍历 pending/unknown/dismissed；无论一条/多条都需 explicit selection。
 - [ ] restart recovery 不绑定当前 draft、不自动 activate/navigate、不显示内容。
 - [ ] dismiss 只折叠 open panel；history/retry guard 可见，不删除 session/identity。
 - [ ] 增加 pending/unknown/history/dismiss/error i18n keys。
 - [ ] 添加 current/stale activate 1/0、binding retained、cursor pages、dismiss guard、privacy、duplicate event tests。
+- [ ] 增加 real IPC 或 structured serialization + `createBridge` boundary test，不接受仅 dispatcher 直调。
+- [ ] boundary test 覆盖 operation/existing/conflict；negative control 证明 custom Error 过界只剩 message。
 - [ ] current activate failure 不 navigate/onboarding、不改 previous binding，created session 仍可从 list 选择。
 - [ ] 删除 create 5s legacy timeout；provider 未完成时 adapter 只剩精确 provider一项。
 - [ ] 003A + 003B 只创建一个 atomic production PR，不发布 backend-only version。
@@ -125,6 +131,7 @@
 - [ ] initial input 只 await 当前 durable queue，不等待 whole generation、不保留 speculative fallback。
 - [ ] restart history content-free、cursor-complete、dismissed recoverable、explicit selection，不关联当前 draft。
 - [ ] session operation DTO 没有逃出 sessions route schema owner。
+- [ ] Electron IPC renderer 分支不依赖 Error prototype/custom code/id/state/message substring。
 - [ ] operation id missing/empty/malformed/overlength finite pre-effect reject；003A/B 未拆成独立 production merge。
 - [ ] create backend 不 bind；current/stale activate exactly 1/0；previous/null binding retained。
 - [ ] same fingerprint pending/unknown（含 dismissed）无法绕过 retry-before-reconcile guard。
