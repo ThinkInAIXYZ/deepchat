@@ -128,8 +128,8 @@ export class MemoryProviderGateway {
     void task.catch(() => undefined)
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
-        controller.abort()
         reject(createAbortError(`[Memory] ${purpose} deadline exceeded (${deadline}ms)`))
+        controller.abort()
       }, deadline)
       if (typeof timer.unref === 'function') timer.unref()
     })

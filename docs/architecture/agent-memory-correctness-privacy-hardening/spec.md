@@ -2,7 +2,7 @@
 
 > Status: **implemented**  
 > Classification: **architecture**  
-> Post-commit gate: **`memory-native-validation` pending**
+> Post-commit gate: **`memory-native-validation` passed**
 
 ## Purpose
 

@@ -43,7 +43,10 @@ describe('MemoryProviderGateway', () => {
         getEmbeddings: vi.fn(() => new Promise<number[][]>(() => undefined))
       })
       const request = gateway.getEmbeddings('agent', 'p', 'm', ['query'], 'query-embedding')
-      const assertion = expect(request).rejects.toMatchObject({ name: 'AbortError' })
+      const assertion = expect(request).rejects.toMatchObject({
+        name: 'AbortError',
+        message: '[Memory] query-embedding deadline exceeded (800ms)'
+      })
 
       await vi.advanceTimersByTimeAsync(800)
 

@@ -114,6 +114,7 @@ type MemoryPresenterRuntimeTestSeams = {
       repairedTargets: number
       archivedChallengers: number
       clearedTargets: number
+      clearedLinks: number
     }
   }
 }
