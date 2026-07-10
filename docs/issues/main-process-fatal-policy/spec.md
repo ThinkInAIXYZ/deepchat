@@ -17,10 +17,9 @@ A failed request and a broken process are not the same thing.
 - A request owner that receives a timeout, disconnected network, invalid response, or rejected
   operation handles that failure where it has enough context to retry, update state, return an
   error, or show a useful message. The app keeps running.
-- An exception or rejection that reaches Node's fatal boundary has no remaining owner. At that point
-  DeepChat cannot prove that its in-memory state is still consistent. An
-  `uncaughtExceptionMonitor` records the event synchronously without replacing Node's default
-  termination, which prints the failure and exits with code `1`.
+- An exception or rejection that reaches the process boundary has no remaining owner. At that point
+  DeepChat cannot prove that its in-memory state is still consistent. DeepChat normalizes and records
+  the failure synchronously, then calls `process.exit(1)` in `finally`.
 - The process-level policy never decides recoverability by searching error text for words such as
   `ECONNRESET`, `Network Error`, or `fetch failed`. An unowned network-looking rejection is still
   fatal because the ownership contract has already failed.
@@ -28,7 +27,8 @@ A failed request and a broken process are not the same thing.
   Those features need product and privacy contracts that do not currently exist in this repository.
 
 This is a fail-stop policy: a truly fatal error becomes visible instead of letting DeepChat continue
-in an unknown state.
+in an unknown state. It does not rely on Electron readiness, Electron application shutdown, Node's
+default listener behavior, or another framework listener.
 
 ## Issue
 
@@ -67,7 +67,7 @@ or user notification is correct.
 2. [`src/main/appMain.ts`](../../../src/main/appMain.ts) registers the two process listeners inside
    `startApp()`, before Electron readiness and Presenter construction but after every `appMain.ts`
    import has already evaluated. An import-time failure in that graph is outside the current custom
-   logging boundary and receives only Node's default fatal behavior.
+   logging boundary and receives only framework/Node behavior with no DeepChat termination guarantee.
 3. Only the `uncaughtException` path whose message contains a configured network fragment publishes
    `notification.error`; every other path only logs.
 4. [`publishDeepchatEvent()`](../../../src/main/routes/publishDeepchatEvent.ts) validates the typed
@@ -148,7 +148,7 @@ file logger. It must not rely on the transport's temporary startup level as cons
 
 Therefore the fatal policy must not silently override the logging opt-out:
 
-- when persisted opt-in is confirmed, the monitor attempts the synchronous file logger;
+- when persisted opt-in is confirmed, the fatal terminator attempts the synchronous file logger;
 - regardless of opt-in or the file logger's apparent success, the same preformatted record is also
   passed to `fs.writeSync(process.stderr.fd, ...)`;
 - when logging is disabled, the policy must not call the file logger, force-create, or re-enable
@@ -187,27 +187,32 @@ bundles Node 24.15.0.
   rejection is raised as an uncaught exception when it is not otherwise handled.
 - Node documents
   [`uncaughtExceptionMonitor`](https://nodejs.org/docs/latest-v24.x/api/process.html#event-uncaughtexceptionmonitor)
-  specifically for synchronous observation without overriding the default crash behavior. Its
-  `origin` distinguishes `uncaughtException` from `unhandledRejection`.
+  for synchronous observation without changing whatever subsequent exception listeners do. Its
+  presence does not force termination.
 - [Electron `app` documentation](https://www.electronjs.org/docs/latest/api/app#appexitexitcode)
   distinguishes `app.quit()` (interceptable graceful lifecycle) from `app.exit()` (immediate exit
   without `before-quit` or `will-quit`) and documents that `app.relaunch()` does not itself exit.
 - [Electron `crashReporter` documentation](https://www.electronjs.org/docs/latest/api/crash-reporter)
   says Crashpad must start early, cannot be disabled after startup, and stores reports locally even
   when upload is disabled.
-- [Electron environment documentation](https://www.electronjs.org/docs/latest/api/environment-variables#node_options)
-  disallows arbitrary `NODE_OPTIONS` in packaged applications, so a packaged user cannot switch the
-  runtime to unhandled-rejection `warn` mode through that variable.
 
 These mechanisms are available, but availability alone is not a reason to enable all of them.
 
-An isolated check using the installed Electron 40.10.5 binary in `ELECTRON_RUN_AS_NODE=1` mode
-confirmed the bundled Node 24.15.0 behavior: a synchronous throw reached the monitor with origin
-`uncaughtException` and exited `1`; an unhandled non-`Error` rejection reached it as
-`UnhandledPromiseRejection` with origin `unhandledRejection` and exited `1`; an immediately attached
-catch emitted no monitor event and exited `0`; a catch deferred with `setImmediate` was too late and
-the process exited `1`. These observations support the documented default; they are not substitutes
-for the cross-platform `FTL-002` harness below.
+### Real Electron verification changed the selected mechanism
+
+Two harness modes produced different results:
+
+- `ELECTRON_RUN_AS_NODE=1` confirmed ordinary bundled Node 24.15.0 semantics: synchronous throw and
+  unhandled rejection exited `1`; an immediate catch exited `0`; a `setImmediate` catch was too late.
+- A real Electron 40.10.5 main-process harness already had a framework `uncaughtException` listener
+  before application code ran. With only `uncaughtExceptionMonitor` added, synchronous throw,
+  non-`Error` rejection, and late catch were observed but did **not** terminate the Electron process.
+  An immediate catch still produced no fatal event.
+
+Therefore run-as-Node evidence proves only Node semantics; it cannot represent Electron main-process
+listener behavior. A monitor/default-exit design is invalid for DeepChat because a later framework
+listener can consume the exception after the monitor returns. `FTL-002` must explicitly terminate
+from DeepChat's first process listener.
 
 ## Intent assessment and conservative inference
 
@@ -248,9 +253,9 @@ A rejection is owner-handled only when its promise has an error path attached be
 process-level unhandled rejection, and that path makes an explicit domain decision.
 
 "Before" means within the same event-loop turn. An immediately attached catch is owned; attaching a
-catch after Node has classified the rejection as unhandled is not recovery. Under the selected Node
-default, the process terminates before a `setImmediate` late catch can make the application safe
-again.
+catch after Node has classified the rejection as unhandled is not recovery. DeepChat's prepended
+`unhandledRejection` listener terminates before a `setImmediate` late catch can make the application
+safe again.
 
 The following count as owned:
 
@@ -272,13 +277,12 @@ The following do not count as owned:
 
 Any of the following is fatal:
 
-- an exception reaches Node's uncaught-exception boundary;
-- a promise remains unhandled long enough for Node's default `throw` policy to promote it;
+- an exception reaches the prepended `uncaughtException` listener;
+- a promise remains unhandled long enough to reach the prepended `unhandledRejection` listener;
 - an expected network or provider error reaches either boundary because no owner handled it.
 
-Failure of either diagnostic sink does not create a new recovery branch. Each sink call is isolated;
-after the monitor returns, or even if its own last-resort write fails, Node still performs the
-original default termination.
+Failure of normalization or either diagnostic sink does not create a new recovery branch. The fatal
+terminator catches those failures and calls `process.exit(1)` from `finally`.
 
 The fatal boundary does not inspect error messages, provider names, HTTP status, or network codes.
 Those attributes can be logged for diagnosis, but they cannot downgrade the process outcome.
@@ -289,11 +293,12 @@ Those attributes can be logged for diagnosis, but they cannot downgrade the proc
 | --- | --- | --- |
 | Request-owner handling | Adopt | Only the initiating domain knows whether to retry, degrade, update status, return an error, or notify the user. |
 | Global network string classifier | Remove | Error text cannot prove recoverability or identify the correct UX/state owner. |
-| `uncaughtExceptionMonitor` | Adopt | It observes both fatal origins, can write synchronously, and does not replace Node's exit behavior. |
-| Repository `uncaughtException` listener | Remove | Any listener overrides the safer Node default and can accidentally return to normal work. |
-| Repository `unhandledRejection` listener | Remove | With no listener, pinned Node 24 promotes the rejection under default `throw` semantics. Network-looking reasons receive no exemption. |
-| Controlled termination | Adopt Node 24 default | Node prints the fatal error and exits `1`; DeepChat adds observation, not another termination state machine. |
-| Custom `app.exit(1)` fatal path | Reject | It is redundant with Node's default and requires custom ordering, reentrancy, first-event, and Electron-readiness logic. A monitor cannot accidentally forget to terminate. |
+| `process.prependListener('uncaughtException', ...)` | Adopt | DeepChat runs before the observed Electron framework listener and cannot return to it in a fatal state. |
+| `process.prependListener('unhandledRejection', ...)` | Adopt | DeepChat handles Error and non-Error reasons directly, independent of Node flags or framework listeners. |
+| Shared fatal terminator | Adopt | Both listeners and bootstrap import/start errors use one normalization and synchronous dual-sink path. |
+| Controlled termination | Adopt `process.exit(1)` in `finally` | It works before Electron readiness and runs even when normalization or either sink fails. |
+| `uncaughtExceptionMonitor` plus default exit | Reject | Real Electron verification showed a pre-existing framework listener consumed the later exception and the process survived. |
+| `app.exit(1)` fatal path | Reject | It adds an Electron dependency to the earliest boundary and is unnecessary when `process.exit(1)` is available before `app` readiness. |
 | `app.quit()` for fatal errors | Reject | It is asynchronous/interceptable in this repository and can execute or be cancelled by stateful shutdown hooks. |
 | Automatic `app.relaunch()` | Reject for `FTL-002` | The same startup defect can repeat indefinitely; no external supervisor, crash-loop counter, or one-shot recovery marker exists. |
 | `crashReporter.start()` | Reject for `FTL-002` | It was deliberately removed, is irreversible for the running process, stores dumps, and lacks consent, retention, upload, and support workflows. |
@@ -301,47 +306,57 @@ Those attributes can be logged for diagnosis, but they cannot downgrade the proc
 | Renderer fatal toast | Reject | Renderer/window infrastructure may not exist or may share inconsistent state; fatal handling must not depend on IPC. |
 | `render-process-gone` / `child-process-gone` | Out of scope | These are separate failure domains and need their own recovery decisions. |
 
-The monitor must be synchronous. It formats one record, conditionally attempts the file logger only
-after persisted opt-in, always attempts `fs.writeSync(process.stderr.fd, record)`, catches sink
-failures independently, and returns. It must not await telemetry, call an Electron exit API, run
-Presenter cleanup, publish IPC, show a dialog, retry the failed operation, mutate user data, schedule
-a timer, or guard the first event with additional mutable process state.
+The fatal terminator must be synchronous. It normalizes the reason, formats one record,
+conditionally attempts the file logger only after persisted opt-in, always attempts
+`fs.writeSync(process.stderr.fd, record)`, catches normalization/sink failures, and invokes
+`process.exit(1)` from `finally`. It must not await telemetry, call an Electron API, run Presenter
+cleanup, publish IPC, show a dialog, retry the failed operation, mutate user data, or schedule a
+timer.
 
-This mechanism is smaller and safer than the original `app.exit(1)` proposal: Node remains the only
-termination owner, the monitor can be installed before Electron readiness, and a diagnostic bug
-cannot turn a fatal event into continued execution.
+Registration is idempotent: repeated calls in the same module instance do not add another DeepChat
+listener. Both listeners are installed with `prependListener` so the DeepChat handler remains first
+even when Electron already registered a framework listener. No general error framework or listener
+registry is introduced.
+
+A reentrancy state machine is unnecessary. The terminator performs no asynchronous work, catches its
+own bounded diagnostic failures, and production `process.exit(1)` does not return. Tests model that
+`never` behavior by throwing a dedicated exit sentinel; they must not use a returning exit spy that
+creates a production-impossible second pass.
 
 ## Acceptance criteria
 
 - Expected network failure handled by its request or background-operation owner updates the owner's
-  result/status and does not emit an `uncaughtExceptionMonitor` event.
+  result/status and does not reach either DeepChat fatal listener.
 - An `Error('ECONNRESET')` that is uncaught or remains unhandled is fatal. Its message no longer
   grants a process-wide recovery exception.
-- After monitor installation, every uncaught main-process exception emits one preformatted record
-  with origin `uncaughtException`, then Node exits with code `1` through its default behavior.
-- After monitor installation, every unhandled main-process rejection, including a non-`Error`
-  reason, emits one record with origin `unhandledRejection`, then Node exits with code `1`.
-- An immediately attached rejection handler produces no monitor event; a handler attached after the
-  unhandled event is too late and does not prevent the exit.
-- The repository has one monitor listener and no `uncaughtException` or `unhandledRejection`
-  listeners immediately after installation and after normal startup completes.
+- After handler installation, every uncaught main-process exception uses the shared terminator,
+  emits one preformatted record with origin `uncaughtException`, and calls `process.exit(1)`.
+- After handler installation, every unhandled main-process rejection, including a non-`Error`
+  reason, uses the same terminator with origin `unhandledRejection` and calls `process.exit(1)`.
+- An immediately attached rejection handler does not invoke the fatal terminator; a handler attached
+  after the unhandled event is too late and does not prevent the exit.
+- Repeated installation adds no duplicate DeepChat listener. Exactly one DeepChat handler is at
+  index `0` of each event's listener list immediately after installation and after normal startup;
+  Electron/framework listeners may remain behind it.
 - The file logger is called only after persisted logging opt-in is confirmed. Its success or failure
   does not suppress the unconditional `fs.writeSync` attempt to `stderr`.
-- Failure of the file logger, `fs.writeSync`, or both cannot change Node's default exit code or cause
-  normal application work to resume.
-- Fatal observation does not call `publishDeepchatEvent`, `app.exit()`, `app.quit()`,
+- Failure of normalization, the file logger, `fs.writeSync`, or all three still reaches the
+  `process.exit(1)` call in `finally` and cannot resume normal work.
+- Fatal termination does not call `publishDeepchatEvent`, `app.exit()`, `app.quit()`,
   `app.relaunch()`, lifecycle hooks, Presenters, or renderer APIs.
 - With logging enabled and a writable disposable log path, the fatal entry reaches `main.log` before
-  Node exits; an unwritable path must not produce a false disk-success assertion or change exit.
-- With logging disabled, the monitor does not enable or call application file logging; the record is
-  attempted on `stderr` only, followed by Node's own fatal output.
-- Before persisted logging configuration has loaded, the monitor follows the disabled path rather
+  `process.exit(1)`; an unwritable path must not produce a false disk-success assertion or change
+  termination.
+- With logging disabled, the fatal terminator does not enable or call application file logging; the
+  record is attempted on `stderr` before `process.exit(1)`.
+- Before persisted logging configuration has loaded, the file sink remains unregistered rather
   than treating the logger's temporary startup transport level as consent.
-- The monitor is installed in the entry before dynamically importing `appMain.ts`. The guarantee is
-  explicitly "after monitor installation": failures while evaluating the tiny monitor module itself
-  remain outside application observation and receive only Node's default output.
+- The handlers are installed in the entry before dynamically importing `appMain.ts`. The guarantee
+  is explicitly "after handler installation": failures while evaluating the tiny helper itself
+  remain outside application observation and receive only framework/Node behavior with no DeepChat
+  guarantee.
 - A synthetic `appMain.ts` import-time failure and a synthetic synchronous `startApp()` failure are
-  both observed by the already-installed monitor and exit `1`.
+  explicitly forwarded to the same terminator and exit `1`.
 - Existing owner-published `notification.error` events remain available for MCP, deep-link, and other
   domain UX; the event contract is not deleted with the global classifier.
 - No automatic relaunch, crash dump collection, safe-mode state, settings migration, or renderer UI
@@ -349,62 +364,69 @@ cannot turn a fatal event into continued execution.
 
 ## Fix plan for `FTL-002`
 
-### 1. Install the observer before the application import graph
+### 1. Install the terminator before the application import graph
 
 Add one tiny main-process module that statically imports only Node built-ins needed to format and
 write the fatal record. It must not import Electron, `electron-log`, `appMain.ts`, a Presenter, or a
 shared module that imports Electron.
 
-The module starts with a nullable file-writer sink set to `null`. It exposes a narrow setter used by
-`configInitHook`: after persisted configuration is read, pass the existing logger writer only when
-`loggingEnabled` is true; otherwise keep or reset the sink to `null`. This late attachment avoids an
-early import of the logging/Electron graph and does not add termination state. Settings changes
-already restart the application, so there is no separate live-toggle protocol to invent.
+The module owns only three small operations:
+
+- an idempotent installer that prepends one DeepChat handler for `uncaughtException` and one for
+  `unhandledRejection`;
+- the shared synchronous fatal terminator;
+- a nullable file-writer sink, initially `null`, with a narrow setter.
+
+`configInitHook` registers the existing logger writer only after persisted `loggingEnabled: true` is
+known; false resets the sink to `null`. This late injection avoids importing the logging/Electron
+graph before the handlers exist. Settings changes already restart the application, so there is no
+separate live-toggle protocol to invent.
 
 Change `src/main/index.ts` to:
 
-1. install exactly one `uncaughtExceptionMonitor` listener;
+1. install the two prepended fatal listeners;
 2. dynamically import `appMain.ts`;
 3. call `startApp()` from the fulfilled import.
 
-Do not attach a catch that converts import/startup rejection into a normal result. An import-time
-throw or synchronous `startApp()` throw becomes a rejection of that dynamic chain, reaches Node's
-default unhandled-rejection path, is observed with origin `unhandledRejection`, and exits `1`.
+The dynamic import rejection branch explicitly passes its reason to the shared terminator with a
+`bootstrap-import` origin. The fulfilled branch wraps the synchronous `startApp()` call and passes a
+throw to the same terminator with a `bootstrap-start` origin. Neither branch converts failure into a
+normal result or waits for the process event machinery to classify it.
 
-This is the honest boundary: the monitor cannot observe failure while its own tiny module is being
-evaluated, but it observes the entire `appMain.ts` dependency graph and all later startup/runtime
-work. Acceptance statements must say "after monitor installation," not "every possible bootstrap
-instruction."
+This is the honest boundary: the helper cannot observe failure while its own tiny module is being
+evaluated, but after installation it owns the entire `appMain.ts` dependency graph and all later
+startup/runtime work. Acceptance statements must say "after handler installation," not "every
+possible bootstrap instruction."
 
 ### 2. Keep fatal recording synchronous and independent from termination
 
-Format the fatal record exactly once per monitor callback. The record includes timestamp, PID,
-origin, error name/code/message, and stack when available. Send that same string to both eligible
-sinks:
+Normalize the input and format the fatal record exactly once per terminator call. The record includes
+timestamp, PID, origin, error name/code/message, and stack when available. Send that same string to
+both eligible sinks:
 
 - only after `configInitHook` has confirmed persisted logging opt-in, attempt the existing file
   logger; the temporary startup transport level is not consent;
 - in all cases, independently attempt `fs.writeSync(process.stderr.fd, record)` even when the file
   logger returned without throwing;
-- catch each sink failure and return from the monitor so Node can continue its original fatal path.
+- catch normalization and each sink failure, then call `process.exit(1)` from `finally`.
 
 The file logger call is best effort because `electron-log` 5.4.4 swallows file transport errors. A
 successful return is not recorded as proof of disk persistence. Do not add a dedicated always-on
 fatal file merely to obtain an acknowledgement.
 
-The monitor has no first-event guard, retry, timeout, cleanup callback, or exit API. Node owns
-termination.
+The helper has no retry, timeout, cleanup callback, or Electron API. Production `process.exit(1)` is
+the terminal operation and does not return.
 
 ### 3. Remove the fail-open listeners and process-level network UX
 
 Delete both current process listeners, the network-fragment list, and the `notification.error`
-publication from `appMain.ts`. Do not install replacement `uncaughtException` or
-`unhandledRejection` listeners. Do not delete the typed notification contract or renderer listener
-because domain owners still use them.
+publication from `appMain.ts`. The only replacements are the two earliest prepended listeners in the
+minimal helper. Do not delete the typed notification contract or renderer listener because domain
+owners still use them.
 
 ### 4. Verify and repair only real unowned operation boundaries
 
-Run focused tests with Node's default fatal behavior restored. If an expected network or cancellation
+Run focused tests with explicit fail-stop behavior enabled. If an expected network or cancellation
 path now becomes unhandled, fix the initiating owner by attaching an immediate error path and
 preserving its domain state. Do not add broad catches around unrelated subsystems and do not restore
 global text matching.
@@ -417,21 +439,23 @@ do not need duplicate catches solely to silence static search results.
 
 ### 5. Prove real event-loop semantics outside the test runner
 
-Use child-process fixtures so a fatal test cannot kill Vitest. Run the same cases with the workspace
-Node runtime and with the pinned Electron binary; use a real Electron main-process fixture in
-addition to `ELECTRON_RUN_AS_NODE=1` so Chromium/Electron bootstrap does not remain an assumption.
+Use child-process fixtures so a fatal test cannot kill Vitest. The authoritative harness launches a
+real Electron 40.10.5 main process. Run-as-Node may remain as a contrast test, but its result cannot
+satisfy an Electron acceptance criterion.
 
 The harness records exit code, `origin`, sink output, and listener counts for:
 
-- synchronous throw after monitor installation;
+- synchronous throw after handler installation;
 - rejected `Error` and rejected non-`Error` reason;
-- an immediately attached catch, which exits `0` with no monitor record;
+- an immediately attached catch, which exits `0` with no DeepChat fatal record;
 - a catch attached through `setImmediate`, which is already fatal;
 - a message containing `ECONNRESET`, which remains fatal when unowned;
-- one monitor listener and zero repository `uncaughtException` / `unhandledRejection` listeners both
-  immediately after installation and after normal `startApp()` completion;
+- repeated installer calls, proving one DeepChat handler per event;
+- `process.listeners(event)[0]` identity immediately after installation and after normal startup,
+  proving each DeepChat handler stays ahead of observed framework listeners;
+- exactly one DeepChat fatal record and `process.exit(1)` invocation for each fatal case;
 - a file logger that returns success, throws, and points at an unwritable path; every case still
-  attempts `fs.writeSync` and preserves Node exit `1`;
+  attempts `fs.writeSync` and reaches `process.exit(1)`;
 - a synthetic module-evaluation failure in the dynamic `appMain.ts` position;
 - a synthetic synchronous startup failure after that module resolves.
 
@@ -439,8 +463,8 @@ Fixtures use disposable directories and are never exposed as production debug ro
 
 ### 6. Validate the deliberate loss of graceful cleanup
 
-Default fatal termination is immediate. It does not run `LifecycleManager` before-quit hooks or
-`Presenter.destroy()`. `FTL-002` explicitly accepts skipping these normal cleanup paths:
+Explicit `process.exit(1)` termination is immediate. It does not run `LifecycleManager` before-quit
+hooks or `Presenter.destroy()`. `FTL-002` explicitly accepts skipping these normal cleanup paths:
 
 | Owner | Normal cleanup that fatal termination skips | Risk to verify |
 | --- | --- | --- |
@@ -462,7 +486,7 @@ identity/command markers rather than PID alone to avoid PID-reuse false results.
 
 A reproducible persistent orphan is blocking for `FTL-002`. Create a local process-tree governance
 issue spec and make its fix a merge dependency; GitHub sync still follows the repository's explicit
-approval rule. Do not call lifecycle hooks from the fatal monitor as a local workaround. A helper
+approval rule. Do not call lifecycle hooks from the fatal terminator as a local workaround. A helper
 that is already documented to self-terminate and disappears within the bounded window can be
 recorded as passing evidence rather than treated as an orphan.
 
@@ -484,7 +508,7 @@ the database/write boundary must be repaired or isolated before merge.
 
 ### 8. Run repository and release-relevant gates
 
-Run focused monitor, entry, logging, network-owner, process-tree, and database tests; then run the
+Run focused terminator, entry, logging, network-owner, process-tree, and database tests; then run the
 repository gates and compare the full suite with the recorded BASE-001 failure set. Any new unhandled
 rejection is a blocking regression, not a test warning to suppress.
 
@@ -501,12 +525,14 @@ rejection is a blocking regression, not a test warning to suppress.
 
 ### Implementation (`FTL-002`)
 
-- [ ] Add isolated failing harnesses for Node and real Electron fatal event-loop behavior.
-- [ ] Add the minimal synchronous formatter/monitor with independent file and `stderr` sinks.
-- [ ] Install one monitor in the entry before dynamically importing `appMain.ts`.
+- [ ] Add an isolated real Electron harness; keep run-as-Node only as a contrast fixture.
+- [ ] Add the minimal normalizer/terminator with independent file and `stderr` sinks and
+      `process.exit(1)` in `finally`.
+- [ ] Idempotently prepend one DeepChat listener for each fatal process event before importing
+      `appMain.ts`.
 - [ ] Remove global network string classification and process-level toast publication.
-- [ ] Remove repository `uncaughtException` and `unhandledRejection` listeners.
-- [ ] Cover synthetic `appMain.ts` import and startup failures after monitor installation.
+- [ ] Remove the later process listeners currently registered inside `startApp()`.
+- [ ] Explicitly forward synthetic `appMain.ts` import and startup failures to the same terminator.
 - [ ] Prove a representative owner-handled network failure remains non-fatal.
 - [ ] Repair only observed unowned I/O launch boundaries, if tests expose any.
 - [ ] Run macOS, Windows, and Linux marked child-process tree smoke checks.
@@ -520,9 +546,10 @@ rejection is a blocking regression, not a test warning to suppress.
 
 ### Automated
 
-- Formatter, opt-in file sink, unconditional `fs.writeSync`, and sink-failure unit tests.
-- Isolated Node and Electron event-loop harnesses for immediate/late catch, origins, listener counts,
-  import/startup failure, and exit codes.
+- Normalizer, opt-in file sink, unconditional `fs.writeSync`, `finally` exit, installer idempotence,
+  and sink-failure unit tests.
+- Isolated real Electron event-loop harnesses for immediate/late catch, Error/non-Error reasons,
+  handler order/count, import/startup forwarding, and exit codes; run-as-Node is contrast evidence.
 - Existing MCP server-manager and tool-manager tests as scoped owner examples, not whole-network
   proof.
 - Existing typed event contract and renderer listener tests.
@@ -540,12 +567,13 @@ Use a disposable user-data directory and synthetic test build; never trigger a f
 developer's real profile.
 
 1. Trigger a synthetic app-module import failure, then a post-startup synchronous failure. Confirm
-   monitor origin, the preformatted `stderr` record, Node's own fatal output, exit code `1`, and no
-   Electron exit/relaunch call.
+   bootstrap/process origin, the preformatted `stderr` record, `process.exit(1)`, and no Electron
+   exit/relaunch call.
 2. With logging enabled, repeat against a writable and unwritable disposable log path. Confirm a
-   writable path receives the record; both cases independently attempt `fs.writeSync` and exit `1`.
+   writable path receives the record; both cases independently attempt `fs.writeSync` and call
+   `process.exit(1)`.
 3. Repeat with logging disabled and before configuration loads. Confirm the file logger is not called
-   and both cases still attempt `stderr` before Node exits `1`.
+   and both cases still attempt `stderr` before `process.exit(1)`.
 4. Trigger a request-owner network failure, such as an unreachable disposable MCP endpoint. Confirm
    owner status/error UX and that the app remains running. This proves only that selected owner.
 5. Trigger the synthetic process-level path with a message containing `ECONNRESET`. Confirm it exits;
@@ -560,9 +588,8 @@ The synthetic fatal hook must remain test-only and must not ship as a production
 
 - No IPC, route, event payload, stored data, configuration, or renderer contract changes are needed.
 - The existing `notification.error` contract remains intact for domain owners.
-- The policy depends only on Electron 40.10.5 / Node 24 behavior already pinned by the repository.
-- Packaged Electron disallows arbitrary `NODE_OPTIONS`, so users cannot change unhandled-rejection
-  mode there; development harnesses clear `NODE_OPTIONS` and assert the pinned default explicitly.
+- The terminator uses only Node built-ins available in Electron 40.10.5 and does not depend on
+  Electron readiness, `app`, Node's default fatal policy, or listener behavior outside DeepChat.
 - Existing explicit restart and updater flows keep their current `relaunch` behavior; this policy
   applies only to uncaught main-process failures.
 
@@ -582,7 +609,8 @@ The synthetic fatal hook must remain test-only and must not ship as a production
 - Fatal state can no longer masquerade as a successful recovery.
 - Network UX gains a real owner that can keep status, retry, and caller outcomes consistent.
 - Tests can distinguish expected operational failures from process invariant failures.
-- Node remains the single termination owner; DeepChat adds no duplicate exit/reentrancy state machine.
+- One small DeepChat terminator owns bootstrap and process-event fatal paths; it adds no Electron
+  lifecycle or general recovery framework.
 - The change is small, has no migration, and can be reverted independently from future crash-recovery
   product work.
 
@@ -590,13 +618,15 @@ The synthetic fatal hook must remain test-only and must not ship as a production
 
 `FTL-002` has no schema or data migration. The safe rollback depends on the failing part:
 
-- if monitor formatting or logging regresses, remove the monitor while retaining removal of the two
-  fail-open listeners; Node still terminates correctly, only the extra diagnostic record is lost;
+- if formatting or optional file logging regresses, retain both prepended handlers and
+  `process.exit(1)`, then reduce diagnostics to the fixed `fs.writeSync` path;
+- do not remove the explicit terminator and rely on Node default: real Electron verification proved
+  that a framework listener can keep the process alive;
 - if rollout exposes a frequent unowned network rejection, repair that operation owner and add a
   regression test;
 - a full emergency revert may restore the previous application behavior, but it knowingly restores
   A-06 fail-open semantics and must carry a blocking follow-up. Do not add a network-message exemption
-  inside the monitor.
+  inside the terminator.
 
 Do not retain a runtime feature flag after validation. A feature flag would create two process
 semantics and make failures environment-dependent without solving ownership.
@@ -615,16 +645,22 @@ trust the normal lifecycle or wait for asynchronous hooks.
 
 ### Call `app.exit(1)` from custom fatal listeners
 
-Rejected after verification. It can be made to exit, but it first overrides Node's safer default and
-then rebuilds termination with Electron readiness, call ordering, reentrancy, and first-event state.
-`uncaughtExceptionMonitor` provides synchronous observation while making it impossible for an
-application listener to forget the exit.
+Rejected because the earliest fatal boundary should not import Electron or wait for `app` readiness.
+`process.exit(1)` is available in the built-in-only helper and gives the same immediate, no-cleanup
+semantics without another dependency.
+
+### Use `uncaughtExceptionMonitor` and Node's default exit
+
+Rejected by real Electron 40.10.5 evidence. Electron had already installed an
+`uncaughtException` listener; after the monitor returned, that listener consumed synchronous throws,
+non-`Error` rejections, and late-catch failures without terminating. `ELECTRON_RUN_AS_NODE=1` did exit,
+which proves why run-as-Node cannot stand in for a real Electron main-process harness.
 
 ### Add a first-event-wins guard
 
-Rejected because Node terminates on the fatal event. A guard is state for a second event that normal
-execution should never reach, and it can hide diagnostic behavior in tests. The monitor performs one
-bounded synchronous pass for each callback and owns no termination state.
+Rejected because production `process.exit(1)` in `finally` does not return. A guard would model a
+second pass that only exists when a test incorrectly mocks `process.exit` as returning. Installer
+idempotence is still required and is separate from fatal-event reentrancy.
 
 ### Automatically relaunch once
 
@@ -666,9 +702,12 @@ the time available.
 - Abrupt exit bypasses every graceful cleanup path listed above and can lose the latest in-flight
   operation. Cross-platform orphan and SQLite integrity checks reduce, but cannot eliminate, platform
   and third-party child-process risk.
-- The monitor is not literally the first instruction: its tiny module and Node built-in imports must
-  evaluate before listener installation. Failures there still receive Node's default fatal output but
-  no DeepChat-formatted record.
+- The handlers are not literally the first instructions: their tiny helper and Node built-in imports
+  must evaluate before installation. Failures there still receive framework/Node behavior but no
+  DeepChat guarantee or formatted record.
+- A future dependency that prepends another fatal listener after DeepChat could change ordering. The
+  real Electron harness checks identity at index `0` after normal startup, and that assertion must
+  remain a regression gate.
 - `electron-log` does not acknowledge file transport success. Even with opt-in, only the writable-path
   harness proves the tested case; `stderr` remains the unconditional diagnostic attempt.
 - A native main-process crash can occur before JavaScript handlers run. Crashpad or an external
