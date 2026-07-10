@@ -2,7 +2,7 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 文档状态 | 待实施 |
+| 文档状态 | 实施中 |
 | 审计基线 | `f9de202a`（`v1.0.8-beta.4`） |
 | 最新 `main` 复核基线 | `65bd1d6e` |
 | 合并后工作基线 | `ad597256` |
@@ -68,6 +68,9 @@
 | `BASE-001` | 已完成 | 无代码变更 | 同步 pnpm 依赖后 typecheck/lint 通过；基线全量测试为 4,463 passed / 5 failed | 5 个基线失败另立切片，不让不相关 PR 顺手修复 |
 | `CRD-001` | 已合入 | [#1921](https://github.com/ThinkInAIXYZ/deepchat/pull/1921) / `8b6506f8` | focused 5/5、typecheck、format、i18n、lint 通过；合入后全量 4,465 passed / 5 failed，失败集与基线完全一致 | 不响应 `AbortSignal` 且永不 settle 的底层任务仍会占用 lane；提前释放会破坏并发上限，强制终止属于任务 owner |
 | `ARC-001` | 已合入 | [#1923](https://github.com/ThinkInAIXYZ/deepchat/pull/1923) / `bcd5daff` | focused 21/21、typecheck、format、i18n、lint 通过；合入后全量 4,479 passed / 5 failed，失败集与基线完全一致 | 静态 literal/regex guard 不覆盖 computed import、CommonJS `require()` 和间接 helper；指标下降后需人工同步收紧 baseline，baseline 变更本身仍依赖 review |
+| `FTL-001` | 已合入 | [#1925](https://github.com/ThinkInAIXYZ/deepchat/pull/1925) / `1591737c` | 文档门禁全部通过；独立 real Electron 40.10.5 harness 证明 framework 会让 monitor/default-exit 方案继续存活，并验证最终 `prependListener` + `process.exit(1)` 机制 | `FTL-002` 必须固化 real Electron harness；macOS/Windows/Linux child tree 与 fatal-write SQLite 重启完整性无法由单主机测试完整覆盖，按 PR 描述作为 blocking smoke |
+| `PRM-001` | 已合入 | [#1926](https://github.com/ThinkInAIXYZ/deepchat/pull/1926) / `2f6efe1f` | focused prompt/env 179/179 与文档门禁通过；多轮独立复核闭合 mixed skill snapshot、hung mutation、双 200ms 串行等待等反例 | 外部文件写入到 watcher event 被观察前仍是 eventual-consistency window；实现已拆为 `PRM-002A`–`PRM-002C`，只在 C 完成后关闭 P-07 |
+| `CRD-002` | 已合入 | [#1927](https://github.com/ThinkInAIXYZ/deepchat/pull/1927) / `729d22fe` | focused 13/13、typecheck、format、i18n、lint 通过；合入后全量 4,487 passed / 5 failed，失败集与基线完全一致 | barrier 后提交的任务可按 contract 与 callback 重叠；忽略取消且永不 settle 的 captured task 会如实阻塞；真实冷启动 warmup 时序仍建议按 PR 步骤 smoke |
 
 ## 先反驳一种错误排法
 
@@ -140,8 +143,10 @@
 | 2 | `PRM-001` | P-07 | S | — | 写 `docs/issues/*/spec.md`，固定 env/skill revision 或 late-refresh invalidation contract 和失败测试 | spec 覆盖首次读取超时、late result、同名 skill 内容更新；无 `[NEEDS CLARIFICATION]` |
 | 3 | `CRD-001` | A-10 | S | — | 让 pending/running cancel 走统一 settlement，清理 dedupe record | 重复 create/cancel target 后 map/pending/runs 不增长；rejection 只 settle 一次 |
 | 4 | `CRD-002` | A-10 | M | `CRD-001` | 实现真正的 idle barrier，并定义等待开始后新任务是否属于当前 generation | deferred CPU + 2 IO 全部 settle 后才执行 callback；generation 边界有测试 |
-| 5 | `PRM-002` | P-07 | M | `PRM-001` | 按已确定 contract 修复外层 composed prompt cache | 真实双层 cache 测试覆盖首次读取超时、late result 和同名 skill 内容更新 |
-| 6 | `FTL-002` | A-06 | M | `FTL-001` | 把 network UX 错误处理移回请求 owner，顶层 fatal handler 只执行已决策策略 | network error 不走 fatal；非 network uncaught exception 和 unhandled rejection 均按策略落盘并退出/重启 |
+| 5a | `PRM-002A` | P-07 | M | `PRM-001` | 建 env/verification rendered snapshot、shared pending 和固定 30s retry；保留旧 string wrapper | 首读/late result/transient I/O/package.json 测试；两个 source 共享一个 200ms deadline；A 单独合入仍可运行 |
+| 5b | `PRM-002B` | P-07 | L | `PRM-002A` | 建 immutable skill runtime snapshot、LKG/quarantine/reconcile 和有界 stable epoch | invalid watcher/parse-null/rollback unknown/hung worker 均不暴露 mixed pair；现有 skill/tool tests 全过；B 单独合入仍不宣称 P-07 已修 |
+| 5c | `PRM-002C` | P-07 | M | `PRM-002A`, `PRM-002B` | 并行取得三类 snapshot，把同一 skill snapshot 接入 composed prompt 与 tool profile cache | 真实双层 cache 覆盖 timeout、late result、同名 skill/package scripts；只有 C 完成后关闭 P-07 |
+| 6 | `FTL-002` | A-06 | M | `FTL-001` | 把 network UX 错误处理移回请求 owner；最早 built-in-only handler 同步双 sink 后显式 `process.exit(1)` | owner-handled network error 不 fatal；real Electron 中 uncaught/rejection/import/start failure 均单次记录并 exit 1；跨平台 orphan 与 SQLite smoke 通过 |
 | 7 | `SES-001` | A-05 | M | — | 写 issue/architecture SDD，定义 `available/unavailable/transient_error/missing` 与旧 renderer compatibility | 先补失败测试：transient failure 保留 binding；永久未知 agent 不拖垮列表 |
 | 8 | `SCH-001` | A-04 | M | — | 写 architecture SDD，对 operation 分类为 cancellable、idempotent、non-cancellable | 每类 operation 的 timeout、retry、settlement、reconciliation contract 明确 |
 | 9 | `SCH-002` | A-04 | M | `SCH-001` | 改造 cancellable task API，让 owner 获得 `AbortSignal`；禁止 retry 与未结束 attempt 重叠 | deferred timeout/cancel/retry 测试证明上一 attempt 已终止或 operation 幂等 |
@@ -152,7 +157,7 @@
 ### P0 推荐执行方式
 
 - 第一批的 SDD/测试设计可并行：`PRM-001`、`FTL-001`、`SES-001`、`SCH-001`；`CRD-001`、`CRD-002` 可在同一模块内串行实现。
-- 第二批：`PRM-002`、`FTL-002` 可与 `SCH-002` 并行；`SES-002`、`SES-003` 与 Agent runtime/session 热路径任务串行，避免同文件冲突。
+- 第二批：`PRM-002A`–`PRM-002C` 严格串行；该链与 `FTL-002`、`SCH-002` 可按 owner 并行；`SES-002`、`SES-003` 与 Agent runtime/session 热路径任务串行，避免同文件冲突。
 - `SCH-003` 不应塞进 `SCH-002`；可取消 task 和不可取消 mutation 是两种不同 contract。
 
 ## P1：已证明热路径、数据库前提和增长护栏
@@ -260,7 +265,7 @@ Wave 0  Restore baseline and freeze growth
         BASE-001 → ARC-001
 
 Wave 1  P0 bounded fixes / decisions
-        PRM-001 → PRM-002 ─────────┐
+        PRM-001 → PRM-002A → 002B → 002C ┐
         CRD-001 → CRD-002 ─────────┤ parallel by owner
         FTL-001 → FTL-002 ─────────┤
         SES-001 → SES-002 → SES-003┤
@@ -336,7 +341,7 @@ Wave 5  Product/owner decisions and cleanup
 | A-03 | shared declaration 反向依赖 main，部分错误被 `skipLibCheck` 隐藏 | 先修真实声明错误并加 strict check，再随 domain 改动提取 | 减少升级/打包时才暴露的类型回归 | boundary 可被 CI 强制；初期会暴露一批存量错误 | `ARC-001`, `DCL-001`, `DCL-002` |
 | A-04 | timeout/retry 可让上一次 mutation 仍在运行，调用方却已重试 | 先区分可取消、幂等、不可取消 operation；前者传 `AbortSignal`，后者引入 operation identity/reconciliation | 减少重复创建、晚到结果和“界面说失败但后台成功” | contract 变清楚；代价是不可取消 mutation 需新状态和查询途径 | `SCH-001`–`SCH-003` |
 | A-05 | session 不存在、永久不可用、暂时失败都变成 `null`，可误解绑 | 定义四态 result，先改内部，再迁移 route/renderer 兼容 | 暂时故障不再让当前会话“消失”，真不可用时有明确说明 | 错误语义可测；代价是 schema/UI state 需迁移 | `SES-001`–`SES-003` |
-| A-06 | 为 network toast 安装的顶层 handler 会吞掉其他 fatal exception | network 错误回归请求 owner；顶层只做已决策的落盘、退出/重启 | 减少应用带着未知损坏状态继续运行 | fatal 可诊断；代价是某些真正 fatal 将变成可见退出/重启，不再假装可恢复 | `FTL-001`, `FTL-002` |
+| A-06 | 为 network toast 安装的顶层 handler 会吞掉其他 fatal exception | network 错误回归请求 owner；最早 process handler 只做 opt-in file log、同步 `stderr` 和 `process.exit(1)` | 减少应用带着未知损坏状态继续运行 | fatal 可诊断；代价是某些真正 fatal 会立即退出且跳过正常 cleanup，不自动重启 | `FTL-001`, `FTL-002` |
 | A-07 | HooksNotifications 两次构造，runtime bridge 长期指向 dummy instance | 选 late-bound dispatcher 或两阶段 `seal()`，用真实 Presenter factory 测试 | 避免部分 hook 通知在特定构造顺序下丢失 | 单一 identity；代价是需要重写构造时序测试 | `LIF-001`, `LIF-002` |
 | A-08 | event 文档、ambient sink 和 startup drop 语义不一致 | 先标记 event 是 ephemeral/replayable/durable；只在 query 无法回放 durable state 时引入 buffer/port | 启动阶段不再偶发丢必要状态 | 事件 contract 可解释；代价是 durable event 需 retention 和顺序策略 | `EVT-001`；`EVT-002` 条件执行 |
 | A-09 | shared FileWatcher utility 没有明确生产 teardown owner | 决定 process-final teardown 或零 active request idle-stop，再实施 | 长时运行/重启 watcher 后更少残留进程和句柄 | lifecycle 可测；代价是要覆盖多平台重启时序 | `LIF-003`, `LIF-004` |
@@ -348,7 +353,7 @@ Wave 5  Product/owner decisions and cleanup
 | P-03 | Tape 每次 ensure 都全量核对 message 和 tape | 增 migration version/source watermark，覆盖 crash、partial migration 和 live append | Tape 搜索/回放和发送不再重复打扫整段历史 | 无变化 ensure 进入 O(1)/增量路径；代价是 migration state 本身必须可恢复 | `TAP-001`–`TAP-003` |
 | P-04 | streaming 全量 snapshot 在 JSON/Zod/IPC/renderer/DB 放大 | 先用最新 main 重测；超预算后先 targeted fan-out/stable block/upsert，delta 最后 | 大输出/大 tool response 场景可能更顺，但不牺牲丢包后收敛 | 先拿数据再买复杂度；delta 需 revision/order/recovery，是最高代价备选 | `STR-001`；`STR-002` measurement gate 后执行 |
 | P-05/P-06 | keyset cursor 和 pending recovery 缺匹配 index，可扫描/排序大表 | 用 10k/100k fixture 选 index，再走旧 DB migration | 大历史数据时启动、迁移和恢复更可预期 | 读成本下降；代价是 index 占磁盘且增加写入成本，不能盲加 | `DB-001`, `DB-002` |
-| P-07 | 200ms 内层 fallback 被日级外层 cache 放大，late `AGENTS.md` 可整天不生效 | 先定义 revision/invalidation contract，再改 composed prompt cache | prompt/技能文档更新能按契约生效，不用重启碰运气 | 正确性收益大于纯性能；代价是可能增加少量有界重读 | `PRM-001`, `PRM-002` |
+| P-07 | 200ms 内层 fallback 被日级外层 cache 放大，late `AGENTS.md` 可整天不生效 | 先定义 snapshot/epoch contract，再依次交付 source snapshot、skill immutable snapshot 和 orchestration wiring | prompt/技能文档和相关 package scripts 按契约生效，不用重启碰运气 | 正确性收益大于纯性能；代价是显式 LKG/quarantine 状态和少量有界重读 | `PRM-001`, `PRM-002A`–`PRM-002C` |
 | P-08 | session list 缺 filter/order index，每行 Cron metadata 又 N+1 | 基于 DB-001 增复合 index，metadata 改 batch/join | 会话很多时首屏/翻页更稳定 | page query 数不再随行数线性增长；代价同样是 index 写放大 | `DB-001`, `SES-LIST-001`, `SES-LIST-002` |
 | P-09 | FTS 正常零结果也进入 structured/raw `%LIKE%` 扫描 | 分开 available、migration incomplete、zero-hit 和 throw | 搜不到内容时不再反而最慢 | fallback 语义与 spec 一致；代价是 migration 状态必须可查 | `SEA-001` |
 | P-10 | FFF 失败后新 query 仍重试，timeout 场景可重复付出 budget | 先分 native/init、workspace timeout、query-specific、transient IO，再做有界 cooldown/half-open | 大 workspace 连续输入时减少重复等待，好 query 不被坏 pattern 连坐 | breaker 有可恢复状态；代价是分类错了可压掉可恢复请求，必须先测 | `FFF-001`, `FFF-002`；`FFF-003` 条件执行 |
