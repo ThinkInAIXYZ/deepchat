@@ -2798,11 +2798,6 @@ onUnmounted(() => {
   --dc-blur-overlay: 12px;
 }
 
-.message-list-container.dc-list-scrolling .message-list-row {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 180px;
-}
-
 .agent-question-panel {
   isolation: isolate;
   border: 1px solid transparent;
