@@ -4,7 +4,8 @@ Status: decision complete; implementation is intentionally split into `SES-002` 
 
 Runtime owner: [`AgentSessionPresenter`](../../../src/main/presenter/agentSessionPresenter/index.ts)
 owns session-resolution classification. `NewSessionManager` owns persisted session existence and
-window binding; `AgentRepository` owns persisted agent identity; `AgentRuntimePresenter` owns runtime
+window binding; `AgentRegistry` owns the directly registered built-in runtime identity;
+`AgentRepository` owns persisted non-built-in Agent identity; `AgentRuntimePresenter` owns runtime
 state hydration; route services own bounded retry and renderer compatibility.
 
 Audit source:
@@ -38,7 +39,8 @@ GitHub issue sync: not requested; no GitHub issue was created.
 - 单个未知 Agent 不能让整个列表失败；
 - `transient_error` 绝不能解除 window 或 remote binding；
 - Agent 暂时不可执行，不等于会话记录不存在；
-- 只有权威的 session record miss，或用户明确关闭/删除，才允许解除 binding；
+- 只有权威的 session record miss、明确的 deactivate，或 remote binding owner 的明确解绑命令，
+  才允许解除 binding；
 - availability 与生成状态 `idle | generating | error` 是两套状态，不能混成一个 enum。
 
 这不是数据库重构，也不是 Agent 系统重写。`SES-002` 先让 main process 内部语义正确；
@@ -132,18 +134,21 @@ error 和真实 missing 都转成 null；[`ChatPage`](../../../src/renderer/src/
 - `removeManualAcpAgent()` 在有关联 session 时拒绝删除；
 - registry uninstall 在有关联 session 时拒绝清除安装。
 
-因此 `agent_type === null` 是确定的 catalog miss，但不能进一步猜测它来自用户删除、旧版本迁移、
-损坏数据还是未来 catalog 回补。
+因此，对没有直接 registry identity 的 Agent，`agent_type === null` 是确定的 catalog miss；但不能进一步
+猜测它来自用户删除、旧版本迁移、损坏数据还是未来 catalog 回补。
 
 ### One runtime implementation serves multiple Agent identities
 
-[`AgentRegistry`](../../../src/main/presenter/agentSessionPresenter/agentRegistry.ts) 当前只注册实际 runtime
-implementation。`resolveAgentImplementation()` 会先处理 ACP legacy alias，再查询 `getAgentType()`；已知
-`deepchat` 或 `acp` 都复用注册的 `deepchat` implementation。
+[`AgentRegistry`](../../../src/main/presenter/agentSessionPresenter/agentRegistry.ts) 当前只直接注册 built-in
+`deepchat` runtime implementation。`resolveAgentImplementation()` 的真实顺序是：先处理 ACP legacy alias，
+再检查 registry direct hit；`deepchat` direct hit 不读取 catalog。只有 direct miss 才查询
+`getAgentType()`，已知 `deepchat` 或 `acp` 都复用已注册的 `deepchat` implementation。
 
-所以“Agent id 没有单独注册 implementation”不是 unavailable。只有 authoritative catalog lookup
-返回 null 才是当前可证明的 `unavailable`。已知 catalog type 之后 registry 自身再抛错，属于 runtime
-resolution failure，应归为 `transient_error`，不能伪装成 Agent 永久缺失。
+`SES-002` 保留这个 fast path。直接注册的 built-in identity 是充分证据；不能为了统一代码形状而强制
+增加 catalog read。对其余 id，“没有单独注册 implementation”也不是 unavailable；只有 authoritative
+catalog lookup fulfilled null 才是当前可证明的 `unavailable`。catalog lookup 抛错，或已知 catalog type
+之后 registry resolve 抛错，都属于 indeterminate runtime resolution，应归为 `transient_error`，不能伪装成
+Agent 永久缺失。
 
 ### Disabled and not-installed are execution readiness, not session availability
 
@@ -231,10 +236,11 @@ error UI。
 
 ### Internal result
 
-`SES-002` 使用一个 exhaustive discriminated union。类型放在
-[`src/shared/types/agent-interface.d.ts`](../../../src/shared/types/agent-interface.d.ts)，因为
-`IAgentSessionPresenter` 的仓内声明位于 shared；但它只描述 main Presenter port，不自动成为 renderer
-route schema：
+`SES-002` 使用一个 exhaustive discriminated union。类型放在 Presenter port 的真实 owner
+[`src/shared/types/presenters/agent-session.presenter.d.ts`](../../../src/shared/types/presenters/agent-session.presenter.d.ts)，
+并由 `presenters/index.d.ts` 导出。它不放进通用 `agent-interface.d.ts`，避免把 main orchestration
+结果混进所有 Agent implementation 的 domain protocol。该类型只描述 main Presenter port，不自动成为
+renderer route schema：
 
 ```typescript
 type SessionResolutionStage =
@@ -282,7 +288,8 @@ internal `cause` 不跨 IPC。public schema 只保留稳定 code、stage 和 `re
 | Observation | Availability | Evidence rule | Retry |
 | --- | --- | --- | --- |
 | session record read returns no row | `missing` | authoritative `new_sessions.get(id)` miss | no automatic retry after a successful read |
-| record exists; alias-normalized `getAgentType()` returns null | `unavailable` | deterministic catalog miss | no immediate retry; re-evaluate on explicit refresh/config change |
+| record exists; alias-normalized id directly hits built-in registry entry | continue toward `available` | registered built-in runtime identity; do not add a catalog read | none |
+| record exists; registry direct miss; alias-normalized `getAgentType()` returns null | `unavailable` | deterministic persisted catalog miss | no immediate retry; re-evaluate on explicit refresh/config change |
 | record/catalog/runtime/state read throws | `transient_error` | result is indeterminate; error text is not classification evidence | bounded read-only retry where caller already owns one |
 | known Agent type resolves runtime and state read fulfills | `available` | full session snapshot built | none |
 | state read fulfills null | `available` compatibility snapshot | retained historical rule, not proof of failure | none |
@@ -295,8 +302,8 @@ No implementation may classify by matching strings such as `Agent not found`, `S
 | Owner | Responsibility | Must not do |
 | --- | --- | --- |
 | `NewSessionManager` | Read persistent record; own window binding identity | infer Agent availability; clear binding on a thrown read |
-| `AgentRepository` / `ConfigPresenter` | Resolve alias-normalized Agent identity/type | make `enabled` or install state mean session missing |
-| `AgentRegistry` | Resolve an implementation for a known Agent type | turn registry invariant failures into `agent_unknown` |
+| `AgentRepository` / `ConfigPresenter` | Resolve alias-normalized persisted Agent identity/type after a registry direct miss | make `enabled` or install state mean session missing |
+| `AgentRegistry` | Own directly registered built-in identity and resolve the shared implementation for known catalog types | turn registry invariant failures into `agent_unknown`; force built-in direct hits through catalog |
 | `AgentRuntimePresenter` | Return runtime state or a rejected state-read operation | decide window/remote binding lifecycle |
 | `AgentSessionPresenter` | Combine the evidence into exactly one four-state result | catch everything into null; parse error messages |
 | `SessionService` | Apply bounded read retry and map to route compatibility fields | mutate binding because a route cannot represent a state yet |
@@ -326,7 +333,7 @@ No implementation may classify by matching strings such as `Agent not found`, `S
 | Event/result | Binding action | Reason |
 | --- | --- | --- |
 | explicit `deactivateSession()` | clear | direct user/renderer intent |
-| authoritative session deletion or bound lookup returns `missing` | clear | persisted identity no longer exists |
+| bound lookup returns `missing`, including the first lookup after deletion | clear | persisted identity no longer exists |
 | `available` | retain | normal active session |
 | `unavailable` | retain | record exists and may recover after Agent restore/migration |
 | `transient_error` | retain | no evidence of deletion; destructive action is forbidden |
@@ -349,11 +356,19 @@ type ActiveSessionResolution =
 `binding: 'none'` is not `missing`; no session lookup was requested. If a bound lookup returns `missing`, the
 owner clears it and reports the missing resolution for that request so renderer can converge intentionally.
 
+当前 `deleteSessionInternal()` 删除 record，但 `NewSessionManager.delete()` 不扫描
+`windowBindings`，因此“delete 立即解绑所有窗口”不是现有事实。`SES-002` 采用最小一致决定：不新增
+sessionId → windows 的反向索引，也不把 A-13 的 destroyed-webContents 清理混进本任务。显式
+`deactivateSession()` 仍立即解绑；删除后的 main binding 在下一次 bound lookup 读到 authoritative
+`missing` 时清除。renderer 同时继续通过现有 `sessions.updated(reason='deleted')` 收敛本地 active state。
+测试必须覆盖这条 next-lookup convergence，且不能伪造 `deactivated` event。
+
 ### Remote binding
 
 Remote endpoint bindings use the same destructive-evidence rule:
 
-- clear only on explicit remote command/deletion or `missing`;
+- clear only on an explicit remote unbind/replace command or `missing`；删除同样通过下一次 lookup 的
+  `missing` 收敛；
 - retain on `unavailable` and `transient_error`;
 - do not auto-create a replacement session after transient failure;
 - do not tell the user “no longer exists” unless the result is `missing`.
@@ -362,9 +377,39 @@ This prevents a temporary lookup failure from silently switching a channel to a 
 
 ## API behavior
 
+### Authoritative APIs and legacy adapters
+
+`SES-002` does not change the meaning of an existing method in place. It adds three classified Presenter-port
+methods and makes them the authority for new main-process code:
+
+```typescript
+resolveSession(sessionId: string): Promise<SessionResolutionResult>
+resolveSessionList(filters?: SessionResolutionListFilters): Promise<SessionResolutionResult[]>
+resolveActiveSession(webContentsId: number): Promise<ActiveSessionResolution>
+```
+
+`SessionResolutionListFilters` is the current inline `getSessionList` filter shape promoted into the same
+Presenter declaration (`agentId`, `projectDir`, `includeSubagents`, `parentSessionId`); it is not the main-local
+route `SessionListFilters` type.
+
+The existing methods remain as explicitly named legacy adapters during this remediation branch:
+
+```typescript
+getSession(sessionId: string): Promise<SessionWithState | null>
+getSessionList(filters?: SessionResolutionListFilters): Promise<SessionWithState[]>
+getActiveSession(webContentsId: number): Promise<SessionWithState | null>
+```
+
+They delegate to `resolve*`, return only `available.session`, and map every other result to honest nullable/list
+shapes without an unsafe cast. `getActiveSession()` may clear a binding only because delegated
+`resolveActiveSession()` already proved `missing`; mapping unavailable/transient to null must not itself unbind.
+Keeping these adapters avoids a flag-day signature change while correctness-critical consumers move to the
+classified API. A source-level allowlist test prevents new production call sites from adopting the legacy
+adapters.
+
 ### `list`
 
-The internal full-list API returns classified results in the original record order.
+`resolveSessionList()` returns classified results in the original record order.
 
 - `available`: include full `SessionWithState`.
 - `unavailable`: include persistent `SessionRecord` plus `agent_unknown`; continue with the next row.
@@ -384,21 +429,34 @@ during `SES-003`; this task must not turn lightweight startup back into an N+1 r
 
 ### `get`
 
-An internal get always returns `SessionResolutionResult` and never fake-null-casts:
+`resolveSession()` always returns `SessionResolutionResult` and never fake-null-casts:
 
 - missing row -> `missing`;
 - row + unknown Agent -> `unavailable`;
 - thrown resolution/hydration -> `transient_error`;
 - completed snapshot -> `available`.
 
-Every main-process consumer must switch exhaustively. A consumer that only needs persistent fields may use the
-record carried by unavailable/transient results. A consumer that requires runtime fields must return a typed
-unavailable/transient outcome; it cannot call them missing.
+Correctness-sensitive main-process consumers switch exhaustively. A consumer that only needs persistent fields
+may use the record carried by unavailable/transient results. A consumer that requires runtime fields must return
+or reject with a typed unavailable/transient outcome; it cannot call them missing.
 
-Known affected consumers include route hot-path ports, `ChatService`, remote control, MCP session-context
-resolution, conversation search, `Presenter` tool runtime ports, hooks notification fallback enrichment and the
-floating-button full list. `SES-002` must grep and account for all direct and bound `getSession` consumers before
-changing the shared Presenter signature.
+The migration inventory is fixed before implementation:
+
+| Consumer | `SES-002` contract |
+| --- | --- |
+| route hot-path `SessionRepository` / `SessionService` | use all three `resolve*` methods; own bounded route retry and legacy route-field mapping |
+| `ChatService` send/steer lookup | use `resolveSession`; only `available` may start a mutation; preserve distinct typed missing/unavailable/transient errors |
+| `RemoteConversationRunner` current/use/snapshot/list | use `resolveSession` / `resolveSessionList`; retain binding and never create a replacement on unavailable/transient |
+| MCP session context and conversation search | use `resolveSession`; consume persistent record only where sufficient, otherwise surface a typed non-missing failure |
+| `Presenter` tool runtime workdir/session-info ports | use `resolveSession`; workdir may come from a carried record, runtime fields require available |
+| hooks notification fallback | adapt classified result to optional persistent fields; do not label transient as missing |
+| `SkillSessionStatePort.hasNewSession` | true for available/unavailable and transient with a record; false only for missing; propagate indeterminate record-read failure instead of returning false |
+| floating-button full list | intentionally remains on available-only `getSessionList` until that secondary renderer has an availability UI; it is the sole production list-adapter allowlist entry |
+| tests and third-party Presenter mocks | legacy methods remain type-compatible; new contract tests target `resolve*` directly |
+
+`SES-002` must grep direct calls and bound references before commit. After migration, the allowlist names every
+remaining production legacy-adapter call site; an unexplained `getSession*` call is a failing test, not an implicit
+compatibility decision.
 
 ### `getActive`
 
@@ -442,8 +500,12 @@ The compatibility mapping is explicit and typed:
 | `unavailable` | null / omitted from legacy list |
 | exhausted `transient_error` | null / omitted from legacy list, plus structured main diagnostic |
 
-This temporary mapping is allowed only at the route adapter. It must not reintroduce an unsafe cast or mutate
-binding. `SES-003` removes the information loss for new renderer code.
+Information-loss mapping is allowed only in the named compatibility boundaries: `SessionService` legacy route
+fields and the three Presenter legacy adapters above. It must not reintroduce an unsafe cast or mutate binding.
+The floating-button call site is explicitly allowlisted because it consumes the available-only list adapter;
+no other production caller may silently filter a classified result. `SES-003` removes the route information loss
+for the primary renderer. Removal of the Presenter adapters is a later compatibility cleanup, not hidden inside
+`SES-003`.
 
 ### `SES-003`: additive public result
 
@@ -498,6 +560,12 @@ it is not part of `SES-003`.
 - compatibility field absent: use legacy `session` behavior, but never invent a missing classification from a
   generic rejection.
 
+A rejected legacy/new route invocation has no `PublicSessionResolution` payload and therefore cannot prove any
+public state. The renderer records a renderer-local transient refresh failure, retains active id/sidebar row and
+cached messages, disables send, and shows the same Retry surface. It must not fabricate a public `stage` or emit
+deactivate/navigation. This covers old-main development/HMR, message-page read failures and transport failures
+without adding `route_read` to the main resolution enum.
+
 UI layout target:
 
 ```text
@@ -538,7 +606,20 @@ reinstall, migration or auto-move wizard.
 
 ### Main diagnostics
 
-Each terminal non-available lookup records one structured diagnostic at the owner boundary:
+Classification and terminal reporting are separate. `resolveSession()` and the per-record classifier never log;
+they cannot know whether a retry owner will make another attempt. A single shared
+`reportTerminalSessionResolution(operation, result, attemptCount)` helper is called only after the boundary has
+accepted the result as terminal:
+
+| Boundary | Diagnostic owner |
+| --- | --- |
+| `SessionService.restore/getActive` | route service, once after immediate unavailable/missing or exhausted transient retry |
+| classified Chat/MCP/search/tool/hook lookup | the service that converts the result to its terminal return/rejection |
+| remote current/use/snapshot lookup | `RemoteConversationRunner`, once before its terminal remote outcome |
+| `resolveSessionList` consumer | list boundary, once per non-available row after the no-per-row-retry decision |
+| legacy Presenter adapter | the adapter itself, once; a caller must not log the same resolution again |
+
+Each terminal non-available lookup records one structured diagnostic:
 
 - `sessionId`
 - `agentId` when a record exists
@@ -546,10 +627,12 @@ Each terminal non-available lookup records one structured diagnostic at the owne
 - `stage`
 - stable error `code`
 - attempt count when retry ran
-- original `cause` through the existing logger object path
+- original `cause` through the existing logger object path for transient errors only
 
-List isolation must avoid duplicate warnings from both inner classifier and outer adapter. One failed row produces
-one terminal diagnostic per list request, not one per layer or retry attempt.
+Unavailable/missing diagnostics infer their stable stage (`agent_lookup` / `record_read`) and have no fabricated
+cause. List isolation must avoid duplicate warnings from both classifier and adapter. One failed row produces one
+terminal diagnostic per list request, not one per layer or retry attempt. Tests spy on the shared helper/logger to
+prove a transient-first/success-second retry emits no terminal error and an exhausted retry emits exactly one.
 
 ### Renderer payload
 
@@ -572,13 +655,20 @@ It does not display JavaScript error text as product copy.
 
 Scope:
 
-1. Add the internal four-state result and a single classification path in `AgentSessionPresenter`.
-2. Separate authoritative catalog null from thrown catalog/runtime/state errors without string matching.
-3. Remove `null as unknown as SessionWithState`.
-4. Change internal get/list/active contracts and update every main-process consumer exhaustively.
-5. Preserve window and remote bindings for unavailable/transient results; clear only on missing/explicit action.
-6. Make existing restore retry observe `transient_error`; add the bounded active read retry.
-7. Keep current route schemas and add only typed compatibility mapping.
+1. Add the Presenter-port four-state result and authoritative `resolveSession`, `resolveSessionList` and
+   `resolveActiveSession` paths in `AgentSessionPresenter`.
+2. Preserve the registered built-in fast path; separate non-built-in authoritative catalog null from thrown
+   catalog/registry/runtime/state errors without string matching.
+3. Remove `null as unknown as SessionWithState` and implement the three existing `get*` methods as typed legacy
+   adapters over `resolve*`.
+4. Migrate the fixed consumer inventory to classified APIs; keep only the allowlisted floating-button list caller
+   on a legacy adapter and prevent new production legacy call sites.
+5. Preserve window and remote bindings for unavailable/transient results; clear only on missing/explicit
+   deactivate or remote unbind. Preserve deletion's existing next-lookup convergence rather than adding a binding
+   reverse index.
+6. Make existing restore retry observe `transient_error`; add the bounded active read retry and terminal-only
+   diagnostic ownership.
+7. Keep current route schemas and add only typed compatibility mapping at named adapters.
 8. Keep lightweight list record-only and preserve ordering/startup cost.
 
 Exit condition: main code contains the four states and no destructive caller still treats
@@ -604,7 +694,8 @@ all four public states are testable without production fault injection.
 
 ### `SES-002`
 
-- [ ] Record exists and `getSessionState()` rejects: result is `transient_error`, not null/unavailable.
+- [ ] Record exists and `getSessionState()` rejects: `resolveSession()` returns `transient_error`, not
+      null/unavailable; legacy `getSession()` maps it to null without a cast or unbind.
 - [ ] Bound window plus transient state read: lookup may retry, but `getActiveSessionId()` remains unchanged and
       `unbindWindow()` is not called.
 - [ ] A transient first attempt followed by success returns available and keeps the same binding throughout.
@@ -612,6 +703,10 @@ all four public states are testable without production fault injection.
       with one terminal diagnostic.
 - [ ] Record read throws before existence is known: active binding is retained.
 - [ ] Record read returns no row: result is missing and bound active lookup clears binding.
+- [ ] Explicit delete does not fabricate `deactivated`; the next bound lookup returns missing and clears the stale
+      window binding exactly once.
+- [ ] Built-in `deepchat` direct registry hit resolves without calling catalog lookup even when the catalog stub
+      would return null or throw.
 - [ ] Catalog lookup returns null for one record while another is healthy: full list returns unavailable +
       available results and never rejects the list.
 - [ ] Catalog lookup throws: classify transient_error, not unavailable.
@@ -622,9 +717,13 @@ all four public states are testable without production fault injection.
 - [ ] One state-read rejection does not stop hydration/classification of later list rows.
 - [ ] Lightweight list returns unknown-Agent records without runtime hydration or extra retry.
 - [ ] Remote binding survives unavailable/transient lookup and clears only on missing.
-- [ ] Chat/tool/search/hook consumers use exhaustive resolution handling and never report transient as “not
-      found”.
-- [ ] Source/type guard proves the unsafe fake-null cast is absent.
+- [ ] Chat/tool/search/hook/skill consumers use exhaustive resolution handling and never report transient as “not
+      found”; an indeterminate `hasNewSession` read is not returned as false.
+- [ ] `getSessionList()` remains available-only for the allowlisted floating button, while
+      `resolveSessionList()` returns unknown/transient rows in original order.
+- [ ] Terminal diagnostic spy proves transient-first/success-second logs none and exhausted transient logs once.
+- [ ] Source/type guard proves the unsafe fake-null cast is absent and no unallowlisted production call site uses
+      legacy `getSession*`.
 
 ### `SES-003`
 
@@ -633,6 +732,8 @@ all four public states are testable without production fault injection.
 - [ ] `getActive.resolution === null` means unbound and is distinct from a bound missing result.
 - [ ] New main output with additive fields passes a captured legacy route output schema; unknown keys are ignored.
 - [ ] New renderer handles route payloads without `resolution` by using the legacy fields.
+- [ ] A legacy/new route rejection with no resolution becomes a renderer-local transient state, keeps active id
+      and cached messages, and does not navigate, deactivate or fabricate a main `stage`.
 - [ ] Legacy `session` and `sessions` fields exactly match their current available-only/null contract.
 - [ ] Unknown Agent produces an unavailable list result while healthy sessions remain ordered and visible.
 - [ ] Selecting an unavailable session keeps active id/sidebar row, disables send and renders unavailable copy.
@@ -645,19 +746,27 @@ all four public states are testable without production fault injection.
 
 ## Acceptance criteria
 
-- [ ] `SessionResolutionResult` is exhaustive and is the only main-process output of session resolution.
+- [ ] `SessionResolutionResult` is exhaustive and is the authoritative main-process output of `resolve*`;
+      nullable/available-only loss exists only in the three named legacy Presenter adapters and legacy route
+      fields.
 - [ ] There is no `null as unknown as SessionWithState` or equivalent fake non-null cast.
 - [ ] A deterministic unknown Agent never rejects a session list and never hides healthy rows.
+- [ ] The registered built-in Agent fast path remains catalog-read-free; catalog authority applies after a
+      registry direct miss.
 - [ ] A state/catalog/runtime throw is never classified from error text and never clears window or remote binding.
 - [ ] Missing is produced only from an authoritative session-record miss.
-- [ ] Explicit deactivation and deletion still clear their binding as before.
+- [ ] Explicit deactivation clears immediately; deletion keeps the current no-reverse-index behavior and its next
+      bound lookup clears on authoritative missing without a fake deactivation event.
 - [ ] Disabled/uninstalled execution state is not conflated with session availability.
 - [ ] Fulfilled null runtime state keeps the documented compatibility mapping for this remediation.
 - [ ] Restore retry actually makes its second attempt for transient resolution and does not retry unavailable/missing.
 - [ ] List does not add per-row retries or turn lightweight startup into runtime N+1 hydration.
-- [ ] Every direct/bound `getSession` consumer is migrated or is behind an explicitly named compatibility adapter.
+- [ ] Every direct/bound session consumer uses `resolve*` or appears in the explicit legacy-adapter allowlist;
+      floating-button full list is the only production available-only list caller.
+- [ ] Terminal diagnostics are emitted once per terminal boundary, never per retry attempt or classifier layer.
 - [ ] New route fields are additive and sanitized; legacy fields remain parseable by the old schemas.
 - [ ] New renderer displays unavailable/transient/missing distinctly and never clears identity on transient failure.
+- [ ] A route rejection without a public resolution is renderer-local transient state, never fabricated missing.
 - [ ] Focused tests, typecheck, format, i18n and lint pass; full test failures do not grow beyond the branch baseline.
 
 ## Migration and rollback
@@ -674,10 +783,33 @@ No existing session, Agent, binding or message is rewritten by either PR.
 1. Merge `SES-002` alone. Existing renderer and route schemas continue to run; binding semantics become safer.
 2. Validate main unit/integration tests and full branch baseline.
 3. Merge `SES-003`. New renderer reads additive public fields; legacy fields remain.
-4. Validate packaged startup/session selection for available, injected transient and unknown-Agent fixtures.
+4. Validate normal available startup/session selection in the release-equivalent packaged binary. Validate
+   unavailable/transient packaged behavior only through the non-release fixture build described below; never add
+   a runtime fault switch to the shipped binary.
 
 The two PRs must not be squashed into one large source/UI rewrite. The intermediate state is deliberately runnable
 and reviewable.
+
+### Packaged fixture strategy
+
+The release binary must not accept an environment variable, debug route or user-visible command that fabricates
+session availability. Existing `debug.createMockChatSession` is disabled when `app.isPackaged`, so it cannot be
+claimed as packaged fault coverage.
+
+If `SES-003` includes packaged unavailable/transient automation, it builds a separate unsigned, non-publishable
+E2E fixture artifact. Its test-only main composition injects a `SessionResolutionFixturePort` before packaging:
+
+- `unknown-agent` seeds a persistent session record whose non-built-in Agent lookup fulfills null;
+- `transient-once` rejects the selected session state read once, then delegates to the real implementation;
+- `transient-always` rejects every selected read for the test lifetime;
+- the port is selected at build time, has no IPC/debug route, and is absent from the release main entry;
+- Playwright launches the fixture artifact with a disposable `DEEPCHAT_E2E_USER_DATA_DIR` and asserts identity,
+  cached-message, Retry and no-navigation/no-replacement behavior.
+
+The normal packaged smoke still runs against the release-equivalent artifact. If the non-release fixture artifact
+is not implemented in `SES-003`, unit and dispatcher-to-store integration remain the automated evidence, and the
+PR description must state that packaged unknown/transient injection is unverified. It must not claim complete
+packaged automation or add a production fault-injection flag merely to turn that row green.
 
 ### Rollback
 
@@ -721,6 +853,9 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 | Persist availability in SQLite | reject | Runtime health is derived and mutable; a stored value would become a second stale truth. |
 | Hydrate every lightweight sidebar item | reject | Reverses the startup optimization and reintroduces runtime N+1 reads. |
 | Redesign AgentRegistry into one implementation per Agent | reject | Current shared implementation is intentional and unrelated to the null-collapse defect. |
+| Force the registered built-in id through catalog lookup | reject | Changes a working direct registry identity into an extra DB/init dependency and contradicts the current fast path. |
+| Change `getSession/getSessionList/getActiveSession` return types in place | reject | Forces every consumer into one large commit; additive `resolve*` methods permit a bounded, allowlisted compatibility window. |
+| Add a sessionId → windows reverse index only for deletion | defer | Deletion already converges through authoritative missing; a second binding index expands A-13 lifecycle scope. |
 | Expose raw `Error` to renderer | reject | Leaks implementation details and produces unstable product copy. |
 | Create parallel `sessions.resolve*` routes | reject | Additive fields on existing typed routes provide staged compatibility without a duplicate API family. |
 | Add a feature flag | reject | There is no irreversible data migration; a flag would create two binding semantics and double the test matrix. |
@@ -738,7 +873,9 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 - No AgentRuntimePresenter split or route-root extraction.
 - No change to session list sorting, pagination or database indexes.
 - No window-binding map cleanup for destroyed webContents; A-13 remains separate.
+- No sessionId → window reverse index; deletion uses the documented next-lookup missing convergence.
 - No long-term removal of legacy route fields in `SES-003`.
+- No removal of Presenter legacy `get*` adapters until their explicit allowlist reaches zero in a later cleanup.
 
 ## Task checklist
 
@@ -754,19 +891,20 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 ### Implementation (`SES-002`)
 
 - [ ] Add failing main tests from this spec.
-- [ ] Implement internal four-state result and exhaustive consumer migration.
-- [ ] Remove unsafe cast and preserve list isolation.
-- [ ] Fix window and remote binding decisions.
+- [ ] Implement Presenter-port four-state `resolve*` APIs plus typed legacy adapters.
+- [ ] Migrate the fixed consumer inventory, enforce the legacy allowlist and preserve list isolation.
+- [ ] Remove unsafe cast and preserve the built-in registry fast path.
+- [ ] Fix window and remote binding decisions without adding a deletion reverse index.
 - [ ] Activate bounded transient read retry.
-- [ ] Keep legacy route shapes and run repository validation.
+- [ ] Enforce terminal-only diagnostics, keep legacy route shapes and run repository validation.
 
 ### Renderer contract (`SES-003`)
 
 - [ ] Add failing schema/compatibility/store tests.
 - [ ] Add sanitized additive route fields.
 - [ ] Implement renderer availability state and minimal UI.
-- [ ] Preserve cached data/binding on transient error.
-- [ ] Add i18n and packaged smoke instructions.
+- [ ] Preserve cached data/binding on public or renderer-local transient error.
+- [ ] Add i18n, normal packaged smoke and optional non-release fixture-artifact coverage.
 - [ ] Run repository validation and compare full-suite failures with branch baseline.
 
 ## Validation for this decision PR
@@ -781,10 +919,13 @@ This PR changes documentation only. Its validation gates are:
 Independent review should verify the spec against current source and history, especially these counterexamples:
 
 - disabled Agent row is still catalog-resolvable;
+- built-in `deepchat` is a registry direct hit and does not read catalog;
 - state-read rejection is not proof of Agent absence;
+- deletion does not currently scan or immediately clear `windowBindings`;
 - fulfilled null runtime state has historical compatibility semantics;
 - lightweight list avoids the full hydration path but does not fix active/restore/remote binding;
-- old Zod object parsing accepts additive output keys.
+- old Zod object parsing accepts additive output keys;
+- floating-button full list is the one intentional production legacy-list adapter caller.
 
 ## Residual product boundary
 
