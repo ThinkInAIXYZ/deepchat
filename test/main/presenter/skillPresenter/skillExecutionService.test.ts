@@ -48,6 +48,16 @@ import { spawn } from 'child_process'
 import * as shellEnvHelper from '../../../../src/main/lib/agentRuntime/shellEnvHelper'
 import { rtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRuntimeService'
 
+class MockProbeChild extends EventEmitter {
+  pid: number | undefined
+  kill = vi.fn(() => true)
+
+  constructor(pid?: number) {
+    super()
+    this.pid = pid
+  }
+}
+
 describe('SkillExecutionService', () => {
   let skillPresenter: ISkillPresenter
   let service: SkillExecutionService
@@ -226,7 +236,8 @@ describe('SkillExecutionService', () => {
   })
 
   it('bounds command probes and preserves successful availability', async () => {
-    const child = new EventEmitter()
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
     vi.mocked(spawn).mockReturnValue(child as never)
 
     const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
@@ -234,22 +245,25 @@ describe('SkillExecutionService', () => {
     expect(spawn).toHaveBeenCalledWith('node', ['--version'], {
       env: { PATH: '/bin' },
       stdio: 'ignore',
-      shell: false,
-      timeout: 5_000,
-      killSignal: 'SIGKILL'
+      shell: false
     })
     child.emit('close', 0)
 
     await expect(resultPromise).resolves.toBe(true)
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(child.kill).not.toHaveBeenCalled()
     expect(child.listenerCount('error')).toBe(0)
     expect(child.listenerCount('close')).toBe(0)
   })
 
   it('resolves a timed-out command probe as unavailable after close', async () => {
-    const child = new EventEmitter()
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
     vi.mocked(spawn).mockReturnValue(child as never)
 
     const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
     child.emit('close', null, 'SIGKILL')
 
     await expect(resultPromise).resolves.toBe(false)
@@ -258,7 +272,7 @@ describe('SkillExecutionService', () => {
   })
 
   it('settles a failed command probe once after error and close', async () => {
-    const child = new EventEmitter()
+    const child = new MockProbeChild()
     const settled = vi.fn()
     vi.mocked(spawn).mockReturnValue(child as never)
 
@@ -275,6 +289,44 @@ describe('SkillExecutionService', () => {
 
     await expect(resultPromise).resolves.toBe(false)
     expect(settled).toHaveBeenCalledTimes(1)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
+  it('bounds a kill failure when the command probe never closes', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    child.kill.mockReturnValue(false)
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    await vi.advanceTimersByTimeAsync(6_000)
+
+    await expect(resultPromise).resolves.toBe(false)
+    expect(child.kill).toHaveBeenCalledTimes(1)
+    expect(child.listenerCount('error')).toBe(1)
+    expect(child.listenerCount('close')).toBe(1)
+
+    child.emit('close', null)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
+  it('bounds a child error when the command probe never closes', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    child.emit('error', new Error('kill failed'))
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    await expect(resultPromise).resolves.toBe(false)
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(child.listenerCount('error')).toBe(1)
+    expect(child.listenerCount('close')).toBe(1)
+
+    child.emit('close', null)
     expect(child.listenerCount('error')).toBe(0)
     expect(child.listenerCount('close')).toBe(0)
   })

@@ -709,7 +709,9 @@ describe('WorkspacePresenter Git process limits', () => {
     fs.writeFileSync(filePath, 'new content')
     const timeoutError = Object.assign(new Error('Git timed out'), {
       killed: true,
-      signal: 'SIGKILL'
+      signal: 'SIGKILL',
+      code: 1,
+      stdout: 'partial diff that must not escape\n'
     })
     execFileMock.mockImplementation(
       (

@@ -2,46 +2,29 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { describe, expect, it } from 'vitest'
+import {
+  captureMarkedProcessIdentity,
+  getProcessIdentityStatus,
+  killMarkedChildIfStillOwned,
+  type MarkedProcessIdentity
+} from '../lib/processIdentity'
 
-const DIRECT_CHILD_TIMEOUT_MS = 100
-const TEST_GRACE_MS = 1_000
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
-  }
-}
-
-async function waitForReap(pid: number): Promise<void> {
-  const deadline = Date.now() + TEST_GRACE_MS
-  while (isProcessAlive(pid) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  expect(isProcessAlive(pid)).toBe(false)
-}
-
-async function killMarkedSurvivor(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return
-  child.kill('SIGKILL')
-  await Promise.race([
-    once(child, 'close'),
-    new Promise((resolve) => setTimeout(resolve, TEST_GRACE_MS))
-  ])
-}
+const DIRECT_CHILD_TIMEOUT_MS = process.platform === 'win32' ? 8_000 : 2_000
+const TEST_GRACE_MS = 2_000
+const SELF_EXIT_MS = DIRECT_CHILD_TIMEOUT_MS + TEST_GRACE_MS * 2
+const HANG_SCRIPT = `setTimeout(() => process.exit(97), ${SELF_EXIT_MS}); setInterval(() => {}, 1000)`
 
 describe('PTG-H0 native direct-child timeout contract', () => {
   it('execFile settles once only after its marked direct child is reaped', async () => {
     const marker = `ptg-h0-exec-file-${randomUUID()}`
     let callbackCount = 0
     let child!: ChildProcess
+    let identity: MarkedProcessIdentity | null = null
 
     const completion = new Promise<Error>((resolve) => {
       child = execFile(
         process.execPath,
-        ['-e', 'setInterval(() => {}, 1000)', marker],
+        ['-e', HANG_SCRIPT, marker],
         { timeout: DIRECT_CHILD_TIMEOUT_MS, killSignal: 'SIGKILL' },
         (error) => {
           callbackCount += 1
@@ -49,61 +32,53 @@ describe('PTG-H0 native direct-child timeout contract', () => {
         }
       )
     })
-    const identity = {
-      pid: child.pid!,
-      marker,
-      startedAtNs: process.hrtime.bigint(),
-      spawnfile: child.spawnfile
-    }
 
     try {
+      identity = await captureMarkedProcessIdentity(child.pid!, marker)
       const error = (await completion) as Error & { killed?: boolean; signal?: string }
-      await waitForReap(identity.pid)
-      await new Promise((resolve) => setTimeout(resolve, DIRECT_CHILD_TIMEOUT_MS + 20))
+      const finalStatus = await getProcessIdentityStatus(identity)
+      await new Promise((resolve) => setTimeout(resolve, 20))
 
-      expect(identity).toEqual({
-        pid: expect.any(Number),
-        marker,
-        startedAtNs: identity.startedAtNs,
-        spawnfile: process.execPath
-      })
-      expect(typeof identity.startedAtNs).toBe('bigint')
+      expect(identity.pid).toBe(child.pid)
+      expect(identity.marker).toBe(marker)
+      expect(identity.startIdentity).not.toBe('')
+      expect(identity.commandLine).toContain(marker)
+      expect(finalStatus).not.toBe('match')
       expect(error.killed).toBe(true)
       expect(error.signal).toBe('SIGKILL')
       expect(callbackCount).toBe(1)
     } finally {
-      await killMarkedSurvivor(child)
+      if (identity) await killMarkedChildIfStillOwned(child, identity, TEST_GRACE_MS)
     }
-  })
+  }, 15_000)
 
   it('spawn emits one close only after its marked direct child is reaped', async () => {
     const marker = `ptg-h0-spawn-${randomUUID()}`
-    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', marker], {
+    const child = spawn(process.execPath, ['-e', HANG_SCRIPT, marker], {
       stdio: 'ignore',
       timeout: DIRECT_CHILD_TIMEOUT_MS,
       killSignal: 'SIGKILL'
     })
-    const identity = {
-      pid: child.pid!,
-      marker,
-      startedAtNs: process.hrtime.bigint(),
-      spawnfile: child.spawnfile
-    }
+    let identity: MarkedProcessIdentity | null = null
     let closeCount = 0
     child.on('close', () => {
       closeCount += 1
     })
 
     try {
+      identity = await captureMarkedProcessIdentity(child.pid!, marker)
       const [code, signal] = (await once(child, 'close')) as [number | null, string | null]
-      await waitForReap(identity.pid)
-      await new Promise((resolve) => setTimeout(resolve, DIRECT_CHILD_TIMEOUT_MS + 20))
+      const finalStatus = await getProcessIdentityStatus(identity)
+      await new Promise((resolve) => setTimeout(resolve, 20))
 
+      expect(identity.startIdentity).not.toBe('')
+      expect(identity.commandLine).toContain(marker)
+      expect(finalStatus).not.toBe('match')
       expect(code).toBeNull()
       expect(signal).toBe('SIGKILL')
       expect(closeCount).toBe(1)
     } finally {
-      await killMarkedSurvivor(child)
+      if (identity) await killMarkedChildIfStillOwned(child, identity, TEST_GRACE_MS)
     }
-  })
+  }, 15_000)
 })

@@ -30,6 +30,7 @@ const FOREGROUND_PREVIEW_CHARS = 12000
 const FOREGROUND_KILL_GRACE_MS = 2000
 const FOREGROUND_FORCE_SETTLE_MS = 500
 const COMMAND_PROBE_TIMEOUT_MS = 5_000
+const COMMAND_PROBE_REAP_GRACE_MS = 1_000
 
 export interface SkillRunRequest {
   skill: string
@@ -691,27 +692,100 @@ export class SkillExecutionService {
       const child = spawn(command, args, {
         env,
         stdio: 'ignore',
-        shell: false,
-        timeout: COMMAND_PROBE_TIMEOUT_MS,
-        killSignal: 'SIGKILL'
+        shell: false
       })
 
       let spawnFailed = false
       let settled = false
+      let stopRequested = false
+      let timeoutId: NodeJS.Timeout | null = null
+      let reapTimeoutId: NodeJS.Timeout | null = null
 
-      const onError = () => {
-        spawnFailed = true
+      const cleanupTimers = () => {
+        if (timeoutId) clearTimeout(timeoutId)
+        if (reapTimeoutId) clearTimeout(reapTimeoutId)
+        timeoutId = null
+        reapTimeoutId = null
       }
-      const onClose = (code: number | null) => {
-        if (settled) return
-        settled = true
+
+      const cleanup = () => {
+        cleanupTimers()
         child.removeListener('error', onError)
         child.removeListener('close', onClose)
-        resolve(!spawnFailed && code === 0)
       }
 
-      child.once('error', onError)
+      const settle = (available: boolean, keepChildOwnership = false) => {
+        if (settled) return
+        settled = true
+        if (keepChildOwnership) cleanupTimers()
+        else cleanup()
+        resolve(available)
+      }
+
+      const requestStop = (reason: 'timeout' | 'child_error') => {
+        if (stopRequested || settled) return
+        stopRequested = true
+
+        let killSent = false
+        try {
+          killSent = child.kill('SIGKILL')
+        } catch (error) {
+          logger.error('[SkillExecutionService] Failed to kill command probe', {
+            command,
+            pid: child.pid,
+            reason,
+            error
+          })
+        }
+
+        reapTimeoutId = setTimeout(() => {
+          logger.error('[SkillExecutionService] Command probe termination was not confirmed', {
+            command,
+            pid: child.pid,
+            reason,
+            killSent
+          })
+          // Keep the child listeners until a late close confirms reap. The caller remains bounded,
+          // but the still-parented child is not silently abandoned after an unconfirmed kill.
+          settle(false, true)
+        }, COMMAND_PROBE_REAP_GRACE_MS)
+      }
+
+      const onError = (error: Error) => {
+        spawnFailed = true
+        if (settled) {
+          logger.error(
+            '[SkillExecutionService] Command probe error after unconfirmed termination',
+            {
+              command,
+              pid: child.pid,
+              error
+            }
+          )
+          return
+        }
+        if (child.pid == null) {
+          settle(false)
+          return
+        }
+        logger.error('[SkillExecutionService] Command probe child error', {
+          command,
+          pid: child.pid,
+          error
+        })
+        requestStop('child_error')
+      }
+      const onClose = (code: number | null) => {
+        if (settled) {
+          cleanup()
+          return
+        }
+        settle(!spawnFailed && !stopRequested && code === 0)
+      }
+
+      child.on('error', onError)
       child.once('close', onClose)
+      timeoutId = setTimeout(() => requestStop('timeout'), COMMAND_PROBE_TIMEOUT_MS)
     })
   }
 
