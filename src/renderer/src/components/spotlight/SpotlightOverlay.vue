@@ -1,122 +1,133 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="spotlightStore.open"
-      class="window-no-drag-region fixed inset-0 z-[90] flex items-start justify-center px-4 pt-16"
-      @mousedown.self="spotlightStore.closeSpotlight()"
-    >
+    <Transition name="dc-spotlight">
       <div
-        class="spotlight-panel window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl backdrop-blur-[26px]"
+        v-if="spotlightStore.open"
+        class="spotlight-overlay window-no-drag-region fixed bottom-0 right-0 top-0 flex items-start justify-center px-4 pt-16"
+        :style="overlayStyle"
+        @mousedown.self="spotlightStore.closeSpotlight()"
       >
-        <div class="flex items-center gap-3 border-b border-border/60 px-4 py-3">
-          <Icon icon="lucide:search" class="h-4 w-4 shrink-0 text-muted-foreground" />
-          <input
-            ref="inputRef"
-            :value="spotlightStore.query"
-            class="h-9 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            :placeholder="t('chat.spotlight.placeholder')"
-            @input="spotlightStore.setQuery(($event.target as HTMLInputElement).value)"
-            @keydown="handleKeydown"
-          />
-        </div>
-
-        <div ref="resultsContainerRef" class="max-h-[28rem] overflow-y-auto p-2">
-          <template v-if="spotlightStore.results.length > 0">
-            <button
-              v-for="(item, index) in spotlightStore.results"
-              :key="item.id"
-              v-memo="[item, index === spotlightStore.activeIndex, spotlightStore.query]"
-              type="button"
-              class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left"
-              :class="
-                index === spotlightStore.activeIndex
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-foreground/90'
-              "
-              :data-spotlight-active="index === spotlightStore.activeIndex ? 'true' : undefined"
-              @mouseenter="handleItemMouseEnter(item)"
-              @mousedown="handleItemMouseDown($event, item)"
-              @click="handleItemClick(item)"
-            >
-              <span
-                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background"
-              >
-                <Icon :icon="item.icon" class="h-4 w-4 text-muted-foreground" />
-              </span>
-
-              <span class="min-w-0 flex-1">
-                <span class="flex items-center gap-2">
-                  <span class="truncate text-sm font-medium">
-                    <template
-                      v-for="(segment, segmentIndex) in highlightSegments(resolveItemTitle(item))"
-                      :key="`${item.id}-title-${segmentIndex}`"
-                    >
-                      <mark v-if="segment.match" class="rounded bg-primary/15 px-0.5 text-inherit">
-                        {{ segment.text }}
-                      </mark>
-                      <template v-else>{{ segment.text }}</template>
-                    </template>
-                  </span>
-                  <span
-                    class="shrink-0 rounded-full border border-border/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
-                  >
-                    {{ t(`chat.spotlight.kind.${item.kind}`) }}
-                  </span>
-                </span>
-
-                <span
-                  v-if="item.subtitle"
-                  class="mt-0.5 block truncate text-xs text-muted-foreground"
-                >
-                  {{ item.subtitle }}
-                </span>
-                <span
-                  v-if="item.snippet"
-                  class="mt-1 block line-clamp-2 text-xs text-muted-foreground"
-                >
-                  {{ item.snippet }}
-                </span>
-              </span>
-            </button>
-          </template>
+        <div
+          class="spotlight-panel window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
+        >
+          <div class="flex items-center gap-3 border-b border-border/60 px-4 py-3">
+            <Icon icon="lucide:search" class="h-4 w-4 shrink-0 text-muted-foreground" />
+            <input
+              ref="inputRef"
+              :value="spotlightStore.query"
+              class="h-9 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              :placeholder="t('chat.spotlight.placeholder')"
+              @input="spotlightStore.setQuery(($event.target as HTMLInputElement).value)"
+              @keydown="handleKeydown"
+            />
+          </div>
 
           <div
-            v-else
-            class="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center text-muted-foreground"
+            ref="resultsContainerRef"
+            class="dc-overscroll-contain max-h-[28rem] overflow-y-auto p-2"
           >
-            <Icon
-              :icon="spotlightStore.loading ? 'lucide:loader-circle' : 'lucide:search-x'"
-              class="h-5 w-5"
-              :class="{ 'animate-spin': spotlightStore.loading }"
-            />
-            <p class="text-sm font-medium">
-              {{
-                spotlightStore.loading
-                  ? t('chat.spotlight.searching')
-                  : t('chat.spotlight.emptyTitle')
-              }}
-            </p>
-            <p class="text-xs">
-              {{ t('chat.spotlight.emptyDescription') }}
-            </p>
+            <template v-if="spotlightStore.results.length > 0">
+              <button
+                v-for="(item, index) in spotlightStore.results"
+                :key="item.id"
+                v-memo="[item, index === spotlightStore.activeIndex, spotlightStore.query]"
+                type="button"
+                class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left"
+                :class="
+                  index === spotlightStore.activeIndex
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-foreground/90'
+                "
+                :data-spotlight-active="index === spotlightStore.activeIndex ? 'true' : undefined"
+                @mouseenter="handleItemMouseEnter(item)"
+                @mousedown="handleItemMouseDown($event, item)"
+                @click="handleItemClick(item)"
+              >
+                <span
+                  class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background"
+                >
+                  <Icon :icon="item.icon" class="h-4 w-4 text-muted-foreground" />
+                </span>
+
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2">
+                    <span class="truncate text-sm font-medium">
+                      <template
+                        v-for="(segment, segmentIndex) in highlightSegments(resolveItemTitle(item))"
+                        :key="`${item.id}-title-${segmentIndex}`"
+                      >
+                        <mark
+                          v-if="segment.match"
+                          class="rounded bg-primary/15 px-0.5 text-inherit"
+                        >
+                          {{ segment.text }}
+                        </mark>
+                        <template v-else>{{ segment.text }}</template>
+                      </template>
+                    </span>
+                    <span
+                      class="shrink-0 rounded-full border border-border/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                    >
+                      {{ t(`chat.spotlight.kind.${item.kind}`) }}
+                    </span>
+                  </span>
+
+                  <span
+                    v-if="item.subtitle"
+                    class="mt-0.5 block truncate text-xs text-muted-foreground"
+                  >
+                    {{ item.subtitle }}
+                  </span>
+                  <span
+                    v-if="item.snippet"
+                    class="mt-1 block line-clamp-2 text-xs text-muted-foreground"
+                  >
+                    {{ item.snippet }}
+                  </span>
+                </span>
+              </button>
+            </template>
+
+            <div
+              v-else
+              class="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center text-muted-foreground"
+            >
+              <Icon
+                :icon="spotlightStore.loading ? 'lucide:loader-circle' : 'lucide:search-x'"
+                class="h-5 w-5"
+                :class="{ 'animate-spin': spotlightStore.loading }"
+              />
+              <p class="text-sm font-medium">
+                {{
+                  spotlightStore.loading
+                    ? t('chat.spotlight.searching')
+                    : t('chat.spotlight.emptyTitle')
+                }}
+              </p>
+              <p class="text-xs">
+                {{ t('chat.spotlight.emptyDescription') }}
+              </p>
+            </div>
+          </div>
+
+          <div class="border-t border-border/60 px-4 py-2 text-[11px] text-muted-foreground">
+            {{ t('chat.spotlight.hints') }}
           </div>
         </div>
-
-        <div class="border-t border-border/60 px-4 py-2 text-[11px] text-muted-foreground">
-          {{ t('chat.spotlight.hints') }}
-        </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSpotlightStore, type SpotlightItem } from '@/stores/ui/spotlight'
+import { useSidebarStore } from '@/stores/ui/sidebar'
 
 const spotlightStore = useSpotlightStore()
+const sidebarStore = useSidebarStore()
 const { t } = useI18n()
 const inputRef = ref<HTMLInputElement | null>(null)
 const resultsContainerRef = ref<HTMLElement | null>(null)
@@ -124,6 +135,12 @@ const pointerActivatedItemId = ref<string | null>(null)
 let activeChangeSource: 'keyboard' | 'mouse' = 'keyboard'
 let mouseEnterRaf = 0
 let pendingMouseEnterId: string | number | null = null
+
+const sidebarWidth = computed(() => (sidebarStore.collapsed ? 48 : 288))
+const overlayStyle = computed(() => ({
+  zIndex: 'var(--dc-z-spotlight)',
+  left: `${sidebarWidth.value}px`
+}))
 
 const focusInput = () => {
   nextTick(() => {
@@ -318,14 +335,53 @@ input {
   -webkit-app-region: no-drag;
 }
 
+.dc-spotlight-enter-active,
+.dc-spotlight-leave-active {
+  transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+}
+
+.dc-spotlight-enter-active .spotlight-panel,
+.dc-spotlight-leave-active .spotlight-panel {
+  transition:
+    opacity var(--dc-motion-default) var(--dc-ease-out-express),
+    transform var(--dc-motion-default) var(--dc-ease-out-express);
+}
+
+.dc-spotlight-enter-from,
+.dc-spotlight-leave-to {
+  opacity: 0;
+}
+
+.dc-spotlight-enter-from .spotlight-panel,
+.dc-spotlight-leave-to .spotlight-panel {
+  opacity: 0;
+  transform: translate3d(0, -10px, 0) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-spotlight-enter-active,
+  .dc-spotlight-leave-active,
+  .dc-spotlight-enter-active .spotlight-panel,
+  .dc-spotlight-leave-active .spotlight-panel {
+    transition: none;
+  }
+
+  .dc-spotlight-enter-from .spotlight-panel,
+  .dc-spotlight-leave-to .spotlight-panel {
+    transform: none;
+  }
+}
+
 .spotlight-panel {
   isolation: isolate;
   position: relative;
   border: 1px solid transparent;
+  backdrop-filter: blur(var(--dc-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, white 95%, hsl(var(--background)) 5%) 0%,
-    color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 100%
+    hsl(var(--background) / 0.72) 0%,
+    hsl(var(--background) / 0.58) 100%
   );
   box-shadow:
     0 32px 64px -24px rgb(15 23 42 / 0.28),
@@ -348,12 +404,8 @@ input {
       transparent 38%,
       rgb(255 255 255 / 0.14) 100%
     ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, white 97%, hsl(var(--background)) 3%) 0%,
-      color-mix(in srgb, white 90%, hsl(var(--muted)) 10%) 100%
-    );
-  opacity: 0.98;
+    linear-gradient(180deg, hsl(var(--card) / 0.52) 0%, hsl(var(--muted) / 0.34) 100%);
+  opacity: 0.74;
 }
 
 .spotlight-panel::after {
@@ -378,8 +430,8 @@ input {
   border-color: transparent;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, hsl(var(--background)) 96%, rgb(51 65 85) 4%) 0%,
-    color-mix(in srgb, hsl(var(--background)) 98%, rgb(15 23 42) 2%) 100%
+    hsl(var(--background) / 0.62) 0%,
+    hsl(var(--background) / 0.46) 100%
   );
   box-shadow:
     0 32px 64px -28px rgb(0 0 0 / 0.56),
@@ -396,12 +448,8 @@ input {
       transparent 40%,
       rgb(255 255 255 / 0.03) 100%
     ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, hsl(var(--background)) 94%, rgb(30 41 59) 6%) 0%,
-      color-mix(in srgb, hsl(var(--background)) 97%, rgb(2 6 23) 3%) 100%
-    );
-  opacity: 0.97;
+    linear-gradient(180deg, hsl(var(--card) / 0.44) 0%, hsl(var(--muted) / 0.28) 100%);
+  opacity: 0.66;
 }
 
 .dark .spotlight-panel::after {

@@ -59,7 +59,7 @@
       <div
         v-if="isExpanded"
         data-testid="tool-call-details"
-        class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full"
+        class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full overscroll-contain"
       >
         <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
           <button
@@ -125,7 +125,7 @@
             </div>
             <div
               data-testid="tool-call-params"
-              class="rounded-md border bg-background text-xs p-2 min-h-0 max-h-20 overflow-auto"
+              class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 min-h-0 max-h-20 overflow-auto"
             >
               {{ paramsText }}
             </div>
@@ -154,7 +154,7 @@
               </button>
             </div>
             <template v-if="diffData">
-              <div class="min-h-0 overflow-auto">
+              <div class="dc-overscroll-contain min-h-0 overflow-auto">
                 <CodeBlockNode
                   :node="{
                     type: 'code_block',
@@ -176,7 +176,7 @@
             </template>
             <pre
               v-else
-              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+              class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
               >{{ responseText }}</pre
             >
           </div>

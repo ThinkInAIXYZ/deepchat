@@ -1585,8 +1585,11 @@ describe('ChatPage', () => {
     expect(wrapper.find('[data-testid="chat-input-memory-host"]').exists()).toBe(true)
     expect(wrapper.find('.memory-update-chip-stub').exists()).toBe(true)
     expect(wrapper.find('.memory-update-chip-stub').attributes('data-visible')).toBe('false')
-    expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
-    expect(wrapper.find('.chat-status-bar-stub').exists()).toBe(false)
+    // Input/status stay mounted (v-show) so TipTap draft and StatusBar watchers
+    // are not destroyed during permission/question; they are inert+hidden.
+    expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
+    expect(wrapper.find('.chat-status-bar-stub').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('submitDisabled')).toBe(true)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-tool-interaction-overlay-stub')
     )

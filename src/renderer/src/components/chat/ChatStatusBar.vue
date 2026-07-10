@@ -4,7 +4,7 @@
       <div class="flex min-w-0 items-center gap-1">
         <template v-if="isAcpAgent">
           <div
-            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground backdrop-blur-lg"
+            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground dc-blur-panel"
           >
             <ModelIcon
               :model-id="acpAgentIconId"
@@ -31,7 +31,7 @@
                 size="sm"
                 :title="getAcpOptionDisplayValue(option)"
                 :data-option-id="option.id"
-                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
                 :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
               >
                 <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
@@ -51,7 +51,7 @@
 
               <div
                 v-if="(option.options?.length ?? 0) > 0"
-                class="max-h-60 overflow-y-auto px-2 py-2"
+                class="dc-overscroll-contain max-h-60 overflow-y-auto px-2 py-2"
               >
                 <button
                   v-for="entry in option.options ?? []"
@@ -92,7 +92,7 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg',
+                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel',
                 !isModelOptionsReady ? 'opacity-70' : ''
               ]"
               :aria-busy="!isModelOptionsReady"
@@ -135,7 +135,7 @@
                   />
                 </div>
 
-                <div class="max-h-[24rem] overflow-y-auto px-2 py-2">
+                <div class="dc-overscroll-contain max-h-[24rem] overflow-y-auto px-2 py-2">
                   <div
                     v-if="showModelOptionsLoading"
                     data-model-picker-state="loading"
@@ -254,7 +254,7 @@
                   </div>
                 </div>
 
-                <div class="max-h-[24rem] overflow-y-auto px-3 py-3">
+                <div class="dc-overscroll-contain max-h-[24rem] overflow-y-auto px-3 py-3">
                   <div
                     v-if="!isModelSettingsReady"
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
@@ -357,7 +357,7 @@
                             <TooltipContent
                               side="top"
                               align="start"
-                              class="z-[1000] max-w-80 text-xs"
+                              class="z-[var(--dc-z-popover)] max-w-80 text-xs"
                             >
                               {{ t('chat.advancedSettings.topPDescription') }}
                             </TooltipContent>
@@ -847,7 +847,7 @@
           v-else
           variant="ghost"
           size="sm"
-          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
           :disabled="true"
         >
           <ModelIcon
@@ -865,7 +865,7 @@
             <Button
               variant="ghost"
               size="sm"
-              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
               :title="t('chat.advancedSettings.button')"
               :aria-label="t('chat.advancedSettings.button')"
             >
@@ -878,7 +878,7 @@
               <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
             </div>
 
-            <div class="max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
+            <div class="dc-overscroll-contain max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
               <div
                 v-for="option in acpOverflowOptions"
                 :key="option.id"
@@ -946,7 +946,7 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 px-2 gap-1.5 text-xs backdrop-blur-lg',
+                'h-6 px-2 gap-1.5 text-xs dc-blur-panel',
                 permissionMode === 'full_access'
                   ? 'text-orange-500 hover:text-orange-600'
                   : permissionMode === 'auto_approve'
@@ -2373,6 +2373,8 @@ watch(
   { immediate: true }
 )
 
+// Prefer revision/fingerprint deps (no deep watch). Generation settings already
+// self-coalesce via generationSyncQueued; ACP config uses deferred task cancel.
 watch(
   [
     () => sessionStore.activeSessionId,

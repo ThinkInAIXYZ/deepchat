@@ -5,7 +5,7 @@
       'pointer-events-auto relative w-full overflow-hidden text-foreground',
       props.embedded
         ? ''
-        : 'agent-progress-float ml-auto max-w-[25rem] rounded-[20px] border border-transparent bg-transparent backdrop-blur-[26px]'
+        : 'agent-progress-float ml-auto max-w-[25rem] rounded-[20px] border border-transparent bg-transparent'
     ]"
     data-testid="agent-progress-float"
   >
@@ -141,6 +141,8 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
 .agent-progress-float {
   isolation: isolate;
   border-color: transparent;
+  backdrop-filter: blur(var(--dc-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
     color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
@@ -302,18 +304,25 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   scrollbar-gutter: stable;
 }
 
+/* Vue Transition + v-show: fade/slide only. Avoid max-height tweening which
+   fights the panel's content-sized box and feels hard/nonlinear. */
 .agent-progress-panel-enter-active,
 .agent-progress-panel-leave-active {
   transition:
-    max-height 220ms ease,
-    opacity 160ms ease,
-    transform 180ms ease;
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-default) var(--dc-ease-out-express);
 }
 
 .agent-progress-panel-enter-from,
 .agent-progress-panel-leave-to {
-  max-height: 0;
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-progress-panel-enter-active,
+  .agent-progress-panel-leave-active {
+    transition: none;
+  }
 }
 </style>

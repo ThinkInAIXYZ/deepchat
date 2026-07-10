@@ -64,7 +64,16 @@ const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
 
-const { isWinMacOS } = useDeviceVersion()
+const { isWinMacOS, isMacOS } = useDeviceVersion()
+
+watch(
+  isMacOS,
+  (mac) => {
+    if (typeof document === 'undefined') return
+    document.documentElement.dataset.platform = mac ? 'darwin' : 'other'
+  },
+  { immediate: true }
+)
 
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()

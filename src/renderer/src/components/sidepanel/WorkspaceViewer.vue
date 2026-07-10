@@ -92,7 +92,7 @@
 
       <div
         v-else-if="paneKind === 'git-diff'"
-        class="h-full overflow-auto bg-background py-3 text-xs leading-6"
+        class="dc-overscroll-contain h-full overflow-auto bg-background py-3 text-xs leading-6"
       >
         <template v-if="props.loadingGitDiff">
           <div class="px-4 text-muted-foreground">{{ t('chat.workspace.files.loading') }}</div>

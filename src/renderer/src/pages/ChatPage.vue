@@ -5,8 +5,11 @@
       data-testid="chat-page"
       :data-generating="String(isGenerating)"
       class="message-list-container h-full w-full min-w-0 overflow-y-auto"
+      :class="{ 'dc-list-scrolling': isListScrolling }"
       @scroll.passive="onScroll"
       @wheel.passive="onWheel"
+      @touchstart.passive="markListScrolling"
+      @pointerdown.passive="markListScrolling"
     >
       <ChatTopBar
         class="chat-capture-hide"
@@ -15,7 +18,11 @@
         :project="sessionProject"
         :is-read-only="isReadOnlySession"
       />
-      <div v-if="isChatSearchOpen" class="pointer-events-none sticky top-14 z-20 px-6">
+      <div
+        v-if="isChatSearchOpen"
+        class="pointer-events-none sticky top-14 px-6"
+        style="z-index: var(--dc-z-float)"
+      >
         <div class="mx-auto flex w-full max-w-5xl justify-end">
           <ChatSearchBar
             ref="chatSearchBarRef"
@@ -65,7 +72,8 @@
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div
         v-if="!isReadOnlySession"
-        class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
+        class="chat-capture-hide sticky bottom-0 w-full px-6 pb-3 pt-3"
+        style="z-index: var(--dc-z-sticky)"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <div class="relative w-full">
@@ -86,13 +94,14 @@
               <div
                 v-if="latestPlanSnapshot || activePendingInteraction"
                 ref="planFloatLayer"
-                class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] z-20 flex w-full flex-col items-end gap-2"
+                class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] flex w-full flex-col items-end gap-2"
+                style="z-index: var(--dc-z-float)"
                 data-testid="agent-progress-float-layer"
               >
                 <!-- Both plan + question: unified glassmorphism panel -->
                 <div
                   v-if="activePendingInteraction && latestPlanSnapshot"
-                  class="agent-question-panel pointer-events-auto mx-auto max-h-[min(70vh,calc(100vh-12rem))] w-full max-w-2xl overflow-x-hidden overflow-y-auto rounded-[20px] text-foreground backdrop-blur-[26px]"
+                  class="agent-question-panel dc-overscroll-contain pointer-events-auto mx-auto max-h-[min(70vh,calc(100vh-12rem))] w-full max-w-2xl overflow-x-hidden overflow-y-auto rounded-[20px] text-foreground"
                 >
                   <div class="agent-question-panel__backdrop" aria-hidden="true" />
                   <AgentProgressFloat
@@ -132,47 +141,53 @@
                 data-testid="chat-input-memory-host"
                 class="mx-auto flex w-full max-w-4xl flex-col"
               >
-                <div v-show="!activePendingInteraction">
-                  <MemoryUpdateChip :visible="!activePendingInteraction" />
-                </div>
-                <ChatInputBox
-                  v-if="!activePendingInteraction"
-                  ref="chatInputRef"
-                  v-model="message"
-                  max-width-class="max-w-4xl"
-                  :files="attachedFiles"
-                  :session-id="props.sessionId"
-                  :workspace-path="sessionStore.activeSession?.projectDir ?? null"
-                  :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
-                  :is-generating="isGenerating"
-                  :submit-disabled="isInputSubmitDisabled"
-                  :queue-submit-enabled="isGenerating && hasDraftInput"
-                  :queue-submit-disabled="isQueueSubmitDisabled"
-                  @update:files="onFilesChange"
-                  @command-submit="onCommandSubmit"
-                  @queue-submit="onQueueSubmit"
-                  @submit="onSubmit"
-                  @toggle-voice-input="onToggleVoiceInput"
+                <!-- Keep input/status mounted during permission/question so TipTap draft, IME,
+                     and StatusBar watchers are not torn down. Hide with v-show + inert. -->
+                <div
+                  v-show="!activePendingInteraction"
+                  class="flex w-full flex-col"
+                  :aria-hidden="activePendingInteraction ? 'true' : undefined"
+                  :inert="activePendingInteraction ? true : undefined"
                 >
-                  <template #toolbar>
-                    <ChatInputToolbar
-                      :is-generating="isGenerating"
-                      :has-input="hasDraftInput"
-                      :send-disabled="isInputSubmitDisabled"
-                      :queue-disabled="isQueueSubmitDisabled"
-                      :show-voice-input="isVoiceInputEnabled"
-                      :is-voice-input-listening="isVoiceInputListening"
-                      :is-voice-input-transcribing="isVoiceInputTranscribing"
-                      @attach="onAttach"
-                      @voice-input="onToggleVoiceInput"
-                      @queue="onQueueSubmit"
-                      @steer="onSteer"
-                      @send="onSubmit"
-                      @stop="onStop"
-                    />
-                  </template>
-                </ChatInputBox>
-                <ChatStatusBar v-if="!activePendingInteraction" max-width-class="max-w-4xl" />
+                  <MemoryUpdateChip :visible="!activePendingInteraction" />
+                  <ChatInputBox
+                    ref="chatInputRef"
+                    v-model="message"
+                    max-width-class="max-w-4xl"
+                    :files="attachedFiles"
+                    :session-id="props.sessionId"
+                    :workspace-path="sessionStore.activeSession?.projectDir ?? null"
+                    :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+                    :is-generating="isGenerating"
+                    :submit-disabled="isInputSubmitDisabled"
+                    :queue-submit-enabled="isGenerating && hasDraftInput"
+                    :queue-submit-disabled="isQueueSubmitDisabled"
+                    @update:files="onFilesChange"
+                    @command-submit="onCommandSubmit"
+                    @queue-submit="onQueueSubmit"
+                    @submit="onSubmit"
+                    @toggle-voice-input="onToggleVoiceInput"
+                  >
+                    <template #toolbar>
+                      <ChatInputToolbar
+                        :is-generating="isGenerating"
+                        :has-input="hasDraftInput"
+                        :send-disabled="isInputSubmitDisabled"
+                        :queue-disabled="isQueueSubmitDisabled"
+                        :show-voice-input="isVoiceInputEnabled"
+                        :is-voice-input-listening="isVoiceInputListening"
+                        :is-voice-input-transcribing="isVoiceInputTranscribing"
+                        @attach="onAttach"
+                        @voice-input="onToggleVoiceInput"
+                        @queue="onQueueSubmit"
+                        @steer="onSteer"
+                        @send="onSubmit"
+                        @stop="onStop"
+                      />
+                    </template>
+                  </ChatInputBox>
+                  <ChatStatusBar max-width-class="max-w-4xl" />
+                </div>
               </div>
             </div>
           </div>
@@ -254,12 +269,13 @@ import {
   setActiveChatSearchResult,
   type ChatSearchResult
 } from '@/lib/chatSearch'
-import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+
 import { WORKSPACE_EVENTS } from '@/events'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { useMessageWindow } from '@/composables/message/useMessageWindow'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -298,6 +314,8 @@ const INITIAL_MESSAGE_RESTORE_COUNT = 40
 const MESSAGE_WINDOWING_THRESHOLD = 160
 const MESSAGE_INITIAL_WINDOW_COUNT = 90
 const MESSAGE_WINDOW_OVERSCAN_PX = 2400
+/** After the user stops scrolling, wait this long before resuming windowing/measure. */
+const SCROLL_IDLE_MS = 140
 const PLAN_FLOAT_CLEAR_DELAY_MS = 1200
 const isAcpWorkdirMissing = computed(() => {
   const activeSession = sessionStore.activeSession
@@ -324,6 +342,28 @@ async function loadMessagesForSession(sessionId: string, count?: number) {
   return restoredSession
 }
 
+async function restoreSessionMessages(id: string, requestId: number) {
+  console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
+  const [restoredSession] = await Promise.all([
+    loadMessagesForSession(id, INITIAL_MESSAGE_RESTORE_COUNT),
+    pendingInputStore.loadPendingInputs(id)
+  ])
+
+  if (requestId !== sessionRestoreRequestId) {
+    return
+  }
+
+  applyRestoredSessionSummary(restoredSession)
+
+  await nextTick()
+  if (spotlightStore.pendingMessageJump?.sessionId === id) {
+    cancelSessionRestoreScrollSettle()
+    void focusPendingSpotlightMessageJump()
+    return
+  }
+  settleSessionRestoreScrollToBottom(requestId, id)
+}
+
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
@@ -347,6 +387,8 @@ const isNearBottom = ref(true)
 const shouldAutoFollow = ref(true)
 const scrollViewportTop = ref(0)
 const scrollViewportHeight = ref(0)
+/** True while the user is actively flinging/dragging the list — freezes windowing/measure. */
+const isListScrolling = ref(false)
 type ScrollMode = 'initial-bottom' | 'auto-follow' | 'anchored-reading' | 'manual-jump'
 const scrollMode = ref<ScrollMode>('initial-bottom')
 const NEAR_BOTTOM_THRESHOLD = 80 // px
@@ -369,6 +411,10 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
 ])
 const PLAN_FLOAT_SAFE_GAP = 16
 const planFloatReservedHeight = ref(0)
+const pendingMeasureQueue = new Map<string, number>()
+let scrollIdleTimer: number | null = null
+let pendingMeasureFlushFrame: number | null = null
+let userScrollInputUntil = 0
 const displayMessageCache = new Map<
   string,
   {
@@ -401,6 +447,7 @@ let programmaticScrollUntil = 0
 let sessionRestoreBottomScrollTop: number | null = null
 let userScrollAwayIntentUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
+let hasScheduledInitialSessionRestore = false
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
 // The immediate session watcher can call clearMessageWindowMeasurements before
@@ -414,7 +461,6 @@ type ViewportAnchor = {
   messageId: string
   viewportOffset: number
 }
-let pendingAnchorRestore: ViewportAnchor | null = null
 let anchorRestoreFrame: number | null = null
 
 const resolveChatInputBoxElement = () =>
@@ -481,12 +527,29 @@ function syncPlanFloatReservedHeight() {
 
   const trigger = layer.querySelector<HTMLElement>('[data-testid="agent-progress-float-trigger"]')
   const triggerHeight = trigger?.offsetHeight ?? layer.offsetHeight
+  const next = triggerHeight + PLAN_FLOAT_SAFE_GAP
+  if (Math.abs(next - planFloatReservedHeight.value) < 1) {
+    return
+  }
+  planFloatReservedHeight.value = next
+}
 
-  planFloatReservedHeight.value = triggerHeight + PLAN_FLOAT_SAFE_GAP
+let planFloatHeightFrame: number | null = null
+
+function schedulePlanFloatReservedHeight() {
+  if (planFloatHeightFrame !== null) return
+  planFloatHeightFrame = window.requestAnimationFrame(() => {
+    planFloatHeightFrame = null
+    syncPlanFloatReservedHeight()
+  })
 }
 
 function observePlanFloatLayer() {
   disconnectPlanFloatResizeObserver()
+  if (planFloatHeightFrame !== null) {
+    window.cancelAnimationFrame(planFloatHeightFrame)
+    planFloatHeightFrame = null
+  }
 
   const layer = planFloatLayer.value
   if (!latestPlanSnapshot.value || !layer) {
@@ -500,7 +563,7 @@ function observePlanFloatLayer() {
   }
 
   planFloatResizeObserver = new ResizeObserver(() => {
-    syncPlanFloatReservedHeight()
+    schedulePlanFloatReservedHeight()
   })
   planFloatResizeObserver.observe(layer)
 }
@@ -545,34 +608,78 @@ function messageIdSelector(messageId: string): string {
   return `[data-message-id="${escapedMessageId}"]`
 }
 
-function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
-  if (!anchor || isProgrammaticScrollActive()) {
+type PendingAnchorRestore = {
+  anchor: ViewportAnchor | null
+  /** Cumulative measured height delta for rows above the viewport (fallback). */
+  aboveViewportDelta: number
+}
+
+let pendingAnchorRestoreState: PendingAnchorRestore | null = null
+
+function scheduleViewportAnchorRestore(
+  anchor: ViewportAnchor | null,
+  heightDelta = 0,
+  measuredMessageId?: string
+): void {
+  if (isProgrammaticScrollActive()) {
     return
   }
 
-  pendingAnchorRestore = anchor
+  // While the user is actively scrolling, never write scrollTop from measure
+  // paths — height map still updates, but fighting the gesture is what makes
+  // scrolling feel sticky/janky.
+  if (hasRecentUserScrollAwayIntent()) {
+    return
+  }
+
+  if (!pendingAnchorRestoreState) {
+    pendingAnchorRestoreState = { anchor, aboveViewportDelta: 0 }
+  } else if (anchor && !pendingAnchorRestoreState.anchor) {
+    // Keep the earliest pre-change anchor in this frame; later captures are
+    // already mid-mutation and would restore against mixed geometry.
+    pendingAnchorRestoreState.anchor = anchor
+  }
+
+  if (heightDelta !== 0 && measuredMessageId) {
+    const entry = messageWindow.getEntry(measuredMessageId)
+    const container = scrollContainer.value
+    if (entry && container && entry.bottom <= container.scrollTop + 1) {
+      pendingAnchorRestoreState.aboveViewportDelta += heightDelta
+    }
+  }
+
   if (anchorRestoreFrame !== null) {
     return
   }
 
   anchorRestoreFrame = window.requestAnimationFrame(() => {
     anchorRestoreFrame = null
-    const currentAnchor = pendingAnchorRestore
-    pendingAnchorRestore = null
-    if (!currentAnchor) return
+    const pending = pendingAnchorRestoreState
+    pendingAnchorRestoreState = null
+    if (!pending) return
 
     const container = scrollContainer.value
     const root = messageSearchRoot.value
     if (!container || !root) return
 
-    const target = root.querySelector<HTMLElement>(messageIdSelector(currentAnchor.messageId))
-    if (!target) return
+    const currentAnchor = pending.anchor
+    if (currentAnchor) {
+      const target = root.querySelector<HTMLElement>(messageIdSelector(currentAnchor.messageId))
+      if (target) {
+        const containerRect = container.getBoundingClientRect()
+        const nextOffset = target.getBoundingClientRect().top - containerRect.top
+        const delta = nextOffset - currentAnchor.viewportOffset
+        if (Math.abs(delta) >= 1) {
+          container.scrollTop += delta
+        }
+        syncMessageViewportMetrics(container)
+        return
+      }
+    }
 
-    const containerRect = container.getBoundingClientRect()
-    const nextOffset = target.getBoundingClientRect().top - containerRect.top
-    const delta = nextOffset - currentAnchor.viewportOffset
-    if (Math.abs(delta) >= 1) {
-      container.scrollTop += delta
+    if (Math.abs(pending.aboveViewportDelta) >= 1) {
+      container.scrollTop += pending.aboveViewportDelta
+      syncMessageViewportMetrics(container)
     }
   })
 }
@@ -616,6 +723,47 @@ function syncMessageViewportMetrics(el: HTMLElement | null | undefined = scrollC
 
   scrollViewportTop.value = el.scrollTop
   scrollViewportHeight.value = el.clientHeight
+}
+
+function flushPendingMeasures(): void {
+  if (pendingMeasureFlushFrame !== null || pendingMeasureQueue.size === 0) return
+
+  pendingMeasureFlushFrame = window.requestAnimationFrame(() => {
+    pendingMeasureFlushFrame = null
+    const batch = Array.from(pendingMeasureQueue.entries()).slice(0, 12)
+    for (const [messageId, height] of batch) {
+      pendingMeasureQueue.delete(messageId)
+      applyMessageMeasure({ messageId, height })
+    }
+    flushPendingMeasures()
+  })
+}
+
+function markListScrolling(): void {
+  userScrollInputUntil = Date.now() + SCROLL_IDLE_MS + 50
+
+  if (!isListScrolling.value) {
+    isListScrolling.value = true
+    // Pin the current window around the start of the gesture so overscan is centered.
+    const el = scrollContainer.value
+    if (el) {
+      scrollViewportTop.value = el.scrollTop
+      scrollViewportHeight.value = el.clientHeight
+    }
+  }
+
+  if (scrollIdleTimer !== null) {
+    window.clearTimeout(scrollIdleTimer)
+  }
+  scrollIdleTimer = window.setTimeout(() => {
+    scrollIdleTimer = null
+    isListScrolling.value = false
+    const el = scrollContainer.value
+    if (el) {
+      syncMessageViewportMetrics(el)
+    }
+    flushPendingMeasures()
+  }, SCROLL_IDLE_MS)
 }
 
 function scrollDomToBottom(): void {
@@ -765,6 +913,7 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
     pendingUserScrollMetrics = false
     const el = scrollContainer.value
     if (!el) return
+
     syncMessageViewportMetrics(el)
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
@@ -798,6 +947,7 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
 }
 
 function onWheel(event: WheelEvent) {
+  markListScrolling()
   if (event.deltaY < 0) {
     markUserScrollAwayIntent()
   } else if (event.deltaY > 0) {
@@ -808,9 +958,12 @@ function onWheel(event: WheelEvent) {
 function onScroll() {
   const el = scrollContainer.value
   if (!el) return
-  syncMessageViewportMetrics(el)
 
-  const isNearBottomNow = isAtBottom()
+  const userInitiatedScroll = Date.now() <= userScrollInputUntil
+
+  // Intent flags must run synchronously; viewport metrics are rAF-coalesced below.
+  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  const isNearBottomNow = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
   if (
     isSessionRestoreScrollSettleActive() &&
     sessionRestoreBottomScrollTop !== null &&
@@ -826,7 +979,7 @@ function onScroll() {
     markUserScrollAwayIntent()
   }
 
-  scheduleScrollMetricsRead(true)
+  scheduleScrollMetricsRead(userInitiatedScroll)
 
   if (el.scrollTop <= TOP_HISTORY_THRESHOLD) {
     void loadOlderMessagesAtTop()
@@ -848,16 +1001,25 @@ async function loadOlderMessagesAtTop(): Promise<void> {
   }
 
   const previousScrollHeight = el.scrollHeight
-  const previousScrollTop = el.scrollTop
   const loadedCount = await messageStore.loadOlderMessages()
   if (loadedCount === 0) {
     return
   }
 
   await nextTick()
-  const nextScrollHeight = el.scrollHeight
-  el.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight)
-  syncMessageViewportMetrics(el)
+  const container = scrollContainer.value
+  if (!container) {
+    return
+  }
+
+  // Use the *current* scrollTop after await, not the pre-await snapshot. The
+  // user may keep scrolling while history loads; writing back the old value
+  // feels like the viewport "snapped to a few seconds ago".
+  const heightDelta = container.scrollHeight - previousScrollHeight
+  if (heightDelta !== 0) {
+    container.scrollTop += heightDelta
+  }
+  syncMessageViewportMetrics(container)
 }
 
 async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
@@ -933,31 +1095,13 @@ watch(
     pendingInputStore.clear()
     if (id) {
       const requestId = sessionRestoreRequestId
-      cancelSessionRestoreTask = scheduleStartupDeferredTask(async () => {
-        if (requestId !== sessionRestoreRequestId) {
-          return
-        }
-
-        console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
-        const [restoredSession] = await Promise.all([
-          loadMessagesForSession(id, INITIAL_MESSAGE_RESTORE_COUNT),
-          pendingInputStore.loadPendingInputs(id)
-        ])
-
-        if (requestId !== sessionRestoreRequestId) {
-          return
-        }
-
-        applyRestoredSessionSummary(restoredSession)
-
-        await nextTick()
-        if (spotlightStore.pendingMessageJump?.sessionId === id) {
-          cancelSessionRestoreScrollSettle()
-          void focusPendingSpotlightMessageJump()
-          return
-        }
-        settleSessionRestoreScrollToBottom(requestId, id)
-      })
+      const runRestore = () => restoreSessionMessages(id, requestId)
+      if (!hasScheduledInitialSessionRestore) {
+        hasScheduledInitialSessionRestore = true
+        cancelSessionRestoreTask = scheduleStartupDeferredTask(runRestore)
+      } else {
+        void runRestore()
+      }
       return
     }
   },
@@ -1373,7 +1517,7 @@ const chatSearchResults = computed(() =>
   collectChatSearchResults(displayMessages.value, chatSearchQuery.value)
 )
 
-function onMessageMeasure(payload: { messageId: string; height: number }) {
+function applyMessageMeasure(payload: { messageId: string; height: number }) {
   // Snapshot the reading anchor from pre-change geometry: capturing after
   // setMeasuredHeight resizes the row would compare against post-layout DOM and
   // let anchored-reading/manual-jump drift when content above the viewport grows.
@@ -1386,8 +1530,18 @@ function onMessageMeasure(payload: { messageId: string; height: number }) {
   if (isBottomFollowing) {
     scrollToBottom(scrollMode.value === 'initial-bottom')
   } else {
-    scheduleViewportAnchorRestore(preChangeAnchor)
+    scheduleViewportAnchorRestore(preChangeAnchor, delta, payload.messageId)
   }
+}
+
+function onMessageMeasure(payload: { messageId: string; height: number }) {
+  // Defer layout work while scrolling — measuring remounts/spacers is the main
+  // source of jank with markdown-heavy rows.
+  if (isListScrolling.value) {
+    pendingMeasureQueue.set(payload.messageId, payload.height)
+    return
+  }
+  applyMessageMeasure(payload)
 }
 
 const traceMessageIds = computed(() =>
@@ -2519,9 +2673,9 @@ onUnmounted(() => {
   cancelSessionRestoreScrollSettle()
   cancelPlanUpdatedListener?.()
   cancelPlanUpdatedListener = null
-  voiceInput.cleanup()
   cancelSessionRestoreTask?.()
   cancelSessionRestoreTask = null
+  voiceInput.cleanup()
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.removeEventListener(
     WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
@@ -2537,10 +2691,22 @@ onUnmounted(() => {
     window.cancelAnimationFrame(anchorRestoreFrame)
     anchorRestoreFrame = null
   }
+  pendingAnchorRestoreState = null
   if (scrollReadFrame !== null) {
     window.cancelAnimationFrame(scrollReadFrame)
     scrollReadFrame = null
   }
+  if (scrollIdleTimer !== null) {
+    window.clearTimeout(scrollIdleTimer)
+    scrollIdleTimer = null
+  }
+  if (pendingMeasureFlushFrame !== null) {
+    window.cancelAnimationFrame(pendingMeasureFlushFrame)
+    pendingMeasureFlushFrame = null
+  }
+  isListScrolling.value = false
+  userScrollInputUntil = 0
+  pendingMeasureQueue.clear()
   cancelScheduledChatSearchRefresh()
   pendingInputStore.clear()
 })
@@ -2549,10 +2715,26 @@ onUnmounted(() => {
 <style>
 .message-list-container {
   scrollbar-gutter: stable both-edges;
-  will-change: scroll-position;
+  /* Avoid will-change: scroll-position — it promotes a huge layer and hurts
+     scroll performance with windowed message rows. */
   overscroll-behavior: contain;
   overflow-anchor: none;
   scroll-behavior: auto;
+}
+
+/*
+ * During active scroll, keep glass visible but use a cheaper blur budget.
+ * 0px made every glass surface appear broken; full overlay blur makes sticky chrome repaint-heavy.
+ */
+.message-list-container.dc-list-scrolling {
+  --dc-blur-soft: 4px;
+  --dc-blur-panel: 8px;
+  --dc-blur-overlay: 12px;
+}
+
+.message-list-container.dc-list-scrolling .message-list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
 }
 
 .agent-question-panel {
@@ -2561,6 +2743,9 @@ onUnmounted(() => {
   max-height: min(70vh, calc(100vh - 12rem));
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  backdrop-filter: blur(var(--dc-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
     color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,

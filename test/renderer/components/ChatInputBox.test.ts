@@ -31,6 +31,7 @@ vi.mock('@tiptap/vue-3', () => {
     public commands = {
       setContent: vi.fn()
     }
+    public commandMock = vi.fn()
     public state = {
       doc: {
         content: {
@@ -46,12 +47,25 @@ vi.mock('@tiptap/vue-3', () => {
         from: 0,
         to: 0
       },
-      tr: {
-        setSelection: vi.fn()
-      }
+      tr: (() => {
+        const tr: any = {
+          meta: {},
+          setSelection: vi.fn(() => tr),
+          delete: vi.fn(() => tr),
+          setMeta: vi.fn((key: string, value: unknown) => {
+            tr.meta[key] = value
+            return tr
+          }),
+          getMeta: vi.fn((key: string) => tr.meta[key])
+        }
+        return tr
+      })()
     }
     public view = {
-      dispatch: vi.fn(),
+      dispatch: vi.fn((tr: any) => {
+        this.commandMock(tr)
+        lastEditorOptions?.onUpdate?.({ editor: this, transaction: tr })
+      }),
       updateState: vi.fn()
     }
     constructor(options: any) {
@@ -68,7 +82,10 @@ vi.mock('@tiptap/vue-3', () => {
           insertContentMock(content)
           return api
         },
-        insertContentAt: vi.fn(() => api),
+        insertContentAt: vi.fn((...args: any[]) => {
+          this.commandMock({ command: 'insertContentAt', args })
+          return api
+        }),
         deleteRange: vi.fn(() => api),
         run: () => true,
         setHardBreak: () => ({
@@ -502,6 +519,30 @@ describe('ChatInputBox attachments', () => {
     expect(deactivateSkillMock).not.toHaveBeenCalled()
     expect(deleteFileMock).not.toHaveBeenCalled()
     expect(closeDialogMock).not.toHaveBeenCalled()
+  })
+
+  it('does not emit stale text while syncing file chips after files are cleared', async () => {
+    const wrapper = await mountComponent({
+      files: [{ name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }]
+    })
+    const editor = lastEditorInstance
+    expect(editor).toBeTruthy()
+    mockEditorText = '帮我查看'
+    editor.state.doc.descendants = (callback: (node: any, pos: number) => void) => {
+      callback(
+        node(
+          'fileAttachment',
+          { fileName: 'file.pdf', filePath: '/tmp/file.pdf', mimeType: 'application/pdf' },
+          1
+        ),
+        1
+      )
+    }
+
+    await wrapper.setProps({ modelValue: '', files: [] })
+    await nextTick()
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 
   it('exposes and clears deduplicated pending skills snapshot', async () => {

@@ -1,17 +1,35 @@
 <template>
   <div class="relative flex h-full min-h-0 w-full flex-row overflow-hidden">
     <div
-      class="relative flex h-full min-h-0 min-w-0 w-0 flex-1 transition-[width] duration-200 ease-out"
+      class="relative flex h-full min-h-0 min-w-0 w-0 flex-1 transition-[width] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
     >
       <template v-if="isReady">
-        <AgentWelcomePage
+        <!--
+          Wrapper is a real DOM root for page components whose root may be a provider/fragment.
+          Avoid a full ChatPage route transition here: fading a large scrollable message tree
+          forces expensive compositing during conversation switches.
+        -->
+        <div
           v-if="pageRouter.currentRoute === 'newThread' && agentStore.selectedAgentId === null"
-        />
-        <NewThreadPage v-else-if="pageRouter.currentRoute === 'newThread'" />
-        <ChatPage
+          key="agent-welcome"
+          class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
+        >
+          <AgentWelcomePage />
+        </div>
+        <div
+          v-else-if="pageRouter.currentRoute === 'newThread'"
+          key="new-thread"
+          class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
+        >
+          <NewThreadPage />
+        </div>
+        <div
           v-else-if="pageRouter.currentRoute === 'chat' && pageRouter.chatSessionId"
-          :session-id="pageRouter.chatSessionId"
-        />
+          :key="pageRouter.chatSessionId"
+          class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
+        >
+          <ChatPage :session-id="pageRouter.chatSessionId" />
+        </div>
       </template>
     </div>
 
@@ -135,23 +153,15 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style>
-/* Scrollbar styles */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d1d5db80;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af80;
+<style scoped>
+/*
+ * TooltipProvider renders no DOM node, so the page's real root is the shell's
+ * direct child. Stretch that child without forcing display (NewThread needs flex).
+ */
+.chat-route-shell > :deep(*) {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 0%;
 }
 </style>

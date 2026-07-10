@@ -1,10 +1,11 @@
 <template>
   <div
     data-testid="chat-input-box"
-    :class="[
-      'w-full overflow-hidden rounded-xl border bg-card/30 shadow-sm backdrop-blur-lg',
-      props.maxWidthClass
-    ]"
+    :class="['w-full overflow-hidden rounded-xl border bg-card/30 shadow-sm', props.maxWidthClass]"
+    style="
+      backdrop-filter: blur(var(--dc-blur-panel));
+      -webkit-backdrop-filter: blur(var(--dc-blur-panel));
+    "
     @dragover="onDragOver"
     @drop="onDrop"
   >
@@ -400,10 +401,18 @@ const editor = new VueEditor({
   ],
   content: toEditorDoc(props.modelValue || ''),
   onUpdate: ({ editor, transaction }) => {
-    if (!transaction.getMeta(CHAT_INPUT_SYNC_META)) {
+    const isInternalSync = Boolean(transaction.getMeta(CHAT_INPUT_SYNC_META) || isSyncingNodes)
+    if (!isInternalSync) {
       reconcileEditorNodes()
     }
     isSubmittingCommandForm = false
+
+    // File/skill chip reconciliation changes the TipTap document without changing the user's
+    // typed text. During submit, the parent clears modelValue and files in the same tick; if the
+    // file-node removal emits the old text here, it can restore the just-sent draft.
+    if (isInternalSync) {
+      return
+    }
 
     const text = getEditorText(editor)
     if (text !== (props.modelValue || '')) {

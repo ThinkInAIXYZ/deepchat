@@ -85,7 +85,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const isExpanded = ref(false)
 const shouldRenderBody = ref(false)
-const BODY_UNMOUNT_DELAY_MS = 260
+// Slightly past --dc-motion-default (220ms) so the collapse transition finishes first.
+const BODY_UNMOUNT_DELAY_MS = 240
 let bodyUnmountTimer: number | null = null
 
 const cancelBodyUnmount = () => {

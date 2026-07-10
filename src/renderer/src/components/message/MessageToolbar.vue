@@ -95,7 +95,7 @@
                   <Icon icon="lucide:copy" class="w-3 h-3" />
                   <span
                     v-if="showCopyTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-50"
+                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
                   >
                     {{ t('common.copySuccess') }}
                   </span>
@@ -119,13 +119,13 @@
                   <Icon v-else icon="lucide:images" class="w-3 h-3" />
                   <span
                     v-if="showCopyImageTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-50"
+                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
                   >
                     {{ t('common.copyImageSuccess') }}
                   </span>
                   <span
                     v-if="showCopyFromTopTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-50"
+                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
                   >
                     {{ t('thread.toolbar.copyFromTopSuccess') }}
                   </span>

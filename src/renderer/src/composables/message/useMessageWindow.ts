@@ -23,8 +23,20 @@ const USER_BASE = 112
 const ASSISTANT_BASE = 136
 const PENDING_ASSISTANT_PLACEHOLDER_HEIGHT = 80
 const PENDING_ASSISTANT_PLACEHOLDER_ID_PREFIX = '__pending_assistant_'
+// Collapsed UI defaults (tool pill / think header / activity group). Expanded
+// rows correct via ResizeObserver; over-estimating collapsed blocks causes
+// spacer jump when windowing.
+const TOOL_CALL_COLLAPSED_HEIGHT = 40
+const THINKING_COLLAPSED_HEIGHT = 28
+const PLAN_BLOCK_HEIGHT = 120
+const MEDIA_BLOCK_HEIGHT = 200
+const AUDIO_BLOCK_HEIGHT = 96
+const ACTION_BLOCK_HEIGHT = 100
+const DEFAULT_BLOCK_HEIGHT = 72
 const CHARS_PER_LINE = 72
 const LINE_H = 22
+/** Ignore sub-pixel / sub-threshold measure noise so scroll doesn't re-anchor. */
+const MEASURE_DELTA_EPSILON_PX = 4
 
 function clamp(v: number) {
   return Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, v))
@@ -60,24 +72,29 @@ function estimateHeight(msg: MessageListItem): number {
         )
         break
       case 'tool_call':
-        h += 150
+        // Default UI is collapsed pill; expanded details measure later.
+        h += TOOL_CALL_COLLAPSED_HEIGHT
         break
       case 'reasoning_content':
       case 'artifact-thinking':
-        h += 96
+        // Think header line when collapsed (common settled state).
+        h += THINKING_COLLAPSED_HEIGHT
+        break
+      case 'plan':
+        h += PLAN_BLOCK_HEIGHT
         break
       case 'image':
       case 'video':
-        h += 260
+        h += MEDIA_BLOCK_HEIGHT
         break
       case 'audio':
-        h += 96
+        h += AUDIO_BLOCK_HEIGHT
         break
       case 'action':
-        h += 120
+        h += ACTION_BLOCK_HEIGHT
         break
       default:
-        h += 88
+        h += DEFAULT_BLOCK_HEIGHT
         break
     }
   }
@@ -86,6 +103,21 @@ function estimateHeight(msg: MessageListItem): number {
 
 export function useMessageWindow(options: UseMessageWindowOptions) {
   const measuredHeights = shallowRef<Record<string, number>>({})
+  let measureFlushQueued = false
+
+  const flushMeasuredHeights = () => {
+    if (!measureFlushQueued) return
+    measureFlushQueued = false
+    triggerRef(measuredHeights)
+  }
+
+  const scheduleMeasuredHeightsFlush = () => {
+    if (measureFlushQueued) return
+    measureFlushQueued = true
+    // Coalesce many ResizeObserver measures (common while windowing mounts rows
+    // during scroll) into one layout recompute.
+    queueMicrotask(flushMeasuredHeights)
+  }
 
   const entries = computed<MessageLayoutEntry[]>(() => {
     let offset = 0
@@ -111,6 +143,8 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   const totalHeight = computed(() => entries.value[entries.value.length - 1]?.bottom ?? 0)
 
   function getEntry(messageId: string): MessageLayoutEntry | undefined {
+    // Ensure callers see the latest measurements even if a microtask flush is pending.
+    flushMeasuredHeights()
     return entries.value.find((e) => e.id === messageId || e.measurementKey === messageId)
   }
 
@@ -120,12 +154,26 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
     const map = measuredHeights.value
     const prev = map[messageId]
     if (prev === rounded) return 0
+    // Use map baseline when present; otherwise estimate from current messages list
+    // without forcing a full entries recompute mid-batch.
+    let baseline = prev
+    if (baseline === undefined) {
+      const msg = options.messages.value.find(
+        (item) => item.id === messageId || item.renderKey === messageId
+      )
+      baseline = msg ? estimateHeight(msg) : rounded
+    }
+    const delta = rounded - baseline
     map[messageId] = rounded
-    triggerRef(measuredHeights)
-    return rounded - (prev ?? getEntry(messageId)?.estimatedHeight ?? rounded)
+    scheduleMeasuredHeightsFlush()
+    // Keep the map accurate but suppress tiny deltas so ChatPage does not
+    // re-run bottom-follow / anchor-restore for sub-threshold noise.
+    if (Math.abs(delta) < MEASURE_DELTA_EPSILON_PX) return 0
+    return delta
   }
 
   function clearMeasurements() {
+    measureFlushQueued = false
     measuredHeights.value = {}
   }
 

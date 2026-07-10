@@ -6,8 +6,8 @@
         size="sm"
         :class="
           isDeepchatContext
-            ? 'h-6 w-6 p-0 text-muted-foreground hover:text-foreground backdrop-blur-lg'
-            : 'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg'
+            ? 'dc-blur-panel h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
+            : 'dc-blur-panel h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground'
         "
         :title="triggerTitle"
         :aria-label="triggerTitle"
