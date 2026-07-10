@@ -554,12 +554,15 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 
 ### `PRM-002A` tasks
 
-- [ ] 先写 env timeout/late result、transient retry boundary、rendered-no-change failing tests。
-- [ ] 实现 `lastKnownGood`、shared `pending`、`settledAt`、`nextAttemptAt` source state。
-- [ ] 导出 `SystemEnvPromptSnapshot`；准确缓存 `.git` marker-presence observation。
-- [ ] 将 verification policy 改为单次 async read/parse 的 `VerificationPolicySnapshot`。
-- [ ] 给两个 lookup 接入 `AbortSignal`/absolute deadline 参数；保留 compatibility wrappers。
-- [ ] 验证 A 单独 merge 后输出 bytes/首轮预算兼容，记录 outer coherence 尚待 C。
+- [x] 先写 env timeout/late result、transient retry boundary、rendered-no-change failing tests。
+- [x] 实现 `lastKnownGood`、shared `pending`、`settledAt`、`nextAttemptAt` source state。
+- [x] 导出 `SystemEnvPromptSnapshot`；准确缓存 `.git` marker-presence observation。
+- [x] 将 verification policy 改为单次 async read/parse 的 `VerificationPolicySnapshot`。
+- [x] 给两个 lookup 接入 `AbortSignal`/absolute deadline 参数；保留 compatibility wrappers。
+- [x] 验证 A 单独 merge 后输出 bytes/首轮预算兼容，记录 outer coherence 尚待 C。
+
+`PRM-002A` 只发布 source-owner snapshots。外层 `systemPromptCache` fingerprint、skill snapshot/epoch 和
+prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice 不关闭 P-07。
 
 ### `PRM-002B` tasks
 
@@ -599,7 +602,7 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 - [x] `PRM-001`: 固定 env/verification rendered revisions、immutable skill snapshot/epoch、deadline、
       failure/reconcile 和 cache hit contract。
 - [x] `PRM-001`: 拆分 `PRM-002A`–`PRM-002C` 的 depends-on、validation 与 rollback order。
-- [ ] `PRM-002A`: source snapshots。
+- [x] `PRM-002A`: source snapshots。
 - [ ] `PRM-002B`: skill immutable snapshot/epoch。
 - [ ] `PRM-002C`: orchestration cache wiring and final validation。
 

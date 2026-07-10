@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import path from 'node:path'
 import logger from '@shared/logger'
@@ -11,6 +12,13 @@ export interface BuildSystemEnvPromptOptions {
   now?: Date
   agentsFilePath?: string
   modelLookup?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
+  signal?: AbortSignal
+  deadlineAt?: number
+}
+
+export interface SystemEnvPromptSnapshot {
+  readonly prompt: string
+  readonly revision: string
 }
 
 export interface RuntimeCapabilitiesPromptOptions {
@@ -23,13 +31,16 @@ const SYSTEM_ENV_SLOW_STEP_MS = 500
 const AGENTS_READ_BUDGET_MS = 200
 const AGENTS_CACHE_TTL_MS = 30_000
 
-type AgentsCacheEntry = {
-  content: string
-  refreshedAt: number
-  pending?: Promise<string>
+type SourceEntry<T> = {
+  hasLastKnownGood: boolean
+  lastKnownGood?: T
+  pending?: Promise<void>
+  settledAt: number
+  nextAttemptAt: number
 }
 
-const agentsInstructionsCache = new Map<string, AgentsCacheEntry>()
+const agentsInstructionsCache = new Map<string, SourceEntry<string | null>>()
+const gitRepositoryMarkerCache = new Map<string, SourceEntry<boolean>>()
 
 function logSlowSystemEnvStep(step: string, startedAt: number): void {
   const elapsed = Date.now() - startedAt
@@ -93,12 +104,19 @@ function resolveWorkdir(workdir?: string | null): string {
   return process.cwd()
 }
 
-function isGitRepository(workdir: string): boolean {
+async function readGitRepositoryMarkerPresent(workdir: string): Promise<boolean> {
   let current = path.resolve(workdir)
   while (true) {
-    if (fs.existsSync(path.join(current, '.git'))) {
+    try {
+      await fs.promises.access(path.join(current, '.git'))
       return true
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code !== 'ENOENT' && nodeError.code !== 'ENOTDIR') {
+        throw error
+      }
     }
+
     const parent = path.dirname(current)
     if (parent === current) {
       return false
@@ -107,87 +125,186 @@ function isGitRepository(workdir: string): boolean {
   }
 }
 
-async function readAgentsInstructionsFromDisk(sourcePath: string): Promise<string> {
+async function readAgentsInstructionsFromDisk(sourcePath: string): Promise<string | null> {
   try {
     return await fs.promises.readFile(sourcePath, 'utf8')
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     if (nodeError.code === 'ENOENT' || nodeError.code === 'ENOTDIR') {
-      return ''
+      return null
     }
-
-    logger.warn('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
-      sourcePath,
-      code: nodeError.code,
-      message: error instanceof Error ? error.message : String(error)
-    })
-    return ''
+    throw error
   }
 }
 
-function refreshAgentsInstructions(sourcePath: string, fallback: AgentsCacheEntry | undefined) {
-  const pending = readAgentsInstructionsFromDisk(sourcePath).then((content) => {
-    agentsInstructionsCache.set(sourcePath, {
-      content,
-      refreshedAt: Date.now()
-    })
-    return content
-  })
+function createSourceEntry<T>(): SourceEntry<T> {
+  return {
+    hasLastKnownGood: false,
+    settledAt: 0,
+    nextAttemptAt: 0
+  }
+}
 
-  agentsInstructionsCache.set(sourcePath, {
-    content: fallback?.content ?? '',
-    refreshedAt: fallback?.refreshedAt ?? 0,
-    pending
-  })
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    signal.throwIfAborted()
+  }
+}
 
+async function waitForPending(
+  pending: Promise<void>,
+  signal: AbortSignal | undefined,
+  deadlineAt: number
+): Promise<boolean> {
+  throwIfAborted(signal)
+  const remainingMs = Math.max(0, deadlineAt - Date.now())
+  if (remainingMs === 0) {
+    return false
+  }
+
+  return new Promise<boolean>((resolve, reject) => {
+    let timeout: NodeJS.Timeout | undefined
+    let finished = false
+    const cleanup = () => {
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+      signal?.removeEventListener('abort', onAbort)
+    }
+    const finish = (settled: boolean) => {
+      if (finished) {
+        return
+      }
+      finished = true
+      cleanup()
+      resolve(settled)
+    }
+    const onAbort = () => {
+      if (finished) {
+        return
+      }
+      finished = true
+      cleanup()
+      reject(signal?.reason ?? new DOMException('This operation was aborted', 'AbortError'))
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true })
+    timeout = setTimeout(() => finish(false), remainingMs)
+    pending.then(
+      () => finish(true),
+      () => finish(true)
+    )
+  })
+}
+
+function startAgentsInstructionsRefresh(
+  sourcePath: string,
+  entry: SourceEntry<string | null>
+): Promise<void> {
+  const pending = (async () => {
+    try {
+      entry.lastKnownGood = await readAgentsInstructionsFromDisk(sourcePath)
+      entry.hasLastKnownGood = true
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException
+      logger.warn('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
+        sourcePath,
+        code: nodeError.code,
+        message: error instanceof Error ? error.message : String(error)
+      })
+    } finally {
+      entry.settledAt = Date.now()
+      entry.nextAttemptAt = entry.settledAt + AGENTS_CACHE_TTL_MS
+      entry.pending = undefined
+    }
+  })()
+  entry.pending = pending
   return pending
 }
 
-async function waitForAgentsInstructions(
-  sourcePath: string,
-  pending: Promise<string>,
-  fallback: string
-): Promise<string> {
-  let timeout: NodeJS.Timeout | undefined
-  const result = await Promise.race([
-    pending.then((content) => ({ content })),
-    new Promise<{ timedOut: true }>((resolve) => {
-      timeout = setTimeout(() => resolve({ timedOut: true }), AGENTS_READ_BUDGET_MS)
-    })
-  ])
-
-  if (timeout) {
-    clearTimeout(timeout)
-  }
-
-  if ('timedOut' in result) {
-    logger.warn('[SystemEnvPromptBuilder] AGENTS.md read deferred', {
-      sourcePath,
-      budgetMs: AGENTS_READ_BUDGET_MS
-    })
-    return fallback
-  }
-
-  return result.content
+function startGitRepositoryMarkerRefresh(
+  workdir: string,
+  entry: SourceEntry<boolean>
+): Promise<void> {
+  const pending = (async () => {
+    try {
+      entry.lastKnownGood = await readGitRepositoryMarkerPresent(workdir)
+      entry.hasLastKnownGood = true
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException
+      logger.warn('[SystemEnvPromptBuilder] Failed to inspect git repository marker', {
+        workdir,
+        code: nodeError.code,
+        message: error instanceof Error ? error.message : String(error)
+      })
+    } finally {
+      entry.settledAt = Date.now()
+      entry.nextAttemptAt = entry.settledAt + AGENTS_CACHE_TTL_MS
+      entry.pending = undefined
+    }
+  })()
+  entry.pending = pending
+  return pending
 }
 
-async function readAgentsInstructions(sourcePath: string): Promise<string> {
-  const cached = agentsInstructionsCache.get(sourcePath)
+async function readAgentsInstructions(
+  sourcePath: string,
+  signal: AbortSignal | undefined,
+  deadlineAt: number,
+  waitBudgetMs: number
+): Promise<string> {
+  throwIfAborted(signal)
+  let entry = agentsInstructionsCache.get(sourcePath)
+  if (!entry) {
+    entry = createSourceEntry<string | null>()
+    agentsInstructionsCache.set(sourcePath, entry)
+  }
+
   const now = Date.now()
-  if (cached && now - cached.refreshedAt < AGENTS_CACHE_TTL_MS) {
-    return cached.content
+  if (!entry.pending && now >= entry.nextAttemptAt) {
+    startAgentsInstructionsRefresh(sourcePath, entry)
   }
 
-  if (cached?.pending) {
-    return cached.content
+  if (entry.hasLastKnownGood) {
+    return entry.lastKnownGood ?? ''
   }
 
-  const pending = refreshAgentsInstructions(sourcePath, cached)
-  if (cached) {
-    return cached.content
+  if (entry.pending && !(await waitForPending(entry.pending, signal, deadlineAt))) {
+    logger.warn('[SystemEnvPromptBuilder] AGENTS.md read deferred', {
+      sourcePath,
+      budgetMs: waitBudgetMs
+    })
   }
 
-  return waitForAgentsInstructions(sourcePath, pending, '')
+  return entry.hasLastKnownGood ? (entry.lastKnownGood ?? '') : ''
+}
+
+async function readGitRepositoryMarker(
+  workdir: string,
+  signal: AbortSignal | undefined,
+  deadlineAt: number
+): Promise<boolean> {
+  throwIfAborted(signal)
+  let entry = gitRepositoryMarkerCache.get(workdir)
+  if (!entry) {
+    entry = createSourceEntry<boolean>()
+    gitRepositoryMarkerCache.set(workdir, entry)
+  }
+
+  const now = Date.now()
+  if (!entry.pending && now >= entry.nextAttemptAt) {
+    startGitRepositoryMarkerRefresh(workdir, entry)
+  }
+
+  if (entry.hasLastKnownGood) {
+    return entry.lastKnownGood ?? false
+  }
+
+  if (entry.pending) {
+    await waitForPending(entry.pending, signal, deadlineAt)
+  }
+
+  return entry.hasLastKnownGood ? (entry.lastKnownGood ?? false) : false
 }
 
 export function buildRuntimeCapabilitiesPrompt(
@@ -221,9 +338,16 @@ export function buildRuntimeCapabilitiesPrompt(
   return lines.length > 1 ? lines.join('\n') : ''
 }
 
-export async function buildSystemEnvPrompt(
+export async function buildSystemEnvPromptSnapshot(
   options: BuildSystemEnvPromptOptions = {}
-): Promise<string> {
+): Promise<SystemEnvPromptSnapshot> {
+  throwIfAborted(options.signal)
+  const lookupStartedAt = Date.now()
+  const deadlineAt = Math.min(
+    options.deadlineAt ?? lookupStartedAt + AGENTS_READ_BUDGET_MS,
+    lookupStartedAt + AGENTS_READ_BUDGET_MS
+  )
+  const waitBudgetMs = Math.max(0, deadlineAt - lookupStartedAt)
   const now = options.now ?? new Date()
   const platform = options.platform ?? process.platform
   const workdir = resolveWorkdir(options.workdir)
@@ -231,8 +355,12 @@ export async function buildSystemEnvPrompt(
     ? path.resolve(options.agentsFilePath)
     : path.join(workdir, 'AGENTS.md')
   let stepStartedAt = Date.now()
-  const agentsContent = await readAgentsInstructions(agentsFilePath)
-  logSlowSystemEnvStep('read-agents', stepStartedAt)
+  const [agentsContent, gitRepositoryMarkerPresent] = await Promise.all([
+    readAgentsInstructions(agentsFilePath, options.signal, deadlineAt, waitBudgetMs),
+    readGitRepositoryMarker(workdir, options.signal, deadlineAt)
+  ])
+  throwIfAborted(options.signal)
+  logSlowSystemEnvStep('read-sources', stepStartedAt)
   stepStartedAt = Date.now()
   const { modelName, exactModelId } = resolveModelIdentity(
     options.providerId,
@@ -240,9 +368,6 @@ export async function buildSystemEnvPrompt(
     options.modelLookup
   )
   logSlowSystemEnvStep('model-identity', stepStartedAt)
-  stepStartedAt = Date.now()
-  const isGitRepo = isGitRepository(workdir)
-  logSlowSystemEnvStep('git-detect', stepStartedAt)
 
   const promptLines = [
     `You are powered by the model named ${modelName}.`,
@@ -250,7 +375,7 @@ export async function buildSystemEnvPrompt(
     `Here is some useful information about the environment you are running in:`,
     '<env>',
     `Working directory: ${workdir}`,
-    `Is directory a git repo: ${isGitRepo ? 'yes' : 'no'}`,
+    `Is directory a git repo: ${gitRepositoryMarkerPresent ? 'yes' : 'no'}`,
     `Platform: ${platform}`,
     `Today's date: ${now.toDateString()}`,
     '</env>'
@@ -260,5 +385,15 @@ export async function buildSystemEnvPrompt(
     promptLines.push(`Instructions from: ${agentsFilePath}\n`, agentsContent)
   }
 
-  return promptLines.join('\n')
+  const prompt = promptLines.join('\n')
+  return {
+    prompt,
+    revision: createHash('sha256').update(prompt, 'utf8').digest('hex')
+  }
+}
+
+export async function buildSystemEnvPrompt(
+  options: BuildSystemEnvPromptOptions = {}
+): Promise<string> {
+  return (await buildSystemEnvPromptSnapshot(options)).prompt
 }

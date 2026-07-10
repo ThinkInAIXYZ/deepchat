@@ -10,6 +10,8 @@ function fileError(code: string): NodeJS.ErrnoException {
 describe('buildSystemEnvPrompt', () => {
   beforeEach(() => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
+    vi.mocked(fs.promises.access).mockReset()
+    vi.mocked(fs.promises.access).mockRejectedValue(fileError('ENOENT'))
     vi.mocked(fs.promises.readFile).mockReset()
     vi.mocked(logger.warn).mockClear()
   })

@@ -1,7 +1,5 @@
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
-import fs from 'fs'
-import path from 'path'
 import type {
   AssistantMessageBlock,
   AgentTapeAnchorResult,
@@ -88,6 +86,7 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import { buildVerificationPolicyPrompt } from '@/lib/agentRuntime/verificationPolicyPromptBuilder'
 import type { ContextBuildMetadata } from './contextBuilder'
 import {
   buildTapeChatView,
@@ -212,11 +211,6 @@ type ResumeBudgetToolCall = {
 type AgentExtensionPolicy = {
   enabledPluginIds?: string[] | null
   enabledSkillNames?: string[] | null
-}
-
-type PackageJsonManifest = {
-  name?: unknown
-  scripts?: Record<string, unknown>
 }
 
 const PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP = 8_192
@@ -470,38 +464,6 @@ function buildProviderContextOverflowAfterRecoveryErrorMessage(
 function normalizeTopP(value: unknown): number | undefined {
   const numeric = parseFiniteNumericValue(value)
   return numeric !== undefined && numeric >= 0.1 && numeric <= 1 ? numeric : undefined
-}
-
-function readPackageJsonManifest(workdir: string): PackageJsonManifest | null {
-  try {
-    const packageJsonPath = path.join(workdir, 'package.json')
-    if (!fs.existsSync(packageJsonPath)) {
-      return null
-    }
-
-    const parsed = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return null
-    }
-
-    return parsed as PackageJsonManifest
-  } catch {
-    return null
-  }
-}
-
-function getVerificationScriptNames(workdir: string): string[] {
-  const manifest = readPackageJsonManifest(workdir)
-  const scripts = manifest?.scripts
-  if (!scripts || typeof scripts !== 'object') {
-    return []
-  }
-
-  return Object.entries(scripts)
-    .filter(
-      ([name, value]) => typeof name === 'string' && typeof value === 'string' && value.trim()
-    )
-    .map(([name]) => name)
 }
 
 type ActiveProviderPermission = {
@@ -4821,6 +4783,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     stepStartedAt = Date.now()
+    const verificationPolicyPrompt = await buildVerificationPolicyPrompt(workdir)
+    this.logSlowPreStreamStep(sessionId, 'system-prompt.verification-policy', stepStartedAt)
+
+    stepStartedAt = Date.now()
     const composedPrompt = this.composePromptSections([
       normalizedBase,
       runtimePrompt,
@@ -4829,7 +4795,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       skillsPrompt,
       toolingPrompt,
       this.buildPermissionRulesPrompt(agentToolNames),
-      this.buildVerificationPolicyPrompt(workdir)
+      verificationPolicyPrompt
     ])
     this.logSlowPreStreamStep(sessionId, 'system-prompt.compose', stepStartedAt)
 
@@ -4875,40 +4841,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
     }
     lines.push('Do not assume approval for file writes or commands when the session asks for it.')
-
-    return lines.join('\n')
-  }
-
-  private buildVerificationPolicyPrompt(workdir: string | null): string {
-    const lines = [
-      '## Verification Policy',
-      'After changing code, configuration, tests, docs that affect behavior, or generated assets, check verification status before the final response.',
-      'If verification was not run, state the reason explicitly in the final response.'
-    ]
-
-    const normalizedWorkdir = workdir?.trim()
-    if (!normalizedWorkdir) {
-      return lines.join('\n')
-    }
-
-    const verificationScripts = getVerificationScriptNames(normalizedWorkdir)
-    const manifest = readPackageJsonManifest(normalizedWorkdir)
-    const isDeepChatWorkspace =
-      String(manifest?.name ?? '').toLowerCase() === 'deepchat' ||
-      ['format', 'i18n', 'lint'].every((scriptName) => verificationScripts.includes(scriptName))
-
-    if (isDeepChatWorkspace) {
-      lines.push(
-        'In the DeepChat repository, prioritize `pnpm run format`, `pnpm run i18n`, and `pnpm run lint` after feature work.'
-      )
-    } else if (verificationScripts.length > 0) {
-      const suggestedScripts = verificationScripts
-        .slice(0, 4)
-        .map((scriptName) => `\`${scriptName}\``)
-      lines.push(
-        `When relevant, prefer project-local verification scripts such as ${suggestedScripts.join(', ')}.`
-      )
-    }
 
     return lines.join('\n')
   }
