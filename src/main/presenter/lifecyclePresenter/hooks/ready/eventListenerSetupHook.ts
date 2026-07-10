@@ -31,16 +31,29 @@ export const eventListenerSetupHook: LifecycleHook = {
       optimizer.watchWindowShortcuts(window)
     })
 
-    // Handle app activation event (like launching the app or clicking the Dock icon on macOS).
-    // Do not reveal existing hidden windows here: opening the system/app menu also activates the app,
-    // and auto-showing would make the native Hide menu item impossible to use reliably.
+    // Restore a main window hidden by close-to-tray when the Dock activates the app.
+    // Keep native macOS Hide behavior intact by restoring only explicitly tracked close events.
     app.on('activate', function () {
+      if (presenter.windowPresenter.restoreMainWindowHiddenByClose()) {
+        return
+      }
+
       const allWindows = presenter.windowPresenter.getAllWindows()
       if (allWindows.length === 0) {
         presenter.windowPresenter.createAppWindow({
           initialRoute: 'chat'
         })
       }
+    })
+
+    // Electron exposes no dedicated event for the application-level native macOS Hide command.
+    // Wait for AppKit to update the hidden state before clearing close-to-hide restoration.
+    app.on('did-resign-active', () => {
+      setTimeout(() => {
+        if (app.isHidden()) {
+          presenter.windowPresenter.clearMainWindowHiddenByClose()
+        }
+      }, 0)
     })
 
     // Listen for floating button configuration change events
