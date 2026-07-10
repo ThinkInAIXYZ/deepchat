@@ -1,7 +1,5 @@
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
-import fs from 'fs'
-import path from 'path'
 import type {
   AssistantMessageBlock,
   AgentTapeAnchorResult,
@@ -88,6 +86,7 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import { buildVerificationPolicyPrompt } from '@/lib/agentRuntime/verificationPolicyPromptBuilder'
 import type { ContextBuildMetadata } from './contextBuilder'
 import {
   buildTapeChatView,
@@ -214,17 +213,13 @@ type AgentExtensionPolicy = {
   enabledSkillNames?: string[] | null
 }
 
-type PackageJsonManifest = {
-  name?: unknown
-  scripts?: Record<string, unknown>
-}
-
 const PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP = 8_192
 const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
 const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
 const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
+const SYSTEM_PROMPT_SOURCE_LOOKUP_BUDGET_MS = 200
 
 function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
   return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
@@ -470,38 +465,6 @@ function buildProviderContextOverflowAfterRecoveryErrorMessage(
 function normalizeTopP(value: unknown): number | undefined {
   const numeric = parseFiniteNumericValue(value)
   return numeric !== undefined && numeric >= 0.1 && numeric <= 1 ? numeric : undefined
-}
-
-function readPackageJsonManifest(workdir: string): PackageJsonManifest | null {
-  try {
-    const packageJsonPath = path.join(workdir, 'package.json')
-    if (!fs.existsSync(packageJsonPath)) {
-      return null
-    }
-
-    const parsed = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return null
-    }
-
-    return parsed as PackageJsonManifest
-  } catch {
-    return null
-  }
-}
-
-function getVerificationScriptNames(workdir: string): string[] {
-  const manifest = readPackageJsonManifest(workdir)
-  const scripts = manifest?.scripts
-  if (!scripts || typeof scripts !== 'object') {
-    return []
-  }
-
-  return Object.entries(scripts)
-    .filter(
-      ([name, value]) => typeof name === 'string' && typeof value === 'string' && value.trim()
-    )
-    .map(([name]) => name)
 }
 
 type ActiveProviderPermission = {
@@ -4788,20 +4751,41 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.logSlowPreStreamStep(sessionId, 'system-prompt.pinned-skills-load', stepStartedAt)
     }
 
-    let envPrompt = ''
-    try {
-      stepStartedAt = Date.now()
-      envPrompt = await buildSystemEnvPrompt({
-        providerId,
-        modelId,
-        workdir,
-        now,
-        modelLookup: this.providerCatalogPort
-      })
-      this.logSlowPreStreamStep(sessionId, 'system-prompt.env-prompt', stepStartedAt)
-    } catch (error) {
-      console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
-    }
+    const sourceLookupDeadlineAt = Date.now() + SYSTEM_PROMPT_SOURCE_LOOKUP_BUDGET_MS
+    const envPromptStartedAt = Date.now()
+    const envPromptPromise = buildSystemEnvPrompt({
+      providerId,
+      modelId,
+      workdir,
+      now,
+      modelLookup: this.providerCatalogPort,
+      deadlineAt: sourceLookupDeadlineAt
+    }).then(
+      (prompt) => {
+        this.logSlowPreStreamStep(sessionId, 'system-prompt.env-prompt', envPromptStartedAt)
+        return prompt
+      },
+      (error) => {
+        console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
+        return ''
+      }
+    )
+    const verificationPolicyStartedAt = Date.now()
+    const verificationPolicyPromptPromise = buildVerificationPolicyPrompt(workdir, {
+      deadlineAt: sourceLookupDeadlineAt
+    }).then((prompt) => {
+      this.logSlowPreStreamStep(
+        sessionId,
+        'system-prompt.verification-policy',
+        verificationPolicyStartedAt
+      )
+      return prompt
+    })
+
+    const [envPrompt, verificationPolicyPrompt] = await Promise.all([
+      envPromptPromise,
+      verificationPolicyPromptPromise
+    ])
 
     let toolingPrompt = ''
     if (this.toolPresenter) {
@@ -4829,7 +4813,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       skillsPrompt,
       toolingPrompt,
       this.buildPermissionRulesPrompt(agentToolNames),
-      this.buildVerificationPolicyPrompt(workdir)
+      verificationPolicyPrompt
     ])
     this.logSlowPreStreamStep(sessionId, 'system-prompt.compose', stepStartedAt)
 
@@ -4875,40 +4859,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
     }
     lines.push('Do not assume approval for file writes or commands when the session asks for it.')
-
-    return lines.join('\n')
-  }
-
-  private buildVerificationPolicyPrompt(workdir: string | null): string {
-    const lines = [
-      '## Verification Policy',
-      'After changing code, configuration, tests, docs that affect behavior, or generated assets, check verification status before the final response.',
-      'If verification was not run, state the reason explicitly in the final response.'
-    ]
-
-    const normalizedWorkdir = workdir?.trim()
-    if (!normalizedWorkdir) {
-      return lines.join('\n')
-    }
-
-    const verificationScripts = getVerificationScriptNames(normalizedWorkdir)
-    const manifest = readPackageJsonManifest(normalizedWorkdir)
-    const isDeepChatWorkspace =
-      String(manifest?.name ?? '').toLowerCase() === 'deepchat' ||
-      ['format', 'i18n', 'lint'].every((scriptName) => verificationScripts.includes(scriptName))
-
-    if (isDeepChatWorkspace) {
-      lines.push(
-        'In the DeepChat repository, prioritize `pnpm run format`, `pnpm run i18n`, and `pnpm run lint` after feature work.'
-      )
-    } else if (verificationScripts.length > 0) {
-      const suggestedScripts = verificationScripts
-        .slice(0, 4)
-        .map((scriptName) => `\`${scriptName}\``)
-      lines.push(
-        `When relevant, prefer project-local verification scripts such as ${suggestedScripts.join(', ')}.`
-      )
-    }
 
     return lines.join('\n')
   }

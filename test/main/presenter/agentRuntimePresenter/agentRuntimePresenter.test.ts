@@ -98,6 +98,10 @@ vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
   )
 }))
 
+vi.mock('@/lib/agentRuntime/verificationPolicyPromptBuilder', () => ({
+  buildVerificationPolicyPrompt: vi.fn(async () => '## Verification Policy')
+}))
+
 // Mock processStream to avoid timer/async complexity
 vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
   processStream: vi.fn().mockResolvedValue({ status: 'completed' })
@@ -111,6 +115,7 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import { buildVerificationPolicyPrompt } from '@/lib/agentRuntime/verificationPolicyPromptBuilder'
 
 function getPublishedPayloads(eventName: string): any[] {
   return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
@@ -2513,6 +2518,62 @@ describe('AgentRuntimePresenter', () => {
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
       expect(firstCallArgs.messages[0].content).toBe(secondCallArgs.messages[0].content)
+    })
+
+    it('starts source lookups together under one 200ms deadline on a prompt cache miss', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const startedAt = Date.now()
+      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+      const verificationBuilder = buildVerificationPolicyPrompt as ReturnType<typeof vi.fn>
+      const envStarted = deferred<void>()
+      let envDeadlineAt: number | undefined
+      let verificationDeadlineAt: number | undefined
+
+      envBuilder.mockImplementationOnce(
+        async (options: { deadlineAt?: number }) =>
+          new Promise<string>((resolve) => {
+            envDeadlineAt = options.deadlineAt
+            envStarted.resolve()
+            setTimeout(
+              () => resolve('ENV_DEADLINE_FALLBACK'),
+              Math.max(0, (options.deadlineAt ?? Date.now()) - Date.now())
+            )
+          })
+      )
+      verificationBuilder.mockImplementationOnce(
+        async (_workdir: string | null, options: { deadlineAt?: number }) =>
+          new Promise<string>((resolve) => {
+            verificationDeadlineAt = options.deadlineAt
+            setTimeout(
+              () => resolve('## Verification Policy\nVERIFICATION_DEADLINE_FALLBACK'),
+              Math.max(0, (options.deadlineAt ?? Date.now()) - Date.now())
+            )
+          })
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const processing = agent.processMessage('s1', 'First message')
+      await envStarted.promise
+
+      expect(verificationBuilder).toHaveBeenCalledTimes(1)
+      expect(envDeadlineAt).toBe(startedAt + 200)
+      expect(verificationDeadlineAt).toBe(envDeadlineAt)
+
+      let settled = false
+      void processing.then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(199)
+      expect(settled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(1)
+      await processing
+      expect(Date.now()).toBe(startedAt + 200)
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.messages[0].content).toContain('ENV_DEADLINE_FALLBACK')
+      expect(callArgs.messages[0].content).toContain('VERIFICATION_DEADLINE_FALLBACK')
     })
 
     it('invalidates cached tools when the MCP client list changes', async () => {
