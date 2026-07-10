@@ -1,5 +1,6 @@
 import logger from '@shared/logger'
 import { SessionService } from '@/routes/sessions/sessionService'
+import { reportTerminalSessionResolution } from '@/presenter/agentSessionPresenter/sessionResolution'
 
 vi.mock('@shared/logger', () => ({
   default: {
@@ -156,6 +157,54 @@ describe('SessionService', () => {
       '[SessionResolution] Terminal lookup',
       expect.objectContaining({ operation: 'sessions.restore', attemptCount: 2 })
     )
+  })
+
+  it('logs only stable metadata and discards transient secrets and paths', () => {
+    const cause = new Error('provider-secret at /Users/alice/private/provider.json')
+    cause.stack = 'provider-secret stack at /Users/alice/private/provider.json'
+
+    reportTerminalSessionResolution(
+      'sessions.restore',
+      {
+        availability: 'transient_error',
+        sessionId: 'session-1',
+        record: {
+          id: 'session-1',
+          agentId: 'configured-agent-secret',
+          title: 'private session',
+          projectDir: '/Users/alice/private',
+          isPinned: false,
+          sessionKind: 'regular',
+          subagentEnabled: false,
+          createdAt: 1,
+          updatedAt: 1
+        },
+        error: {
+          code: 'SESSION_RESOLUTION_FAILED',
+          stage: 'state_read',
+          retryable: true,
+          cause
+        }
+      },
+      2
+    )
+
+    expect(logger.warn).toHaveBeenCalledWith('[SessionResolution] Terminal lookup', {
+      operation: 'sessions.restore',
+      sessionId: 'session-1',
+      availability: 'transient_error',
+      stage: 'state_read',
+      code: 'SESSION_RESOLUTION_FAILED',
+      retryable: true,
+      attemptCount: 2
+    })
+
+    const serializedArguments = JSON.stringify(vi.mocked(logger.warn).mock.calls)
+    expect(serializedArguments).not.toContain('provider-secret')
+    expect(serializedArguments).not.toContain('/Users/alice/private/provider.json')
+    expect(serializedArguments).not.toContain('configured-agent-secret')
+    expect(serializedArguments).not.toContain('cause')
+    expect(serializedArguments).not.toContain('stack')
   })
 
   it('does not retry an unsettled timeout as a classified transient result', async () => {

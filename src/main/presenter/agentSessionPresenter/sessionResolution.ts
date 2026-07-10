@@ -66,13 +66,11 @@ export function reportTerminalSessionResolution(
   logger.warn('[SessionResolution] Terminal lookup', {
     operation,
     sessionId: resolution.sessionId,
-    agentId: 'record' in resolution ? resolution.record?.agentId : undefined,
     availability: resolution.availability,
     stage: metadata.stage,
     code: metadata.code,
     retryable: resolution.availability === 'transient_error',
-    attemptCount,
-    ...(resolution.availability === 'transient_error' ? { cause: resolution.error.cause } : {})
+    attemptCount
   })
 }
 

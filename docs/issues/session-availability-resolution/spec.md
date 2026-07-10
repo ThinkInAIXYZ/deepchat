@@ -454,9 +454,13 @@ The migration inventory is fixed before implementation:
 | floating-button full list | intentionally remains on available-only `getSessionList` until that secondary renderer has an availability UI; it is the sole production list-adapter allowlist entry |
 | tests and third-party Presenter mocks | legacy methods remain type-compatible; new contract tests target `resolve*` directly |
 
-`SES-002` must grep direct calls and bound references before commit. After migration, the allowlist names every
-remaining production legacy-adapter call site; an unexplained `getSession*` call is a failing test, not an implicit
-compatibility decision.
+`SES-002` uses a TypeScript AST/type/provenance guard rather than a text grep. It follows direct property access,
+local aliases, alias chains, object destructuring and bound method references rooted at
+`agentSessionPresenter`; typed `IAgentSessionPresenter` references are also covered. Positive and negative
+fixtures prove these forms are distinguished from unrelated classes that happen to define a method named
+`getSession`. After migration, the allowlist names the owning method and adapter exactly; the floating button's
+`loadSessions#getSessionList` boundary is the sole production entry. An unexplained legacy reference is a failing
+test, not an implicit compatibility decision.
 
 ### `getActive`
 
@@ -621,18 +625,22 @@ accepted the result as terminal:
 
 Each terminal non-available lookup records one structured diagnostic:
 
+- stable operation name
 - `sessionId`
-- `agentId` when a record exists
 - `availability`
 - `stage`
 - stable error `code`
+- stable `retryable` flag
 - attempt count when retry ran
-- original `cause` through the existing logger object path for transient errors only
 
-Unavailable/missing diagnostics infer their stable stage (`agent_lookup` / `record_read`) and have no fabricated
-cause. List isolation must avoid duplicate warnings from both classifier and adapter. One failed row produces one
-terminal diagnostic per list request, not one per layer or retry attempt. Tests spy on the shared helper/logger to
-prove a transient-first/success-second retry emits no terminal error and an exhausted retry emits exactly one.
+The original `cause` exists only in the in-memory classified result so typed owners can decide whether a settled
+read is retryable. It is discarded at the terminal logging boundary. No raw `Error`, message, stack, configured
+Agent identity, absolute path, SQL text, command, environment data or provider secret is passed to
+`electron-log`. Unavailable/missing diagnostics infer their stable stage (`agent_lookup` / `record_read`) without
+fabricating a cause. List isolation must avoid duplicate warnings from both classifier and adapter. One failed row
+produces one terminal diagnostic per list request, not one per layer or retry attempt. Tests spy on the shared
+helper/logger to prove a transient-first/success-second retry emits no terminal error, an exhausted retry emits
+exactly one, and injected secret/path text is absent from every logger argument.
 
 ### Renderer payload
 
@@ -722,8 +730,9 @@ all four public states are testable without production fault injection.
 - [ ] `getSessionList()` remains available-only for the allowlisted floating button, while
       `resolveSessionList()` returns unknown/transient rows in original order.
 - [ ] Terminal diagnostic spy proves transient-first/success-second logs none and exhausted transient logs once.
-- [ ] Source/type guard proves the unsafe fake-null cast is absent and no unallowlisted production call site uses
-      legacy `getSession*`.
+- [ ] AST/type/provenance guard fixtures prove direct, aliased, destructured and bound legacy references fail
+      closed, unrelated same-name methods remain allowed, the unsafe fake-null cast is absent, and floating
+      `loadSessions#getSessionList` is the only production allowlist entry.
 
 ### `SES-003`
 
