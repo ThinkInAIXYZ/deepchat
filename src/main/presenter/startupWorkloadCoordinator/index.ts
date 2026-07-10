@@ -117,7 +117,7 @@ export class StartupWorkloadCoordinator {
     for (const task of tasks) {
       if (task.state === 'pending' || task.state === 'running') {
         task.controller.abort()
-        this.settleTask(task, 'cancelled', this.createAbortError(task.id))
+        this.settleTask(task, 'cancelled', this.createAbortError(task.id), false)
       }
     }
 
@@ -333,7 +333,8 @@ export class StartupWorkloadCoordinator {
   private settleTask(
     task: StartupTaskRecord<unknown>,
     finalState: 'cancelled' | 'completed' | 'failed',
-    result: unknown
+    result: unknown,
+    shouldPublish = true
   ): void {
     if (task.settled) {
       return
@@ -362,7 +363,9 @@ export class StartupWorkloadCoordinator {
       runState.visibleTasks.set(task.visibleId, task)
     }
 
-    this.publishSnapshot(task.target)
+    if (shouldPublish) {
+      this.publishSnapshot(task.target)
+    }
   }
 
   private removePendingTask(internalKey: string): void {

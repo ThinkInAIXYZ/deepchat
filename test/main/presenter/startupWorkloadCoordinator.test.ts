@@ -276,26 +276,47 @@ describe('StartupWorkloadCoordinator', () => {
     await cancellation
     expect(rejectSpy).toHaveBeenCalledTimes(1)
 
+    const nextTaskStarted = vi.fn()
+    coordinator.createRun('main')
+    const nextTask = coordinator.scheduleTask({
+      id: 'main:next',
+      target: 'main',
+      phase: 'interactive',
+      resource: 'cpu',
+      labelKey: 'startup.main.next',
+      run: async () => {
+        nextTaskStarted()
+      }
+    })
+
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(nextTaskStarted).not.toHaveBeenCalled()
+    expect(internals.pendingTasks).toHaveLength(1)
+    expect(internals.runningCounts.cpu).toBe(1)
+
     runGate.reject(new Error('late failure'))
     await runSettled.promise
+    await nextTask
     await vi.waitFor(() => expect(coordinator.isIdle()).toBe(true))
 
     expect(rejectSpy).toHaveBeenCalledTimes(1)
     expect(resolveSpy).not.toHaveBeenCalled()
+    expect(nextTaskStarted).toHaveBeenCalledOnce()
     expect(internals.pendingTasks).toHaveLength(0)
     expect(internals.inFlightByDedupeKey.size).toBe(0)
     expect(internals.runs.has('settings')).toBe(false)
     expect(internals.runningCounts.cpu).toBe(0)
   })
 
-  it('cancels visible settings tasks and publishes the cancelled state', async () => {
+  it('publishes one atomic snapshot when cancelling multiple visible tasks', async () => {
     const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
     coordinator.createRun('settings')
 
-    const started = createDeferred<void>()
+    const firstStarted = createDeferred<void>()
+    const secondStarted = createDeferred<void>()
 
-    const taskPromise = coordinator.scheduleTask({
+    const firstTask = coordinator.scheduleTask({
       id: 'settings.providers.summary',
       target: 'settings',
       phase: 'interactive',
@@ -303,7 +324,7 @@ describe('StartupWorkloadCoordinator', () => {
       labelKey: 'startup.settings.providers.summary',
       visibleId: 'settings.providers.summary',
       run: async ({ signal }) => {
-        started.resolve()
+        firstStarted.resolve()
         await new Promise<void>((_, reject) => {
           signal.addEventListener(
             'abort',
@@ -318,18 +339,54 @@ describe('StartupWorkloadCoordinator', () => {
       }
     })
 
-    await started.promise
+    const secondTask = coordinator.scheduleTask({
+      id: 'settings.provider.models',
+      target: 'settings',
+      phase: 'interactive',
+      resource: 'io',
+      labelKey: 'startup.settings.provider.models',
+      visibleId: 'settings.provider.models',
+      run: async ({ signal }) => {
+        secondStarted.resolve()
+        await new Promise<void>((_, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('aborted')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      }
+    })
+
+    await Promise.all([firstStarted.promise, secondStarted.promise])
+    const callsBeforeCancel = publishDeepchatEventMock.mock.calls.length
+    const cancellations = [firstTask, secondTask].map((task) =>
+      expect(task).rejects.toMatchObject({ name: 'AbortError' })
+    )
+
     coordinator.cancelTarget('settings')
+    await Promise.all(cancellations)
+    await new Promise((resolve) => setImmediate(resolve))
 
-    await expect(taskPromise).rejects.toMatchObject({ name: 'AbortError' })
+    const cancellationEvents = publishDeepchatEventMock.mock.calls.slice(callsBeforeCancel)
+    expect(cancellationEvents).toHaveLength(1)
+    expect(cancellationEvents[0]?.[0]).toBe('startup.workload.changed')
 
-    const lastPayload = publishDeepchatEventMock.mock.calls.at(-1)?.[1]
+    const lastPayload = cancellationEvents[0]?.[1]
     expect(lastPayload).toEqual(
       expect.objectContaining({
         target: 'settings',
         tasks: [
           expect.objectContaining({
             id: 'settings.providers.summary',
+            state: 'cancelled'
+          }),
+          expect.objectContaining({
+            id: 'settings.provider.models',
             state: 'cancelled'
           })
         ]
