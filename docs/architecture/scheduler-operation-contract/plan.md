@@ -1,97 +1,155 @@
 # Scheduler Operation Contract Implementation Plan
 
-## 实施原则
+## 先说结论
 
-本计划不做 big-bang Scheduler rewrite。按“先修 timing primitive，再迁安全 consumer，最后给 create
-mutation 建 operation identity”推进。每个 sub-slice 独立 branch/PR、独立 develop/verify，前一片通过后
-后一片才开始。
+不能把所有 `Promise.race` 一次删掉，也不能先发布只有 backend 认识 operation id 的半成品。安全顺序是：
+
+1. 先做只服务真实 consumer 的 timing primitive；
+2. 再迁移已经能证明安全的 session/chat/catalog 路径；
+3. provider probe 暂时保留 5 秒遗留观察 deadline，并交给 provider owner 补真实 cancellation；
+4. 先给 initial input 建立“已接收、不是整轮生成完成”的边界；
+5. session create backend 与 renderer 一起原子切换，任何 production caller 都不能落入无 id 的中间态；
+6. 最后清掉 legacy timeout，并用 restart、stale intent、cleanup uncertainty 测试收口。
+
+这不是按代码文件排顺序，而是按“先获得什么证据，下一步才有资格做什么”排顺序。
+
+## 交付图
 
 ```text
-SCH-001 docs
-   |
-   v
-SCH-002A OperationRunner core
-   |
-   v
-SCH-002B safe consumer migration
-   |
-   v
-SCH-003A session create operation backend
-   |
-   v
-SCH-003B renderer reconciliation + legacy cleanup
+SCH-001 decision docs
+        |
+        v
+SCH-002A OperationRunner core --------+
+        |                              |
+        v                              v
+SES-002 -> SCH-002B safe migration   PRV-CAN-001 provider owner cancellation
+                  |                    |
+                  +---------+----------+
+                            |
+                            v
+                    legacy timeout = create only
+
+SCH-003P initial-input acceptance
+        |
+        +-------------------- SES-003
+        |                       |
+        v                       v
+SCH-003A backend commit -> SCH-003B renderer/integration commit
+             \____________ atomic production PR ____________/
+                              |
+                              v
+                    legacy timeout consumer = 0
 ```
 
-## 依赖与冲突安排
+`SCH-003A` 与 `SCH-003B` 是为了 review 清楚而拆的 development slices，不是两个可分别发布的版本。
+`SCH-003B depends on SCH-003A + SES-003`；最终只能以一个 atomic production PR merge。
 
-| 依赖/并行工作 | 安排 |
-| --- | --- |
-| `SES-002` 修改 `SessionService` / session resolution | `SCH-002A` 可并行；`SCH-002B` 的 session slice 必须基于已合入 `SES-002`，不能双边各自改同一语义 |
-| `SES-003` 修改 route/session renderer | `SCH-003B` 在其后 rebase，复用四态字段；不复制 compatibility adapter |
-| `CHAT-001/002` 决定 enqueue/generation owner | SCH 只移除 false mutation deadline、保留 cancel request semantics；generation handle 的增删由 `CHAT-*` 决定 |
-| `PRM-*` / fatal work | 无 contract 依赖；如共同修改 route root，只按 merge 顺序 rebase，不合并目标 |
+## 依赖、冲突与 merge 顺序
 
-推荐 merge 顺序：`SES-002` → `SCH-002A` → `SCH-002B` → `SES-003` → `SCH-003A` →
-`SCH-003B`。若 `SES-003` 尚未开始，`SCH-003A` 可先做 backend，但 renderer slice 仍需在最终 session route
-schema 上验证。
+| 依赖/并行工作 | 处理方式 | 不满足时怎么办 |
+| --- | --- | --- |
+| `SES-002` session 四态与 binding 语义 | `SCH-002B` rebase 到它之后；restore/getActive 只消费 typed result | 不复制一套 null/error-string adapter，session migration 暂停 |
+| `SES-003` route/renderer compatibility | `SCH-003B` 显式依赖并复用它的 schema/client 结构 | 003A 可写成未合入 commit，但 003 atomic PR 不 merge |
+| initial-input acceptance | `SCH-003P` 必须在 journal stage 前完成 | 无 accepted handle 就不能写 `input_accepted/completed`，003 cutover 阻塞 |
+| provider cancellation | `PRV-CAN-001` 与 003 可并行，owner 能力完成后再删 route 5 秒 wrapper | SCH 不假称 owner timeout，保留精确 legacy exception |
+| `CHAT-001/002` generation owner | SCH 只处理 route observation 与 acceptance，不发明 generation settlement | cancel request semantics 保持不变 |
+
+推荐 production merge 顺序：
+
+```text
+SES-002
+  -> SCH-002A
+  -> SCH-002B
+  -> PRV-CAN-001 (can be parallel with the next prerequisites)
+  -> SCH-003P
+  -> SES-003
+  -> SCH-003A + SCH-003B atomic PR
+```
+
+如果 `PRV-CAN-001` 较慢，003 atomic PR 可以先完成；但 A-04 仍保持 open，architecture guard 中只剩
+`providers.testConnection` 一项遗留 consumer，直到 provider owner slice 合入。
+
+## 全局实施规则
+
+### 数值先验证
+
+在任何 task/timer 启动前验证：
+
+- milliseconds：有限整数，`0..2_147_483_647`；
+- `maxAttempts`：有限正整数；当前 session contract 固定为 `2`；
+- `backoff`：有限非负，计算后的 delay 仍须是合法 milliseconds；
+- discovery `limit`：Zod 限制整数 `1..20`，默认 `10`；
+- `NaN`、`Infinity`、负数、小数毫秒和溢出全部 typed reject，task 调用次数必须为 `0`。
+
+这些值不从未验证的 IPC input 直接进入 runner。`2 attempts/25ms` 是 SES contract，不允许 caller 自由调参。
+
+### DTO 只有一个 owner
+
+session operation 的 input/output/status schema 只写在
+`src/shared/contracts/routes/sessions.routes.ts`，TypeScript 类型由 Zod/schema 或 route inference 得到。
+`src/shared/types/agent-interface.d.ts` 不增加 operation DTO；它不拥有 sessions route contract。
+
+### 每个 slice 的验证责任
+
+- develop 与 final verify 使用不同 agent；
+- blocking finding 回原 branch 修复，再从头 verify；
+- focused test 证明本 slice 的 contract，full suite 证明没有外围回归；
+- PR body 记录 before/after truth、影响、收益、manual gap、回滚；
+- 不用“调用了 abort”“等了更久”“测试 happy path 通过”替代 physical settlement 证据。
 
 ## Slice SCH-002A：OperationRunner core
 
-### 目标
+### 目的
 
-只改 timing primitive 和 focused tests，不动 domain behavior。建立可证明的 runner contract，并保留一个
-最小 compatibility adapter 让 consumer migration 能分 PR 完成。
+把当前 `Scheduler` 收窄成真实能力：observation deadline、abortable sleep、settled-only retry。当前没有真实
+signal owner consumer，所以本片不实现 `runCancellable()`。
 
 ### 影响文件
 
-- `src/main/routes/scheduler.ts`：重命名/收窄为 `operationRunner.ts`，实现新 API。
-- `src/main/routes/index.ts`：composition root 改用 `createNodeOperationRunner()`。
-- `test/main/routes/scheduler.test.ts`：迁移为 capability contract tests。
-- architecture guard/baseline（仅当 rename 触发 tracked path）。
+- `src/main/routes/scheduler.ts`：迁移/重命名为 `operationRunner.ts`；
+- `src/main/routes/index.ts`：composition root；
+- `test/main/routes/operationRunner.test.ts`；
+- 必要的 architecture guard/baseline。
 
-### 实现步骤
+### 实施步骤
 
-1. 定义 typed errors：
-   - `ObservationDeadlineError`：只说明 observer deadline；
-   - `TimeoutError`：仅供 cooperative cancellable attempt abort 后 settle；
-   - `AbortError`：external abort 且 cancellable attempt settle；
-   - 普通 owner error 保留 `cause`，不靠 message 分类。
-2. `observeIdempotent()`：
-   - listener/timer 先于 task factory；
-   - late resolve/reject 都有 drain handler；
-   - deadline/abort 后不会执行任何 callback/retry。
-3. `runCancellable()`：
-   - runner 创建内部 controller；
-   - external signal/deadline 只发一次 abort；
-   - await task settlement 后再映射 timeout/abort；
-   - task 在 abort 后 fulfilled 时也不得把 value 返回 caller。
-4. `retryIdempotent()`：
-   - 单 while loop，attempt 必须 settle 后才 backoff；
-   - `shouldRetry` 默认由 caller 显式传入；
-   - overall deadline/abort 关闭 loop；running attempt late settle 后不得启动下一轮；
-   - backoff 使用 runner `sleep()` 并响应 loop closure。
-5. 暂保留 legacy `timeout()` adapter，但加清晰 deprecated 注释；不改其语义，不让新代码使用。
-6. 不引入 `p-retry`，不新增 queue/registry。
+1. 定义 `ObservationDeadlineError`，名字明确表示 caller 停止观察，不表示 operation 失败。
+2. 实现 `observeIdempotent()`：先装 listener/timer，再调用 task factory；late resolve/reject 全部 drain。
+3. 实现 `retryIdempotent()`：
+   - 只有已 settle rejection 且 `shouldRetry` 为 true 才 backoff；
+   - running attempt 或 backoff 中 overall deadline 到达后，不再启动新 attempt；
+   - `maxConcurrentAttempts` 永远为 1；
+   - classifier 不按 error message substring。
+4. 实现 abortable `sleep()`，并按全局规则验证所有数值。
+5. 暂留 deprecated legacy `timeout(task: Promise)` adapter，供 consumer 分片迁移；新代码禁止使用。
+6. 不导出、不测试 `runCancellable()`。future owner-specific slice 必须同时提交真实 signal propagation 与
+   settlement proof，不能先放一个 unused port method。
 
-### Focused test matrix
+### Focused tests
 
-| Case | 断言 |
+| Case | 必须证明 |
 | --- | --- |
-| task factory sync throw | timer/listener cleanup；原 error 返回 |
-| signal pre-aborted | task factory 不调用 |
-| idempotent observation deadline | caller 得 `ObservationDeadlineError`；late resolve drained |
-| late reject after observation deadline | 无 unhandled rejection；无 retry |
-| cancellable deadline | task 收到 aborted signal；task settle 前 runner 不 settle |
-| cancellable task resolves after abort | caller 仍得 `TimeoutError`，不返回 stale value |
-| external abort | settle 后 `AbortError`；deadline timer 清理 |
-| immediate transient reject then success | 顺序两次，结果 success |
-| first attempt deferred | second attempt 调用次数为 0，直到 first reject |
-| deadline while attempt deferred | caller 结束；first late reject 后 second 仍为 0 |
+| task factory sync throw | 原 error 返回，timer/listener cleanup |
+| pre-aborted signal | task factory 不调用 |
+| observation deadline | 返回 `ObservationDeadlineError`，late result 不写 caller state |
+| late rejection | 无 unhandled rejection，不触发 retry |
+| first attempt deferred | first settle 前 second count = 0 |
+| deferred 超过 overall deadline | caller 结束观察；late settle 后 second 仍为 0 |
 | deadline during backoff | 下一 attempt 永不启动 |
-| retry classifier false | 只调用一次，原 error 返回 |
-| max attempts/backoff | 尝试次数和 delay 序列准确，`maxConcurrentAttempts=1` |
+| classifier false | 原 error 返回，只调用一次 |
+| immediate transient then success | 串行两次，结果 success，最大并发 1 |
+| invalid number matrix | task/timer 都不启动，typed validation error |
 
-### 自动验证
+### 影响、收益、风险
+
+| 维度 | 影响 | 收益/控制 |
+| --- | --- | --- |
+| API | rename 会触及 composition/fake types | 名字不再暗示 queue/Cron owner |
+| 行为 | production consumer 暂由 legacy adapter 保持 | core PR 可独立验证，不混入 domain 变化 |
+| 性能 | 少量 timer/listener 管理 | 主要收益是消除 overlap，不宣称吞吐提升 |
+| 风险 | late Promise、fake timer cleanup 容易漏 | deferred/late rejection/listener tests 阻断 |
+
+### 验证与回滚
 
 ```bash
 pnpm exec vitest run test/main/routes/operationRunner.test.ts
@@ -101,86 +159,84 @@ pnpm run lint:architecture
 pnpm run lint
 ```
 
-### 影响与收益
-
-- 收益：以后看到 `TimeoutError` 可以知道 cooperative attempt 已 settle；retry overlap 有 unit proof。
-- 影响：core API rename 会触及 fake runner type，但不改变 production route behavior。
-- 风险：假 timer/abort listener 泄漏；用 listener count、late rejection 和 fake timer test 阻断。
-- 回滚：单独 revert SCH-002A；legacy adapter 仍支持旧 consumer。
+本片可单独 revert；legacy adapter 仍保留旧 production 行为。
 
 ## Slice SCH-002B：安全 consumer 迁移
 
-### 目标
+### 目的
 
-把能独立判断的 read/sync/probe/chat wrapper 从 legacy timeout 迁出，只留下 `sessions.create` 一个
-allowlisted legacy consumer，交给 SCH-003。
+只迁已有证据支持的 read/sync/chat wrapper。provider probe 不在本片冒险移除 route 5 秒 wrapper。
 
-### 影响文件
+### Session：restore 与 getActive 必须同样保守
 
-- `src/main/routes/sessions/sessionService.ts`
-- `src/main/routes/chat/chatService.ts`
-- `src/main/routes/providers/providerService.ts`
-- `src/main/routes/hotPathPorts.ts`（只在 task factory/signal type 真需要时改）
-- 对应 route service tests、dispatcher integration tests
-- `scripts/architecture-guard.mjs` 或 focused static test：冻结 legacy `timeout(` consumer allowlist
+`SCH-002B` 必须基于 `SES-002` typed availability contract：
 
-### Session migration
+- `restoreSession` 与 `getActiveSession` 都保留最多 `2 attempts`、间隔 `25ms`；
+- 只有前一 attempt 已 settle 为 typed `transient_error` 才启动第二次；
+- `missing`、`unavailable`、validation error、observation deadline 均不 retry；
+- attempt、backoff、deadline、late settlement 期间都不清 binding；
+- `getActive` 只有 SES-002 权威 `missing` terminal result 才能 unbind；
+- `listMessagesPage/listSessions` 使用 idempotent observation，不做 per-row retry；
+- `activate/deactivate` 已同步完成副作用，直接调用，删除无效 timeout，不 retry。
 
-1. 基于 `SES-002` 的 typed availability result 工作，不回退到 null/error-string 分类。
-2. `restoreSession()` 使用 `retryIdempotent`：
-   - overall deadline 5 秒；
-   - immediate typed `transient_error` rejection 可在 25ms 后 retry；
-   - attempt 未 settle、missing、unavailable、validation error、deadline 均不 retry；
-   - attempt late settle 后只 drain，不写 binding。
-3. `listMessagesPage/listSessions/getActive` 使用 `observeIdempotent`；list 不做 per-row retry。
-4. `activate/deactivate` 删除 timeout wrapper，直接调用现有 owner；不增加 retry。
-5. `createSession` 暂时保留 legacy adapter，static allowlist 精确到这一处。
+### Provider：只删已证明无效的 sync wrapper
 
-### Provider migration
+- `listModels()` 两个 getter 在 `Promise.resolve` 前同步执行，改为直接调用；
+- `testConnection()` 暂时保持现状并进入精确 allowlist，绝不 automatic retry；
+- 文档和 test 固定真实语义：
+  - 有 `modelId`：provider completion 与 60 秒 `null` race；60 秒只是 observation，request 可能继续；
+  - 无 `modelId`：直接 `provider.check()`，presenter 没有统一 deadline/cancellation；
+  - 外层 route 5 秒同样只停止等待。
+- 不能写“等待 provider 自有 timeout”，因为代码没有统一保证。
 
-1. `listModels()` 直接调用同步 catalog getter；保留原 output shape。
-2. `testConnection()` 删除 route-level 5 秒 `Promise.race`，等待 provider owner 的真实 check/model timeout。
-3. 不自动 retry provider probe；连续点击治理若有真实问题另立 owner task，不在 Scheduler 猜 cooldown。
-4. test 覆盖 deferred provider check：5 秒时 route 不产生 false `TimeoutError`；最终 owner result 原样返回。
+### Chat
 
-### Chat migration
-
-1. session/agent/message lookup 使用 `observeIdempotent`；route controller abort 后不得继续进入下一 mutation。
-2. `sendMessage/steerActiveTurn/respondToolInteraction` 不再套 observation deadline；等待 domain owner 返回
-   acceptance/result。
-3. send 的 30 分钟 constant 和“generation timeout”假语义删除；不在本片决定 active controller 最终名称。
-4. `stopStream` 保留两项 cleanup 都尝试的 `Promise.allSettled`，但不再用 5 秒 race 宣称 cleanup 已结束。
-5. `cancelGeneration()` 仍只表示 request accepted；现有 AgentRuntime exactly-once settlement tests 必须通过。
+- session/agent/message preflight read 用 `observeIdempotent`，route stop 后不再进入下一 mutation；
+- `sendMessage/steerActiveTurn/respondToolInteraction` 删除 non-cancellable mutation 外层 deadline，等待现有 owner
+  acceptance/result；
+- 删除把 30 分钟常量描述为 generation timeout 的语义；
+- `stopStream` 保持 both-cleanups-attempted；`cancelGeneration()` 仍只表示 request accepted；
+- AgentRuntime exactly-once terminal settlement tests 必须保持通过。
 
 ### Legacy allowlist
 
-SCH-002B 结束后必须满足：
+本片结束时不是“一项”，而是以下两项：
 
 ```text
-legacy OperationRunner.timeout consumer count = 1
-allowed path = SessionService.createSession only
+SessionService.createSession
+ProviderService.testConnection
 ```
 
-guard 只冻结生产 consumer，不阻止 test fixture import compatibility adapter。SCH-003B 删除最后 consumer
-和 adapter。
+guard 精确到 method/path，任何新增 consumer 都 blocking。create 由 003 atomic cutover 删除；provider 由
+`PRV-CAN-001` 删除。
 
-### Focused test matrix
+### Focused tests
 
-| Consumer | Failure/late case |
+| Consumer | 必须证明 |
 | --- | --- |
-| restore immediate transient | attempt 1 settle reject，25ms 后 attempt 2；最大并发 1 |
-| restore deferred past deadline | caller deadline；late settle；attempt 2 永不启动 |
-| restore missing/unavailable | 不 retry，不清错误 binding |
-| list/getActive deadline | late read 不更新 route result；binding 遵守 `SES-*` |
-| activate/deactivate | effect/event exactly once；无 runner 调用 |
-| listModels | 两个 sync getter exactly once；无 timer/runner |
-| provider check >5s | 不在 5 秒返回 false failure；最终 result 返回 |
-| chat stop during preflight | mutation 不启动；cancel request/permission cleanup 各一次 |
-| chat send acceptance | 无 30min runner；pending input 不重复 |
-| stop cleanup one side rejects | 两边都执行；request result contract 不变 |
-| runtime cancellation | single `user_stop` hook；stale run 不覆盖 newer run |
+| restore transient | settle reject -> 25ms -> attempt 2，最大并发 1 |
+| getActive transient | 同上；两次 attempt 全程 binding retained |
+| restore/getActive deferred | deadline 后无 second attempt，binding retained |
+| restore/getActive missing | 仅 SES-002 权威 missing 走对应 missing/unbind 行为 |
+| unavailable/validation | 不 retry，不清 binding |
+| list/page | late result drained，不做 per-row retry |
+| activate/deactivate | effect/event exactly once，无 runner |
+| listModels | getter exactly once，无 timer/runner |
+| provider model/no-model | 固定当前两类 timeout truth，不声称 cancellation、不 retry |
+| chat stop during preflight | mutation 不启动；cleanup request 各一次 |
+| runtime cancellation | single terminal hook，stale run 不覆盖 newer run |
 
-### 自动验证
+### 影响、收益、风险
+
+| 维度 | 影响 | 收益/控制 |
+| --- | --- | --- |
+| Session | transient read 仍可能做第二次 | 不 overlap；短暂读故障恢复策略保留 |
+| Binding | transient/deadline 不再被误作 missing | 避免 active session 被错误解绑 |
+| Provider catalog | 删除无意义 Promise/timer | 路径更直接，性能收益小但确定 |
+| Provider probe | 暂留 false observation deadline | 不把无界 no-model probe 直接暴露成永久 hang；风险被显式登记 |
+| Chat | 真 owner hang 不再被假 deadline 遮住 | 不再向 UI 报“失败”但 mutation 继续 |
+
+### 验证与回滚
 
 ```bash
 pnpm exec vitest run \
@@ -197,275 +253,285 @@ pnpm run lint
 pnpm test
 ```
 
-full suite 与 repository baseline 对比；不得把历史失败计入本片回归。
+可按 session/chat/catalog consumer 小 commit revert；provider probe 本片本来不改行为。
+
+## Dependent slice PRV-CAN-001：Provider owner cancellation
+
+### 为什么另立 slice
+
+route 无法单方面取消 provider SDK request。只有 provider owner 能决定哪些 SDK 接受 signal、哪些 adapter 需要
+显式 teardown、什么状态才算 settle。把这件事塞进 generic runner 会再次制造假 cancellation。
+
+### 工作内容
+
+1. 逐 provider 枚举 `check()`：local-only、network、SDK/model completion；记录各自 signal/timeout 能力。
+2. 让 `ProviderExecutionPort.testConnection` 和 `LLMProviderPresenter.check` 接收 owner-owned cancellation input。
+3. 有 `modelId` 的 60 秒 observation race 改为真实 owner deadline：发送 cancel，并等 physical attempt settle。
+4. 无 `modelId` 的 provider-specific check 要么传播 signal 并有 finite deadline，要么明确返回
+   unsupported，不能无界。
+5. 所有 adapter 完成后才删除 route 5 秒 legacy wrapper；仍不 automatic retry，因为 probe 可能消耗 quota。
+6. 如果此时出现真实 `runCancellable` consumer，再在这个 slice 提出最窄 API；settlement tests 与 consumer 同 PR。
+
+### 收益与 gate
+
+- UI timeout 后不再有 provider request 在后台继续；
+- model/no-model 都有 owner-level finite contract；
+- architecture guard 从两项 legacy consumer 降为 create 一项，或在 003 已合入时降为零。
+
+## Slice SCH-003P：Initial-input acceptance seam
+
+### 目的
+
+让 create journal 能诚实区分“首条输入已被 owner 接收”与“整轮 generation 已结束”。
+
+### 代码真相
+
+- DeepChat `queuePendingInput()` 会创建 SQLite pending-input record，然后后台启动/排空 generation；await 它只等
+  queue acceptance，不等 generation，正好是需要的 seam。
+- fallback `processMessage()` 是完整 processing Promise。直接 await 会让 create 等整轮；fire-and-forget 又没有
+  accepted proof。
+
+### 实施步骤
+
+1. 在 agent/session owner 定义窄返回：`not_required` 或 content-free `acceptedHandle`。
+2. 无首条输入返回 `not_required`。
+3. DeepChat path await `queuePendingInput()` 的 durable record，再返回 accepted；generation 保持后台运行。
+4. fallback owner 提供 start/accepted API：只有 owner 已接管后 resolve，不能把 Promise 创建当 acceptance。
+5. 静态 inventory 证明每个 production agent path 都命中 queue 或 accepted-start；否则 003 merge gate
+   失败。
+6. 不改 generation terminal settlement、不改 cancelGeneration、不把 title generation 放进 acceptance。
+
+### Focused tests
+
+| Case | 必须证明 |
+| --- | --- |
+| no initial input | `not_required`，不启动 message |
+| DeepChat queue success | record durable 后 resolve，generation 可仍 deferred |
+| queue reject | acceptance reject，不能写 accepted stage |
+| fallback start | accepted handle 在 owner 接管后、generation settle 前 resolve |
+| fallback unsupported | typed failure，003 cutover gate失败，不伪造 accepted |
+| duplicate create intent | 同 operation 不重复 enqueue |
 
 ### 影响与收益
 
-| 维度 | 影响 | 收益 |
-| --- | --- | --- |
-| 正确性 | restore timeout 不再自动起第二个 overlapping read | 消除同一 retry loop 的并发 attempt |
-| UX | provider check 可能等待 owner 的真实 timeout，而不是 5 秒假失败 | 不再“界面失败但 provider 仍扣费/运行” |
-| 性能 | 删除 sync getter 的 timer/race；差异很小 | 更少无意义 Promise/timer，主要收益是语义清晰 |
-| Chat | 删除 mutation 外层 deadline；pathological owner hang 不再被假 timeout 遮住 | 不会把仍在运行的 mutation说成失败；真实 hang 会暴露给 owner |
-| 兼容 | session create 暂留旧 adapter | PR 可独立合入，create 行为由下一片处理 |
+- create 不会为了“准确”而等待整轮 LLM generation；
+- journal completed 能代表 session/runtime/input 已被接收，而不是仅仅调用了一个 Promise；
+- fallback 的旧 fire-and-forget 模糊语义被隔离在 owner，不扩散到 operation framework。
 
-### 回滚
+## Atomic delivery SCH-003A + SCH-003B
 
-- 可整体 revert SCH-002B，SCH-002A runner core 仍可保留。
-- 不做 schema migration；回滚无数据转换。
-- 若某 consumer manual smoke 发现 owner 无内部 timeout，单独回滚该 consumer，不恢复 automatic retry。
+### 为什么必须原子交付
 
-## Slice SCH-003A：Session create operation backend
+旧 output 不能表达 `pending`，旧 caller 又没有 operation id。若先 merge backend：
 
-### 目标
+- 无限 compatibility wait 会把 hang 暴露给用户；
+- 继续旧 5 秒 timeout 会保留 unknown-outcome；
+- 提前返回 null 会破坏旧 renderer。
 
-让慢 create 返回可查询的 `pending`，让 late success/cleanup uncertainty 有 operation truth；本片只做
-main/shared contract 和 backend，不改最终 UI。
+三种都不稳定。所以 003A 只作为 backend review commit；003B 集成 renderer 和全部 caller，二者通过后才创建
+一个 production PR。无 operation id 的 compatibility 是“副作用前立即 typed reject”，不是等待策略。
+
+## Development slice SCH-003A：Session create operation backend
 
 ### 影响文件
 
-- `src/shared/contracts/routes/sessions.routes.ts`
-- `src/shared/types/agent-interface.d.ts`（只放 shared operation DTO，避免 main type 泄漏）
-- `src/main/routes/sessions/sessionService.ts`
-- `src/main/routes/index.ts`
-- `src/main/presenter/agentSessionPresenter/index.ts`
-- `src/main/presenter/agentSessionPresenter/sessionManager.ts`
-- `src/main/presenter/sqlitePresenter/schemaCatalog.ts`
-- 新 domain-specific table，例如
-  `src/main/presenter/sqlitePresenter/tables/sessionCreateOperations.ts`
-- focused table/service/dispatcher tests
+- `src/shared/contracts/routes/sessions.routes.ts`：唯一 DTO/schema owner；
+- `src/main/routes/sessions/sessionService.ts`、`src/main/routes/index.ts`；
+- `src/main/presenter/agentSessionPresenter/*`；
+- `src/main/presenter/sqlitePresenter/schemaCatalog.ts` 与 domain-specific table；
+- focused table/service/dispatcher/presenter tests。
 
-### 数据与 owner
+明确不改 `src/shared/types/agent-interface.d.ts` 来承载 operation DTO。
+
+### 数据与 route
+
+只新增 domain-specific `session_create_operations`。最小数据为 operation/session id、fingerprint、state、stage、
+stable error code、dismissed/created/updated timestamps；不保存 prompt、files、title、agent/provider/model 或 payload
+副本。
+
+新增/修改 route：
+
+- `sessions.create`：需要 operation id，返回 operation envelope；
+- `sessions.getCreateOperation`：按已知 id reconcile；
+- `sessions.listIncompleteCreateOperations`：`limit 1..20, default 10`，只返回 content-free identity；
+- dismiss route：只写 `dismissedAt`，不删 session、不清 dedupe identity。
+
+虽然 schema 可为 staged rollout 暂时 parse optional id，handler 必须在副作用前对 missing id 返回
+`OperationIdRequiredError`。production caller guard 必须为零，后续可把 schema 收紧为 required。
+
+### Backend 实施步骤
+
+1. schema validation 后 canonicalize input、计算 DB-only fingerprint、预分配 session id。
+2. 副作用前登记 operation；same id/same fingerprint single-flight；different fingerprint typed conflict。
+3. 按 durable boundary 更新 `record_created`、`runtime_ready`、
+   `input_not_required/input_accepted`、`completed`。
+4. initial-input stage 只调用 `SCH-003P` seam；绝不 await whole generation。
+5. 保留 `5_000ms` 作为 create 首次 observation deadline；到点返回 `pending`，不 abort、不写 failed。
+6. owner failure 收集所有 compensation outcome：全部 settle success 才 `failed`，任一不确定为 `unknown`。
+7. restart：succeeded + readable session 可重建；incomplete pending 转 unknown；不 replay payload。
+8. discovery 只返回未 dismiss 的 pending/unknown，按 `updatedAt DESC, operationId ASC`，同时给 `truncated`。
+9. succeeded row 随 session delete；failed/unknown 用 dismiss 隐藏但保留 dedupe evidence，不加 speculative TTL worker。
+
+### Backend tests
+
+| Case | 必须证明 |
+| --- | --- |
+| fast/no-input create | succeeded，stage completed |
+| input queue deferred | 未 accepted 前不 completed；不等待 generation terminal |
+| deferred record/runtime | deadline 返回 pending，late success 可 query |
+| duplicate pending/succeeded | create/runtime/input count = 1 |
+| same id/different input | conflict，旧 state 不变 |
+| cleanup all success | failed，record 不残留 |
+| one cleanup unknown | unknown，不自动 retry |
+| restart incomplete | pending -> unknown，不 replay payload |
+| missing operation id | typed finite error；所有 mutation count = 0 |
+| invalid limit | Zod reject；DB query count = 0 |
+| discovery | max 20、稳定排序、content-free、truncated 正确 |
+| dismiss | current list 隐藏；identity 保留；session 不删除 |
+| schema ownership | agent-interface 无 operation DTO duplicate |
+
+### 003A 边界
+
+- 独立 backend verifier 可以审核 DB truth、single-flight、compensation 和 data hygiene；
+- commit 不得单独 merge/base deploy；
+- rollback 以整个 003 atomic PR 为单位，不能承诺旧 renderer 能消费 003A output。
+
+## Integration slice SCH-003B：Renderer、restart recovery 与 cutover
+
+### 显式依赖
+
+`SCH-003B depends on SCH-003A + SES-003 + SCH-003P`。它在集成 branch 上包含 003A backend commit，完成后
+只提交一个 atomic production PR。
+
+### Renderer 实施步骤
+
+1. `SessionClient.create()` 每个新 intent 用 `crypto.randomUUID()` 生成 id；transport retry 复用，同一次用户
+   explicit retry 才生成新 id。
+2. store 保存 current intent token；draft 继续由原 draft owner 管理，不复制到 operation state/journal。
+3. pending 只在 current create page 生命周期内 polling：每 `2_000ms` 一次，最多自动查询 `15` 次；之后停
+   timer 并保留手工 Check。页面离开停止观察，不取消 main operation。
+4. succeeded/current 才 upsert + activate/navigate + onboarding；succeeded/stale 只刷新 list。
+5. failed/unknown 保留 draft，不自动 create retry；query transient error 也不换 operation id。
+6. app startup 调 bounded discovery：
+   - 只显示 operation 时间/状态，不展示内容；
+   - 一条或多条都要求用户显式点 `Check`；
+   - 不把 recovery item 关联当前 draft，不自动 activate/navigate；
+   - dismiss 只隐藏 record。
+7. i18n 增加 pending/unknown/discovery/dismiss/error copy，不暴露 internal error/fingerprint。
+8. 同一 atomic PR 更新所有 production caller；guard 证明 missing operation id caller = 0。
+9. 删除 create legacy timeout。若 `PRV-CAN-001` 已完成则删除整个 adapter；否则 adapter 只剩精确 provider
+   项。
+
+### UI 行为
 
 ```text
-renderer operationId
-  -> SessionService (single-flight + observation deadline)
-      -> SessionCreateOperationsTable (durable identity/stage)
-      -> AgentSessionPresenter (actual mutation/compensation)
-      -> NewSessionManager/new_sessions (authoritative session record)
+Current slow intent
++---------------- New Thread ----------------+
+| Creating session...                        |
+| Draft remains here while result is checked.|
++--------------------------------------------+
+
+Restart recovery
++---------------- New Thread ----------------+
+| Unconfirmed creations                      |
+| 10:42  unknown                 [Check]      |
+| 10:39  unknown                 [Check]      |
+|                              [Dismiss]      |
++--------------------------------------------+
+| Current draft is separate.                 |
++--------------------------------------------+
 ```
 
-- `SessionService` 只拥有 operation orchestration，不直接执行 presenter internals。
-- `AgentSessionPresenter` 继续拥有 create/cleanup steps，但要返回可观察的 compensation outcome。
-- journal 只保存 content-free identity/stage/error code；session data 仍由现有 tables 拥有。
+即使只有一条 restart record，也不能自动把当前 draft 接上去。这是 privacy 和 correctness 约束，不是 UI
+偏好。
 
-### 实现步骤
+### Renderer/integration tests
 
-1. Additive route input/output schema：optional `operationId` + operation envelope。
-2. 增加只读 `sessions.getCreateOperation`，输入 operation id，输出相同 envelope。
-3. operation 开始前：
-   - validate input；
-   - canonicalize + SHA-256 fingerprint；
-   - 预分配 session id；
-   - insert journal `accepted/pending`；
-   - 建 per-operation single-flight Promise。
-4. 按 stage 执行 create，并在每个 durable boundary 更新 journal：record、runtime、initial input acceptance、
-   completion。
-5. 观察 deadline 到达：route 返回 `pending`，不 abort operation，不 throw timeout。
-6. duplicate same id/same fingerprint：返回/等待 existing state；different fingerprint：typed conflict。
-7. owner error：收集 ACP clear、runtime destroy、record delete 等 compensation result：
-   - 全部 settle 成功 → `failed`；
-   - 任一 reject/无法证明 → `unknown`。
-8. process startup/reconcile：
-   - persisted succeeded + readable session → reconstruct succeeded；
-   - incomplete stage → unknown；
-   - 不持久化 payload，不自动 replay。
-9. terminal operation row 跟随 session deletion清理；failed/unknown row 保留供 diagnostics/reconcile，本片不
-   增加后台 TTL worker。
-
-### 为什么不加 TTL worker
-
-每次 create 最多一行，规模与 session 数同阶；先在 session delete 时清成功行。failed/unknown 预计低频，
-没有测量证明需要后台清理器。若 DB fixture 以后证明增长显著，再按数据加 bounded maintenance，而不是本片
-预建 timer。
-
-### Focused test matrix
-
-| Case | 断言 |
+| Case | 必须证明 |
 | --- | --- |
-| fast create | succeeded + session；stage completed |
-| deferred before record | deadline 返回 pending；late success 可 query |
-| deferred after record/runtime | pending；只有一个 session/runtime attempt |
-| duplicate same id while pending | 共用 Promise；create count 1 |
-| duplicate same id after success | reconstruct same session；不执行 create |
-| same id/different input | conflict；旧 state 不变 |
-| init failure + cleanup success | terminal failed；record 不残留 |
-| init failure + one cleanup reject | unknown；不自动 retry |
-| restart with succeeded journal | route reconstruct session |
-| restart with incomplete journal | unknown；不 replay input |
-| late resolve after renderer stops waiting | journal success/event exactly once |
-| raw data hygiene | journal 除 fingerprint 外不含 prompt/file path/payload；log 不含 fingerprint/raw payload |
+| fast success | 原 create/navigation/onboarding 一致 |
+| pending -> success/current | draft 到 success 前保留，只导航一次 |
+| pending -> success/stale | 只刷新 list，不抢 route/active session |
+| page leave | polling cleanup，main operation 不取消 |
+| transient reconcile error | 同 id 可重查，不创建新 operation |
+| failed/unknown | draft 保留，无 auto retry |
+| restart one/many | 都需显式选择，不绑定当前 draft |
+| discovery data | UI/API 不出现 prompt/file/title/provider/fingerprint |
+| dismiss | 只隐藏 identity，不删 session |
+| legacy missing id | typed finite error，mutation count 0 |
+| duplicate event + reconcile | upsert/activate/onboarding idempotent |
 
-### 自动验证
+### Manual smoke
+
+1. DeepChat 正常 create：首条输入只入队一次、session 激活、generation 可继续。
+2. ACP/fallback production path：accepted handle 在 generation completion 前返回；没有 seam 就阻止 merge。
+3. 人为延迟 record/runtime/queue 超过 deadline：UI pending、不报失败、不丢 draft，late success 收敛。
+4. pending 后切换已有 session：late success 不抢页面。
+5. compensation 一项失败：unknown，无自动 duplicate create。
+6. pending 时重启：content-free discovery 出现，必须手选；当前 draft 不关联。
+7. 检查 log 和 journal：无 raw prompt/file/payload，log 无 fingerprint。
+
+### 影响、收益、风险
+
+| 维度 | 影响 | 收益/控制 |
+| --- | --- | --- |
+| 用户认知 | 新增 pending/unknown/recovery 状态 | 不再“先失败、后冒出 session” |
+| Draft | cleanup 延后到 confirmed success | 慢请求/restart 不丢当前输入 |
+| 导航 | late success 检查 intent token | 不抢当前页面 |
+| 数据 | 每个 create intent 一条 content-free journal | dedupe/reconcile 有 durable truth |
+| Privacy | recovery 不显示内容，journal 不复制 payload | restart 能找 id，但不扩大敏感数据副本 |
+| Compatibility | backend/renderer 必须同 PR | 没有无限 wait 或旧 5 秒半成品窗口 |
+
+### Atomic rollback
+
+1. 以整个 003 PR 回滚 backend + renderer/client；不能只回滚 renderer 并声称 backend 兼容。
+2. additive journal table 可保留，旧代码忽略；不做 destructive down migration。
+3. 不删除已经创建的 session；operation row 不是 session source of truth。
+4. 回滚前先停止新 create traffic（桌面版本即关闭/重启升级窗口），避免新旧 schema consumer 并存。
+
+## 统一验证清单
+
+### 自动 gate
 
 ```bash
-pnpm exec vitest run \
-  test/main/presenter/sqlitePresenter/sessionCreateOperations.test.ts \
-  test/main/routes/sessionService.test.ts \
-  test/main/routes/dispatcher.test.ts \
-  test/main/presenter/agentSessionPresenter/agentSessionPresenter.test.ts \
-  test/main/presenter/agentSessionPresenter/integration.test.ts
-pnpm run typecheck:node
-pnpm run format:check
-pnpm run lint
-```
-
-### 影响与收益
-
-- 正确性：create caller 和 main 对同一个 operation 有共同 identity，不再猜 late result。
-- 数据：新增 additive table；不复制 raw payload；rollback 留空表不影响旧版本读取。
-- UX：backend 已能表达 pending/unknown，但旧 client 在 SCH-003B 前仍走 compatibility wait。
-- 风险：create stages 跨多个现有 owner；focused deferred/compensation tests 是 merge gate。
-- 回滚：revert backend/runtime code；additive table 保留无害，不做 destructive down migration。
-
-## Slice SCH-003B：Renderer reconciliation 与 legacy cleanup
-
-### 目标
-
-让新 client 真正使用 operation contract，pending/unknown 对用户可理解；然后删除最后 legacy timeout 和
-compatibility allowlist。
-
-### 影响文件
-
-- `src/renderer/api/SessionClient.ts`
-- `src/renderer/src/stores/ui/session.ts`
-- `src/renderer/src/pages/NewThreadPage.vue`（只在状态展示需要时）
-- `src/renderer/src/i18n/*/chat.json` 或归属 locale 文件
-- renderer API/store/component tests
-- `src/main/routes/operationRunner.ts`：删除 legacy `timeout()` adapter
-- legacy static allowlist/architecture baseline
-
-### 实现步骤
-
-1. `SessionClient.create()` 生成/接收 operation id，并解析 operation envelope。
-2. session store 建一个 current create intent token；draft data 保持在现有 draft owner，不复制到 operation
-   store。
-3. pending 时按 bounded polling/reconciliation：
-   - 只在 create page/current intent 仍活跃时轮询；
-   - 页面离开时停止观察，不取消 main operation；
-   - 不因一次 query error 自动创建新 operation。
-4. succeeded：
-   - current intent → upsert、activate/navigate、onboarding；
-   - stale intent → refresh list only。
-5. failed：展示稳定 error mapping，保留 draft，用户显式重试生成新 operation id。
-6. unknown：保留 draft，提供 check again/refresh list；禁止 automatic create retry。
-7. i18n 增加 pending/unknown/failure keys；不显示内部 error/message/fingerprint。
-8. 添加 manual smoke 后，删除 legacy `timeout()` adapter、allowlist 和旧 `SESSION_OPERATION_TIMEOUT_MS` create
-   使用。
-
-### Polling 说明
-
-不新建常驻 polling service。只复用当前 create intent 生命周期中的局部 timer；route success/failure/页面离开
-都会 cleanup。poll 间隔属于 UX 参数，implementation 先使用现有 settings page polling helper 同类的简单
-fixed interval；不引入 exponential-backoff dependency。正确性不依赖轮询间隔，手动 check route 始终可用。
-
-### Renderer test matrix
-
-| Case | 断言 |
-| --- | --- |
-| fast success | 与现有 create/navigation/onboarding 行为一致 |
-| pending then success/current | draft 不清空直到 success；只导航一次 |
-| pending then success/stale | session list 更新，不抢当前 route/active session |
-| pending then page leave | polling cleanup；main operation 不取消 |
-| query transient error | 显示可重查状态；不创建新 id |
-| terminal failed | draft 保留；explicit retry 使用新 id |
-| unknown | 无 false failure/auto retry；check again 可用 |
-| duplicate event + reconciliation | upsert/activate/onboarding idempotent |
-| legacy no-id caller | compatibility path 仍返回 non-null session，直到 allowlist 删除 gate完成 |
-
-### Manual smoke（自动化不能完全替代）
-
-1. 正常创建 DeepChat session，确认首条消息只出现一次、session 激活、onboarding 正常。
-2. 正常创建 ACP session，确认 workdir/runtime 准备与首条输入正常。
-3. 测试 fixture 人为延迟 create 超过 observation deadline：UI 显示 pending，不显示失败、不丢 draft；
-   late success 后当前 intent 导航。
-4. pending 后立刻导航到已有 session：late success 只刷新列表，不抢页面。
-5. 人为让 cleanup 一项失败：显示 unknown，无自动 duplicate session。
-6. pending 期间重启 app：incomplete journal 保守显示 unknown；已有成功 session 仍能从列表打开。
-7. 检查 production log/diagnostics 不出现 raw prompt/file path/fingerprint；DB journal 除 fingerprint 外
-   不复制 raw payload。
-
-### 自动验证
-
-```bash
-pnpm exec vitest run \
-  test/renderer/api/clients.test.ts \
-  test/renderer/stores/sessionStore.test.ts \
-  test/renderer/components/NewThreadPage.test.ts \
-  test/main/routes/operationRunner.test.ts \
-  test/main/routes/sessionService.test.ts \
-  test/main/routes/dispatcher.test.ts
 pnpm run typecheck
 pnpm run format
+pnpm run format:check
 pnpm run i18n
 pnpm run lint
 pnpm test
 ```
 
-### 影响与收益
+每个 slice 还要跑本节列出的 focused tests。full suite 与已记录 baseline 对比，新增失败必须为零。
 
-| 维度 | 影响 | 收益 |
-| --- | --- | --- |
-| 用户认知 | 多一个 pending/unknown 状态 | 不再看到“失败”后又冒出 session |
-| 草稿 | draft cleanup 时机后移到 confirmed success | 慢创建/unknown 不丢输入 |
-| 导航 | late success 要检查 intent token | 不抢用户当前页面/active session |
-| 测试 | 增加 deferred、restart、stale intent matrix | 大改后稳定性有状态机证据，不靠 happy path |
-| 数据 | journal 与 session 同阶增长 | operation 可查、duplicate 可抑制 |
+### Review 必查
 
-### 回滚
-
-- 先回滚 SCH-003B renderer/client，backend compatibility path 仍可服务旧 caller。
-- 如需再回滚 SCH-003A，保留 additive journal table；旧版本忽略它。
-- 不回滚/删除用户已经创建的 session；operation row 不是 session source of truth。
-
-## 全链路验证与稳定性门槛
-
-每个 slice 都必须由独立 verify agent 审查。blocking finding 回到原 develop branch 修复，再重新验证；同一
-agent 不同时承担 develop 和 final verify。
-
-### 自动 gate
-
-- focused unit/integration tests 全绿；
-- `pnpm run typecheck`；
-- `pnpm run format` 后 `pnpm run format:check`；
-- `pnpm run i18n`；
-- `pnpm run lint`；
-- full `pnpm test` 与已记录 baseline 对比；
-- architecture guard 证明 legacy timeout consumer 按 1 → 0 收敛。
-
-### Review 必查项
-
-1. 有没有把 deadline error 当 operation failure？
-2. 有没有在上一 attempt 未 settle 时启动 retry？
-3. 有没有只因 task 接收 signal 就宣称 physically cancellable？
-4. 有没有恢复 cancelGeneration 同步 terminal settlement？
-5. create cleanup 不确定时有没有错误写 failed？
-6. duplicate operation id 是否 single-flight？
-7. renderer stale intent 是否可能抢导航？
-8. journal/log 是否泄露 raw payload？
-9. compatibility adapter 是否有精确 allowlist 和删除条件？
-10. sync DB work 是否被错误描述为 Promise timeout 可中断？
-
-### PR body 必须记录
-
-- scope 与明确 non-goals；
-- code-truth before/after；
-- operation state/attempt timeline；
-- focused/full test counts；
-- manual smoke 完成项与未覆盖平台；
-- compatibility/rollback；
-- 对用户的可见影响；
-- 如果 automation 缺失，给出具体手工步骤和风险，不写“应该没问题”。
+1. deadline 是否被误写成 operation failure？
+2. 上一 attempt 未 settle 时是否可能启动 retry？
+3. restore/getActive 是否都保留 `2 attempts/25ms`，且 transient/deadline 不清 binding？
+4. 是否加入了没有真实 consumer 的 `runCancellable()`？
+5. provider model 60 秒/no-model path 是否被误称为 owner timeout？
+6. initial input accepted 是否误等整轮 generation，或在 fire-and-forget 时提前写 completed？
+7. cleanup uncertainty 是否误写 failed？
+8. restart recovery 是否复制/显示 payload，或自动绑定当前 draft？
+9. 003A 是否被错误当成可独立 merge？003B 是否明确依赖 003A + SES-003？
+10. missing operation id 是否在副作用前 finite reject？
+11. DTO 是否只由 sessions route schema inference 拥有？
+12. 所有 numeric input 是否 finite/nonnegative/bounded validation？
 
 ## 完成判定
 
 `A-04` 只有同时满足以下条件才关闭：
 
-1. legacy `Scheduler.timeout(task: Promise)` 生产 consumer 为 0；
-2. retry overlap tests 证明最大并发 attempt 为 1；
-3. `sessions.create` slow path 返回 pending/unknown envelope 并可 reconcile；
-4. cancelGeneration exactly-once settlement 回归通过；
-5. renderer stale/unknown/draft tests 与 manual smoke 通过；
-6. full suite 没有新增失败。
+1. legacy `Scheduler.timeout(task: Promise)` production consumer 为 `0`；
+2. retry tests 证明 `maxConcurrentAttempts === 1`；
+3. restore/getActive 的 typed transient `2 attempts/25ms` 与 binding retention 全部通过；
+4. provider model/no-model 都有 owner-level finite cancellation/settlement，不能只剩 observation race；
+5. session create slow path 返回 pending/unknown 并可 reconcile；
+6. initial input accepted 不等待 generation terminal，也不提前伪造；
+7. restart discovery content-free、bounded、explicit selection；
+8. 003A/B atomic cutover 完成，missing id caller count = 0；
+9. cancelGeneration exactly-once settlement 回归通过；
+10. renderer stale/unknown/draft/manual smoke 与 full suite 无新增失败。
 
-仅完成 `SCH-002A` core 或仅把 timeout 数值调大，都不能关闭 finding。
+只完成 runner rename、只调大 timeout、只合 backend 或只做 UI，都不能关闭 finding。
