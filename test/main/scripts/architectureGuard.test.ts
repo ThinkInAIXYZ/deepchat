@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -24,13 +25,37 @@ const MEMORY_ROOT_FIXTURE_PATH = path.join(
   ROOT,
   'src/main/presenter/memoryPresenter/__architecture_guard_root_fixture__.ts'
 )
+const AGENT_EDGE_FIXTURE_PATH = path.join(
+  ROOT,
+  'src/shared/__architecture_guard_agent_edge_fixture__.ts'
+)
+const TRACKED_GROWTH_BASELINE_PATH = path.join(
+  ROOT,
+  'docs/architecture/baselines/architecture-growth.json'
+)
 const FIXTURE_PATHS = [
   FIXTURE_PATH,
   MEMORY_CORE_FIXTURE_PATH,
   MEMORY_INFRA_FIXTURE_PATH,
   MEMORY_SERVICE_FIXTURE_PATH,
-  MEMORY_ROOT_FIXTURE_PATH
+  MEMORY_ROOT_FIXTURE_PATH,
+  AGENT_EDGE_FIXTURE_PATH
 ]
+const TEMP_DIRS: string[] = []
+const MAIN_COMPOSITION_METRICS = [
+  'routeRootLoc',
+  'routeTypedCaseCount',
+  'routeConcretePresenterImportCount',
+  'routeConcreteSqliteTableImportCount',
+  'presenterCompatibilityCoreLoc'
+] as const
+
+type ArchitectureGrowthBaseline = {
+  version: number
+  updatedOn: string
+  mainComposition: Record<(typeof MAIN_COMPOSITION_METRICS)[number], number>
+  agentEdge: Record<'sharedToMainImplementationImportCount', number>
+}
 
 async function writeSettingsFixture(source: string) {
   await writeFile(FIXTURE_PATH, source, 'utf8')
@@ -40,16 +65,133 @@ async function writeFixture(filePath: string, source: string) {
   await writeFile(filePath, source, 'utf8')
 }
 
-function runArchitectureGuard() {
+async function readTrackedGrowthBaseline() {
+  return JSON.parse(
+    await readFile(TRACKED_GROWTH_BASELINE_PATH, 'utf8')
+  ) as ArchitectureGrowthBaseline
+}
+
+async function writeTemporaryGrowthBaseline(baseline: ArchitectureGrowthBaseline) {
+  const dirPath = await mkdtemp(path.join(tmpdir(), 'deepchat-architecture-guard-'))
+  const baselinePath = path.join(dirPath, 'architecture-growth.json')
+  TEMP_DIRS.push(dirPath)
+  await writeFile(baselinePath, JSON.stringify(baseline), 'utf8')
+  return baselinePath
+}
+
+function runArchitectureGuard(baselinePath?: string, nodeEnv = 'test') {
+  const env = {
+    ...process.env,
+    NODE_ENV: nodeEnv
+  }
+  delete env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH
+  if (baselinePath) env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH = baselinePath
+
   return spawnSync(process.execPath, ['scripts/architecture-guard.mjs'], {
     cwd: ROOT,
-    encoding: 'utf8'
+    encoding: 'utf8',
+    env
   })
 }
 
 describe.sequential('architecture guard', () => {
   afterEach(async () => {
-    await Promise.all(FIXTURE_PATHS.map((filePath) => rm(filePath, { force: true })))
+    await Promise.all([
+      ...FIXTURE_PATHS.map((filePath) => rm(filePath, { force: true })),
+      ...TEMP_DIRS.splice(0).map((dirPath) => rm(dirPath, { force: true, recursive: true }))
+    ])
+  })
+
+  it('allows the tracked historical debt at its current baseline', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+
+    expect(Object.values(baseline.mainComposition).every((value) => value > 0)).toBe(true)
+    expect(baseline.agentEdge.sharedToMainImplementationImportCount).toBeGreaterThan(0)
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Architecture guard passed.')
+  })
+
+  it('allows metrics to fall below a stale baseline', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+    for (const metric of MAIN_COMPOSITION_METRICS) {
+      baseline.mainComposition[metric] += 1
+    }
+    baseline.agentEdge.sharedToMainImplementationImportCount += 1
+
+    const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+    const result = runArchitectureGuard(baselinePath)
+
+    expect(result.status).toBe(0)
+  })
+
+  it('fails closed for an unsupported baseline version', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+    baseline.version = 2
+
+    const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+    const result = runArchitectureGuard(baselinePath)
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[architecture-growth-baseline-invalid]')
+    expect(result.stderr).toContain('version must be 1')
+  })
+
+  it('fails closed for malformed baseline metadata', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+    baseline.updatedOn = '2026-02-30'
+
+    const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+    const result = runArchitectureGuard(baselinePath)
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[architecture-growth-baseline-invalid]')
+    expect(result.stderr).toContain('updatedOn must be a valid YYYY-MM-DD date')
+  })
+
+  it('ignores the test baseline override outside test mode', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+    baseline.version = 2
+
+    const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+    const result = runArchitectureGuard(baselinePath, 'production')
+
+    expect(result.status).toBe(0)
+  })
+
+  it.each(MAIN_COMPOSITION_METRICS)(
+    'reports main-composition growth when %s exceeds its baseline',
+    async (metric) => {
+      const baseline = await readTrackedGrowthBaseline()
+      baseline.mainComposition[metric] -= 1
+
+      const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+      const result = runArchitectureGuard(baselinePath)
+
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('[main-composition-growth]')
+      expect(result.stderr).toContain(metric)
+    }
+  )
+
+  it.each([
+    ['main presenter alias', '@/presenter/configPresenter/shortcutKeySettings'],
+    ['explicit main specifier', 'src/main/presenter/configPresenter'],
+    ['relative main path', '../main/presenter/configPresenter'],
+    [
+      'absolute main path',
+      path.join(ROOT, 'src/main/presenter/configPresenter').split(path.sep).join('/')
+    ]
+  ])('reports agent-edge growth for a shared %s import', async (_label, specifier) => {
+    await writeFixture(AGENT_EDGE_FIXTURE_PATH, `import '${specifier}'\n`)
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[agent-edge-growth]')
+    expect(result.stderr).toContain('sharedToMainImplementationImportCount')
   })
 
   it('fails when settings imports or calls the retired legacy presenter bridge', async () => {

@@ -35,6 +35,23 @@ const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
+const SHARED_SOURCE_ROOT = path.join(ROOT, 'src/shared')
+const ROUTE_ROOT_PATH = path.join(ROOT, 'src/main/routes/index.ts')
+const PRESENTER_COMPATIBILITY_CORE_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/core.presenter.d.ts'
+)
+const MAIN_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter')
+const SQLITE_TABLE_ROOT = path.join(MAIN_PRESENTER_ROOT, 'sqlitePresenter/tables')
+const TRACKED_ARCHITECTURE_GROWTH_BASELINE_PATH = path.join(
+  ROOT,
+  'docs/architecture/baselines/architecture-growth.json'
+)
+const ARCHITECTURE_GROWTH_BASELINE_PATH =
+  process.env.NODE_ENV === 'test' &&
+  process.env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH
+    ? path.resolve(ROOT, process.env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH)
+    : TRACKED_ARCHITECTURE_GROWTH_BASELINE_PATH
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const MEMORY_PRESENTER_FACADE_PATH = path.join(MEMORY_PRESENTER_ROOT, 'index.ts')
 const MEMORY_PRESENTER_CORE_ROOT = path.join(MEMORY_PRESENTER_ROOT, 'core')
@@ -126,6 +143,7 @@ const INLINE_IPC_CHANNEL_PATTERN =
   /(?:window\.electron(?:\?\.|\.)ipcRenderer|ipcRenderer|ipcMain)(?:\?\.|\.)(?:invoke|send|on|once|handle|handleOnce|removeListener|removeAllListeners|addListener)\s*\(\s*['"`][^'"`]+['"`]/g
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
   /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
+const TYPED_ROUTE_CASE_PATTERN = /\bcase\s+[A-Za-z_$][\w$]*Route\.name\s*:/g
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
@@ -194,6 +212,31 @@ function countMatches(source, pattern) {
   return count
 }
 
+function countPhysicalLines(source) {
+  if (source.length === 0) return 0
+
+  const lineCount = source.split(/\r\n|\r|\n/).length
+  return /(?:\r\n|\r|\n)$/.test(source) ? lineCount - 1 : lineCount
+}
+
+function extractModuleSpecifierOccurrences(source) {
+  const specifiers = []
+  const patterns = [
+    /\bfrom\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /\bimport\s*['"]([^'"]+)['"]/g
+  ]
+
+  for (const pattern of patterns) {
+    let match
+    while ((match = pattern.exec(source)) !== null) {
+      specifiers.push(match[1])
+    }
+  }
+
+  return specifiers
+}
+
 async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) {
   const tryFile = async (basePath) => {
     const candidates = [
@@ -254,6 +297,141 @@ async function collectHotPathDirectEdges() {
   }
 
   return edges.sort()
+}
+
+async function loadArchitectureGrowthBaseline() {
+  const raw = await fs.readFile(ARCHITECTURE_GROWTH_BASELINE_PATH, 'utf8')
+  const parsed = JSON.parse(raw)
+
+  if (parsed?.version !== 1) {
+    throw new Error(`version must be 1, found ${String(parsed?.version)}`)
+  }
+  const updatedOnTimestamp = Date.parse(`${parsed?.updatedOn}T00:00:00Z`)
+  if (
+    typeof parsed.updatedOn !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(parsed.updatedOn) ||
+    Number.isNaN(updatedOnTimestamp) ||
+    new Date(updatedOnTimestamp).toISOString().slice(0, 10) !== parsed.updatedOn
+  ) {
+    throw new Error('updatedOn must be a valid YYYY-MM-DD date')
+  }
+
+  const limits = {
+    mainComposition: {
+      routeRootLoc: parsed?.mainComposition?.routeRootLoc,
+      routeTypedCaseCount: parsed?.mainComposition?.routeTypedCaseCount,
+      routeConcretePresenterImportCount:
+        parsed?.mainComposition?.routeConcretePresenterImportCount,
+      routeConcreteSqliteTableImportCount:
+        parsed?.mainComposition?.routeConcreteSqliteTableImportCount,
+      presenterCompatibilityCoreLoc: parsed?.mainComposition?.presenterCompatibilityCoreLoc
+    },
+    agentEdge: {
+      sharedToMainImplementationImportCount:
+        parsed?.agentEdge?.sharedToMainImplementationImportCount
+    }
+  }
+
+  for (const [category, metrics] of Object.entries(limits)) {
+    for (const [metric, value] of Object.entries(metrics)) {
+      if (!Number.isInteger(value) || value < 0) {
+        throw new Error(`${category}.${metric} must be a non-negative integer`)
+      }
+    }
+  }
+
+  return limits
+}
+
+function isSharedToMainImplementationSpecifier(specifier, importer) {
+  if (specifier === '@/presenter' || specifier.startsWith('@/presenter/')) {
+    return true
+  }
+
+  if (specifier === 'src/main' || specifier.startsWith('src/main/')) {
+    return true
+  }
+
+  if (!specifier.startsWith('.') && !path.isAbsolute(specifier)) {
+    return false
+  }
+
+  const target = path.isAbsolute(specifier)
+    ? path.resolve(specifier)
+    : path.resolve(path.dirname(importer), specifier)
+  return isUnder(target, MAIN_SOURCE_ROOT)
+}
+
+async function collectArchitectureGrowthMetrics(fileSet) {
+  const [routeSource, presenterCompatibilityCoreSource] = await Promise.all([
+    fs.readFile(ROUTE_ROOT_PATH, 'utf8'),
+    fs.readFile(PRESENTER_COMPATIBILITY_CORE_PATH, 'utf8')
+  ])
+  const routeSpecifiers = extractModuleSpecifierOccurrences(routeSource)
+  let routeConcretePresenterImportCount = 0
+  let routeConcreteSqliteTableImportCount = 0
+
+  for (const specifier of routeSpecifiers) {
+    const resolved = await resolveImport(specifier, ROUTE_ROOT_PATH)
+    if (!resolved) continue
+
+    if (isUnder(resolved, MAIN_PRESENTER_ROOT)) {
+      routeConcretePresenterImportCount += 1
+    }
+    if (isUnder(resolved, SQLITE_TABLE_ROOT)) {
+      routeConcreteSqliteTableImportCount += 1
+    }
+  }
+
+  let sharedToMainImplementationImportCount = 0
+  for (const filePath of fileSet) {
+    if (!isUnder(filePath, SHARED_SOURCE_ROOT)) continue
+
+    const source = await fs.readFile(filePath, 'utf8')
+    for (const specifier of extractModuleSpecifierOccurrences(source)) {
+      if (isSharedToMainImplementationSpecifier(specifier, filePath)) {
+        sharedToMainImplementationImportCount += 1
+      }
+    }
+  }
+
+  return {
+    mainComposition: {
+      routeRootLoc: countPhysicalLines(routeSource),
+      routeTypedCaseCount: countMatches(routeSource, TYPED_ROUTE_CASE_PATTERN),
+      routeConcretePresenterImportCount,
+      routeConcreteSqliteTableImportCount,
+      presenterCompatibilityCoreLoc: countPhysicalLines(presenterCompatibilityCoreSource)
+    },
+    agentEdge: {
+      sharedToMainImplementationImportCount
+    }
+  }
+}
+
+async function checkArchitectureGrowth(fileSet, violations) {
+  let limits
+
+  try {
+    limits = await loadArchitectureGrowthBaseline()
+  } catch (error) {
+    violations.push(
+      `[architecture-growth-baseline-invalid] ${error instanceof Error ? error.message : String(error)}`
+    )
+    return
+  }
+
+  const actual = await collectArchitectureGrowthMetrics(fileSet)
+  for (const [category, metrics] of Object.entries(actual)) {
+    for (const [metric, value] of Object.entries(metrics)) {
+      const limit = limits[category][metric]
+      if (value > limit) {
+        violations.push(
+          `[${category === 'mainComposition' ? 'main-composition' : 'agent-edge'}-growth] ${metric} expected <= ${limit}, found ${value}`
+        )
+      }
+    }
+  }
 }
 
 function memoryPresenterLayer(filePath) {
@@ -588,6 +766,8 @@ async function main() {
       }
     }
   }
+
+  await checkArchitectureGrowth(fileSet, violations)
 
   const hotPathEdges = await collectHotPathDirectEdges()
   if (hotPathEdges.length > HOT_PATH_EDGE_BASELINE) {
