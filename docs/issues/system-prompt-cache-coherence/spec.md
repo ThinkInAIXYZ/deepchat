@@ -439,10 +439,13 @@ interface SkillRuntimeSnapshotPort {
    stage 的 late result 永远不能在 reset 后重新 publish。
 10. plugin contribution register/unregister API 返回成功前，贡献 map 与 published snapshot 必须收敛。
     whole-catalog discovery 的 CAS 若被并发 watcher/mutation observation 淘汰，register 使用 bounded
-    per-source stage/CAS publish，unregister 为每个 removed source 推进 observation 并 direct CAS remove；
-    不能把 stale catalog snapshot 当作成功。所有 uninstall cleanup（包括目录已不存在的 `not_found`）也
-    必须先推进 source observation，再在 atomic remove 点 CAS，从而使 cleanup 前已开始的 watcher stage
-    永远不能复活已删除 entry。
+    per-source stage/CAS publish，并且只有 published `sourceVersion` 与当前 contribution stage 的完整
+    revision（owner/plugin root/body/extension/scripts）一致时才可返回；相同 path/owner 不是 revision
+    identity。unregister 为每个 removed source 推进 observation 并 direct CAS remove，不能把 stale catalog
+    snapshot 当作成功。所有 uninstall（包括目录已不存在的 `not_found`）都先推进 source observation，
+    从而使 cleanup 前已开始的 watcher stage 永远不能复活已删除 entry；只有确实存在 published entry
+    需要移除时才打开 atomic publish window。pure missing no-op 和 management-only cleanup 不推进 runtime
+    epoch。
 
 #### C3. bounded stable read
 
@@ -609,8 +612,9 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
 - [x] 完成最终 mutation lifecycle audit：catalog discovery 使用 catalog observation CAS；root/linked-source
       watcher 使用 per-source observation CAS；repo-owned save/install/adopt 使用先 stage、再 odd publish
       window、失败 rollback/reconcile；plugin contribution register/unregister 在 catalog CAS 丢失后逐源收敛；
-      uninstall（含 `not_found` cleanup）先推进 observation 再原子移除。`references`、`templates`、
-      `scripts`、`assets` 的目录变化都重建 linked-file listing snapshot。
+      plugin re-register 用完整 `sourceVersion` 证明当前 revision；uninstall（含 `not_found` cleanup）先推进
+      observation，仅在 snapshot 真正变化时推进 epoch。`references`、`templates`、`scripts`、`assets`
+      的目录变化都重建 linked-file listing snapshot。
 
 ### `PRM-002C` tasks
 
@@ -699,6 +703,10 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
 13. `not_found` uninstall cleanup 与已开始但未完成的 watcher stage 交错时，旧 candidate 不得复活 entry。
 14. linked-file 目录新增、删除事件会重建 published listing；linked-file 内容显式查看可读取比 root LKG
     更新的 bytes，但不替换 root snapshot。
+15. 相同 path/owner 的 plugin 用新 plugin root/body re-register，且 catalog CAS 被无关 watcher 淘汰时，
+    API 必须发布与当前 contribution staged `sourceVersion` 一致的 revision，不能接受旧 entry。
+16. pure missing uninstall 和 management-only missing cleanup 保持 snapshot reference/epoch 不变；两者仍推进
+    per-source observation，使更早开始的 late stage 失效。
 
 ### Validation commands
 

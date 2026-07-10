@@ -1964,13 +1964,6 @@ export class SkillPresenter implements ISkillPresenter {
   }): Promise<void> {
     const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const current = Array.from(this.runtimeSnapshots.snapshot.entries.values()).find(
-        (entry) =>
-          entry.metadata.path === skillPath &&
-          entry.metadata.ownerPluginId === contribution.ownerPluginId
-      )
-      if (current) return
-
       const sequence = this.runtimeSnapshots.nextObservation(skillPath)
       const metadata = await this.parseSkillMetadata(
         skillPath,
@@ -1989,6 +1982,18 @@ export class SkillPresenter implements ISkillPresenter {
       if (conflict && conflict.metadata.path !== skillPath) {
         throw new Error(`Plugin skill name "${candidate.metadata.name}" is already registered`)
       }
+      const current = Array.from(this.runtimeSnapshots.snapshot.entries.values()).find(
+        (entry) =>
+          entry.metadata.path === skillPath &&
+          entry.metadata.ownerPluginId === contribution.ownerPluginId
+      )
+      if (
+        current?.sourceVersion === candidate.sourceVersion &&
+        this.runtimeSnapshots.isCurrentObservation(skillPath, sequence)
+      ) {
+        return
+      }
+
       const previousName = Array.from(this.runtimeSnapshots.snapshot.entries.entries()).find(
         ([, entry]) => entry.metadata.path === skillPath
       )?.[0]
@@ -2796,6 +2801,11 @@ export class SkillPresenter implements ISkillPresenter {
     const sequence = this.runtimeSnapshots.nextObservation(sourcePath)
     try {
       if (!fs.existsSync(skillDir)) {
+        if (!previousEntry) {
+          if (previousState.skills[name]) this.cleanupUninstalledSkillManagementState(name)
+          return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
+        }
+
         const endPublish = this.beginRuntimePublishIfCurrent(sourcePath, sequence)
         if (!endPublish) {
           return { success: false, error: `Skill "${name}" changed before cleanup` }
@@ -2875,6 +2885,16 @@ export class SkillPresenter implements ISkillPresenter {
     if (!this.runtimeSnapshots.isCurrentObservation(sourcePath, sequence)) {
       throw new Error(`Skill "${name}" changed before cleanup`)
     }
+    this.cleanupUninstalledSkillManagementState(name)
+
+    if (this.runtimeSnapshots.snapshot.entries.has(name)) {
+      if (!this.runtimeSnapshots.removeIfCurrent(sourcePath, sequence, name)) {
+        throw new Error(`Skill "${name}" changed before cleanup`)
+      }
+    }
+  }
+
+  private cleanupUninstalledSkillManagementState(name: string): void {
     if (this.isSafeSkillName(name)) {
       try {
         this.deleteSkillManagementItem(name)
@@ -2883,12 +2903,6 @@ export class SkillPresenter implements ISkillPresenter {
           name,
           error
         })
-      }
-    }
-
-    if (this.runtimeSnapshots.snapshot.entries.has(name)) {
-      if (!this.runtimeSnapshots.removeIfCurrent(sourcePath, sequence, name)) {
-        throw new Error(`Skill "${name}" changed before cleanup`)
       }
     }
   }

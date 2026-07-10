@@ -325,6 +325,80 @@ describe('SkillPresenter runtime snapshots', () => {
     }
   })
 
+  it('publishes the current plugin revision when re-registration loses catalog CAS', async () => {
+    writeSkill(root, 'regular', { description: 'Regular A', body: '# Regular A' })
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('regular')
+    const pluginBase = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-plugin-runtime-'))
+    const pluginSkillRoot = path.join(pluginBase, 'plugin-skill')
+    const firstPluginRoot = path.join(pluginBase, 'runtime-a')
+    const secondPluginRoot = path.join(pluginBase, 'runtime-b')
+    writeSkill(pluginBase, 'plugin-skill', {
+      description: 'Plugin A',
+      body: '# Plugin A\n\nPlugin root: `${PLUGIN_ROOT}`.'
+    })
+    const pluginPath = path.join(pluginSkillRoot, 'SKILL.md')
+
+    try {
+      await presenter.registerPluginSkill({
+        ownerPluginId: 'plugin.fixture',
+        id: 'plugin-skill',
+        skillRoot: pluginSkillRoot,
+        pluginRoot: firstPluginRoot
+      })
+      await presenter.loadSkillContent('plugin-skill')
+      const previousVersion = presenter
+        .getPublishedRuntimeSnapshot()
+        .entries.get('plugin-skill')!.sourceVersion
+
+      writeSkill(pluginBase, 'plugin-skill', {
+        description: 'Plugin B',
+        body: '# Plugin B\n\nPlugin root: `${PLUGIN_ROOT}`.'
+      })
+      const parseStarted = createDeferred<void>()
+      const releaseParse = createDeferred<void>()
+      const originalParse = (presenter as any).parseSkillMetadata.bind(presenter)
+      let heldPluginParse = false
+      vi.spyOn(presenter as any, 'parseSkillMetadata').mockImplementation(
+        async (skillPath: string, ...args: unknown[]) => {
+          if (skillPath === pluginPath && !heldPluginParse) {
+            heldPluginParse = true
+            parseStarted.resolve()
+            await releaseParse.promise
+          }
+          return await originalParse(skillPath, ...args)
+        }
+      )
+
+      const registration = presenter.registerPluginSkill({
+        ownerPluginId: 'plugin.fixture',
+        id: 'plugin-skill',
+        skillRoot: pluginSkillRoot,
+        pluginRoot: secondPluginRoot
+      })
+      await parseStarted.promise
+      writeSkill(root, 'regular', { description: 'Regular B', body: '# Regular B' })
+      await (presenter as any).handleSkillFileChanged(path.join(root, 'regular', 'SKILL.md'))
+      releaseParse.resolve()
+      await registration
+
+      const current = presenter.getPublishedRuntimeSnapshot().entries.get('plugin-skill')
+      expect(current).toMatchObject({
+        availability: 'ready',
+        metadata: {
+          description: 'Plugin B',
+          path: pluginPath,
+          ownerPluginId: 'plugin.fixture'
+        },
+        renderedContent: expect.stringContaining('# Plugin B')
+      })
+      expect(current?.renderedContent).toContain(`Plugin root: \`${secondPluginRoot}\`.`)
+      expect(current?.sourceVersion).not.toBe(previousVersion)
+    } finally {
+      fs.rmSync(pluginBase, { recursive: true, force: true })
+    }
+  })
+
   it('removes plugin snapshots after a watcher invalidates unregister discovery', async () => {
     const pluginBase = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-plugin-runtime-'))
     const pluginSkillRoot = path.join(pluginBase, 'plugin-skill')
@@ -621,6 +695,64 @@ describe('SkillPresenter runtime snapshots', () => {
     await staleWatcher
 
     expect(presenter.getPublishedRuntimeSnapshot().entries.has('review')).toBe(false)
+  })
+
+  it('keeps the runtime epoch stable while invalidating a pure missing late stage', async () => {
+    writeSkill(root, 'missing', { description: 'Missing', body: '# Missing' })
+    const skillPath = path.join(root, 'missing', 'SKILL.md')
+    const hint = (presenter as any).createStageMetadataHint(skillPath, 'missing')
+    const candidate = await (presenter as any).stagePublishedSkillEntry(hint)
+    fs.rmSync(path.join(root, 'missing'), { recursive: true, force: true })
+    const stageStarted = createDeferred<void>()
+    const deferredStage = createDeferred<typeof candidate>()
+    vi.spyOn(presenter as any, 'stagePublishedSkillEntry').mockImplementationOnce(async () => {
+      stageStarted.resolve()
+      return await deferredStage.promise
+    })
+
+    const staleAddition = (presenter as any).handleSkillFileAdded(skillPath) as Promise<void>
+    await stageStarted.promise
+    const before = presenter.getPublishedRuntimeSnapshot()
+
+    await expect(presenter.uninstallSkill('missing')).resolves.toMatchObject({
+      success: false,
+      errorCode: 'not_found'
+    })
+    deferredStage.resolve(candidate)
+    await staleAddition
+
+    expect(presenter.getPublishedRuntimeSnapshot()).toBe(before)
+    expect(presenter.getPublishedRuntimeSnapshot().entries.has('missing')).toBe(false)
+    expect(settings.has('skills.managementState')).toBe(false)
+  })
+
+  it('cleans management-only missing state without publishing a runtime epoch', async () => {
+    settings.set('skills.managementState', {
+      version: 1,
+      skills: {
+        missing: {
+          name: 'missing',
+          canonicalPath: path.join(root, 'missing'),
+          deepchat: { disabled: true },
+          extension: {
+            version: 1,
+            env: {},
+            runtimePolicy: { python: 'auto', node: 'auto' },
+            scriptOverrides: {}
+          },
+          source: { type: 'created' }
+        }
+      }
+    })
+    const before = presenter.getPublishedRuntimeSnapshot()
+
+    await expect(presenter.uninstallSkill('missing')).resolves.toMatchObject({
+      success: false,
+      errorCode: 'not_found'
+    })
+
+    expect(presenter.getPublishedRuntimeSnapshot()).toBe(before)
+    expect((settings.get('skills.managementState') as any).skills.missing).toBeUndefined()
   })
 
   it('serves compatibility runtime APIs from a captured ready snapshot without source disk reads', async () => {
