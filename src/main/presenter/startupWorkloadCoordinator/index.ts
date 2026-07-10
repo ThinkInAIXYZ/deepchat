@@ -63,6 +63,7 @@ type StartupTaskRecord<T> = {
   reject: (reason?: unknown) => void
   promise: Promise<T>
   settled: boolean
+  idleBarrierRefs: number
   finishedPromise: Promise<void>
   resolveFinished: () => void
 }
@@ -198,6 +199,7 @@ export class StartupWorkloadCoordinator {
       reject: rejectTask,
       promise,
       settled: false,
+      idleBarrierRefs: 0,
       finishedPromise,
       resolveFinished
     }
@@ -227,7 +229,17 @@ export class StartupWorkloadCoordinator {
       throw this.createAbortError(`${target}:idle`)
     }
 
-    await this.waitForGeneration(generation, runState.controller.signal, `${target}:idle`)
+    for (const task of generation) {
+      task.idleBarrierRefs += 1
+    }
+    try {
+      await this.waitForGeneration(generation, runState.controller.signal, `${target}:idle`)
+    } finally {
+      for (const task of generation) {
+        task.idleBarrierRefs -= 1
+      }
+    }
+
     if (this.runs.get(target)?.runId !== runId) {
       throw this.createAbortError(`${target}:idle`)
     }
@@ -272,6 +284,9 @@ export class StartupWorkloadCoordinator {
   }
 
   private pickNextTask(): StartupTaskRecord<unknown> | null {
+    const protectedResources = new Set(
+      this.pendingTasks.filter((task) => task.idleBarrierRefs > 0).map((task) => task.resource)
+    )
     const sortedPending = [...this.pendingTasks].sort((left, right) => {
       const phaseDelta = PHASE_PRIORITY[left.phase] - PHASE_PRIORITY[right.phase]
       if (phaseDelta !== 0) {
@@ -281,6 +296,9 @@ export class StartupWorkloadCoordinator {
     })
 
     for (const task of sortedPending) {
+      if (task.idleBarrierRefs === 0 && protectedResources.has(task.resource)) {
+        continue
+      }
       if (this.runningCounts[task.resource] >= MAX_CONCURRENCY[task.resource]) {
         continue
       }

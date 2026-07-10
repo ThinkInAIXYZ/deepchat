@@ -19,11 +19,12 @@ function createDeferred<T>() {
 type TaskSettlementHooks = {
   resolve: (value: unknown) => void
   reject: (reason?: unknown) => void
+  idleBarrierRefs: number
 }
 
 type CoordinatorInternals = {
   runs: Map<string, { tasks: Set<TaskSettlementHooks> }>
-  activeTasks: Set<unknown>
+  activeTasks: Set<TaskSettlementHooks>
   pendingTasks: unknown[]
   runningCounts: { cpu: number; io: number }
   inFlightByDedupeKey: Map<string, unknown>
@@ -315,6 +316,235 @@ describe('StartupWorkloadCoordinator', () => {
     expect(coordinator.isIdle()).toBe(true)
   })
 
+  it('protects captured pending work from later same-resource phase starvation', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('main')
+
+    const blockerStarted = createDeferred<void>()
+    const blockerGate = createDeferred<void>()
+    const capturedGate = createDeferred<void>()
+    const laterStarted = createDeferred<void>()
+    const laterGate = createDeferred<void>()
+    const startOrder: string[] = []
+
+    const blockerTask = coordinator.scheduleTask({
+      id: 'main:blocker',
+      target: 'main',
+      phase: 'deferred',
+      resource: 'cpu',
+      labelKey: 'startup.main.blocker',
+      run: async () => {
+        startOrder.push('blocker')
+        blockerStarted.resolve()
+        await blockerGate.promise
+      }
+    })
+    await blockerStarted.promise
+
+    const capturedTask = coordinator.scheduleTask({
+      id: 'main:captured-background',
+      target: 'main',
+      phase: 'background',
+      resource: 'cpu',
+      labelKey: 'startup.main.capturedBackground',
+      run: async () => {
+        startOrder.push('captured')
+        await capturedGate.promise
+      }
+    })
+
+    const callback = vi.fn()
+    const idleBarrier = coordinator.whenIdle('main', async () => {
+      callback()
+    })
+
+    const laterTask = coordinator.scheduleTask({
+      id: 'main:later-interactive',
+      target: 'main',
+      phase: 'interactive',
+      resource: 'cpu',
+      labelKey: 'startup.main.laterInteractive',
+      run: async () => {
+        startOrder.push('later')
+        laterStarted.resolve()
+        await laterGate.promise
+      }
+    })
+
+    blockerGate.resolve()
+    await blockerTask
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(startOrder).toEqual(['blocker', 'captured'])
+    expect(callback).not.toHaveBeenCalled()
+
+    capturedGate.resolve()
+    await capturedTask
+    await laterStarted.promise
+    await idleBarrier
+
+    expect(startOrder).toEqual(['blocker', 'captured', 'later'])
+    expect(callback).toHaveBeenCalledOnce()
+    expect(coordinator.isIdle()).toBe(false)
+
+    laterGate.resolve()
+    await laterTask
+    expect(coordinator.isIdle()).toBe(true)
+  })
+
+  it('waits across targets for a publicly cancelled task to release its lane', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('main')
+
+    const taskStarted = createDeferred<void>()
+    const taskGate = createDeferred<void>()
+    const executionSettled = createDeferred<void>()
+    const task = coordinator.scheduleTask({
+      id: 'main:cancelled-but-running',
+      target: 'main',
+      phase: 'deferred',
+      resource: 'cpu',
+      labelKey: 'startup.main.cancelledButRunning',
+      run: async () => {
+        taskStarted.resolve()
+        try {
+          await taskGate.promise
+        } finally {
+          executionSettled.resolve()
+        }
+      }
+    })
+    const taskCancellation = expect(task).rejects.toMatchObject({ name: 'AbortError' })
+    await taskStarted.promise
+
+    coordinator.cancelTarget('main')
+    await taskCancellation
+
+    const callback = vi.fn()
+    const idleBarrier = coordinator.whenIdle('settings', async () => {
+      callback()
+    })
+
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(callback).not.toHaveBeenCalled()
+    expect(getInternals(coordinator).runningCounts.cpu).toBe(1)
+
+    taskGate.resolve()
+    await executionSettled.promise
+    await idleBarrier
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(coordinator.isIdle()).toBe(true)
+    expect(getInternals(coordinator).activeTasks.size).toBe(0)
+  })
+
+  it('runs every callback once when multiple idle waiters capture one generation', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('main')
+
+    const taskStarted = createDeferred<void>()
+    const taskGate = createDeferred<void>()
+    const task = coordinator.scheduleTask({
+      id: 'main:shared-generation',
+      target: 'main',
+      phase: 'deferred',
+      resource: 'cpu',
+      labelKey: 'startup.main.sharedGeneration',
+      run: async () => {
+        taskStarted.resolve()
+        await taskGate.promise
+      }
+    })
+    await taskStarted.promise
+
+    const firstCallback = vi.fn(async () => 'first')
+    const secondCallback = vi.fn(async () => 'second')
+    const firstWaiter = coordinator.whenIdle('main', firstCallback)
+    const secondWaiter = coordinator.whenIdle('main', secondCallback)
+    const taskRecord = [...getInternals(coordinator).activeTasks][0]!
+
+    expect(taskRecord.idleBarrierRefs).toBe(2)
+
+    taskGate.resolve()
+    await task
+
+    await expect(Promise.all([firstWaiter, secondWaiter])).resolves.toEqual(['first', 'second'])
+    expect(firstCallback).toHaveBeenCalledOnce()
+    expect(secondCallback).toHaveBeenCalledOnce()
+    expect(taskRecord.idleBarrierRefs).toBe(0)
+  })
+
+  it('runs an immediate idle callback directly without publishing workload state', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('main')
+
+    const callback = vi.fn(async () => 42)
+    const callsBeforeBarrier = publishDeepchatEventMock.mock.calls.length
+
+    await expect(coordinator.whenIdle('main', callback)).resolves.toBe(42)
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(publishDeepchatEventMock.mock.calls).toHaveLength(callsBeforeBarrier)
+    expect(coordinator.isIdle()).toBe(true)
+  })
+
+  it('preserves callback rejection after the callback owns cancellation', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('main')
+
+    const taskStarted = createDeferred<void>()
+    const taskGate = createDeferred<void>()
+    const task = coordinator.scheduleTask({
+      id: 'main:before-callback',
+      target: 'main',
+      phase: 'deferred',
+      resource: 'cpu',
+      labelKey: 'startup.main.beforeCallback',
+      run: async () => {
+        taskStarted.resolve()
+        await taskGate.promise
+      }
+    })
+    await taskStarted.promise
+
+    const callbackStarted = createDeferred<void>()
+    const callbackGate = createDeferred<void>()
+    const callback = vi.fn(async () => {
+      callbackStarted.resolve()
+      await callbackGate.promise
+    })
+    const idleBarrier = coordinator.whenIdle('main', callback)
+    const barrierOutcome = idleBarrier.then(
+      () => undefined,
+      (error: unknown) => error
+    )
+    const taskRecord = [...getInternals(coordinator).activeTasks][0]!
+
+    taskGate.resolve()
+    await task
+    await callbackStarted.promise
+
+    expect(taskRecord.idleBarrierRefs).toBe(0)
+
+    const callbackError = new Error('callback owns this failure')
+    coordinator.cancelTarget('main')
+    callbackGate.reject(callbackError)
+
+    expect(await barrierOutcome).toBe(callbackError)
+    expect(callback).toHaveBeenCalledOnce()
+
+    const internals = getInternals(coordinator)
+    expect(internals.activeTasks.size).toBe(0)
+    expect(internals.pendingTasks).toHaveLength(0)
+    expect(internals.inFlightByDedupeKey.size).toBe(0)
+    expect(internals.runs.has('main')).toBe(false)
+  })
+
   it('cancels an idle barrier once without leaking late task execution', async () => {
     const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
@@ -346,6 +576,7 @@ describe('StartupWorkloadCoordinator', () => {
       callback()
     })
     const barrierCancellation = expect(idleBarrier).rejects.toMatchObject({ name: 'AbortError' })
+    const taskRecord = [...getInternals(coordinator).activeTasks][0]!
 
     coordinator.cancelTarget('main')
     await Promise.all([taskCancellation, barrierCancellation])
@@ -356,6 +587,7 @@ describe('StartupWorkloadCoordinator', () => {
     expect(internals.runningCounts.cpu).toBe(1)
     expect(internals.inFlightByDedupeKey.size).toBe(0)
     expect(internals.runs.has('main')).toBe(false)
+    expect(taskRecord.idleBarrierRefs).toBe(0)
 
     taskGate.reject(new Error('late failure'))
     await executionSettled.promise

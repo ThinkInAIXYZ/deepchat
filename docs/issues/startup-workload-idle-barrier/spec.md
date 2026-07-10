@@ -35,11 +35,18 @@ executing when `whenIdle(target, callback)` is called.
 - Normal completion, rejection, and cancellation all finish a captured task only when no underlying
   execution remains. A cancelled pending task finishes immediately because it never acquired a lane.
 - Tasks submitted after `whenIdle()` captures its generation belong to a later generation and do not
-  extend the current wait. This fixed cutoff prevents continuous task submission from starving the
-  callback forever.
+  extend the current wait. While at least one waiter still references a captured pending task, that
+  task runs before unprotected later tasks on the same resource; protected tasks retain their normal
+  phase and sequence ordering among themselves. This scoped priority prevents later same-resource
+  submissions from starving the captured generation without changing global phase semantics.
 - The generation is coordinator-wide, matching the existing global `isIdle()` check and the retained
-  "coordinator idle" startup policy. `target` owns the waiter lifecycle; cancelling or replacing that
-  target run rejects the waiter with `AbortError` and never invokes its callback.
+  "coordinator idle" startup policy. `target` owns the waiting lifecycle: cancelling or replacing
+  that target run before the callback begins rejects the waiter with `AbortError`. Once the callback
+  begins, its own owner controls cancellation and its result or error is propagated unchanged. The
+  production callback schedules its warmup as a target/run-owned task, so that work remains
+  cancellable through the existing task contract.
+- Each `whenIdle()` call owns its callback. Concurrent waiters may capture the same generation, and
+  each callback runs exactly once; the old scheduled-task dedupe behavior is intentionally removed.
 - A waiter is not workload: it consumes no CPU/IO lane, has no visible task, and emits no unchanged
   `startup.workload.changed` snapshot.
 
@@ -47,9 +54,11 @@ executing when `whenIdle(target, callback)` is called.
 
 - Track the physical completion of each scheduled task separately from its public promise settlement.
 - Capture current active task completion promises in `whenIdle()` and wait without consuming a lane.
+- Reference-count captured tasks per active waiter and give protected pending work one local ordering
+  layer over later unprotected work on the same resource.
 - Tie the wait to the target run cancellation signal and remove its abort listener on every outcome.
-- Keep phase ordering, resource limits, dedupe, public snapshots, and CRD-001 settlement semantics
-  unchanged.
+- Keep ordinary phase ordering, resource limits, task dedupe, public snapshots, and CRD-001
+  settlement semantics unchanged.
 
 ## Acceptance Criteria
 
@@ -57,8 +66,15 @@ executing when `whenIdle(target, callback)` is called.
 - A captured task rejection still delays the callback until execution cleanup, without making the
   barrier fail.
 - A task scheduled after the barrier starts does not delay that barrier.
+- A later interactive task on the same resource cannot starve a captured background task; the later
+  task still does not become part of the captured generation.
 - Target cancellation rejects the barrier once, never calls the callback, and late task settlement
   restores the lane without retained active, pending, run, or dedupe records.
+- A physically running task remains visible to a barrier owned by another target after its public
+  promise is cancelled.
+- Concurrent waiters each invoke their own callback once; an immediate-idle callback runs directly.
+- Callback rejection is propagated by identity, and target cancellation after callback start does not
+  replace the callback outcome.
 - Existing priority, concurrency, cancellation settlement, and atomic snapshot tests continue to pass.
 
 ## Non-Goals
@@ -74,14 +90,20 @@ executing when `whenIdle(target, callback)` is called.
 - [x] Implement physical task completion tracking and the lane-free barrier.
 - [x] Run focused and repository validation.
 - [x] Record the final validation evidence.
+- [x] Protect captured pending tasks from later same-resource phase starvation.
+- [x] Cover cross-target late execution, concurrent waiters, immediate idle, and callback ownership.
+- [x] Re-run focused and repository validation after independent review findings.
 
 ## Validation
 
-- `pnpm vitest run test/main/presenter/startupWorkloadCoordinator.test.ts`: 8 passed.
+- The independent-review follow-up tests failed before the scheduling protection was added: a later
+  interactive CPU task started before the captured background CPU task, and waiter references were
+  not tracked or released.
+- `pnpm vitest run test/main/presenter/startupWorkloadCoordinator.test.ts`: 13 passed.
 - `pnpm run typecheck`: passed.
 - `pnpm run format`: passed.
 - `pnpm run i18n`: passed.
 - `pnpm run lint`: passed, including architecture and agent-cleanup guards.
-- `pnpm run test:main -- --reporter=dot`: 3,256 passed and 135 skipped. The two failures are
+- `pnpm run test:main -- --reporter=dot`: 3,261 passed and 135 skipped. The two failures are
   unchanged baseline failures in `createMockChatSession.test.ts` and
   `agentSessionPresenter/integration.test.ts`; no startup coordinator test failed.
