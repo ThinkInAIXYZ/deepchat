@@ -11,6 +11,7 @@ import {
   createWatcherRequestId,
   getFileWatcherService,
   type IFileWatcherService,
+  type WatchEventType,
   type WatcherEventBatch,
   type WatcherStatus,
   type WatchHandle
@@ -380,10 +381,6 @@ export class SkillPresenter implements ISkillPresenter {
     return this.runtimeSnapshots.publishEntryIfCurrent(sourcePath, sequence, entry, previousName)
   }
 
-  private publishRuntimeRemoval(name: string): void {
-    this.runtimeSnapshots.remove(name)
-  }
-
   private publishRuntimeSourceError(
     name: string,
     error: { code: string; message: string },
@@ -463,6 +460,7 @@ export class SkillPresenter implements ISkillPresenter {
       parsed.skillRoot,
       extension
     )
+    const linkedFiles = await this.listSkillLinkedFiles(scriptSourceRoot)
     const parsedContent = matter(rawContent).content
     const renderedBody = this.replacePathVariables(parsedContent, parsed).trim()
     const runtimeInstructions = this.buildRuntimeInstructionsFromScripts(parsed, scripts)
@@ -471,6 +469,9 @@ export class SkillPresenter implements ISkillPresenter {
     const frozenMetadata = freezeSkillMetadata(parsed)
     const frozenExtension = freezeSkillExtension(extension)
     const frozenScripts = freezeScriptDescriptors(scripts)
+    const frozenLinkedFiles = Object.freeze(
+      linkedFiles.map((linkedFile) => Object.freeze({ ...linkedFile }))
+    )
     const allowedTools = Object.freeze([...(frozenMetadata.allowedTools ?? [])])
     const sourceVersion = createSkillSourceVersion({
       rawContent,
@@ -481,6 +482,7 @@ export class SkillPresenter implements ISkillPresenter {
         enabled,
         description
       })),
+      linkedFiles: frozenLinkedFiles,
       skillRoot: parsed.skillRoot,
       skillsDir: this.skillsDir,
       pluginRoot: pluginContribution?.pluginRoot ?? null,
@@ -495,7 +497,8 @@ export class SkillPresenter implements ISkillPresenter {
       renderedContent,
       allowedTools,
       extension: frozenExtension,
-      scripts: frozenScripts
+      scripts: frozenScripts,
+      linkedFiles: frozenLinkedFiles
     })
   }
 
@@ -1062,30 +1065,30 @@ export class SkillPresenter implements ISkillPresenter {
       }
     }
 
-    const pinnedSkills = options?.conversationId
-      ? await this.getActiveSkills(options.conversationId)
-      : []
-    const isPinned = pinnedSkills.includes(metadata.name)
+    const requestedFilePath = options?.filePath?.trim()
+    const requestedPath = requestedFilePath
+      ? this.resolveSkillRelativePath(metadata.skillRoot, requestedFilePath)
+      : metadata.path
+    const isRootView =
+      requestedPath !== null && path.resolve(requestedPath) === path.resolve(metadata.path)
 
-    if (options?.filePath?.trim()) {
+    if (requestedFilePath && !isRootView) {
       try {
-        const requestedFilePath = options.filePath.trim()
-        const resolvedPath = this.resolveSkillRelativePath(metadata.skillRoot, requestedFilePath)
-        if (!resolvedPath) {
+        if (!requestedPath) {
           return {
             success: false,
             error: 'Requested skill file is outside the skill root'
           }
         }
 
-        if (!(await this.pathExists(resolvedPath))) {
+        if (!(await this.pathExists(requestedPath))) {
           return {
             success: false,
             error: `Skill file not found: ${requestedFilePath}`
           }
         }
 
-        const stats = await fs.promises.stat(resolvedPath)
+        const stats = await fs.promises.stat(requestedPath)
         if (!stats.isFile()) {
           return {
             success: false,
@@ -1098,29 +1101,32 @@ export class SkillPresenter implements ISkillPresenter {
             error: 'Requested skill file is too large to load inline'
           }
         }
-        if (this.isBinaryLikeFile(resolvedPath)) {
+        if (this.isBinaryLikeFile(requestedPath)) {
           return {
             success: false,
             error: 'Binary skill files cannot be loaded with skill_view'
           }
         }
 
+        const pinnedSkills = options?.conversationId
+          ? await this.getActiveSkills(options.conversationId)
+          : []
         return {
           success: true,
           name: metadata.name,
           category: metadata.category ?? null,
           skillRoot: metadata.skillRoot,
-          filePath: path.relative(metadata.skillRoot, resolvedPath),
-          content: await fs.promises.readFile(resolvedPath, 'utf-8'),
+          filePath: path.relative(metadata.skillRoot, requestedPath),
+          content: await fs.promises.readFile(requestedPath, 'utf-8'),
           platforms: metadata.platforms,
           metadata: metadata.metadata,
-          isPinned
+          isPinned: pinnedSkills.includes(metadata.name)
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('[SkillPresenter] Failed to load requested skill file for skill_view:', {
           name: metadata.name,
-          filePath: options.filePath.trim(),
+          filePath: requestedFilePath,
           error
         })
         return {
@@ -1130,42 +1136,44 @@ export class SkillPresenter implements ISkillPresenter {
       }
     }
 
-    try {
-      const stats = await fs.promises.stat(metadata.path)
-      if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
-        const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
-        console.error(errorMessage)
-        return {
-          success: false,
-          error: errorMessage
-        }
-      }
-
-      const rawContent = await fs.promises.readFile(metadata.path, 'utf-8')
-      const { content } = matter(rawContent)
-      return {
-        success: true,
-        name: metadata.name,
-        category: metadata.category ?? null,
-        skillRoot: metadata.skillRoot,
-        filePath: null,
-        content: this.replacePathVariables(content, metadata),
-        platforms: metadata.platforms,
-        metadata: metadata.metadata,
-        linkedFiles: await this.listSkillLinkedFiles(metadata.skillRoot),
-        isPinned
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('[SkillPresenter] Failed to load skill_view content:', {
-        name: metadata.name,
-        path: metadata.path,
-        error
-      })
+    const snapshot = await this.waitForStableRuntimeSnapshot({
+      requiredSkillNames: [name],
+      signal: new AbortController().signal,
+      deadlineAt: Date.now() + SKILL_RUNTIME_WAIT_BUDGET_MS
+    })
+    const entry = snapshot.entries.get(name)
+    if (
+      !entry ||
+      entry.availability !== 'ready' ||
+      entry.renderedContent === undefined ||
+      !this.isSkillVisible(entry.metadata as SkillMetadata)
+    ) {
       return {
         success: false,
-        error: `Failed to load skill view: ${errorMessage}`
+        error: `Skill "${name}" not found`
       }
+    }
+
+    const pinnedSkills = options?.conversationId
+      ? await this.getActiveSkills(options.conversationId)
+      : []
+    const capturedMetadata = entry.metadata as SkillMetadata
+    this.runtimeSnapshotReadDepth += 1
+    try {
+      return {
+        success: true,
+        name: capturedMetadata.name,
+        category: capturedMetadata.category ?? null,
+        skillRoot: capturedMetadata.skillRoot,
+        filePath: null,
+        content: entry.renderedContent,
+        platforms: capturedMetadata.platforms,
+        metadata: capturedMetadata.metadata,
+        linkedFiles: (entry.linkedFiles ?? []).map((linkedFile) => ({ ...linkedFile })),
+        isPinned: pinnedSkills.includes(capturedMetadata.name)
+      }
+    } finally {
+      this.runtimeSnapshotReadDepth -= 1
     }
   }
 
@@ -1939,12 +1947,63 @@ export class SkillPresenter implements ISkillPresenter {
       throw new Error(`Plugin skill "${input.id}" is missing SKILL.md`)
     }
 
-    this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, {
+    const contribution = {
       ownerPluginId: input.ownerPluginId,
       skillRoot,
       pluginRoot: input.pluginRoot ? path.resolve(input.pluginRoot) : undefined
-    })
+    }
+    this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, contribution)
     await this.discoverSkills()
+    await this.ensurePluginContributionPublished(contribution)
+  }
+
+  private async ensurePluginContributionPublished(contribution: {
+    ownerPluginId: string
+    skillRoot: string
+    pluginRoot?: string
+  }): Promise<void> {
+    const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = Array.from(this.runtimeSnapshots.snapshot.entries.values()).find(
+        (entry) =>
+          entry.metadata.path === skillPath &&
+          entry.metadata.ownerPluginId === contribution.ownerPluginId
+      )
+      if (current) return
+
+      const sequence = this.runtimeSnapshots.nextObservation(skillPath)
+      const metadata = await this.parseSkillMetadata(
+        skillPath,
+        path.basename(contribution.skillRoot),
+        contribution.ownerPluginId
+      )
+      if (!metadata) {
+        throw new Error(`Plugin skill at "${contribution.skillRoot}" is invalid`)
+      }
+      const candidate = await this.stagePublishedSkillEntry(metadata)
+      if (!candidate) {
+        throw new Error(`Plugin skill at "${contribution.skillRoot}" is invalid`)
+      }
+
+      const conflict = this.runtimeSnapshots.snapshot.entries.get(candidate.metadata.name)
+      if (conflict && conflict.metadata.path !== skillPath) {
+        throw new Error(`Plugin skill name "${candidate.metadata.name}" is already registered`)
+      }
+      const previousName = Array.from(this.runtimeSnapshots.snapshot.entries.entries()).find(
+        ([, entry]) => entry.metadata.path === skillPath
+      )?.[0]
+      if (this.publishRuntimeEntryIfCurrent(skillPath, sequence, candidate, previousName)) {
+        publishDeepchatEvent('skills.catalog.changed', {
+          reason: 'installed',
+          name: candidate.metadata.name,
+          skill: candidate.metadata,
+          version: Date.now()
+        })
+        return
+      }
+    }
+
+    throw new Error(`Plugin skill at "${contribution.skillRoot}" changed during registration`)
   }
 
   async registerAdoptedSkill(input: SkillAdoptionRegistration): Promise<void> {
@@ -2046,16 +2105,45 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   async unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> {
-    let changed = false
+    const removedContributions: Array<{
+      ownerPluginId: string
+      skillRoot: string
+      pluginRoot?: string
+    }> = []
     for (const [key, contribution] of this.pluginSkillContributions.entries()) {
       if (contribution.ownerPluginId === ownerPluginId) {
+        removedContributions.push(contribution)
         this.pluginSkillContributions.delete(key)
-        changed = true
       }
     }
 
-    if (changed) {
-      await this.discoverSkills()
+    if (removedContributions.length === 0) return
+    await this.discoverSkills()
+
+    let removedPublishedEntry = false
+    for (const contribution of removedContributions) {
+      const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
+      const sequence = this.runtimeSnapshots.nextObservation(skillPath)
+      const names = Array.from(this.runtimeSnapshots.snapshot.entries.entries())
+        .filter(
+          ([, entry]) =>
+            entry.metadata.path === skillPath && entry.metadata.ownerPluginId === ownerPluginId
+        )
+        .map(([name]) => name)
+      for (const name of names) {
+        if (!this.runtimeSnapshots.removeIfCurrent(skillPath, sequence, name)) {
+          throw new Error(`Plugin skill "${name}" changed during unregistration`)
+        }
+        removedPublishedEntry = true
+      }
+    }
+
+    if (removedPublishedEntry) {
+      publishDeepchatEvent('skills.catalog.changed', {
+        reason: 'uninstalled',
+        ownerPluginId,
+        version: Date.now()
+      })
     }
   }
 
@@ -2704,21 +2792,29 @@ export class SkillPresenter implements ISkillPresenter {
     const previousState = this.getStoredManagementState()
     const skillDir = path.join(this.skillsDir, name)
     const trashDir = path.join(this.skillsDir, `.${name}.uninstall-${process.pid}-${randomUUID()}`)
+    const sourcePath = previousEntry?.metadata.path ?? path.join(skillDir, 'SKILL.md')
+    const sequence = this.runtimeSnapshots.nextObservation(sourcePath)
     try {
       if (!fs.existsSync(skillDir)) {
-        this.cleanupUninstalledSkillState(name)
+        const endPublish = this.beginRuntimePublishIfCurrent(sourcePath, sequence)
+        if (!endPublish) {
+          return { success: false, error: `Skill "${name}" changed before cleanup` }
+        }
+        try {
+          this.cleanupUninstalledSkillState(name, sourcePath, sequence)
+        } finally {
+          endPublish()
+        }
         return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
       }
 
-      const sourcePath = previousEntry?.metadata.path ?? path.join(skillDir, 'SKILL.md')
-      const sequence = this.runtimeSnapshots.nextObservation(sourcePath)
       const endPublish = this.beginRuntimePublishIfCurrent(sourcePath, sequence)
       if (!endPublish) {
         return { success: false, error: `Skill "${name}" changed before uninstall` }
       }
       try {
         fs.renameSync(skillDir, trashDir)
-        this.cleanupUninstalledSkillState(name)
+        this.cleanupUninstalledSkillState(name, sourcePath, sequence)
       } catch (error) {
         try {
           if (fs.existsSync(trashDir)) {
@@ -2775,7 +2871,10 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
-  private cleanupUninstalledSkillState(name: string): void {
+  private cleanupUninstalledSkillState(name: string, sourcePath: string, sequence: number): void {
+    if (!this.runtimeSnapshots.isCurrentObservation(sourcePath, sequence)) {
+      throw new Error(`Skill "${name}" changed before cleanup`)
+    }
     if (this.isSafeSkillName(name)) {
       try {
         this.deleteSkillManagementItem(name)
@@ -2788,7 +2887,9 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     if (this.runtimeSnapshots.snapshot.entries.has(name)) {
-      this.publishRuntimeRemoval(name)
+      if (!this.runtimeSnapshots.removeIfCurrent(sourcePath, sequence, name)) {
+        throw new Error(`Skill "${name}" changed before cleanup`)
+      }
     }
   }
 
@@ -3442,7 +3543,7 @@ export class SkillPresenter implements ISkillPresenter {
     for (const event of batch.events) {
       if (!this.isWatchedSkillMarkdownPath(event.path)) {
         if (event.type === 'create' || event.type === 'update' || event.type === 'delete') {
-          await this.handlePublishedSkillAuxiliarySourceChanged(event.path)
+          await this.handlePublishedSkillAuxiliarySourceChanged(event.path, event.type)
         }
         continue
       }
@@ -3620,14 +3721,21 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
-  private async handlePublishedSkillAuxiliarySourceChanged(filePath: string): Promise<void> {
+  private async handlePublishedSkillAuxiliarySourceChanged(
+    filePath: string,
+    eventType: WatchEventType
+  ): Promise<void> {
     const entry = Array.from(this.runtimeSnapshots.snapshot.entries.values()).find((candidate) => {
       const relativePath = path.relative(candidate.metadata.skillRoot, filePath)
+      const sourceDirectory = relativePath.split(/[\\/]+/)[0]
+      const affectsPublishedSnapshot =
+        sourceDirectory === 'scripts' ||
+        (eventType !== 'update' && ['assets', 'references', 'templates'].includes(sourceDirectory))
       return (
         relativePath !== '' &&
         !relativePath.startsWith('..') &&
         !path.isAbsolute(relativePath) &&
-        relativePath.split(/[\\/]+/)[0] === 'scripts'
+        affectsPublishedSnapshot
       )
     })
     if (!entry) {

@@ -1143,7 +1143,7 @@ describe('SkillPresenter', () => {
       )
     })
 
-    it('rejects oversized skill markdown files before loading content', async () => {
+    it('quarantines oversized root skill sources during snapshot staging', async () => {
       ;(fs.statSync as Mock).mockReturnValue({
         isFile: () => true,
         size: 6 * 1024 * 1024,
@@ -1155,7 +1155,11 @@ describe('SkillPresenter', () => {
 
       expect(result).toEqual({
         success: false,
-        error: '[SkillPresenter] Skill file too large: 6291456 bytes (max: 5242880)'
+        error: 'Skill "test-skill" not found'
+      })
+      expect(skillPresenter.getPublishedRuntimeSnapshot().entries.get('test-skill')).toMatchObject({
+        availability: 'quarantined',
+        sourceError: { code: 'SOURCE_READ_FAILED' }
       })
       expect(fs.readFileSync).not.toHaveBeenCalledWith(
         expect.stringContaining('/test-skill/SKILL.md'),
@@ -1196,7 +1200,7 @@ describe('SkillPresenter', () => {
       })
     })
 
-    it('returns a structured error when main skill content access throws', async () => {
+    it('returns stable unavailable state when root snapshot staging fails', async () => {
       ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
         if (String(target).endsWith('/test-skill/SKILL.md')) {
           throw new Error('Read failure')
@@ -1208,7 +1212,11 @@ describe('SkillPresenter', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Failed to load skill view: Read failure'
+        error: 'Skill "test-skill" not found'
+      })
+      expect(skillPresenter.getPublishedRuntimeSnapshot().entries.get('test-skill')).toMatchObject({
+        availability: 'quarantined',
+        sourceError: { code: 'SOURCE_READ_FAILED' }
       })
     })
   })

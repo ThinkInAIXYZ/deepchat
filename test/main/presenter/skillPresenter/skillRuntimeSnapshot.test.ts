@@ -181,6 +181,8 @@ describe('SkillPresenter runtime snapshots', () => {
     expect(Object.isFrozen(publishedEntry?.extension?.runtimePolicy)).toBe(true)
     expect(Object.isFrozen(publishedEntry?.scripts)).toBe(true)
     expect(Object.isFrozen(publishedEntry?.scripts?.[0])).toBe(true)
+    expect(Object.isFrozen(publishedEntry?.linkedFiles)).toBe(true)
+    expect(Object.isFrozen(publishedEntry?.linkedFiles?.[0])).toBe(true)
 
     const mutableEntries = published.entries as Map<string, unknown>
     expect(() => mutableEntries.set('injected', {})).toThrow(TypeError)
@@ -218,6 +220,147 @@ describe('SkillPresenter runtime snapshots', () => {
     await (presenter as any).handleSkillFileAdded(path.join(root, 'invalid-new', 'SKILL.md'))
 
     expect(presenter.getPublishedRuntimeSnapshot().entries.has('invalid-new')).toBe(false)
+  })
+
+  it('serves root skill views from one captured snapshot while linked-file views stay explicit', async () => {
+    writeSkill(root, 'review', { description: 'Version A', body: '# Body A' })
+    const referencesDir = path.join(root, 'review', 'references')
+    fs.mkdirSync(referencesDir, { recursive: true })
+    fs.writeFileSync(path.join(referencesDir, 'guide.md'), '# Guide A', 'utf-8')
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('review')
+
+    writeSkill(root, 'review', { description: 'Version B', body: '# Body B' })
+    fs.writeFileSync(path.join(referencesDir, 'guide.md'), '# Guide B', 'utf-8')
+    const readFile = vi.spyOn(fs.promises, 'readFile')
+    const stat = vi.spyOn(fs.promises, 'stat')
+    const readdir = vi.spyOn(fs.promises, 'readdir')
+
+    const rootView = await presenter.viewSkill('review', { filePath: 'SKILL.md' })
+
+    expect(rootView).toMatchObject({
+      success: true,
+      name: 'review',
+      filePath: null,
+      content: expect.stringContaining('# Body A'),
+      linkedFiles: [{ kind: 'reference', path: 'references/guide.md' }]
+    })
+    expect(rootView.content).not.toContain('# Body B')
+    expect(readFile).not.toHaveBeenCalled()
+    expect(stat).not.toHaveBeenCalled()
+    expect(readdir).not.toHaveBeenCalled()
+
+    const linkedView = await presenter.viewSkill('review', {
+      filePath: 'references/guide.md'
+    })
+    expect(linkedView).toMatchObject({
+      success: true,
+      filePath: 'references/guide.md',
+      content: '# Guide B'
+    })
+    expect(readFile).toHaveBeenCalledWith(path.join(referencesDir, 'guide.md'), 'utf-8')
+
+    const newReferencePath = path.join(referencesDir, 'new.md')
+    fs.writeFileSync(newReferencePath, '# New reference', 'utf-8')
+    await (presenter as any).handlePublishedSkillAuxiliarySourceChanged(newReferencePath, 'create')
+    await expect(presenter.viewSkill('review')).resolves.toMatchObject({
+      success: true,
+      content: expect.stringContaining('# Body B'),
+      linkedFiles: [
+        { kind: 'reference', path: 'references/guide.md' },
+        { kind: 'reference', path: 'references/new.md' }
+      ]
+    })
+  })
+
+  it('publishes a plugin registration after a watcher invalidates catalog discovery', async () => {
+    writeSkill(root, 'regular', { description: 'Regular A', body: '# Regular A' })
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('regular')
+    const pluginBase = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-plugin-runtime-'))
+    const pluginSkillRoot = path.join(pluginBase, 'plugin-skill')
+    writeSkill(pluginBase, 'plugin-skill', {
+      description: 'Plugin',
+      body: '# Plugin body'
+    })
+    const pluginPath = path.join(pluginSkillRoot, 'SKILL.md')
+    const parseStarted = createDeferred<void>()
+    const releaseParse = createDeferred<void>()
+    const originalParse = (presenter as any).parseSkillMetadata.bind(presenter)
+    let heldPluginParse = false
+    vi.spyOn(presenter as any, 'parseSkillMetadata').mockImplementation(
+      async (skillPath: string, ...args: unknown[]) => {
+        if (skillPath === pluginPath && !heldPluginParse) {
+          heldPluginParse = true
+          parseStarted.resolve()
+          await releaseParse.promise
+        }
+        return await originalParse(skillPath, ...args)
+      }
+    )
+
+    try {
+      const registration = presenter.registerPluginSkill({
+        ownerPluginId: 'plugin.fixture',
+        id: 'plugin-skill',
+        skillRoot: pluginSkillRoot,
+        pluginRoot: pluginBase
+      })
+      await parseStarted.promise
+      writeSkill(root, 'regular', { description: 'Regular B', body: '# Regular B' })
+      await (presenter as any).handleSkillFileChanged(path.join(root, 'regular', 'SKILL.md'))
+      releaseParse.resolve()
+      await registration
+
+      expect(presenter.getPublishedRuntimeSnapshot().entries.get('plugin-skill')).toMatchObject({
+        availability: 'ready',
+        metadata: {
+          path: pluginPath,
+          ownerPluginId: 'plugin.fixture'
+        },
+        renderedContent: expect.stringContaining('# Plugin body')
+      })
+    } finally {
+      fs.rmSync(pluginBase, { recursive: true, force: true })
+    }
+  })
+
+  it('removes plugin snapshots after a watcher invalidates unregister discovery', async () => {
+    const pluginBase = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-plugin-runtime-'))
+    const pluginSkillRoot = path.join(pluginBase, 'plugin-skill')
+    writeSkill(pluginBase, 'plugin-skill', {
+      description: 'Plugin',
+      body: '# Plugin body'
+    })
+    const pluginPath = path.join(pluginSkillRoot, 'SKILL.md')
+
+    try {
+      await presenter.registerPluginSkill({
+        ownerPluginId: 'plugin.fixture',
+        id: 'plugin-skill',
+        skillRoot: pluginSkillRoot,
+        pluginRoot: pluginBase
+      })
+      await presenter.loadSkillContent('plugin-skill')
+      const discoveryStarted = createDeferred<void>()
+      const releaseDiscovery = createDeferred<void>()
+      discoveryWorkerMock.discoverSkillMetadataInWorker.mockImplementationOnce(async () => {
+        discoveryStarted.resolve()
+        await releaseDiscovery.promise
+        return { skills: [], warnings: [] }
+      })
+
+      const unregister = presenter.unregisterPluginSkillsByOwner('plugin.fixture')
+      await discoveryStarted.promise
+      await (presenter as any).handleSkillFileChanged(pluginPath)
+      releaseDiscovery.resolve()
+      await unregister
+
+      expect(presenter.getPublishedRuntimeSnapshot().entries.has('plugin-skill')).toBe(false)
+      expect(await presenter.getMetadataList()).toEqual([])
+    } finally {
+      fs.rmSync(pluginBase, { recursive: true, force: true })
+    }
   })
 
   it('rejects repo-owned parse-null before writing the source file', async () => {
@@ -451,6 +594,33 @@ describe('SkillPresenter runtime snapshots', () => {
     endPublish()
     await presenter.destroy()
     expect(presenter.getPublishedRuntimeSnapshot().entries.size).toBe(0)
+  })
+
+  it('does not let a late watcher revive a missing skill after uninstall cleanup', async () => {
+    writeSkill(root, 'review', { description: 'Version A', body: '# Body A' })
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('review')
+    const skillPath = path.join(root, 'review', 'SKILL.md')
+    const metadata = presenter.getPublishedRuntimeSnapshot().entries.get('review')!.metadata as any
+    const watcherCandidate = await (presenter as any).stagePublishedSkillEntry(metadata)
+    const stageStarted = createDeferred<void>()
+    const deferredStage = createDeferred<typeof watcherCandidate>()
+    vi.spyOn(presenter as any, 'stagePublishedSkillEntry').mockImplementationOnce(async () => {
+      stageStarted.resolve()
+      return await deferredStage.promise
+    })
+
+    const staleWatcher = (presenter as any).handleSkillFileChanged(skillPath) as Promise<void>
+    await stageStarted.promise
+    fs.rmSync(path.join(root, 'review'), { recursive: true, force: true })
+    await expect(presenter.uninstallSkill('review')).resolves.toMatchObject({
+      success: false,
+      errorCode: 'not_found'
+    })
+    deferredStage.resolve(watcherCandidate)
+    await staleWatcher
+
+    expect(presenter.getPublishedRuntimeSnapshot().entries.has('review')).toBe(false)
   })
 
   it('serves compatibility runtime APIs from a captured ready snapshot without source disk reads', async () => {

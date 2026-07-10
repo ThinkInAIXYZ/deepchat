@@ -343,6 +343,7 @@ interface PublishedSkillEntry {
   metadata: Readonly<SkillMetadata>
   renderedContent?: string
   allowedTools: readonly string[]
+  linkedFiles?: readonly Readonly<{ path: string; kind: string }>[]
   sourceError?: Readonly<{ code: string; message: string }>
 }
 
@@ -372,17 +373,22 @@ interface SkillRuntimeSnapshotPort {
    `SkillPresenter` 必须从同一次 raw source/config/script snapshot stage 出完整 `ready` entry，再 atomic
    publish；`waitForStableRuntimeSnapshot({ requiredSkillNames })` 负责共享该 readiness stage，reader 不能
    直接从磁盘补 body。
-4. `sourceVersion` 是 staged inputs 的 content digest，至少覆盖 raw `SKILL.md`、normalized extension、
-   normalized runnable script descriptors，以及会影响 path-variable/runtime rendering 的 skill/plugin root、
-   owner id 和 process arch。不能只用 name/mtime。
-5. stable state 使用 even safe integer，publish window 使用 odd integer。应用重启可从 `0` 开始，因为
+4. `skill_view` 的 root `SKILL.md`（包括显式 `filePath: 'SKILL.md'`）是 model/runtime reader：content、
+   metadata 和 linked-file path listing 必须来自同一个 captured `ready` entry，调用期间不 stat、readdir
+   或 read skill source。显式查看非 root linked file 是独立的用户请求，允许在 captured catalog metadata
+   授权的 skill root 内有界读盘，并明确可能观察到比 root LKG 更新的 linked-file bytes；该内容不参与
+   prompt/tool coherent pair，也不会替换 published root snapshot。
+5. `sourceVersion` 是 staged inputs 的 content digest，至少覆盖 raw `SKILL.md`、normalized extension、
+   normalized runnable script descriptors、linked-file path listing，以及会影响 path-variable/runtime
+   rendering 的 skill/plugin root、owner id 和 process arch。不能只用 name/mtime。
+6. stable state 使用 even safe integer，publish window 使用 odd integer。应用重启可从 `0` 开始，因为
    published snapshot 和所有依赖 cache 同时清空。
-6. 进入新的 even epoch 前必须已经选择并 atomic publish 以下三者之一：
+7. 进入新的 even epoch 前必须已经选择并 atomic publish 以下三者之一：
    - fully validated candidate snapshot；
    - previous last-known-good snapshot（可附带新的 diagnostic `sourceError`）；
    - 对没有 last-known-good 的 source 发布 `quarantined/unavailable` 状态，且它不进入 available/active
      prompt 或 `allowedTools`。
-7. published `sourceError` 是 runtime contract 的一部分，只允许稳定、受控、无 source content 的
+8. published `sourceError` 是 runtime contract 的一部分，只允许稳定、受控、无 source content 的
    code/message。raw exception、绝对路径、文件内容和底层错误消息只写 main-process local log，不得进入
    immutable snapshot、IPC 或 renderer cache。
 
@@ -431,6 +437,12 @@ interface SkillRuntimeSnapshotPort {
    stages、diagnostics 和 publish bookkeeping 全部保持不变。owner 应先停止 watcher/阻止新 mutation，等
    active publish settlement 后重试 reset；成功 reset 必须推进单调 observation floor，使 reset 前已经
    stage 的 late result 永远不能在 reset 后重新 publish。
+10. plugin contribution register/unregister API 返回成功前，贡献 map 与 published snapshot 必须收敛。
+    whole-catalog discovery 的 CAS 若被并发 watcher/mutation observation 淘汰，register 使用 bounded
+    per-source stage/CAS publish，unregister 为每个 removed source 推进 observation 并 direct CAS remove；
+    不能把 stale catalog snapshot 当作成功。所有 uninstall cleanup（包括目录已不存在的 `not_found`）也
+    必须先推进 source observation，再在 atomic remove 点 CAS，从而使 cleanup 前已开始的 watcher stage
+    永远不能复活已删除 entry。
 
 #### C3. bounded stable read
 
@@ -594,6 +606,11 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
       `listSkillScripts()` compatibility API 只读 published snapshot，并用 hard-check 阻止 runtime path 重读
       source disk。
 - [x] 完成 invalid parse、deferred stage、rollback/reconcile、abort/deadline/hung worker tests。
+- [x] 完成最终 mutation lifecycle audit：catalog discovery 使用 catalog observation CAS；root/linked-source
+      watcher 使用 per-source observation CAS；repo-owned save/install/adopt 使用先 stage、再 odd publish
+      window、失败 rollback/reconcile；plugin contribution register/unregister 在 catalog CAS 丢失后逐源收敛；
+      uninstall（含 `not_found` cleanup）先推进 observation 再原子移除。`references`、`templates`、
+      `scripts`、`assets` 的目录变化都重建 linked-file listing snapshot。
 
 ### `PRM-002C` tasks
 
@@ -675,6 +692,13 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
    candidate 都只从单一 source version publish；
 10. 外部文件先改变、watcher event 尚未送达，以及 event 已送达但 private stage deferred 时，旧 LKG 可继续
    命中；测试明确该 unavoidable observation window 不代表新 disk bytes 已 stable。
+11. root `skill_view`（含显式 `SKILL.md`）从一个 captured ready entry 返回 content/metadata/linked-file
+    listing，期间不 stat/readdir/read source；显式非 root linked-file view 仍可执行有界读盘。
+12. plugin register/unregister 的 catalog CAS 被并发 watcher 淘汰时，API 在逐源 publish/remove 收敛后才
+    返回成功。
+13. `not_found` uninstall cleanup 与已开始但未完成的 watcher stage 交错时，旧 candidate 不得复活 entry。
+14. linked-file 目录新增、删除事件会重建 published listing；linked-file 内容显式查看可读取比 root LKG
+    更新的 bytes，但不替换 root snapshot。
 
 ### Validation commands
 

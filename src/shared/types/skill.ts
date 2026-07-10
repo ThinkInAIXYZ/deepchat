@@ -63,6 +63,7 @@ export interface PublishedSkillEntry {
   allowedTools: readonly string[]
   extension?: Readonly<SkillExtensionConfig>
   scripts?: readonly Readonly<SkillScriptDescriptor>[]
+  linkedFiles?: readonly Readonly<SkillLinkedFile>[]
   sourceError?: Readonly<PublishedSkillSourceError>
 }
 
