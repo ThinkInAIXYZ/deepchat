@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 const MAIN_ROOT = path.resolve('src/main')
 const FIXTURE_ROOT = path.resolve('test/fixtures/sessionResolutionGuard')
+const PRESENTER_TYPE_FILE = path.resolve('src/shared/types/presenters/agent-session.presenter.d.ts')
 const LEGACY_METHODS = new Set(['getSession', 'getSessionList', 'getActiveSession'])
 const PRODUCTION_ALLOWLIST = new Set([
   'src/main/presenter/floatingButtonPresenter/index.ts#loadSessions#getSessionList'
@@ -58,31 +59,89 @@ const elementName = (node: ts.ElementAccessExpression): string | null => {
   return argument && ts.isStringLiteralLike(argument) ? argument.text : null
 }
 
-const hasPresenterShape = (type: ts.Type): boolean => {
+const isPresenterTypeSymbol = (
+  symbol: ts.Symbol | undefined,
+  checker: ts.TypeChecker,
+  seen: Set<ts.Symbol>
+): boolean => {
+  if (!symbol || seen.has(symbol)) {
+    return false
+  }
+  seen.add(symbol)
+
+  const resolved = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
+  if (
+    resolved.name === 'IAgentSessionPresenter' &&
+    resolved.declarations?.some(
+      (declaration) => path.resolve(declaration.getSourceFile().fileName) === PRESENTER_TYPE_FILE
+    )
+  ) {
+    return true
+  }
+
+  return Boolean(
+    resolved.declarations?.some((declaration) => {
+      if (!ts.isTypeAliasDeclaration(declaration)) {
+        return false
+      }
+      let found = false
+      const visit = (node: ts.Node): void => {
+        if (found) return
+        if (
+          ts.isTypeReferenceNode(node) &&
+          isPresenterTypeSymbol(checker.getSymbolAtLocation(node.typeName), checker, seen)
+        ) {
+          found = true
+          return
+        }
+        ts.forEachChild(node, visit)
+      }
+      visit(declaration.type)
+      return found
+    })
+  )
+}
+
+const hasPresenterType = (
+  type: ts.Type,
+  checker: ts.TypeChecker,
+  seen: Set<ts.Type> = new Set()
+): boolean => {
   if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.Never)) {
     return false
   }
-  if (type.isUnionOrIntersection()) {
-    return type.types.some(hasPresenterShape)
+  if (seen.has(type)) {
+    return false
   }
-  return ['resolveSession', 'resolveSessionList', 'resolveActiveSession'].every((method) =>
-    type.getProperty(method)
-  )
+  seen.add(type)
+  if (
+    isPresenterTypeSymbol(type.aliasSymbol, checker, new Set()) ||
+    isPresenterTypeSymbol(type.getSymbol(), checker, new Set())
+  ) {
+    return true
+  }
+  if (type.isUnionOrIntersection()) {
+    return type.types.some((member) => hasPresenterType(member, checker, seen))
+  }
+  if (type.aliasTypeArguments?.some((argument) => hasPresenterType(argument, checker, seen))) {
+    return true
+  }
+  if (type.flags & ts.TypeFlags.Object) {
+    return checker
+      .getTypeArguments(type as ts.TypeReference)
+      .some((argument) => hasPresenterType(argument, checker, seen))
+  }
+  return false
 }
 
 const isPresenterExpression = (
   expression: ts.Expression,
   checker: ts.TypeChecker,
+  assignments: ReadonlyMap<ts.Symbol, readonly ts.Expression[]>,
   seen: ReadonlySet<ts.Symbol> = new Set()
 ): boolean => {
   const current = unwrap(expression)
-  if (hasPresenterShape(checker.getTypeAtLocation(current))) {
-    return true
-  }
-  if (
-    (ts.isPropertyAccessExpression(current) && current.name.text === 'agentSessionPresenter') ||
-    (ts.isElementAccessExpression(current) && elementName(current) === 'agentSessionPresenter')
-  ) {
+  if (hasPresenterType(checker.getTypeAtLocation(current), checker)) {
     return true
   }
   if (ts.isIdentifier(current)) {
@@ -94,19 +153,19 @@ const isPresenterExpression = (
     return Boolean(
       symbol.declarations?.some((declaration) => {
         if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
-          return isPresenterExpression(declaration.initializer, checker, nextSeen)
+          return isPresenterExpression(declaration.initializer, checker, assignments, nextSeen)
         }
-        return (
-          ts.isBindingElement(declaration) &&
-          staticName(declaration.propertyName ?? declaration.name) === 'agentSessionPresenter'
-        )
-      })
+        return false
+      }) ||
+      assignments
+        .get(symbol)
+        ?.some((source) => isPresenterExpression(source, checker, assignments, nextSeen))
     )
   }
   if (ts.isConditionalExpression(current)) {
     return (
-      isPresenterExpression(current.whenTrue, checker, seen) ||
-      isPresenterExpression(current.whenFalse, checker, seen)
+      isPresenterExpression(current.whenTrue, checker, assignments, seen) ||
+      isPresenterExpression(current.whenFalse, checker, assignments, seen)
     )
   }
   if (
@@ -118,8 +177,8 @@ const isPresenterExpression = (
     ].includes(current.operatorToken.kind)
   ) {
     return (
-      isPresenterExpression(current.left, checker, seen) ||
-      isPresenterExpression(current.right, checker, seen)
+      isPresenterExpression(current.left, checker, assignments, seen) ||
+      isPresenterExpression(current.right, checker, assignments, seen)
     )
   }
   return false
@@ -150,21 +209,39 @@ const ownerName = (node: ts.Node): string => {
 
 const scanLegacyReferences = (program: ts.Program, sourceFiles: ts.SourceFile[]): string[] => {
   const checker = program.getTypeChecker()
+  const assignments = new Map<ts.Symbol, ts.Expression[]>()
   const references = new Set<string>()
   const record = (node: ts.Node, method: string): void => {
     references.add(`${toProjectPath(node.getSourceFile().fileName)}#${ownerName(node)}#${method}`)
   }
 
+  const collectAssignments = (node: ts.Node): void => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(unwrap(node.left))
+    ) {
+      const symbol = checker.getSymbolAtLocation(unwrap(node.left))
+      if (symbol) {
+        const sources = assignments.get(symbol) ?? []
+        sources.push(node.right)
+        assignments.set(symbol, sources)
+      }
+    }
+    ts.forEachChild(node, collectAssignments)
+  }
+  sourceFiles.forEach(collectAssignments)
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isPropertyAccessExpression(node) &&
       LEGACY_METHODS.has(node.name.text) &&
-      isPresenterExpression(node.expression, checker)
+      isPresenterExpression(node.expression, checker, assignments)
     ) {
       record(node, node.name.text)
     } else if (
       ts.isElementAccessExpression(node) &&
-      isPresenterExpression(node.expression, checker)
+      isPresenterExpression(node.expression, checker, assignments)
     ) {
       const method = elementName(node)
       if (method === null || LEGACY_METHODS.has(method)) {
@@ -174,7 +251,7 @@ const scanLegacyReferences = (program: ts.Program, sourceFiles: ts.SourceFile[])
       ts.isVariableDeclaration(node) &&
       ts.isObjectBindingPattern(node.name) &&
       node.initializer &&
-      isPresenterExpression(node.initializer, checker)
+      isPresenterExpression(node.initializer, checker, assignments)
     ) {
       for (const element of node.name.elements) {
         const method = staticName(element.propertyName ?? element.name)
@@ -221,7 +298,11 @@ describe('session resolution source contract', () => {
       'test/fixtures/sessionResolutionGuard/positive.ts#destructuredReference#getActiveSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#destructuredRootReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#directReference#getSession',
-      'test/fixtures/sessionResolutionGuard/positive.ts#typedReference#getSessionList'
+      'test/fixtures/sessionResolutionGuard/positive.ts#pickReference#getSession',
+      'test/fixtures/sessionResolutionGuard/positive.ts#typeAliasReference#getSessionList',
+      'test/fixtures/sessionResolutionGuard/positive.ts#typedAssignmentReference#getSessionList',
+      'test/fixtures/sessionResolutionGuard/positive.ts#typedReference#getSessionList',
+      'test/fixtures/sessionResolutionGuard/positive.ts#untypedAssignmentReference#getActiveSession'
     ])
   })
 

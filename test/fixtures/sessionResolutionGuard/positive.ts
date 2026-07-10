@@ -1,41 +1,27 @@
-interface SessionPresenterPort {
-  resolveSession(sessionId: string): Promise<unknown>
-  resolveSessionList(): Promise<unknown>
-  resolveActiveSession(webContentsId: number): Promise<unknown>
-  getSession(sessionId: string): Promise<unknown>
-  getSessionList(): Promise<unknown>
-  getActiveSession(webContentsId: number): Promise<unknown>
-}
+import type { IAgentSessionPresenter as FullPort } from '../../../src/shared/types/presenters/agent-session.presenter'
 
-declare const presenter: { agentSessionPresenter: SessionPresenterPort }
+declare const presenter: { agentSessionPresenter: FullPort }
 
 export function directReference(): Promise<unknown> {
   return presenter.agentSessionPresenter.getSession('session-1')
 }
 
 export function aliasedReference(): Promise<unknown> {
-  const sessionPresenter = presenter.agentSessionPresenter as Pick<
-    SessionPresenterPort,
-    'getSessionList'
-  >
+  const sessionPresenter = presenter.agentSessionPresenter as Pick<FullPort, 'getSessionList'>
   const alias = sessionPresenter
   return alias.getSessionList()
 }
 
-export function destructuredReference(): Promise<unknown> {
-  const sessionPresenter = presenter.agentSessionPresenter as Pick<
-    SessionPresenterPort,
-    'getActiveSession'
+export function destructuredReference(): Promise<unknown> | undefined {
+  const sessionPresenter = presenter.agentSessionPresenter as Partial<
+    Pick<FullPort, 'getActiveSession'>
   >
   const { getActiveSession } = sessionPresenter
-  return getActiveSession(1)
+  return getActiveSession?.(1)
 }
 
 export function boundReference(): (sessionId: string) => Promise<unknown> {
-  const sessionPresenter = presenter.agentSessionPresenter as Pick<
-    SessionPresenterPort,
-    'getSession'
-  >
+  const sessionPresenter = presenter.agentSessionPresenter as Pick<FullPort, 'getSession'>
   return sessionPresenter.getSession.bind(sessionPresenter)
 }
 
@@ -44,10 +30,38 @@ export function destructuredRootReference(): Promise<unknown> {
   return agentSessionPresenter.getSession('session-1')
 }
 
-export function typedReference(sessionPresenter: SessionPresenterPort): Promise<unknown> {
+export function typedReference(sessionPresenter: FullPort): Promise<unknown> {
   return sessionPresenter.getSessionList()
 }
 
-export function computedReference(method: keyof SessionPresenterPort): unknown {
+export function pickReference(sessionPresenter: Pick<FullPort, 'getSession'>): Promise<unknown> {
+  return sessionPresenter.getSession('session-1')
+}
+
+type SessionListPort = Partial<Pick<FullPort, 'getSessionList'>>
+
+export function typeAliasReference(
+  sessionPresenter: SessionListPort
+): Promise<unknown> | undefined {
+  return sessionPresenter.getSessionList?.()
+}
+
+export function typedAssignmentReference(): Promise<unknown> {
+  let first: Pick<FullPort, 'getSessionList'>
+  let second: Pick<FullPort, 'getSessionList'>
+  first = presenter.agentSessionPresenter
+  second = first
+  return second.getSessionList()
+}
+
+export function untypedAssignmentReference(): Promise<unknown> {
+  let first
+  let second
+  first = presenter.agentSessionPresenter as unknown
+  second = first
+  return (second as any).getActiveSession(1)
+}
+
+export function computedReference(method: keyof FullPort): unknown {
   return presenter.agentSessionPresenter[method]
 }
