@@ -6,8 +6,7 @@
 - Finding：`A-04`
 - 文档类型：Architecture SDD
 - 决策状态：已定稿，无 `[NEEDS CLARIFICATION]`
-- 后续实施：`SCH-002A`、`SCH-002B`、`PRV-CAN-001`、`SCH-003P`、`SCH-003A`、
-  `SCH-003B`
+- 后续实施：`SCH-002A`、`SCH-002B`、`PRV-CAN-001`、`SCH-003A`、`SCH-003B`
 
 ## 先纠正一个分类误区
 
@@ -149,6 +148,14 @@ SessionService.createSession
 
 此外，better-sqlite3 是同步调用。若同步 SQLite 工作阻塞 event loop，deadline timer 本身也不能按时
 运行；Promise race 不能抢占同步 JavaScript/SQLite。
+
+当前 production agent implementation inventory 只有一条实际 runtime owner：constructor 只把
+`agentRuntimeAgent` 注册成 `deepchat`；`resolveAgentImplementation()` 对 catalog type 为 `deepchat` 或 `acp`
+都返回这一个 registered `deepchat` implementation。该 implementation 实现了 `queuePendingInput()`，并在
+SQLite pending-input store 创建 record 后返回；ACP 不是另一个缺少 queue 的 implementation。create 中的
+`else processMessage()` 是 optional interface 的 compatibility fallback，当前没有 production owner 会走到。
+因此后续不为零 consumer 设计 accepted-start API，而是删除 create 的 fallback 并用 static inventory guard
+阻止未来无 queue implementation 静默接入。
 
 ### 4. activate/deactivate 和 provider model timeout 是无效包装
 
@@ -349,7 +356,8 @@ runner 不接受 JavaScript timer 的隐式 coercion。所有数值必须在 tas
 - `deadlineMs`、`overallDeadlineMs`、`initialDelayMs`：有限整数，`0..2_147_483_647`；`0` 表示立即截止；
 - `maxAttempts`：有限正整数；production caller 必须用常量，本轮只允许已评审的 `2`；
 - `backoff`：有限且非负；每次算出的实际 delay 也必须仍是有限整数并在 timer 上限内；
-- discovery `limit`：route schema 约束为整数 `1..20`，默认 `10`；
+- history `limit`：route schema 约束为整数 `1..50`，默认 `20`；cursor `createdAt` 必须是 finite
+  nonnegative integer，cursor `operationId` 复用 UUID/length schema；
 - `NaN`、`Infinity`、负数、小数毫秒、乘法溢出全部 typed reject，且 task/timer 均不得启动。
 
 这些是 correctness validation，不是业务 timeout 调参。`25ms`、`2 attempts` 和 route observation deadline
@@ -411,7 +419,7 @@ waitForGenerationSettlement(runId: string): Promise<GenerationTerminalState>
 
 | Consumer | 代码事实 | 策略/处置 | 实施 owner |
 | --- | --- | --- | --- |
-| `sessions.create` | 多阶段 DB/runtime/binding/input mutation，无 signal | non-cancellable operation；operation id + reconciliation | `SCH-003A/B` |
+| `sessions.create` | 多阶段 DB/runtime/input mutation；当前还提前 bind window；无 signal | non-cancellable operation；operation id + reconciliation；新 backend 不负责 binding | `SCH-003A/B` |
 | `sessions.restore` session read | read-only；`SES-001` 明确保留 bounded transient retry | `retryIdempotent`；overall deadline 后不再启动 attempt | `SCH-002B`，需基于 `SES-002` contract |
 | `sessions.listMessagesPage` | read-only page lookup | `observeIdempotent` | `SCH-002B` |
 | `sessions.list` | record read + runtime state snapshot/cache hydration；无 retry | 只读/idempotent observation；不加 per-row retry | `SCH-002B`，保持 `SES-*` 四态 |
@@ -434,11 +442,24 @@ waitForGenerationSettlement(runId: string): Promise<GenerationTerminalState>
 
 - renderer 每次用户 create intent 用平台 `crypto.randomUUID()` 生成一个 `operationId`；同一 intent 的
   transport retry 必须复用该 id。
+- route schema 使用 `z.string().uuid().length(36)`；empty、非 UUID、前后空白和超长值都在 handler/DB/runtime
+  副作用前失败。history cursor 中的 operation id 复用同一 schema。
 - main 在执行副作用前登记 operation，并预分配 `sessionId`。
 - 同 id + 同 input fingerprint 返回既有 state；同 id + 不同 fingerprint 返回
   `OperationConflictError`，绝不覆盖旧 operation。
+- 新 id 在 insert 前还要查询相同 fingerprint 的所有 `pending/unknown` operation，包括已经 dismiss 的记录。
+  命中时返回 typed `ExistingCreateOperationError` 与 content-free existing operation id/state，不启动新的
+  session/runtime/input。`failed/succeeded` 已 terminal，不阻止用户创建内容相同的新 session。
 - fingerprint 只用于冲突检测，和 session 数据保存在同一 SQLite/SQLCipher database；不得另建
   plaintext sidecar。日志不得记录 message、file path、fingerprint 或 payload。
+
+operation id 是 transport identity，fingerprint 是 restart 后丢失 id 时的 duplicate guard，二者不能互相
+替代。`unknown` 必须先 reconcile：权威 session/runtime/queue 证据能收敛才改成 `succeeded/failed`；仍无法
+证明时继续阻止相同 fingerprint 的新 create。dismiss 不是 abandon，也不授权 retry。
+
+renderer 收到 `ExistingCreateOperationError` 后只显示 content-free “Check existing operation”选择；用户显式
+选择前不把当前 draft 关联旧 operation，也不能换第三个 id继续 create。这样既能找回丢失 id，又不把“相同
+payload”武断等同于“相同用户意图”。
 
 ### 最小 journal
 
@@ -459,7 +480,8 @@ updated_at
 ```
 
 不持久化 create message/files payload 的副本。当前进程中的 single-flight entry 持有原始 input 和 Promise；
-journal 只保存 identity、stage 和结果证据。
+journal 只保存 identity、stage 和结果证据。实现要为 `(input_fingerprint, state)` duplicate lookup 与
+`(created_at, operation_id)` history cursor 建窄索引，避免 operation row 增长后每次 create/recovery 全表扫描。
 
 ### Stage 与 terminal 规则
 
@@ -476,29 +498,21 @@ journal 只保存 identity、stage 和结果证据。
 拿到每个 compensation 结果；否则它没有资格写 `failed`。这不要求把 raw error 暴露 renderer，只记录稳定
 error code 和内部日志。
 
-### Initial input acceptance 是 SCH-003 的前置 seam
+### Initial input acceptance 复用现有 durable queue
 
-当前 create 路径把两种 API 都 fire-and-forget：
+当前 production `deepchat/acp` 都解析到同一个 `agentRuntimeAgent`，它实现 `queuePendingInput()`：先在 SQLite
+pending-input store 创建 record，再在后台调用/排空 `processMessage()`。因此 `SCH-003A` 直接 await 现有
+queue Promise；它 resolve 是“输入已 durable accepted”的证据，不是 generation completed。
 
-- DeepChat `queuePendingInput()` 先在 SQLite pending-input store 创建 record，再在后台调用
-  `processMessage()`；它的 Promise resolve 可以作为“输入已被 durable queue 接收”的证据，但不表示 generation
-  完成。
-- fallback `processMessage()` 的 Promise 表示完整 processing result；await 它会把 session create 错误地变成
-  “等待整轮 generation”，仅创建 Promise 又不能证明 owner 已接收。
+规则：
 
-所以在 journal backend 前先交付 `SCH-003P`：提供一个窄的 initial-input acceptance seam。它只返回
-`not_required` 或带 content-free handle 的 `accepted`，不返回 message payload：
-
-1. 无首条输入时立即返回 `not_required`，journal 可进入 `input_not_required`；
-2. DeepChat path 必须 `await queuePendingInput()` 返回的 durable record，然后写 `input_accepted`；后台
-   `processMessage()` 继续由 runtime owner 管理，create 不等待 generation；
-3. fallback path 必须由对应 agent owner 新增“start 并返回 accepted handle”的 API；handle 只能在 owner 已接管
-   后 resolve，不能用 `void processMessage()` 或 Promise 构造成功冒充 acceptance；
-4. 如果 production fallback 无法提供该 seam，`SCH-003A/B` cutover 阻塞，不能把 stage 写成 completed；
-5. title generation 不属于 input acceptance，也不阻塞 session create operation terminal state。
-
-`SCH-003P` 先用静态 consumer inventory 和 DeepChat/ACP focused tests 证明所有 production agent path 都有
-accepted boundary。它不是 generation settlement API，也不改变 `cancelGeneration()`。
+1. 无首条输入时写 `input_not_required`；
+2. 有输入时 await `queuePendingInput()` 返回 record 后写 `input_accepted`，不等待后台 generation；
+3. 删除 create path 当前 unreachable 的 `else processMessage()`；不新增 separate acceptance slice 或
+   speculative accepted-start API；
+4. static guard 固定 production create implementation 全部具有 queue capability。未来若注册无 queue 的
+   owner，必须先单独写 owner spec 和 durable acceptance contract，不能恢复 fire-and-forget fallback；
+5. title generation 不属于 input acceptance，也不阻塞 operation terminal state。
 
 ### Route compatibility
 
@@ -508,10 +522,12 @@ accepted boundary。它不是 generation settlement API，也不改变 `cancelGe
   可以分 commit、分 develop/verify，但必须在同一个 atomic production PR/cutover 中合入；
 - route schema 在 cutover 中新增 operation envelope；新路径允许 `session: null` + `pending/unknown`；
 - 同一个 PR 把全部 production caller 改为传 `operationId`，静态 guard 要求缺失 caller 为 `0`；
+- `operationId` 必须先通过 UUID/length schema；compatibility missing id 和 malformed id 都在任何副作用前
+  finite reject；
 - 为避免 rollout/test 中的旧调用无限等待或继续留下旧 5 秒 unknown，缺少 `operationId` 的请求在任何副作用
   前立即返回 typed `OperationIdRequiredError`；它是 finite compatibility failure，不启动 create；
 - 不提供“无 id 就一直等”的 adapter，也不伪造可独立合入的 003A compatibility；
-- 新增 `sessions.getCreateOperation`、bounded `sessions.listIncompleteCreateOperations` 和 dismiss route；不新增
+- 新增 `sessions.getCreateOperation`、cursor-paginated `sessions.listCreateOperations` 和 dismiss route；不新增
   第二条 create command。
 
 内部 Electron main/renderer 同版本交付，因此这里选择 atomic cutover，比维持两套长期 create 语义更稳定。
@@ -520,39 +536,55 @@ accepted boundary。它不是 generation settlement API，也不改变 `cancelGe
 ### Restart 后的 content-free recovery identity
 
 renderer 内存中的 current intent token 会随进程消失，仅有 `getCreateOperation(operationId)` 不足以让新
-renderer 找回 operation id。恢复采用 bounded discovery，不持久化 draft/payload：
+renderer 找回 operation id。恢复采用 cursor pagination，不持久化 draft/payload：
 
 ```text
-sessions.listIncompleteCreateOperations({ limit?: 1..20 = 10 })
-  -> items: [{ operationId, sessionId, state, stage, updatedAt }]
-  -> truncated: boolean
+sessions.listCreateOperations({ cursor?, limit?: 1..50 = 20 })
+  -> items: [{ operationId, sessionId, state, stage, createdAt, updatedAt, dismissedAt }]
+  -> nextCursor: { createdAt, operationId } | null
+  -> hasMore: boolean
 ```
 
 规则：
 
-- 只返回未 dismiss 的 `pending/unknown`；按 `updatedAt DESC, operationId ASC` 稳定排序；
+- 返回所有仍保留的 operation identity；按 immutable `createdAt DESC, operationId ASC` 稳定排序，cursor 使用
+  同一复合 key，state/updatedAt/dismiss 变化不会让 row 在翻页间移动，也不能漏掉同毫秒记录；UI recovery 默认
+  关注 `pending/unknown`，但 dismissed/history 仍可翻页查回；
 - route 不返回 prompt、files、title、agent/provider/model、fingerprint、error detail 或任何 input payload；
 - app restart 把 persisted incomplete `pending` 保守转为 `unknown`，不重放 payload；
 - 无论列表只有一条还是多条，UI 都只显示“待确认的创建记录”，必须由用户显式选择“查看结果”；不得把它
   绑定到当前 draft，不得自动 navigate/activate；
-- succeeded operation 不出现在 discovery 中；session 由正常 session list 展示；
-- dismiss 只写 content-free `dismissed_at` 并从 discovery 隐藏，保留 operation identity/fingerprint 以阻止旧
-  transport 重放；它不删除 session，也不把 unknown 改成 failed；
-- succeeded row 随 session 删除清理；failed/unknown row 不用猜测 TTL 删除。记录很小，先以 bounded query
-  和 dismiss 控制 UI，只有测量证明 DB 增长后才设计 maintenance。
+- succeeded session 仍由正常 session list 展示；history row 可用于诊断/去重，直到 session deletion cleanup；
+- dismiss 只写 content-free `dismissed_at`，含义是 UI 折叠。默认 recovery panel 可折叠它，但 history route、
+  fingerprint duplicate query 和 retry guard 都必须继续看见；它不删除 session/identity，不把 unknown 改 failed；
+- failed/unknown row 不用猜测 TTL 删除。cursor pagination 防止一次加载无界；只有测量证明 DB 增长后才设计
+  maintenance。
 
 选择 recovery item 后，UI 只用 operation id 调 `getCreateOperation`。如果状态后来 succeeded，仍按 stale
 intent 处理：刷新 session list，不抢当前页面。当前 draft 永远由现有 draft owner 保存，不能写进 journal，
 也不能附着到 restart 前的 operation。
 
-### Binding 与 renderer 收敛
+### Binding、event 与 renderer 收敛
 
-operation 晚成功时不得让过期 renderer intent 强制导航。renderer store 保留当前 create intent token：
+create backend 不拥有窗口意图，不能调用 `bindWindow()`。当前 create port 的 production caller inventory
+只有 renderer 的 `sessions.create` route；remote-control session 使用独立 remote binding owner，其他 grep
+命中是 tests 或无关同名函数。因此 `SCH-003A` 从 create repository/presenter port 移除 `webContentsId`，不为
+假想 caller 保留自动 binding。
 
-- token 仍是当前 intent：upsert session、activate/navigate、完成 onboarding；
-- 用户已切换/发起另一次 create：只刷新 session list，不覆盖当前页面；
+operation owner 在 terminal success 后只发一次 non-activation `sessions.updated(reason: 'created')` list
+notification，不带 `activeSessionId/webContentsId`。该 event 是 post-commit notification，不是 journal stage；
+renderer restart/history reconciliation 不依赖 event replay。窗口 binding 只由显式 `sessions.activate` 拥有：
+
+- token 仍是 current intent：upsert session，await `sessions.activate(sessionId)`，确认成功后 navigate 并完成
+  onboarding；
+- 用户已切换/发起另一次 create：只刷新 session list，绝不 activate/navigate；
 - `pending`：显示“正在确认创建结果”，不显示失败；
 - `unknown`：保留输入草稿，允许刷新/查询；不自动创建第二个 session。
+
+create 开始前的 binding（已有 session id 或 null）在 record/runtime/queue/pending/late success 全程不变。
+`sessions.activate` 每个 current intent 只调用一次，并只发布一次 `reason: 'activated'` event；create event 不得
+伪装 activation。测试必须分别断言 previous binding retained、stale late success 零 activate、current success
+bind exactly once/event exactly once。
 
 create 保留现有 `5_000ms` 作为第一次 observation deadline，但到点返回 `pending`，不再返回 operation
 failure。current intent 之后每 `2_000ms` 查询一次，最多自动查询 `15` 次；仍未 terminal 就停止自动 timer，
@@ -592,13 +624,14 @@ Unknown
 | Draft remains available; no auto retry.     |
 +--------------------------------------------+
 
-Restart discovery (content-free)
+Restart recovery history (content-free)
 +---------------- New Thread ----------------+
 | Unconfirmed session creations (2)          |
 | 10:42  unknown                 [Check]      |
 | 10:39  unknown                 [Check]      |
-|                              [Dismiss]      |
+|                  [Dismiss] [Show history]   |
 +--------------------------------------------+
+| History: dismissed records remain checkable|
 | Current draft stays separate.              |
 +--------------------------------------------+
 ```
@@ -632,12 +665,16 @@ Restart discovery (content-free)
 
 - deferred create 超过 observation deadline 返回 `pending`，不是 `TimeoutError`。
 - 同 `operationId` 的重复 create 不会创建第二条 session/runtime/input。
-- late DB/runtime/binding/event completion 可用 operation id 查询并收敛。
+- 新 id + 相同 fingerprint 的 pending/unknown（含 dismissed）在副作用前返回 existing operation，不能重复
+  create。
+- late DB/runtime/input completion 可用 operation id 查询并收敛；create backend 全程不改变 window binding。
 - cleanup 失败或 incomplete restart 返回 `unknown`，不伪造 `failed`。
-- initial input stage 只在 durable queue 或 owner accepted handle resolve 后前进，不等待整轮 generation。
-- renderer pending 不丢草稿；stale intent 不抢导航；unknown 不自动 retry。
-- restart discovery bounded/content-free/稳定排序，用户显式选择且绝不绑定当前 draft。
-- legacy no-operation-id caller 在副作用前得到 typed finite error；`SCH-003A/B` atomic merge。
+- initial input stage 只在当前 production durable queue resolve 后前进，不等待整轮 generation；无 speculative
+  fallback API。
+- renderer pending 不丢草稿；stale intent 零 activate；current intent 显式 activate exactly once。
+- restart history cursor-paginated/content-free/稳定排序，dismissed identity 可查回，用户显式选择且绝不绑定
+  当前 draft。
+- missing、empty、malformed、超长 operation id 都在副作用前 finite reject；`SCH-003A/B` atomic merge。
 - journal 不记录 raw prompt/file/payload，日志不输出 fingerprint。
 
 ## 约束
@@ -655,7 +692,7 @@ Restart discovery (content-free)
 
 - 不在 `SCH-001` 改生产代码。
 - 不把所有 repository method 改成 AbortSignal-aware。
-- 不解决 generation settlement owner；`SCH-003P` 只定义 initial-input acceptance。
+- 不解决 generation settlement owner；create 只复用现有 durable pending-input acceptance。
 - 不改变 `cancelGeneration()` 的 request-only semantics。
 - 不给 Cron/Startup/Knowledge scheduler 建共同基类。
 - 不做 cross-device/distributed operation journal。
@@ -680,8 +717,11 @@ Restart discovery (content-free)
 | journal 保存完整 create payload 以自动重放 | 拒绝 | 重复敏感数据且扩大恢复状态机；样板先选择 conservative unknown |
 | 进程重启后看到 partial record 就自动宣称成功 | 拒绝 | 无法证明 initial input 已 accepted，也无法证明 cleanup/remote state |
 | SCH-003A backend 先独立 merge，旧 caller 无 id 就无限等 | 拒绝 | intermediate version 既不能表达 pending，也没有 finite failure；A/B 必须 atomic cutover |
-| restart journal 保存 draft/payload 方便自动恢复 | 拒绝 | 扩大敏感数据副本和错误关联；使用 content-free bounded discovery |
+| restart journal 保存 draft/payload 方便自动恢复 | 拒绝 | 扩大敏感数据副本和错误关联；使用 content-free cursor history |
 | 先实现无人使用的 `runCancellable()` | 拒绝 | 没有 owner settlement proof，unused abstraction 不能证明 cancellation |
+| create backend 为 late result 自动 bind window | 拒绝 | main 不知道 renderer intent 是否仍 current；stale success 会抢 active session |
+| dismiss 删除/排除 operation identity | 拒绝 | 会绕过 retry-before-reconcile 和 fingerprint duplicate guard |
+| 为当前不存在的 no-queue agent 新增 accepted-start API | 拒绝 | deepchat/acp 都使用已有 durable queue；零 consumer abstraction 只扩大状态机 |
 
 ## Open Questions
 
