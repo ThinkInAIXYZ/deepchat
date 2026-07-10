@@ -136,7 +136,7 @@ governed launcher, or record why a JavaScript fatal cannot overlap that synchron
 | Surface | Disposition |
 | --- | --- |
 | [`TerminalHelper`](../../../src/main/lib/terminalHelper.ts) | No repository caller exists on this baseline. Its purpose is explicitly opening a user terminal that may remain open. Do not silently govern or activate it; if made reachable, first define the user-owned lifetime contract. |
-| Electron `shell.openExternal` | Real call surfaces are [`externalUrl.ts`](../../../src/main/lib/externalUrl.ts), GitHub device flow, MCP OAuth, OpenAI Codex auth, plugin guide/CUA links, and upgrade links. Electron/system owns the transient opener; the selected browser or protocol handler is a user/system-owned external lifetime and may outlive DeepChat. PTG asserts only that the opener promise settles or rejects and excludes the target app from DeepChat-child absence checks. |
+| Electron `shell.openExternal` | Real call surfaces are [`externalUrl.ts`](../../../src/main/lib/externalUrl.ts), the preload bridge, GitHub device flow, MCP OAuth, OpenAI Codex auth, plugin guide/CUA links, and upgrade links. Electron/system owns the transient opener; the selected browser or protocol handler is a user/system-owned external lifetime and may outlive DeepChat. PTG asserts only that the opener promise settles or rejects and excludes the target app from DeepChat-child absence checks. |
 | Electron `shell.openPath` | Real call surfaces open the log folder, plugin helper app, project path, skills directory, sync folder, downloaded file, or workspace path from Config, Plugin, Project, Skill, Sync, Window, and Workspace presenters. Electron/system owns the transient opener; the chosen file manager or default application is external. PTG must classify these calls in the inventory guard and assert opener settlement, not target-app exit. |
 | Windows browser fallback in [`githubCopilotDeviceFlow.ts`](../../../src/main/presenter/githubCopilotDeviceFlow.ts) | `explorer`/`start` is a separate transient opener for the same external-browser contract. Its launcher callback must settle; the browser itself is not a DeepChat-owned child tree. |
 | Synchronous tar extraction in [`acpLaunchSpecService.ts`](../../../src/main/presenter/configPresenter/acpLaunchSpecService.ts) | `execFileSync` blocks the JavaScript turn, so the `FTL-002` JavaScript fatal handler cannot interleave with it. Native process death remains outside the JavaScript-fatal scope. |
@@ -147,6 +147,7 @@ governed launcher, or record why a JavaScript fatal cannot overlap that synchron
 The concrete Electron shell call inventory is:
 
 - `openExternal`: [`externalUrl.ts`](../../../src/main/lib/externalUrl.ts),
+  [`preload/index.ts`](../../../src/preload/index.ts),
   [`githubCopilotDeviceFlow.ts`](../../../src/main/presenter/githubCopilotDeviceFlow.ts),
   [`mcpOAuthProvider.ts`](../../../src/main/presenter/mcpPresenter/mcpOAuthProvider.ts),
   [`openaiCodexAuth/index.ts`](../../../src/main/presenter/openaiCodexAuth/index.ts),
@@ -219,9 +220,10 @@ Each required row runs in real Electron with a disposable profile and unique mar
 
 - a hung workspace Git child is terminated within 30 seconds plus a bounded test grace period, and
   the public Workspace API resolves to its existing `null` failure sentinel;
-- a hung `wmic`/`df` query rejects within 10 seconds plus grace;
-- a hung `SkillExecutionService.hasCommand()` resolves as unavailable within five seconds plus
-  grace;
+- a hung `wmic`/`df` direct child is killed and reaped within 10 seconds plus grace, while the
+  public device query keeps its existing rejection semantics;
+- a hung `SkillExecutionService.hasCommand()` direct child is killed and reaped within five seconds
+  plus grace, while the public probe resolves as unavailable;
 - each timeout settles once, clears timers/listeners, and never returns partial output as success;
 - existing successful Git, device-query, and command-availability results remain unchanged; and
 - tests prove the direct timeout behavior without claiming that it governs descendants. Descendant
@@ -242,8 +244,9 @@ close the issue.
       the result, and run the same probe on Windows and Linux.
 - [x] Complete the baseline source launcher inventory and explicit exclusions.
 - [ ] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
-      `node-pty`, `utilityProcess.fork`, `shell.openExternal`, and `shell.openPath`, and fails when a
-      new launcher is unclassified.
+      `node-pty`, Electron `utilityProcess.fork`, MCP SDK `StdioClientTransport`,
+      `shell.openExternal`, and `shell.openPath`, and fails when a new direct or wrapped launcher is
+      unclassified.
 - [ ] Deliver `PTG-H0`: add the 30-second workspace Git, 10-second device query, and five-second
       `SkillExecutionService.hasCommand` healthy-path limits with deterministic timeout tests.
 - [ ] Build a mechanism-neutral real Electron marked-tree harness independent of the `FTL-002`
