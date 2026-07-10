@@ -63,9 +63,14 @@ type StartupTaskRecord<T> = {
   reject: (reason?: unknown) => void
   promise: Promise<T>
   settled: boolean
-  idleBarrierRefs: number
   finishedPromise: Promise<void>
   resolveFinished: () => void
+}
+
+type StartupIdleBarrierToken = {
+  order: number
+  cutoffSequence: number
+  generation: StartupTaskRecord<unknown>[]
 }
 
 const PHASE_PRIORITY: Record<StartupWorkloadPhase, number> = {
@@ -87,9 +92,11 @@ export class StartupWorkloadCoordinator {
     io: 0
   }
   private readonly activeTasks = new Set<StartupTaskRecord<unknown>>()
+  private readonly activeIdleBarriers = new Set<StartupIdleBarrierToken>()
   private readonly inFlightByDedupeKey = new Map<string, StartupTaskRecord<unknown>>()
   private sequence = 0
   private runSequence = 0
+  private idleBarrierSequence = 0
   private pumping = false
 
   createRun(target: StartupWorkloadTarget): string {
@@ -199,7 +206,6 @@ export class StartupWorkloadCoordinator {
       reject: rejectTask,
       promise,
       settled: false,
-      idleBarrierRefs: 0,
       finishedPromise,
       resolveFinished
     }
@@ -219,6 +225,7 @@ export class StartupWorkloadCoordinator {
 
   async whenIdle<T>(target: StartupWorkloadTarget, callback: () => Promise<T>): Promise<T> {
     const generation = [...this.activeTasks]
+    const cutoffSequence = this.sequence
     if (generation.length === 0) {
       return await callback()
     }
@@ -229,15 +236,16 @@ export class StartupWorkloadCoordinator {
       throw this.createAbortError(`${target}:idle`)
     }
 
-    for (const task of generation) {
-      task.idleBarrierRefs += 1
+    const barrier: StartupIdleBarrierToken = {
+      order: ++this.idleBarrierSequence,
+      cutoffSequence,
+      generation
     }
+    this.activeIdleBarriers.add(barrier)
     try {
       await this.waitForGeneration(generation, runState.controller.signal, `${target}:idle`)
     } finally {
-      for (const task of generation) {
-        task.idleBarrierRefs -= 1
-      }
+      this.activeIdleBarriers.delete(barrier)
     }
 
     if (this.runs.get(target)?.runId !== runId) {
@@ -284,9 +292,16 @@ export class StartupWorkloadCoordinator {
   }
 
   private pickNextTask(): StartupTaskRecord<unknown> | null {
-    const protectedResources = new Set(
-      this.pendingTasks.filter((task) => task.idleBarrierRefs > 0).map((task) => task.resource)
-    )
+    const cutoffByResource: Partial<Record<StartupWorkloadResource, number>> = {}
+    const barriers = [...this.activeIdleBarriers].sort((left, right) => left.order - right.order)
+    for (const barrier of barriers) {
+      for (const task of barrier.generation) {
+        if (task.state === 'pending' && cutoffByResource[task.resource] === undefined) {
+          cutoffByResource[task.resource] = barrier.cutoffSequence
+        }
+      }
+    }
+
     const sortedPending = [...this.pendingTasks].sort((left, right) => {
       const phaseDelta = PHASE_PRIORITY[left.phase] - PHASE_PRIORITY[right.phase]
       if (phaseDelta !== 0) {
@@ -296,7 +311,8 @@ export class StartupWorkloadCoordinator {
     })
 
     for (const task of sortedPending) {
-      if (task.idleBarrierRefs === 0 && protectedResources.has(task.resource)) {
+      const cutoffSequence = cutoffByResource[task.resource]
+      if (cutoffSequence !== undefined && task.sequence > cutoffSequence) {
         continue
       }
       if (this.runningCounts[task.resource] >= MAX_CONCURRENCY[task.resource]) {

@@ -19,12 +19,12 @@ function createDeferred<T>() {
 type TaskSettlementHooks = {
   resolve: (value: unknown) => void
   reject: (reason?: unknown) => void
-  idleBarrierRefs: number
 }
 
 type CoordinatorInternals = {
   runs: Map<string, { tasks: Set<TaskSettlementHooks> }>
   activeTasks: Set<TaskSettlementHooks>
+  activeIdleBarriers: Set<unknown>
   pendingTasks: unknown[]
   runningCounts: { cpu: number; io: number }
   inFlightByDedupeKey: Map<string, unknown>
@@ -316,7 +316,7 @@ describe('StartupWorkloadCoordinator', () => {
     expect(coordinator.isIdle()).toBe(true)
   })
 
-  it('protects captured pending work from later same-resource phase starvation', async () => {
+  it('keeps interleaved idle waiters on independent resource cutoffs', async () => {
     const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
     coordinator.createRun('main')
@@ -354,10 +354,23 @@ describe('StartupWorkloadCoordinator', () => {
       }
     })
 
-    const callback = vi.fn()
-    const idleBarrier = coordinator.whenIdle('main', async () => {
-      callback()
+    const firstCallback = vi.fn()
+    const firstBarrier = coordinator.whenIdle('main', async () => {
+      firstCallback()
     })
+
+    const unrelatedIoStarted = vi.fn()
+    await coordinator.scheduleTask({
+      id: 'main:unrelated-io',
+      target: 'main',
+      phase: 'interactive',
+      resource: 'io',
+      labelKey: 'startup.main.unrelatedIo',
+      run: async () => {
+        unrelatedIoStarted()
+      }
+    })
+    expect(unrelatedIoStarted).toHaveBeenCalledOnce()
 
     const laterTask = coordinator.scheduleTask({
       id: 'main:later-interactive',
@@ -372,25 +385,40 @@ describe('StartupWorkloadCoordinator', () => {
       }
     })
 
+    const secondCallback = vi.fn()
+    const secondBarrier = coordinator.whenIdle('main', async () => {
+      secondCallback()
+    })
+    const internals = getInternals(coordinator)
+
     blockerGate.resolve()
     await blockerTask
     await new Promise((resolve) => setImmediate(resolve))
 
     expect(startOrder).toEqual(['blocker', 'captured'])
-    expect(callback).not.toHaveBeenCalled()
+    expect(internals.activeIdleBarriers.size).toBe(2)
+    expect(firstCallback).not.toHaveBeenCalled()
+    expect(secondCallback).not.toHaveBeenCalled()
 
     capturedGate.resolve()
     await capturedTask
     await laterStarted.promise
-    await idleBarrier
+    await new Promise((resolve) => setImmediate(resolve))
 
     expect(startOrder).toEqual(['blocker', 'captured', 'later'])
-    expect(callback).toHaveBeenCalledOnce()
+    expect(firstCallback).toHaveBeenCalledOnce()
+    expect(secondCallback).not.toHaveBeenCalled()
     expect(coordinator.isIdle()).toBe(false)
+    expect(internals.activeIdleBarriers.size).toBe(1)
+    await firstBarrier
 
     laterGate.resolve()
     await laterTask
+    await secondBarrier
+
+    expect(secondCallback).toHaveBeenCalledOnce()
     expect(coordinator.isIdle()).toBe(true)
+    expect(internals.activeIdleBarriers.size).toBe(0)
   })
 
   it('waits across targets for a publicly cancelled task to release its lane', async () => {
@@ -464,9 +492,9 @@ describe('StartupWorkloadCoordinator', () => {
     const secondCallback = vi.fn(async () => 'second')
     const firstWaiter = coordinator.whenIdle('main', firstCallback)
     const secondWaiter = coordinator.whenIdle('main', secondCallback)
-    const taskRecord = [...getInternals(coordinator).activeTasks][0]!
+    const internals = getInternals(coordinator)
 
-    expect(taskRecord.idleBarrierRefs).toBe(2)
+    expect(internals.activeIdleBarriers.size).toBe(2)
 
     taskGate.resolve()
     await task
@@ -474,7 +502,7 @@ describe('StartupWorkloadCoordinator', () => {
     await expect(Promise.all([firstWaiter, secondWaiter])).resolves.toEqual(['first', 'second'])
     expect(firstCallback).toHaveBeenCalledOnce()
     expect(secondCallback).toHaveBeenCalledOnce()
-    expect(taskRecord.idleBarrierRefs).toBe(0)
+    expect(internals.activeIdleBarriers.size).toBe(0)
   })
 
   it('runs an immediate idle callback directly without publishing workload state', async () => {
@@ -490,6 +518,7 @@ describe('StartupWorkloadCoordinator', () => {
     expect(callback).toHaveBeenCalledOnce()
     expect(publishDeepchatEventMock.mock.calls).toHaveLength(callsBeforeBarrier)
     expect(coordinator.isIdle()).toBe(true)
+    expect(getInternals(coordinator).activeIdleBarriers.size).toBe(0)
   })
 
   it('preserves callback rejection after the callback owns cancellation', async () => {
@@ -523,13 +552,12 @@ describe('StartupWorkloadCoordinator', () => {
       () => undefined,
       (error: unknown) => error
     )
-    const taskRecord = [...getInternals(coordinator).activeTasks][0]!
 
     taskGate.resolve()
     await task
     await callbackStarted.promise
 
-    expect(taskRecord.idleBarrierRefs).toBe(0)
+    expect(getInternals(coordinator).activeIdleBarriers.size).toBe(0)
 
     const callbackError = new Error('callback owns this failure')
     coordinator.cancelTarget('main')
@@ -576,7 +604,6 @@ describe('StartupWorkloadCoordinator', () => {
       callback()
     })
     const barrierCancellation = expect(idleBarrier).rejects.toMatchObject({ name: 'AbortError' })
-    const taskRecord = [...getInternals(coordinator).activeTasks][0]!
 
     coordinator.cancelTarget('main')
     await Promise.all([taskCancellation, barrierCancellation])
@@ -587,7 +614,7 @@ describe('StartupWorkloadCoordinator', () => {
     expect(internals.runningCounts.cpu).toBe(1)
     expect(internals.inFlightByDedupeKey.size).toBe(0)
     expect(internals.runs.has('main')).toBe(false)
-    expect(taskRecord.idleBarrierRefs).toBe(0)
+    expect(internals.activeIdleBarriers.size).toBe(0)
 
     taskGate.reject(new Error('late failure'))
     await executionSettled.promise
