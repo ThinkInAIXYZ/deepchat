@@ -60,12 +60,14 @@ import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
 import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from './discoveryWorker'
 import {
+  createQuarantinedEntry,
   createMetadataOnlyEntry,
   createSkillSourceVersion,
   freezeScriptDescriptors,
   freezeSkillExtension,
   freezeSkillMetadata,
-  SkillRuntimeSnapshotCoordinator
+  SkillRuntimeSnapshotCoordinator,
+  withPublishedSourceError
 } from './runtimeSnapshot'
 
 const execFileAsync = promisify(execFile)
@@ -247,7 +249,14 @@ export class SkillPresenter implements ISkillPresenter {
   private runtimeContentViews = new WeakMap<PublishedSkillEntry, SkillContent>()
   private readonly runtimeSnapshots = new SkillRuntimeSnapshotCoordinator({
     stageEntry: (metadata) => this.stagePublishedSkillEntry(metadata),
-    onPublished: (entries) => this.syncCompatibilityCaches(entries)
+    onPublished: (entries) => this.syncCompatibilityCaches(entries),
+    onStageError: (metadata, error) => {
+      logger.warn('[SkillPresenter] Failed to stage skill runtime source.', {
+        name: metadata.name,
+        path: metadata.path,
+        error
+      })
+    }
   })
   private runtimeSnapshotReadDepth = 0
   private pluginSkillContributions: Map<
@@ -354,12 +363,21 @@ export class SkillPresenter implements ISkillPresenter {
     return this.runtimeSnapshots.beginPublish()
   }
 
-  private publishRuntimeReplacement(entries: ReadonlyMap<string, PublishedSkillEntry>): void {
-    this.runtimeSnapshots.replace(entries)
+  private beginRuntimePublishIfCurrent(sourcePath: string, sequence: number): (() => void) | null {
+    return this.runtimeSnapshots.beginPublishIfCurrent(sourcePath, sequence)
   }
 
   private publishRuntimeEntry(entry: PublishedSkillEntry, previousName?: string): void {
     this.runtimeSnapshots.publishEntry(entry, previousName)
+  }
+
+  private publishRuntimeEntryIfCurrent(
+    sourcePath: string,
+    sequence: number,
+    entry: PublishedSkillEntry,
+    previousName?: string
+  ): boolean {
+    return this.runtimeSnapshots.publishEntryIfCurrent(sourcePath, sequence, entry, previousName)
   }
 
   private publishRuntimeRemoval(name: string): void {
@@ -372,6 +390,15 @@ export class SkillPresenter implements ISkillPresenter {
     sourcePath?: string
   ): void {
     this.runtimeSnapshots.publishSourceError(name, error, sourcePath)
+  }
+
+  private publishRuntimeSourceErrorIfCurrent(
+    sourcePath: string,
+    sequence: number,
+    name: string,
+    error: { code: string; message: string }
+  ): boolean {
+    return this.runtimeSnapshots.publishSourceErrorIfCurrent(sourcePath, sequence, name, error)
   }
 
   private syncCompatibilityCaches(entries: ReadonlyMap<string, PublishedSkillEntry>): void {
@@ -527,8 +554,9 @@ export class SkillPresenter implements ISkillPresenter {
    * Discover all skills from the skills directory
    */
   async discoverSkills(): Promise<SkillMetadata[]> {
+    const discoveryObservation = this.runtimeSnapshots.beginCatalogObservation()
     if (!fs.existsSync(this.skillsDir)) {
-      this.publishRuntimeReplacement(new Map())
+      this.runtimeSnapshots.replaceIfCatalogCurrent(discoveryObservation, new Map())
       return []
     }
 
@@ -563,10 +591,9 @@ export class SkillPresenter implements ISkillPresenter {
       }
       const previous = previousEntries.get(metadata.name)
       if (previous?.availability === 'ready' && previous.metadata.path === metadata.path) {
-        const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
         try {
           const staged = await this.stagePublishedSkillEntry(metadata)
-          if (staged && this.runtimeSnapshots.isCurrentObservation(metadata.path, sequence)) {
+          if (staged) {
             nextEntries.set(staged.metadata.name, staged)
             continue
           }
@@ -579,12 +606,9 @@ export class SkillPresenter implements ISkillPresenter {
         }
         nextEntries.set(
           metadata.name,
-          Object.freeze({
-            ...previous,
-            sourceError: Object.freeze({
-              code: 'DISCOVERY_REFRESH_FAILED',
-              message: 'Discovery could not produce a complete ready candidate'
-            })
+          withPublishedSourceError(previous, {
+            code: 'DISCOVERY_REFRESH_FAILED',
+            message: 'Skill discovery could not refresh the source'
           })
         )
         continue
@@ -606,18 +630,17 @@ export class SkillPresenter implements ISkillPresenter {
       if (pluginStillRegistered && fs.existsSync(previous.metadata.path)) {
         nextEntries.set(
           name,
-          Object.freeze({
-            ...previous,
-            sourceError: Object.freeze({
-              code: 'INVALID_SOURCE',
-              message: 'Discovery observed an invalid skill source; retaining last-known-good'
-            })
+          withPublishedSourceError(previous, {
+            code: 'INVALID_SOURCE',
+            message: 'Skill source is invalid'
           })
         )
       }
     }
 
-    this.publishRuntimeReplacement(nextEntries)
+    if (!this.runtimeSnapshots.replaceIfCatalogCurrent(discoveryObservation, nextEntries)) {
+      return this.getVisibleMetadataFromSnapshot(this.runtimeSnapshots.snapshot)
+    }
     const skills = this.getVisibleMetadataFromSnapshot(this.runtimeSnapshots.snapshot)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'discovered',
@@ -1930,13 +1953,17 @@ export class SkillPresenter implements ISkillPresenter {
     if (!metadata || metadata.name !== input.name) {
       throw new Error(`Adopted skill "${input.name}" is invalid`)
     }
+    const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
     const candidate = await this.stagePublishedSkillEntry(metadata)
     if (!candidate) {
       throw new Error(`Adopted skill "${input.name}" is invalid`)
     }
 
     const previousState = this.getStoredManagementState()
-    const endPublish = this.beginRuntimePublish()
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      throw new Error(`Adopted skill "${input.name}" changed while registration was staged`)
+    }
     try {
       this.updateSkillManagementItem(input.name, (item) => ({
         ...item,
@@ -2150,6 +2177,7 @@ export class SkillPresenter implements ISkillPresenter {
         fs.rmSync(stagingDir, { recursive: true, force: true })
         return { success: false, error: 'Staged skill is invalid', errorCode: 'invalid_skill' }
       }
+      const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
       const candidate = await this.stagePublishedSkillEntry(metadata, {
         rawContent: stagedContent,
         scriptSourceRoot: stagingDir
@@ -2162,7 +2190,15 @@ export class SkillPresenter implements ISkillPresenter {
       this.seedRuntimeSnapshotFromCompatibilityCache()
       const previousEntry = this.runtimeSnapshots.snapshot.entries.get(finalSkillName)
       const previousState = this.getStoredManagementState()
-      const endPublish = this.beginRuntimePublish()
+      const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+      if (!endPublish) {
+        fs.rmSync(stagingDir, { recursive: true, force: true })
+        return {
+          success: false,
+          error: `Skill "${finalSkillName}" changed while installation was staged`,
+          errorCode: 'conflict'
+        }
+      }
       let backupDir: string | null = null
       let retiredTargetDir: string | null = null
       let installedTarget = false
@@ -2674,7 +2710,12 @@ export class SkillPresenter implements ISkillPresenter {
         return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
       }
 
-      const endPublish = this.beginRuntimePublish()
+      const sourcePath = previousEntry?.metadata.path ?? path.join(skillDir, 'SKILL.md')
+      const sequence = this.runtimeSnapshots.nextObservation(sourcePath)
+      const endPublish = this.beginRuntimePublishIfCurrent(sourcePath, sequence)
+      if (!endPublish) {
+        return { success: false, error: `Skill "${name}" changed before uninstall` }
+      }
       try {
         fs.renameSync(skillDir, trashDir)
         this.cleanupUninstalledSkillState(name)
@@ -2695,12 +2736,9 @@ export class SkillPresenter implements ISkillPresenter {
           })
           if (previousEntry) {
             this.publishRuntimeEntry(
-              Object.freeze({
-                ...previousEntry,
-                sourceError: Object.freeze({
-                  code: 'RECONCILE_REQUIRED',
-                  message: 'Skill uninstall outcome is unknown'
-                })
+              withPublishedSourceError(previousEntry, {
+                code: 'RECONCILE_REQUIRED',
+                message: 'Skill source requires reconciliation'
               })
             )
           }
@@ -2771,16 +2809,15 @@ export class SkillPresenter implements ISkillPresenter {
 
     const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
     const candidate = await this.stagePublishedSkillEntry(metadata, { rawContent: content })
-    if (
-      !candidate ||
-      candidate.metadata.name !== name ||
-      !this.runtimeSnapshots.isCurrentObservation(metadata.path, sequence)
-    ) {
+    if (!candidate || candidate.metadata.name !== name) {
       return { success: false, error: `Skill "${name}" content is invalid` }
     }
 
     const previousContent = await this.readSkillFile(name)
-    const endPublish = this.beginRuntimePublish()
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      return { success: false, error: `Skill "${name}" changed while the update was staged` }
+    }
     let wroteSource = false
     try {
       this.atomicWriteFile(metadata.path, content)
@@ -2832,15 +2869,14 @@ export class SkillPresenter implements ISkillPresenter {
       rawContent: content,
       extension: sanitized
     })
-    if (
-      !candidate ||
-      candidate.metadata.name !== name ||
-      !this.runtimeSnapshots.isCurrentObservation(metadata.path, sequence)
-    ) {
+    if (!candidate || candidate.metadata.name !== name) {
       return { success: false, error: `Skill "${name}" content is invalid` }
     }
 
-    const endPublish = this.beginRuntimePublish()
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      return { success: false, error: `Skill "${name}" changed while the update was staged` }
+    }
     let wroteSource = false
     try {
       this.atomicWriteFile(metadata.path, content)
@@ -2905,9 +2941,10 @@ export class SkillPresenter implements ISkillPresenter {
     metadata: SkillMetadata,
     previousEntry?: PublishedSkillEntry
   ): Promise<void> {
+    const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
     const reconcileError: PublishedSkillSourceError = {
       code: 'RECONCILE_REQUIRED',
-      message: 'Skill source rollback failed; runtime retained a coherent published state'
+      message: 'Skill source requires reconciliation'
     }
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
@@ -2919,7 +2956,7 @@ export class SkillPresenter implements ISkillPresenter {
         })
       ])
       if (candidate && candidate.metadata.name === name) {
-        this.publishRuntimeEntry(candidate)
+        this.publishRuntimeEntryIfCurrent(metadata.path, sequence, candidate)
         return
       }
     } catch (error) {
@@ -2928,28 +2965,23 @@ export class SkillPresenter implements ISkillPresenter {
       if (timer) clearTimeout(timer)
     }
 
+    if (!this.runtimeSnapshots.isCurrentObservation(metadata.path, sequence)) {
+      return
+    }
+
     if (previousEntry) {
-      this.publishRuntimeEntry(
-        Object.freeze({
-          ...previousEntry,
-          sourceError: Object.freeze(reconcileError)
-        })
+      this.publishRuntimeEntryIfCurrent(
+        metadata.path,
+        sequence,
+        withPublishedSourceError(previousEntry, reconcileError)
       )
       return
     }
 
-    const quarantinedMetadata = freezeSkillMetadata(metadata)
-    this.publishRuntimeEntry(
-      Object.freeze({
-        sourceVersion: createSkillSourceVersion({
-          metadata: quarantinedMetadata,
-          quarantine: true
-        }),
-        availability: 'quarantined' as const,
-        metadata: quarantinedMetadata,
-        allowedTools: Object.freeze([]),
-        sourceError: Object.freeze(reconcileError)
-      })
+    this.publishRuntimeEntryIfCurrent(
+      metadata.path,
+      sequence,
+      createQuarantinedEntry(metadata, reconcileError)
     )
   }
 
@@ -3101,15 +3133,14 @@ export class SkillPresenter implements ISkillPresenter {
     const previousState = this.getStoredManagementState()
     const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
     const candidate = await this.stagePublishedSkillEntry(metadata, { extension: sanitized })
-    if (
-      !candidate ||
-      candidate.metadata.name !== name ||
-      !this.runtimeSnapshots.isCurrentObservation(metadata.path, sequence)
-    ) {
+    if (!candidate || candidate.metadata.name !== name) {
       throw new Error(`Skill "${name}" source is invalid`)
     }
 
-    const endPublish = this.beginRuntimePublish()
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      throw new Error(`Skill "${name}" changed while the extension was staged`)
+    }
     try {
       this.updateSkillManagementItem(name, (item) => ({
         ...item,
@@ -3477,25 +3508,22 @@ export class SkillPresenter implements ISkillPresenter {
     try {
       candidate = await this.stagePublishedSkillEntry(hint)
     } catch (error) {
-      this.publishRuntimeSourceError(
-        previousName,
-        {
-          code: 'SOURCE_READ_FAILED',
-          message: error instanceof Error ? error.message : String(error)
-        },
-        filePath
-      )
-      return
-    }
-    if (!this.runtimeSnapshots.isCurrentObservation(filePath, sequence)) {
+      logger.warn('[SkillPresenter] Failed to stage watcher skill update.', {
+        name: previousName,
+        path: filePath,
+        error
+      })
+      this.publishRuntimeSourceErrorIfCurrent(filePath, sequence, previousName, {
+        code: 'SOURCE_READ_FAILED',
+        message: 'Skill source could not be read'
+      })
       return
     }
     if (!candidate) {
-      this.publishRuntimeSourceError(
-        previousName,
-        { code: 'INVALID_SOURCE', message: 'Watcher observed an invalid skill source' },
-        filePath
-      )
+      this.publishRuntimeSourceErrorIfCurrent(filePath, sequence, previousName, {
+        code: 'INVALID_SOURCE',
+        message: 'Skill source is invalid'
+      })
       return
     }
 
@@ -3506,14 +3534,14 @@ export class SkillPresenter implements ISkillPresenter {
         path: candidate.metadata.path,
         existingPath: existingEntry.metadata.path
       })
-      this.publishRuntimeSourceError(previousName, {
+      this.publishRuntimeSourceErrorIfCurrent(filePath, sequence, previousName, {
         code: 'DUPLICATE_SKILL_NAME',
-        message: `Skill source renamed to duplicate name "${candidate.metadata.name}"`
+        message: 'Skill source conflicts with an existing skill name'
       })
       return
     }
 
-    this.publishRuntimeEntry(candidate, previousName)
+    if (!this.publishRuntimeEntryIfCurrent(filePath, sequence, candidate, previousName)) return
     this.runtimeSnapshots.deleteDiagnostic(filePath)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'metadata-updated',
@@ -3531,23 +3559,21 @@ export class SkillPresenter implements ISkillPresenter {
     try {
       candidate = await this.stagePublishedSkillEntry(hint)
     } catch (error) {
-      this.runtimeSnapshots.setDiagnostic(
-        filePath,
-        Object.freeze({
-          code: 'SOURCE_READ_FAILED',
-          message: error instanceof Error ? error.message : String(error)
-        })
-      )
-      return
-    }
-    if (!this.runtimeSnapshots.isCurrentObservation(filePath, sequence)) {
+      logger.warn('[SkillPresenter] Failed to stage watcher skill addition.', {
+        path: filePath,
+        error
+      })
+      this.runtimeSnapshots.setDiagnosticIfCurrent(filePath, sequence, {
+        code: 'SOURCE_READ_FAILED',
+        message: 'Skill source could not be read'
+      })
       return
     }
     if (!candidate) {
-      this.runtimeSnapshots.setDiagnostic(
-        filePath,
-        Object.freeze({ code: 'INVALID_SOURCE', message: 'Watcher observed an invalid new skill' })
-      )
+      this.runtimeSnapshots.setDiagnosticIfCurrent(filePath, sequence, {
+        code: 'INVALID_SOURCE',
+        message: 'Skill source is invalid'
+      })
       return
     }
 
@@ -3561,7 +3587,7 @@ export class SkillPresenter implements ISkillPresenter {
       return
     }
 
-    this.publishRuntimeEntry(candidate)
+    if (!this.publishRuntimeEntryIfCurrent(filePath, sequence, candidate)) return
     this.runtimeSnapshots.deleteDiagnostic(filePath)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'installed',
@@ -3574,8 +3600,8 @@ export class SkillPresenter implements ISkillPresenter {
   private handleSkillFileDeleted(filePath: string): void {
     this.seedRuntimeSnapshotFromCompatibilityCache()
     const skillName = this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
-    this.runtimeSnapshots.nextObservation(filePath)
-    this.publishRuntimeRemoval(skillName)
+    const sequence = this.runtimeSnapshots.nextObservation(filePath)
+    if (!this.runtimeSnapshots.removeIfCurrent(filePath, sequence, skillName)) return
     this.runtimeSnapshots.deleteDiagnostic(filePath)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'uninstalled',
@@ -3615,21 +3641,24 @@ export class SkillPresenter implements ISkillPresenter {
     }
     try {
       const candidate = await this.stagePublishedSkillEntry(entry.metadata as SkillMetadata)
-      if (candidate && this.runtimeSnapshots.isCurrentObservation(sourcePath, sequence)) {
-        this.publishRuntimeEntry(candidate)
-      } else if (this.runtimeSnapshots.isCurrentObservation(sourcePath, sequence)) {
-        this.publishRuntimeSourceError(entry.metadata.name, {
+      if (candidate) {
+        this.publishRuntimeEntryIfCurrent(sourcePath, sequence, candidate)
+      } else {
+        this.publishRuntimeSourceErrorIfCurrent(sourcePath, sequence, entry.metadata.name, {
           code: 'INVALID_SOURCE',
-          message: 'Watcher observed an invalid skill source'
+          message: 'Skill source is invalid'
         })
       }
     } catch (error) {
-      if (this.runtimeSnapshots.isCurrentObservation(sourcePath, sequence)) {
-        this.publishRuntimeSourceError(entry.metadata.name, {
-          code: 'SOURCE_READ_FAILED',
-          message: error instanceof Error ? error.message : String(error)
-        })
-      }
+      logger.warn('[SkillPresenter] Failed to stage watcher script update.', {
+        name: entry.metadata.name,
+        path: filePath,
+        error
+      })
+      this.publishRuntimeSourceErrorIfCurrent(sourcePath, sequence, entry.metadata.name, {
+        code: 'SOURCE_READ_FAILED',
+        message: 'Skill source could not be read'
+      })
     }
   }
 

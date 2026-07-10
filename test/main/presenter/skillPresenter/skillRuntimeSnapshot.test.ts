@@ -207,7 +207,11 @@ describe('SkillPresenter runtime snapshots', () => {
     expect(retained?.renderedContent).toBe(previousEntry?.renderedContent)
     expect(retained?.allowedTools).toBe(previousEntry?.allowedTools)
     expect(retained?.sourceVersion).toBe(previousEntry?.sourceVersion)
-    expect(retained?.sourceError?.code).toBe('INVALID_SOURCE')
+    expect(retained?.sourceError).toEqual({
+      code: 'INVALID_SOURCE',
+      message: 'Skill source is invalid'
+    })
+    expect(JSON.stringify(retained?.sourceError)).not.toContain('Broken')
 
     fs.mkdirSync(path.join(root, 'invalid-new'), { recursive: true })
     fs.writeFileSync(path.join(root, 'invalid-new', 'SKILL.md'), '---\nname: invalid-new\n---')
@@ -232,6 +236,107 @@ describe('SkillPresenter runtime snapshots', () => {
     expect(
       presenter.getPublishedRuntimeSnapshot().entries.get('review')?.renderedContent
     ).toContain('# Original')
+  })
+
+  it('does not let an update overwrite a newer watcher observation after an awaited read', async () => {
+    writeSkill(root, 'review', { description: 'Old', body: '# Old' })
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('review')
+    const skillPath = path.join(root, 'review', 'SKILL.md')
+    const oldContent = fs.readFileSync(skillPath, 'utf-8')
+    const readStarted = createDeferred<void>()
+    const previousRead = createDeferred<string>()
+    vi.spyOn(presenter, 'readSkillFile').mockImplementationOnce(async () => {
+      readStarted.resolve()
+      return await previousRead.promise
+    })
+
+    const staleUpdate = presenter.updateSkillFile(
+      'review',
+      '---\nname: review\ndescription: Update A\n---\n\n# Update A'
+    )
+    await readStarted.promise
+
+    writeSkill(root, 'review', { description: 'Watcher B', body: '# Watcher B' })
+    await (presenter as any).handleSkillFileChanged(skillPath)
+    previousRead.resolve(oldContent)
+
+    await expect(staleUpdate).resolves.toMatchObject({ success: false })
+    const published = presenter.getPublishedRuntimeSnapshot().entries.get('review')
+    expect(published?.metadata.description).toBe('Watcher B')
+    expect(published?.renderedContent).toContain('# Watcher B')
+    expect(fs.readFileSync(skillPath, 'utf-8')).toContain('# Watcher B')
+  })
+
+  it('does not let a stale watcher stage overwrite a newer watcher publication', async () => {
+    writeSkill(root, 'review', { description: 'Old', body: '# Old' })
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('review')
+    const skillPath = path.join(root, 'review', 'SKILL.md')
+    const metadata = presenter.getPublishedRuntimeSnapshot().entries.get('review')!.metadata as any
+
+    writeSkill(root, 'review', { description: 'Watcher A', body: '# Watcher A' })
+    const watcherCandidateA = await (presenter as any).stagePublishedSkillEntry(metadata)
+    const stageStarted = createDeferred<void>()
+    const deferredStage = createDeferred<typeof watcherCandidateA>()
+    const originalStage = (presenter as any).stagePublishedSkillEntry.bind(presenter)
+    vi.spyOn(presenter as any, 'stagePublishedSkillEntry')
+      .mockImplementationOnce(async () => {
+        stageStarted.resolve()
+        return await deferredStage.promise
+      })
+      .mockImplementation(originalStage)
+
+    const staleWatcher = (presenter as any).handleSkillFileChanged(skillPath) as Promise<void>
+    await stageStarted.promise
+    writeSkill(root, 'review', { description: 'Watcher B', body: '# Watcher B' })
+    await (presenter as any).handleSkillFileChanged(skillPath)
+    deferredStage.resolve(watcherCandidateA)
+    await staleWatcher
+
+    const published = presenter.getPublishedRuntimeSnapshot().entries.get('review')
+    expect(published?.metadata.description).toBe('Watcher B')
+    expect(published?.renderedContent).toContain('# Watcher B')
+  })
+
+  it('does not let a stale whole-catalog discovery replace a newer watcher publication', async () => {
+    writeSkill(root, 'review', { description: 'Old', body: '# Old' })
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('review')
+    const skillPath = path.join(root, 'review', 'SKILL.md')
+
+    writeSkill(root, 'review', { description: 'Discovery A', body: '# Discovery A' })
+    await (presenter as any).handleSkillFileChanged(skillPath)
+    const discoveryCandidate = presenter.getPublishedRuntimeSnapshot().entries.get('review')!
+
+    writeSkill(root, 'review', { description: 'Old', body: '# Old' })
+    await (presenter as any).handleSkillFileChanged(skillPath)
+    const metadata = presenter.getPublishedRuntimeSnapshot().entries.get('review')!.metadata as any
+    discoveryWorkerMock.discoverSkillMetadataInWorker.mockResolvedValue({
+      skills: [metadata],
+      warnings: []
+    })
+
+    const stageStarted = createDeferred<void>()
+    const deferredStage = createDeferred<typeof discoveryCandidate>()
+    const originalStage = (presenter as any).stagePublishedSkillEntry.bind(presenter)
+    vi.spyOn(presenter as any, 'stagePublishedSkillEntry')
+      .mockImplementationOnce(async () => {
+        stageStarted.resolve()
+        return await deferredStage.promise
+      })
+      .mockImplementation(originalStage)
+
+    const discovery = presenter.discoverSkills()
+    await stageStarted.promise
+    writeSkill(root, 'review', { description: 'Watcher B', body: '# Watcher B' })
+    await (presenter as any).handleSkillFileChanged(skillPath)
+    deferredStage.resolve(discoveryCandidate)
+    await discovery
+
+    const published = presenter.getPublishedRuntimeSnapshot().entries.get('review')
+    expect(published?.metadata.description).toBe('Watcher B')
+    expect(published?.renderedContent).toContain('# Watcher B')
   })
 
   it('keeps repo-owned writes behind the shared odd publish barrier', async () => {
@@ -326,6 +431,26 @@ describe('SkillPresenter runtime snapshots', () => {
     await waitRejection
     endPublish()
     expect(presenter.getPublishedRuntimeSnapshot().epoch).toBe(previous.epoch + 2)
+  })
+
+  it('rejects destroy without partially resetting an active publication', async () => {
+    writeSkill(root, 'review', { description: 'Valid', body: '# Body' })
+    await presenter.discoverSkills()
+    await presenter.loadSkillContent('review')
+    const previousEntry = presenter.getPublishedRuntimeSnapshot().entries.get('review')
+    const sourcePath = previousEntry!.metadata.path
+    const observation = (presenter as any).runtimeSnapshots.nextObservation(sourcePath)
+    const endPublish = (presenter as any).beginRuntimePublish() as () => void
+
+    await expect(presenter.destroy()).rejects.toThrow(
+      'Cannot reset skill runtime snapshot during publication'
+    )
+    expect((presenter as any).runtimeSnapshots.currentObservation(sourcePath)).toBe(observation)
+    expect(presenter.getPublishedRuntimeSnapshot().entries.get('review')).toBe(previousEntry)
+
+    endPublish()
+    await presenter.destroy()
+    expect(presenter.getPublishedRuntimeSnapshot().entries.size).toBe(0)
   })
 
   it('serves compatibility runtime APIs from a captured ready snapshot without source disk reads', async () => {

@@ -382,6 +382,9 @@ interface SkillRuntimeSnapshotPort {
    - previous last-known-good snapshot（可附带新的 diagnostic `sourceError`）；
    - 对没有 last-known-good 的 source 发布 `quarantined/unavailable` 状态，且它不进入 available/active
      prompt 或 `allowedTools`。
+7. published `sourceError` 是 runtime contract 的一部分，只允许稳定、受控、无 source content 的
+   code/message。raw exception、绝对路径、文件内容和底层错误消息只写 main-process local log，不得进入
+   immutable snapshot、IPC 或 renderer cache。
 
 仅仅“disk operation 返回了”或“worker Promise settle 了”不是进入 even 的充分条件。
 
@@ -391,9 +394,11 @@ interface SkillRuntimeSnapshotPort {
    和 script descriptors，计算 `sourceVersion` 并形成 immutable candidate。stage 期间 reader 继续使用旧
    stable snapshot，不会读取正在变化的磁盘。
 2. candidate 完整后才开启很短的 odd publish window，atomic swap snapshot reference，然后进入新的
-   even epoch。每个 stage 带 source observation sequence；publish 按 skill/source 串行 compare-and-swap，
-   旧 stage 不得覆盖已发布的新 observation。重叠 publish 使用 active publish count/shared settlement
-   barrier，直到所有 publish settlement 完成都保持 odd。
+   even epoch。每个 stage 带 source observation sequence；sequence 的 compare-and-swap 与开启 odd
+   publish/update 必须是同一个同步原子步骤，不能先检查、跨越 `await` 后再 publish。discovery 使用
+   catalog observation sequence，并只在该 sequence 仍是最新 observation 时 whole-map replace；其间任一
+   watcher 或 mutation observation 都使旧 discovery result 失效。重叠 publish 使用 active publish
+   count/shared settlement barrier，直到所有 publish settlement 完成都保持 odd。
 3. repo-owned mutation 在写盘前先用 proposed bytes stage/validate candidate。需要写盘时，在第一个
    externally visible write 前进入 odd，使用 temp file + atomic replace；多资源写入失败且已经改变磁盘时，
    必须用 previous raw/config 做 atomic rollback，然后才能选择 previous LKG snapshot 并进入 even。
@@ -419,6 +424,13 @@ interface SkillRuntimeSnapshotPort {
 7. success、完整 rollback、rollback failure 和 invalid candidate 都必须在 `finally` 中关闭 publish
    bookkeeping；但只有 coherent snapshot 已被选定/published 后才能从 odd 进入 even。即使最终仍是旧
    bytes，也进入新的 even epoch；这是可接受的低频 false invalidation。
+8. publication observer/callback 不是 publication truth。snapshot reference 已 swap 后，即使 observer
+   抛错，本次 publication 仍保持成功的 even snapshot；调用方同步收到 observer error，但 shared
+   settlement 必须在 `finally` resolve 并清空，不能留下 even epoch 搭配永久 pending waiter。
+9. `reset()`/`destroy()` 遇到 active publish 时必须原子拒绝：snapshot、observation sequences、readiness
+   stages、diagnostics 和 publish bookkeeping 全部保持不变。owner 应先停止 watcher/阻止新 mutation，等
+   active publish settlement 后重试 reset；成功 reset 必须推进单调 observation floor，使 reset 前已经
+   stage 的 late result 永远不能在 reset 后重新 publish。
 
 #### C3. bounded stable read
 
@@ -426,7 +438,10 @@ interface SkillRuntimeSnapshotPort {
    `AbortSignal` 传给 `waitForStableRuntimeSnapshot()`。retry/rebuild 不得重置 deadline。
 2. required entry 仍是 `metadata_only` 时，wait 启动/复用 shared readiness staging Promise；epoch odd 时
    复用 shared publish settlement Promise。每个 caller 独立 race 自己的 signal/deadline；一个 caller
-   timeout/abort 不取消 shared stage/mutation，也不影响其他 waiter。
+   timeout/abort 不取消 shared stage/mutation，也不影响其他 waiter。shared readiness stage 若得到 invalid
+   candidate 或 read failure：有 previous `ready` LKG 时保留该 LKG 并附稳定 `sourceError`；没有 ready
+   LKG 时 atomic publish `quarantined`。后续 waiter 直接观察同一稳定结果，不重复读盘；只有新的 watcher
+   event、显式 discovery 或下一次 mutation 才能重新触发 staging，不创建 `30s` timer 或后台 retry loop。
 3. signal 先触发时立即抛现有 abort error，不回退 cache。deadline 先到且 required readiness stage 或 odd
    publish 仍 pending/hung 时，抛：
 

@@ -2857,8 +2857,12 @@ describe('SkillPresenter', () => {
       const originalMetadata = createSkillMetadata('skill-a', 'skill-a')
       const existingDuplicate = createSkillMetadata('skill-b', 'skill-b')
 
-      metadataCache.set(originalMetadata.name, originalMetadata)
-      metadataCache.set(existingDuplicate.name, existingDuplicate)
+      ;(skillPresenter as any).runtimeSnapshots.publishEntry(
+        createPublishedSkillEntry(originalMetadata)
+      )
+      ;(skillPresenter as any).runtimeSnapshots.publishEntry(
+        createPublishedSkillEntry(existingDuplicate)
+      )
       ;(skillPresenter as any).stagePublishedSkillEntry = vi
         .fn()
         .mockResolvedValue(createPublishedSkillEntry(createSkillMetadata('skill-b', 'skill-a')))

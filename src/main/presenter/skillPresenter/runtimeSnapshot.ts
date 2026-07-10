@@ -46,6 +46,28 @@ export function freezeScriptDescriptors(
   return deepFreeze(structuredClone(scripts))
 }
 
+const PUBLISHED_SOURCE_ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  DISCOVERY_REFRESH_FAILED: 'Skill discovery could not refresh the source',
+  DUPLICATE_SKILL_NAME: 'Skill source conflicts with an existing skill name',
+  INVALID_SOURCE: 'Skill source is invalid',
+  MUTATION_ROLLED_BACK: 'Skill source mutation was rolled back',
+  RECONCILE_REQUIRED: 'Skill source requires reconciliation',
+  SOURCE_READ_FAILED: 'Skill source could not be read',
+  SOURCE_UNAVAILABLE: 'Skill source is unavailable'
+})
+
+export function freezePublishedSourceError(
+  error: PublishedSkillSourceError
+): Readonly<PublishedSkillSourceError> {
+  const code = Object.hasOwn(PUBLISHED_SOURCE_ERROR_MESSAGES, error.code)
+    ? error.code
+    : 'SOURCE_UNAVAILABLE'
+  return Object.freeze({
+    code,
+    message: PUBLISHED_SOURCE_ERROR_MESSAGES[code]
+  })
+}
+
 export function createMetadataOnlyEntry(
   metadata: SkillMetadata,
   sourceError?: PublishedSkillSourceError
@@ -60,7 +82,37 @@ export function createMetadataOnlyEntry(
     availability: 'metadata_only' as const,
     metadata: frozenMetadata,
     allowedTools: Object.freeze([...(frozenMetadata.allowedTools ?? [])]),
-    sourceError: sourceError ? Object.freeze({ ...sourceError }) : undefined
+    sourceError: sourceError ? freezePublishedSourceError(sourceError) : undefined
+  })
+}
+
+export function createQuarantinedEntry(
+  metadata: SkillMetadata,
+  sourceError: PublishedSkillSourceError
+): PublishedSkillEntry {
+  const frozenMetadata = freezeSkillMetadata(metadata)
+  const frozenSourceError = freezePublishedSourceError(sourceError)
+  return Object.freeze({
+    sourceVersion: createSkillSourceVersion({
+      availability: 'quarantined',
+      metadata: frozenMetadata,
+      sourceError: frozenSourceError,
+      processArch: process.arch
+    }),
+    availability: 'quarantined' as const,
+    metadata: frozenMetadata,
+    allowedTools: Object.freeze([]),
+    sourceError: frozenSourceError
+  })
+}
+
+export function withPublishedSourceError(
+  entry: PublishedSkillEntry,
+  sourceError: PublishedSkillSourceError
+): PublishedSkillEntry {
+  return Object.freeze({
+    ...entry,
+    sourceError: freezePublishedSourceError(sourceError)
   })
 }
 
@@ -173,11 +225,14 @@ export class SkillRuntimeSnapshotState {
         const epoch = this.#advanceEpoch()
         this.#snapshot = this.#createSnapshot(epoch, entries)
         this.#pendingEntries = null
-        onPublished(this.#snapshot.entries)
         const resolve = this.#resolveSettlement
-        this.#resolveSettlement = null
-        this.#settlementPromise = null
-        resolve?.()
+        try {
+          onPublished(this.#snapshot.entries)
+        } finally {
+          this.#resolveSettlement = null
+          this.#settlementPromise = null
+          resolve?.()
+        }
       }
     }
   }
@@ -232,6 +287,7 @@ export class SkillRuntimeSnapshotState {
 interface SkillRuntimeSnapshotCoordinatorOptions {
   stageEntry(metadata: SkillMetadata): Promise<PublishedSkillEntry | null>
   onPublished(entries: ReadonlyMap<string, PublishedSkillEntry>): void
+  onStageError?(metadata: SkillMetadata, error: unknown): void
 }
 
 export class SkillRuntimeSnapshotCoordinator {
@@ -240,6 +296,8 @@ export class SkillRuntimeSnapshotCoordinator {
   readonly #sourceObservationSequences = new Map<string, number>()
   readonly #sourceDiagnostics = new Map<string, PublishedSkillSourceError>()
   readonly #publishHandles: SkillRuntimePublishHandle[] = []
+  #observationSequence = 0
+  #observationFloor = 0
 
   constructor(private readonly options: SkillRuntimeSnapshotCoordinatorOptions) {}
 
@@ -281,7 +339,10 @@ export class SkillRuntimeSnapshotCoordinator {
   seedFromMetadata(metadata: Iterable<SkillMetadata>): void {
     if (this.snapshot.entries.size > 0) return
     const entries = new Map<string, PublishedSkillEntry>()
-    for (const item of metadata) entries.set(item.name, createMetadataOnlyEntry(item))
+    for (const item of metadata) {
+      this.nextObservation(item.path)
+      entries.set(item.name, createMetadataOnlyEntry(item))
+    }
     if (entries.size > 0) this.replace(entries)
   }
 
@@ -293,6 +354,15 @@ export class SkillRuntimeSnapshotCoordinator {
       if (index >= 0) this.#publishHandles.splice(index, 1)
       handle.end()
     }
+  }
+
+  beginPublishIfCurrent(sourcePath: string, sequence: number): (() => void) | null {
+    if (!this.isCurrentObservation(sourcePath, sequence)) return null
+    return this.beginPublish()
+  }
+
+  beginCatalogObservation(): number {
+    return this.#advanceObservationSequence()
   }
 
   replace(entries: ReadonlyMap<string, PublishedSkillEntry>): void {
@@ -307,6 +377,25 @@ export class SkillRuntimeSnapshotCoordinator {
     }
   }
 
+  replaceIfCatalogCurrent(
+    sequence: number,
+    entries: ReadonlyMap<string, PublishedSkillEntry>
+  ): boolean {
+    if (this.#observationSequence !== sequence) return false
+    const nextFloor = this.#nextObservationSequence()
+    const previousEpoch = this.snapshot.epoch
+    try {
+      this.replace(entries)
+    } finally {
+      if (this.snapshot.epoch !== previousEpoch) {
+        this.#observationSequence = nextFloor
+        this.#observationFloor = nextFloor
+        this.#sourceObservationSequences.clear()
+      }
+    }
+    return true
+  }
+
   publishEntry(entry: PublishedSkillEntry, previousName?: string): void {
     const end = this.beginPublish()
     try {
@@ -319,6 +408,17 @@ export class SkillRuntimeSnapshotCoordinator {
     }
   }
 
+  publishEntryIfCurrent(
+    sourcePath: string,
+    sequence: number,
+    entry: PublishedSkillEntry,
+    previousName?: string
+  ): boolean {
+    if (!this.isCurrentObservation(sourcePath, sequence)) return false
+    this.publishEntry(entry, previousName)
+    return true
+  }
+
   remove(name: string): void {
     const end = this.beginPublish()
     try {
@@ -328,28 +428,44 @@ export class SkillRuntimeSnapshotCoordinator {
     }
   }
 
+  removeIfCurrent(sourcePath: string, sequence: number, name: string): boolean {
+    if (!this.isCurrentObservation(sourcePath, sequence)) return false
+    this.remove(name)
+    return true
+  }
+
   publishSourceError(name: string, error: PublishedSkillSourceError, sourcePath?: string): void {
     const current = this.snapshot.entries.get(name)
     if (!current) {
       if (sourcePath) this.setDiagnostic(sourcePath, error)
       return
     }
-    this.publishEntry(
-      Object.freeze({
-        ...current,
-        sourceError: Object.freeze({ ...error })
-      })
-    )
+    if (current.availability === 'metadata_only') {
+      this.publishEntry(createQuarantinedEntry(current.metadata as SkillMetadata, error))
+      return
+    }
+    this.publishEntry(withPublishedSourceError(current, error))
+  }
+
+  publishSourceErrorIfCurrent(
+    sourcePath: string,
+    sequence: number,
+    name: string,
+    error: PublishedSkillSourceError
+  ): boolean {
+    if (!this.isCurrentObservation(sourcePath, sequence)) return false
+    this.publishSourceError(name, error, sourcePath)
+    return true
   }
 
   nextObservation(sourcePath: string): number {
-    const next = (this.#sourceObservationSequences.get(sourcePath) ?? 0) + 1
+    const next = this.#advanceObservationSequence()
     this.#sourceObservationSequences.set(sourcePath, next)
     return next
   }
 
   currentObservation(sourcePath: string): number {
-    return this.#sourceObservationSequences.get(sourcePath) ?? 0
+    return this.#sourceObservationSequences.get(sourcePath) ?? this.#observationFloor
   }
 
   isCurrentObservation(sourcePath: string, sequence: number): boolean {
@@ -357,7 +473,17 @@ export class SkillRuntimeSnapshotCoordinator {
   }
 
   setDiagnostic(sourcePath: string, error: PublishedSkillSourceError): void {
-    this.#sourceDiagnostics.set(sourcePath, Object.freeze({ ...error }))
+    this.#sourceDiagnostics.set(sourcePath, freezePublishedSourceError(error))
+  }
+
+  setDiagnosticIfCurrent(
+    sourcePath: string,
+    sequence: number,
+    error: PublishedSkillSourceError
+  ): boolean {
+    if (!this.isCurrentObservation(sourcePath, sequence)) return false
+    this.setDiagnostic(sourcePath, error)
+    return true
   }
 
   deleteDiagnostic(sourcePath: string): void {
@@ -365,11 +491,14 @@ export class SkillRuntimeSnapshotCoordinator {
   }
 
   reset(): void {
+    const nextFloor = this.#nextObservationSequence()
+    this.#state.reset()
+    this.#observationSequence = nextFloor
+    this.#observationFloor = nextFloor
     this.#sourceObservationSequences.clear()
     this.#readinessStages.clear()
     this.#sourceDiagnostics.clear()
     this.#publishHandles.splice(0)
-    this.#state.reset()
   }
 
   #update(updater: (entries: Map<string, PublishedSkillEntry>) => void): void {
@@ -387,35 +516,48 @@ export class SkillRuntimeSnapshotCoordinator {
     const sourcePath = entry.metadata.path
     const sequence = this.currentObservation(sourcePath)
     const stage = (async () => {
+      let candidate: PublishedSkillEntry | null
       try {
-        const candidate = await this.options.stageEntry(entry.metadata as SkillMetadata)
-        if (!this.isCurrentObservation(sourcePath, sequence)) return
-        if (!candidate || candidate.metadata.name !== name) {
-          this.publishSourceError(
-            name,
-            { code: 'INVALID_SOURCE', message: 'Skill source did not produce a valid entry' },
-            sourcePath
-          )
-          return
-        }
-        this.publishEntry(candidate)
+        candidate = await this.options.stageEntry(entry.metadata as SkillMetadata)
       } catch (error) {
-        if (!this.isCurrentObservation(sourcePath, sequence)) return
-        this.publishSourceError(
-          name,
-          {
-            code: 'SOURCE_READ_FAILED',
-            message: error instanceof Error ? error.message : String(error)
-          },
-          sourcePath
-        )
+        this.options.onStageError?.(entry.metadata as SkillMetadata, error)
+        this.publishSourceErrorIfCurrent(sourcePath, sequence, name, {
+          code: 'SOURCE_READ_FAILED',
+          message: 'Skill source could not be read'
+        })
+        return
       }
+      if (!candidate || candidate.metadata.name !== name) {
+        this.publishSourceErrorIfCurrent(sourcePath, sequence, name, {
+          code: 'INVALID_SOURCE',
+          message: 'Skill source is invalid'
+        })
+        return
+      }
+      this.publishEntryIfCurrent(sourcePath, sequence, candidate)
     })()
     this.#readinessStages.set(name, stage)
-    void stage.finally(() => {
-      if (this.#readinessStages.get(name) === stage) this.#readinessStages.delete(name)
-    })
+    void stage.then(
+      () => {
+        if (this.#readinessStages.get(name) === stage) this.#readinessStages.delete(name)
+      },
+      () => {
+        if (this.#readinessStages.get(name) === stage) this.#readinessStages.delete(name)
+      }
+    )
     return stage
+  }
+
+  #nextObservationSequence(): number {
+    if (this.#observationSequence >= Number.MAX_SAFE_INTEGER) {
+      throw new Error('Skill source observation sequence exhausted')
+    }
+    return this.#observationSequence + 1
+  }
+
+  #advanceObservationSequence(): number {
+    this.#observationSequence = this.#nextObservationSequence()
+    return this.#observationSequence
   }
 
   #throwIfAborted(signal: AbortSignal): void {
