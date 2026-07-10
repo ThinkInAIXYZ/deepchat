@@ -43,11 +43,15 @@ const PRESENTER_COMPATIBILITY_CORE_PATH = path.join(
 )
 const MAIN_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter')
 const SQLITE_TABLE_ROOT = path.join(MAIN_PRESENTER_ROOT, 'sqlitePresenter/tables')
-const ARCHITECTURE_GROWTH_BASELINE_PATH = path.resolve(
+const TRACKED_ARCHITECTURE_GROWTH_BASELINE_PATH = path.join(
   ROOT,
-  process.env.DEEPCHAT_ARCHITECTURE_GROWTH_BASELINE_PATH ??
-    'docs/architecture/baselines/architecture-growth.json'
+  'docs/architecture/baselines/architecture-growth.json'
 )
+const ARCHITECTURE_GROWTH_BASELINE_PATH =
+  process.env.NODE_ENV === 'test' &&
+  process.env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH
+    ? path.resolve(ROOT, process.env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH)
+    : TRACKED_ARCHITECTURE_GROWTH_BASELINE_PATH
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const MEMORY_PRESENTER_FACADE_PATH = path.join(MEMORY_PRESENTER_ROOT, 'index.ts')
 const MEMORY_PRESENTER_CORE_ROOT = path.join(MEMORY_PRESENTER_ROOT, 'core')
@@ -298,6 +302,20 @@ async function collectHotPathDirectEdges() {
 async function loadArchitectureGrowthBaseline() {
   const raw = await fs.readFile(ARCHITECTURE_GROWTH_BASELINE_PATH, 'utf8')
   const parsed = JSON.parse(raw)
+
+  if (parsed?.version !== 1) {
+    throw new Error(`version must be 1, found ${String(parsed?.version)}`)
+  }
+  const updatedOnTimestamp = Date.parse(`${parsed?.updatedOn}T00:00:00Z`)
+  if (
+    typeof parsed.updatedOn !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(parsed.updatedOn) ||
+    Number.isNaN(updatedOnTimestamp) ||
+    new Date(updatedOnTimestamp).toISOString().slice(0, 10) !== parsed.updatedOn
+  ) {
+    throw new Error('updatedOn must be a valid YYYY-MM-DD date')
+  }
+
   const limits = {
     mainComposition: {
       routeRootLoc: parsed?.mainComposition?.routeRootLoc,

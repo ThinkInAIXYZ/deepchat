@@ -79,14 +79,18 @@ async function writeTemporaryGrowthBaseline(baseline: ArchitectureGrowthBaseline
   return baselinePath
 }
 
-function runArchitectureGuard(baselinePath = TRACKED_GROWTH_BASELINE_PATH) {
+function runArchitectureGuard(baselinePath?: string, nodeEnv = 'test') {
+  const env = {
+    ...process.env,
+    NODE_ENV: nodeEnv
+  }
+  delete env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH
+  if (baselinePath) env.DEEPCHAT_TEST_ARCHITECTURE_GROWTH_BASELINE_PATH = baselinePath
+
   return spawnSync(process.execPath, ['scripts/architecture-guard.mjs'], {
     cwd: ROOT,
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      DEEPCHAT_ARCHITECTURE_GROWTH_BASELINE_PATH: baselinePath
-    }
+    env
   })
 }
 
@@ -123,6 +127,40 @@ describe.sequential('architecture guard', () => {
     expect(result.status).toBe(0)
   })
 
+  it('fails closed for an unsupported baseline version', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+    baseline.version = 2
+
+    const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+    const result = runArchitectureGuard(baselinePath)
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[architecture-growth-baseline-invalid]')
+    expect(result.stderr).toContain('version must be 1')
+  })
+
+  it('fails closed for malformed baseline metadata', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+    baseline.updatedOn = '2026-02-30'
+
+    const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+    const result = runArchitectureGuard(baselinePath)
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[architecture-growth-baseline-invalid]')
+    expect(result.stderr).toContain('updatedOn must be a valid YYYY-MM-DD date')
+  })
+
+  it('ignores the test baseline override outside test mode', async () => {
+    const baseline = await readTrackedGrowthBaseline()
+    baseline.version = 2
+
+    const baselinePath = await writeTemporaryGrowthBaseline(baseline)
+    const result = runArchitectureGuard(baselinePath, 'production')
+
+    expect(result.status).toBe(0)
+  })
+
   it.each(MAIN_COMPOSITION_METRICS)(
     'reports main-composition growth when %s exceeds its baseline',
     async (metric) => {
@@ -140,6 +178,7 @@ describe.sequential('architecture guard', () => {
 
   it.each([
     ['main presenter alias', '@/presenter/configPresenter/shortcutKeySettings'],
+    ['explicit main specifier', 'src/main/presenter/configPresenter'],
     ['relative main path', '../main/presenter/configPresenter'],
     [
       'absolute main path',
