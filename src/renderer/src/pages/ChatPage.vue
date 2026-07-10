@@ -1059,13 +1059,19 @@ async function loadOlderMessagesAtTop(): Promise<void> {
     return
   }
 
+  const sessionId = props.sessionId
+  const requestId = sessionRestoreRequestId
   const previousScrollHeight = el.scrollHeight
   const loadedCount = await messageStore.loadOlderMessages()
-  if (loadedCount === 0) {
+  if (loadedCount === 0 || props.sessionId !== sessionId || sessionRestoreRequestId !== requestId) {
     return
   }
 
   await nextTick()
+  if (props.sessionId !== sessionId || sessionRestoreRequestId !== requestId) {
+    return
+  }
+
   const container = scrollContainer.value
   if (!container) {
     return

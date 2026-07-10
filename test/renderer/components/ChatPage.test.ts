@@ -875,6 +875,48 @@ describe('ChatPage', () => {
     expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
   })
 
+  it('does not compensate history scroll after switching sessions', async () => {
+    const deferredHistoryLoad = createDeferred<number>()
+    const deferredSessionLoad = createDeferred<unknown>()
+    const { wrapper, messageStore } = await setup({ deferStartupTasks: true })
+    const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+
+    let scrollHeight = 1000
+    let scrollTop = 40
+    Object.defineProperty(chatPage, 'clientHeight', {
+      configurable: true,
+      get: () => 500
+    })
+    Object.defineProperty(chatPage, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight
+    })
+    Object.defineProperty(chatPage, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value
+      }
+    })
+
+    messageStore.hasMoreHistory = true
+    messageStore.loadOlderMessages.mockReturnValueOnce(deferredHistoryLoad.promise)
+    await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+    expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
+
+    messageStore.loadMessages.mockReturnValueOnce(deferredSessionLoad.promise)
+    await wrapper.setProps({ sessionId: 's2' })
+    scrollHeight = 1500
+
+    deferredHistoryLoad.resolve(20)
+    await flushPromises()
+
+    expect(scrollTop).toBe(40)
+
+    deferredSessionLoad.resolve(undefined)
+    wrapper.unmount()
+  })
+
   it('does not rehydrate persisted plan blocks when switching sessions', async () => {
     const { wrapper, messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true,
