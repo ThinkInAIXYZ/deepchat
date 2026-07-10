@@ -23,6 +23,7 @@ const PERSONA_ON: DeepChatAgentConfig = {
 function makeAgent(generateText: ReturnType<typeof vi.fn>) {
   const repo = new FakeRepository()
   const presenter = new MemoryPresenter({
+    executeWithRateLimit: vi.fn(async () => undefined),
     repository: repo,
     resolveAgentConfig: () => PERSONA_ON,
     getEmbeddings: async (_p: string, _m: string, texts: string[]) =>

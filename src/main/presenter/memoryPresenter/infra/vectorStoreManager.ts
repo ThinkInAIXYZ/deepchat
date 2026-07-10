@@ -16,6 +16,14 @@ interface VectorStoreRuntimeState {
   vectorStoreLocks: Map<string, Promise<unknown>>
 }
 
+interface VectorStoreLeaseState {
+  generation: number
+  accepting: boolean
+  active: number
+  requiresReset: boolean
+  drainWaiters: Set<() => void>
+}
+
 export type VectorDeleteResult = 'deleted' | 'skipped' | 'unusable'
 
 export interface VectorDeleteOptions {
@@ -38,6 +46,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   private readonly vectorStoreIdentities = new Map<string, string>()
   private readonly vectorStoreReady = new Map<string, string>()
   private readonly vectorStoreLocks = new Map<string, Promise<unknown>>()
+  private readonly leaseStates = new Map<string, VectorStoreLeaseState>()
+  private stopped = false
 
   constructor(private readonly ctx: MemoryRuntimeContext) {}
 
@@ -68,7 +78,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     return Number.isFinite(dimensions) && dimensions > 0 ? Math.floor(dimensions) : null
   }
 
-  markReady(agentId: string, embedding: MemoryModelRef, dimensions: number): void {
+  markReady(
+    agentId: string,
+    embedding: MemoryModelRef,
+    dimensions: number,
+    generation?: number
+  ): void {
+    if (generation !== undefined && this.leaseState(agentId).generation !== generation) return
     this.vectorStoreReady.set(agentId, this.cacheKey(agentId, embedding, dimensions))
   }
 
@@ -76,7 +92,31 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.vectorStoreReady.delete(agentId)
   }
 
-  withAgentLock<T>(
+  stopAdmission(): void {
+    this.stopped = true
+    for (const [agentId, state] of this.leaseStates) {
+      state.accepting = false
+      state.generation += 1
+      this.clearReady(agentId)
+    }
+  }
+
+  private leaseState(agentId: string): VectorStoreLeaseState {
+    let state = this.leaseStates.get(agentId)
+    if (!state) {
+      state = {
+        generation: 1,
+        accepting: true,
+        active: 0,
+        requiresReset: false,
+        drainWaiters: new Set()
+      }
+      this.leaseStates.set(agentId, state)
+    }
+    return state
+  }
+
+  private withAgentLock<T>(
     agentId: string,
     task: (locked: LockedVectorStorePort) => Promise<T>
   ): Promise<T> {
@@ -114,9 +154,45 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     return run
   }
 
-  private async vectorStoreForAgent(agentId: string): Promise<IMemoryVectorStore | null> {
-    const pending = this.vectorStores.get(agentId)
-    return pending ? pending.catch(() => null) : null
+  async withStoreLease<T>(
+    agentId: string,
+    embedding: MemoryModelRef,
+    dimensions: number,
+    task: (store: IMemoryVectorStore, generation: number) => Promise<T>
+  ): Promise<T> {
+    const state = this.leaseState(agentId)
+    if (this.stopped || !state.accepting) {
+      throw new Error('[Memory] vector store lease admission is closed')
+    }
+    const store = await this.withAgentLock(agentId, async (locked) => {
+      if (this.stopped || !state.accepting) {
+        throw new Error('[Memory] vector store lease admission is closed')
+      }
+      if (state.requiresReset) {
+        await this.ctx.deps.resetVectorStore(agentId)
+        state.requiresReset = false
+      }
+      return locked.open(embedding, dimensions)
+    })
+    if (this.stopped || !state.accepting) {
+      throw new Error('[Memory] vector store lease admission is closed')
+    }
+    const generation = state.generation
+    state.active += 1
+    try {
+      return await task(store, generation)
+    } finally {
+      state.active -= 1
+      if (state.active === 0) {
+        for (const resolve of state.drainWaiters) resolve()
+        state.drainWaiters.clear()
+      }
+    }
+  }
+
+  private waitForLeaseDrain(state: VectorStoreLeaseState): Promise<void> {
+    if (state.active === 0) return Promise.resolve()
+    return new Promise((resolve) => state.drainWaiters.add(resolve))
   }
 
   private async closeVectorStoreLocked(agentId: string): Promise<void> {
@@ -132,12 +208,21 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     if (store) await store.close().catch(() => undefined)
   }
 
-  getVectorStore(
+  query(
     agentId: string,
     embedding: MemoryModelRef,
-    dimensions: number
-  ): Promise<IMemoryVectorStore> {
-    return this.withAgentLock(agentId, (locked) => locked.open(embedding, dimensions))
+    dimensions: number,
+    vector: number[],
+    topK: number
+  ): Promise<MemoryVectorMatch[]> {
+    return this.withStoreLease(agentId, embedding, dimensions, async (store, generation) => {
+      if (!store.isUsable()) {
+        this.clearReady(agentId)
+        return []
+      }
+      this.markReady(agentId, embedding, dimensions, generation)
+      return store.query(vector, { topK })
+    })
   }
 
   private async openVectorStoreLocked(
@@ -163,16 +248,43 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   async resetAgentStore(agentId: string): Promise<void> {
-    await this.withAgentLock(agentId, async (locked) => {
-      await locked.close()
-      await this.ctx.deps.resetVectorStore(agentId)
-    })
+    await this.drainAndClose(agentId, true)
+  }
+
+  async retireAgentStore(agentId: string): Promise<void> {
+    await this.drainAndClose(agentId, true, true)
   }
 
   async closeAgentStore(agentId: string): Promise<void> {
-    await this.withAgentLock(agentId, async (locked) => {
-      await locked.close()
-    })
+    await this.drainAndClose(agentId, false)
+  }
+
+  private async drainAndClose(agentId: string, reset: boolean, permanent = false): Promise<void> {
+    const state = this.leaseState(agentId)
+    state.accepting = false
+    state.generation += 1
+    this.clearReady(agentId)
+    try {
+      await this.waitForLeaseDrain(state)
+      await this.withAgentLock(agentId, async (locked) => {
+        await locked.close()
+        if (reset) {
+          try {
+            await this.ctx.deps.resetVectorStore(agentId)
+            state.requiresReset = false
+          } catch (error) {
+            state.requiresReset = true
+            throw error
+          }
+        }
+      })
+    } finally {
+      if (!permanent && !this.stopped) state.accepting = true
+    }
+  }
+
+  isGenerationCurrent(agentId: string, generation: number): boolean {
+    return this.leaseState(agentId).generation === generation
   }
 
   async deleteVectorsForMemoryIdsOpening(
@@ -182,63 +294,47 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   ): Promise<VectorDeleteResult> {
     if (!memoryIds.length) return 'skipped'
     let result: VectorDeleteResult = 'skipped'
-    await this.withAgentLock(agentId, async (locked) => {
-      if (this.ctx.isDisposed) return
-      let targetEmbedding = embeddingFromFingerprint(options.embeddingModel)
-      let targetDimensions =
-        typeof options.embeddingDim === 'number' &&
-        Number.isFinite(options.embeddingDim) &&
-        options.embeddingDim > 0
-          ? Math.floor(options.embeddingDim)
-          : null
-
-      if (!targetEmbedding) {
-        const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
-        if (!embedding?.providerId || !embedding?.modelId) {
-          logger.debug(`[Memory] vector delete skipped for ${agentId}: embedding is not configured`)
+    const targetEmbedding = embeddingFromFingerprint(options.embeddingModel)
+    let resolvedEmbedding = targetEmbedding
+    let targetDimensions =
+      typeof options.embeddingDim === 'number' &&
+      Number.isFinite(options.embeddingDim) &&
+      options.embeddingDim > 0
+        ? Math.floor(options.embeddingDim)
+        : null
+    if (!resolvedEmbedding) {
+      const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      if (!embedding?.providerId || !embedding?.modelId) return 'skipped'
+      resolvedEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
+    }
+    if (targetDimensions === null) {
+      const fingerprint = embeddingFingerprint(
+        resolvedEmbedding.providerId,
+        resolvedEmbedding.modelId
+      )
+      targetDimensions =
+        this.getWarmVectorStoreDimension(agentId, resolvedEmbedding) ??
+        this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
+      if (targetDimensions === null) return 'skipped'
+    }
+    try {
+      await this.withStoreLease(agentId, resolvedEmbedding, targetDimensions, async (store) => {
+        if (this.ctx.isDisposed) return
+        if (!store.isUsable()) {
+          this.clearReady(agentId)
+          result = 'unusable'
           return
         }
-        targetEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-      }
-      if (targetDimensions === null) {
-        const fingerprint = embeddingFingerprint(
-          targetEmbedding.providerId,
-          targetEmbedding.modelId
-        )
-        targetDimensions =
-          this.getWarmVectorStoreDimension(agentId, targetEmbedding) ??
-          this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
-        if (targetDimensions === null) {
-          logger.debug(`[Memory] vector delete deferred for ${agentId}: dimension is unknown`)
-          return
-        }
-      }
-
-      const targetIdentity = this.cacheKey(agentId, targetEmbedding, targetDimensions)
-      let store =
-        this.vectorStoreIdentities.get(agentId) === targetIdentity
-          ? await this.vectorStoreForAgent(agentId)
-          : null
-      if (!store) {
         try {
-          store = await locked.open(targetEmbedding, targetDimensions)
+          await store.deleteByMemoryIds(memoryIds)
+          result = 'deleted'
         } catch (error) {
-          logger.warn(`[Memory] vector delete open failed for ${agentId}: ${String(error)}`)
-          return
+          logger.warn(`[Memory] vector delete failed: ${String(error)}`)
         }
-      }
-      if (!store.isUsable()) {
-        this.clearReady(agentId)
-        result = 'unusable'
-        return
-      }
-      try {
-        await store.deleteByMemoryIds(memoryIds)
-        result = 'deleted'
-      } catch (error) {
-        logger.warn(`[Memory] vector delete failed: ${String(error)}`)
-      }
-    })
+      })
+    } catch (error) {
+      logger.warn(`[Memory] vector delete open failed for ${agentId}: ${String(error)}`)
+    }
     return result
   }
 
@@ -249,9 +345,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     memoryIds: string[]
   ): Promise<string[]> {
     if (!memoryIds.length) return []
-    return this.withAgentLock(agentId, async (locked) => {
+    return this.withStoreLease(agentId, embedding, dimensions, async (store) => {
       if (this.ctx.isDisposed) return []
-      const store = await locked.open(embedding, dimensions)
       if (!store.isUsable()) {
         this.clearReady(agentId)
         return []
@@ -281,9 +376,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     memoryId: string,
     topK: number
   ): Promise<MemoryVectorMatch[]> {
-    return this.withAgentLock(agentId, async (locked) => {
+    return this.withStoreLease(agentId, embedding, dimensions, async (store) => {
       if (this.ctx.isDisposed) return []
-      const store = await locked.open(embedding, dimensions)
       if (!store.isUsable()) {
         this.clearReady(agentId)
         return []
@@ -297,12 +391,11 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   async closeAllStores(): Promise<void> {
+    this.stopAdmission()
     const agentIds = new Set([...this.vectorStoreLocks.keys(), ...this.vectorStores.keys()])
-    for (const agentId of agentIds) {
-      await this.withAgentLock(agentId, async (locked) => {
-        await locked.close()
-      }).catch(() => undefined)
-    }
+    await Promise.allSettled(
+      [...agentIds].map((agentId) => this.drainAndClose(agentId, false, true))
+    )
     await Promise.allSettled(this.vectorStoreLocks.values())
     for (const pending of this.vectorStores.values()) {
       const store = await pending.catch(() => null)
@@ -312,6 +405,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.vectorStoreIdentities.clear()
     this.vectorStoreReady.clear()
     this.vectorStoreLocks.clear()
+    this.leaseStates.clear()
   }
 
   async settleAgent(agentId: string): Promise<void> {
@@ -321,6 +415,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       this.vectorStoreLocks.delete(agentId)
     }
     this.vectorStoreReady.delete(agentId)
+    this.leaseStates.delete(agentId)
   }
 
   clearAgentReady(agentId: string): void {

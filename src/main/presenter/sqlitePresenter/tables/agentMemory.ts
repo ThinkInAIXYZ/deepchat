@@ -7,6 +7,7 @@ import {
   type AgentMemoryCategory,
   type AgentMemoryHealthCategory
 } from '@shared/types/agent-memory'
+import { serializeAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 
 // 'working' is an internal session-open injection cache (a single blob row per agent); it is never
 // recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a
@@ -48,6 +49,7 @@ export interface AgentMemoryRow {
   conflict_state: string | null
   conflict_with: string | null
   persona_state: string | null
+  decision_revision: number
 }
 
 export interface AgentMemoryWorkingCandidateCursor {
@@ -71,6 +73,7 @@ export type AgentMemoryLifecycleRow = Pick<
   | 'access_count'
   | 'decay_score'
   | 'confidence'
+  | 'conflict_state'
 >
 
 export interface AgentMemoryInsertInput {
@@ -114,8 +117,9 @@ export interface AgentMemoryHealthStats {
 
 // Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
 // embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns; v34 adds the
-// persona lifecycle column; v35 adds conflict linkage; v37 adds agentic category.
-const AGENT_MEMORY_SCHEMA_VERSION = 37
+// persona lifecycle column; v35 adds conflict linkage; v37 adds agentic category; v41 adds
+// optimistic concurrency control for semantic decision writes.
+const AGENT_MEMORY_SCHEMA_VERSION = 41
 
 const AGENT_MEMORY_FTS_META_KEY = 'agent_memory_fts'
 const AGENT_MEMORY_FTS_META_VERSION = 1
@@ -135,6 +139,11 @@ const AGENT_MEMORY_INDEX_SQL = `
     WHERE provenance_key IS NOT NULL;
 `
 
+const AGENT_MEMORY_CONFLICT_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_target
+    ON agent_memory(agent_id, conflict_with, status, superseded_by);
+`
+
 function tokenizeSearchQuery(query: string): string[] {
   return query
     .trim()
@@ -145,12 +154,6 @@ function tokenizeSearchQuery(query: string): string[] {
 
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`)
-}
-
-function serializeSourceEntryIds(ids: number[] | null | undefined): string | null {
-  if (!ids?.length) return null
-  const valid = ids.filter((id) => Number.isInteger(id) && id >= 0)
-  return valid.length ? JSON.stringify(valid) : null
 }
 
 function readAggregateNumber(value: unknown): number {
@@ -238,9 +241,11 @@ export class AgentMemoryTable extends BaseTable {
         last_consolidated_at INTEGER,
         conflict_state TEXT,
         conflict_with TEXT,
-        persona_state TEXT
+        persona_state TEXT,
+        decision_revision INTEGER NOT NULL DEFAULT 1
       );
       ${AGENT_MEMORY_INDEX_SQL}
+      ${AGENT_MEMORY_CONFLICT_INDEX_SQL}
     `
   }
 
@@ -249,8 +254,23 @@ export class AgentMemoryTable extends BaseTable {
       this.db.exec(this.getCreateTableSQL())
     } else {
       this.db.exec(AGENT_MEMORY_INDEX_SQL)
+      const columns = this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
+        name: string
+      }>
+      if (columns.some((column) => column.name === 'conflict_with')) {
+        this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
+      }
     }
     this.ensureFtsIndex()
+  }
+
+  assertCurrentSchema(): void {
+    const columns = this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
+      name: string
+    }>
+    if (!columns.some((column) => column.name === 'decision_revision')) {
+      throw new Error('[Memory] agent_memory schema migration is incomplete: decision_revision')
+    }
   }
 
   getMigrationSQL(version: number): string | null {
@@ -275,10 +295,16 @@ export class AgentMemoryTable extends BaseTable {
       return 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;'
     }
     if (version === 35) {
-      return 'ALTER TABLE agent_memory ADD COLUMN conflict_with TEXT;'
+      return [
+        'ALTER TABLE agent_memory ADD COLUMN conflict_with TEXT;',
+        AGENT_MEMORY_CONFLICT_INDEX_SQL
+      ].join('\n')
     }
     if (version === 37) {
       return 'ALTER TABLE agent_memory ADD COLUMN category TEXT;'
+    }
+    if (version === 41) {
+      return 'ALTER TABLE agent_memory ADD COLUMN decision_revision INTEGER NOT NULL DEFAULT 1;'
     }
     return null
   }
@@ -366,6 +392,9 @@ export class AgentMemoryTable extends BaseTable {
     const capability = this.detectFtsCapability()
     if (!capability.available) {
       this.ftsReady = false
+      if (process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1') {
+        throw new Error('[Memory] native SQLite FTS5 support is required')
+      }
       return
     }
     try {
@@ -421,9 +450,10 @@ export class AgentMemoryTable extends BaseTable {
         this.writeFtsMeta(capability.tokenizer)
       })()
       this.ftsReady = true
-    } catch {
+    } catch (error) {
       this.dropFtsIndex()
       this.ftsReady = false
+      if (process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1') throw error
     }
   }
 
@@ -448,12 +478,13 @@ export class AgentMemoryTable extends BaseTable {
       last_accessed: null,
       access_count: 0,
       decay_score: null,
-      source_entry_ids: serializeSourceEntryIds(input.sourceEntryIds),
+      source_entry_ids: serializeAgentMemorySourceEntryIds(input.sourceEntryIds),
       confidence: null,
       last_consolidated_at: null,
       conflict_state: null,
       conflict_with: input.conflictWith ?? null,
-      persona_state: input.personaState ?? null
+      persona_state: input.personaState ?? null,
+      decision_revision: 1
     }
 
     this.db
@@ -483,9 +514,10 @@ export class AgentMemoryTable extends BaseTable {
            last_consolidated_at,
            conflict_state,
            conflict_with,
-           persona_state
+           persona_state,
+           decision_revision
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -512,7 +544,8 @@ export class AgentMemoryTable extends BaseTable {
         row.last_consolidated_at,
         row.conflict_state,
         row.conflict_with,
-        row.persona_state
+        row.persona_state,
+        row.decision_revision
       )
 
     return row
@@ -528,6 +561,16 @@ export class AgentMemoryTable extends BaseTable {
     return this.db
       .prepare('SELECT * FROM agent_memory WHERE agent_id = ? AND provenance_key = ? LIMIT 1')
       .get(agentId, provenanceKey) as AgentMemoryRow | undefined
+  }
+
+  rekeyProvenance(agentId: string, id: string, expectedKey: string, nextKey: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory SET provenance_key = ?
+         WHERE id = ? AND agent_id = ? AND provenance_key = ?`
+      )
+      .run(nextKey, id, agentId, expectedKey)
+    return result.changes === 1
   }
 
   listByIds(agentId: string, ids: string[]): AgentMemoryRow[] {
@@ -608,16 +651,26 @@ export class AgentMemoryTable extends BaseTable {
   // (including an explicit null to clear it on re-activation); omitting it leaves the link untouched.
   setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void {
     if (supersededBy === undefined) {
-      this.db.prepare('UPDATE agent_memory SET persona_state = ? WHERE id = ?').run(state, id)
+      this.db
+        .prepare(
+          'UPDATE agent_memory SET persona_state = ?, decision_revision = decision_revision + 1 WHERE id = ?'
+        )
+        .run(state, id)
       return
     }
     this.db
-      .prepare('UPDATE agent_memory SET persona_state = ?, superseded_by = ? WHERE id = ?')
+      .prepare(
+        'UPDATE agent_memory SET persona_state = ?, superseded_by = ?, decision_revision = decision_revision + 1 WHERE id = ?'
+      )
       .run(state, supersededBy, id)
   }
 
   setAnchor(id: string, anchored: boolean): void {
-    this.db.prepare('UPDATE agent_memory SET is_anchor = ? WHERE id = ?').run(anchored ? 1 : 0, id)
+    this.db
+      .prepare(
+        'UPDATE agent_memory SET is_anchor = ?, decision_revision = decision_revision + 1 WHERE id = ?'
+      )
+      .run(anchored ? 1 : 0, id)
   }
 
   listPersonaVersions(agentId: string): AgentMemoryRow[] {
@@ -809,6 +862,17 @@ export class AgentMemoryTable extends BaseTable {
       )
   }
 
+  activateForEmbedding(id: string): void {
+    this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET status = ?, embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+             decision_revision = decision_revision + 1
+         WHERE id = ?`
+      )
+      .run('pending_embedding', id)
+  }
+
   updatePendingEmbeddingStatus(
     agentId: string,
     id: string,
@@ -932,7 +996,29 @@ export class AgentMemoryTable extends BaseTable {
   }
 
   markSuperseded(id: string, supersededBy: string | null): void {
-    this.db.prepare('UPDATE agent_memory SET superseded_by = ? WHERE id = ?').run(supersededBy, id)
+    this.db
+      .prepare(
+        'UPDATE agent_memory SET superseded_by = ?, decision_revision = decision_revision + 1 WHERE id = ?'
+      )
+      .run(supersededBy, id)
+  }
+
+  markSupersededIfRevision(
+    agentId: string,
+    id: string,
+    expectedRevision: number,
+    supersededBy: string
+  ): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET superseded_by = ?, decision_revision = decision_revision + 1
+         WHERE id = ? AND agent_id = ? AND decision_revision = ?
+           AND superseded_by IS NULL AND conflict_state IS NULL
+           AND status NOT IN ('archived', 'conflicted')`
+      )
+      .run(supersededBy, id, agentId, expectedRevision)
+    return result.changes === 1
   }
 
   recordAccess(id: string, accessedAt: number = Date.now()): void {
@@ -1032,7 +1118,8 @@ export class AgentMemoryTable extends BaseTable {
       this.db
         .prepare(
           `UPDATE agent_memory
-           SET content = ?, provenance_key = ?, last_accessed = ?, category = ?
+           SET content = ?, provenance_key = ?, last_accessed = ?, category = ?,
+               decision_revision = decision_revision + 1
            WHERE id = ?`
         )
         .run(content, provenanceKey, at, category, id)
@@ -1041,10 +1128,40 @@ export class AgentMemoryTable extends BaseTable {
     this.db
       .prepare(
         `UPDATE agent_memory
-         SET content = ?, provenance_key = ?, last_accessed = ?
+         SET content = ?, provenance_key = ?, last_accessed = ?,
+             decision_revision = decision_revision + 1
          WHERE id = ?`
       )
       .run(content, provenanceKey, at, id)
+  }
+
+  updateDecisionContentIfRevision(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    content: string
+    provenanceKey: string | null
+    at: number
+    category?: string | null
+  }): boolean {
+    const { agentId, id, expectedRevision, content, provenanceKey, at, category } = input
+    const categorySql = category === undefined ? '' : ', category = ?'
+    const params: unknown[] = [content, provenanceKey, at]
+    if (category !== undefined) params.push(category)
+    params.push(id, agentId, expectedRevision)
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET content = ?, provenance_key = ?, last_accessed = ?${categorySql},
+             status = 'pending_embedding',
+             embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+             decision_revision = decision_revision + 1
+         WHERE id = ? AND agent_id = ? AND decision_revision = ?
+           AND superseded_by IS NULL AND conflict_state IS NULL
+           AND status NOT IN ('archived', 'conflicted')`
+      )
+      .run(...params)
+    return result.changes === 1
   }
 
   updateUserMetadata(
@@ -1066,6 +1183,7 @@ export class AgentMemoryTable extends BaseTable {
     }
     if (!sets.length) return
     params.push(id)
+    sets.push('decision_revision = decision_revision + 1')
     this.db.prepare(`UPDATE agent_memory SET ${sets.join(', ')} WHERE id = ?`).run(...params)
   }
 
@@ -1084,16 +1202,46 @@ export class AgentMemoryTable extends BaseTable {
   // survivor below the more important of the pair (keeps the importance floor honest).
   setImportance(id: string, importance: number): void {
     this.db
-      .prepare('UPDATE agent_memory SET importance = max(importance, ?) WHERE id = ?')
-      .run(importance, id)
+      .prepare(
+        `UPDATE agent_memory
+         SET importance = ?, decision_revision = decision_revision + 1
+         WHERE id = ? AND importance < ?`
+      )
+      .run(importance, id, importance)
   }
 
   markConflict(id: string, state: AgentMemoryConflictState | null): void {
-    this.db.prepare('UPDATE agent_memory SET conflict_state = ? WHERE id = ?').run(state, id)
+    this.db
+      .prepare(
+        'UPDATE agent_memory SET conflict_state = ?, decision_revision = decision_revision + 1 WHERE id = ?'
+      )
+      .run(state, id)
+  }
+
+  markConflictIfRevision(
+    agentId: string,
+    id: string,
+    expectedRevision: number,
+    state: AgentMemoryConflictState
+  ): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET conflict_state = ?, decision_revision = decision_revision + 1
+         WHERE id = ? AND agent_id = ? AND decision_revision = ?
+           AND superseded_by IS NULL AND conflict_state IS NULL
+           AND status NOT IN ('archived', 'conflicted')`
+      )
+      .run(state, id, agentId, expectedRevision)
+    return result.changes === 1
   }
 
   setConflictWith(id: string, targetId: string | null): void {
-    this.db.prepare('UPDATE agent_memory SET conflict_with = ? WHERE id = ?').run(targetId, id)
+    this.db
+      .prepare(
+        'UPDATE agent_memory SET conflict_with = ?, decision_revision = decision_revision + 1 WHERE id = ?'
+      )
+      .run(targetId, id)
   }
 
   setLastConsolidatedAt(id: string, at: number = Date.now()): void {
@@ -1236,7 +1384,11 @@ export class AgentMemoryTable extends BaseTable {
 
   // Soft delete: archived rows stay on disk (and in the vector store) but drop out of recall.
   archive(id: string, _at: number = Date.now()): void {
-    this.db.prepare("UPDATE agent_memory SET status = 'archived' WHERE id = ?").run(id)
+    this.db
+      .prepare(
+        "UPDATE agent_memory SET status = 'archived', decision_revision = decision_revision + 1 WHERE id = ?"
+      )
+      .run(id)
   }
 
   // SQL-expressible subset of the archive conditions: active, never accessed, aged out, decayed,
@@ -1247,6 +1399,7 @@ export class AgentMemoryTable extends BaseTable {
         `SELECT * FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
+           AND conflict_state IS NULL
            AND status != 'archived'
            AND status != 'conflicted'
            AND is_anchor = 0
@@ -1279,10 +1432,12 @@ export class AgentMemoryTable extends BaseTable {
                 last_accessed,
                 access_count,
                 decay_score,
-                confidence
+                confidence,
+                conflict_state
          FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
+           AND conflict_state IS NULL
            AND status NOT IN ('archived', 'conflicted')
            AND is_anchor = 0
            AND kind NOT IN ('persona', 'working')
@@ -1301,6 +1456,7 @@ export class AgentMemoryTable extends BaseTable {
          FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
+           AND conflict_state IS NULL
            AND status != 'archived'
            AND status != 'conflicted'
            AND is_anchor = 0
@@ -1402,6 +1558,42 @@ export class AgentMemoryTable extends BaseTable {
       )
       .get(agentId) as { count: number } | undefined
     return row?.count ?? 0
+  }
+
+  isUnresolvedConflictParticipant(agentId: string, memoryId: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS found
+         FROM agent_memory candidate
+         WHERE candidate.agent_id = ?
+           AND candidate.id = ?
+           AND (
+             (candidate.status = 'conflicted' AND candidate.conflict_with IS NOT NULL)
+             OR EXISTS (
+               SELECT 1
+               FROM agent_memory challenger
+               WHERE challenger.agent_id = candidate.agent_id
+                 AND challenger.status = 'conflicted'
+                 AND challenger.superseded_by IS NULL
+                 AND challenger.conflict_with = candidate.id
+             )
+           )
+         LIMIT 1`
+      )
+      .get(agentId, memoryId) as { found: number } | undefined
+    return row?.found === 1
+  }
+
+  listConflictIntegrityRows(agentId: string): AgentMemoryRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND (status = 'conflicted' OR conflict_with IS NOT NULL OR conflict_state IS NOT NULL)
+         ORDER BY created_at ASC, id ASC`
+      )
+      .all(agentId) as AgentMemoryRow[]
   }
 
   getPersonaCounts(agentId: string): { total: number; draft: number } {

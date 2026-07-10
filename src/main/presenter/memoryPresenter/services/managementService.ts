@@ -10,6 +10,7 @@ import {
   type MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import { isAgentMemoryCategory, type AgentMemoryCategory } from '@shared/types/agent-memory'
+import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from '../core/lifecycle'
 import { deriveLifecycle, type DeriveLifecycleOptions } from '../core/lifecycle'
 import { resolveRetrieval } from '../core/scoring'
@@ -51,18 +52,6 @@ function hasOwn<T extends object, K extends PropertyKey>(
 
 function clampImportance(value: number): number {
   return Math.min(1, Math.max(0, value))
-}
-
-function parseSourceEntryIds(raw: string | null): number[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return null
-    const ids = parsed.filter((value): value is number => Number.isInteger(value) && value >= 0)
-    return ids.length === parsed.length ? ids : null
-  } catch {
-    return null
-  }
 }
 
 function isEditableUserKind(row: AgentMemoryRow): row is AgentMemoryRow & {
@@ -124,10 +113,10 @@ export class ManagementService {
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId || row.status !== 'archived') return false
+    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
     this.ctx.deps.repository.runInTransaction(() => {
-      this.ctx.deps.repository.updateStatus(memoryId, 'pending_embedding')
-      this.ports.syncWorkingMemoryAfterMutation(agentId)
+      this.ctx.deps.repository.activateForEmbedding(memoryId)
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/restore',
         actorType: 'user',
@@ -136,6 +125,8 @@ export class ManagementService {
         outputRefs: { action: 'restored', memoryId }
       })
     })
+    this.ctx.markDomainMutationCommitted(agentId)
+    this.ports.syncWorkingMemoryAfterMutation(agentId)
     void this.ports.triggerEmbedding(agentId).catch((error) => {
       logger.warn(`[Memory] background embedding failed: ${String(error)}`)
     })
@@ -149,12 +140,12 @@ export class ManagementService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
+    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
     const alreadyArchived = row.status === 'archived'
     this.ctx.deps.repository.runInTransaction(() => {
       if (!alreadyArchived) {
         this.ctx.deps.repository.archive(row.id, Date.now())
-        this.ports.syncWorkingMemoryAfterMutation(agentId)
       }
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/forget',
@@ -166,6 +157,8 @@ export class ManagementService {
       })
     })
     if (!alreadyArchived) {
+      this.ctx.markDomainMutationCommitted(agentId)
+      this.ports.syncWorkingMemoryAfterMutation(agentId)
       this.ctx.emitChanged(agentId, 'extract')
     }
     return true
@@ -177,12 +170,12 @@ export class ManagementService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
+    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
     const alreadyArchived = row.status === 'archived'
     this.ctx.deps.repository.runInTransaction(() => {
       if (!alreadyArchived) {
         this.ctx.deps.repository.archive(row.id, Date.now())
-        this.ports.syncWorkingMemoryAfterMutation(agentId)
       }
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/archive',
@@ -194,6 +187,8 @@ export class ManagementService {
       })
     })
     if (!alreadyArchived) {
+      this.ctx.markDomainMutationCommitted(agentId)
+      this.ports.syncWorkingMemoryAfterMutation(agentId)
       this.ctx.emitChanged(agentId, 'extract')
     }
     return true
@@ -365,6 +360,12 @@ export class ManagementService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.canWriteAgentMemory(agentId)) return { action: 'noop' }
     const row = this.ctx.deps.repository.getById(memoryId)
+    if (
+      row?.agent_id === agentId &&
+      this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)
+    ) {
+      return { action: 'noop', reason: 'conflict' }
+    }
     if (!isEditableUserMemory(agentId, row)) {
       return { action: 'noop', reason: isConflictParticipant(row) ? 'conflict' : 'not-editable' }
     }
@@ -411,6 +412,7 @@ export class ManagementService {
         outputRefs: { action: 'updated', memoryId: row.id }
       })
     })
+    this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     this.ctx.emitChanged(agentId, 'manual-edit', { memoryId: row.id })
     return { action: 'updated', memoryId: row.id }
@@ -455,7 +457,7 @@ export class ManagementService {
           agentId,
           sourceSession: row.source_session,
           userScope: row.user_scope,
-          sourceEntryIds: parseSourceEntryIds(row.source_entry_ids)
+          sourceEntryIds: parseAgentMemorySourceEntryIds(row.source_entry_ids)
         },
         providedFields
       )
@@ -483,6 +485,7 @@ export class ManagementService {
 
     if (result.action === 'noop') return result
 
+    this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     this.ctx.emitChanged(agentId, 'manual-edit', { memoryId: result.memoryId })
     if (result.action !== 'folded') {
@@ -499,7 +502,9 @@ export class ManagementService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
+    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     this.ctx.deps.repository.delete(memoryId)
+    this.ctx.markDomainMutationCommitted(agentId)
     if (row.kind !== 'working') {
       this.ports.syncWorkingMemoryAfterMutation(agentId)
     }
@@ -521,8 +526,10 @@ export class ManagementService {
     if (this.ctx.isDisposed) return 0
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return 0
+    this.ctx.invalidateAgentOperations(agentId)
     const removed = this.ctx.deps.repository.clearByAgent(agentId)
     if (removed > 0) {
+      this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
     }
     await this.ports.resetAgentStore(agentId).catch((error) => {

@@ -44,6 +44,7 @@ export class ReflectionService {
       failures
     })
     if (!this.ctx.canWriteAgentMemory(agentId)) return finish(null)
+    const operationFence = this.ctx.captureOperationFence(agentId)
     try {
       const units = this.ctx.deps.repository.listByAgent(agentId, {
         kinds: ['episodic', 'semantic']
@@ -72,16 +73,18 @@ export class ReflectionService {
       let raw = ''
       try {
         calls += 1
-        raw = await this.ctx.deps.generateText(
+        raw = await this.ctx.provider.generateText(
+          agentId,
           reflectionModel.providerId,
           reflectionModel.modelId,
-          buildReflectionInsightsPrompt(top.map((row) => row.content))
+          buildReflectionInsightsPrompt(top.map((row) => row.content)),
+          'maintenance'
         )
       } catch (error) {
         failures += 1
         throw error
       }
-      if (!this.ctx.canWriteAgentMemory(agentId)) return finish(null)
+      if (!this.ctx.canContinueOperation(operationFence)) return finish(null)
       const insights = parseReflectionInsights(raw)
       const reflectionIds: string[] = []
       for (const insight of insights) {
@@ -94,6 +97,7 @@ export class ReflectionService {
       }
       this.reflectionAttemptWatermark.delete(agentId)
 
+      this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
       this.ctx.emitChanged(agentId, 'extract')
       void this.ports.triggerEmbedding(agentId).catch((error) => {
@@ -115,7 +119,7 @@ export class ReflectionService {
     const trimmed = content.trim()
     if (!trimmed) return null
     const provenanceKey = buildMemoryProvenanceKey(agentId, 'reflection', trimmed)
-    if (this.ctx.deps.repository.getByProvenanceKey(agentId, provenanceKey)) return null
+    if (this.ctx.resolveProvenance(agentId, 'reflection', trimmed)) return null
     const id = `mem-${nanoid(12)}`
     try {
       this.ctx.deps.repository.insert({

@@ -53,6 +53,7 @@ export class PersonaService {
       sourceSession: sourceSession ?? null,
       personaState: 'draft'
     })
+    this.ctx.markDomainMutationCommitted(agentId)
     this.ctx.emitChanged(agentId, 'persona-draft')
     return id
   }
@@ -111,23 +112,26 @@ export class PersonaService {
           .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
           .slice(0, PERSONA_MEMORY_LIMIT)
         const personaModel = this.ctx.resolveExtractionModel(agentId, model)
+        const operationFence = this.ctx.captureOperationFence(agentId)
         let raw = ''
         try {
           calls += 1
-          raw = await this.ctx.deps.generateText(
+          raw = await this.ctx.provider.generateText(
+            agentId,
             personaModel.providerId,
             personaModel.modelId,
             buildReflectionPrompt(
               previous?.content ?? null,
               top.map((row) => row.content)
-            )
+            ),
+            'maintenance'
           )
         } catch (error) {
           failures += 1
           throw error
         }
         if (
-          !this.ctx.canWriteAgentMemory(agentId) ||
+          !this.ctx.canContinueOperation(operationFence) ||
           !this.ctx.isPersonaEvolutionEnabled(agentId)
         ) {
           return finish(null)
@@ -170,6 +174,7 @@ export class PersonaService {
         this.ctx.deps.repository.setPersonaState(current.id, 'superseded', draft.id)
       }
       this.ctx.deps.repository.setPersonaState(draft.id, 'active', null)
+      this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-approve')
       return true
     })
@@ -191,6 +196,7 @@ export class PersonaService {
         return false
       }
       this.ctx.deps.repository.setPersonaState(draft.id, 'rejected')
+      this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-reject')
       return true
     })
@@ -204,7 +210,9 @@ export class PersonaService {
       if (this.ctx.isDisposed) return false
       const row = this.ctx.deps.repository.getById(versionId)
       if (!row || row.agent_id !== agentId || row.kind !== 'persona') return false
+      if ((row.is_anchor === 1) === anchored) return true
       this.ctx.deps.repository.setAnchor(row.id, anchored)
+      this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-anchor')
       return true
     })
@@ -250,6 +258,7 @@ export class PersonaService {
         this.ctx.deps.repository.setPersonaState(current.id, 'superseded', versionId)
       }
       this.ctx.deps.repository.setPersonaState(versionId, 'active', null)
+      this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-rollback')
       return true
     })

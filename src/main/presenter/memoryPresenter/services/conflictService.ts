@@ -20,6 +20,13 @@ interface ConflictResolutionOptions {
   mergedContent?: string | null
 }
 
+export interface ConflictIntegrityRepairResult {
+  repairedTargets: number
+  archivedChallengers: number
+  clearedTargets: number
+  clearedLinks: number
+}
+
 export class ConflictService {
   constructor(
     private readonly ctx: MemoryRuntimeContext,
@@ -55,6 +62,80 @@ export class ConflictService {
     return pairs
   }
 
+  repairConflictIntegrity(agentId: string): ConflictIntegrityRepairResult {
+    const result: ConflictIntegrityRepairResult = {
+      repairedTargets: 0,
+      archivedChallengers: 0,
+      clearedTargets: 0,
+      clearedLinks: 0
+    }
+    const rows = this.ctx.deps.repository.listConflictIntegrityRows(agentId)
+    if (rows.length === 0) return result
+
+    this.ctx.deps.repository.runInTransaction(() => {
+      for (const row of rows) {
+        if (row.status === 'conflicted' || row.conflict_with === null) continue
+        this.ctx.deps.repository.setConflictWith(row.id, null)
+        result.clearedLinks += 1
+      }
+
+      const validTargetIds = new Set<string>()
+      for (const challenger of rows) {
+        if (challenger.status !== 'conflicted') continue
+        const target = challenger.conflict_with
+          ? this.ctx.deps.repository.getById(challenger.conflict_with)
+          : undefined
+        const validTarget =
+          !!target &&
+          target.id !== challenger.id &&
+          target.agent_id === agentId &&
+          target.status !== 'archived' &&
+          target.status !== 'conflicted' &&
+          target.superseded_by === null
+
+        if (!validTarget || challenger.superseded_by !== null) {
+          this.ctx.deps.repository.setConflictWith(challenger.id, null)
+          this.ctx.deps.repository.archive(challenger.id)
+          result.archivedChallengers += 1
+          continue
+        }
+
+        validTargetIds.add(target.id)
+        if (target.conflict_state !== 'challenged') {
+          this.ctx.deps.repository.markConflict(target.id, 'challenged')
+          result.repairedTargets += 1
+        }
+      }
+
+      for (const target of rows) {
+        if (target.conflict_state !== 'challenged' || validTargetIds.has(target.id)) continue
+        this.ctx.deps.repository.markConflict(target.id, null)
+        result.clearedTargets += 1
+      }
+    })
+
+    const total =
+      result.repairedTargets +
+      result.archivedChallengers +
+      result.clearedTargets +
+      result.clearedLinks
+    if (total > 0) {
+      this.ctx.markDomainMutationCommitted(agentId)
+      this.ctx.writeAudit(agentId, {
+        eventType: 'memory/conflict_repair',
+        actorType: 'scheduler',
+        status: 'completed',
+        outputRefs: {
+          repairedTargets: result.repairedTargets,
+          archivedChallengers: result.archivedChallengers,
+          clearedTargets: result.clearedTargets,
+          clearedLinks: result.clearedLinks
+        }
+      })
+    }
+    return result
+  }
+
   async resolveConflict(
     agentId: string,
     challengerId: string,
@@ -75,6 +156,7 @@ export class ConflictService {
     this.ctx.deps.repository.runInTransaction(() => {
       this.applyConflictResolution(agentId, pair, outcome, options)
     })
+    this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     this.ctx.writeAudit(agentId, {
       eventType: 'memory/challenge_resolved',
@@ -106,7 +188,7 @@ export class ConflictService {
       case 'keep_challenger':
         this.applyMergedChallengerContent(agentId, pair.challenger, options.mergedContent, now)
         this.ctx.deps.repository.setConflictWith(pair.challenger.id, null)
-        this.ctx.deps.repository.updateStatus(pair.challenger.id, 'pending_embedding')
+        this.ctx.deps.repository.activateForEmbedding(pair.challenger.id)
         for (const sibling of siblings) {
           this.ctx.deps.repository.setConflictWith(sibling.id, null)
           this.ctx.deps.repository.markSuperseded(sibling.id, pair.challenger.id)
@@ -124,7 +206,7 @@ export class ConflictService {
         return
       case 'keep_both':
         this.ctx.deps.repository.setConflictWith(pair.challenger.id, null)
-        this.ctx.deps.repository.updateStatus(pair.challenger.id, 'pending_embedding')
+        this.ctx.deps.repository.activateForEmbedding(pair.challenger.id)
         if (siblings.length === 0) this.ctx.deps.repository.markConflict(pair.target.id, null)
         return
     }
@@ -164,7 +246,9 @@ export class ConflictService {
     let touched = false
     let calls = 0
     let failures = 0
+    const operationFence = this.ctx.captureOperationFence(agentId)
     for (const pair of this.listConflicts(agentId)) {
+      if (!this.ctx.canContinueOperation(operationFence)) break
       const promptCandidate = normalizeMemoryCandidate({
         kind: pair.challenger.kind === 'episodic' ? 'episodic' : 'semantic',
         category: pair.challenger.category,
@@ -176,14 +260,20 @@ export class ConflictService {
       let decision: MemoryDecision = ADD_DECISION
       try {
         calls += 1
-        const raw = await this.ctx.deps.generateText(model.providerId, model.modelId, prompt)
+        const raw = await this.ctx.provider.generateText(
+          agentId,
+          model.providerId,
+          model.modelId,
+          prompt,
+          'maintenance'
+        )
         decision = parseDecision(raw, 1)
       } catch (error) {
         failures += 1
         logger.warn(`[Memory] challenge decision failed: ${String(error)}`)
         continue
       }
-      if (!this.ctx.canWriteAgentMemory(agentId)) break
+      if (!this.ctx.canContinueOperation(operationFence)) break
       const outcome: MemoryConflictResolution =
         decision.decision === 'NOOP'
           ? 'keep_target'

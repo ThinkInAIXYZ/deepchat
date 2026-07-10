@@ -43,6 +43,7 @@ export interface MemoryRepositoryPort {
   insert(input: AgentMemoryInsertInput): AgentMemoryRow
   getById(id: string): AgentMemoryRow | undefined
   getByProvenanceKey(agentId: string, provenanceKey: string): AgentMemoryRow | undefined
+  rekeyProvenance(agentId: string, id: string, expectedKey: string, nextKey: string): boolean
   listByAgent(agentId: string, options?: AgentMemoryListOptions): AgentMemoryRow[]
   listByIds(agentId: string, ids: string[]): AgentMemoryRow[]
   getActivePersona(agentId: string): AgentMemoryRow | undefined
@@ -67,6 +68,7 @@ export interface MemoryRepositoryPort {
       embeddingModel?: string | null
     }
   ): void
+  activateForEmbedding(id: string): void
   updatePendingEmbeddingStatus(
     agentId: string,
     id: string,
@@ -93,6 +95,12 @@ export interface MemoryRepositoryPort {
     afterId?: string | null
   ): string[]
   markSuperseded(id: string, supersededBy: string | null): void
+  markSupersededIfRevision(
+    agentId: string,
+    id: string,
+    expectedRevision: number,
+    supersededBy: string
+  ): boolean
   recordAccess(id: string, accessedAt?: number): void
   recordAccessBatch(ids: string[], accessedAt?: number): void
   updateDecayScore(id: string, decayScore: number | null, consolidatedAt?: number | null): void
@@ -105,6 +113,15 @@ export interface MemoryRepositoryPort {
     at?: number,
     category?: string | null
   ): void
+  updateDecisionContentIfRevision(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    content: string
+    provenanceKey: string | null
+    at: number
+    category?: string | null
+  }): boolean
   updateUserMetadata(
     id: string,
     patch: {
@@ -115,6 +132,12 @@ export interface MemoryRepositoryPort {
   setConfidence(id: string, confidence: number): void
   setImportance(id: string, importance: number): void
   markConflict(id: string, state: AgentMemoryConflictState | null): void
+  markConflictIfRevision(
+    agentId: string,
+    id: string,
+    expectedRevision: number,
+    state: AgentMemoryConflictState
+  ): boolean
   setConflictWith(id: string, targetId: string | null): void
   setLastConsolidatedAt(id: string, at?: number): void
   getLastConsolidatedAt(agentId: string): number | null
@@ -143,6 +166,8 @@ export interface MemoryRepositoryPort {
   // Counts valid conflict pairs (challenger + its target); must mirror the pair-validity predicate
   // in ConflictService.listConflicts exactly, or the two will silently drift.
   countConflictPairs(agentId: string): number
+  isUnresolvedConflictParticipant(agentId: string, memoryId: string): boolean
+  listConflictIntegrityRows(agentId: string): AgentMemoryRow[]
   getPersonaCounts(agentId: string): { total: number; draft: number }
   hasActiveMemory(agentId: string): boolean
   runInTransaction<T>(fn: () => T): T
@@ -295,6 +320,7 @@ export interface MemoryConflictPair {
 
 export interface MemoryRecallItem {
   id: string
+  decisionRevision: number
   kind: AgentMemoryKind
   content: string
   score: number
@@ -374,12 +400,27 @@ export interface MemoryPresenterDeps {
   // True only for a real, existing DeepChat agent. Management surfaces use it to refuse
   // reads/writes against arbitrary or nonexistent agents; skipped when absent (e.g. tests).
   isManagedAgent?: (agentId: string) => boolean
-  getEmbeddings: (providerId: string, modelId: string, texts: string[]) => Promise<number[][]>
+  executeWithRateLimit: (
+    providerId: string,
+    options: { signal: AbortSignal; purpose: string }
+  ) => Promise<void>
+  getEmbeddings: (
+    providerId: string,
+    modelId: string,
+    texts: string[],
+    signal?: AbortSignal
+  ) => Promise<number[][]>
   getDimensions: (
     providerId: string,
-    modelId: string
+    modelId: string,
+    signal?: AbortSignal
   ) => Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
-  generateText: (providerId: string, modelId: string, prompt: string) => Promise<string>
+  generateText: (
+    providerId: string,
+    modelId: string,
+    prompt: string,
+    signal?: AbortSignal
+  ) => Promise<string>
   // Creates/opens the agent's vector store: embedding identity validates it, dimensions seed
   // the first initialization.
   createVectorStore: (

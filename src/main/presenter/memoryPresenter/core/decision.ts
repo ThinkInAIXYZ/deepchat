@@ -37,6 +37,11 @@ export const ADD_DECISION: MemoryDecision = {
   mergedContent: null
 }
 
+export interface MemoryDecisionParseResult {
+  decision: MemoryDecision
+  valid: boolean
+}
+
 export function buildDecisionPrompt(
   candidate: NormalizedMemoryCandidate,
   neighbors: DecisionNeighbor[]
@@ -70,27 +75,31 @@ export function buildDecisionPrompt(
 // ADD. A targeted decision whose targetIndex is missing or out of range also degrades to ADD so a
 // hallucinated index can never touch the wrong row.
 export function parseDecision(raw: string, neighborCount: number): MemoryDecision {
+  return parseDecisionResult(raw, neighborCount).decision
+}
+
+export function parseDecisionResult(raw: string, neighborCount: number): MemoryDecisionParseResult {
   const jsonText = extractJsonObject(raw)
-  if (!jsonText) return ADD_DECISION
+  if (!jsonText) return { decision: ADD_DECISION, valid: false }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(jsonText)
   } catch {
-    return ADD_DECISION
+    return { decision: ADD_DECISION, valid: false }
   }
-  if (!parsed || typeof parsed !== 'object') return ADD_DECISION
+  if (!parsed || typeof parsed !== 'object') return { decision: ADD_DECISION, valid: false }
 
   const obj = parsed as Record<string, unknown>
   const decision = typeof obj.decision === 'string' ? obj.decision.toUpperCase() : ''
-  if (!DECISION_KINDS.has(decision)) return ADD_DECISION
+  if (!DECISION_KINDS.has(decision)) return { decision: ADD_DECISION, valid: false }
   const kind = decision as MemoryDecisionKind
-  if (kind === 'ADD') return ADD_DECISION
+  if (kind === 'ADD') return { decision: ADD_DECISION, valid: true }
 
   const targetIndex = toIndex(obj.targetIndex)
   if (TARGETED_KINDS.has(kind)) {
     if (targetIndex === null || targetIndex < 0 || targetIndex >= neighborCount) {
-      return ADD_DECISION
+      return { decision: ADD_DECISION, valid: false }
     }
   }
 
@@ -99,7 +108,7 @@ export function parseDecision(raw: string, neighborCount: number): MemoryDecisio
       ? obj.mergedContent.trim()
       : null
 
-  return { decision: kind, targetIndex, mergedContent }
+  return { decision: { decision: kind, targetIndex, mergedContent }, valid: true }
 }
 
 function toIndex(value: unknown): number | null {

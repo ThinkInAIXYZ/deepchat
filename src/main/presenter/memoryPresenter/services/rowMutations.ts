@@ -130,7 +130,7 @@ export class MemoryRowMutations {
     const newKey = buildMemoryProvenanceKey(agentId, row.kind, content)
     const nextCategory = canCarryCategory(row.kind) ? (row.category ?? category ?? null) : undefined
     if (newKey !== row.provenance_key) {
-      const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, newKey)
+      const owner = this.ctx.resolveProvenance(agentId, row.kind, content)
       if (owner && owner.id !== row.id) {
         const hit = this.handleProvenanceHit(agentId, owner, {
           allowDecisionForSuperseded: true
@@ -144,7 +144,7 @@ export class MemoryRowMutations {
         }
         this.ctx.deps.repository.runInTransaction(() => {
           if (hit.action === 'absorbed') {
-            this.ctx.deps.repository.updateStatus(owner.id, 'pending_embedding')
+            this.ctx.deps.repository.activateForEmbedding(owner.id)
           }
           if (hit.action === 'continue') {
             this.reviveSupersededAfterDecision(agentId, owner)
@@ -180,7 +180,7 @@ export class MemoryRowMutations {
     const nextCategory = canCarryCategory(row.kind) ? candidate.category : undefined
 
     if (newKey !== row.provenance_key) {
-      const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, newKey)
+      const owner = this.ctx.resolveProvenance(agentId, row.kind, content)
       if (owner && owner.id !== row.id) {
         return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields)
       }
@@ -205,7 +205,7 @@ export class MemoryRowMutations {
     })
 
     if (!newId) {
-      const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, newKey)
+      const owner = this.ctx.resolveProvenance(agentId, row.kind, content)
       if (owner && owner.id !== row.id) {
         return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields)
       }
@@ -240,7 +240,7 @@ export class MemoryRowMutations {
 
     this.ctx.deps.repository.runInTransaction(() => {
       if (hit.action === 'absorbed') {
-        this.ctx.deps.repository.updateStatus(owner.id, 'pending_embedding')
+        this.ctx.deps.repository.activateForEmbedding(owner.id)
       }
       if (hit.action === 'continue') {
         this.reviveSupersededAfterDecision(agentId, owner)
@@ -317,7 +317,7 @@ export class MemoryRowMutations {
 
     const head = this.supersedeHead(agentId, existing)
     this.ctx.deps.repository.markSuperseded(existing.id, null)
-    this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
+    this.ctx.deps.repository.activateForEmbedding(existing.id)
 
     if (head.id !== existing.id && head.status !== 'archived' && head.superseded_by === null) {
       this.ctx.deps.repository.markSuperseded(head.id, existing.id)

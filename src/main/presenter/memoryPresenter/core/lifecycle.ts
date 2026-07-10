@@ -47,7 +47,8 @@ export function deriveLifecycle(
   const oldEnough = row.created_at < now - archiveAgeMs
   const decayedEnough = forget.decayScore < archiveDecayThreshold
   const neverAccessed = row.access_count === 0
-  const eligible = !exempt && active && oldEnough && decayedEnough && neverAccessed
+  const eligible =
+    !exempt && active && row.conflict_state == null && oldEnough && decayedEnough && neverAccessed
   const decayTier = deriveDecayTier(forget.decayScore, eligible, archiveDecayThreshold)
 
   return {

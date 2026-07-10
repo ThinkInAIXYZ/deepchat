@@ -210,7 +210,13 @@ export class RetrievalService {
     if (existing) return existing.promise
     if (group.size >= RECALL_QUERY_EMBEDDING_MAX_CONCURRENT) return null
 
-    const promise = this.ctx.deps.getEmbeddings(embedding.providerId, embedding.modelId, [query])
+    const promise = this.ctx.provider.getEmbeddings(
+      agentId,
+      embedding.providerId,
+      embedding.modelId,
+      [query],
+      'query-embedding'
+    )
     const entry: QueryEmbeddingInFlight = { startedAt: now, promise }
     group.set(query, entry)
     promise
@@ -281,7 +287,8 @@ export class RetrievalService {
           .filter((row) => row.kind !== 'persona' && row.kind !== 'working')
       : []
 
-    const vecMatches: { row: AgentMemoryRow; similarity: number }[] = []
+    const vecCandidates: { memoryId: string; similarity: number }[] = []
+    let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
     const embedding = config?.memoryEmbedding
     if (embedding?.providerId && embedding?.modelId) {
       const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
@@ -328,42 +335,22 @@ export class RetrievalService {
                     })
                   }
                 } else {
-                  const store = await this.vectorStore.getVectorStore(
+                  if (!this.ctx.canReadAgentMemory(agentId)) return []
+                  const matches = await this.vectorStore.query(
                     agentId,
                     currentEmbedding,
-                    vector.length
+                    vector.length,
+                    vector,
+                    candidateLimit
                   )
                   if (!this.ctx.canReadAgentMemory(agentId)) return []
-                  if (store.isUsable()) {
-                    this.vectorStore.markReady(agentId, currentEmbedding, vector.length)
-                    const matches = await store.query(vector, { topK: candidateLimit })
+                  if (this.vectorStore.isWarm(agentId, currentEmbedding)) {
                     if (!this.ctx.canReadAgentMemory(agentId)) return []
-                    const deadVectorIds: string[] = []
+                    vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
                     for (const match of matches) {
                       const similarity = distanceToSimilarity(match.distance)
                       if (similarity < similarityThreshold) continue
-                      const row = this.ctx.deps.repository.getById(match.memoryId)
-                      if (!isLiveRecallVectorRow(agentId, row)) {
-                        deadVectorIds.push(match.memoryId)
-                        continue
-                      }
-                      vecMatches.push({ row, similarity })
-                    }
-                    if (
-                      options.enableInlinePrune !== false &&
-                      deadVectorIds.length &&
-                      this.ctx.canReadAgentMemory(agentId)
-                    ) {
-                      void this.ports
-                        .deletePrunableVectorsForMemoryIds(
-                          agentId,
-                          currentEmbedding,
-                          vector.length,
-                          [...new Set(deadVectorIds)]
-                        )
-                        .catch((error) => {
-                          logger.warn(`[Memory] inline vector prune failed: ${String(error)}`)
-                        })
+                      vecCandidates.push({ memoryId: match.memoryId, similarity })
                     }
                     if (this.ctx.canReadAgentMemory(agentId) && !this.ports.isReindexing(agentId)) {
                       void this.ports.backfillEmbeddings(agentId).catch((error) => {
@@ -374,7 +361,6 @@ export class RetrievalService {
                     this.ctx.canReadAgentMemory(agentId) &&
                     !this.ports.isReindexing(agentId)
                   ) {
-                    this.vectorStore.clearReady(agentId)
                     void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
                       logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
                     })
@@ -384,13 +370,63 @@ export class RetrievalService {
             }
           }
         } catch (error) {
-          this.vectorStore.clearReady(agentId)
+          if (!this.ctx.canReadAgentMemory(agentId)) return []
+          if ((error as { name?: string } | null)?.name !== 'AbortError') {
+            this.vectorStore.clearReady(agentId)
+          }
           logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
         }
       }
     }
 
-    const results = fuse(ftsRows, vecMatches, {
+    const candidateIds = [
+      ...ftsRows.map((row) => row.id),
+      ...vecCandidates.map((candidate) => candidate.memoryId)
+    ]
+    const authoritativeRows = candidateIds.length
+      ? this.ctx.deps.repository.listByIds(agentId, [...new Set(candidateIds)])
+      : []
+    const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
+    const authoritativeFtsRows = ftsRows
+      .map((row) => rowsById.get(row.id))
+      .filter((row): row is AgentMemoryRow => isLiveRecallVectorRow(agentId, row))
+    const authoritativeVecMatches = vecCandidates
+      .map((candidate) => {
+        const row = rowsById.get(candidate.memoryId)
+        return isLiveRecallVectorRow(agentId, row)
+          ? { row, similarity: candidate.similarity }
+          : null
+      })
+      .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
+
+    if (
+      options.enableInlinePrune !== false &&
+      vectorContext &&
+      this.ctx.canReadAgentMemory(agentId)
+    ) {
+      const liveVectorIds = new Set(authoritativeVecMatches.map((match) => match.row.id))
+      const deadVectorIds = [
+        ...new Set(
+          vecCandidates
+            .map((candidate) => candidate.memoryId)
+            .filter((memoryId) => !liveVectorIds.has(memoryId))
+        )
+      ]
+      if (deadVectorIds.length > 0) {
+        void this.ports
+          .deletePrunableVectorsForMemoryIds(
+            agentId,
+            vectorContext.embedding,
+            vectorContext.dimensions,
+            deadVectorIds
+          )
+          .catch((error) => {
+            logger.warn(`[Memory] inline vector prune failed: ${String(error)}`)
+          })
+      }
+    }
+
+    const results = fuse(authoritativeFtsRows, authoritativeVecMatches, {
       topK: effectiveTopK,
       rrfK,
       weights,
@@ -408,16 +444,28 @@ export class RetrievalService {
 
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
     if (!this.ctx.canReadAgentMemory(agentId)) return null
+    const readEpoch = this.ctx.captureReadEpoch(agentId)
     const config = this.ctx.deps.resolveAgentConfig(agentId)
-    const persona = this.ctx.deps.repository.getActivePersona(agentId)
-    const working = this.workingMemory.readWorkingMemory(agentId)
-    if (!working) this.workingMemory.scheduleWorkingRefresh(agentId)
     const recalled = query.trim()
       ? await this.retrieve(agentId, query, Date.now(), false, {
           keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
           keywordMatchMode: 'any'
         })
       : []
+    if (!this.ctx.canReadAgentMemory(agentId) || !this.ctx.isReadEpochCurrent(agentId, readEpoch)) {
+      return null
+    }
+    this.workingMemory.flushWorkingMemoryIfDirty(agentId)
+    const finalizedEpoch = this.ctx.captureReadEpoch(agentId)
+    const persona = this.ctx.deps.repository.getActivePersona(agentId)
+    const working = this.workingMemory.readWorkingMemory(agentId)
+    if (!working) this.workingMemory.scheduleWorkingRefresh(agentId)
+    if (
+      !this.ctx.canReadAgentMemory(agentId) ||
+      !this.ctx.isReadEpochCurrent(agentId, finalizedEpoch)
+    ) {
+      return null
+    }
     if (!persona && !working && recalled.length === 0) return null
     const tokenBudget = resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
     const payload: MemoryInjectionPayload = {

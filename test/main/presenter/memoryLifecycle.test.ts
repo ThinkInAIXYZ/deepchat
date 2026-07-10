@@ -54,6 +54,21 @@ function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
 }
 
 describe('deriveLifecycle', () => {
+  it('keeps challenged targets active and recallable while blocking archive eligibility', () => {
+    const lifecycle = deriveLifecycle(
+      makeRow({
+        conflict_state: 'challenged',
+        created_at: NOW - 200 * DAY_MS,
+        access_count: 0
+      }),
+      NOW
+    )
+
+    expect(lifecycle.archiveEligibility.active).toBe(true)
+    expect(lifecycle.recallable).toBe(true)
+    expect(lifecycle.archiveEligibility.eligible).toBe(false)
+  })
+
   it('matches the existing retrieval and decay scoring functions', () => {
     const row = makeRow({
       importance: 0.7,

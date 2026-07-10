@@ -130,11 +130,29 @@ describe('buildExtractionPrompt', () => {
     expect(prompt).toContain('Return at most one task_outcome')
   })
 
-  it('truncates very long spans to the tail', () => {
+  it('preserves very long spans because runtime owns chunking', () => {
     const span = 'X'.repeat(20000) + 'TAIL_MARKER'
     const prompt = buildExtractionPrompt(span)
+    expect(prompt).toContain('X'.repeat(20000))
     expect(prompt).toContain('TAIL_MARKER')
-    expect(prompt.length).toBeLessThan(20000)
+  })
+})
+
+describe('Wave 3 extraction characterization', () => {
+  it('gives triage the complete runtime-owned chunk', () => {
+    const prefix = 'PREFIX_FACT_MUST_NOT_BE_CONSUMED'
+    const prompt = buildTriagePrompt(`${prefix}${'x'.repeat(5000)}TAIL_MARKER`)
+
+    expect(prompt).toContain(prefix)
+    expect(prompt).toContain('TAIL_MARKER')
+  })
+
+  it('gives extraction the same complete runtime-owned chunk', () => {
+    const prefix = 'PREFIX_FACT_MUST_NOT_BE_CONSUMED'
+    const prompt = buildExtractionPrompt(`${prefix}${'x'.repeat(13000)}TAIL_MARKER`)
+
+    expect(prompt).toContain(prefix)
+    expect(prompt).toContain('TAIL_MARKER')
   })
 })
 
@@ -148,6 +166,7 @@ describe('MemoryPresenter.extractAndStore', () => {
         '```json\n[{"kind":"semantic","content":"user prefers redis","importance":0.9}]\n```'
     )
     const presenter = new MemoryPresenter({
+      executeWithRateLimit: vi.fn(async () => undefined),
       repository: repo,
       resolveAgentConfig: (id) =>
         id === 'on' ? { memoryEnabled: true } : { memoryEnabled: false },
@@ -214,6 +233,7 @@ describe('MemoryPresenter.extractAndStore', () => {
       return '[{"category":"task_outcome","content":"PR-2 review fix completed","importance":0.1}]'
     })
     const presenter = new MemoryPresenter({
+      executeWithRateLimit: vi.fn(async () => undefined),
       repository: repo,
       resolveAgentConfig: () => ({ memoryEnabled: true }),
       getEmbeddings: async () => [],
@@ -252,6 +272,7 @@ describe('MemoryPresenter.extractAndStore', () => {
       throw new Error('LLM unavailable')
     })
     const presenter = new MemoryPresenter({
+      executeWithRateLimit: vi.fn(async () => undefined),
       repository: repo,
       resolveAgentConfig: () => ({ memoryEnabled: true }),
       getEmbeddings: async () => [],
@@ -308,6 +329,7 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
     const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
     const repo = makeFakeRepo()
     const presenter = new MemoryPresenter({
+      executeWithRateLimit: vi.fn(async () => undefined),
       repository: repo as any,
       resolveAgentConfig: () => config,
       getEmbeddings: async () => [],
@@ -475,6 +497,7 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
       })
     }
     const presenter = new MemoryPresenter({
+      executeWithRateLimit: vi.fn(async () => undefined),
       repository: repo as any,
       resolveAgentConfig: () => config,
       getEmbeddings: async () => [],

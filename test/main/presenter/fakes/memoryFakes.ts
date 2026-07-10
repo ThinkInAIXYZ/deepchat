@@ -38,7 +38,8 @@ function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
     last_accessed: row.last_accessed,
     access_count: row.access_count,
     decay_score: row.decay_score,
-    confidence: row.confidence
+    confidence: row.confidence,
+    conflict_state: row.conflict_state
   }
 }
 
@@ -82,7 +83,8 @@ export class FakeRepository implements MemoryRepositoryPort {
       last_consolidated_at: null,
       conflict_state: null,
       conflict_with: input.conflictWith ?? null,
-      persona_state: input.personaState ?? null
+      persona_state: input.personaState ?? null,
+      decision_revision: 1
     }
     this.rows.set(row.id, row)
     return row
@@ -96,6 +98,22 @@ export class FakeRepository implements MemoryRepositoryPort {
     return [...this.rows.values()].find(
       (row) => row.agent_id === agentId && row.provenance_key === provenanceKey
     )
+  }
+
+  rekeyProvenance(agentId: string, id: string, expectedKey: string, nextKey: string) {
+    const row = this.rows.get(id)
+    if (!row || row.agent_id !== agentId || row.provenance_key !== expectedKey) return false
+    for (const candidate of this.rows.values()) {
+      if (
+        candidate.id !== id &&
+        candidate.agent_id === agentId &&
+        candidate.provenance_key === nextKey
+      ) {
+        throw new Error('UNIQUE constraint failed')
+      }
+    }
+    row.provenance_key = nextKey
+    return true
   }
 
   listByAgent(
@@ -158,11 +176,15 @@ export class FakeRepository implements MemoryRepositoryPort {
     if (!row) return
     row.persona_state = state
     if (supersededBy !== undefined) row.superseded_by = supersededBy
+    row.decision_revision += 1
   }
 
   setAnchor(id: string, anchored: boolean) {
     const row = this.rows.get(id)
-    if (row) row.is_anchor = anchored ? 1 : 0
+    if (row) {
+      row.is_anchor = anchored ? 1 : 0
+      row.decision_revision += 1
+    }
   }
 
   listPersonaVersions(agentId: string) {
@@ -199,6 +221,7 @@ export class FakeRepository implements MemoryRepositoryPort {
       (row) =>
         row.agent_id === agentId &&
         !row.superseded_by &&
+        row.conflict_state === null &&
         row.status !== 'archived' &&
         row.status !== 'conflicted' &&
         row.kind !== 'persona' &&
@@ -239,6 +262,16 @@ export class FakeRepository implements MemoryRepositoryPort {
     row.embedding_id = embedding?.embeddingId ?? null
     row.embedding_dim = embedding?.embeddingDim ?? null
     row.embedding_model = embedding?.embeddingModel ?? null
+  }
+
+  activateForEmbedding(id: string) {
+    const row = this.rows.get(id)
+    if (!row) return
+    row.status = 'pending_embedding'
+    row.embedding_id = null
+    row.embedding_dim = null
+    row.embedding_model = null
+    row.decision_revision += 1
   }
 
   updatePendingEmbeddingStatus(
@@ -329,7 +362,33 @@ export class FakeRepository implements MemoryRepositoryPort {
 
   markSuperseded(id: string, supersededBy: string | null) {
     const row = this.rows.get(id)
-    if (row) row.superseded_by = supersededBy
+    if (row) {
+      row.superseded_by = supersededBy
+      row.decision_revision += 1
+    }
+  }
+
+  markSupersededIfRevision(
+    agentId: string,
+    id: string,
+    expectedRevision: number,
+    supersededBy: string
+  ) {
+    const row = this.rows.get(id)
+    if (
+      !row ||
+      row.agent_id !== agentId ||
+      row.decision_revision !== expectedRevision ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.status === 'archived' ||
+      row.status === 'conflicted'
+    ) {
+      return false
+    }
+    row.superseded_by = supersededBy
+    row.decision_revision += 1
+    return true
   }
 
   recordAccess(id: string, accessedAt = 0) {
@@ -384,7 +443,42 @@ export class FakeRepository implements MemoryRepositoryPort {
       row.provenance_key = provenanceKey
       row.last_accessed = at
       if (category !== undefined) row.category = category
+      row.decision_revision += 1
     }
+  }
+
+  updateDecisionContentIfRevision(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    content: string
+    provenanceKey: string | null
+    at: number
+    category?: string | null
+  }) {
+    const { agentId, id, expectedRevision, content, provenanceKey, at, category } = input
+    const row = this.rows.get(id)
+    if (
+      !row ||
+      row.agent_id !== agentId ||
+      row.decision_revision !== expectedRevision ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.status === 'archived' ||
+      row.status === 'conflicted'
+    ) {
+      return false
+    }
+    row.content = content
+    row.provenance_key = provenanceKey
+    row.last_accessed = at
+    if (category !== undefined) row.category = category
+    row.status = 'pending_embedding'
+    row.embedding_id = null
+    row.embedding_dim = null
+    row.embedding_model = null
+    row.decision_revision += 1
+    return true
   }
 
   updateUserMetadata(
@@ -402,6 +496,7 @@ export class FakeRepository implements MemoryRepositoryPort {
     if (Object.prototype.hasOwnProperty.call(patch, 'importance')) {
       row.importance = patch.importance ?? row.importance
     }
+    row.decision_revision += 1
   }
 
   setConfidence(id: string, confidence: number) {
@@ -412,17 +507,49 @@ export class FakeRepository implements MemoryRepositoryPort {
 
   setImportance(id: string, importance: number) {
     const row = this.rows.get(id)
-    if (row) row.importance = Math.max(row.importance, importance)
+    if (row && row.importance < importance) {
+      row.importance = importance
+      row.decision_revision += 1
+    }
   }
 
   markConflict(id: string, state: 'challenged' | null) {
     const row = this.rows.get(id)
-    if (row) row.conflict_state = state
+    if (row) {
+      row.conflict_state = state
+      row.decision_revision += 1
+    }
+  }
+
+  markConflictIfRevision(
+    agentId: string,
+    id: string,
+    expectedRevision: number,
+    state: 'challenged'
+  ) {
+    const row = this.rows.get(id)
+    if (
+      !row ||
+      row.agent_id !== agentId ||
+      row.decision_revision !== expectedRevision ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.status === 'archived' ||
+      row.status === 'conflicted'
+    ) {
+      return false
+    }
+    row.conflict_state = state
+    row.decision_revision += 1
+    return true
   }
 
   setConflictWith(id: string, targetId: string | null) {
     const row = this.rows.get(id)
-    if (row) row.conflict_with = targetId
+    if (row) {
+      row.conflict_with = targetId
+      row.decision_revision += 1
+    }
   }
 
   setLastConsolidatedAt(id: string, at = 0) {
@@ -525,6 +652,7 @@ export class FakeRepository implements MemoryRepositoryPort {
     const row = this.rows.get(id)
     if (row) {
       row.status = 'archived'
+      row.decision_revision += 1
     }
   }
 
@@ -552,6 +680,7 @@ export class FakeRepository implements MemoryRepositoryPort {
         (row) =>
           row.agent_id === agentId &&
           !row.superseded_by &&
+          row.conflict_state === null &&
           row.status !== 'archived' &&
           row.status !== 'conflicted' &&
           row.is_anchor === 0 &&
@@ -643,6 +772,29 @@ export class FakeRepository implements MemoryRepositoryPort {
         target.superseded_by === null
       )
     }).length
+  }
+
+  isUnresolvedConflictParticipant(agentId: string, memoryId: string): boolean {
+    const row = this.rows.get(memoryId)
+    if (!row || row.agent_id !== agentId) return false
+    if (row.status === 'conflicted' && row.conflict_with !== null) return true
+    return [...this.rows.values()].some(
+      (challenger) =>
+        challenger.agent_id === agentId &&
+        challenger.status === 'conflicted' &&
+        challenger.superseded_by === null &&
+        challenger.conflict_with === memoryId
+    )
+  }
+
+  listConflictIntegrityRows(agentId: string): AgentMemoryRow[] {
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          (row.status === 'conflicted' || row.conflict_with !== null || row.conflict_state !== null)
+      )
+      .sort((left, right) => left.created_at - right.created_at || left.id.localeCompare(right.id))
   }
 
   getPersonaCounts(agentId: string): { total: number; draft: number } {
@@ -1031,6 +1183,7 @@ export function makePresenter(
     store.vectors.clear()
   })
   const presenter = new MemoryPresenter({
+    executeWithRateLimit: vi.fn(async () => undefined),
     repository: repo,
     auditRepository: auditRepo,
     resolveAgentConfig: () => config,

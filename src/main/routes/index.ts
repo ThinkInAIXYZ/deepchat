@@ -27,6 +27,7 @@ import type {
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
 import { isAgentMemoryCategory } from '@shared/types/agent-memory'
+import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { DEV_EVENTS } from '../events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
@@ -469,18 +470,6 @@ export type MainKernelRouteRuntime = {
   cronJobs: CronJobsService
 }
 
-function parseSourceEntryIds(raw: string | null): number[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return null
-    const ids = parsed.filter((v): v is number => Number.isInteger(v) && v >= 0)
-    return ids.length ? ids : null
-  } catch {
-    return null
-  }
-}
-
 export function formatMemorySourceRecordContent(record: ChatMessageRecord): string {
   try {
     const parsed = JSON.parse(record.content) as unknown
@@ -551,7 +540,7 @@ export function toMemoryItemDto(row: AgentMemoryRow) {
     importance: row.importance,
     status: row.status,
     sourceSession: row.source_session,
-    sourceEntryIds: parseSourceEntryIds(row.source_entry_ids),
+    sourceEntryIds: parseAgentMemorySourceEntryIds(row.source_entry_ids),
     supersededBy: row.superseded_by,
     createdAt: row.created_at,
     confidence: row.confidence,
@@ -703,7 +692,7 @@ function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
 function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, memoryId: string) {
   const row = runtime.memoryPresenter.listMemories(agentId).find((memory) => memory.id === memoryId)
   if (!row || row.agent_id !== agentId || !row.source_session) return null
-  const sourceEntryIds = parseSourceEntryIds(row.source_entry_ids)
+  const sourceEntryIds = parseAgentMemorySourceEntryIds(row.source_entry_ids)
   if (!sourceEntryIds?.length) return null
   const sourceSet = new Set(sourceEntryIds)
   const tapeEntriesTable = getMemorySourceTapeEntriesTable(runtime)

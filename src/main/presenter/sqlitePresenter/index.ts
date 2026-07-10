@@ -333,6 +333,7 @@ export class SQLitePresenter implements ISQLitePresenter {
 
     const migrateStart = performance.now()
     this.migrate()
+    this.agentMemoryTable.assertCurrentSchema()
     logger.info(
       `SQLitePresenter: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
     )

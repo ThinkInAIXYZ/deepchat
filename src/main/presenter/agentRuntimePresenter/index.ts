@@ -115,6 +115,12 @@ import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
 import { DeepChatTapeService } from './tapeService'
 import { buildEffectiveTapeView } from './tapeEffectiveView'
 import {
+  MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
+  buildMemoryExtractionChunks,
+  type MemoryExtractionChunk,
+  type MemoryExtractionMessage
+} from './memoryExtractionChunks'
+import {
   buildExcludedRefs,
   buildIncludedRefs,
   buildRequestRefs,
@@ -560,9 +566,8 @@ type ActiveGeneration = {
   abortController: AbortController
 }
 
-type MemoryAdmissionSpan = {
-  spanText: string
-  sourceEntryIds: number[]
+type MemoryAdmissionWindow = {
+  chunks: MemoryExtractionChunk[]
   hadToolUse: boolean
   visibleTextChars: number
 }
@@ -2443,18 +2448,28 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         return systemPrompt
       }
       const injection = await this.memoryPort.buildInjection(agentId, query)
+      if (!this.memoryPort.isEnabled(agentId)) return systemPrompt
       const assembled = appendMemorySectionWithManifest(systemPrompt, injection)
       if (assembled.manifest) {
-        this.recordMemoryInjectionAccess(agentId, sessionId, assembled.manifest.selected, messageId)
-        try {
-          this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+        if (this.memoryPort.isEnabled(agentId)) {
+          this.recordMemoryInjectionAccess(
+            agentId,
             sessionId,
-            name: 'memory/view_assembled',
-            state: assembled.manifest as unknown as Record<string, unknown>,
-            meta: messageId ? { messageId } : undefined
-          })
-        } catch (error) {
-          logger.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
+            assembled.manifest.selected,
+            messageId
+          )
+        }
+        if (this.memoryPort.isEnabled(agentId)) {
+          try {
+            this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+              sessionId,
+              name: 'memory/view_assembled',
+              state: assembled.manifest as unknown as Record<string, unknown>,
+              meta: messageId ? { messageId } : undefined
+            })
+          } catch (error) {
+            logger.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
+          }
         }
       }
       return assembled.prompt
@@ -2545,14 +2560,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
       const cursor =
         this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-      const span = this.buildMemorySpanFromTape(sessionId, cursor, toOrderSeq)
-      if (!span || span.visibleTextChars <= 0) return
-      await this.runMemoryExtraction(
+      const window = this.buildMemoryExtractionWindow(sessionId, cursor, toOrderSeq)
+      if (!window || window.visibleTextChars <= 0) return
+      await this.runMemoryExtractionChunks(
         sessionId,
         {
-          spanText: span.spanText,
-          sourceEntryIds: span.sourceEntryIds,
-          toOrderSeq,
+          chunks: window.chunks,
           reason: 'compaction'
         },
         epoch
@@ -2563,10 +2576,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   // Serializes extraction per session; sibling sessions never block each other.
   private enqueueSessionExtraction(
     sessionId: string,
-    task: (epoch: number) => Promise<void>
+    task: (epoch: number) => Promise<void>,
+    expectedEpoch?: number
   ): void {
     const prev = this.memoryExtractionChains.get(sessionId) ?? Promise.resolve()
-    const runTask = () => task(this.ensureMemoryExtractionEpoch(sessionId))
+    const runTask = async () => {
+      const currentEpoch = this.ensureMemoryExtractionEpoch(sessionId)
+      if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
+      await task(expectedEpoch ?? currentEpoch)
+    }
     const next = prev.then(runTask, runTask).catch((error) => {
       logger.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
     })
@@ -2606,20 +2624,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const cursor =
         this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
       if (tailOrderSeq <= cursor) return
-      const span = this.buildMemorySpanFromTape(sessionId, cursor, tailOrderSeq)
-      if (!span || span.visibleTextChars <= 0) return
+      const window = this.buildMemoryExtractionWindow(sessionId, cursor, tailOrderSeq)
+      if (!window || window.visibleTextChars <= 0) return
       const delta = tailOrderSeq - cursor
       const admit =
-        span.hadToolUse ||
+        window.hadToolUse ||
         delta >= MEMORY_FALLBACK_MIN_DELTA ||
-        (delta >= 2 && span.visibleTextChars >= MEMORY_MIN_AGENTIC_TEXT_CHARS)
+        (delta >= 2 && window.visibleTextChars >= MEMORY_MIN_AGENTIC_TEXT_CHARS)
       if (!admit) return
-      await this.runMemoryExtraction(
+      await this.runMemoryExtractionChunks(
         sessionId,
         {
-          spanText: span.spanText,
-          sourceEntryIds: span.sourceEntryIds,
-          toOrderSeq: tailOrderSeq,
+          chunks: window.chunks,
           reason: 'fallback'
         },
         epoch
@@ -2627,13 +2643,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     })
   }
 
-  private async runMemoryExtraction(
+  private async runMemoryExtractionChunks(
     sessionId: string,
     options: {
-      spanText: string
-      toOrderSeq: number
+      chunks: readonly MemoryExtractionChunk[]
       reason: 'compaction' | 'fallback'
-      sourceEntryIds?: number[]
     },
     epoch: number
   ): Promise<void> {
@@ -2645,44 +2659,65 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (!state) return
       if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
 
-      // Skip if the cursor already passed this span (e.g. a sibling task consumed it first).
-      const cursor =
-        this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-      if (options.toOrderSeq <= cursor) return
+      const currentTaskChunks = options.chunks.slice(0, MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK)
+      for (const chunk of currentTaskChunks) {
+        if (!this.memoryPort.isEnabled(agentId)) return
+        if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
+        const cursor =
+          this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
+        if (chunk.coveredThroughOrderSeq <= cursor) continue
 
-      const result = await this.memoryPort.extractAndStore({
-        agentId,
-        spanText: options.spanText,
-        model: { providerId: state.providerId, modelId: state.modelId },
-        sourceSession: sessionId,
-        sourceEntryIds: options.sourceEntryIds ?? null
-      })
-
-      // Leave the cursor unchanged on failure so this span is retried; a transient LLM or
-      // parse error must not mark the span consumed and lose its memories permanently.
-      if (!result.ok) return
-      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
-      const createdIds = result.createdIds
-
-      // Success consumes the span even when nothing was extracted.
-      this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(
-        sessionId,
-        options.toOrderSeq
-      )
-
-      // Audit-only anchor, written only when memories were created; memory/* is not a
-      // reconstruction anchor, so it never affects context rebuild.
-      if (createdIds.length > 0) {
-        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
-          sessionId,
-          name: 'memory/extract',
-          state: {
-            memoryIds: createdIds,
-            count: createdIds.length,
-            reason: options.reason,
-            toOrderSeq: options.toOrderSeq
-          }
+        const result = await this.memoryPort.extractAndStore({
+          agentId,
+          spanText: chunk.text,
+          model: { providerId: state.providerId, modelId: state.modelId },
+          sourceSession: sessionId,
+          sourceEntryIds: chunk.sourceEntryIds
         })
+        if (!result.ok || !this.memoryPort.isEnabled(agentId)) return
+        if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
+
+        if (chunk.cursorCommitOrderSeq !== null) {
+          this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(
+            sessionId,
+            chunk.cursorCommitOrderSeq
+          )
+        }
+
+        if (result.createdIds.length > 0) {
+          this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+            sessionId,
+            name: 'memory/extract',
+            state: {
+              memoryIds: result.createdIds,
+              count: result.createdIds.length,
+              reason: options.reason,
+              sourceEntryIds: chunk.sourceEntryIds,
+              coveredThroughOrderSeq: chunk.coveredThroughOrderSeq,
+              cursorCommitOrderSeq: chunk.cursorCommitOrderSeq,
+              fragments: chunk.fragments
+            }
+          })
+        }
+      }
+
+      const remaining = options.chunks.slice(MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK)
+      if (
+        remaining.length > 0 &&
+        this.memoryPort.isEnabled(agentId) &&
+        this.isMemoryExtractionEpochCurrent(sessionId, epoch)
+      ) {
+        this.enqueueSessionExtraction(
+          sessionId,
+          async (continuationEpoch) => {
+            await this.runMemoryExtractionChunks(
+              sessionId,
+              { chunks: remaining, reason: options.reason },
+              continuationEpoch
+            )
+          },
+          epoch
+        )
       }
     } catch (error) {
       logger.warn(`[DeepChatAgent] memory extraction skipped: ${String(error)}`)
@@ -2692,11 +2727,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   // Builds the extraction span from the effective tape view (retractions, replacements and
   // tool-dedup already applied) over (from, to]. Span text and lineage are gathered from the
   // same pass so a message that contributes no text never leaks into sourceEntryIds.
-  private buildMemorySpanFromTape(
+  private buildMemoryExtractionWindow(
     sessionId: string,
     fromOrderSeqExclusive: number,
     toOrderSeqInclusive: number
-  ): MemoryAdmissionSpan | null {
+  ): MemoryAdmissionWindow | null {
     if (toOrderSeqInclusive <= fromOrderSeqExclusive) return null
     const rows = this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
     const view = buildEffectiveTapeView(rows)
@@ -2711,20 +2746,28 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const messageId = this.readToolCallMessageId(row)
       return messageId !== null && windowMsgIds.has(messageId)
     })
-    const lines: string[] = []
-    const sourceEntryIds: number[] = []
+    const messages: MemoryExtractionMessage[] = []
     for (const entry of selected) {
       const text = this.extractPlainTextFromRecord(entry.record)
       if (!text) continue
-      lines.push(`${entry.record.role === 'user' ? 'User' : 'Assistant'}: ${text}`)
-      sourceEntryIds.push(entry.entryId)
+      messages.push({
+        orderSeq: entry.record.orderSeq,
+        entryId: entry.entryId,
+        role: entry.record.role,
+        text
+      })
     }
-    const spanText = lines.join('\n').trim()
+    const chunks = buildMemoryExtractionChunks(messages)
+    const selectedTailOrderSeq = selected.at(-1)?.record.orderSeq
+    const lastChunk = chunks.at(-1)
+    if (lastChunk && selectedTailOrderSeq !== undefined) {
+      lastChunk.cursorCommitOrderSeq = selectedTailOrderSeq
+      lastChunk.coveredThroughOrderSeq = selectedTailOrderSeq
+    }
     return {
-      spanText,
-      sourceEntryIds,
+      chunks,
       hadToolUse,
-      visibleTextChars: spanText.length
+      visibleTextChars: chunks.reduce((total, chunk) => total + chunk.text.length, 0)
     }
   }
 

@@ -110,14 +110,14 @@ describe('MemoryPresenter.updateMemory', () => {
     })
 
     const result = presenter.updateMemory('deepchat', 'm1', {
-      content: 'user likes redis',
+      content: 'User   likes Redis',
       category: 'project_fact',
       importance: 0.2
     })
 
     expect(result).toEqual({ action: 'updated', memoryId: 'm1' })
     expect(repo.getById('m1')).toMatchObject({
-      content: 'user likes redis',
+      content: 'User   likes Redis',
       category: 'project_fact',
       importance: 0.2,
       status: 'pending_embedding',

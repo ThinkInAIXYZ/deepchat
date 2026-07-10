@@ -35,6 +35,7 @@ import { REINDEX_MAX_BATCHES } from './runtimeConstants'
 import { MemoryRuntimeContext } from './context'
 import { MemoryRowMutations } from './services/rowMutations'
 import { VectorStoreManager } from './infra/vectorStoreManager'
+import { MemoryProviderGateway } from './infra/providerGateway'
 import { EmbeddingPipeline } from './infra/embeddingPipeline'
 import { WorkingMemoryService } from './services/workingMemoryService'
 import { RetrievalService } from './services/retrievalService'
@@ -69,9 +70,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   constructor(deps: MemoryPresenterDeps) {
     let retrievalService: RetrievalService | null = null
-    this.runtime = new MemoryRuntimeContext(deps, (agentId) => {
-      retrievalService?.invalidateKeywordStats(agentId)
-    })
+    this.runtime = new MemoryRuntimeContext(
+      deps,
+      (agentId) => {
+        retrievalService?.invalidateKeywordStats(agentId)
+      },
+      new MemoryProviderGateway(deps)
+    )
     this.rows = new MemoryRowMutations(this.runtime)
     this.vectorStore = new VectorStoreManager(this.runtime)
     this.embedding = new EmbeddingPipeline(this.runtime, this.vectorStore, this.rows, {
@@ -139,6 +144,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
         this.persona.runMaintenancePersonaPass(agentId, model),
       runChallengeResolutionPass: (agentId, model) =>
         this.conflict.runChallengeResolutionPass(agentId, model),
+      repairConflictIntegrity: (agentId) => {
+        this.conflict.repairConflictIntegrity(agentId)
+      },
       runConsolidationPass: (agentId) => this.runConsolidationPass(agentId)
     })
     this.maintenance = maintenanceService
@@ -146,8 +154,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.writeCoordinator = new WriteCoordinator(this.runtime, this.rows, {
       retrieveForDecision: (agentId, query, now) =>
         this.retrieval.retrieveForDecision(agentId, query, now),
-      syncWorkingMemoryAfterMutation: (agentId) =>
-        this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
+      markWorkingMemoryDirty: (agentId) => this.workingMemory.markWorkingMemoryDirty(agentId),
+      flushWorkingMemoryIfDirty: (agentId) => this.workingMemory.flushWorkingMemoryIfDirty(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
       scheduleConsolidation: (agentId) => this.maintenance.scheduleConsolidation(agentId)
     })
@@ -181,7 +189,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   isEnabled(agentId: string): boolean {
-    return this.runtime.isEnabled(agentId)
+    return this.runtime.canReadAgentMemory(agentId)
   }
 
   canReindex(agentId: string): boolean {
@@ -397,10 +405,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
   async cleanupDeletedAgentResources(agentId: string): Promise<void> {
     if (this.runtime.isDisposed) return
     this.runtime.assertSafeAgentId(agentId)
+    this.runtime.invalidateAgentOperations(agentId)
     this.maintenance.clearPrewarmTimer(agentId)
     let resetError: unknown
     try {
-      await this.vectorStore.resetAgentStore(agentId)
+      await this.vectorStore.retireAgentStore(agentId)
     } catch (error) {
       resetError = error
     } finally {
@@ -409,9 +418,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
       this.workingMemory.cleanupAgent(agentId)
       this.retrieval.cleanupAgent(agentId)
       await this.embedding.cleanupAgent(agentId)
-      await this.vectorStore.closeAgentStore(agentId)
       await this.vectorStore.settleAgent(agentId)
       await this.persona.cleanupAgent(agentId)
+      this.runtime.cleanupAgent(agentId)
     }
     if (resetError) throw resetError
   }
@@ -422,16 +431,32 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   async dispose(): Promise<void> {
     this.runtime.markDisposed()
+    this.runtime.abortProviderRequests()
     this.maintenance.prepareDispose()
-    for (let i = 0; i < REINDEX_MAX_BATCHES; i += 1) {
-      const inflight = [...this.maintenance.getInFlight(), ...this.embedding.getInFlight()]
-      if (!inflight.length) break
-      await Promise.allSettled(inflight)
-    }
-    this.maintenance.clearInFlight()
-    await Promise.allSettled(this.vectorStore.getLockInFlight())
-    await this.vectorStore.closeAllStores()
+    this.vectorStore.stopAdmission()
+    const drain = (async () => {
+      for (let i = 0; i < REINDEX_MAX_BATCHES; i += 1) {
+        const inflight = [...this.maintenance.getInFlight(), ...this.embedding.getInFlight()]
+        if (!inflight.length) break
+        await Promise.allSettled(inflight)
+      }
+      this.maintenance.clearInFlight()
+      await Promise.allSettled(this.vectorStore.getLockInFlight())
+      await this.vectorStore.closeAllStores()
+    })()
+    void drain.catch(() => undefined)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      drain,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 5_000)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+    ])
+    if (timer) clearTimeout(timer)
     this.embedding.clearAll()
     this.retrieval.clearAll()
+    this.workingMemory.clearAll()
+    this.runtime.clearRuntimeState()
   }
 }

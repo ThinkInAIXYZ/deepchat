@@ -66,13 +66,17 @@ function isCjkLike(char: string): boolean {
 // Mixed-language local heuristic. CJK/Kana/Hangul text is much denser than ASCII under common
 // tokenizers, so char/4 would systematically over-admit Chinese memory sections.
 export function estimateTokens(text: string): number {
+  return Math.ceil(estimateTokenWeight(text))
+}
+
+export function estimateTokenWeight(text: string): number {
   let cjk = 0
   let other = 0
   for (const char of text) {
     if (isCjkLike(char)) cjk += 1
     else other += 1
   }
-  return Math.ceil(cjk * CJK_TOKEN_DENSITY + other / 4)
+  return cjk * CJK_TOKEN_DENSITY + other / 4
 }
 
 // Clamps a configured budget into a sane range, falling back to the default for anything malformed.

@@ -211,6 +211,7 @@ describe('memory retrieval eval harness (hybrid RRF)', () => {
     const repo = new FakeRepository()
     const store = new FakeVectorStore()
     const presenter = new MemoryPresenter({
+      executeWithRateLimit: vi.fn(async () => undefined),
       repository: repo,
       resolveAgentConfig: () => ({
         memoryEnabled: true,

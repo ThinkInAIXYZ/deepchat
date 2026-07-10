@@ -1,9 +1,45 @@
 import { nanoid } from 'nanoid'
+import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
 
 import { isSafeAgentId, type MemoryPresenterDeps } from './types'
 import type { MemoryUpdateContext, MemoryUpdateReason } from './types'
+import {
+  buildLegacyMemoryProvenanceKey,
+  buildMemoryProvenanceKey,
+  normalizeForProvenanceV2
+} from './core/scoring'
+import type { AgentMemoryRow } from './types'
 
 export type MemoryModelRef = { providerId: string; modelId: string }
+
+export interface MemoryOperationFence {
+  agentId: string
+  generation: number
+}
+
+export interface MemoryProviderPort {
+  abortAll(): void
+  abortAgent(agentId: string): void
+  generateText(
+    agentId: string,
+    providerId: string,
+    modelId: string,
+    prompt: string,
+    purpose: 'extraction' | 'decision' | 'maintenance'
+  ): Promise<string>
+  getEmbeddings(
+    agentId: string,
+    providerId: string,
+    modelId: string,
+    texts: string[],
+    purpose: 'query-embedding' | 'embedding-batch' | 'embedding-warm'
+  ): Promise<number[][]>
+  getDimensions(
+    agentId: string,
+    providerId: string,
+    modelId: string
+  ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
+}
 
 export function embeddingFingerprint(providerId: string, modelId: string): string {
   return `${providerId}:${modelId}`
@@ -18,11 +54,17 @@ export function isUniqueConstraintError(error: unknown): boolean {
 
 export class MemoryRuntimeContext {
   private disposed = false
+  private readonly readEpochByAgent = new Map<string, number>()
+  private readonly operationGenerationByAgent = new Map<string, number>()
+  readonly provider: MemoryProviderPort
 
   constructor(
     readonly deps: MemoryPresenterDeps,
-    private readonly onAgentMemoryMutated?: (agentId: string) => void
-  ) {}
+    private readonly onAgentMemoryMutated: ((agentId: string) => void) | undefined,
+    provider: MemoryProviderPort
+  ) {
+    this.provider = provider
+  }
 
   get isDisposed(): boolean {
     return this.disposed
@@ -30,6 +72,90 @@ export class MemoryRuntimeContext {
 
   markDisposed(): void {
     this.disposed = true
+  }
+
+  abortProviderRequests(): void {
+    this.provider.abortAll()
+  }
+
+  captureOperationFence(agentId: string): MemoryOperationFence {
+    return {
+      agentId,
+      generation: this.operationGenerationByAgent.get(agentId) ?? 0
+    }
+  }
+
+  isOperationFenceCurrent(fence: MemoryOperationFence): boolean {
+    return (
+      !this.disposed &&
+      (this.operationGenerationByAgent.get(fence.agentId) ?? 0) === fence.generation
+    )
+  }
+
+  isOperationGenerationCurrent(fence: MemoryOperationFence): boolean {
+    return (this.operationGenerationByAgent.get(fence.agentId) ?? 0) === fence.generation
+  }
+
+  canContinueOperation(fence: MemoryOperationFence): boolean {
+    return this.isOperationFenceCurrent(fence) && this.canContinueAgentMemoryTask(fence.agentId)
+  }
+
+  invalidateAgentOperations(agentId: string): number {
+    const generation = (this.operationGenerationByAgent.get(agentId) ?? 0) + 1
+    this.operationGenerationByAgent.set(agentId, generation)
+    this.provider.abortAgent(agentId)
+    return generation
+  }
+
+  resolveProvenance(agentId: string, kind: string, content: string): AgentMemoryRow | undefined {
+    const v2Key = buildMemoryProvenanceKey(agentId, kind, content)
+    const v2Owner = this.deps.repository.getByProvenanceKey(agentId, v2Key)
+    if (v2Owner) return v2Owner
+
+    const legacyKey = buildLegacyMemoryProvenanceKey(agentId, kind, content)
+    const legacyOwner = this.deps.repository.getByProvenanceKey(agentId, legacyKey)
+    if (
+      !legacyOwner ||
+      legacyOwner.kind !== kind ||
+      normalizeForProvenanceV2(legacyOwner.content) !== normalizeForProvenanceV2(content)
+    ) {
+      return undefined
+    }
+    try {
+      let rekeyed = false
+      this.deps.repository.runInTransaction(() => {
+        rekeyed = this.deps.repository.rekeyProvenance(agentId, legacyOwner.id, legacyKey, v2Key)
+      })
+      return rekeyed
+        ? (this.deps.repository.getById(legacyOwner.id) ?? legacyOwner)
+        : this.deps.repository.getByProvenanceKey(agentId, v2Key)
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+      return this.deps.repository.getByProvenanceKey(agentId, v2Key)
+    }
+  }
+
+  captureReadEpoch(agentId: string): number {
+    return this.readEpochByAgent.get(agentId) ?? 0
+  }
+
+  isReadEpochCurrent(agentId: string, epoch: number): boolean {
+    return this.captureReadEpoch(agentId) === epoch
+  }
+
+  markDomainMutationCommitted(agentId: string): number {
+    const epoch = this.captureReadEpoch(agentId) + 1
+    this.readEpochByAgent.set(agentId, epoch)
+    return epoch
+  }
+
+  cleanupAgent(agentId: string): void {
+    this.readEpochByAgent.delete(agentId)
+  }
+
+  clearRuntimeState(): void {
+    this.readEpochByAgent.clear()
+    this.operationGenerationByAgent.clear()
   }
 
   isEnabled(agentId: string): boolean {

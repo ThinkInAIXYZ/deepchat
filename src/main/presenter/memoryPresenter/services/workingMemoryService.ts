@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import { nanoid } from 'nanoid'
 
-import { buildMemoryProvenanceKey } from '../core/scoring'
+import { buildLegacyMemoryProvenanceKey, buildMemoryProvenanceKey } from '../core/scoring'
 import { estimateTokens } from '../core/injectionPort'
 import {
   WORKING_BLOB_TOKEN_LIMIT,
@@ -12,14 +12,17 @@ import {
 import { isUniqueConstraintError, type MemoryRuntimeContext } from '../context'
 import type { WorkingMemoryReadPort } from '../ports'
 import type { AgentMemoryWorkingCandidateCursor } from '../types'
+import type { AgentMemoryRow } from '../types'
 
 export class WorkingMemoryService implements WorkingMemoryReadPort {
   private readonly workingRefreshInFlight = new Set<string>()
+  private readonly workingRefreshTimers = new Map<string, NodeJS.Timeout>()
+  private readonly workingMemoryDirty = new Set<string>()
 
   constructor(private readonly ctx: MemoryRuntimeContext) {}
 
   readWorkingMemory(agentId: string): string | null {
-    const row = this.ctx.deps.repository.getByProvenanceKey(agentId, this.workingMemoryKey(agentId))
+    const row = this.resolveWorkingRow(agentId)
     const content = row?.content?.trim()
     return content ? content : null
   }
@@ -28,50 +31,105 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
     return buildMemoryProvenanceKey(agentId, 'working', WORKING_PROVENANCE_SEED)
   }
 
+  private legacyWorkingMemoryKey(agentId: string): string {
+    return buildLegacyMemoryProvenanceKey(agentId, 'working', WORKING_PROVENANCE_SEED)
+  }
+
+  private resolveWorkingRow(agentId: string): AgentMemoryRow | undefined {
+    const v2Key = this.workingMemoryKey(agentId)
+    const legacyKey = this.legacyWorkingMemoryKey(agentId)
+    const v2Row = this.ctx.deps.repository.getByProvenanceKey(agentId, v2Key)
+    const legacyRow = this.ctx.deps.repository.getByProvenanceKey(agentId, legacyKey)
+    const validLegacy = legacyRow?.agent_id === agentId && legacyRow.kind === 'working'
+
+    if (v2Row) {
+      if (validLegacy && legacyRow.id !== v2Row.id) {
+        this.ctx.deps.repository.delete(legacyRow.id)
+      }
+      return v2Row.kind === 'working' ? v2Row : undefined
+    }
+    if (!validLegacy) return undefined
+
+    try {
+      const rekeyed = this.ctx.deps.repository.runInTransaction(() =>
+        this.ctx.deps.repository.rekeyProvenance(agentId, legacyRow.id, legacyKey, v2Key)
+      )
+      if (rekeyed) return this.ctx.deps.repository.getById(legacyRow.id) ?? legacyRow
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+    }
+
+    const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, v2Key)
+    if (owner?.kind === 'working' && owner.id !== legacyRow.id) {
+      this.ctx.deps.repository.delete(legacyRow.id)
+      return owner
+    }
+    return owner?.kind === 'working' ? owner : undefined
+  }
+
   deleteWorkingMemory(agentId: string): void {
-    const existing = this.ctx.deps.repository.getByProvenanceKey(
-      agentId,
-      this.workingMemoryKey(agentId)
-    )
-    if (existing) this.ctx.deps.repository.delete(existing.id)
+    const existing = this.resolveWorkingRow(agentId)
+    if (existing) {
+      this.ctx.deps.repository.delete(existing.id)
+      this.ctx.markDomainMutationCommitted(agentId)
+    }
   }
 
   syncWorkingMemoryAfterMutation(agentId: string): void {
-    if (this.ctx.isDisposed) return
-    if (this.ctx.canReadAgentMemory(agentId)) this.refreshWorkingMemory(agentId)
-    else this.deleteWorkingMemory(agentId)
+    this.markWorkingMemoryDirty(agentId)
+    this.flushWorkingMemoryIfDirty(agentId)
+  }
+
+  markWorkingMemoryDirty(agentId: string): void {
+    this.workingMemoryDirty.add(agentId)
+  }
+
+  flushWorkingMemoryIfDirty(agentId: string): void {
+    if (!this.workingMemoryDirty.delete(agentId)) return
+    try {
+      if (this.ctx.canReadAgentMemory(agentId)) this.refreshWorkingMemory(agentId)
+      else this.deleteWorkingMemory(agentId)
+    } catch (error) {
+      this.workingMemoryDirty.add(agentId)
+      throw error
+    }
   }
 
   scheduleWorkingRefresh(agentId: string): void {
     if (!this.ctx.canReadAgentMemory(agentId)) return
     if (this.workingRefreshInFlight.has(agentId)) return
     this.workingRefreshInFlight.add(agentId)
-    void Promise.resolve()
-      .then(() => {
+    const timer = setTimeout(() => {
+      try {
         if (this.ctx.canReadAgentMemory(agentId)) {
           this.refreshWorkingMemory(agentId)
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         logger.warn(`[Memory] working refresh skipped: ${String(error)}`)
-      })
-      .finally(() => {
+      } finally {
         this.workingRefreshInFlight.delete(agentId)
-      })
+        this.workingRefreshTimers.delete(agentId)
+      }
+    }, 0)
+    this.workingRefreshTimers.set(agentId, timer)
   }
 
   refreshWorkingMemory(agentId: string): void {
     if (!this.ctx.canReadAgentMemory(agentId)) return
     const workingKey = this.workingMemoryKey(agentId)
-    const existing = this.ctx.deps.repository.getByProvenanceKey(agentId, workingKey)
+    const existing = this.resolveWorkingRow(agentId)
     const blob = this.buildWorkingBlob(agentId)
     if (!blob) {
-      if (existing) this.ctx.deps.repository.delete(existing.id)
+      if (existing) {
+        this.ctx.deps.repository.delete(existing.id)
+        this.ctx.markDomainMutationCommitted(agentId)
+      }
       return
     }
     if (existing) {
       if (existing.content === blob) return
       this.ctx.deps.repository.updateContent(existing.id, blob, workingKey, Date.now())
+      this.ctx.markDomainMutationCommitted(agentId)
       return
     }
     const now = Date.now()
@@ -86,6 +144,7 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
         provenanceKey: workingKey,
         createdAt: now
       })
+      this.ctx.markDomainMutationCommitted(agentId)
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
     }
@@ -127,11 +186,28 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
   }
 
   cleanupAgent(agentId: string): void {
+    const timer = this.workingRefreshTimers.get(agentId)
+    if (timer) clearTimeout(timer)
+    this.workingRefreshTimers.delete(agentId)
     this.workingRefreshInFlight.delete(agentId)
+    this.workingMemoryDirty.delete(agentId)
+  }
+
+  clearAll(): void {
+    for (const timer of this.workingRefreshTimers.values()) clearTimeout(timer)
+    this.workingRefreshTimers.clear()
+    this.workingRefreshInFlight.clear()
+    this.workingMemoryDirty.clear()
   }
 
   /** @internal Live mutable state for legacy facade-oracle tests only. */
-  getMutableRuntimeStateForTests(): { workingRefreshInFlight: Set<string> } {
-    return { workingRefreshInFlight: this.workingRefreshInFlight }
+  getMutableRuntimeStateForTests(): {
+    workingRefreshInFlight: Set<string>
+    workingMemoryDirty: Set<string>
+  } {
+    return {
+      workingRefreshInFlight: this.workingRefreshInFlight,
+      workingMemoryDirty: this.workingMemoryDirty
+    }
   }
 }

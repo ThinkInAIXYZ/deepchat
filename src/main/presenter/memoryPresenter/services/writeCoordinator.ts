@@ -3,7 +3,7 @@ import logger from '@shared/logger'
 import {
   ADD_DECISION,
   buildDecisionPrompt,
-  parseDecision,
+  parseDecisionResult,
   type MemoryDecision
 } from '../core/decision'
 import { normalizeMemoryCandidate } from '../core/candidates'
@@ -26,7 +26,11 @@ import type {
   MemoryWriteOutcome,
   WriteMemoriesOptions
 } from '../types'
-import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import {
+  type MemoryModelRef,
+  type MemoryOperationFence,
+  type MemoryRuntimeContext
+} from '../context'
 
 function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
   switch (outcome.action) {
@@ -114,13 +118,20 @@ function isLiveDecisionTarget(
     row.agent_id === agentId &&
     row.superseded_by === null &&
     row.status !== 'archived' &&
-    row.status !== 'conflicted'
+    row.status !== 'conflicted' &&
+    row.conflict_state === null
   )
 }
+
+class DecisionRevisionConflictError extends Error {}
+class DecisionInsertCollisionError extends Error {}
+
+type CoordinateWriteResult = MemoryWriteOutcome | { action: 'retry' }
 
 function recallItemFromRow(row: AgentMemoryRow): MemoryRecallItem {
   return {
     id: row.id,
+    decisionRevision: row.decision_revision,
     kind: row.kind,
     content: row.content,
     score: 1,
@@ -149,7 +160,8 @@ export class WriteCoordinator {
         query: string,
         now: number
       ) => Promise<MemoryRecallItem[]>
-      syncWorkingMemoryAfterMutation: (agentId: string) => void
+      markWorkingMemoryDirty: (agentId: string) => void
+      flushWorkingMemoryIfDirty: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
       scheduleConsolidation: (agentId: string) => void
     }
@@ -163,7 +175,7 @@ export class WriteCoordinator {
       if (!normalized) continue
       const content = normalized.content
       const provenanceKey = buildMemoryProvenanceKey(options.agentId, normalized.kind, content)
-      const duplicate = this.ctx.deps.repository.getByProvenanceKey(options.agentId, provenanceKey)
+      const duplicate = this.ctx.resolveProvenance(options.agentId, normalized.kind, content)
       if (duplicate) {
         const hit = this.rows.handleProvenanceHit(options.agentId, duplicate)
         if (hit.action === 'absorbed') {
@@ -181,6 +193,7 @@ export class WriteCoordinator {
       )
       if (id) created.push(id)
     }
+    if (created.length > 0) this.ctx.markDomainMutationCommitted(options.agentId)
     return created
   }
 
@@ -189,28 +202,36 @@ export class WriteCoordinator {
     if (!span) return { ok: true, createdIds: [] }
     if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
     if (this.ctx.isDisposed) return { ok: false }
+    const operationFence = this.ctx.captureOperationFence(input.agentId)
     const model = this.ctx.resolveExtractionModel(input.agentId, input.model)
+    const createdIds: string[] = []
+    const outcomes: MemoryWriteOutcome[] = []
+    let touched = false
     try {
       let shouldExtract = true
       try {
-        const triage = await this.ctx.deps.generateText(
+        const triage = await this.ctx.provider.generateText(
+          input.agentId,
           model.providerId,
           model.modelId,
-          buildTriagePrompt(span)
+          buildTriagePrompt(span),
+          'extraction'
         )
         shouldExtract = parseTriageDecision(triage)
       } catch (error) {
         logger.warn(`[Memory] triage skipped, extracting anyway: ${String(error)}`)
       }
-      if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
+      if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
       if (!shouldExtract) return { ok: true, createdIds: [] }
 
-      const response = await this.ctx.deps.generateText(
+      const response = await this.ctx.provider.generateText(
+        input.agentId,
         model.providerId,
         model.modelId,
-        buildExtractionPrompt(span)
+        buildExtractionPrompt(span),
+        'extraction'
       )
-      if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
+      if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
       const parsed = parseMemoryCandidates(response)
       if (!parsed.ok) {
         logger.warn(`[Memory] extraction parse failed: ${parsed.reason}`)
@@ -223,41 +244,63 @@ export class WriteCoordinator {
         sourceEntryIds: input.sourceEntryIds ?? null
       }
       const now = Date.now()
-      const createdIds: string[] = []
-      const outcomes: MemoryWriteOutcome[] = []
-      let touched = false
       for (const candidate of candidates) {
-        const outcome = await this.coordinateWrite(input.agentId, candidate, model, options, now)
+        const outcome = await this.coordinateWrite(
+          input.agentId,
+          candidate,
+          model,
+          options,
+          now,
+          operationFence
+        )
+        if (this.ctx.isOperationGenerationCurrent(operationFence)) {
+          outcomes.push(outcome)
+          createdIds.push(...createdIdsFromOutcome(outcome))
+          if (outcomeTouched(outcome)) {
+            this.ctx.markDomainMutationCommitted(input.agentId)
+            this.ports.markWorkingMemoryDirty(input.agentId)
+            touched = true
+          }
+        }
         // If a non-empty extraction is disabled mid-batch, keep the cursor for retry; any rows
         // already written are picked up by the next embedding/backfill drain.
-        if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
-        outcomes.push(outcome)
-        createdIds.push(...createdIdsFromOutcome(outcome))
-        if (outcomeTouched(outcome)) touched = true
-      }
-      if (createdIds.length || touched) {
-        this.ports.syncWorkingMemoryAfterMutation(input.agentId)
-        const chipCreatedIds = chipCreatedIdsFromOutcomes(outcomes)
-        const updateContext: MemoryUpdateContext = {}
-        if (input.sourceSession) updateContext.sessionId = input.sourceSession
-        if (chipCreatedIds.length > 0) {
-          updateContext.createdIds = chipCreatedIds.slice(0, MEMORY_CREATED_IDS_EVENT_LIMIT)
-        }
-        this.ctx.emitChanged(
-          input.agentId,
-          'extract',
-          Object.keys(updateContext).length > 0 ? updateContext : undefined
-        )
-        void this.ports.triggerEmbedding(input.agentId).catch((error) => {
-          logger.warn(`[Memory] background embedding failed: ${String(error)}`)
-        })
-        this.ports.scheduleConsolidation(input.agentId)
+        if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
       }
       return { ok: true, createdIds }
     } catch (error) {
       logger.warn(`[Memory] extraction failed: ${String(error)}`)
       return { ok: false }
+    } finally {
+      if (touched && this.ctx.isOperationGenerationCurrent(operationFence)) {
+        this.finalizeCommittedExtraction(input, outcomes)
+      }
     }
+  }
+
+  private finalizeCommittedExtraction(
+    input: MemoryExtractionInput,
+    outcomes: MemoryWriteOutcome[]
+  ): void {
+    try {
+      this.ports.flushWorkingMemoryIfDirty(input.agentId)
+    } catch (error) {
+      logger.warn(`[Memory] working memory finalization failed: ${String(error)}`)
+    }
+    const chipCreatedIds = chipCreatedIdsFromOutcomes(outcomes)
+    const updateContext: MemoryUpdateContext = {}
+    if (input.sourceSession) updateContext.sessionId = input.sourceSession
+    if (chipCreatedIds.length > 0) {
+      updateContext.createdIds = chipCreatedIds.slice(0, MEMORY_CREATED_IDS_EVENT_LIMIT)
+    }
+    this.ctx.emitChanged(
+      input.agentId,
+      'extract',
+      Object.keys(updateContext).length > 0 ? updateContext : undefined
+    )
+    void this.ports.triggerEmbedding(input.agentId).catch((error) => {
+      logger.warn(`[Memory] background embedding failed: ${String(error)}`)
+    })
+    this.ports.scheduleConsolidation(input.agentId)
   }
 
   private async coordinateWrite(
@@ -265,15 +308,42 @@ export class WriteCoordinator {
     candidate: MemoryCandidate,
     model: MemoryModelRef,
     options: WriteMemoriesOptions,
-    now: number
+    now: number,
+    operationFence: MemoryOperationFence
   ): Promise<MemoryWriteOutcome> {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await this.coordinateWriteAttempt(
+        agentId,
+        candidate,
+        model,
+        options,
+        now,
+        operationFence,
+        attempt > 0
+      )
+      if (result.action !== 'retry') return result
+    }
+    return { action: 'noop', reason: 'concurrent-update' }
+  }
+
+  private async coordinateWriteAttempt(
+    agentId: string,
+    candidate: MemoryCandidate,
+    model: MemoryModelRef,
+    options: WriteMemoriesOptions,
+    now: number,
+    operationFence: MemoryOperationFence,
+    isRetry: boolean
+  ): Promise<CoordinateWriteResult> {
     const normalized = normalizeMemoryCandidate(candidate)
     if (!normalized) return { action: 'noop', reason: 'empty' }
     const content = normalized.content
-    if (!this.ctx.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
+    if (!this.ctx.canContinueOperation(operationFence)) {
+      return { action: 'noop', reason: 'disposed' }
+    }
 
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
-    const duplicate = this.ctx.deps.repository.getByProvenanceKey(agentId, provenanceKey)
+    const duplicate = this.ctx.resolveProvenance(agentId, normalized.kind, content)
     let decisionHead: AgentMemoryRow | null = null
     let supersededDuplicate: AgentMemoryRow | null = null
     if (duplicate) {
@@ -301,8 +371,11 @@ export class WriteCoordinator {
     } catch (error) {
       logger.warn(`[Memory] decision neighbor recall failed, adding: ${String(error)}`)
     }
-    if (!this.ctx.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
+    if (!this.ctx.canContinueOperation(operationFence)) {
+      return { action: 'noop', reason: 'disposed' }
+    }
     if (!neighbors.length) {
+      if (isRetry) return { action: 'noop', reason: 'concurrent-update' }
       if (supersededDuplicate) {
         return this.reviveProvenanceOwner(agentId, supersededDuplicate, now, normalized.category)
       }
@@ -312,19 +385,31 @@ export class WriteCoordinator {
 
     let decision: MemoryDecision = ADD_DECISION
     try {
-      const raw = await this.ctx.deps.generateText(
+      const raw = await this.ctx.provider.generateText(
+        agentId,
         model.providerId,
         model.modelId,
         buildDecisionPrompt(
           normalized,
           neighbors.map((neighbor) => ({ content: neighbor.content }))
-        )
+        ),
+        'decision'
       )
-      decision = parseDecision(raw, neighbors.length)
+      const parsed = parseDecisionResult(raw, neighbors.length)
+      if (isRetry && !parsed.valid) {
+        return { action: 'noop', reason: 'concurrent-update' }
+      }
+      decision = parsed.decision
     } catch (error) {
+      if (isRetry) {
+        logger.warn(`[Memory] decision retry failed: ${String(error)}`)
+        return { action: 'noop', reason: 'concurrent-update' }
+      }
       logger.warn(`[Memory] decision model failed, adding: ${String(error)}`)
     }
-    if (!this.ctx.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
+    if (!this.ctx.canContinueOperation(operationFence)) {
+      return { action: 'noop', reason: 'disposed' }
+    }
 
     const target = decision.targetIndex !== null ? neighbors[decision.targetIndex] : null
     switch (decision.decision) {
@@ -335,92 +420,143 @@ export class WriteCoordinator {
           const targetRow = this.ctx.deps.repository.getById(target.id)
           if (isLiveDecisionTarget(agentId, targetRow)) {
             const merged = decision.mergedContent ?? content
-            const update = this.rows.applyContentUpdate(
-              agentId,
-              targetRow,
-              merged,
-              now,
-              normalized.category
-            )
-            if (update.action === 'suppressed') {
-              return { action: 'noop', reason: update.reason, id: update.id }
+            const mergedKey = buildMemoryProvenanceKey(agentId, targetRow.kind, merged)
+            const owner = this.ctx.resolveProvenance(agentId, targetRow.kind, merged)
+            if (owner && owner.id !== targetRow.id) {
+              const folded = this.foldDecisionTargetIntoOwner(
+                agentId,
+                target,
+                owner,
+                now,
+                normalized.category
+              )
+              if (folded.action !== 'superseded') return folded
+              return { action: 'updated', id: folded.id }
             }
-            const survivorId = update.id
-            this.rows.bumpConfidence(survivorId)
-            this.ctx.deps.repository.updateStatus(survivorId, 'pending_embedding')
-            return { action: 'updated', id: survivorId }
+            const nextCategory =
+              targetRow.kind === 'episodic' || targetRow.kind === 'semantic'
+                ? (targetRow.category ?? normalized.category ?? null)
+                : undefined
+            try {
+              this.ctx.deps.repository.runInTransaction(() => {
+                const applied = this.ctx.deps.repository.updateDecisionContentIfRevision({
+                  agentId,
+                  id: targetRow.id,
+                  expectedRevision: target.decisionRevision,
+                  content: merged,
+                  provenanceKey: mergedKey,
+                  at: now,
+                  category: nextCategory
+                })
+                if (!applied) throw new DecisionRevisionConflictError()
+                this.rows.bumpConfidence(targetRow.id)
+              })
+            } catch (error) {
+              if (error instanceof DecisionRevisionConflictError) return { action: 'retry' }
+              throw error
+            }
+            return { action: 'updated', id: targetRow.id }
           }
+          return { action: 'retry' }
         }
         break
       case 'SUPERSEDE':
         if (target) {
           const targetRow = this.ctx.deps.repository.getById(target.id)
-          if (!isLiveDecisionTarget(agentId, targetRow)) break
+          if (!isLiveDecisionTarget(agentId, targetRow)) return { action: 'retry' }
           const merged = decision.mergedContent ?? content
           const mergedKey = buildMemoryProvenanceKey(agentId, normalized.kind, merged)
+          const collisionOwner = this.ctx.resolveProvenance(agentId, normalized.kind, merged)
+          if (collisionOwner && collisionOwner.id !== target.id) {
+            return this.foldDecisionTargetIntoOwner(
+              agentId,
+              target,
+              collisionOwner,
+              now,
+              normalized.category
+            )
+          }
           let newId: string | null = null
-          this.ctx.deps.repository.runInTransaction(() => {
-            newId = this.rows.insertMemory(agentId, normalized, merged, mergedKey, options)
-            if (newId) this.ctx.deps.repository.markSuperseded(target.id, newId)
-          })
+          try {
+            this.ctx.deps.repository.runInTransaction(() => {
+              newId = this.rows.insertMemory(agentId, normalized, merged, mergedKey, options)
+              if (!newId) throw new DecisionInsertCollisionError()
+              if (
+                !this.ctx.deps.repository.markSupersededIfRevision(
+                  agentId,
+                  target.id,
+                  target.decisionRevision,
+                  newId
+                )
+              ) {
+                throw new DecisionRevisionConflictError()
+              }
+            })
+          } catch (error) {
+            if (error instanceof DecisionInsertCollisionError) {
+              const owner = this.ctx.resolveProvenance(agentId, normalized.kind, merged)
+              return owner && owner.id !== target.id
+                ? this.foldDecisionTargetIntoOwner(agentId, target, owner, now, normalized.category)
+                : { action: 'retry' }
+            }
+            if (error instanceof DecisionRevisionConflictError) return { action: 'retry' }
+            throw error
+          }
           if (newId) {
             return { action: 'superseded', id: newId, supersededId: target.id, created: true }
           }
-          const existing = this.ctx.deps.repository.getByProvenanceKey(agentId, mergedKey)
-          if (existing && existing.id !== target.id) {
-            const hit = this.rows.handleProvenanceHit(agentId, existing, {
-              allowDecisionForSuperseded: true
-            })
-            if (hit.action === 'noop' && hit.reason !== 'duplicate') {
-              return { action: 'noop', reason: hit.reason, id: existing.id }
-            }
-            return this.reviveProvenanceOwner(
-              agentId,
-              existing,
-              now,
-              normalized.category,
-              target.id
-            )
-          }
-          return { action: 'noop', reason: 'supersede-collided', id: target.id }
+          return { action: 'retry' }
         }
         break
       case 'CHALLENGE':
         if (target) {
-          const challengerId = this.rows.insertConflictedMemory(
-            agentId,
-            normalized,
-            content,
-            provenanceKey,
-            target.id,
-            options
-          )
-          if (challengerId) {
-            const currentTarget = this.ctx.deps.repository.getById(target.id)
-            if (
-              currentTarget &&
-              currentTarget.agent_id === agentId &&
-              currentTarget.status !== 'archived' &&
-              currentTarget.superseded_by === null
-            ) {
-              this.ctx.deps.repository.markConflict(target.id, 'challenged')
-              return { action: 'challenged', targetId: target.id, challengerId }
-            }
-            this.ctx.deps.repository.setConflictWith(challengerId, null)
-            this.ctx.deps.repository.updateStatus(challengerId, 'pending_embedding')
-            return { action: 'created', id: challengerId }
-          }
-          if (supersededDuplicate) {
-            const currentTarget = this.ctx.deps.repository.getById(target.id)
-            return this.reviveProvenanceOwner(
+          const collisionOwner = this.ctx.resolveProvenance(agentId, normalized.kind, content)
+          if (collisionOwner && collisionOwner.id !== target.id) {
+            return this.foldDecisionTargetIntoOwner(
               agentId,
-              supersededDuplicate,
+              target,
+              collisionOwner,
               now,
-              normalized.category,
-              isLiveDecisionTarget(agentId, currentTarget) ? currentTarget.id : undefined
+              normalized.category
             )
           }
-          return { action: 'noop', reason: 'challenge-insert-skipped', id: target.id }
+          let challengerId: string | null = null
+          try {
+            this.ctx.deps.repository.runInTransaction(() => {
+              challengerId = this.rows.insertConflictedMemory(
+                agentId,
+                normalized,
+                content,
+                provenanceKey,
+                target.id,
+                options
+              )
+              if (!challengerId) throw new DecisionInsertCollisionError()
+              if (
+                !this.ctx.deps.repository.markConflictIfRevision(
+                  agentId,
+                  target.id,
+                  target.decisionRevision,
+                  'challenged'
+                )
+              ) {
+                throw new DecisionRevisionConflictError()
+              }
+            })
+          } catch (error) {
+            if (error instanceof DecisionInsertCollisionError) {
+              const owner = this.ctx.resolveProvenance(agentId, normalized.kind, content)
+              return owner && owner.id !== target.id
+                ? this.foldDecisionTargetIntoOwner(agentId, target, owner, now, normalized.category)
+                : { action: 'retry' }
+            }
+            if (error instanceof DecisionRevisionConflictError) return { action: 'retry' }
+            throw error
+          }
+          if (challengerId) {
+            return { action: 'challenged', targetId: target.id, challengerId }
+          }
+          return { action: 'retry' }
         }
         break
     }
@@ -429,6 +565,66 @@ export class WriteCoordinator {
       return this.reviveProvenanceOwner(agentId, supersededDuplicate, now, normalized.category)
     }
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
+  }
+
+  private foldDecisionTargetIntoOwner(
+    agentId: string,
+    target: MemoryRecallItem,
+    owner: AgentMemoryRow,
+    now: number,
+    category: AgentMemoryRow['category']
+  ): CoordinateWriteResult {
+    const hit = this.rows.handleProvenanceHit(agentId, owner, {
+      allowDecisionForSuperseded: true
+    })
+    if (hit.action === 'noop' && hit.reason !== 'duplicate') {
+      return { action: 'noop', reason: hit.reason, id: owner.id }
+    }
+
+    try {
+      this.ctx.deps.repository.runInTransaction(() => {
+        const ownerHead =
+          hit.action === 'continue' ? this.rows.supersedeHead(agentId, owner) : undefined
+        if (
+          !this.ctx.deps.repository.markSupersededIfRevision(
+            agentId,
+            target.id,
+            target.decisionRevision,
+            owner.id
+          )
+        ) {
+          throw new DecisionRevisionConflictError()
+        }
+        if (hit.action === 'absorbed') {
+          this.ctx.deps.repository.activateForEmbedding(owner.id)
+        }
+        if (hit.action === 'continue') {
+          if (ownerHead?.id === target.id) {
+            this.ctx.deps.repository.markSuperseded(owner.id, null)
+            this.ctx.deps.repository.activateForEmbedding(owner.id)
+          } else {
+            this.rows.reviveSupersededAfterDecision(agentId, owner)
+          }
+        }
+        if (
+          (owner.kind === 'episodic' || owner.kind === 'semantic') &&
+          owner.category === null &&
+          category !== null
+        ) {
+          this.ctx.deps.repository.updateContent(
+            owner.id,
+            owner.content,
+            owner.provenance_key,
+            now,
+            category
+          )
+        }
+      })
+    } catch (error) {
+      if (error instanceof DecisionRevisionConflictError) return { action: 'retry' }
+      throw error
+    }
+    return { action: 'superseded', id: owner.id, supersededId: target.id, created: false }
   }
 
   async rememberMemory(
@@ -440,11 +636,21 @@ export class WriteCoordinator {
       return { action: 'noop', reason: 'disposed' }
     }
     const resolvedModel = model ? this.ctx.resolveExtractionModel(options.agentId, model) : null
+    const operationFence = this.ctx.captureOperationFence(options.agentId)
     const outcome = resolvedModel
-      ? await this.coordinateWrite(options.agentId, candidate, resolvedModel, options, Date.now())
+      ? await this.coordinateWrite(
+          options.agentId,
+          candidate,
+          resolvedModel,
+          options,
+          Date.now(),
+          operationFence
+        )
       : this.directAddMemory(options.agentId, candidate, options)
     if (outcomeTouched(outcome)) {
-      this.ports.syncWorkingMemoryAfterMutation(options.agentId)
+      this.ctx.markDomainMutationCommitted(options.agentId)
+      this.ports.markWorkingMemoryDirty(options.agentId)
+      this.ports.flushWorkingMemoryIfDirty(options.agentId)
       this.ctx.emitChanged(options.agentId, 'extract')
       if (outcome.action !== 'challenged') {
         void this.ports.triggerEmbedding(options.agentId).catch((error) => {
@@ -465,7 +671,7 @@ export class WriteCoordinator {
     if (!normalized) return { action: 'noop', reason: 'empty' }
     const content = normalized.content
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
-    const duplicate = this.ctx.deps.repository.getByProvenanceKey(agentId, provenanceKey)
+    const duplicate = this.ctx.resolveProvenance(agentId, normalized.kind, content)
     if (duplicate) {
       const hit = this.rows.handleProvenanceHit(agentId, duplicate)
       if (hit.action === 'absorbed') {
@@ -481,7 +687,7 @@ export class WriteCoordinator {
 
   private absorbArchivedProvenanceOwner(existing: AgentMemoryRow): void {
     this.ctx.deps.repository.runInTransaction(() => {
-      this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
+      this.ctx.deps.repository.activateForEmbedding(existing.id)
     })
   }
 
@@ -494,7 +700,7 @@ export class WriteCoordinator {
   ): MemoryWriteOutcome {
     this.ctx.deps.repository.runInTransaction(() => {
       if (existing.status === 'archived' && existing.superseded_by === null) {
-        this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
+        this.ctx.deps.repository.activateForEmbedding(existing.id)
       }
       this.rows.reviveSupersededAfterDecision(agentId, existing)
       if (existing.category === null && category !== null) {

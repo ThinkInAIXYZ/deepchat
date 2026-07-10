@@ -26,6 +26,7 @@ function makeLLM(decision: string, config = extractionConfig) {
     return ''
   })
   const presenter = new MemoryPresenter({
+    executeWithRateLimit: vi.fn(async () => undefined),
     repository: repo,
     auditRepository: auditRepo,
     resolveAgentConfig: () => config,

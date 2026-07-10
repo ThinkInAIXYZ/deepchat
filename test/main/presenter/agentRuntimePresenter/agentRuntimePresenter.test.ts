@@ -920,16 +920,55 @@ describe('AgentRuntimePresenter', () => {
 
     function startExtraction(toOrderSeq = 10) {
       const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
-      return (agent as any).runMemoryExtraction(
+      return (agent as any).runMemoryExtractionChunks(
         's1',
         {
-          spanText: 'user prefers redis',
-          sourceEntryIds: [1],
-          toOrderSeq,
+          chunks: [
+            {
+              text: 'User: user prefers redis',
+              sourceEntryIds: [1],
+              cursorCommitOrderSeq: toOrderSeq,
+              coveredThroughOrderSeq: toOrderSeq,
+              fragments: [
+                {
+                  orderSeq: toOrderSeq,
+                  entryId: 1,
+                  fragmentIndex: 0,
+                  isFinalFragment: true
+                }
+              ]
+            }
+          ],
           reason: 'fallback'
         },
         epoch
       ) as Promise<void>
+    }
+
+    function extractionChunk(orderSeq: number) {
+      return {
+        text: `User: memory ${orderSeq}`,
+        sourceEntryIds: [orderSeq * 10],
+        cursorCommitOrderSeq: orderSeq,
+        coveredThroughOrderSeq: orderSeq,
+        fragments: [
+          {
+            orderSeq,
+            entryId: orderSeq * 10,
+            fragmentIndex: 0,
+            isFinalFragment: true
+          }
+        ]
+      }
+    }
+
+    async function waitForExtractionChain() {
+      while (true) {
+        const chain = (agent as any).memoryExtractionChains.get('s1') as Promise<void> | undefined
+        if (!chain) return
+        await chain
+        await Promise.resolve()
+      }
     }
 
     it('admits a short single-turn span when the window used a tool', async () => {
@@ -1029,6 +1068,79 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).not.toHaveBeenCalled()
     })
 
+    it('continues after four chunks on the same session extraction chain', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const extractAndStore = installResolvedExtraction()
+      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+
+      await (agent as any).runMemoryExtractionChunks(
+        's1',
+        { chunks: [1, 2, 3, 4, 5].map(extractionChunk), reason: 'fallback' },
+        epoch
+      )
+      await waitForExtractionChain()
+
+      expect(extractAndStore).toHaveBeenCalledTimes(5)
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mock.calls.map(
+          ([, orderSeq]) => orderSeq
+        )
+      ).toEqual([1, 2, 3, 4, 5])
+    })
+
+    it('stops at the first failed chunk without consuming later boundaries', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const extractAndStore = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, createdIds: [] })
+        .mockResolvedValueOnce({ ok: false })
+      ;(agent as any).memoryPort = { isEnabled: vi.fn(() => true), extractAndStore }
+      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+
+      await (agent as any).runMemoryExtractionChunks(
+        's1',
+        { chunks: [1, 2, 3].map(extractionChunk), reason: 'fallback' },
+        epoch
+      )
+
+      expect(extractAndStore).toHaveBeenCalledTimes(2)
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
+      ).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        1
+      )
+    })
+
+    it('writes only the completed chunk lineage into the extraction anchor', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: ['memory-2'] })
+      ;(agent as any).memoryPort = { isEnabled: vi.fn(() => true), extractAndStore }
+      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
+
+      await (agent as any).runMemoryExtractionChunks(
+        's1',
+        { chunks: [extractionChunk(2)], reason: 'compaction' },
+        epoch
+      )
+
+      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'memory/extract',
+          state: expect.objectContaining({
+            memoryIds: ['memory-2'],
+            sourceEntryIds: [20],
+            coveredThroughOrderSeq: 2,
+            cursorCommitOrderSeq: 2
+          })
+        })
+      )
+    })
+
     it('computes tool admission signals from one tape read', async () => {
       installRuntimeRecords([
         userRecord('u1', 1, 'Read package metadata.'),
@@ -1036,9 +1148,9 @@ describe('AgentRuntimePresenter', () => {
       ])
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-      const span = (agent as any).buildMemorySpanFromTape('s1', 0, 2)
+      const window = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
 
-      expect(span).toEqual(
+      expect(window).toEqual(
         expect.objectContaining({
           hadToolUse: true,
           visibleTextChars: 'User: Read package metadata.'.length

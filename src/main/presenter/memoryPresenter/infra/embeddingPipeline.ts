@@ -11,7 +11,12 @@ import {
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '../runtimeConstants'
 import type { AgentMemoryRow, MemoryVectorRecord } from '../types'
-import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import {
+  embeddingFingerprint,
+  type MemoryModelRef,
+  type MemoryOperationFence,
+  type MemoryRuntimeContext
+} from '../context'
 import { VectorStoreManager } from './vectorStoreManager'
 
 export interface EmbeddingPipelinePorts {
@@ -86,6 +91,7 @@ export class EmbeddingPipeline {
 
   private async drainPendingEmbeddings(agentId: string, limit: number): Promise<void> {
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+    const operationFence = this.ctx.captureOperationFence(agentId)
     const config = this.ctx.deps.resolveAgentConfig(agentId)
     let pending = this.ctx.deps.repository.listPendingEmbedding(limit, agentId)
     if (!pending.length) {
@@ -133,21 +139,23 @@ export class EmbeddingPipeline {
 
     let vectors: number[][]
     try {
-      vectors = await this.ctx.deps.getEmbeddings(
+      vectors = await this.ctx.provider.getEmbeddings(
+        agentId,
         embedding.providerId,
         embedding.modelId,
-        pending.map((row) => row.content)
+        pending.map((row) => row.content),
+        'embedding-batch'
       )
     } catch (error) {
       logger.error(`[Memory] embedding service failed for ${agentId}, will retry: ${String(error)}`)
-      if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+      if (!this.ctx.canContinueOperation(operationFence)) return
       for (const row of pending) {
         this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'pending_embedding')
       }
       return
     }
 
-    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+    if (!this.ctx.canContinueOperation(operationFence)) return
     try {
       const dim = vectors.find((vector) => vector?.length)?.length ?? 0
       const records: MemoryVectorRecord[] = []
@@ -165,40 +173,68 @@ export class EmbeddingPipeline {
       }
       if (!records.length) return
 
-      const outcome = await this.vectorStore.withAgentLock(agentId, async (locked) => {
-        if (!this.ctx.canContinueAgentMemoryTask(agentId)) {
-          return { written: new Set<string>(), usable: true }
-        }
-        const live = records.filter((record) =>
-          this.rows.isPendingEmbeddableRow(
-            agentId,
-            this.ctx.deps.repository.getById(record.memoryId)
-          )
-        )
-        liveRecordsForOutcome = live
-        if (!live.length) return { written: new Set<string>(), usable: true }
-        const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
-        if (
-          !currentEmbedding?.providerId ||
-          !currentEmbedding?.modelId ||
-          embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId) !==
-            embeddingFingerprint(embedding.providerId, embedding.modelId)
-        ) {
-          return { written: new Set<string>(), usable: true }
-        }
-        const store = await locked.open(
-          { providerId: embedding.providerId, modelId: embedding.modelId },
-          dim
-        )
-        if (!this.ctx.canContinueAgentMemoryTask(agentId)) {
-          return { written: new Set<string>(), usable: true }
-        }
-        if (!store.isUsable()) return { written: new Set<string>(), usable: false }
-        await store.upsert(live)
-        return { written: new Set(live.map((record) => record.memoryId)), usable: true }
-      })
+      const liveBeforeLease = records.filter((record) =>
+        this.rows.isPendingEmbeddableRow(agentId, this.ctx.deps.repository.getById(record.memoryId))
+      )
+      const currentEmbeddingBeforeLease = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      if (
+        !liveBeforeLease.length ||
+        !currentEmbeddingBeforeLease?.providerId ||
+        !currentEmbeddingBeforeLease?.modelId ||
+        embeddingFingerprint(
+          currentEmbeddingBeforeLease.providerId,
+          currentEmbeddingBeforeLease.modelId
+        ) !== embeddingFingerprint(embedding.providerId, embedding.modelId)
+      ) {
+        return
+      }
 
-      if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+      const outcome = await this.vectorStore.withStoreLease(
+        agentId,
+        { providerId: embedding.providerId, modelId: embedding.modelId },
+        dim,
+        async (store, generation) => {
+          if (!this.ctx.canContinueAgentMemoryTask(agentId)) {
+            return { written: new Set<string>(), usable: true, generation }
+          }
+          const live = records.filter((record) =>
+            this.rows.isPendingEmbeddableRow(
+              agentId,
+              this.ctx.deps.repository.getById(record.memoryId)
+            )
+          )
+          liveRecordsForOutcome = live
+          if (!live.length) return { written: new Set<string>(), usable: true, generation }
+          const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+          if (
+            !currentEmbedding?.providerId ||
+            !currentEmbedding?.modelId ||
+            embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId) !==
+              embeddingFingerprint(embedding.providerId, embedding.modelId)
+          ) {
+            return { written: new Set<string>(), usable: true, generation }
+          }
+          if (!this.ctx.canContinueAgentMemoryTask(agentId)) {
+            return { written: new Set<string>(), usable: true, generation }
+          }
+          if (!store.isUsable()) {
+            return { written: new Set<string>(), usable: false, generation }
+          }
+          await store.upsert(live)
+          return {
+            written: new Set(live.map((record) => record.memoryId)),
+            usable: true,
+            generation
+          }
+        }
+      )
+
+      if (
+        !this.ctx.canContinueAgentMemoryTask(agentId) ||
+        !this.vectorStore.isGenerationCurrent(agentId, outcome.generation)
+      ) {
+        return
+      }
       const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
       const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
       const currentFingerprint =
@@ -237,7 +273,8 @@ export class EmbeddingPipeline {
         this.vectorStore.markReady(
           agentId,
           { providerId: embedding.providerId, modelId: embedding.modelId },
-          dim
+          dim,
+          outcome.generation
         )
       }
     } catch (error) {
@@ -277,11 +314,8 @@ export class EmbeddingPipeline {
       'fts_only'
     ])
     if (!requeued && !force) return
-    await this.vectorStore.withAgentLock(agentId, async (locked) => {
-      if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
-      await locked.close()
-      await this.ctx.deps.resetVectorStore(agentId)
-    })
+    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+    await this.vectorStore.resetAgentStore(agentId)
     this.clearOrphanReconcileMarks(agentId)
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     this.ctx.emitChanged(agentId, 'reindex')
@@ -361,18 +395,31 @@ export class EmbeddingPipeline {
     openDelay: Promise<void> | null
   ): Promise<void> {
     if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
-    const dimensions = await this.resolveWarmVectorDimensions(agentId, embedding)
+    const operationFence = this.ctx.captureOperationFence(agentId)
+    const dimensions = await this.resolveWarmVectorDimensions(agentId, embedding, operationFence)
+    if (
+      !this.ctx.canContinueOperation(operationFence) ||
+      !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)
+    ) {
+      return
+    }
+    if (openDelay) await openDelay
     if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
 
-    const store = await this.vectorStore.withAgentLock(agentId, async (locked) => {
-      if (openDelay) await openDelay
-      if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return null
-      return locked.open(embedding, dimensions)
-    })
-    if (!store) return
+    const leaseResult = await this.vectorStore.withStoreLease(
+      agentId,
+      embedding,
+      dimensions,
+      async (store, generation) => {
+        if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) {
+          return { usable: false, generation }
+        }
+        return { usable: store.isUsable(), generation }
+      }
+    )
     if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
 
-    if (!store.isUsable()) {
+    if (!leaseResult.usable) {
       this.vectorStore.clearReady(agentId)
       if (!this.reindexing.has(agentId)) {
         void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
@@ -391,7 +438,7 @@ export class EmbeddingPipeline {
       return
     }
 
-    this.vectorStore.markReady(agentId, embedding, dimensions)
+    this.vectorStore.markReady(agentId, embedding, dimensions, leaseResult.generation)
     this.scheduleOrphanVectorReconcile(agentId, embedding, dimensions, fingerprint)
     if (!this.reindexing.has(agentId)) {
       void this.ports.backfillEmbeddings(agentId).catch((error) => {
@@ -454,46 +501,55 @@ export class EmbeddingPipeline {
     const retryAt = this.orphanVectorReconcileRetryAt.get(key) ?? 0
     if (Date.now() < retryAt) return
     try {
-      const completed = await this.vectorStore.withAgentLock(agentId, async (locked) => {
-        if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return false
-        const store = await locked.open(embedding, dimensions)
-        if (!store.isUsable()) {
-          return false
-        }
-        let afterId: string | null = null
-        for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
-          const ids = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
-          if (!ids.length) return true
-          afterId = ids[ids.length - 1]
-          const liveRows = this.ctx.deps.repository.listByIds(agentId, ids)
-          const liveIds = new Set(liveRows.map((row) => row.id))
-          const missingIds = ids.filter((id) => !liveIds.has(id))
-          if (missingIds.length) {
-            const prunableIds = [
-              ...new Set(
-                this.ctx.deps.repository.filterPrunableVectorRefs(
-                  agentId,
-                  missingIds,
-                  dimensions,
-                  fingerprint
+      const outcome = await this.vectorStore.withStoreLease(
+        agentId,
+        embedding,
+        dimensions,
+        async (store, generation) => {
+          if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) {
+            return { completed: false, generation }
+          }
+          if (!store.isUsable()) {
+            return { completed: false, generation }
+          }
+          let afterId: string | null = null
+          for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
+            const ids = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
+            if (!ids.length) return { completed: true, generation }
+            afterId = ids[ids.length - 1]
+            const liveRows = this.ctx.deps.repository.listByIds(agentId, ids)
+            const liveIds = new Set(liveRows.map((row) => row.id))
+            const missingIds = ids.filter((id) => !liveIds.has(id))
+            if (missingIds.length) {
+              const prunableIds = [
+                ...new Set(
+                  this.ctx.deps.repository.filterPrunableVectorRefs(
+                    agentId,
+                    missingIds,
+                    dimensions,
+                    fingerprint
+                  )
                 )
-              )
-            ]
-            for (let start = 0; start < prunableIds.length; start += ORPHAN_RECONCILE_BATCH) {
-              if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return false
-              await store.deleteByMemoryIds(
-                prunableIds.slice(start, start + ORPHAN_RECONCILE_BATCH)
-              )
+              ]
+              for (let start = 0; start < prunableIds.length; start += ORPHAN_RECONCILE_BATCH) {
+                if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) {
+                  return { completed: false, generation }
+                }
+                await store.deleteByMemoryIds(
+                  prunableIds.slice(start, start + ORPHAN_RECONCILE_BATCH)
+                )
+              }
+            }
+            if (ids.length < ORPHAN_RECONCILE_BATCH) {
+              return { completed: true, generation }
             }
           }
-          if (ids.length < ORPHAN_RECONCILE_BATCH) {
-            return true
-          }
+          return { completed: false, generation }
         }
-        return false
-      })
+      )
       if (!this.isCurrentOrphanReconcile(key, token)) return
-      if (completed) {
+      if (!this.vectorStore.isGenerationCurrent(agentId, outcome.generation)) return
+      if (outcome.completed) {
         this.orphanVectorReconciled.add(key)
         this.orphanVectorReconcileRetryAt.delete(key)
       } else {
@@ -524,7 +580,8 @@ export class EmbeddingPipeline {
 
   private async resolveWarmVectorDimensions(
     agentId: string,
-    embedding: MemoryModelRef
+    embedding: MemoryModelRef,
+    operationFence: MemoryOperationFence
   ): Promise<number> {
     const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
     const storedDim = this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
@@ -544,7 +601,14 @@ export class EmbeddingPipeline {
     }
 
     try {
-      const attrs = await this.ctx.deps.getDimensions(embedding.providerId, embedding.modelId)
+      const attrs = await this.ctx.provider.getDimensions(
+        agentId,
+        embedding.providerId,
+        embedding.modelId
+      )
+      if (!this.ctx.canContinueOperation(operationFence)) {
+        throw new Error('[Memory] embedding dimension request invalidated')
+      }
       const dimensions = attrs.data.dimensions
       if (!Number.isFinite(dimensions) || dimensions <= 0) {
         throw new Error(
@@ -555,7 +619,9 @@ export class EmbeddingPipeline {
       this.vectorStoreDimensionFailures.delete(key)
       return dimensions
     } catch (error) {
-      this.vectorStoreDimensionFailures.set(key, Date.now())
+      if (this.ctx.canContinueOperation(operationFence)) {
+        this.vectorStoreDimensionFailures.set(key, Date.now())
+      }
       throw error
     }
   }
@@ -566,9 +632,13 @@ export class EmbeddingPipeline {
     if (this.embeddingWarmups.has(key)) return
     const tracked = Promise.resolve()
       .then(async () => {
-        await this.ctx.deps.getEmbeddings(embedding.providerId, embedding.modelId, [
-          EMBEDDING_PREWARM_TEXT
-        ])
+        await this.ctx.provider.getEmbeddings(
+          agentId,
+          embedding.providerId,
+          embedding.modelId,
+          [EMBEDDING_PREWARM_TEXT],
+          'embedding-warm'
+        )
       })
       .catch((error) => {
         logger.warn(`[Memory] embedding warm failed for ${agentId}: ${String(error)}`)

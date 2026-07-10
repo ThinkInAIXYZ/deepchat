@@ -46,6 +46,58 @@ const describeIfSqlite = sqliteHarnessAvailable
     : describe.skip
 
 describeIfSqlite('AgentMemoryTable', () => {
+  it('uses the conflict target index for participant lookup in a 50k-row agent', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const insert = db.prepare(
+        `INSERT INTO agent_memory (id, agent_id, kind, content, status, created_at)
+           VALUES (?, 'a', 'semantic', 'bulk memory', 'embedded', ?)`
+      )
+      db.transaction(() => {
+        for (let index = 0; index < 50_000; index += 1) {
+          insert.run(`bulk-${index}`, index)
+        }
+      })()
+      table.insert({
+        id: 'target',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'target',
+        status: 'embedded'
+      })
+      table.insert({
+        id: 'challenger',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'challenger',
+        status: 'conflicted',
+        conflictWith: 'target'
+      })
+
+      expect(table.isUnresolvedConflictParticipant('a', 'target')).toBe(true)
+      const plan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+             SELECT 1
+             FROM agent_memory candidate
+             WHERE candidate.agent_id = ? AND candidate.id = ?
+               AND EXISTS (
+                 SELECT 1 FROM agent_memory challenger
+                 WHERE challenger.agent_id = candidate.agent_id
+                   AND challenger.status = 'conflicted'
+                   AND challenger.superseded_by IS NULL
+                   AND challenger.conflict_with = candidate.id
+               )`
+        )
+        .all('a', 'target') as Array<{ detail: string }>
+      expect(plan.some((row) => row.detail.includes('idx_agent_memory_conflict_target'))).toBe(true)
+    } finally {
+      db.close()
+    }
+  }, 15_000)
+
   it('inserts and reads back a memory row with defaults', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -1072,12 +1124,14 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(createSql).toContain('persona_state')
       expect(createSql).toContain('conflict_with')
       expect(createSql).toContain('category')
-      expect(table.getLatestVersion()).toBe(37)
+      expect(createSql).toContain('decision_revision INTEGER NOT NULL DEFAULT 1')
+      expect(table.getLatestVersion()).toBe(41)
       expect(table.getMigrationSQL(32)).toMatch(/ADD COLUMN embedding_model/)
       expect(table.getMigrationSQL(33)).toMatch(/ADD COLUMN confidence/)
       expect(table.getMigrationSQL(34)).toMatch(/ADD COLUMN persona_state/)
       expect(table.getMigrationSQL(35)).toMatch(/ADD COLUMN conflict_with/)
       expect(table.getMigrationSQL(37)).toMatch(/ADD COLUMN category/)
+      expect(table.getMigrationSQL(41)).toMatch(/ADD COLUMN decision_revision/)
       expect(table.getMigrationSQL(31)).toBeNull()
 
       table.createTable()
@@ -1088,6 +1142,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(columns).toContain('persona_state')
       expect(columns).toContain('conflict_with')
       expect(columns).toContain('category')
+      expect(columns).toContain('decision_revision')
     } finally {
       db.close()
     }
@@ -1722,6 +1777,50 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('v41 migration adds decision revision with a stable legacy default', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      db.exec('ALTER TABLE agent_memory DROP COLUMN decision_revision')
+      db.prepare(
+        'INSERT INTO agent_memory (id, agent_id, kind, content, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run('legacy-revision', 'a', 'semantic', 'legacy fact', 1000)
+
+      db.exec(table.getMigrationSQL(41) ?? '')
+
+      expect(table.getById('legacy-revision')?.decision_revision).toBe(1)
+      expect(() => db.exec(table.getMigrationSQL(41) ?? '')).toThrow(/duplicate column name/i)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('bumps decision revision only for semantic mutations', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'revisioned', agentId: 'a', kind: 'semantic', content: 'fact' })
+
+      table.recordAccess('revisioned', 100)
+      table.updateDecayScore('revisioned', 0.8, 100)
+      table.updateStatus('revisioned', 'embedded', {
+        embeddingId: 'revisioned',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      expect(table.getById('revisioned')?.decision_revision).toBe(1)
+
+      table.updateContent('revisioned', 'refined fact', 'key', 200)
+      table.setImportance('revisioned', 0.9)
+      table.setAnchor('revisioned', true)
+      expect(table.getById('revisioned')?.decision_revision).toBe(4)
+    } finally {
+      db.close()
+    }
+  })
+
   it('getActivePersona honors the lifecycle tristate (legacy active / superseded / draft) (AC-1.6)', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -1828,6 +1927,45 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(table.getById('m1')?.conflict_state).toBe('challenged')
       table.markConflict('m1', null)
       expect(table.getById('m1')?.conflict_state).toBe(null)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('guards unresolved conflict participants and excludes challenged targets from archive scans', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'target',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'target',
+        createdAt: 1
+      })
+      table.insert({
+        id: 'challenger',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'challenger',
+        status: 'conflicted',
+        conflictWith: 'target',
+        createdAt: 2
+      })
+      table.markConflict('target', 'challenged')
+      table.updateDecayScore('target', 0.001)
+
+      expect(table.isUnresolvedConflictParticipant('a', 'target')).toBe(true)
+      expect(table.isUnresolvedConflictParticipant('a', 'challenger')).toBe(true)
+      expect(table.isUnresolvedConflictParticipant('b', 'target')).toBe(false)
+      expect(table.listConflictIntegrityRows('a').map((row) => row.id)).toEqual([
+        'target',
+        'challenger'
+      ])
+      expect(table.listArchiveCandidates('a', 100, 0.05)).toEqual([])
+      expect(table.countArchiveCandidates('a', 100, 0.05)).toBe(0)
+      expect(table.listArchiveCandidateLifecycleRows('a', 100, 10)).toEqual([])
     } finally {
       db.close()
     }

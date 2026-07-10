@@ -42,6 +42,18 @@ These hold across every module and are the system's core invariants.
 7. **Auditable, content-free observability.** Maintenance and user audit rows record *provenance
    metadata only* (ids/action/model, with an optional `session_id` — never raw text) in an audit table;
    injection manifests are persisted as tape anchors.
+8. **Message-boundary extraction.** CJK-aware chunks cap estimated tokens and Unicode code points;
+   triage and extraction see the same chunk, and the cursor advances only after the last fragment of a
+   message succeeds.
+9. **Authoritative, epoch-gated reads.** Retrieval re-reads the FTS/vector union after provider awaits;
+   a concurrent domain mutation invalidates the entire injection before prompt append or accounting.
+10. **Revisioned aggregate writes.** `decision_revision` protects UPDATE/SUPERSEDE/CHALLENGE with one
+    bounded fresh retry; unresolved conflict participants cannot be independently mutated.
+11. **Bounded external lifecycles.** Provider work passes RateLimit admission and purpose deadlines;
+    vector operations use manager-owned leases, and disposal has one five-second drain deadline.
+12. **Destructive generations are separate from read epochs.** Ordinary semantic mutations advance the
+    per-agent read epoch; clear, agent deletion, and dispose invalidate a destructive operation generation
+    and abort stale provider continuations before they can write rows, cursors, audits, events, or vectors.
 
 ---
 
@@ -92,7 +104,7 @@ flowchart TD
 | Layer | File | Responsibility |
 | --- | --- | --- |
 | Kernel | `src/main/presenter/memoryPresenter/index.ts` | `MemoryPresenter` facade — public method compatibility, service wiring, narrow port binding, `dispose()` and deleted-agent cleanup orchestration |
-| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — deps, disposed state, validation/guard helpers, audit/events, model resolution |
+| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — read epochs, destructive operation generations, disposed state, validation/guard helpers, audit/events, and model resolution |
 | Kernel | `memoryPresenter/runtimeConstants.ts` | Internal runtime scheduling, lifecycle, working-memory, and warmup constants |
 | Kernel | `memoryPresenter/types.ts` | Repository/vector DTOs, enum types, and the retrieval/scoring/decay tunable constants |
 | Kernel | `memoryPresenter/ports.ts` | Root-owned cross-layer ports such as `VectorStoreRetrievalPort` and `WorkingMemoryReadPort` |
@@ -101,12 +113,13 @@ flowchart TD
 | Services | `memoryPresenter/services/retrievalService.ts` | Hybrid recall/search/injection orchestration, keyword query, query embedding gate, soft timeout, RRF fusion, access recording |
 | Services | `memoryPresenter/services/writeCoordinator.ts` | Sync writes, extraction writes, user/tool writes, decision ring application, audit, and background trigger ports |
 | Services | `memoryPresenter/services/maintenanceService.ts` | Startup/prewarm/consolidation timers, merge/challenge/reflection/persona maintenance, decay/archive passes |
-| Services | `memoryPresenter/services/workingMemoryService.ts` | Working-memory blob read/build/refresh/delete and cold-start refresh coalescing |
+| Services | `memoryPresenter/services/workingMemoryService.ts` | Working-memory blob read/build/refresh/delete, correctness-only dirty/flush finalization, cold-start refresh coalescing, and legacy working-provenance resolution |
 | Services | `memoryPresenter/services/reflectionService.ts` | Reflection thresholding, insight insertion, watermarks, and embedding trigger port |
 | Services | `memoryPresenter/services/personaService.ts` | Persona draft/evolution/approval/rejection/rollback/anchor flows and per-agent persona lock |
-| Services | `memoryPresenter/services/conflictService.ts` | Conflict listing/resolution and maintenance scheduling through narrow ports |
+| Services | `memoryPresenter/services/conflictService.ts` | Conflict aggregate guard, listing/resolution, integrity repair, and maintenance scheduling through narrow ports |
 | Services | `memoryPresenter/services/managementService.ts` | List/get/lifecycle/health/delete/clear/status delegation and management-facing row projection |
-| Infra | `memoryPresenter/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: cache, identity, readiness, open/close/reset/delete, and per-agent lock contract |
+| Infra | `memoryPresenter/infra/providerGateway.ts` | Agent-aware RateLimit admission, purpose deadlines, destructive abort, and bounded unsettled provider work |
+| Infra | `memoryPresenter/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: scoped generation leases, identity/readiness, recoverable reset, and parallel close/drain orchestration |
 | Infra | `memoryPresenter/infra/embeddingPipeline.ts` | Pending embedding drain, reindex/backfill, embedding/vector warmups, dimension cooldowns, and `isReindexing` |
 | Infra | `memoryPresenter/infra/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
 | Core | `memoryPresenter/core/candidates.ts` | Pure memory candidate normalization |
@@ -161,9 +174,12 @@ The raw tape (`deepchat_tape_entries`) remains the ultimate evidence source of t
 `id`, `agent_id`, `user_scope`, `kind`, `category`, `content`, `importance`, `status`, `embedding_id`,
 `embedding_dim`, `embedding_model`, `source_session`, `provenance_key`, `is_anchor`, `superseded_by`,
 `created_at`, `last_accessed`, `access_count`, `decay_score`, `source_entry_ids`, `confidence`,
-`last_consolidated_at`, `conflict_state`, `conflict_with`, `persona_state`.
+`last_consolidated_at`, `conflict_state`, `conflict_with`, `persona_state`, `decision_revision`.
 
 A unique partial index on `(agent_id, provenance_key)` enforces idempotent dedup.
+New provenance keys are `v2:<kind>:<sha256>` over
+`agentId + NUL + kind + NUL + NFC(trim/collapseWhitespace(content))`; case is preserved. Legacy v1
+lookups require a normalized-content equality check before transactional lazy re-keying.
 
 ### 6.2 Enums
 
@@ -215,12 +231,15 @@ flowchart TD
 
 **`buildInjection` details**
 
-- Reads the **active** persona only (`getActivePersona`); drafts and rejected versions are never injected.
-- Reads the working-memory blob without bumping `access_count`; on a cold start it schedules an off-hot-path
-  working refresh.
-- Resolves recalled units via `retrieve(query, recordAccessHits=true)` — directly for a non-empty query, or
-  via `recall()` (which delegates to `retrieve` with `recordAccessHits=true` and short-circuits to `[]` on an
-  empty query); returns `null` if persona, working, and recall are all empty.
+- Captures the per-agent read epoch, then resolves recalled units with access recording disabled. After all
+  provider/vector awaits, retrieval performs one agent-scoped `listByIds` authoritative re-read of the
+  FTS/vector union and replaces stale snapshots with the latest rows.
+- Re-checks the original epoch, synchronously flushes any correctness-only working dirty state, captures the
+  post-flush epoch, and only then reads the **active** persona and working blob. Draft/rejected persona is
+  never injected and working reads do not bump `access_count`.
+- Performs one final enabled/managed/disposed/epoch gate and returns immediately without another await. Any
+  concurrent semantic mutation fails the whole injection closed; runtime separately re-checks enablement
+  before prompt append, access accounting, and the `memory/view_assembled` anchor.
 - Produces a `MemoryInjectionPayload` (selfModel + working + memories + `tokenBudget`) and a manifest
   (selected/dropped/queryHash). The runtime appends the section and persists a `memory/view_assembled`
   anchor.
@@ -263,7 +282,7 @@ Compaction-triggered extraction keeps its old behavior.
 ```mermaid
 flowchart TD
   T["turn / resume done or compaction"] --> EQ["enqueueSessionExtraction<br/>(per-session serial chain, epoch-guarded)"]
-  EQ --> CUR["read cursor + buildEffectiveTapeView span (from,to]<br/>collect source_entry_ids + admission signals"]
+  EQ --> CUR["read cursor + buildEffectiveTapeView window (from,to]<br/>build message-aligned chunks + exact lineage"]
   CUR --> TRI{"triage gate<br/>(cheap KEEP/SKIP, fail-open)"}
   TRI -- SKIP --> ADV0["advance cursor, no write"]
   TRI -- KEEP --> EX["extraction → JSON candidates (≤8)"]
@@ -286,14 +305,16 @@ flowchart TD
   EMB --> DUCK["DuckDB memory_vector + status=embedded"]
 ```
 
-**Triage gate.** A cheap `KEEP/SKIP` pass runs before full extraction over the span's last 4000 chars. The
-KEEP criteria include stable user preferences, project facts, durable task outcomes, heuristics,
-anti-patterns, constraints, and notable decisions. It is doubly fail-open: `parseTriageDecision` skips only on
-an explicit `SKIP` without `KEEP`, and a thrown triage call is caught and extraction proceeds anyway. A SKIP
-still advances the cursor (the span is consumed).
+**Chunking and triage.** The effective window is packed on message boundaries into CJK-aware chunks capped
+at approximately **4,000 estimated tokens** and **12,000 Unicode code points**. An oversized message is split
+with an iterator-based grapheme/code-point-safe linear scan; its cursor boundary is committed only after the
+last fragment succeeds. One queue task processes at most four chunks and enqueues the immutable remainder on
+the same session chain. Triage and extraction receive the exact same complete chunk—there is no prompt-side
+tail slice. `parseTriageDecision` skips only on an explicit `SKIP` without `KEEP`; a thrown triage call remains
+fail-open. A successful SKIP consumes only that chunk's committable message boundary.
 
-**Extraction.** Over the span's last 12000 chars, the model returns at most **8** raw candidates (enforced
-both in the prompt and as a hard parse cap), each `{category, content, importance}`. Parsing is tolerant
+**Extraction.** For each complete chunk the model returns at most **8** raw candidates (enforced both in the
+prompt and as a hard parse cap), each `{category, content, importance}`. Parsing is tolerant
 **per entry** — a malformed individual entry or empty content is skipped, raw `category`/legacy `kind` are
 preserved, malformed importance is left for normalization, and each span keeps at most one `task_outcome`.
 A **top-level** parse failure (empty response, no JSON array, invalid JSON, or a non-array), however, is
@@ -326,14 +347,20 @@ unavailable to them. The cost saving comes from the triage gate avoiding the lar
    by provenance alone when a model path is available — its live chain head is fed into the decision ring.
 3. Otherwise retrieve up to **10** decision neighbors through `retrieveForDecision`, which uses the
    agent-facing keyword query in `any` mode and disables inline vector pruning. This keeps FTS-only agents
-   capable of semantic write decisions without requiring vectors. Any decision-model failure or out-of-range
-   target index degrades to `ADD` so a hallucinated index can never touch the wrong row. `UPDATE` and
-   `SUPERSEDE` re-read the target after the model await and only land on a still-live row.
-4. Apply: `ADD` inserts with the candidate category; `UPDATE` rewrites the target content + bumps confidence
-   + re-queues embedding and only absorbs the candidate category when the target category is `NULL`;
-   `SUPERSEDE` inserts the merged row with the candidate category and supersedes the target; `NOOP` does
-   nothing; `CHALLENGE` inserts a `conflicted` row linked via `conflict_with` and marks the target
-   `challenged`.
+   capable of semantic write decisions without requiring vectors. On the first attempt, a decision-model
+   failure or invalid target index still degrades to `ADD`; a revision/liveness conflict instead performs one
+   complete fresh provenance/recall/prompt attempt. During that retry only an explicit valid `ADD` may insert;
+   another conflict, provider failure, or parse failure returns `noop(concurrent-update)`.
+4. Apply: `ADD` inserts with the candidate category. `UPDATE` uses one conditional SQL statement plus the
+   confidence update in one transaction, atomically checking agent/id/revision/liveness/conflict while
+   replacing content/category/provenance, resetting embedding metadata, and incrementing
+   `decision_revision`. `SUPERSEDE` and `CHALLENGE` atomically combine successor/challenger insert with their
+   conditional target transition. `NOOP` does nothing.
+
+Each successful candidate semantic commit immediately advances the read epoch and marks working memory dirty
+before the next await. Batch success, failure, disable, and dispose share one finalization path for working
+flush, embedding scheduling, and events. A partial batch keeps its cursor unadvanced; provenance/revision CAS
+makes replay converge without losing the side effects of already committed rows.
 
 The write outcome is a discriminated union `MemoryWriteOutcome` (`created` / `updated` / `superseded` /
 `noop` / `challenged`). The same coordinator backs both extraction and the agent-facing `memory_remember`
@@ -465,12 +492,17 @@ of the results. The pass advances an in-memory `{ createdAt, id }` compound curs
 windows are not skipped. Each pass is bounded by
 **64 stored-vector neighbor scans**, **8 LLM calls**, and **24k input tokens** (remainder deferred). For each
 row it picks the first current, live neighbor with similarity ≥ **0.85** and runs the same decision prompt;
-only `UPDATE`/`SUPERSEDE` fold the pair (the more-recent row normally survives — unless the merged content's
-provenance key is already owned by a third row, in which case the pair folds into that owner; importance and
-confidence only ever rise), so a re-run converges.
+only `UPDATE`/`SUPERSEDE` may fold the pair. The pass snapshots both revisions before the LLM await and applies
+the survivor content/embedding reset plus the retired row's supersede transition in one transaction guarded
+by both revisions and liveness. A stale participant rolls the whole merge back without an LLM retry. If the
+merged provenance owner is the secondary participant, the fold may converge into that row; an unrelated
+third owner causes a safe skip plus consolidation stamp instead of a stale three-row fold. Importance and
+confidence only ever rise.
 
 **Non-destructive archival (`archiveStale`).** A row is soft-deleted only when **all** of: `decayScore <
-0.05`, `access_count == 0`, age `> 90 days`, still active. Anchors, persona, and working rows are exempt.
+0.05`, `access_count == 0`, age `> 90 days`, still active, and not an unresolved conflict participant.
+Anchors, persona, and working rows are exempt. A challenged target remains lifecycle-active and recallable;
+`conflict_state` protects it from archive and generic single-row mutation until aggregate resolution/repair.
 `restoreMemory` reverses it for normal memories. There is no hard delete on this path. Maintenance also runs
 a cheap repair that normalizes any legacy persona/working row back to `status='fts_only'` while preserving
 embedding refs until a bounded dead-vector sweep deletes the corresponding DuckDB vectors from a successfully
@@ -561,10 +593,11 @@ flowchart TD
 
 This is where the "stabilization" and "kernel hardening" work concentrates.
 
-- **Per-agent serialization.** Every open/close/reset of the single per-agent `.duckdb` file goes through
-  `runExclusiveForAgent`, guaranteeing the file is never opened by two `DuckDBInstance`s at once. The
-  embedding drain deliberately runs *outside* this lock (it spans a network call); persona ops use a separate
-  per-agent persona lock.
+- **Scoped vector leases.** Query/query-by-id/upsert/delete/reconcile run only inside manager-owned callbacks
+  carrying a per-agent store generation. Close/reset/delete/dispose stop new admission and drain active
+  leases before touching the native store. A failed reset marks `requiresReset`; later leases retry reset
+  under the per-agent lock and fail open to FTS for that request if recovery still fails. Permanent retire and
+  dispose remain closed. Persona operations use a separate per-agent lock.
 - **Vector identity gate.** On opening an existing sidecar, `embedding_meta` (provider/model/dim) is compared
   against the current request. A mismatch or a legacy sidecar with no identity → the store is marked unusable
   and recall serves FTS only, with an explicit warning. A model/dimension switch closes the old instance and
@@ -582,11 +615,24 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   persona-specific routes and working rows are kernel-owned. Permanent UI delete (`deleteMemory`) hard-deletes
   the row and best-effort deletes its vector; if the sidecar is not already open, the manager may open the
   current embedding store inside the per-agent vector lock using the known warm/current dimension.
+- **Conflict aggregate integrity.** Generic edit/archive/forget/delete/restore reject both challengers and
+  targets referenced by unresolved challengers. `CHALLENGE` is a single SQLite transaction, and an idempotent
+  startup/maintenance repair restores missing target state, archives invalid challengers, clears orphan
+  challenged state, and removes stray `conflict_with` links. The participant lookup uses the
+  `(agent_id, conflict_with, status, superseded_by)` index.
+- **Read epoch vs. destructive generation.** Every semantic SQLite commit advances the agent read epoch;
+  operational access/decay/embedding/audit writes do not. Clear invalidates the destructive operation
+  generation before row deletion even for an empty store; agent deletion does so before its first await.
+  Those paths also abort the agent's provider work, so late completions cannot recreate cleared data.
 - **Embedding-drain config guard.** A background embedding drain captures the embedding identity it started
   with; before writing vectors, and before a reindex reset, it re-checks the agent's current `memoryEmbedding`
   fingerprint and discards the batch if the config changed mid-flight, so a stale drain can never write
   vectors from a superseded model into a freshly reset sidecar.
-- **Provenance and revival.** Provenance hits are split into classification and execution. Pure
+- **Provenance and revival.** New keys are `v2:<kind>:<sha256>` over agent/kind and NFC-normalized content
+  while preserving case. Lookup is v2 then legacy v1; a v1 hit must pass normalized content equality before
+  a transactional lazy re-key, otherwise it is treated as a hash collision. Working memory additionally uses
+  its historical fixed-seed v1 resolver and removes a redundant legacy internal row when v2 already exists,
+  without bumping `decision_revision`. Provenance hits are split into classification and execution. Pure
   scheduler-archived rows may be restored; rows with a user archive or runtime forget audit are suppressed
   with `suppressed-user-forget`; archived rows that are also superseded are treated as conflict losers and
   suppressed with `suppressed-conflict-loser`; active duplicates stay no-op. Non-archived superseded hits are
@@ -594,16 +640,18 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   `SUPERSEDE` collision can revive that old row and retire its former head. `applyContentUpdate` keeps a
   row's `provenance_key` aligned with its new content; if the new key is owned by a suppressed row, the
   update keeps the original row unchanged rather than reviving the suppressed owner.
-- **Vector cleanup.** Vector deletion has three layers: direct delete opens the current sidecar when possible;
-  inline prune treats missing SQLite rows as prunable while retaining lifecycle/model/dimension guards for
-  existing rows; and warmup runs a one-shot keyset reconciliation under the vector lock to remove historical
-  orphan vectors from the current sidecar without using `LIMIT/OFFSET`.
+- **Vector cleanup and generation writeback.** Vector deletion has three layers: direct delete opens the
+  current sidecar when possible; inline prune treats missing SQLite rows as prunable while retaining
+  lifecycle/model/dimension guards; and warmup runs a one-shot keyset reconciliation. Embedding-ready status,
+  warm readiness, and reconcile watermarks are accepted only for the same lease generation, so late native
+  completions become no-ops.
 - **Close-safe teardown (`dispose`).** A `disposed` flag is set first so any already-fired timer's pass
   becomes a no-op; `canWriteAgentMemory` / `canReadAgentMemory` both include `!disposed` and are re-checked
-  after every `await`. Dispose stops the startup maintenance timer, clears per-agent idle timers,
-  bounded-drains in-flight consolidation / reindex / backfill / embedding writers, awaits per-agent locks,
-  and closes every DuckDB store — before the SQLite connection closes. (The fire-and-forget extraction chain
-  is not drained by `dispose`; it self-guards on `disposed`.)
+  after every `await`. Dispose globally invalidates/aborts provider work, stops task and lease admission, and
+  gives all provider/tasks/leases one absolute five-second drain deadline. Store drains run per agent in
+  parallel, so one stuck native operation does not prevent other idle stores from closing; after the deadline
+  only stores with an active native operation may remain open. Fire-and-forget extraction is fenced before
+  every side effect and cannot outlive disposal semantically.
 - **Agent-deletion cleanup.** Deleting a DeepChat agent atomically clears `agent_memory` +
   `agent_memory_audit` in one SQLite transaction, then best-effort destroys that agent's DuckDB sidecar file.
 - **Disk reclaim.** A per-row hard delete does not shrink the DuckDB file; only a whole-store reset
@@ -689,11 +737,11 @@ Memory is a first-class, top-level settings section, configured strictly per-age
 ## 16. Schema and migrations
 
 A single global schema version is shared across all SQLite tables (the migration runner takes the max of
-every table's latest version). The memory work advanced it from 31 to **37**.
+every table's latest version). The current global maximum is **41**.
 
 | Table | Change | Migration |
 | --- | --- | --- |
-| `agent_memory` | v32 backfills `embedding_model` + `source_entry_ids`; v33 adds `confidence` + `last_consolidated_at` + `conflict_state`; v34 adds `persona_state`; v35 adds `conflict_with`; v37 adds nullable `category`. `getCreateTableSQL` is authoritative (new DB == migrated old DB). `schemaCatalog.agent_memory.repairableColumns` can repair a missing `category` column. **Purely additive.** | Yes (`getMigrationSQL`) |
+| `agent_memory` | v32 backfills `embedding_model` + `source_entry_ids`; v33 adds `confidence` + `last_consolidated_at` + `conflict_state`; v34 adds `persona_state`; v35 adds `conflict_with`; v37 adds nullable `category`; v41 adds `decision_revision INTEGER NOT NULL DEFAULT 1`. `getCreateTableSQL` is authoritative (new DB == migrated old DB), and startup catalog repair coexists with migration validation. The conflict-target lookup index is reconciled idempotently for existing DBs without consuming v42. **Purely additive.** | Yes (`getMigrationSQL`) |
 | `agent_memory_fts` | FTS5 external-content virtual table + `ai`/`ad`/`au` triggers; tokenizer probed at runtime | No — built idempotently |
 | `agent_memory_audit` | New table at v36: maintenance/user provenance ledger (`scheduler`/`user` actors + optional `session_id`), ids/metadata only | Yes (whole table) |
 | `deepchat_tape_search_projection` (+ meta + FTS meta) | Searchable projection of the effective tape + FTS5 (content `PROJECTION_VERSION=2`) | No — version-exempt, rebuilt idempotently from raw tape |
@@ -716,10 +764,10 @@ enable memory (top-level Memory page / agent toggle)
 → <context-data kind="memory"> appended; persist memory/view_assembled manifest anchor
 → model replies
 → turn/resume/compaction → enqueueSessionExtraction (per-session serial, epoch-guarded)
-→ cursor + effective-view span + source_entry_ids lineage + admission signals
+→ cursor + effective-view window + message-aligned CJK-aware chunks + exact source_entry_ids lineage
 → fallback admission (visible text + tool/backstop/substantive text) or compaction
-→ triage gate → extraction raw category candidates → normalization → decision ring
-  (ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE, with live-target recheck and decision-backed revival)
+→ same complete chunk through triage → extraction raw category candidates → normalization → decision ring
+  (ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE, with revision CAS and one bounded fresh retry)
 → SQLite pending_embedding → cursor advances MAX + memory/extract anchor
 → background per-agent embedding (batched · fair · transactional) → DuckDB
 → [offline] self-scheduled sleep-time pass (6h cooldown): merge + conflict adjudication
@@ -735,10 +783,12 @@ Coverage mirrors source under `test/main/**` (and `test/renderer/**` for UI), pi
 
 - Injection sanitization; per-session serial extraction lock; monotonic cursor; insert error
   classification.
+- Message-aligned ASCII/CJK/emoji chunking, oversized-message replay, exact lineage, partial-batch
+  finalization, read-epoch fail-closed behavior, and clear/delete destructive generations.
 - Vector upsert transaction + identity guard (fail-closed to FTS); reindex on dimension change; bounded
-  `error` retry; orphan-vector reconciliation.
-- Decision ring (five branches + fallbacks); provenance suppression/revival matrix; live target re-check;
-  conflict closure / resolution; category propagation and reflection/persona/working category guards.
+  `error` retry; scoped lease/reset recovery; generation-checked ready/reconcile writeback.
+- Decision ring (five branches + bounded CAS retry); provenance v2/v1 compatibility; stale maintenance merge
+  rollback; conflict aggregate guard/repair; category propagation and reflection/persona/working guards.
 - Dual-score forgetting / four-condition archival; offline consolidation (cooldown / budget /
   restart-durable / idle debounce); reflection recall; working blob; guarded persona (default-off / draft /
   anchor / eval gate).
@@ -746,17 +796,19 @@ Coverage mirrors source under `test/main/**` (and `test/renderer/**` for UI), pi
 - Settings surface (override clear / inheritance / clamp; category badge/filter); retrieval eval (hit@3 / MRR /
   nDCG).
 
-The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is loadable (force with
-`DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`); it is not wired to a CI Action. Run before merge through mise:
-`mise exec -- pnpm run typecheck`, `mise exec -- pnpm test`, `mise exec -- pnpm run lint`,
-`mise exec -- pnpm run format:check`.
+The independent `memory-native-validation` CI job installs the Node 24 ABI artifact through the native dependency's
+own install lifecycle, runs an open/read/write/reopen/close smoke, and sets
+`DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`. Missing bindings, FTS initialization, fresh schema, v37/v38/v40→v41
+migration, reopen, or migration validation fail rather than skip. The focused Native suite runs only in this
+disposable CI dependency tree; local development keeps the Electron ABI binding installed.
 
 ---
 
 ## 19. Known limitations and risks
 
-- **Triage SKIP is permanent.** A wrongly-SKIPped durable span is consumed and not re-extracted; mitigated by
-  the conservative fail-open triage (KEEP unless an explicit SKIP).
+- **Triage SKIP is permanent per successful chunk.** A wrongly-SKIPped durable chunk is consumed and not
+  re-extracted; mitigated by conservative fail-open triage (KEEP unless an explicit SKIP). Unprocessed later
+  chunks and incomplete oversized-message fragments remain behind the cursor.
 - **Category prose can drift.** The category enum/floors have one shared source of truth, but the automatic
   extraction prompt and the `memory-management` skill intentionally carry separate prose for different
   audiences.
@@ -771,8 +823,8 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
   are not quality-neutral: if left in the HNSW result window they crowd out live candidates. Direct delete,
   inline prune, and one-shot warm-store orphan reconciliation remove current-sidecar dead vectors over time.
   Management search disables inline prune so read-only search does not write DuckDB.
-- **FTS5 native dependency.** Under vitest with an unloadable native ABI, the real FTS5/trigram eval skips;
-  CI needs a working native build to exercise it.
+- **FTS5 native dependency.** Ordinary non-native test runs may still use their configured fallback, but the
+  dedicated native CI gate requires a working binding and treats FTS/migration skips as failures.
 - **Vector query threshold.** `MemoryVectorStore.query` does not apply a distance cutoff itself; the
   `similarityThreshold` is enforced presenter-side after distance→similarity conversion.
 
@@ -796,8 +848,8 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 | `CATEGORY_IMPORTANCE_FLOOR` | user_preference 0.5 · project_fact 0.6 · task_outcome 0.55 · heuristic 0.5 · anti_pattern 0.6 | write-time category floor |
 | archive thresholds | decay < 0.05 · access = 0 · age > 90d | `archiveStale` |
 | `DECISION_NEIGHBOR_TOP_S` | 10 | neighbors fed to the decision model |
-| `MAX_CANDIDATES` | 8 | extraction candidates per span |
-| triage / extraction span | last 4000 / 12000 chars | prompt truncation (tail) |
+| `MAX_CANDIDATES` | 8 | extraction candidates per chunk |
+| extraction chunk | ~4000 estimated tokens / 12000 Unicode code points / 4 chunks per queue task | message-aligned input shared by triage and extraction |
 | `MEMORY_FALLBACK_MIN_DELTA` | 6 | min orderSeq delta before fallback extraction |
 | `MEMORY_MIN_AGENTIC_TEXT_CHARS` | 160 | short non-tool fallback text threshold |
 | `CONSOLIDATION_IDLE_MS` | 5min | idle debounce after a write |
@@ -810,6 +862,8 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 | `ERROR_RETRY_COOLDOWN_MS` / batch | 10min / 50 | bounded automatic retry for rows stuck in embedding `error` |
 | `ORPHAN_RECONCILE_BATCH` | 512 | keyset page size for warm vector orphan reconciliation |
 | `RECALL_QUERY_EMBEDDING_TIMEOUT_MS` / stale / max concurrent | 800ms / 30s / 2 | foreground query-embedding soft timeout and per-agent+model cap |
+| provider deadlines | query 800ms · dimension 15s · embedding 30s · text 60s | RateLimit admission included in the absolute deadline |
+| unsettled provider cap | 2 per agent/provider/model/purpose · 64 global | released only when the underlying promise settles |
 | `MEMORY_SEARCH_DEFAULT_LIMIT` | 50 | default management search depth |
 | `WORKING_BLOB_TOKEN_LIMIT` | 400 | working-memory blob size |
 | persona thresholds | ≥ 3 memories · importance ≥ 5.0 · changeRatio > 0.6 → needsReview | guarded persona evolution |

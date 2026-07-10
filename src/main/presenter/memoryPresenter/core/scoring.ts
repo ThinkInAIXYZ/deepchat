@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import {
   CONFIDENCE_BOOST,
   DEFAULT_CONFIDENCE,
@@ -17,6 +19,7 @@ import {
 } from '../types'
 import type { AgentMemoryKind } from '../../sqlitePresenter/tables/agentMemory'
 import type { DeepChatAgentMemoryRetrieval } from '@shared/types/agent-interface'
+import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 
 // Recency half-life per cognitive layer: reflections persist longest, episodic summaries next,
 // everything else on the semantic default. persona/working never reach recall, so they fall through.
@@ -130,18 +133,7 @@ export function decayScore(
   return recencyScore(anchor, now, effectiveHalfLifeMs)
 }
 
-/** Parses the persisted source_entry_ids JSON back into a tape entry_id list, or null. */
-export function parseSourceEntryIds(raw: string | null | undefined): number[] | null {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return null
-    const ids = parsed.filter((id): id is number => Number.isInteger(id) && id >= 0)
-    return ids.length ? ids : null
-  } catch {
-    return null
-  }
-}
+export const parseSourceEntryIds = parseAgentMemorySourceEntryIds
 
 function toRecallItem(
   row: AgentMemoryRow,
@@ -151,6 +143,7 @@ function toRecallItem(
 ): MemoryRecallItem {
   return {
     id: row.id,
+    decisionRevision: row.decision_revision,
     kind: row.kind,
     content: row.content,
     importance: row.importance,
@@ -243,9 +236,13 @@ export function fuse(
     .map((entry) => entry.item)
 }
 
-/** Normalizes memory text for idempotent provenance keys. */
+/** Legacy v1 normalization, kept only for compatibility lookups. */
 export function normalizeForProvenance(content: string): string {
   return content.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+export function normalizeForProvenanceV2(content: string): string {
+  return content.trim().replace(/\s+/gu, ' ').normalize('NFC')
 }
 
 /** Lightweight stable hash for provenance keys without depending on crypto. */
@@ -258,6 +255,18 @@ export function stableHash(input: string): string {
   return (hash >>> 0).toString(16)
 }
 
-export function buildMemoryProvenanceKey(agentId: string, kind: string, content: string): string {
+export function buildLegacyMemoryProvenanceKey(
+  agentId: string,
+  kind: string,
+  content: string
+): string {
   return `${kind}:${stableHash(`${agentId}:${kind}:${normalizeForProvenance(content)}`)}`
+}
+
+export function buildMemoryProvenanceKey(agentId: string, kind: string, content: string): string {
+  const normalized = normalizeForProvenanceV2(content)
+  const digest = createHash('sha256')
+    .update(`${agentId}\0${kind}\0${normalized}`, 'utf8')
+    .digest('hex')
+  return `v2:${kind}:${digest}`
 }
