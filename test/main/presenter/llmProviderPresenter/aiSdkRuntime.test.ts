@@ -132,6 +132,35 @@ describe('AI SDK runtime', () => {
     })
   })
 
+  it('passes the owner signal to generateText and waits for its abort settlement', async () => {
+    const controller = new AbortController()
+    mockGenerateText.mockImplementationOnce(({ abortSignal }: { abortSignal?: AbortSignal }) => {
+      return new Promise((_, reject) => {
+        if (abortSignal?.aborted) {
+          reject(abortSignal.reason)
+          return
+        }
+        abortSignal?.addEventListener('abort', () => reject(abortSignal.reason), { once: true })
+      })
+    })
+
+    const generating = runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      { apiEndpoint: 'chat' } as any,
+      0.7,
+      16,
+      controller.signal
+    )
+    controller.abort(new Error('owner cancelled'))
+
+    await expect(generating).rejects.toThrow('owner cancelled')
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({ abortSignal: controller.signal })
+    )
+  })
+
   it('promotes multiple leading system messages in order for streamText', async () => {
     const events = []
     for await (const event of runAiSdkCoreStream(

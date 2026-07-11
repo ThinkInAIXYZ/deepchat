@@ -1225,7 +1225,8 @@ export async function runAiSdkGenerateText(
   modelId: string,
   modelConfig: ModelConfig,
   temperature?: number,
-  maxTokens?: number
+  maxTokens?: number,
+  signal?: AbortSignal
 ): Promise<LLMResponse> {
   const normalizedModelConfig = normalizeRuntimeModelConfig(context, modelId, modelConfig)
   const runtime = await buildPromptRuntime(context, messages, modelId, normalizedModelConfig, [])
@@ -1237,6 +1238,9 @@ export async function runAiSdkGenerateText(
   )
   const resolvedTopP = resolveRuntimeTopP(context, modelId, normalizedModelConfig)
   const timeout = resolveRequestTimeout(normalizedModelConfig)
+  const timeoutSignal = timeout ? AbortSignal.timeout(timeout) : undefined
+  const abortSignal =
+    signal && timeoutSignal ? AbortSignal.any([signal, timeoutSignal]) : (signal ?? timeoutSignal)
   const requestBody = {
     model: runtime.providerContext.resolvedModelId ?? modelId,
     maxOutputTokens: maxTokens,
@@ -1258,7 +1262,7 @@ export async function runAiSdkGenerateText(
     messages: runtime.messages,
     allowSystemInMessages: false,
     providerOptions: runtime.providerOptions as any,
-    ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
+    ...(abortSignal ? { abortSignal } : {}),
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),

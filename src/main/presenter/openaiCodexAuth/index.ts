@@ -145,7 +145,12 @@ export function resolveOpenAICodexCallbackUrl(
 export class OpenAICodexAuth {
   private readonly store: OpenAICodexCredentialStore
   private pendingBrowserFlow: PendingBrowserFlow | null = null
-  private refreshPromise: Promise<OpenAICodexTokenSet> | null = null
+  private refreshOperation: {
+    controller: AbortController
+    promise: Promise<OpenAICodexTokenSet>
+    activeWaiters: number
+    settled: boolean
+  } | null = null
   private lastError: string | null = null
 
   constructor(store = new OpenAICodexCredentialStore()) {
@@ -293,7 +298,7 @@ export class OpenAICodexAuth {
     return auth.accessToken
   }
 
-  async getBackendAuth(): Promise<OpenAICodexBackendAuth> {
+  async getBackendAuth(signal?: AbortSignal): Promise<OpenAICodexBackendAuth> {
     this.assertEnabled()
 
     if (OPENAI_CODEX_ACCESS_TOKEN_ENV) {
@@ -308,21 +313,21 @@ export class OpenAICodexAuth {
     const current =
       tokens.expiresAt > Date.now() + OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS
         ? tokens
-        : await this.refreshAccessToken(tokens)
+        : await this.refreshAccessToken(tokens, false, signal)
     return {
       accessToken: current.accessToken,
       accountId: current.accountId
     }
   }
 
-  async forceRefreshBackendAuth(): Promise<OpenAICodexBackendAuth> {
+  async forceRefreshBackendAuth(signal?: AbortSignal): Promise<OpenAICodexBackendAuth> {
     this.assertEnabled()
     const tokens = this.store.load()
     if (!tokens?.refreshToken) {
       throw new Error('OpenAI Codex refresh token is unavailable')
     }
 
-    const refreshed = await this.refreshAccessToken(tokens, true)
+    const refreshed = await this.refreshAccessToken(tokens, true, signal)
     return {
       accessToken: refreshed.accessToken,
       accountId: refreshed.accountId
@@ -403,34 +408,81 @@ export class OpenAICodexAuth {
 
   private async refreshAccessToken(
     currentTokens: OpenAICodexTokenSet,
-    force = false
+    force = false,
+    signal?: AbortSignal
   ): Promise<OpenAICodexTokenSet> {
     if (!force && currentTokens.expiresAt > Date.now() + OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS) {
       return currentTokens
     }
 
-    if (this.refreshPromise) {
-      return this.refreshPromise
+    if (signal?.aborted) {
+      throw signal.reason
     }
 
-    this.refreshPromise = this.refreshAccessTokenOnce(currentTokens).finally(() => {
-      this.refreshPromise = null
-    })
-    return this.refreshPromise
+    if (!this.refreshOperation) {
+      const controller = new AbortController()
+      let operation!: NonNullable<OpenAICodexAuth['refreshOperation']>
+      const promise = this.refreshAccessTokenOnce(currentTokens, controller.signal).finally(() => {
+        operation.settled = true
+        if (this.refreshOperation === operation) {
+          this.refreshOperation = null
+        }
+      })
+      operation = {
+        controller,
+        promise,
+        activeWaiters: 0,
+        settled: false
+      }
+      this.refreshOperation = operation
+    }
+
+    const operation = this.refreshOperation
+    operation.activeWaiters += 1
+    let waiterActive = true
+    const releaseWaiter = (cancelled: boolean) => {
+      if (!waiterActive) return
+      waiterActive = false
+      operation.activeWaiters -= 1
+      if (cancelled && operation.activeWaiters === 0 && !operation.settled) {
+        operation.controller.abort(signal?.reason)
+      }
+    }
+    const onAbort = () => releaseWaiter(true)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) {
+      onAbort()
+    }
+
+    try {
+      const refreshed = await operation.promise
+      if (signal?.aborted) {
+        throw signal.reason
+      }
+      return refreshed
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+      releaseWaiter(false)
+    }
   }
 
   private async refreshAccessTokenOnce(
-    currentTokens: OpenAICodexTokenSet
+    currentTokens: OpenAICodexTokenSet,
+    signal?: AbortSignal
   ): Promise<OpenAICodexTokenSet> {
     if (!currentTokens.refreshToken) {
       throw new Error('OpenAI Codex refresh token is unavailable')
     }
 
-    const payload = await this.postForm(OPENAI_CODEX_TOKEN_URL, {
-      grant_type: 'refresh_token',
-      client_id: OPENAI_CODEX_CLIENT_ID,
-      refresh_token: currentTokens.refreshToken
-    })
+    const payload = await this.postForm(
+      OPENAI_CODEX_TOKEN_URL,
+      {
+        grant_type: 'refresh_token',
+        client_id: OPENAI_CODEX_CLIENT_ID,
+        refresh_token: currentTokens.refreshToken
+      },
+      signal
+    )
     const refreshed = this.parseTokenResponse(payload, currentTokens)
     this.store.save(refreshed)
     this.lastError = null
@@ -475,7 +527,8 @@ export class OpenAICodexAuth {
 
   private async postForm(
     url: string,
-    params: Record<string, string | undefined>
+    params: Record<string, string | undefined>,
+    signal?: AbortSignal
   ): Promise<TokenResponse> {
     const body = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {
@@ -484,14 +537,18 @@ export class OpenAICodexAuth {
       }
     })
 
-    const response = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded'
+    const response = await this.fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body
       },
-      body
-    })
+      signal
+    )
 
     if (!response.ok) {
       throw new Error(await readErrorBody(response))
@@ -500,15 +557,31 @@ export class OpenAICodexAuth {
     return (await response.json()) as TokenResponse
   }
 
-  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    externalSignal?: AbortSignal
+  ): Promise<Response> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS)
+    const onExternalAbort = () => controller.abort(externalSignal?.reason)
+    if (externalSignal?.aborted) {
+      controller.abort(externalSignal.reason)
+    } else {
+      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
+    }
+    if (externalSignal?.aborted) {
+      onExternalAbort()
+    }
     try {
       return await fetch(url, {
         ...init,
         signal: controller.signal
       })
     } catch (error) {
+      if (externalSignal?.aborted) {
+        throw externalSignal.reason
+      }
       if (controller.signal.aborted) {
         throw new Error(
           `OpenAI Codex auth request timed out after ${OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS}ms`
@@ -517,6 +590,7 @@ export class OpenAICodexAuth {
       throw error
     } finally {
       clearTimeout(timeout)
+      externalSignal?.removeEventListener('abort', onExternalAbort)
     }
   }
 

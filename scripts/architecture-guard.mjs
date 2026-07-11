@@ -151,11 +151,15 @@ const OPERATION_RUNNER_ALLOWED_METHODS = new Set([
   'sleep',
   'observeIdempotent',
   'retryIdempotent',
+  'runCancellable',
   'timeout'
 ])
 const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map([
-  ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
-  ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
+  ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1]
+])
+const CANCELLABLE_OPERATION_RUNNER_FILES = new Set([
+  'src/main/routes/operationRunner.ts',
+  'src/main/routes/providers/providerService.ts'
 ])
 
 function toPosix(value) {
@@ -496,7 +500,10 @@ async function checkOperationRunnerContract(fileSet, violations) {
   for (const filePath of fileSet) {
     if (!isUnder(filePath, MAIN_SOURCE_ROOT)) continue
     const source = await fs.readFile(filePath, 'utf8')
-    if (/\brunCancellable\b/.test(source)) {
+    if (
+      /\brunCancellable\b/.test(source) &&
+      !CANCELLABLE_OPERATION_RUNNER_FILES.has(relativePath(filePath))
+    ) {
       violations.push(`[operation-runner-unused-cancellable] ${relativePath(filePath)}`)
     }
   }

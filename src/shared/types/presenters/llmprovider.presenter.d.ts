@@ -206,6 +206,18 @@ export type RateLimitQueueSnapshot = {
   estimatedWaitTime: number
 }
 
+export type ProviderConnectionCheckCode = 'unsupported' | 'cancelled' | 'deadline_exceeded'
+
+export type ProviderConnectionCheckOptions = {
+  signal?: AbortSignal
+}
+
+export type ProviderConnectionCheckResult = {
+  isOk: boolean
+  errorMsg: string | null
+  code?: ProviderConnectionCheckCode
+}
+
 export type AcpConfigOptionValue = {
   value: string
   label: string
@@ -267,7 +279,11 @@ export interface ILlmProviderPresenter {
     maxTokens?: number
   ): Promise<{ content: string }>
   stopStream(eventId: string): Promise<void>
-  check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
+  check(
+    providerId: string,
+    modelId?: string,
+    options?: ProviderConnectionCheckOptions
+  ): Promise<ProviderConnectionCheckResult>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>
   refreshModels(providerId: string): Promise<void>
   summaryTitles(

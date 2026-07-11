@@ -19,7 +19,9 @@ import {
   RateLimitQueueSnapshot,
   AcpWorkdirInfo,
   AcpDebugRequest,
-  AcpDebugRunResult
+  AcpDebugRunResult,
+  ProviderConnectionCheckOptions,
+  ProviderConnectionCheckResult
 } from '@shared/presenter'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import {
@@ -34,7 +36,11 @@ import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
-import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
+import {
+  BaseLLMProvider,
+  isAudioTranscriptionNotSupportedError,
+  unsupportedProviderCheck
+} from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'
 import { ProviderInstanceManager } from './managers/providerInstanceManager'
@@ -638,46 +644,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   async check(
     providerId: string,
-    modelId?: string
-  ): Promise<{ isOk: boolean; errorMsg: string | null }> {
+    modelId?: string,
+    options?: ProviderConnectionCheckOptions
+  ): Promise<ProviderConnectionCheckResult> {
     try {
-      const provider = this.getProviderInstance(providerId)
-
-      // 如果提供了modelId，使用completions方法进行测试
-      if (modelId) {
-        try {
-          const testMessage = [{ role: 'user' as const, content: 'hi' }]
-          const response: LLMResponse | null = await Promise.race([
-            provider.completions(testMessage, modelId, 0.1, 10),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 60000))
-          ])
-          // 检查响应是否有效
-          if (
-            response &&
-            (response.content || response.content === '' || response.reasoning_content)
-          ) {
-            return { isOk: true, errorMsg: null }
-          } else {
-            return { isOk: false, errorMsg: 'Model response is invalid' }
-          }
-        } catch (error) {
-          console.error(`Model ${modelId} check failed:`, error)
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          return { isOk: false, errorMsg: `Model test failed: ${errorMessage}` }
-        }
-      } else {
-        // 如果没有提供modelId，使用provider自己的check方法进行基本验证
-        logger.info(
-          `[LLMProviderPresenter] No modelId provided, using provider's own check method for ${providerId}`
+      if (providerId === 'fireworks') {
+        return unsupportedProviderCheck(
+          'Connection testing is unavailable because the Fireworks provider has no runtime adapter'
         )
-        try {
-          return await provider.check()
-        } catch (error) {
-          console.error(`Provider ${providerId} check failed:`, error)
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          return { isOk: false, errorMsg: `Provider check failed: ${errorMessage}` }
-        }
       }
+      const provider = this.getProviderInstance(providerId)
+      return await provider.check({ modelId, signal: options?.signal })
     } catch (error) {
       console.error(`Provider ${providerId} check failed:`, error)
       const errorMessage = error instanceof Error ? error.message : String(error)

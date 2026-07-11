@@ -33,12 +33,18 @@ import {
   MCPToolDefinition,
   MODEL_META,
   ModelConfig,
+  ProviderConnectionCheckResult,
   VERTEX_PROVIDER
 } from '@shared/presenter'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import {
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderCheckOptions,
+  unsupportedProviderCheck
+} from '../baseProvider'
 import {
   runAiSdkCoreStream,
   runAiSdkDimensions,
@@ -859,6 +865,9 @@ export class AiSdkProvider extends BaseLLMProvider {
       } else {
         externalSignal.addEventListener('abort', onExternalAbort, { once: true })
       }
+      if (externalSignal?.aborted) {
+        onExternalAbort()
+      }
     }
 
     try {
@@ -1010,7 +1019,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   public async fetchOpenAIModelRecords(
-    options?: { timeout: number },
+    options?: ProviderRequestOptions,
     decision?: RouteDecision
   ): Promise<Array<Record<string, unknown>>> {
     const resolvedDecision = decision ?? { providerKind: this.definition.runtimeKind }
@@ -1018,14 +1027,14 @@ export class AiSdkProvider extends BaseLLMProvider {
     const payload = await this.requestProviderJson<unknown>(
       this.buildModelsUrl(resolvedDecision, runtimeProvider),
       { method: 'GET' },
-      options?.timeout,
+      options,
       resolvedDecision
     )
     return toModelRecordArray(payload)
   }
 
   public async fetchDefaultOpenAIModels(
-    options?: { timeout: number },
+    options?: ProviderRequestOptions,
     decision?: RouteDecision
   ): Promise<MODEL_META[]> {
     const response = await this.fetchOpenAIModelRecords(options, decision)
@@ -1055,7 +1064,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
-    modelConfig?: ModelConfig
+    modelConfig?: ModelConfig,
+    signal?: AbortSignal
   ): Promise<LLMResponse> {
     if (!this.isInitialized) {
       throw new Error('Provider not initialized')
@@ -1065,13 +1075,24 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     const { context, resolvedModelConfig } = this.buildRuntimeContext(modelId, modelConfig)
+    if (!signal) {
+      return runAiSdkGenerateText(
+        context,
+        messages,
+        modelId,
+        resolvedModelConfig,
+        temperature,
+        maxTokens
+      )
+    }
     return runAiSdkGenerateText(
       context,
       messages,
       modelId,
       resolvedModelConfig,
       temperature,
-      maxTokens
+      maxTokens,
+      signal
     )
   }
 
@@ -1523,7 +1544,9 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   private async fetchProviderModelsByStrategy(
-    strategy: AiSdkModelSourceStrategy
+    strategy: AiSdkModelSourceStrategy,
+    signal?: AbortSignal,
+    allowFallback = true
   ): Promise<MODEL_META[]> {
     switch (strategy) {
       case 'config-db':
@@ -1538,7 +1561,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.mapKimiForCodingModels()
       case 'github': {
         const response = await this.fetchOpenAIModelRecords({
-          timeout: this.getModelFetchTimeout()
+          timeout: this.getModelFetchTimeout(),
+          signal
         })
         return response
           .filter((model) => typeof model.name === 'string')
@@ -1555,7 +1579,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
       case 'together': {
         const response = await this.fetchOpenAIModelRecords({
-          timeout: this.getModelFetchTimeout()
+          timeout: this.getModelFetchTimeout(),
+          signal
         })
         return response
           .filter((model) => model.type === 'chat' || model.type === 'language')
@@ -1571,7 +1596,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
       case 'astraflow': {
         const response = await this.fetchOpenAIModelRecords({
-          timeout: this.getModelFetchTimeout()
+          timeout: this.getModelFetchTimeout(),
+          signal
         })
         const NON_CHAT_PATTERNS = [
           'embedding',
@@ -1604,30 +1630,37 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'groq':
       case 'tokenflux':
       case '302ai':
-        return this.fetchOpenAiDerivedModels(strategy)
+        return this.fetchOpenAiDerivedModels(strategy, signal, allowFallback)
       case 'bedrock':
-        return this.fetchBedrockModels()
+        return this.fetchBedrockModels(signal, allowFallback)
       case 'new-api':
-        return this.fetchNewApiModels()
+        return this.fetchNewApiModels(signal)
       case 'openai':
       default:
-        return this.fetchDefaultOpenAIModels({ timeout: this.getModelFetchTimeout() }).then(
-          (models) =>
-            this.getRouteStrategy() === 'zenmux'
-              ? models.map((model) => ({
-                  ...model,
-                  group: 'ZenMux'
-                }))
-              : models
+        return this.fetchDefaultOpenAIModels({
+          timeout: this.getModelFetchTimeout(),
+          signal
+        }).then((models) =>
+          this.getRouteStrategy() === 'zenmux'
+            ? models.map((model) => ({
+                ...model,
+                group: 'ZenMux'
+              }))
+            : models
         )
     }
   }
 
   private async fetchOpenAiDerivedModels(
-    strategy: 'openrouter' | 'ppio' | 'groq' | 'tokenflux' | '302ai'
+    strategy: 'openrouter' | 'ppio' | 'groq' | 'tokenflux' | '302ai',
+    signal?: AbortSignal,
+    allowFallback = true
   ): Promise<MODEL_META[]> {
     try {
-      const response = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+      const response = await this.fetchOpenAIModelRecords({
+        timeout: this.getModelFetchTimeout(),
+        signal
+      })
       const models: MODEL_META[] = []
 
       for (const model of response) {
@@ -1802,12 +1835,18 @@ export class AiSdkProvider extends BaseLLMProvider {
 
       return models
     } catch (error) {
+      if (signal?.aborted || !allowFallback) {
+        throw error
+      }
       console.error(`Error fetching ${strategy} models:`, error)
-      return this.fetchDefaultOpenAIModels({ timeout: this.getModelFetchTimeout() })
+      return this.fetchDefaultOpenAIModels({ timeout: this.getModelFetchTimeout(), signal })
     }
   }
 
-  private async fetchBedrockModels(): Promise<MODEL_META[]> {
+  private async fetchBedrockModels(
+    signal?: AbortSignal,
+    allowFallback = true
+  ): Promise<MODEL_META[]> {
     const provider = this.provider as AWS_BEDROCK_PROVIDER
     const credential = provider.credential
     const region = credential?.region || process.env.AWS_REGION
@@ -1840,7 +1879,9 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
       }
       const client = new BedrockClient(clientConfig as any)
-      const response = await client.send(new ListFoundationModelsCommand({}))
+      const response = await client.send(new ListFoundationModelsCommand({}), {
+        abortSignal: signal
+      })
       return (
         response.modelSummaries
           ?.filter(
@@ -1874,6 +1915,9 @@ export class AiSdkProvider extends BaseLLMProvider {
           })) || []
       )
     } catch (error) {
+      if (signal?.aborted || !allowFallback) {
+        throw error
+      }
       console.error('获取AWS Bedrock Anthropic模型列表出错:', error)
       return this.mapConfigDbModels(this.definition.providerDbSourceId).filter((model) =>
         model.id.startsWith('anthropic.')
@@ -1913,7 +1957,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       })
   }
 
-  private async fetchNewApiModels(): Promise<MODEL_META[]> {
+  private async fetchNewApiModels(signal?: AbortSignal): Promise<MODEL_META[]> {
     type NewApiModelRecord = {
       id?: unknown
       name?: unknown
@@ -1945,7 +1989,10 @@ export class AiSdkProvider extends BaseLLMProvider {
           ...this.defaultHeaders
         }
       },
-      this.getModelFetchTimeout()
+      {
+        timeout: this.getModelFetchTimeout(),
+        signal
+      }
     )
     const rawModels = Array.isArray(payload.data) ? payload.data : []
 
@@ -2094,8 +2141,15 @@ export class AiSdkProvider extends BaseLLMProvider {
     return models
   }
 
-  protected async fetchProviderModels(): Promise<MODEL_META[]> {
-    return this.fetchProviderModelsByStrategy(this.definition.modelSource)
+  protected async fetchProviderModels(options?: {
+    signal?: AbortSignal
+    allowFallback?: boolean
+  }): Promise<MODEL_META[]> {
+    return this.fetchProviderModelsByStrategy(
+      this.definition.modelSource,
+      options?.signal,
+      options?.allowFallback
+    )
   }
 
   public onProxyResolved(): void {}
@@ -2104,11 +2158,12 @@ export class AiSdkProvider extends BaseLLMProvider {
     return this.definition.keyStatusStrategy ?? 'none'
   }
 
-  public async getKeyStatus(): Promise<KeyStatus | null> {
+  public async getKeyStatus(options?: { signal?: AbortSignal }): Promise<KeyStatus | null> {
     switch (this.resolveKeyStatusStrategy()) {
       case 'openrouter': {
         const response = await fetch('https://openrouter.ai/api/v1/key', {
           method: 'GET',
+          signal: options?.signal,
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
             'Content-Type': 'application/json'
@@ -2138,6 +2193,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'deepseek': {
         const response = await fetch('https://api.deepseek.com/user/balance', {
           method: 'GET',
+          signal: options?.signal,
           headers: {
             Accept: 'application/json',
             Authorization: `Bearer ${this.provider.apiKey}`
@@ -2173,6 +2229,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'ppio': {
         const response = await fetch('https://api.ppinfra.com/v3/user', {
           method: 'GET',
+          signal: options?.signal,
           headers: {
             Authorization: this.provider.apiKey,
             'Content-Type': 'application/json'
@@ -2193,6 +2250,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'tokenflux': {
         const response = await fetch(`${this.provider.baseUrl}/models`, {
           method: 'GET',
+          signal: options?.signal,
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
             'Content-Type': 'application/json'
@@ -2212,6 +2270,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       case '302ai': {
         const response = await fetch('https://api.302.ai/dashboard/balance', {
           method: 'GET',
+          signal: options?.signal,
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
             'Content-Type': 'application/json'
@@ -2233,6 +2292,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         const baseUrl = (this.provider.baseUrl || 'https://open.cherryin.ai/v1').replace(/\/$/, '')
         const usageResponse = await fetch(`${baseUrl}/dashboard/billing/usage`, {
           method: 'GET',
+          signal: options?.signal,
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
             'Content-Type': 'application/json'
@@ -2253,7 +2313,10 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
       }
       case 'modelscope': {
-        const response = await this.fetchOpenAIModelRecords({ timeout: 10000 })
+        const response = await this.fetchOpenAIModelRecords({
+          timeout: 10000,
+          signal: options?.signal
+        })
         return {
           limit_remaining: 'Available',
           remainNum: response.length
@@ -2262,6 +2325,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'siliconcloud': {
         const response = await fetch('https://api.siliconflow.cn/v1/user/info', {
           method: 'GET',
+          signal: options?.signal,
           headers: {
             Authorization: `Bearer ${this.provider.apiKey}`,
             'Content-Type': 'application/json'
@@ -2327,11 +2391,50 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
   }
 
-  public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+  public async check(options: ProviderCheckOptions = {}): Promise<ProviderConnectionCheckResult> {
+    if (options.modelId) {
+      const decision = this.resolveRouteDecision(options.modelId)
+      const modelConfig = this.getProviderModelConfig(options.modelId)
+      const unsupportedEndpoint =
+        decision.endpointType === 'grok-image' ||
+        decision.endpointType === 'image-generation' ||
+        decision.endpointType === 'video-generation' ||
+        modelConfig.apiEndpoint === ApiEndpointType.Image ||
+        modelConfig.apiEndpoint === ApiEndpointType.Video ||
+        modelConfig.apiEndpoint === ApiEndpointType.AudioSpeech ||
+        isTtsModelConfig(modelConfig) ||
+        isTtsModelId(options.modelId)
+
+      if (unsupportedEndpoint) {
+        return unsupportedProviderCheck(
+          'Connection testing is not supported for non-chat generation models'
+        )
+      }
+
+      try {
+        const response = await this.runText(
+          [{ role: 'user', content: 'hi' }],
+          options.modelId,
+          0.1,
+          10,
+          modelConfig,
+          options.signal
+        )
+        return response.content || response.content === '' || response.reasoning_content
+          ? { isOk: true, errorMsg: null }
+          : { isOk: false, errorMsg: 'Model response is invalid' }
+      } catch (error) {
+        return {
+          isOk: false,
+          errorMsg: `Model test failed: ${toErrorMessage(error, 'Unknown error')}`
+        }
+      }
+    }
+
     switch (this.definition.checkStrategy) {
       case 'key-status':
         try {
-          const keyStatus = await this.getKeyStatus()
+          const keyStatus = await this.getKeyStatus({ signal: options.signal })
           if (keyStatus?.remainNum !== undefined && keyStatus.remainNum <= 0) {
             return {
               isOk: false,
@@ -2361,7 +2464,9 @@ export class AiSdkProvider extends BaseLLMProvider {
             [{ role: 'user', content: this.definition.checkPrompt || 'Hello' }],
             this.definition.checkModelId || '',
             this.definition.checkTemperature ?? 0.2,
-            this.definition.checkMaxTokens ?? 16
+            this.definition.checkMaxTokens ?? 16,
+            undefined,
+            options.signal
           )
           return { isOk: true, errorMsg: null }
         } catch (error) {
@@ -2374,7 +2479,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'fetch-models':
       default:
         try {
-          await this.fetchProviderModels()
+          await this.fetchProviderModels({ signal: options.signal, allowFallback: false })
           return { isOk: true, errorMsg: null }
         } catch (error) {
           return {

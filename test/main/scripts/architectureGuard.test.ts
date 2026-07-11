@@ -126,7 +126,7 @@ describe.sequential('architecture guard', () => {
     expect(result.stdout).toContain('Architecture guard passed.')
   })
 
-  it('pins the final two legacy calls and the removed retry surface', async () => {
+  it('pins the final legacy call and the removed retry surface', async () => {
     const [guardSource, runnerSource] = await Promise.all([
       readFile(ARCHITECTURE_GUARD_PATH, 'utf8'),
       readFile(OPERATION_RUNNER_PATH, 'utf8')
@@ -142,8 +142,7 @@ describe.sequential('architecture guard', () => {
     )?.[1]
 
     expect(allowlistedCalls).toEqual([
-      ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
-      ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
+      ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1]
     ])
     expect(allowlistBody).not.toContain('#retry')
     expect(runnerInterface).not.toMatch(/^\s*retry(?:<|\s*\()/m)

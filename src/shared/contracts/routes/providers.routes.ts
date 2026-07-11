@@ -44,7 +44,8 @@ export const providersTestConnectionRoute = defineRouteContract({
   }),
   output: z.object({
     isOk: z.boolean(),
-    errorMsg: z.string().nullable()
+    errorMsg: z.string().nullable(),
+    code: z.enum(['unsupported', 'cancelled', 'deadline_exceeded']).optional()
   })
 })
 

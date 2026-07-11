@@ -3,6 +3,8 @@ import type {
   IConfigPresenter,
   ILlmProviderPresenter,
   ActiveSessionResolution,
+  ProviderConnectionCheckOptions,
+  ProviderConnectionCheckResult,
   SessionResolutionListFilters,
   SessionResolutionResult
 } from '@shared/presenter'
@@ -59,11 +61,9 @@ export interface ProviderExecutionPort {
   ): Promise<ToolInteractionResult>
   testConnection(
     providerId: string,
-    modelId?: string
-  ): Promise<{
-    isOk: boolean
-    errorMsg: string | null
-  }>
+    modelId?: string,
+    options?: ProviderConnectionCheckOptions
+  ): Promise<ProviderConnectionCheckResult>
 }
 
 export type ProviderCatalogPort = Pick<
@@ -139,8 +139,8 @@ export function createPresenterHotPathPorts(deps: {
           toolCallId,
           response
         ),
-      testConnection: async (providerId, modelId) =>
-        await deps.llmProviderPresenter.check(providerId, modelId)
+      testConnection: async (providerId, modelId, options) =>
+        await deps.llmProviderPresenter.check(providerId, modelId, options)
     },
     providerCatalogPort: {
       getProviderModels: (providerId) => deps.configPresenter.getProviderModels(providerId) ?? [],

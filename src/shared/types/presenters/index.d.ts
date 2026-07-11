@@ -22,7 +22,10 @@ export type {
   AWS_BEDROCK_PROVIDER,
   OllamaModel,
   ModelScopeMcpSyncOptions,
-  ModelScopeMcpSyncResult
+  ModelScopeMcpSyncResult,
+  ProviderConnectionCheckCode,
+  ProviderConnectionCheckOptions,
+  ProviderConnectionCheckResult
 } from './llmprovider.presenter'
 
 // Thread/Conversation types

@@ -21,6 +21,7 @@ describe('ChatService', () => {
     sleep: vi.fn(),
     observeIdempotent: vi.fn(async <T>({ task }: { task: () => Promise<T> }) => await task()),
     retryIdempotent: vi.fn(),
+    runCancellable: vi.fn(),
     timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task)
   })
 

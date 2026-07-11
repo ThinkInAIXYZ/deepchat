@@ -50,6 +50,7 @@ const createScheduler = () => ({
       throw new Error('unreachable')
     }
   ),
+  runCancellable: vi.fn(),
   timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task)
 })
 

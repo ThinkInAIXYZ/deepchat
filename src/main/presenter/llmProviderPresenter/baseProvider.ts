@@ -8,7 +8,8 @@ import {
   ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
-  IConfigPresenter
+  IConfigPresenter,
+  ProviderConnectionCheckResult
 } from '@shared/presenter'
 import { DevicePresenter } from '../devicePresenter'
 import { jsonrepair } from 'jsonrepair'
@@ -19,6 +20,19 @@ import { normalizeToolInputSchema } from './aiSdk/toolMapper'
 import { emitModelsChanged } from '../configPresenter/eventPublishers'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
+
+export type ProviderCheckOptions = {
+  modelId?: string
+  signal?: AbortSignal
+}
+
+export function unsupportedProviderCheck(message: string): ProviderConnectionCheckResult {
+  return {
+    isOk: false,
+    errorMsg: message,
+    code: 'unsupported'
+  }
+}
 
 export function isAudioTranscriptionNotSupportedError(error: unknown): boolean {
   return error instanceof Error && error.message === AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR
@@ -117,27 +131,44 @@ export abstract class BaseLLMProvider {
     this.loadCachedModels()
   }
 
-  protected createModelRequestSignal(modelConfig?: Pick<ModelConfig, 'timeout'> | null): {
+  protected createModelRequestSignal(
+    modelConfig?: Pick<ModelConfig, 'timeout'> | null,
+    externalSignal?: AbortSignal
+  ): {
     signal?: AbortSignal
     timeoutMs?: number
     dispose: () => void
   } {
     const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
-    if (!timeoutMs) {
+    if (!timeoutMs && !externalSignal) {
       return {
         dispose: () => {}
       }
     }
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => {
-      controller.abort(this.createModelRequestTimeoutError(timeoutMs))
-    }, timeoutMs)
+    const onExternalAbort = () => controller.abort(externalSignal?.reason)
+    if (externalSignal?.aborted) {
+      controller.abort(externalSignal.reason)
+    } else {
+      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
+    }
+    if (externalSignal?.aborted) {
+      onExternalAbort()
+    }
+    const timeoutId = timeoutMs
+      ? setTimeout(() => {
+          controller.abort(this.createModelRequestTimeoutError(timeoutMs))
+        }, timeoutMs)
+      : undefined
 
     return {
       signal: controller.signal,
       timeoutMs,
-      dispose: () => clearTimeout(timeoutId)
+      dispose: () => {
+        if (timeoutId !== undefined) clearTimeout(timeoutId)
+        externalSignal?.removeEventListener('abort', onExternalAbort)
+      }
     }
   }
 
@@ -642,7 +673,7 @@ ${this.convertToolsToXml(tools)}
    * 验证提供商API是否可用
    * @returns 验证结果和错误信息
    */
-  public abstract check(): Promise<{ isOk: boolean; errorMsg: string | null }>
+  public abstract check(options?: ProviderCheckOptions): Promise<ProviderConnectionCheckResult>
 
   /**
    * 生成对话标题

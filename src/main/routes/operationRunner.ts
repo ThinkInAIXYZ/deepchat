@@ -24,6 +24,13 @@ export interface RetryIdempotentInput<T> {
   shouldRetry: (error: unknown) => boolean
 }
 
+export interface RunCancellableInput<T> {
+  task: (signal: AbortSignal) => Promise<T>
+  deadlineMs: number
+  reason: string
+  signal?: AbortSignal
+}
+
 export interface LegacyTimeoutInput<T> {
   task: Promise<T>
   ms: number
@@ -35,6 +42,7 @@ export interface OperationRunner {
   sleep(input: SleepInput): Promise<void>
   observeIdempotent<T>(input: ObserveIdempotentInput<T>): Promise<T>
   retryIdempotent<T>(input: RetryIdempotentInput<T>): Promise<T>
+  runCancellable<T>(input: RunCancellableInput<T>): Promise<T>
 
   /** @deprecated Migrate the allowlisted consumer to a capability-specific operation. */
   timeout<T>(input: LegacyTimeoutInput<T>): Promise<T>
@@ -57,6 +65,16 @@ export class ObservationDeadlineError extends Error {
   ) {
     super(`${reason} observation deadline reached after ${deadlineMs}ms`)
     this.name = 'ObservationDeadlineError'
+  }
+}
+
+export class CancellableDeadlineError extends Error {
+  constructor(
+    readonly reason: string,
+    readonly deadlineMs: number
+  ) {
+    super(`${reason} cancellation deadline reached after ${deadlineMs}ms`)
+    this.name = 'CancellableDeadlineError'
   }
 }
 
@@ -237,6 +255,50 @@ async function observeIdempotent<T>(input: ObserveIdempotentInput<T>): Promise<T
   }
 }
 
+async function runCancellable<T>(input: RunCancellableInput<T>): Promise<T> {
+  validateTimerMs(input.deadlineMs, 'deadlineMs')
+  throwIfPreAborted(input.signal, input.reason)
+
+  if (input.deadlineMs === 0) {
+    throw new CancellableDeadlineError(input.reason, input.deadlineMs)
+  }
+
+  const controller = new AbortController()
+  let stopError: Error | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const stop = (error: Error) => {
+    if (stopError) return
+    stopError = error
+    controller.abort(error)
+  }
+  const onAbort = () => stop(createAbortError(input.reason))
+
+  timer = setTimeout(
+    () => stop(new CancellableDeadlineError(input.reason, input.deadlineMs)),
+    input.deadlineMs
+  )
+  input.signal?.addEventListener('abort', onAbort, { once: true })
+  if (input.signal?.aborted) {
+    onAbort()
+  }
+
+  try {
+    let result: T
+    try {
+      result = await input.task(controller.signal)
+    } catch (error) {
+      if (stopError) throw stopError
+      throw error
+    }
+
+    if (stopError) throw stopError
+    return result
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+    input.signal?.removeEventListener('abort', onAbort)
+  }
+}
+
 async function retryIdempotent<T>(input: RetryIdempotentInput<T>): Promise<T> {
   validateRetryInput(input)
   throwIfPreAborted(input.signal, input.reason)
@@ -314,6 +376,7 @@ export function createNodeOperationRunner(): OperationRunner {
     sleep,
     observeIdempotent,
     retryIdempotent,
+    runCancellable,
     timeout: legacyTimeout
   }
 }

@@ -9,11 +9,12 @@ import {
   MODEL_META,
   ModelConfig,
   OllamaModel,
-  ProgressResponse
+  ProgressResponse,
+  ProviderConnectionCheckResult
 } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT, type ProviderCheckOptions } from '../baseProvider'
 import { execFile } from 'node:child_process'
 import { Ollama, ShowResponse } from 'ollama'
 import {
@@ -473,9 +474,35 @@ export class OllamaProvider extends BaseLLMProvider {
     }
   }
 
-  public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+  public async check(options: ProviderCheckOptions = {}): Promise<ProviderConnectionCheckResult> {
     try {
-      await this.ollama.list()
+      if (options.modelId) {
+        const response = await runAiSdkGenerateText(
+          this.getAiSdkRuntimeContext(),
+          [{ role: 'user', content: 'hi' }],
+          options.modelId,
+          this.configPresenter.getModelConfig(options.modelId, this.provider.id),
+          0.1,
+          10,
+          options.signal
+        )
+        return response.content || response.content === '' || response.reasoning_content
+          ? { isOk: true, errorMsg: null }
+          : { isOk: false, errorMsg: 'Model response is invalid' }
+      }
+
+      const baseUrl = normalizeOllamaSdkHost(this.provider.baseUrl).replace(/\/+$/, '')
+      const response = await fetch(`${baseUrl}/api/tags`, {
+        method: 'GET',
+        signal: options.signal,
+        headers: this.provider.apiKey
+          ? { Authorization: `Bearer ${this.provider.apiKey}` }
+          : undefined
+      })
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`)
+      }
+      await response.json()
       return { isOk: true, errorMsg: null }
     } catch (error) {
       return {

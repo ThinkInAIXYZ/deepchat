@@ -108,6 +108,39 @@ describe('GithubCopilotProvider request timeout', () => {
     )
   })
 
+  it('does not start the API-key fallback after owner cancellation aborts device auth', async () => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const deviceToken = vi.fn(
+      (signal?: AbortSignal) =>
+        new Promise<string>((_, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
+      provider: { id: string; name: string; apiKey: string }
+      deviceFlow: { getCopilotToken: typeof deviceToken }
+      copilotToken: string | null
+      tokenExpiresAt: number
+    }
+    provider.provider = {
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      apiKey: 'fallback-token'
+    }
+    provider.deviceFlow = { getCopilotToken: deviceToken }
+    provider.copilotToken = null
+    provider.tokenExpiresAt = 0
+
+    const checking = provider.check({ signal: controller.signal })
+    controller.abort(new Error('owner cancelled'))
+
+    await expect(checking).resolves.toEqual({ isOk: false, errorMsg: 'owner cancelled' })
+    expect(deviceToken).toHaveBeenCalledWith(controller.signal)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('refreshes cached auth state when provider config changes', () => {
     const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
       provider: Record<string, unknown>

@@ -128,6 +128,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     if (originalAllowInsecureTls === undefined) {
       delete process.env.DEEPCHAT_ALLOW_INSECURE_TLS
     } else {
@@ -152,6 +153,34 @@ describe('OllamaProvider.fetchModels', () => {
     })
     expect(runtimeContext.providerKind).toBe('openai-compatible')
     expect(runtimeContext.provider.baseUrl).toBe('http://localhost:11434/v1')
+  })
+
+  it('propagates owner cancellation through the Ollama tags request', async () => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_, reject) => {
+        const signal = init?.signal as AbortSignal | undefined
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const ollamaProvider = Object.create(OllamaProvider.prototype) as OllamaProvider & {
+      provider: LLM_PROVIDER
+    }
+    ollamaProvider.provider = provider
+
+    const checking = ollamaProvider.check({ signal: controller.signal })
+    controller.abort(new Error('owner cancelled'))
+
+    await expect(checking).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'Unable to connect to Ollama service: owner cancelled'
+    })
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:11434/api/tags', {
+      method: 'GET',
+      signal: controller.signal,
+      headers: undefined
+    })
   })
 
   it('merges local and running models, keeps running-only models, and preserves capabilities', async () => {

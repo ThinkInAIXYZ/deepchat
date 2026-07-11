@@ -69,14 +69,28 @@ SCH-002B development 验证记录：
 
 ## PRV-CAN-001：Provider owner cancellation（dependent slice）
 
-- [ ] 逐 provider inventory `check()`：local/network/SDK/model、signal/timeout 能力。
-- [ ] `ProviderExecutionPort.testConnection` 与 presenter check 接收 owner cancellation input。
-- [ ] model 60s race 改为发送 cancel 并等待 physical settlement。
-- [ ] no-model provider check 全部获得 finite owner deadline/cancellation，或 typed unsupported。
-- [ ] 不 automatic retry provider probe。
-- [ ] 若出现首个真实 cancellable consumer，同 PR 设计最窄 runner API 与 settlement tests。
-- [ ] 删除 provider route 5s legacy wrapper 后更新 allowlist。
+- [x] 逐 provider inventory `check()`：local/network/SDK/model、signal/timeout 能力。
+- [x] `ProviderExecutionPort.testConnection` 与 presenter check 接收 owner cancellation input。
+- [x] model 60s race 改为发送 cancel 并等待 physical settlement。
+- [x] no-model provider check 全部获得 finite owner deadline/cancellation，或 typed unsupported。
+- [x] 不 automatic retry provider probe。
+- [x] 若出现首个真实 cancellable consumer，同 PR 设计最窄 runner API 与 settlement tests。
+- [x] 删除 provider route 5s legacy wrapper 后更新 allowlist。
 - [ ] 独立 provider owner verifier 逐 adapter 检查 signal propagation/settlement。
+
+PRV-CAN-001 development 验证记录：
+
+- production inventory fixture：`DEFAULT_PROVIDERS = 60`，其中有效 AiSdk 为
+  `30 fetch-models / 17 generate-text / 8 key-status`；其余为 Ollama、ACP、Voice.ai、
+  GitHub Copilot 与无 resolver 的 Fireworks。
+- combined provider/route/runner focused：`19` files，`306 passed`；补充 abort-registration race 后
+  OpenAI Codex auth、runner、key-status focused：`74 passed`。
+- `typecheck`、`format:check`、`i18n`、`lint` 全部通过。
+- single-worker full：`473` files，`4772 passed / 6 failed / 140 skipped`。其中新增的
+  `markstreamTailwindSource` failure 是 worktree 本地 `node_modules/markstream-vue` 未 materialize；补齐同一已安装
+  dependency 的 worktree link 后 isolated rerun 通过。其余 `5` 项与合入前 baseline 精确一致：long-steer
+  rebudget 1 项、debug mock plan block 1 项、Spotlight Pinia setup 3 项；本 slice 新增失败数为 `0`。
+- independent verifier 尚未执行；本记录不替代 final verify gate。
 
 ## SCH-003A：Session create backend development slice（不可独立 merge）
 

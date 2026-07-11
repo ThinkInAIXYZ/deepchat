@@ -1107,6 +1107,17 @@ describe('main kernel contracts', () => {
       })
     ).toThrow()
 
+    const unsupportedProviderResult = {
+      isOk: false,
+      errorMsg: 'Connection probe is unsupported',
+      code: 'unsupported' as const
+    }
+    expect(
+      providersTestConnectionRoute.output.parse(
+        JSON.parse(JSON.stringify(unsupportedProviderResult))
+      )
+    ).toEqual(unsupportedProviderResult)
+
     expect(
       providersListSummariesRoute.output.parse({
         providers: [
