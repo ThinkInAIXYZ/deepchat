@@ -60,6 +60,14 @@ export class DataImporter {
           )
         }
       }
+      if (
+        tableCounts.agent_memory > 0 &&
+        this.tableExists(this.targetDb, 'agent_memory_fts_meta')
+      ) {
+        this.targetDb
+          .prepare("DELETE FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'")
+          .run()
+      }
     })
 
     try {
@@ -176,6 +184,13 @@ export class DataImporter {
       console.warn(`Failed to read table info for ${tableName}:`, error)
       return []
     }
+  }
+
+  private tableExists(db: Database.Database, tableName: string): boolean {
+    const row = db
+      .prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName) as { found: number } | undefined
+    return row?.found === 1
   }
 
   private wrapIdentifier(identifier: string): string {

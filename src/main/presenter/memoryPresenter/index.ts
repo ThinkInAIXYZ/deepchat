@@ -69,14 +69,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly management: ManagementService
 
   constructor(deps: MemoryPresenterDeps) {
-    let retrievalService: RetrievalService | null = null
-    this.runtime = new MemoryRuntimeContext(
-      deps,
-      (agentId) => {
-        retrievalService?.invalidateKeywordStats(agentId)
-      },
-      new MemoryProviderGateway(deps)
-    )
+    this.runtime = new MemoryRuntimeContext(deps, undefined, new MemoryProviderGateway(deps))
     this.rows = new MemoryRowMutations(this.runtime)
     this.vectorStore = new VectorStoreManager(this.runtime)
     this.embedding = new EmbeddingPipeline(this.runtime, this.vectorStore, this.rows, {
@@ -101,8 +94,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
           memoryIds
         )
     })
-    retrievalService = this.retrieval
-
     this.reflection = new ReflectionService(this.runtime, {
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
@@ -197,9 +188,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   writeMemoriesSync(candidates: MemoryCandidate[], options: WriteMemoriesOptions): string[] {
-    const ids = this.writeCoordinator.writeMemoriesSync(candidates, options)
-    if (ids.length > 0) this.retrieval.invalidateKeywordStats(options.agentId)
-    return ids
+    return this.writeCoordinator.writeMemoriesSync(candidates, options)
   }
 
   processPendingEmbeddings(agentId: string, limit = 50): Promise<void> {

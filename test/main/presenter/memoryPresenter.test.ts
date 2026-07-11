@@ -2093,7 +2093,7 @@ describe('MemoryPresenter management', () => {
     expect(recalled.map((item) => item.id)).toEqual(['m1'])
   })
 
-  it('agent-facing recall filters high-frequency generic terms by corpus stats', async () => {
+  it('agent-facing recall uses deterministic terms without corpus stats', async () => {
     const { presenter, repo } = makePresenter({ memoryEnabled: true })
     repo.insert({
       id: 'm1',
@@ -2126,29 +2126,7 @@ describe('MemoryPresenter management', () => {
 
     const recalled = await presenter.recall('a', 'please redis setup')
 
-    expect(recalled.map((item) => item.id)).toEqual(['m1'])
-  })
-
-  it('caches recall keyword stats per agent term and invalidates them on writes', async () => {
-    const { presenter, repo } = makePresenter({ memoryEnabled: true })
-    repo.insert({
-      id: 'm1',
-      agentId: 'a',
-      kind: 'semantic',
-      content: 'redis setup',
-      status: 'fts_only'
-    })
-    const statsSpy = vi.spyOn(repo, 'getRecallKeywordTermStats')
-
-    await presenter.recall('a', 'please redis setup')
-    await presenter.recall('a', 'please redis setup')
-    expect(statsSpy).toHaveBeenCalledTimes(1)
-
-    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis follow-up' }], {
-      agentId: 'a'
-    })
-    await presenter.recall('a', 'please redis setup')
-    expect(statsSpy).toHaveBeenCalledTimes(2)
+    expect(recalled.map((item) => item.id).sort()).toEqual(['m1', 'm2', 'm3', 'm4'])
   })
 
   it('agent-facing recall keeps a single domain term even when it is frequent', async () => {

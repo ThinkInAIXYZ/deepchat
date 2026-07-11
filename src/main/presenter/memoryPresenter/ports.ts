@@ -1,6 +1,29 @@
 import type { MemoryModelRef } from './context'
 import type { MemoryVectorMatch } from './types'
 
+export const MEMORY_PERF_COUNTER_NAMES = [
+  'sqliteStatements',
+  'repositoryCalls',
+  'materializedRows',
+  'providerCalls',
+  'duckDbStatements'
+] as const
+
+export const MEMORY_PERF_HIGH_WATER_NAMES = [
+  'openStores',
+  'activeLeases',
+  'queueDepth',
+  'cacheEntries'
+] as const
+
+export type MemoryPerfCounterName = (typeof MEMORY_PERF_COUNTER_NAMES)[number]
+export type MemoryPerfHighWaterName = (typeof MEMORY_PERF_HIGH_WATER_NAMES)[number]
+
+export interface MemoryPerfObserver {
+  increment(name: MemoryPerfCounterName, amount?: number): void
+  observe(name: MemoryPerfHighWaterName, value: number): void
+}
+
 export interface VectorStoreRetrievalPort {
   isWarm(agentId: string, embedding: MemoryModelRef): boolean
   query(

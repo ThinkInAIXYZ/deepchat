@@ -213,25 +213,16 @@ export class FakeRepository implements MemoryRepositoryPort {
       .slice(0, limit)
   }
 
-  getRecallKeywordTermStats(agentId: string, terms: string[]) {
-    const normalizedTerms = [...new Set(terms.map((term) => term.trim().toLowerCase()))].filter(
-      Boolean
-    )
-    const rows = [...this.rows.values()].filter(
-      (row) =>
-        row.agent_id === agentId &&
-        !row.superseded_by &&
-        row.conflict_state === null &&
-        row.status !== 'archived' &&
-        row.status !== 'conflicted' &&
-        row.kind !== 'persona' &&
-        row.kind !== 'working'
-    )
-    return normalizedTerms.map((term) => ({
-      term,
-      hitCount: rows.filter((row) => row.content.toLowerCase().includes(term)).length,
-      totalRows: rows.length
-    }))
+  searchWithStrategy(
+    agentId: string,
+    query: string,
+    limit = 20,
+    options: { matchMode?: 'all' | 'any' } = {}
+  ) {
+    return {
+      rows: this.search(agentId, query, limit, options),
+      strategy: 'like-fallback' as const
+    }
   }
 
   listPendingEmbedding(limit = 50, agentId?: string) {

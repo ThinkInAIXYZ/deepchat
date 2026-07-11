@@ -1,4 +1,4 @@
-import type { RecallKeywordTermStat } from '../types'
+import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
 export type RecallKeywordCandidateKind = 'ascii' | 'code' | 'cjk'
 
@@ -13,8 +13,11 @@ const RECALL_KEYWORD_MAX_TERMS = 8
 const RECALL_KEYWORD_MIN_ASCII_TERM_LENGTH = 3
 const RECALL_KEYWORD_MIN_CODE_TERM_LENGTH = 2
 const RECALL_KEYWORD_CJK_WINDOW = 4
-const RECALL_KEYWORD_HIGH_FREQUENCY_MIN_ROWS = 4
-const RECALL_KEYWORD_HIGH_FREQUENCY_RATIO = 0.5
+const RECALL_KEYWORD_KIND_PRIORITY: Record<RecallKeywordCandidateKind, number> = {
+  code: 0,
+  cjk: 1,
+  ascii: 2
+}
 
 const CODE_EDGE_RE = /^[._:/@#+-]+|[._:/@#+-]+$/g
 const CJK_SEQUENCE_RE = /^[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]+$/u
@@ -75,38 +78,19 @@ export function extractRecallKeywordCandidates(query: string): RecallKeywordCand
   return candidates
 }
 
-export function selectRecallKeywordTerms(
-  candidates: RecallKeywordCandidate[],
-  stats: RecallKeywordTermStat[]
-): string[] {
-  const byTerm = new Map(stats.map((stat) => [stat.term.toLowerCase(), stat]))
-  const scored = candidates
-    .map((candidate) => ({ candidate, stat: byTerm.get(candidate.term) }))
-    .filter(
-      (entry): entry is { candidate: RecallKeywordCandidate; stat: RecallKeywordTermStat } =>
-        (entry.stat?.hitCount ?? 0) > 0
-    )
-
-  if (!scored.length) return []
-
-  const lowFrequency = scored.filter(
-    ({ stat }) =>
-      stat.totalRows < RECALL_KEYWORD_HIGH_FREQUENCY_MIN_ROWS ||
-      stat.hitCount <= stat.totalRows * RECALL_KEYWORD_HIGH_FREQUENCY_RATIO
-  )
-  const pool = lowFrequency.length ? lowFrequency : scored
-  const selected = [...pool]
+export function selectRecallKeywordTerms(candidates: RecallKeywordCandidate[]): string[] {
+  const trigramSafe = candidates.filter((candidate) => unicodeCodePointLength(candidate.term) >= 3)
+  const selectable = trigramSafe.length > 0 ? trigramSafe : candidates
+  return [...selectable]
     .sort(
       (left, right) =>
-        left.stat.hitCount - right.stat.hitCount ||
-        right.candidate.term.length - left.candidate.term.length ||
-        left.candidate.position - right.candidate.position
+        RECALL_KEYWORD_KIND_PRIORITY[left.kind] - RECALL_KEYWORD_KIND_PRIORITY[right.kind] ||
+        unicodeCodePointLength(right.term) - unicodeCodePointLength(left.term) ||
+        left.position - right.position
     )
-    .slice(0, lowFrequency.length ? RECALL_KEYWORD_MAX_TERMS : 1)
-
-  return selected
-    .sort((left, right) => left.candidate.position - right.candidate.position)
-    .map(({ candidate }) => candidate.term)
+    .slice(0, RECALL_KEYWORD_MAX_TERMS)
+    .sort((left, right) => left.position - right.position)
+    .map((candidate) => candidate.term)
 }
 
 export function buildRecallKeywordQuery(terms: string[]): string {

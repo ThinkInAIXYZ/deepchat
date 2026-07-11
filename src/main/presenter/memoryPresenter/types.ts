@@ -57,7 +57,12 @@ export interface MemoryRepositoryPort {
     limit?: number,
     options?: { matchMode?: 'all' | 'any' }
   ): AgentMemoryRow[]
-  getRecallKeywordTermStats(agentId: string, terms: string[]): RecallKeywordTermStat[]
+  searchWithStrategy(
+    agentId: string,
+    query: string,
+    limit?: number,
+    options?: { matchMode?: 'all' | 'any' }
+  ): MemoryKeywordSearchResult
   listPendingEmbedding(limit?: number, agentId?: string): AgentMemoryRow[]
   updateStatus(
     id: string,
@@ -205,12 +210,6 @@ export interface MemoryRepositoryPort {
   ): number
 }
 
-export interface RecallKeywordTermStat {
-  term: string
-  hitCount: number
-  totalRows: number
-}
-
 export interface MemoryAuditRepositoryPort {
   insert(input: AgentMemoryAuditInsertInput): AgentMemoryAuditRow
   listByAgent(agentId: string, options?: number | MemoryAuditListOptions): AgentMemoryAuditRow[]
@@ -340,6 +339,13 @@ export interface MemoryRecallItem {
     rrf: number
     final: number
   }
+}
+
+export type MemoryKeywordSearchStrategy = 'fts-only' | 'like-fallback'
+
+export interface MemoryKeywordSearchResult {
+  rows: AgentMemoryRow[]
+  strategy: MemoryKeywordSearchStrategy
 }
 
 // A retrieval hit paired with its authoritative row for the read-only search facade. The route

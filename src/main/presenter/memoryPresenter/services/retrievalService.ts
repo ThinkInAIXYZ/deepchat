@@ -39,16 +39,6 @@ type QueryEmbeddingInFlight = {
   promise: Promise<number[][]>
 }
 
-type CachedRecallKeywordTermStat = {
-  stat: {
-    term: string
-    hitCount: number
-    totalRows: number
-  }
-  expiresAt: number
-}
-
-const RECALL_KEYWORD_STATS_TTL_MS = 30_000
 
 function isLiveRecallVectorRow(
   agentId: string,
@@ -89,7 +79,6 @@ async function withSoftTimeout<T>(
 
 export class RetrievalService {
   private readonly queryEmbeddingInFlight = new Map<string, Map<string, QueryEmbeddingInFlight>>()
-  private readonly keywordStatsCache = new Map<string, Map<string, CachedRecallKeywordTermStat>>()
 
   constructor(
     private readonly ctx: MemoryRuntimeContext,
@@ -117,7 +106,7 @@ export class RetrievalService {
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
     if (!this.ctx.canReadAgentMemory(agentId)) return []
     return this.retrieve(agentId, query, now, true, {
-      keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
+      keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
       keywordMatchMode: 'any'
     })
   }
@@ -128,61 +117,16 @@ export class RetrievalService {
     now: number
   ): Promise<MemoryRecallItem[]> {
     return this.retrieve(agentId, query, now, false, {
-      keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
+      keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
       keywordMatchMode: 'any',
       enableInlinePrune: false
     })
   }
 
-  private buildAgentFacingRecallKeywordQuery(agentId: string, query: string): string {
+  private buildAgentFacingRecallKeywordQuery(query: string): string {
     const candidates = extractRecallKeywordCandidates(query)
     if (!candidates.length) return ''
-    const stats = this.getCachedRecallKeywordTermStats(
-      agentId,
-      candidates.map((candidate) => candidate.term)
-    )
-    return buildRecallKeywordQuery(selectRecallKeywordTerms(candidates, stats))
-  }
-
-  private getCachedRecallKeywordTermStats(agentId: string, terms: string[]) {
-    const normalizedTerms = [...new Set(terms.map((term) => term.trim().toLowerCase()))].filter(
-      Boolean
-    )
-    if (!normalizedTerms.length) return []
-
-    const now = Date.now()
-    let agentCache = this.keywordStatsCache.get(agentId)
-    if (!agentCache) {
-      agentCache = new Map()
-      this.keywordStatsCache.set(agentId, agentCache)
-    }
-
-    const missing: string[] = []
-    const cached = new Map<string, CachedRecallKeywordTermStat['stat']>()
-    for (const term of normalizedTerms) {
-      const entry = agentCache.get(term)
-      if (entry && entry.expiresAt > now) {
-        cached.set(term, entry.stat)
-      } else {
-        agentCache.delete(term)
-        missing.push(term)
-      }
-    }
-
-    if (missing.length > 0) {
-      const fresh = this.ctx.deps.repository.getRecallKeywordTermStats(agentId, missing)
-      for (const stat of fresh) {
-        const normalizedTerm = stat.term.trim().toLowerCase()
-        const entry = { ...stat, term: normalizedTerm }
-        agentCache.set(normalizedTerm, {
-          stat: entry,
-          expiresAt: now + RECALL_KEYWORD_STATS_TTL_MS
-        })
-        cached.set(normalizedTerm, entry)
-      }
-    }
-
-    return normalizedTerms.map((term) => cached.get(term) ?? { term, hitCount: 0, totalRows: 0 })
+    return buildRecallKeywordQuery(selectRecallKeywordTerms(candidates))
   }
 
   private startQueryEmbedding(
@@ -281,10 +225,10 @@ export class RetrievalService {
     const candidateLimit = effectiveTopK * 2
     const ftsRows = normalizedKeywordQuery
       ? this.ctx.deps.repository
-          .search(agentId, normalizedKeywordQuery, candidateLimit, {
+          .searchWithStrategy(agentId, normalizedKeywordQuery, candidateLimit, {
             matchMode: options.keywordMatchMode ?? 'all'
           })
-          .filter((row) => row.kind !== 'persona' && row.kind !== 'working')
+          .rows.filter((row) => row.kind !== 'persona' && row.kind !== 'working')
       : []
 
     const vecCandidates: { memoryId: string; similarity: number }[] = []
@@ -448,7 +392,7 @@ export class RetrievalService {
     const config = this.ctx.deps.resolveAgentConfig(agentId)
     const recalled = query.trim()
       ? await this.retrieve(agentId, query, Date.now(), false, {
-          keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
+          keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
           keywordMatchMode: 'any'
         })
       : []
@@ -497,15 +441,9 @@ export class RetrievalService {
     for (const key of this.queryEmbeddingInFlight.keys()) {
       if (key.startsWith(`${agentId}::`)) this.queryEmbeddingInFlight.delete(key)
     }
-    this.invalidateKeywordStats(agentId)
   }
 
   clearAll(): void {
     this.queryEmbeddingInFlight.clear()
-    this.keywordStatsCache.clear()
-  }
-
-  invalidateKeywordStats(agentId: string): void {
-    this.keywordStatsCache.delete(agentId)
   }
 }

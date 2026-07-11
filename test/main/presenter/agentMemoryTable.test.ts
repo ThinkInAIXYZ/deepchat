@@ -1,49 +1,38 @@
-import { describe, expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
+import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
-const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const tableModule = sqliteModule
+const tableModule = Database
   ? await import('@/presenter/sqlitePresenter/tables/agentMemory').catch(() => null)
   : null
-const auditTableModule = sqliteModule
+const auditTableModule = Database
   ? await import('@/presenter/sqlitePresenter/tables/agentMemoryAudit').catch(() => null)
   : null
+const ftsPolicyModule = Database
+  ? await import('@/presenter/sqlitePresenter/tables/agentMemoryFtsPolicy').catch(() => null)
+  : null
 
-const Database = sqliteModule?.default
 const AgentMemoryTable = tableModule?.AgentMemoryTable
 const AgentMemoryAuditTable = auditTableModule?.AgentMemoryAuditTable
+const agentFtsScope = ftsPolicyModule?.agentFtsScope
+const buildRecallablePredicate = ftsPolicyModule?.buildRecallablePredicate
+const isRecallableFtsRow = ftsPolicyModule?.isRecallableFtsRow
 const DatabaseCtor = Database!
 const AgentMemoryTableCtor = AgentMemoryTable!
 const AgentMemoryAuditTableCtor = AgentMemoryAuditTable!
-const sqliteSkipReason = 'skipped: better-sqlite3-multiple-ciphers is unavailable'
-const requireNativeSqlite = process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1'
+const describeIfSqlite = nativeSqliteDescribeIf(
+  Boolean(
+    AgentMemoryTable &&
+    AgentMemoryAuditTable &&
+    agentFtsScope &&
+    buildRecallablePredicate &&
+    isRecallableFtsRow
+  ),
+  'Agent Memory native table modules are unavailable'
+)
 
-let sqliteAvailable = false
-if (Database) {
-  try {
-    const smokeDb = new Database(':memory:')
-    smokeDb.close()
-    sqliteAvailable = true
-  } catch {
-    sqliteAvailable = false
-  }
+type AgentMemorySearchInternals = {
+  searchLike(...args: unknown[]): unknown[]
 }
-
-const sqliteHarnessAvailable = sqliteAvailable && AgentMemoryTable && AgentMemoryAuditTable
-const sqliteHarnessSkipReason = !sqliteAvailable
-  ? sqliteSkipReason
-  : AgentMemoryTable
-    ? 'skipped: AgentMemoryAuditTable is unavailable'
-    : 'skipped: AgentMemoryTable is unavailable'
-const describeIfSqlite = sqliteHarnessAvailable
-  ? describe
-  : requireNativeSqlite
-    ? (name: string, _suite: () => void) =>
-        describe(name, () => {
-          it('requires native SQLite support', () => {
-            throw new Error(sqliteHarnessSkipReason)
-          })
-        })
-    : describe.skip
 
 describeIfSqlite('AgentMemoryTable', () => {
   it('uses the conflict target index for participant lookup in a 50k-row agent', () => {
@@ -705,6 +694,16 @@ describeIfSqlite('AgentMemoryTable', () => {
     try {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
+      if (ftsActive(db)) {
+        expect(
+          db
+            .prepare(
+              `SELECT schema_version, policy_version
+               FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+            )
+            .get()
+        ).toMatchObject({ schema_version: 4, policy_version: 2 })
+      }
       table.insert({
         id: 'm1',
         agentId: 'deepchat',
@@ -718,55 +717,6 @@ describeIfSqlite('AgentMemoryTable', () => {
           .search('deepchat', 'please redis setup', 20, { matchMode: 'any' })
           .map((row) => row.id)
       ).toEqual(['m1'])
-    } finally {
-      db.close()
-    }
-  })
-
-  it('counts recall keyword term stats over active recallable rows only', () => {
-    const db = new DatabaseCtor(':memory:')
-    try {
-      const table = new AgentMemoryTableCtor(db)
-      table.createTable()
-      table.insert({ id: 'm1', agentId: 'deepchat', kind: 'semantic', content: 'redis setup' })
-      table.insert({ id: 'm2', agentId: 'deepchat', kind: 'semantic', content: 'please notes' })
-      table.insert({ id: 'p1', agentId: 'deepchat', kind: 'persona', content: 'redis persona' })
-      table.insert({ id: 'w1', agentId: 'deepchat', kind: 'working', content: 'redis working' })
-      table.insert({
-        id: 'a1',
-        agentId: 'deepchat',
-        kind: 'semantic',
-        content: 'redis archived',
-        status: 'archived'
-      })
-      table.insert({
-        id: 'c1',
-        agentId: 'deepchat',
-        kind: 'semantic',
-        content: 'redis conflicted',
-        status: 'conflicted'
-      })
-      const old = table.insert({
-        id: 'old',
-        agentId: 'deepchat',
-        kind: 'semantic',
-        content: 'redis old'
-      })
-      const fresh = table.insert({
-        id: 'fresh',
-        agentId: 'deepchat',
-        kind: 'semantic',
-        content: 'redis fresh'
-      })
-      table.markSuperseded(old.id, fresh.id)
-
-      expect(
-        table.getRecallKeywordTermStats('deepchat', ['redis', 'please', 'redis', 'missing'])
-      ).toEqual([
-        { term: 'redis', hitCount: 2, totalRows: 3 },
-        { term: 'please', hitCount: 1, totalRows: 3 },
-        { term: 'missing', hitCount: 0, totalRows: 3 }
-      ])
     } finally {
       db.close()
     }
@@ -1111,6 +1061,69 @@ function ftsActive(db: InstanceType<NonNullable<typeof Database>>): boolean {
 }
 
 describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
+  it('keeps the JS recall policy, SQL predicate, and registered scope encoder in parity', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const fixtures = [
+        { id: 'live', kind: 'semantic', status: 'embedded', superseded_by: null },
+        { id: 'archived', kind: 'semantic', status: 'archived', superseded_by: null },
+        { id: 'conflicted', kind: 'semantic', status: 'conflicted', superseded_by: null },
+        { id: 'persona', kind: 'persona', status: 'fts_only', superseded_by: null },
+        { id: 'working', kind: 'working', status: 'fts_only', superseded_by: null },
+        { id: 'superseded', kind: 'semantic', status: 'embedded', superseded_by: 'live' }
+      ]
+      const insert = db.prepare(
+        `INSERT INTO agent_memory (id, agent_id, kind, content, status, superseded_by, created_at)
+         VALUES (?, 'a', ?, ?, ?, ?, 1)`
+      )
+      for (const fixture of fixtures) {
+        insert.run(fixture.id, fixture.kind, fixture.id, fixture.status, fixture.superseded_by)
+      }
+
+      const sqlIds = (
+        db
+          .prepare(`SELECT id FROM agent_memory WHERE ${buildRecallablePredicate!()}`)
+          .all() as Array<{
+          id: string
+        }>
+      ).map((row) => row.id)
+      const jsIds = fixtures
+        .filter((row) => isRecallableFtsRow!({ ...row, agent_id: 'a' }))
+        .map((row) => row.id)
+      const sqlScope = db
+        .prepare('SELECT agent_memory_fts_scope(?) AS scope')
+        .get('agent/with unicode/记忆') as { scope: string }
+
+      expect(sqlIds).toEqual(jsIds)
+      expect(sqlScope.scope).toBe(agentFtsScope!('agent/with unicode/记忆'))
+    } finally {
+      db.close()
+    }
+  })
+
+  it('keeps unicode61 in permanent LIKE-only mode without mirror writes', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      ;(
+        table as unknown as { ftsCapability: { available: boolean; tokenizer: string } }
+      ).ftsCapability = { available: true, tokenizer: 'unicode61' }
+      table.createTable()
+
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis memory' })
+      table.updateStatus('m1', 'archived')
+      table.updateStatus('m1', 'pending_embedding')
+
+      expect(ftsActive(db)).toBe(false)
+      expect(table.searchWithStrategy('a', 'redis').strategy).toBe('like-fallback')
+      expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['m1'])
+    } finally {
+      db.close()
+    }
+  })
+
   it('carries embedding_model + lineage in the authoritative schema and exposes migration v32', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -1148,7 +1161,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
-  it('recalls full words and >=3 char fragments; coverage never drops below LIKE', () => {
+  it('uses trigram FTS for safe terms and LIKE for short terms', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = new AgentMemoryTableCtor(db)
@@ -1166,17 +1179,27 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         content: 'likes redis caching strongly'
       })
 
+      const likeSpy = vi.spyOn(table as unknown as AgentMemorySearchInternals, 'searchLike')
       expect(table.search('a', 'redis').map((row) => row.id)).toContain('redis')
+      const meta = db
+        .prepare("SELECT tokenizer FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'")
+        .get() as { tokenizer?: string } | undefined
+      if (ftsActive(db) && meta?.tokenizer === 'trigram') {
+        expect(likeSpy).not.toHaveBeenCalled()
+      } else {
+        expect(likeSpy).toHaveBeenCalledTimes(1)
+      }
       // >=3 char CJK fragment: trigram FTS when available, otherwise the LIKE substring fallback.
       expect(table.search('a', '中文回答').map((row) => row.id)).toContain('cn')
       // 2 char CJK word is below trigram's window; the LIKE fallback still recalls it.
       expect(table.search('a', '中文').map((row) => row.id)).toContain('cn')
+      expect(likeSpy).toHaveBeenCalledTimes(meta?.tokenizer === 'trigram' ? 1 : 3)
     } finally {
       db.close()
     }
   })
 
-  it('keeps the FTS index in sync on delete / supersede / clear', () => {
+  it('keeps the recallable-only FTS index in sync across lifecycle transitions', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = new AgentMemoryTableCtor(db)
@@ -1202,8 +1225,42 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.markSuperseded('a2', a3.id)
       expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['a3'])
 
+      table.updateStatus('a3', 'archived')
+      expect(table.search('a', 'redis')).toEqual([])
+      table.updateStatus('a3', 'pending_embedding')
+      expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['a3'])
+
+      table.insert({
+        id: 'persona',
+        agentId: 'a',
+        kind: 'persona',
+        content: 'redis persona'
+      })
+      table.insert({
+        id: 'conflicted',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'redis conflict',
+        status: 'conflicted'
+      })
+      table.insert({
+        id: 'other-agent',
+        agentId: 'b',
+        kind: 'semantic',
+        content: 'redis remains searchable'
+      })
+      expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['a3'])
+
       table.clearByAgent('a')
       expect(table.search('a', 'redis')).toHaveLength(0)
+      const otherAgent = table.searchWithStrategy('b', 'redis')
+      expect(otherAgent.rows.map((row) => row.id)).toEqual(['other-agent'])
+      const tokenizer = (
+        db
+          .prepare("SELECT tokenizer FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'")
+          .get() as { tokenizer?: string } | undefined
+      )?.tokenizer
+      expect(otherAgent.strategy).toBe(tokenizer === 'trigram' ? 'fts-only' : 'like-fallback')
     } finally {
       db.close()
     }
@@ -1221,6 +1278,68 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const rebuilt = new AgentMemoryTableCtor(db)
       rebuilt.createTable()
       expect(rebuilt.search('a', 'redis').map((row) => row.id)).toContain('m1')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('keeps authoritative writes available when the runtime FTS table disappears', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      if (!ftsActive(db)) return
+      table.insert({ id: 'before', agentId: 'a', kind: 'semantic', content: 'redis before' })
+      db.exec('DROP TABLE agent_memory_fts;')
+
+      expect(() =>
+        table.insert({ id: 'after', agentId: 'a', kind: 'semantic', content: 'redis after' })
+      ).not.toThrow()
+      expect(table.getById('after')?.content).toBe('redis after')
+      const dirtyMeta = db
+        .prepare(
+          `SELECT mutation_generation, indexed_generation
+           FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+        )
+        .get() as { mutation_generation: number; indexed_generation: number }
+      expect(dirtyMeta.mutation_generation).toBeGreaterThan(dirtyMeta.indexed_generation)
+      expect(
+        table
+          .search('a', 'redis')
+          .map((row) => row.id)
+          .sort()
+      ).toEqual(['after', 'before'])
+
+      const recoveredMeta = db
+        .prepare(
+          `SELECT mutation_generation, indexed_generation
+           FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+        )
+        .get() as { mutation_generation: number; indexed_generation: number }
+      expect(recoveredMeta.mutation_generation).toBe(recoveredMeta.indexed_generation)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('drops a partial FTS build and fails open to one bounded LIKE query', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const originalExec = db.exec.bind(db)
+      vi.spyOn(db, 'exec').mockImplementation((sql: string) => {
+        if (sql.includes('CREATE VIRTUAL TABLE IF NOT EXISTS agent_memory_fts')) {
+          throw new Error('simulated FTS build failure')
+        }
+        return originalExec(sql)
+      })
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fallback' })
+      const likeSpy = vi.spyOn(table as unknown as AgentMemorySearchInternals, 'searchLike')
+
+      expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['m1'])
+      expect(likeSpy).toHaveBeenCalledTimes(1)
+      expect(ftsActive(db)).toBe(false)
     } finally {
       db.close()
     }
@@ -1252,7 +1371,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
-  it('unions LIKE so high-importance rows survive when FTS alone fills the cap (AC-2.2)', () => {
+  it('supplements BM25 with same-MATCH importance ranking without LIKE', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = new AgentMemoryTableCtor(db)
@@ -1288,13 +1407,17 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         importance: 0.8
       })
 
-      // limit=2 would let BM25 fill the cap with lo1/lo2 alone; the LIKE union must still surface
-      // the high-importance rows the old substring search returned, instead of dropping them.
+      const likeSpy = vi.spyOn(table as unknown as AgentMemorySearchInternals, 'searchLike')
+      // limit=2 lets BM25 fill the lexical cap; the second FTS query supplies importance candidates.
       const ids = table.search('a', 'redis', 2).map((row) => row.id)
       expect(ids).toContain('hi1')
       expect(ids).toContain('hi2')
       if (ftsActive(db)) {
         expect(ids.length).toBeGreaterThan(2)
+        const meta = db
+          .prepare("SELECT tokenizer FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'")
+          .get() as { tokenizer?: string } | undefined
+        if (meta?.tokenizer === 'trigram') expect(likeSpy).not.toHaveBeenCalled()
       }
     } finally {
       db.close()

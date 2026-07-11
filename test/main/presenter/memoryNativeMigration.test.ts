@@ -1,44 +1,27 @@
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { describe, expect, it, vi } from 'vitest'
+import { expect, it, vi } from 'vitest'
+import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 
-const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const presenterModule = sqliteModule
+const presenterModule = Database
   ? await import('@/presenter/sqlitePresenter').catch(() => null)
   : null
+const importerModule = Database
+  ? await import('@/presenter/sqlitePresenter/importData').catch(() => null)
+  : null
 
-const Database = sqliteModule?.default
 const SQLitePresenter = presenterModule?.SQLitePresenter
+const DataImporter = importerModule?.DataImporter
 const DatabaseCtor = Database!
 const SQLitePresenterCtor = SQLitePresenter!
-const requireNativeSqlite = process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1'
-
-let sqliteAvailable = false
-let sqliteUnavailableReason = 'Native SQLite presenter is unavailable'
-if (Database) {
-  try {
-    const smokeDb = new Database(':memory:')
-    smokeDb.close()
-    sqliteAvailable = true
-  } catch (error) {
-    sqliteUnavailableReason = error instanceof Error ? error.message : String(error)
-  }
-}
-
-const nativeHarnessAvailable = sqliteAvailable && SQLitePresenter
-const describeIfNative = nativeHarnessAvailable
-  ? describe
-  : requireNativeSqlite
-    ? (name: string, _suite: () => void) =>
-        describe(name, () => {
-          it('requires the native SQLite presenter', () => {
-            throw new Error(sqliteUnavailableReason)
-          })
-        })
-    : describe.skip
+const DataImporterCtor = DataImporter!
+const describeIfNative = nativeSqliteDescribeIf(
+  Boolean(SQLitePresenter && DataImporter),
+  'Native SQLite presenter or importer is unavailable'
+)
 
 function withTemporaryDatabase(run: (databasePath: string) => void): void {
   const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-migration-'))
@@ -65,6 +48,49 @@ describeIfNative('Memory native SQLite migration', () => {
       expect(reopened.getLatestSchemaVersion()).toBeGreaterThanOrEqual(41)
       reopened.close()
     })
+  })
+
+  it('invalidates clean FTS metadata after incremental memory import and rebuilds on reopen', async () => {
+    const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-import-'))
+    const sourcePath = join(directory, 'source.db')
+    const targetPath = join(directory, 'target.db')
+    try {
+      const source = new SQLitePresenterCtor(sourcePath)
+      source.agentMemoryTable.insert({
+        id: 'imported-memory',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'incrementally imported redis memory'
+      })
+      source.close()
+
+      const target = new SQLitePresenterCtor(targetPath)
+      target.agentMemoryTable.insert({
+        id: 'existing-memory',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'existing redis memory'
+      })
+      expect(
+        target
+          .getDatabase()
+          .prepare("SELECT key FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'")
+          .get()
+      ).toEqual({ key: 'agent_memory_fts' })
+      target.close()
+
+      const importer = new DataImporterCtor(sourcePath, targetPath)
+      await importer.importData()
+      importer.close()
+
+      const reopened = new SQLitePresenterCtor(targetPath)
+      const result = reopened.agentMemoryTable.searchWithStrategy('a', 'imported', 10)
+      expect(result.strategy).toBe('fts-only')
+      expect(result.rows.map((row) => row.id)).toContain('imported-memory')
+      reopened.close()
+    } finally {
+      actualFs.rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   for (const version of [34, 37, 38, 40]) {

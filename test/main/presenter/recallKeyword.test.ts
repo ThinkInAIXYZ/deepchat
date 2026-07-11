@@ -4,11 +4,6 @@ import {
   extractRecallKeywordCandidates,
   selectRecallKeywordTerms
 } from '@/presenter/memoryPresenter/core/recallKeyword'
-import type { RecallKeywordTermStat } from '@/presenter/memoryPresenter/types'
-
-function stats(entries: Array<[string, number, number]>): RecallKeywordTermStat[] {
-  return entries.map(([term, hitCount, totalRows]) => ({ term, hitCount, totalRows }))
-}
 
 describe('recall keyword selection', () => {
   it('extracts ascii, code-like, and CJK candidates without duplicates', () => {
@@ -50,48 +45,37 @@ describe('recall keyword selection', () => {
     expect(candidates.some((candidate) => candidate.term === 'term23')).toBe(false)
   })
 
-  it('selects lower-frequency terms but emits them in query order', () => {
-    const candidates = extractRecallKeywordCandidates('please redis setup dashboard')
+  it('prioritizes code, then CJK, then ASCII while emitting selected terms in query order', () => {
+    const candidates = extractRecallKeywordCandidates(
+      'alpha longestplaintext 中文回答问题 api/v1.redis_error beta gamma delta epsilon zeta'
+    )
 
-    expect(
-      selectRecallKeywordTerms(
-        candidates,
-        stats([
-          ['please', 8, 10],
-          ['redis', 1, 10],
-          ['setup', 2, 10],
-          ['dashboard', 1, 10]
-        ])
-      )
-    ).toEqual(['redis', 'setup', 'dashboard'])
+    expect(selectRecallKeywordTerms(candidates)).toEqual([
+      'alpha',
+      'longestplaintext',
+      '中文回答',
+      '文回答问',
+      '回答问题',
+      'api/v1.redis_error',
+      'gamma',
+      'epsilon'
+    ])
   })
 
-  it('falls back to the rarest single term when every hit is high-frequency', () => {
-    const candidates = extractRecallKeywordCandidates('redis setup cache')
+  it('breaks same-kind ties by Unicode code-point length and then first position', () => {
+    const candidates = extractRecallKeywordCandidates(
+      'aaa bbbb ccccc ddddd eeeeee fffffff gggggggg hhhhhhhhh iiiiiiiiii jjjjjjjjjjj'
+    )
 
-    expect(
-      selectRecallKeywordTerms(
-        candidates,
-        stats([
-          ['redis', 9, 10],
-          ['setup', 8, 10],
-          ['cache', 10, 10]
-        ])
-      )
-    ).toEqual(['setup'])
-  })
-
-  it('drops terms that do not hit the active corpus', () => {
-    const candidates = extractRecallKeywordCandidates('unknown redis')
-
-    expect(
-      selectRecallKeywordTerms(
-        candidates,
-        stats([
-          ['unknown', 0, 10],
-          ['redis', 1, 10]
-        ])
-      )
-    ).toEqual(['redis'])
+    expect(selectRecallKeywordTerms(candidates)).toEqual([
+      'ccccc',
+      'ddddd',
+      'eeeeee',
+      'fffffff',
+      'gggggggg',
+      'hhhhhhhhh',
+      'iiiiiiiiii',
+      'jjjjjjjjjjj'
+    ])
   })
 })
