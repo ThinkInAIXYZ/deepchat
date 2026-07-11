@@ -329,7 +329,8 @@ describe('system prompt cache coherence orchestration', () => {
     expect(starts).toMatchObject({
       env: startedAt,
       verification: startedAt,
-      skillDiscovery: startedAt
+      skillDiscovery: startedAt,
+      skillStable: startedAt
     })
     await vi.advanceTimersByTimeAsync(50)
     envRead.resolve('PROJECT RULE')
@@ -337,11 +338,60 @@ describe('system prompt cache coherence orchestration', () => {
     discovery.resolve([metadata])
     await pending
 
-    expect(starts.skillStable).toBe(startedAt + 50)
+    expect(starts.skillStable).toBe(startedAt)
     const allDeadlines = skillPresenter.waitForStableRuntimeSnapshot.mock.calls.map(
       ([options]) => options.deadlineAt
     )
     expect(new Set(allDeadlines)).toEqual(new Set([startedAt + 200]))
+  })
+
+  it('reuses an odd-epoch readiness wait while slow discovery consumes the shared budget', async () => {
+    vi.useFakeTimers()
+    const startedAt = Date.now()
+    const metadata: SkillMetadata = {
+      name: 'review',
+      description: 'Review changes',
+      path: path.join(tempDir, 'review', 'SKILL.md'),
+      skillRoot: path.join(tempDir, 'review')
+    }
+    const snapshot = createSkillSnapshot(2, createSkillEntry(metadata, 'BODY', ['read']))
+    const skillPresenter = createSkillPresenter(snapshot)
+    const discovery = deferred<SkillMetadata[]>()
+    skillPresenter.getMetadataList.mockImplementationOnce(() => discovery.promise)
+    let stableWaitCount = 0
+    skillPresenter.waitForStableRuntimeSnapshot.mockImplementation(
+      (options: { deadlineAt: number }) => {
+        stableWaitCount += 1
+        if (stableWaitCount > 1) {
+          return Promise.resolve(snapshot)
+        }
+        return new Promise<SkillRuntimeSnapshot>((resolve, reject) => {
+          setTimeout(() => {
+            if (Date.now() >= options.deadlineAt) {
+              reject(new SkillRuntimeUpdatingError())
+              return
+            }
+            resolve(snapshot)
+          }, 150)
+        })
+      }
+    )
+    const runtime = createRuntime({ skillPresenter })
+
+    const pending = buildPair(runtime, tempDir)
+    await flushMicrotasks()
+    expect(stableWaitCount).toBe(1)
+    await vi.advanceTimersByTimeAsync(100)
+    discovery.resolve([metadata])
+    await flushMicrotasks()
+    expect(stableWaitCount).toBe(1)
+    await vi.advanceTimersByTimeAsync(50)
+
+    await expect(pending).resolves.toMatchObject({
+      systemPrompt: expect.stringContaining('BODY')
+    })
+    expect(Date.now()).toBe(startedAt + 150)
+    expect(stableWaitCount).toBe(3)
   })
 
   it('rebuilds once when publication changes during tool construction and returns only the new pair', async () => {

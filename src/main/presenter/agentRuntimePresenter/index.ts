@@ -4864,21 +4864,31 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     }
 
-    // The first metadata lookup completes discovery. The lookup between the two stable samples
-    // captures visibility from the same epoch; it is intentionally a second compatibility-cache
-    // read, bounded by the caller's original deadline, rather than a source-disk read.
-    await this.waitForRuntimePreparation(
+    // Discovery and the initial readiness wait share the caller's source-preparation start time.
+    // After both settle, the lookup between stable samples captures visibility from the same
+    // epoch; it is intentionally a compatibility-cache read, bounded by the original deadline,
+    // rather than a source-disk read.
+    const initialSnapshotPromise = skillPresenter.waitForStableRuntimeSnapshot({
+      requiredSkillNames: options.requiredSkillNames,
+      signal: options.signal,
+      deadlineAt: options.deadlineAt
+    })
+    const discoveryPromise = this.waitForRuntimePreparation(
       skillPresenter.getMetadataList(),
       options.signal,
       options.deadlineAt
     )
+    const [initialSnapshot] = await Promise.all([initialSnapshotPromise, discoveryPromise])
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const snapshot = await skillPresenter.waitForStableRuntimeSnapshot({
-        requiredSkillNames: options.requiredSkillNames,
-        signal: options.signal,
-        deadlineAt: options.deadlineAt
-      })
+      const snapshot =
+        attempt === 0
+          ? initialSnapshot
+          : await skillPresenter.waitForStableRuntimeSnapshot({
+              requiredSkillNames: options.requiredSkillNames,
+              signal: options.signal,
+              deadlineAt: options.deadlineAt
+            })
       const visibleMetadata = await this.waitForRuntimePreparation(
         skillPresenter.getMetadataList(),
         options.signal,
