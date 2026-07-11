@@ -37,6 +37,16 @@ export function unrelatedAnyDestructuring(container: any): unknown {
   return getSession()
 }
 
+export function unrelatedClassRest(cache: UnrelatedSessionCache): unknown {
+  const { ...rest } = cache
+  return rest.getSession()
+}
+
+export function unrelatedAnyRest(container: any): unknown {
+  const { ...rest } = container
+  return rest.getSession()
+}
+
 interface IAgentSessionPresenter {
   getSession(): unknown
 }
@@ -53,10 +63,22 @@ export function unrelatedParameterDestructuring({
   return getSession()
 }
 
+export function unrelatedParameterRest({
+  ...rest
+}: Pick<IAgentSessionPresenter, 'getSession'>): unknown {
+  return rest.getSession()
+}
+
 export function unrelatedAssignmentDestructuring(
   sessionPresenter: Pick<IAgentSessionPresenter, 'getSession'>
 ): unknown {
   let getSession: () => unknown
   ;({ getSession } = sessionPresenter)
   return getSession()
+}
+
+export function unrelatedAssignmentRest(cache: UnrelatedSessionCache): unknown {
+  let rest
+  ;({ ...rest } = cache)
+  return rest.getSession()
 }

@@ -50,10 +50,25 @@ export function parameterDestructuredReference({
   return getSession('session-1')
 }
 
+export function parameterRestReference({ ...sessionPresenter }: FullPort): Promise<unknown> {
+  return sessionPresenter.getSession('session-1')
+}
+
+export function variableRestReference(): Promise<unknown> {
+  const { ...sessionPresenter } = presenter.agentSessionPresenter
+  return sessionPresenter.getSession('session-1')
+}
+
 export function assignmentDestructuredReference(): Promise<unknown> {
   let getSession: FullPort['getSession']
   ;({ getSession } = presenter.agentSessionPresenter)
   return getSession('session-1')
+}
+
+export function assignmentRestReference(): Promise<unknown> {
+  let sessionPresenter
+  ;({ ...sessionPresenter } = presenter.agentSessionPresenter)
+  return (sessionPresenter as any).getSession('session-1')
 }
 
 type SessionListPort = Partial<Pick<FullPort, 'getSessionList'>>

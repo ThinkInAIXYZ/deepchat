@@ -159,6 +159,19 @@ const isPresenterExpression = (
         if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
           return isPresenterExpression(declaration.initializer, checker, assignments, nextSeen)
         }
+        if (
+          ts.isBindingElement(declaration) &&
+          declaration.dotDotDotToken &&
+          ts.isObjectBindingPattern(declaration.parent)
+        ) {
+          const owner = declaration.parent.parent
+          if (ts.isParameter(owner)) {
+            return hasPresenterType(checker.getTypeAtLocation(owner), checker)
+          }
+          if (ts.isVariableDeclaration(owner) && owner.initializer) {
+            return isPresenterExpression(owner.initializer, checker, assignments, nextSeen)
+          }
+        }
         return false
       }) ||
       assignments
@@ -220,16 +233,24 @@ const scanLegacyReferences = (program: ts.Program, sourceFiles: ts.SourceFile[])
   }
 
   const collectAssignments = (node: ts.Node): void => {
-    if (
-      ts.isBinaryExpression(node) &&
-      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isIdentifier(unwrap(node.left))
-    ) {
-      const symbol = checker.getSymbolAtLocation(unwrap(node.left))
-      if (symbol) {
-        const sources = assignments.get(symbol) ?? []
-        sources.push(node.right)
-        assignments.set(symbol, sources)
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const left = unwrap(node.left)
+      const targets = ts.isIdentifier(left)
+        ? [left]
+        : ts.isObjectLiteralExpression(left)
+          ? left.properties.flatMap((property) =>
+              ts.isSpreadAssignment(property) && ts.isIdentifier(unwrap(property.expression))
+                ? [unwrap(property.expression) as ts.Identifier]
+                : []
+            )
+          : []
+      for (const target of targets) {
+        const symbol = checker.getSymbolAtLocation(target)
+        if (symbol) {
+          const sources = assignments.get(symbol) ?? []
+          sources.push(node.right)
+          assignments.set(symbol, sources)
+        }
       }
     }
     ts.forEachChild(node, collectAssignments)
@@ -281,6 +302,9 @@ const scanLegacyReferences = (program: ts.Program, sourceFiles: ts.SourceFile[])
       isPresenterExpression(node.right, checker, assignments)
     ) {
       for (const property of unwrap(node.left).properties) {
+        if (ts.isSpreadAssignment(property)) {
+          continue
+        }
         const method =
           ts.isShorthandPropertyAssignment(property) || ts.isPropertyAssignment(property)
             ? staticName(property.name)
@@ -324,6 +348,7 @@ describe('session resolution source contract', () => {
     expect(references).toEqual([
       'test/fixtures/sessionResolutionGuard/positive.ts#aliasedReference#getSessionList',
       'test/fixtures/sessionResolutionGuard/positive.ts#assignmentDestructuredReference#getSession',
+      'test/fixtures/sessionResolutionGuard/positive.ts#assignmentRestReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#boundReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#computedReference#<computed-access>',
       'test/fixtures/sessionResolutionGuard/positive.ts#constrainedTypeParameterReference#getSession',
@@ -331,11 +356,13 @@ describe('session resolution source contract', () => {
       'test/fixtures/sessionResolutionGuard/positive.ts#destructuredRootReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#directReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#parameterDestructuredReference#getSession',
+      'test/fixtures/sessionResolutionGuard/positive.ts#parameterRestReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#pickReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#typeAliasReference#getSessionList',
       'test/fixtures/sessionResolutionGuard/positive.ts#typedAssignmentReference#getSessionList',
       'test/fixtures/sessionResolutionGuard/positive.ts#typedReference#getSessionList',
-      'test/fixtures/sessionResolutionGuard/positive.ts#untypedAssignmentReference#getActiveSession'
+      'test/fixtures/sessionResolutionGuard/positive.ts#untypedAssignmentReference#getActiveSession',
+      'test/fixtures/sessionResolutionGuard/positive.ts#variableRestReference#getSession'
     ])
   })
 
