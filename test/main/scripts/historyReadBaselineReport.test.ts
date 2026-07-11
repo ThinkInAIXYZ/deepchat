@@ -129,4 +129,21 @@ describe('history read baseline report renderer', () => {
     )
     expect(() => renderer.percentile([], 50)).toThrow('Cannot summarize an empty sample set')
   })
+
+  it('reports the five-call batch shape when raw metrics contain no per-message fallback', async () => {
+    const renderer = await loadRenderer()
+    const raw = createRaw()
+    for (const scenario of raw.scenarios) {
+      for (const sample of scenario.samples) {
+        sample.historySqlStatementCount = sample.getMessagesCallCount * 5
+      }
+    }
+
+    const report = renderer.renderHistoryReadBaseline(raw)
+
+    expect(report).toContain(
+      'five batch table calls per complete read and no per-message structured fallback calls'
+    )
+    expect(report).not.toContain('observed N+1 statement shape per read')
+  })
 })

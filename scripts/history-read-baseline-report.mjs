@@ -93,6 +93,9 @@ export function renderHistoryReadBaseline(raw) {
   const censoredEventLoopSamples = measuredSamples.filter(
     (sample) => sample.eventLoopDelayCensored
   ).length
+  const hasPerMessageStructuredFallback =
+    median(tenNoTraces, 'historySqlStatementCount') >
+    median(tenNoTraces, 'getMessagesCallCount') * 5
 
   lines.push(
     '',
@@ -100,7 +103,9 @@ export function renderHistoryReadBaseline(raw) {
     '',
     `- Every measured send performed \`${readCounts.join(', ')}\` complete history reads before the first provider call.`,
     `- The 10-message/0-trace scenario executed a median of \`${median(tenNoTraces, 'historySqlStatementCount')}\` history SQL statements; the 10,000-message/0-trace scenario executed \`${median(tenThousandNoTraces, 'historySqlStatementCount')}\`.`,
-    '- The real table wrappers observed five batch table calls per complete read plus two empty file/link fallback calls per user message. With the alternating fixture, that is an observed N+1 statement shape per read, not a constant inferred by the renderer.',
+    hasPerMessageStructuredFallback
+      ? '- The real table wrappers observed five batch table calls per complete read plus two empty file/link fallback calls per user message. With the alternating fixture, that is an observed N+1 statement shape per read, not a constant inferred by the renderer.'
+      : '- The real table wrappers observed five batch table calls per complete read and no per-message structured fallback calls.',
     `- For 10 target messages, raising global trace noise from 0 to 100,000 increased median history SQL time from \`${median(tenNoTraces, 'historySqlDurationMs').toFixed(3)}ms\` to \`${median(tenMaxTraces, 'historySqlDurationMs').toFixed(3)}ms\`.`,
     `- For 10,000 target messages, median provider-start time increased from about \`${(median(tenThousandNoTraces, 'providerStartElapsedMs') / 1000).toFixed(2)}s\` at 0 traces to \`${(median(tenThousandMaxTraces, 'providerStartElapsedMs') / 1000).toFixed(2)}s\` at 100,000 traces. These wall-clock values describe this host only and are not a cross-device performance forecast.`,
     `- All \`${censoredEventLoopSamples}/${measuredSamples.length}\` event-loop probes were censored before firing, so this baseline makes no event-loop delay or CPU claim.`,

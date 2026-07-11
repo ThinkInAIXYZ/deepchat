@@ -417,6 +417,165 @@ describe('DeepChatMessageStore', () => {
         activeSkills: ['algorithmic-art']
       })
     })
+
+    it('treats empty bulk buckets as authoritative for user and assistant content', () => {
+      const assistantContent = JSON.stringify([
+        { type: 'content', content: 'header answer', status: 'success', timestamp: 1000 }
+      ])
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow(),
+        createMessageRow({
+          id: 'm2',
+          order_seq: 2,
+          role: 'assistant',
+          content: assistantContent
+        })
+      ])
+      sqlitePresenter.deepchatUserMessagesTable.listByMessageIds.mockReturnValue([
+        {
+          message_id: 'm1',
+          text: 'normalized text',
+          search_enabled: 0,
+          think_enabled: 0
+        }
+      ])
+
+      const messages = store.getMessages('s1')
+
+      expect(JSON.parse(messages[0].content)).toEqual({
+        text: 'normalized text',
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      })
+      expect(messages[1].content).toBe(assistantContent)
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds).toHaveBeenCalledWith([
+        'm1',
+        'm2'
+      ])
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds).toHaveBeenCalledWith([
+        'm1',
+        'm2'
+      ])
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.listByMessageIds).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.listByMessageId).not.toHaveBeenCalled()
+    })
+
+    it('returns header content when a missing bulk user row has no legacy row', () => {
+      const headerContent = JSON.stringify({
+        text: 'legacy header',
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      })
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow({ content: headerContent })
+      ])
+
+      const [message] = store.getMessages('s1')
+
+      expect(message.content).toBe(headerContent)
+      expect(sqlitePresenter.deepchatUserMessagesTable.get).toHaveBeenCalledWith('m1')
+    })
+
+    it('uses a legacy user row when the bulk user bucket is missing', () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow({
+          content: JSON.stringify({
+            text: 'header text',
+            files: [],
+            links: [],
+            search: false,
+            think: false,
+            inlineItems: [{ type: 'text', content: 'inline context' }]
+          })
+        })
+      ])
+      sqlitePresenter.deepchatUserMessagesTable.get.mockReturnValue({
+        message_id: 'm1',
+        text: 'legacy normalized text',
+        search_enabled: 1,
+        think_enabled: 0
+      })
+
+      const [message] = store.getMessages('s1')
+
+      expect(JSON.parse(message.content)).toEqual({
+        text: 'legacy normalized text',
+        files: [],
+        links: [],
+        search: true,
+        think: false,
+        inlineItems: [{ type: 'text', content: 'inline context' }]
+      })
+      expect(sqlitePresenter.deepchatUserMessagesTable.get).toHaveBeenCalledWith('m1')
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds).toHaveBeenCalledOnce()
+    })
+
+    it('materializes non-empty structured user and assistant rows', () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow(),
+        createMessageRow({ id: 'm2', order_seq: 2, role: 'assistant', content: '[]' })
+      ])
+      sqlitePresenter.deepchatUserMessagesTable.listByMessageIds.mockReturnValue([
+        {
+          message_id: 'm1',
+          text: 'normalized text',
+          search_enabled: 1,
+          think_enabled: 1
+        }
+      ])
+      sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds.mockReturnValue([
+        {
+          message_id: 'm1',
+          file_index: 0,
+          name: 'notes.txt',
+          path: '/tmp/notes.txt',
+          mime_type: 'text/plain',
+          size: 12,
+          metadata_json: '{}'
+        }
+      ])
+      sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds.mockReturnValue([
+        { message_id: 'm1', link_index: 0, url: 'https://example.com' }
+      ])
+      sqlitePresenter.deepchatAssistantBlocksTable.listByMessageIds.mockReturnValue([
+        createAssistantBlockRow({
+          message_id: 'm2',
+          text_content: 'structured answer'
+        })
+      ])
+
+      const messages = store.getMessages('s1')
+
+      expect(JSON.parse(messages[0].content)).toEqual({
+        text: 'normalized text',
+        files: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/notes.txt',
+            type: 'text/plain',
+            size: 12,
+            mimeType: 'text/plain'
+          }
+        ],
+        links: ['https://example.com'],
+        search: true,
+        think: true
+      })
+      expect(JSON.parse(messages[1].content)).toEqual([
+        expect.objectContaining({
+          type: 'content',
+          content: 'structured answer',
+          status: 'success'
+        })
+      ])
+    })
   })
 
   describe('hasMessages', () => {

@@ -515,7 +515,7 @@ describeBenchmark('HIS-001 real SQLite history read baseline', () => {
               assistantBlock: 5,
               total: 10
             },
-            historySqlStatementCount: 15
+            historySqlStatementCount: 5
           })
         ])
         expect(instrumentation.freeze()).toBe(true)
