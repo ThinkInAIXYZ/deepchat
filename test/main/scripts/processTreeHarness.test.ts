@@ -9,13 +9,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   captureProcessIdentity,
   cleanupMarkedIdentity,
+  filterMarkedProcesses,
   getProcessIdentityStatus,
   parseLinuxStat,
-  ProcessIdentityVerificationError
+  parseWindowsProcessOutput,
+  ProcessIdentityVerificationError,
+  ProcessVisibilityUnknownError,
+  queryLinuxProcess
 } from '../../../scripts/process-tree-harness/identity.mjs'
 import {
   captureReadyIdentities,
   cleanupCapturedIdentities,
+  evaluateCleanupOutcome,
   evaluateHarnessContract,
   redactArtifactPaths,
   runProcessTreeHarness,
@@ -90,6 +95,116 @@ describe.sequential('process tree harness ownership', () => {
       parentPid: 42,
       startTicks: '777'
     })
+  })
+
+  it.each(['EACCES', 'EPERM'])(
+    'keeps a Linux process with %s proc visibility unknown and unsignalable',
+    async (code) => {
+      const stat = `321 (worker) ${['S', '42', ...Array(17).fill('0'), '777'].join(' ')}`
+      const readProcessFile = vi
+        .fn()
+        .mockResolvedValueOnce(stat)
+        .mockRejectedValueOnce(Object.assign(new Error(`proc ${code}`), { code }))
+      const entry = await queryLinuxProcess('321', readProcessFile)
+
+      expect(entry).toMatchObject({
+        pid: 321,
+        parentPid: 42,
+        startIdentity: 'proc-start-ticks:777',
+        commandLine: null,
+        visibility: 'unknown',
+        visibilityError: code
+      })
+      expect(() => filterMarkedProcesses([entry], 'deepchat-ptg-linux')).toThrow(
+        ProcessVisibilityUnknownError
+      )
+      await expect(
+        cleanupMarkedIdentity(
+          { ...entry, marker: 'deepchat-ptg-linux', commandMarkerRequired: true },
+          0,
+          async () => 'unknown'
+        )
+      ).resolves.toEqual({ pid: 321, before: 'unknown', signals: [], after: 'unknown' })
+      expect(
+        evaluateCleanupOutcome({
+          postCleanup: null,
+          statusAfterCleanup: { owner: 'unknown' },
+          visibilityErrors: [{ error: code }],
+          unverifiedCleanup: []
+        })
+      ).toEqual({ manualCleanupRequired: true, allMarkedGone: false })
+      expect(
+        evaluateHarnessContract({
+          mode: 'owner-loss',
+          error: null,
+          statusByRole: { owner: 'unknown' },
+          ownerExit: { code: 17, signal: null },
+          utilitySettlements: [],
+          before: [],
+          preExit: [entry],
+          postObservation: null
+        }).contractSatisfied
+      ).toBe(false)
+    }
+  )
+
+  it('keeps a live Windows process with a null command line unknown and unsignalable', async () => {
+    const [entry] = parseWindowsProcessOutput(
+      JSON.stringify({
+        pid: 654,
+        parentPid: 100,
+        startIdentity: '2026-07-11T00:00:00.000Z',
+        commandLine: null
+      })
+    )
+
+    expect(entry).toMatchObject({
+      pid: 654,
+      commandLine: null,
+      visibility: 'unknown',
+      visibilityError: 'COMMAND_LINE_UNAVAILABLE'
+    })
+    expect(() => filterMarkedProcesses([entry], 'deepchat-ptg-windows')).toThrow(
+      ProcessVisibilityUnknownError
+    )
+    await expect(
+      captureReadyIdentities(
+        [{ type: 'process-ready', role: 'owner', pid: entry.pid }],
+        'deepchat-ptg-windows',
+        true,
+        async () => {
+          throw new ProcessVisibilityUnknownError('Windows command line unavailable', entry)
+        }
+      )
+    ).rejects.toMatchObject({
+      code: 'PROCESS_VISIBILITY_UNKNOWN',
+      captureResult: {
+        verified: [],
+        unverified: [
+          expect.objectContaining({
+            pid: 654,
+            role: 'owner',
+            signalable: false,
+            verificationCode: 'PROCESS_VISIBILITY_UNKNOWN'
+          })
+        ]
+      }
+    })
+    await expect(
+      cleanupMarkedIdentity(
+        { ...entry, marker: 'deepchat-ptg-windows', commandMarkerRequired: true },
+        0,
+        async () => 'unknown'
+      )
+    ).resolves.toEqual({ pid: 654, before: 'unknown', signals: [], after: 'unknown' })
+    expect(
+      evaluateCleanupOutcome({
+        postCleanup: null,
+        statusAfterCleanup: { utility: 'unknown' },
+        visibilityErrors: [{ error: 'COMMAND_LINE_UNAVAILABLE' }],
+        unverifiedCleanup: []
+      })
+    ).toEqual({ manualCleanupRequired: true, allMarkedGone: false })
   })
 
   it('cleans a survivor only while marker, PID, and start identity still match', async () => {
@@ -357,10 +472,7 @@ setTimeout(() => process.exit(17), 250)
       marker,
       commandMarkerRequired
     }))
-    let censusCalls = 0
     const censusMarkedProcesses = vi.fn(async () => {
-      censusCalls += 1
-      if (censusCalls === 1) return []
       throw new Error('CIM visibility unavailable')
     })
     const getProcessIdentityStatus = vi.fn(async () => {
@@ -393,7 +505,7 @@ setTimeout(() => process.exit(17), 250)
           verificationCode: 'PROCESS_IDENTITY_UNVERIFIED'
         }
       },
-      census: { postObservation: null, postCleanup: null },
+      census: { before: null, postObservation: null, postCleanup: null },
       observation: {
         statusByRole: { owner: 'unknown', utility: 'unknown' },
         contractSatisfied: false

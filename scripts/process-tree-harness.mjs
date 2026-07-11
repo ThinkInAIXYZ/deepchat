@@ -13,7 +13,8 @@ import {
   censusMarkedProcesses,
   cleanupMarkedIdentity,
   getProcessIdentityStatus,
-  ProcessIdentityVerificationError
+  ProcessIdentityVerificationError,
+  ProcessVisibilityUnknownError
 } from './process-tree-harness/identity.mjs'
 
 const require = createRequire(import.meta.url)
@@ -229,6 +230,15 @@ export async function captureReadyIdentities(
         signalable: true
       })
     } catch (error) {
+      if (error instanceof ProcessVisibilityUnknownError && error.processEntry) {
+        unverified.push({
+          ...error.processEntry,
+          role,
+          markerSource: 'visibility-unknown',
+          signalable: false,
+          verificationCode: error.code
+        })
+      }
       if (requireCompleteTree) throw captureError(error, verified, unverified)
     }
   }
@@ -400,6 +410,7 @@ export function evaluateHarnessContract({
       utilitySettlements[0].code === 0 &&
       utilitySettlements[0].settlementCount === 1)
   const censusSatisfied =
+    before !== null &&
     before.length === 0 &&
     preExit.length === 4 &&
     postObservation !== null &&
@@ -414,6 +425,29 @@ export function evaluateHarnessContract({
     expectedOwnerExit,
     checks,
     contractSatisfied: Object.values(checks).every(Boolean)
+  }
+}
+
+export function evaluateCleanupOutcome({
+  postCleanup,
+  statusAfterCleanup,
+  visibilityErrors,
+  unverifiedCleanup
+}) {
+  return {
+    manualCleanupRequired:
+      postCleanup === null ||
+      visibilityErrors.length > 0 ||
+      Object.values(statusAfterCleanup).some((status) => status === 'unknown') ||
+      unverifiedCleanup.some((entry) => entry.manualCleanupRequired),
+    allMarkedGone:
+      postCleanup !== null &&
+      postCleanup.length === 0 &&
+      visibilityErrors.length === 0 &&
+      Object.values(statusAfterCleanup).every(
+        (status) => status !== 'match' && status !== 'unknown'
+      ) &&
+      unverifiedCleanup.every((entry) => !entry.manualCleanupRequired)
   }
 }
 
@@ -448,7 +482,6 @@ export async function runProcessTreeHarness(options = {}) {
   const census = options.censusMarkedProcesses ?? censusMarkedProcesses
   const cleanupIdentity = options.cleanupMarkedIdentity ?? cleanupMarkedIdentity
   const getIdentityStatus = options.getProcessIdentityStatus ?? getProcessIdentityStatus
-  const before = await census(marker)
   let child
   let ownerExit = { code: null, signal: null }
   let preExit = []
@@ -461,6 +494,7 @@ export async function runProcessTreeHarness(options = {}) {
   let unverifiedIdentities = []
   const cleanupAttempts = []
   const identityVisibilityErrors = []
+  const before = await captureCensus(marker, 'before-census', identityVisibilityErrors, census)
 
   try {
     child = spawn(electronPath, [electronMainPath, `--ptg-marker=${marker}`], {
@@ -636,6 +670,12 @@ export async function runProcessTreeHarness(options = {}) {
     preExit,
     postObservation
   })
+  const cleanupOutcome = evaluateCleanupOutcome({
+    postCleanup,
+    statusAfterCleanup,
+    visibilityErrors: identityVisibilityErrors,
+    unverifiedCleanup
+  })
 
   const artifact = redactArtifactPaths(
     {
@@ -676,17 +716,7 @@ export async function runProcessTreeHarness(options = {}) {
       statusByRole: statusAfterCleanup,
       unverified: unverifiedCleanup,
       visibilityErrors: identityVisibilityErrors,
-      manualCleanupRequired:
-        identityVisibilityErrors.length > 0 ||
-        unverifiedCleanup.some((entry) => entry.manualCleanupRequired),
-      allMarkedGone:
-        postCleanup !== null &&
-        postCleanup.length === 0 &&
-        identityVisibilityErrors.length === 0 &&
-        Object.values(statusAfterCleanup).every(
-          (status) => status !== 'match' && status !== 'unknown'
-        ) &&
-        unverifiedCleanup.every((entry) => !entry.manualCleanupRequired)
+      ...cleanupOutcome
     },
     stderr,
     error,

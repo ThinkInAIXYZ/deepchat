@@ -327,7 +327,11 @@ and the captured `lstart` before treating the utility PID as signalable. A platf
 externally verify the marker fails with `PROCESS_IDENTITY_UNVERIFIED`; cleanup does not signal that
 unverified PID. Owner, shell, and grandchild markers remain command-line arguments. Identity-safe
 cleanup treats either a start-identity mismatch or marker mismatch as unrelated and sends no
-signal. In particular, if a native Windows utility command line does not expose the marker, the
+signal. A Linux `/proc` identity read denied by `EACCES`/`EPERM`, or a live Windows process whose
+`CommandLine` is unavailable, remains `unknown` rather than being filtered into `absent`. Unknown
+visibility forces `manualCleanupRequired: true`, `allMarkedGone: false`, and a failed containment
+contract; it never authorizes a signal. In particular, if a native Windows utility command line does
+not expose the marker, the
 development probe fails safely: PID plus `CreationDate` may be retained for survivor observation,
 but never authorizes a signal. The artifact records `signalAttempted: false` and whether that
 survivor requires operator cleanup. A strict capture error carries every identity captured before
