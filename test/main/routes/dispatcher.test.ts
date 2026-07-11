@@ -2312,6 +2312,22 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
+  it('returns an empty memory page for a non-DeepChat agent', async () => {
+    const { runtime } = createRuntime()
+    const pageMemories = vi.fn()
+    ;(runtime as any).memoryPresenter = { pageMemories }
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.page',
+        { agentId: 'external-agent', limit: 25 },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ items: [], nextCursor: null })
+    expect(pageMemories).not.toHaveBeenCalled()
+  })
+
   it('does not expand all sessions when listing memory view manifests', async () => {
     const { runtime, configPresenter } = createRuntime()
     vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')

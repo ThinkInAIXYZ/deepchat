@@ -25,6 +25,7 @@ import {
   type MemoryVectorMatch
 } from '@/presenter/memoryPresenter/types'
 import type { VectorReadyCertificate } from '@/presenter/memoryPresenter/infra/vectorStoreManager'
+import type { MaintenanceBudget } from '@/presenter/memoryPresenter/core/maintenanceBudget'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { createEmptyMemoryHealth } from '@shared/contracts/routes'
 import {
@@ -5922,8 +5923,8 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
         content: `target ${index} original`,
         status: 'embedded'
       })
-      repo.updateStatus('a1', 'embedded', {
-        embeddingId: 'a1',
+      repo.updateStatus(id, 'embedded', {
+        embeddingId: id,
         embeddingDim: 4,
         embeddingModel: 'p:m'
       })
@@ -6414,6 +6415,27 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
 
     await presenter.runConsolidationPass('a', now + 6 * 60 * 60 * 1000 + 1)
     expect(queryByMemoryId).toHaveBeenCalledTimes(70)
+  })
+
+  it('skips vector neighbor scans after earlier maintenance steps exhaust the token budget', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+    })
+    const { presenter, store } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes bounded maintenance')
+    const queryByMemoryId = vi.spyOn(store, 'queryByMemoryId')
+    vi.spyOn((presenter as any).conflict, 'runChallengeResolutionPass').mockImplementation(
+      async (_agentId: string, _model: unknown, budget: MaintenanceBudget) => {
+        for (let index = 0; index < 4; index += 1) {
+          expect(budget.reserve('challenge', 6_000)).toBe(true)
+        }
+        return { touched: false, calls: 4, failures: 0 }
+      }
+    )
+
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+
+    expect(queryByMemoryId).not.toHaveBeenCalled()
   })
 
   it('respects the cooldown: a second pass within the window does no LLM work (T-B5)', async () => {

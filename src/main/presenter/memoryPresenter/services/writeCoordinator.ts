@@ -9,6 +9,7 @@ import {
   type MemoryDecision
 } from '../core/decision'
 import {
+  DECISION_BATCH_MAX_BATCHES,
   parseBatchDecisionResults,
   partitionBatchDecisions,
   type BatchDecisionInput
@@ -645,7 +646,7 @@ export class WriteCoordinator {
       agentId,
       model,
       initialDecisionInputs,
-      2,
+      DECISION_BATCH_MAX_BATCHES,
       operationFence
     )
 

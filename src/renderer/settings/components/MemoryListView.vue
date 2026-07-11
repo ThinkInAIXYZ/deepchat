@@ -148,7 +148,10 @@
       </div>
     </ScrollArea>
 
-    <div v-if="!initialLoading && nextCursor" class="flex justify-center pt-1">
+    <div
+      v-if="!initialLoading && nextCursor && (!searchActive || includeArchived)"
+      class="flex justify-center pt-1"
+    >
       <Button
         variant="outline"
         size="sm"

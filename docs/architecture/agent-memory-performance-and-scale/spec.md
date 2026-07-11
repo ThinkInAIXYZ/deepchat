@@ -146,14 +146,18 @@ bounded local work, provider work, materialization, and native resource use.
   `entry_id - 1` assumption.
 - Message revisions use the shared effective-view rank and entry-ID tie-break. Only sent/error messages are
   projected.
-- A final tool fact before the sent/error message is a valid runtime order. It advances metadata; the final
-  message reconstructs equivalent `had_tool_use`. Retraction and mutations whose equivalence cannot be
-  proven mark the projection stale.
+- A final tool fact before the sent/error message is a valid runtime order. Only explicit `success` and
+  `error` tool statuses are terminal; missing, pending, loading, or unknown statuses cannot set final tool
+  use. The final message reconstructs equivalent `had_tool_use`. Retraction and mutations whose equivalence
+  cannot be proven mark the projection stale.
 - Session delete, clear, fork, truncate, and rewind clean or invalidate projection state transactionally.
 - Stale metadata triggers one full authoritative Tape read and one `buildEffectiveTapeView` rebuild, followed
   by transactional projection replacement. The already-built view is reused for the current extraction.
 - Rebuild failure uses the authoritative full view for that extraction but sets every cursor commit boundary
   to null.
+- A read or rebuild failure places the session in a 30-second passive retry cooldown. During cooldown,
+  extraction skips before another full Tape read or provider call. The failure cache holds at most 256
+  sessions, clears on success and session lifecycle reset, and never schedules an independent timer.
 - Normal extraction reads the requested `(session_id, order_seq)` range in one SQLite statement and does not
   call `getBySession()`.
 - Range ordering matches SQLite BINARY semantics: `orderSeq ASC, messageId ASC`. Equal-order fragments form
@@ -256,6 +260,8 @@ bounded local work, provider work, materialization, and native resource use.
   page exists.
 - The opaque cursor is canonical base64url JSON `{v:1,createdAt,id}`. Invalid encoding, version, shape, unsafe
   timestamp, or empty ID produces route validation failure rather than page-one fallback.
+- After cursor validation, a non-DeepChat Agent receives an empty page and never reaches the memory
+  presenter.
 - `memory.list` remains wire-compatible for one compatibility window, is deprecated, and has an architecture
   guard against new production callers.
 - Renderer pagination supports replace, append, load-more, ID deduplication, and request-generation rejection
@@ -263,8 +269,9 @@ bounded local work, provider work, materialization, and native resource use.
   the previously loaded page depth.
 - Dirty editors preserve their local draft even when the refreshed window omits the row. Clean editors close
   only after the complete refreshed loaded window omits the row.
-- Non-empty search continues to use server-side `memory.search`. Local filters apply only to loaded management
-  pages, and Load more remains available when local filtering hides every loaded row.
+- Non-empty active-memory search continues to use server-side `memory.search` and hides the unrelated
+  management-page Load more action. Archived search remains local to loaded management pages, so Load more
+  stays available when archived rows are included.
 - User add, manual edit, and memory-tool content is limited to 12,000 Unicode code points. Automatic extraction
   and model-generated merged memory are limited to 2,000. Validation exists at route/tool and domain layers.
 - Existing oversized rows are not migrated or truncated and remain readable and recallable.

@@ -6,7 +6,8 @@ import {
   MIN_MEMORIES_FOR_REFLECTION,
   REFLECTION_IMPORTANCE,
   REFLECTION_IMPORTANCE_THRESHOLD,
-  REFLECTION_MEMORY_LIMIT
+  REFLECTION_MEMORY_LIMIT,
+  REFLECTION_PROMPT_OVERHEAD_TOKENS
 } from '../runtimeConstants'
 import { buildMemoryProvenanceKey } from '../core/scoring'
 import { buildReflectionInsightsPrompt, parseReflectionInsights } from '../core/extraction'
@@ -72,7 +73,9 @@ export class ReflectionService {
       const maxUnitCreatedAt = cognitive.maxCreatedAt
       const availableTokens = Math.max(
         0,
-        MAINTENANCE_MAX_INPUT_TOKENS - budget.snapshot().inputTokens - 256
+        MAINTENANCE_MAX_INPUT_TOKENS -
+          budget.snapshot().inputTokens -
+          REFLECTION_PROMPT_OVERHEAD_TOKENS
       )
       const top = selectMaintenanceRowsWithinTokenBudget(
         cognitive.topRows,

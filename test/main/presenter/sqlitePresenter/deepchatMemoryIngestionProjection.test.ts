@@ -186,7 +186,9 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
         })
 
         expect(projection.isCurrent('s1', tape.getMaxEntryId('s1'))).toBe(true)
-        expect(projection.listRange('s1', 0, 10)).toMatchObject([
+        const currentRange = projection.readCurrentRange('s1', 0, 10)
+        expect(currentRange.current).toBe(true)
+        expect(currentRange.rows).toMatchObject([
           {
             message_id: 'm1',
             order_seq: 1,

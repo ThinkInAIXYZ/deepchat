@@ -37,7 +37,7 @@ describeIfSqlite('AgentMemoryAuditTable operational retention', () => {
         )
         .all('a', 500, 10_000) as Array<{ detail: string }>
       expect(queryPlan.map((row) => row.detail).join('\n')).toContain(
-        'idx_agent_memory_audit_operational_retention'
+        'idx_agent_memory_audit_operational_retention_v2'
       )
       const eventTypes = [
         'memory/maintenance_llm',

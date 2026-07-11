@@ -113,7 +113,7 @@ Gate: a no-change pass performs no unbounded row writes or provider calls.
 
 - [x] Filter managed, enabled, memory-enabled agent candidates before indexed latest-activity ranking.
 - [x] Limit startup prewarm to eight recent agents.
-- [x] Key embedding connection warmup by `provider:model` with success, in-flight, and five-minute failure
+- [x] Key embedding connection warmup by `provider:model` with successful, in-flight, and five-minute failure
   caches.
 - [x] Add lease-safe store LRU with a soft cap of eight, a 15-minute idle TTL, and immediate convergence after
   lease release.
@@ -171,6 +171,10 @@ Gate: the implementation and its scale evidence agree with [spec.md](./spec.md).
   rebuild FTS safely.
 - [x] Consolidate FTS policy and scope, bound common-term queries, and add indexed archive ranges.
 - [x] Preserve projection currency for valid tool-before-message order and select only conflict anomalies.
+- [x] Add a bounded passive projection-rebuild cooldown without weakening fallback cursor safety.
+- [x] Treat only explicit success/error tool facts as terminal effective Tape evidence.
+- [x] Guard management paging for non-DeepChat Agents and align Load more with active versus archived search.
+- [x] Address review maintainability findings for shared limits, query-plan assertions, and mirrored tests.
 - [x] Make startup activity work proportional to eligible agent count rather than memory-row count.
 - [x] Restore server search, coalesce update events, refresh loaded pages atomically, and correct lifecycle UI
   semantics.

@@ -464,6 +464,7 @@ export class MaintenanceService {
       let touched = false
 
       for (const row of scanRows) {
+        if (budget.snapshot().inputTokens >= MAINTENANCE_MAX_INPUT_TOKENS) break
         lastScanned = row
         if (merged.has(row.id)) continue
         const source = this.ctx.deps.repository.getById(row.id)

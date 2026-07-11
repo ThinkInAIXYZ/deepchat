@@ -235,6 +235,8 @@ const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
 const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
+const MEMORY_INGESTION_PROJECTION_RETRY_COOLDOWN_MS = 30_000
+const MEMORY_INGESTION_PROJECTION_FAILURE_CACHE_LIMIT = 256
 
 function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
   return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
@@ -660,6 +662,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly memoryPort?: MemoryRuntimePort
   private readonly memoryExtractionChains = new Map<string, Promise<void>>()
   private readonly memoryExtractionEpochs = new Map<string, number>()
+  private readonly memoryIngestionProjectionRetryAfter = new Map<string, number>()
   private readonly memoryInjectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
@@ -914,6 +917,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       permissionMode
     })
     this.sessionCompactionStates.set(sessionId, this.buildIdleCompactionState())
+    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
@@ -944,6 +948,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.toolProfileCache.delete(sessionId)
     this.runtimeActivatedSkillsBySession.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
+    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
     this.drainingPendingQueues.delete(sessionId)
     this.clearMemoryInjectionAccessForSession(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
@@ -2815,6 +2820,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
     }
 
+    if (this.isMemoryIngestionProjectionCoolingDown(sessionId)) return null
+
     try {
       const current = projectionTable.readCurrentRange(
         sessionId,
@@ -2822,6 +2829,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         toOrderSeqInclusive
       )
       if (current.current) {
+        this.memoryIngestionProjectionRetryAfter.delete(sessionId)
         return { rows: current.rows, cursorCommitAllowed: true }
       }
       return this.rebuildMemoryIngestionRange(
@@ -2831,6 +2839,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         current.maxEntryId
       )
     } catch (error) {
+      this.recordMemoryIngestionProjectionFailure(sessionId)
       try {
         projectionTable.invalidateSession(sessionId)
       } catch {}
@@ -2858,6 +2867,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const projectionRows = this.projectionRowsFromEffectiveView(sessionId, view)
     try {
       projectionTable.replaceSession(sessionId, projectionRows, maxEntryId)
+      this.memoryIngestionProjectionRetryAfter.delete(sessionId)
       return {
         rows: this.filterMemoryIngestionRange(
           projectionRows,
@@ -2867,6 +2877,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         cursorCommitAllowed: true
       }
     } catch (error) {
+      this.recordMemoryIngestionProjectionFailure(sessionId)
       try {
         projectionTable.invalidateSession(sessionId)
       } catch {}
@@ -2882,6 +2893,32 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         cursorCommitAllowed: false
       }
     }
+  }
+
+  private isMemoryIngestionProjectionCoolingDown(sessionId: string): boolean {
+    const retryAfter = this.memoryIngestionProjectionRetryAfter.get(sessionId)
+    if (retryAfter === undefined) return false
+    if (Date.now() < retryAfter) return true
+    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
+    return false
+  }
+
+  private recordMemoryIngestionProjectionFailure(sessionId: string): void {
+    if (this.memoryIngestionProjectionRetryAfter.has(sessionId)) {
+      this.memoryIngestionProjectionRetryAfter.delete(sessionId)
+    } else if (
+      this.memoryIngestionProjectionRetryAfter.size >=
+      MEMORY_INGESTION_PROJECTION_FAILURE_CACHE_LIMIT
+    ) {
+      const oldestSessionId = this.memoryIngestionProjectionRetryAfter.keys().next().value
+      if (oldestSessionId !== undefined) {
+        this.memoryIngestionProjectionRetryAfter.delete(oldestSessionId)
+      }
+    }
+    this.memoryIngestionProjectionRetryAfter.set(
+      sessionId,
+      Date.now() + MEMORY_INGESTION_PROJECTION_RETRY_COOLDOWN_MS
+    )
   }
 
   private buildFullTapeIngestionRange(
@@ -3424,6 +3461,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.pendingInputCoordinator.deleteBySession(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.resetMemoryExtractionCursor(sessionId)
+    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.resetTape(sessionId)
     this.resetSummaryState(sessionId)

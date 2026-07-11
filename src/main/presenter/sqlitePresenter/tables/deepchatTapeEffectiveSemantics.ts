@@ -1,6 +1,8 @@
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryRow } from './deepchatTapeEntries'
 
+const TERMINAL_TAPE_TOOL_STATUSES = new Set(['success', 'error'])
+
 export interface DeepChatTapeToolIdentity {
   key: string
   messageId: string
@@ -127,7 +129,7 @@ export function tapeToolRank(row: DeepChatTapeEntryRow, includePending: boolean)
   if (status === 'pending') {
     return includePending ? 1 : 0
   }
-  return 2
+  return status !== null && TERMINAL_TAPE_TOOL_STATUSES.has(status) ? 2 : 0
 }
 
 export function readTapeToolIdentity(row: DeepChatTapeEntryRow): DeepChatTapeToolIdentity | null {

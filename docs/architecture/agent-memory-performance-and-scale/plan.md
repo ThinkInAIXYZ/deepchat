@@ -146,6 +146,8 @@ the same behavior.
 - Only effective sent/error messages produce projection rows.
 - Final tool-call facts may arrive before their message. They advance metadata; the final message derives
   `had_tool_use` from shared effective semantics.
+- Only explicit `success` and `error` tool statuses rank as terminal. Missing, loading, pending, and unknown
+  statuses cannot become final tool-use evidence.
 - Tool results and pending tool interactions advance metadata without setting final tool use.
 - Retraction and mutations whose equivalence cannot be proven invalidate session metadata.
 - Session delete, clear, fork, truncate, and rewind remove or invalidate the corresponding projection state.
@@ -169,6 +171,11 @@ type MemoryIngestionRangeResult =
 A stale projection reads Tape once, invokes the single `buildEffectiveTapeView` implementation, and replaces
 projection and metadata transactionally. The already-materialized view supplies the current extraction range.
 If replacement fails, extraction consumes the authoritative view but all cursor commit boundaries are null.
+
+Read and replacement failures enter a bounded per-session cooldown for 30 seconds. During that interval,
+subsequent extraction attempts stop before another full Tape materialization or provider call. The passive
+retry state holds at most 256 sessions, requires no timers, clears after a successful current read or replace,
+and is removed when the session is initialized, cleared, or destroyed.
 
 Chunk construction records the final fragment for each `orderSeq`. No chunk may commit a sequence until that
 fragment succeeds. Projection and full-view ordering use SQLite-compatible UTF-8/BINARY comparison.
@@ -325,11 +332,13 @@ interface MemoryPageOutput {
 
 The shared contract owns canonical base64url encode/decode for `{v:1,createdAt,id}`. The repository applies
 the management visibility predicate, uses `(created_at DESC, id DESC)` keyset ordering, and reads one extra
-row to determine whether to emit a cursor. Direct repository calls cap their limit as well.
+row to determine whether to emit a cursor. Direct repository calls cap their limit as well. After cursor
+validation, the route returns an empty page for a non-DeepChat Agent without calling the presenter.
 
 The renderer tracks loaded page count and request generation. Refresh replays the same page depth into a
 temporary result and atomically replaces visible rows. Search retains the server route and its own request
-generation. Update events are coalesced with a 100 ms trailing timer.
+generation. Active-only server search hides the unrelated page action, while local archived search keeps Load
+more available to extend its loaded window. Update events are coalesced with a 100 ms trailing timer.
 
 ### Content and Audit Retention
 

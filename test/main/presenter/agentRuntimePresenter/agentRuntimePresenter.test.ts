@@ -1292,6 +1292,106 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(invalidateSession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
+
+      expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toBeNull()
+      expect(
+        sqlitePresenter.deepchatMemoryIngestionProjectionTable.readCurrentRange
+      ).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
+    })
+
+    it('cools repeated projection rebuild failures and recovers after the retry window', () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      try {
+        installRuntimeRecords([userRecord('u1', 1, 'Keep projection recovery bounded.')])
+        let current = false
+        let failReplacement = true
+        let projectedRows: any[] = []
+        let projectedMaxEntryId = 0
+        const readCurrentRange = vi.fn(
+          (_sessionId: string, fromExclusive: number, toInclusive: number) => ({
+            current,
+            maxEntryId: current
+              ? projectedMaxEntryId
+              : sqlitePresenter.deepchatTapeEntriesTable.getMaxEntryId('s1'),
+            rows: current
+              ? projectedRows.filter(
+                  (row) => row.order_seq > fromExclusive && row.order_seq <= toInclusive
+                )
+              : []
+          })
+        )
+        const replaceSession = vi.fn((_sessionId: string, rows: any[], maxEntryId: number) => {
+          if (failReplacement) throw new Error('projection rebuild failed')
+          projectedRows = rows.map((row) => ({
+            session_id: row.sessionId,
+            message_id: row.messageId,
+            order_seq: row.orderSeq,
+            entry_id: row.entryId,
+            role: row.role,
+            content: row.content,
+            status: row.status,
+            had_tool_use: row.hadToolUse ? 1 : 0
+          }))
+          projectedMaxEntryId = maxEntryId
+          current = true
+        })
+        ;(sqlitePresenter as any).deepchatMemoryIngestionProjectionTable = {
+          readCurrentRange,
+          replaceSession,
+          invalidateSession: vi.fn(() => {
+            current = false
+          })
+        }
+        sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
+
+        const fallback = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+        expect(fallback.chunks.every((chunk: any) => chunk.cursorCommitOrderSeq === null)).toBe(
+          true
+        )
+        expect(replaceSession).toHaveBeenCalledTimes(1)
+        expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
+
+        expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toBeNull()
+        expect(readCurrentRange).toHaveBeenCalledTimes(1)
+        expect(replaceSession).toHaveBeenCalledTimes(1)
+        expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
+
+        now.mockReturnValue(31_000)
+        failReplacement = false
+        const recovered = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+        expect(recovered.chunks.at(-1)?.cursorCommitOrderSeq).toBe(1)
+        expect(replaceSession).toHaveBeenCalledTimes(2)
+
+        expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toEqual(recovered)
+        expect(readCurrentRange).toHaveBeenCalledTimes(3)
+        expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(2)
+      } finally {
+        now.mockRestore()
+      }
+    })
+
+    it('bounds projection failure cooldown state and clears it with session lifecycle', async () => {
+      const internals = agent as any
+      internals.recordMemoryIngestionProjectionFailure('s1')
+      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(true)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
+
+      internals.recordMemoryIngestionProjectionFailure('s1')
+      await agent.clearMessages('s1')
+      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
+
+      for (let index = 0; index < 257; index += 1) {
+        internals.recordMemoryIngestionProjectionFailure(`session-${index}`)
+      }
+      expect(internals.memoryIngestionProjectionRetryAfter.size).toBe(256)
+      expect(internals.memoryIngestionProjectionRetryAfter.has('session-0')).toBe(false)
+
+      internals.recordMemoryIngestionProjectionFailure('s1')
+      await agent.destroySession('s1')
+      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
     })
 
     it('drops an in-flight extraction commit after clearMessages resets the session', async () => {

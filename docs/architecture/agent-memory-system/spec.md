@@ -124,7 +124,7 @@ flowchart TD
 | Services | `memoryPresenter/services/managementService.ts` | List/get/lifecycle/health/delete/clear/status delegation and management-facing row projection |
 | Infra | `memoryPresenter/infra/providerGateway.ts` | Agent-aware RateLimit admission, purpose deadlines, destructive abort, and bounded unsettled provider work |
 | Infra | `memoryPresenter/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: scoped generation leases, readiness certificates, recoverable reset, lease-safe LRU/TTL eviction, and parallel close/drain orchestration |
-| Infra | `memoryPresenter/infra/asyncSemaphore.ts` | Fair process-wide admission for heavy per-agent maintenance |
+| Infra | `src/main/lib/asyncSemaphore.ts` | Fair process-wide admission for heavy per-agent maintenance |
 | Infra | `memoryPresenter/infra/embeddingPipeline.ts` | Pending embedding drain, reindex/backfill, embedding/vector warmups, dimension cooldowns, and `isReindexing` |
 | Infra | `memoryPresenter/infra/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
 | Core | `memoryPresenter/core/candidates.ts` | Pure memory candidate normalization |
@@ -732,7 +732,8 @@ inspect `result.ok`, not `isError`. Hard infra failures throw.
   search layer before applying result limits, and it does not bump `access_count`.
 - `memory.page` is the management list contract. It uses `(created_at DESC, id DESC)` keyset pagination,
   defaults/caps at 100 rows, and returns an opaque base64url v1 cursor only when another page exists. Invalid
-  cursors are route errors, never implicit first-page requests. `memory.list` remains wire-compatible for one
+  cursors are route errors, never implicit first-page requests. After cursor validation, non-DeepChat Agents
+  receive an empty page without reaching the memory presenter. `memory.list` remains wire-compatible for one
   deprecation window and has no production renderer caller.
 - `memory.add` accepts optional `category`, runs the decision ring, and writes a `memory/add` user audit row.
 - `memory.reindex` is a fire-and-forget per-agent rebuild entry for managed, memory-enabled DeepChat agents.

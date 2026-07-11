@@ -309,7 +309,7 @@ describe('MemoryListView', () => {
     expect(wrapper.find('[data-testid="memory-load-more"]').exists()).toBe(false)
   })
 
-  it('keeps load more available when loaded rows are hidden by local search', async () => {
+  it('hides load more while active-only server search is active', async () => {
     const { wrapper } = await setup({
       rows: [memory()],
       nextCursor: 'cursor-1'
@@ -318,7 +318,30 @@ describe('MemoryListView', () => {
     await wrapper.find('input[type="search"]').setValue('postgres')
     await flushPromises()
     expect(wrapper.text()).not.toContain('user likes redis')
+    expect(wrapper.find('[data-testid="memory-load-more"]').exists()).toBe(false)
+  })
+
+  it('keeps load more available while searching loaded archived pages', async () => {
+    const { wrapper, memoryClient } = await setup({
+      rows: [memory({ status: 'archived', content: 'archived redis fact' })],
+      nextCursor: 'cursor-1'
+    })
+    memoryClient.page.mockResolvedValueOnce({
+      items: [memory({ id: 'm2', status: 'archived', content: 'second archived redis fact' })],
+      nextCursor: null
+    })
+
+    await wrapper.find('input[type="checkbox"]').setChecked(true)
+    await wrapper.find('input[type="search"]').setValue('redis')
+    await flushPromises()
     expect(wrapper.find('[data-testid="memory-load-more"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="memory-load-more"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.page).toHaveBeenLastCalledWith('deepchat', { cursor: 'cursor-1' })
+    expect(wrapper.text()).toContain('second archived redis fact')
+    expect(wrapper.find('[data-testid="memory-load-more"]').exists()).toBe(false)
   })
 
   it('drops a stale load-more response after refresh resets the page generation', async () => {

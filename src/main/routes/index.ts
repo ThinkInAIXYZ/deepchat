@@ -2339,6 +2339,10 @@ export async function dispatchDeepchatRoute(
     case memoryPageRoute.name: {
       const input = memoryPageRoute.input.parse(rawInput)
       const cursor = input.cursor ? decodeMemoryPageCursor(input.cursor) : null
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryPageRoute.output.parse({ items: [], nextCursor: null })
+      }
       const page = runtime.memoryPresenter.pageMemories(input.agentId, cursor, input.limit)
       return memoryPageRoute.output.parse({
         items: page.rows.map(toMemoryItemDto),

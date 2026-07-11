@@ -5,6 +5,8 @@ import {
   appendToolFactsToTape
 } from '@/presenter/agentRuntimePresenter/tapeFacts'
 import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
+import { tapeToolRank } from '@/presenter/sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
+import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 
 function createTable() {
   const rows: any[] = []
@@ -78,6 +80,30 @@ function toolCallBlock(
 }
 
 describe('appendToolFactsToTape', () => {
+  it('ranks only explicit terminal tool statuses as final', () => {
+    const row = (status?: unknown): DeepChatTapeEntryRow => ({
+      session_id: 's1',
+      entry_id: 1,
+      kind: 'tool_call',
+      name: 'search',
+      source_type: 'tool_call',
+      source_id: 'tc1',
+      source_seq: 0,
+      provenance_key: null,
+      payload_json: '{}',
+      meta_json: JSON.stringify(status === undefined ? {} : { status }),
+      created_at: 1
+    })
+
+    expect(tapeToolRank(row('success'), false)).toBe(2)
+    expect(tapeToolRank(row('error'), false)).toBe(2)
+    expect(tapeToolRank(row('pending'), false)).toBe(0)
+    expect(tapeToolRank(row('pending'), true)).toBe(1)
+    expect(tapeToolRank(row(), true)).toBe(0)
+    expect(tapeToolRank(row('loading'), true)).toBe(0)
+    expect(tapeToolRank(row('unknown'), true)).toBe(0)
+  })
+
   it('writes only success/error tool blocks and reads status from the block', () => {
     const table = createTable()
     const record = assistantRecord([
