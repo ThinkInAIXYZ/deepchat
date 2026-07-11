@@ -1,0 +1,1562 @@
+{
+  "schemaVersion": 1,
+  "environment": {
+    "generatedAt": "2026-07-11T09:09:36.822Z",
+    "gitCommit": "e16b00c403190d72aa791bf86312b12434b25cef",
+    "gitDirty": false,
+    "nodeVersion": "v24.15.0",
+    "electronVersion": "40.10.5",
+    "nodeModuleAbi": "143",
+    "sqliteVersion": "3.53.0",
+    "sqlitePackageVersion": "12.9.0",
+    "platform": "darwin",
+    "osRelease": "25.5.0",
+    "arch": "arm64",
+    "cpuModel": "Apple M5",
+    "logicalCpuCount": 10
+  },
+  "config": {
+    "seed": "history-read-v1",
+    "messageCounts": [
+      10,
+      100,
+      1000,
+      10000
+    ],
+    "globalTraceRows": [
+      0,
+      10000,
+      100000
+    ],
+    "warmups": 1,
+    "measuredRepeats": 5,
+    "scenarioCount": 12,
+    "targetSessionPerScenario": 6
+  },
+  "scenarios": [
+    {
+      "messageCount": 10,
+      "globalTraceRows": 0,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 0.8237920000001964,
+          "materializationDurationMs": 0.13762499999984357,
+          "providerStartElapsedMs": 2.8012919999999895,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 0.8389180000002625,
+          "materializationDurationMs": 0.11320599999976366,
+          "providerStartElapsedMs": 2.3349999999999795,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 0.7928660000001173,
+          "materializationDurationMs": 0.11575799999997116,
+          "providerStartElapsedMs": 2.1431670000000054,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 0.8694189999999935,
+          "materializationDurationMs": 0.12208000000009633,
+          "providerStartElapsedMs": 2.5869579999999814,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 0.7497919999998999,
+          "materializationDurationMs": 0.10162400000012894,
+          "providerStartElapsedMs": 2.1143749999999955,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 10,
+      "globalTraceRows": 10000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 2.182499000000007,
+          "materializationDurationMs": 0.1116660000001275,
+          "providerStartElapsedMs": 3.4869580000000155,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 2.3105360000001838,
+          "materializationDurationMs": 0.08863099999985025,
+          "providerStartElapsedMs": 3.836999999999989,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 2.18404299999969,
+          "materializationDurationMs": 0.08520700000030956,
+          "providerStartElapsedMs": 3.4579160000000115,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 2.2366690000002336,
+          "materializationDurationMs": 0.09187199999973927,
+          "providerStartElapsedMs": 3.3673749999999814,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 2.251627999999812,
+          "materializationDurationMs": 0.08749600000015789,
+          "providerStartElapsedMs": 3.3996250000000146,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 10,
+      "globalTraceRows": 100000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 14.44962399999929,
+          "materializationDurationMs": 0.09516700000062883,
+          "providerStartElapsedMs": 15.687167000000045,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 15.06338000000028,
+          "materializationDurationMs": 0.10736999999983254,
+          "providerStartElapsedMs": 16.501833000000033,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 14.61367100000075,
+          "materializationDurationMs": 0.10520599999915703,
+          "providerStartElapsedMs": 15.888832999999977,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 14.527003000000377,
+          "materializationDurationMs": 0.10495599999956085,
+          "providerStartElapsedMs": 15.676584000000048,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 10,
+          "getMessagesCallCount": 8,
+          "headerRows": 80,
+          "structuredRows": 80,
+          "structuredRowsByType": {
+            "user": 40,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40
+          },
+          "historySqlStatementCount": 120,
+          "historySqlDurationMs": 15.134748000000059,
+          "materializationDurationMs": 0.09958400000004985,
+          "providerStartElapsedMs": 16.409166000000027,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 100,
+      "globalTraceRows": 0,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 4.670129999998153,
+          "materializationDurationMs": 0.6931600000018534,
+          "providerStartElapsedMs": 9.225708000000054,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 4.645760999998743,
+          "materializationDurationMs": 0.6899060000013151,
+          "providerStartElapsedMs": 9.694708999999989,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 5.341803999999684,
+          "materializationDurationMs": 0.9001120000002629,
+          "providerStartElapsedMs": 10.807165999999938,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 4.420790999998189,
+          "materializationDurationMs": 0.7040000000018836,
+          "providerStartElapsedMs": 8.948624999999993,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 4.301171000000522,
+          "materializationDurationMs": 0.6469139999995832,
+          "providerStartElapsedMs": 8.601125000000025,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 100,
+      "globalTraceRows": 10000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 5.85821699999974,
+          "materializationDurationMs": 0.6415740000002188,
+          "providerStartElapsedMs": 10.13191699999993,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 6.230177999998887,
+          "materializationDurationMs": 0.7184470000012197,
+          "providerStartElapsedMs": 10.899000000000001,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 6.3103830000011385,
+          "materializationDurationMs": 0.7469939999989492,
+          "providerStartElapsedMs": 11.188582999999994,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 6.2332499999998845,
+          "materializationDurationMs": 0.7532910000001038,
+          "providerStartElapsedMs": 10.647375000000011,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 6.067989999999895,
+          "materializationDurationMs": 1.0098820000002888,
+          "providerStartElapsedMs": 10.78862499999991,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 100,
+      "globalTraceRows": 100000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 18.25821699999824,
+          "materializationDurationMs": 0.6432400000021516,
+          "providerStartElapsedMs": 22.349457999999913,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 18.373997000002646,
+          "materializationDurationMs": 0.7205869999972947,
+          "providerStartElapsedMs": 22.61783400000013,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 18.299629999999524,
+          "materializationDurationMs": 0.6323690000001534,
+          "providerStartElapsedMs": 22.401124999999865,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 18.228704000003745,
+          "materializationDurationMs": 0.6691709999965951,
+          "providerStartElapsedMs": 22.316082999999935,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 100,
+          "getMessagesCallCount": 8,
+          "headerRows": 800,
+          "structuredRows": 800,
+          "structuredRowsByType": {
+            "user": 400,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 400
+          },
+          "historySqlStatementCount": 840,
+          "historySqlDurationMs": 18.30033200000412,
+          "materializationDurationMs": 0.6543349999956263,
+          "providerStartElapsedMs": 22.492665999999872,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 1000,
+      "globalTraceRows": 0,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 46.148417999997264,
+          "materializationDurationMs": 8.019625000002634,
+          "providerStartElapsedMs": 91.62758299999996,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 52.77967400000807,
+          "materializationDurationMs": 6.403950999991821,
+          "providerStartElapsedMs": 90.1552909999998,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 44.46543100000349,
+          "materializationDurationMs": 6.680027999996582,
+          "providerStartElapsedMs": 92.46354199999996,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 42.75405200000023,
+          "materializationDurationMs": 6.632198000000017,
+          "providerStartElapsedMs": 77.8258330000001,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 42.70136100001696,
+          "materializationDurationMs": 16.018470999983265,
+          "providerStartElapsedMs": 87.02766699999984,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 1000,
+      "globalTraceRows": 10000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 51.70487999999659,
+          "materializationDurationMs": 6.374328000003516,
+          "providerStartElapsedMs": 86.11312500000031,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 44.583171000001585,
+          "materializationDurationMs": 6.251912999997785,
+          "providerStartElapsedMs": 88.79945799999996,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 44.490529000004244,
+          "materializationDurationMs": 12.6001809999957,
+          "providerStartElapsedMs": 85.60816700000032,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 45.13687400000117,
+          "materializationDurationMs": 6.306042999998226,
+          "providerStartElapsedMs": 90.24741700000004,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 44.77731800000129,
+          "materializationDurationMs": 13.05334799999855,
+          "providerStartElapsedMs": 87.6296669999997,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 1000,
+      "globalTraceRows": 100000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 56.76820300001964,
+          "materializationDurationMs": 6.234628999980032,
+          "providerStartElapsedMs": 101.5456250000002,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 57.74625800000831,
+          "materializationDurationMs": 6.441741999991336,
+          "providerStartElapsedMs": 93.95829200000026,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 57.734451000016634,
+          "materializationDurationMs": 6.352631999984169,
+          "providerStartElapsedMs": 102.02083300000004,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 57.42058900000802,
+          "materializationDurationMs": 6.489203999992242,
+          "providerStartElapsedMs": 92.2939580000002,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 1000,
+          "getMessagesCallCount": 8,
+          "headerRows": 8000,
+          "structuredRows": 8000,
+          "structuredRowsByType": {
+            "user": 4000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 4000
+          },
+          "historySqlStatementCount": 8040,
+          "historySqlDurationMs": 69.8213089999831,
+          "materializationDurationMs": 6.790981000017837,
+          "providerStartElapsedMs": 106.34466699999984,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 10000,
+      "globalTraceRows": 0,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 521.240885999975,
+          "materializationDurationMs": 94.33903200002533,
+          "providerStartElapsedMs": 933.9409999999998,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 487.9530009998143,
+          "materializationDurationMs": 113.24816600018494,
+          "providerStartElapsedMs": 920.5189579999997,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 504.28260699991006,
+          "materializationDurationMs": 92.702810000088,
+          "providerStartElapsedMs": 917.9411670000009,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 512.7284540000201,
+          "materializationDurationMs": 97.89254599998094,
+          "providerStartElapsedMs": 934.8015420000011,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 526.6471150000652,
+          "materializationDurationMs": 88.14559299993562,
+          "providerStartElapsedMs": 941.9651249999988,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 10000,
+      "globalTraceRows": 10000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 512.0909140004969,
+          "materializationDurationMs": 95.50721199950021,
+          "providerStartElapsedMs": 927.6350000000002,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 518.3333049996654,
+          "materializationDurationMs": 86.44206900033168,
+          "providerStartElapsedMs": 925.7492079999993,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 512.0213660001718,
+          "materializationDurationMs": 94.55025799982832,
+          "providerStartElapsedMs": 930.5816659999982,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 514.151146000062,
+          "materializationDurationMs": 96.52164599993557,
+          "providerStartElapsedMs": 941.3739160000005,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 508.63633299915455,
+          "materializationDurationMs": 107.2105000008487,
+          "providerStartElapsedMs": 945.5124170000017,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    },
+    {
+      "messageCount": 10000,
+      "globalTraceRows": 100000,
+      "queryPlan": [
+        {
+          "id": 3,
+          "parent": 0,
+          "notused": 0,
+          "detail": "MATERIALIZE t"
+        },
+        {
+          "id": 10,
+          "parent": 3,
+          "notused": 210,
+          "detail": "SCAN deepchat_message_traces USING COVERING INDEX idx_trace_message_seq"
+        },
+        {
+          "id": 44,
+          "parent": 0,
+          "notused": 62,
+          "detail": "SEARCH m USING INDEX idx_deepchat_messages_session (session_id=?)"
+        },
+        {
+          "id": 62,
+          "parent": 0,
+          "notused": 47,
+          "detail": "SEARCH t USING AUTOMATIC COVERING INDEX (message_id=?) LEFT-JOIN"
+        }
+      ],
+      "samples": [
+        {
+          "sampleIndex": 0,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 526.1819150005431,
+          "materializationDurationMs": 107.72166899945296,
+          "providerStartElapsedMs": 959.0715830000008,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 1,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 532.5051059995894,
+          "materializationDurationMs": 110.79614500041134,
+          "providerStartElapsedMs": 974.8073750000003,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 2,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 529.2444510001842,
+          "materializationDurationMs": 111.73596399981761,
+          "providerStartElapsedMs": 980.7140410000029,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 3,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 554.3005399997091,
+          "materializationDurationMs": 154.9927100002933,
+          "providerStartElapsedMs": 1037.528291999999,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        },
+        {
+          "sampleIndex": 4,
+          "fixtureMessageCountBefore": 10000,
+          "getMessagesCallCount": 8,
+          "headerRows": 80000,
+          "structuredRows": 80000,
+          "structuredRowsByType": {
+            "user": 40000,
+            "file": 0,
+            "link": 0,
+            "assistantBlock": 40000
+          },
+          "historySqlStatementCount": 80040,
+          "historySqlDurationMs": 521.5199459996329,
+          "materializationDurationMs": 106.4565550003681,
+          "providerStartElapsedMs": 955.9406670000026,
+          "eventLoopDelayMs": null,
+          "eventLoopDelayCensored": true
+        }
+      ]
+    }
+  ]
+}
