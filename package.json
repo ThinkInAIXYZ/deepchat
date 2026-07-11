@@ -15,6 +15,7 @@
     "preinstall": "npx only-allow pnpm",
     "test": "vitest",
     "test:main": "vitest --config vitest.config.ts test/main",
+    "test:main:memory-perf": "vitest --config vitest.config.memory-perf.ts --run",
     "test:renderer": "vitest --config vitest.config.renderer.ts test/renderer",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",

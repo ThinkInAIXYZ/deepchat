@@ -4,44 +4,19 @@ import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import { fuse } from '@/presenter/memoryPresenter/core/scoring'
 import { DEFAULT_RETRIEVAL, DEFAULT_SIMILARITY_THRESHOLD } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 import { FakeRepository, FakeVectorStore } from './fakes/memoryFakes'
 
-const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const tableModule = sqliteModule
+const tableModule = Database
   ? await import('@/presenter/sqlitePresenter/tables/agentMemory').catch(() => null)
   : null
-const Database = sqliteModule?.default
 const AgentMemoryTable = tableModule?.AgentMemoryTable
 const DatabaseCtor = Database!
 const AgentMemoryTableCtor = AgentMemoryTable!
-const sqliteSkipReason = 'skipped: better-sqlite3-multiple-ciphers is unavailable'
-const requireNativeSqlite = process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1'
-
-let sqliteAvailable = false
-if (Database) {
-  try {
-    const smokeDb = new Database(':memory:')
-    smokeDb.close()
-    sqliteAvailable = true
-  } catch {
-    sqliteAvailable = false
-  }
-}
-
-const sqliteHarnessAvailable = sqliteAvailable && AgentMemoryTable
-const sqliteHarnessSkipReason = sqliteAvailable
-  ? 'skipped: AgentMemoryTable is unavailable'
-  : sqliteSkipReason
-const describeIfSqlite = sqliteHarnessAvailable
-  ? describe
-  : requireNativeSqlite
-    ? (name: string, _suite: () => void) =>
-        describe(name, () => {
-          it('requires native SQLite support', () => {
-            throw new Error(sqliteHarnessSkipReason)
-          })
-        })
-    : describe.skip
+const describeIfSqlite = nativeSqliteDescribeIf(
+  Boolean(AgentMemoryTable),
+  'AgentMemoryTable is unavailable'
+)
 
 const VOCAB = [
   'chinese',

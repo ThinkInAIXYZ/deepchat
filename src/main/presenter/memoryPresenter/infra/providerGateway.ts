@@ -114,6 +114,8 @@ export class MemoryProviderGateway {
       this.assertCurrent(agentId, generation, controller.signal)
       const key = `${agentId}\0${providerId}\0${modelId}\0${purpose}`
       this.reserveUnderlyingRequest(key)
+      this.deps.perfObserver?.increment('providerCalls')
+      this.deps.perfObserver?.observe('queueDepth', this.unsettledTotal)
       try {
         const value = await operation(controller.signal)
         this.assertCurrent(agentId, generation, controller.signal)

@@ -121,3 +121,8 @@ jobs:
           test/main/presenter/memoryNativeMigration.test.ts
           test/main/presenter/agentRuntimePresenter/tapeService.test.ts
           test/main/presenter/memoryRetrieval.eval.test.ts
+
+      - name: Validate memory performance bounds
+        env:
+          DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
+        run: pnpm run test:main:memory-perf

@@ -10,6 +10,33 @@ import {
 } from './core/scoring'
 import type { AgentMemoryRow } from './types'
 
+function materializedRowCount(value: unknown): number {
+  if (Array.isArray(value)) return value.length
+  if (!value || typeof value !== 'object') return 0
+  const record = value as Record<string, unknown>
+  if (Array.isArray(record.rows)) return record.rows.length
+  if (Array.isArray(record.topRows)) return record.topRows.length
+  return 0
+}
+
+function observeRepository(deps: MemoryPresenterDeps): MemoryPresenterDeps['repository'] {
+  const observer = deps.perfObserver
+  if (!observer) return deps.repository
+  const repository = deps.repository
+  return new Proxy(repository, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver)
+      if (typeof value !== 'function') return value
+      return (...args: unknown[]) => {
+        observer.increment('repositoryCalls')
+        const result = Reflect.apply(value, target, args)
+        observer.increment('materializedRows', materializedRowCount(result))
+        return result
+      }
+    }
+  })
+}
+
 export type MemoryModelRef = { providerId: string; modelId: string }
 
 export interface MemoryOperationFence {
@@ -69,12 +96,14 @@ export class MemoryRuntimeContext {
   private readonly readEpochByAgent = new Map<string, number>()
   private readonly operationGenerationByAgent = new Map<string, number>()
   readonly provider: MemoryProviderPort
+  readonly deps: MemoryPresenterDeps
 
   constructor(
-    readonly deps: MemoryPresenterDeps,
+    deps: MemoryPresenterDeps,
     private readonly onAgentMemoryMutated: ((agentId: string) => void) | undefined,
     provider: MemoryProviderPort
   ) {
+    this.deps = { ...deps, repository: observeRepository(deps) }
     this.provider = provider
   }
 
