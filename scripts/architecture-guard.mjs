@@ -151,25 +151,10 @@ const OPERATION_RUNNER_ALLOWED_METHODS = new Set([
   'sleep',
   'observeIdempotent',
   'retryIdempotent',
-  'timeout',
-  'retry'
+  'timeout'
 ])
 const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map([
   ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#restoreSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#listMessagesPage#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#listSessions#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#activateSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#deactivateSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#getActiveSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#getActiveSession#retry', 1],
-  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#retry', 1],
-  ['src/main/routes/chat/chatService.ts#sendMessage#timeout', 3],
-  ['src/main/routes/chat/chatService.ts#steerActiveTurn#timeout', 2],
-  ['src/main/routes/chat/chatService.ts#stopStream#timeout', 2],
-  ['src/main/routes/chat/chatService.ts#respondToolInteraction#timeout', 1],
-  ['src/main/routes/providers/providerService.ts#listModels#timeout', 2],
   ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
 ])
 
@@ -288,6 +273,21 @@ function importedOperationRunnerSymbols(sourceFile) {
       if (importedName === 'createNodeOperationRunner') factoryNames.add(element.name.text)
     }
   }
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const statement of sourceFile.statements) {
+      if (
+        ts.isTypeAliasDeclaration(statement) &&
+        typeReferencesOperationRunner(statement.type, typeNames) &&
+        !typeNames.has(statement.name.text)
+      ) {
+        typeNames.add(statement.name.text)
+        changed = true
+      }
+    }
+  }
   return { typeNames, factoryNames }
 }
 
@@ -391,6 +391,14 @@ function collectOperationRunnerLegacyCalls(sourceFile) {
           changed = true
         }
         const initializer = ts.skipParentheses(declaration.initializer)
+        if (
+          ts.isIdentifier(initializer) &&
+          runnerFactories.has(initializer.text) &&
+          !runnerFactories.has(declaration.name.text)
+        ) {
+          runnerFactories.add(declaration.name.text)
+          changed = true
+        }
         if (
           ts.isIdentifier(initializer) &&
           legacyCallables.has(initializer.text) &&
@@ -498,6 +506,19 @@ async function checkOperationRunnerContract(fileSet, violations) {
     if (!isUnder(filePath, MAIN_SOURCE_ROOT) || path.extname(filePath) === '.vue') continue
     const source = await fs.readFile(filePath, 'utf8')
     const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true)
+    for (const statement of sourceFile.statements) {
+      if (
+        ts.isImportDeclaration(statement) &&
+        ts.isStringLiteral(statement.moduleSpecifier) &&
+        /(?:^|\/)operationRunner$/.test(statement.moduleSpecifier.text) &&
+        statement.importClause?.namedBindings &&
+        ts.isNamespaceImport(statement.importClause.namedBindings)
+      ) {
+        violations.push(
+          `[operation-runner-namespace-import] ${relativePath(filePath)} must use named imports from operationRunner`
+        )
+      }
+    }
     for (const { api, owner } of collectOperationRunnerLegacyCalls(sourceFile)) {
       const key = `${relativePath(filePath)}#${owner}#${api}`
       actualLegacyCalls.set(key, (actualLegacyCalls.get(key) ?? 0) + 1)

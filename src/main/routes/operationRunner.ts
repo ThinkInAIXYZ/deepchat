@@ -31,15 +31,6 @@ export interface LegacyTimeoutInput<T> {
   signal?: AbortSignal
 }
 
-export interface LegacyRetryInput<T> {
-  task: () => Promise<T>
-  maxAttempts: number
-  initialDelayMs: number
-  backoff: number
-  reason: string
-  signal?: AbortSignal
-}
-
 export interface OperationRunner {
   sleep(input: SleepInput): Promise<void>
   observeIdempotent<T>(input: ObserveIdempotentInput<T>): Promise<T>
@@ -47,9 +38,6 @@ export interface OperationRunner {
 
   /** @deprecated Migrate the allowlisted consumer to a capability-specific operation. */
   timeout<T>(input: LegacyTimeoutInput<T>): Promise<T>
-
-  /** @deprecated Migrate the allowlisted consumer to retryIdempotent. */
-  retry<T>(input: LegacyRetryInput<T>): Promise<T>
 }
 
 export class OperationRunnerValidationError extends TypeError {
@@ -326,14 +314,6 @@ export function createNodeOperationRunner(): OperationRunner {
     sleep,
     observeIdempotent,
     retryIdempotent,
-    timeout: legacyTimeout,
-    retry(input) {
-      return retryIdempotent({
-        ...input,
-        task: () => input.task(),
-        overallDeadlineMs: MAX_TIMER_MS,
-        shouldRetry: () => true
-      })
-    }
+    timeout: legacyTimeout
   }
 }

@@ -1,5 +1,7 @@
 import logger from '@shared/logger'
+import type { ChatMessagePageResult } from '@shared/types/agent-interface'
 import { SessionService } from '@/routes/sessions/sessionService'
+import { createNodeOperationRunner } from '@/routes/operationRunner'
 import { reportTerminalSessionResolution } from '@/presenter/agentSessionPresenter/sessionResolution'
 
 vi.mock('@shared/logger', () => ({
@@ -27,27 +29,39 @@ const transient = (sessionId: string) => ({
 
 const createScheduler = () => ({
   sleep: vi.fn(),
-  timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task),
-  retry: vi.fn(
+  observeIdempotent: vi.fn(async <T>({ task }: { task: () => Promise<T> }) => await task()),
+  retryIdempotent: vi.fn(
     async <T>({
       task,
-      maxAttempts
+      maxAttempts,
+      shouldRetry
     }: {
-      task: () => Promise<T>
+      task: (attempt: number) => Promise<T>
       maxAttempts: number
+      shouldRetry: (error: unknown) => boolean
     }): Promise<T> => {
-      let lastError: unknown
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-          return await task()
+          return await task(attempt)
         } catch (error) {
-          lastError = error
+          if (attempt >= maxAttempts || !shouldRetry(error)) throw error
         }
       }
-      throw lastError
+      throw new Error('unreachable')
     }
-  )
+  ),
+  timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task)
 })
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
 
 const createMessageRepository = () => ({
   listBySession: vi.fn(),
@@ -143,6 +157,15 @@ describe('SessionService', () => {
       session: { id: 'session-1' }
     })
     expect(sessionRepository.resolve).toHaveBeenCalledTimes(2)
+    expect(scheduler.retryIdempotent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxAttempts: 2,
+        initialDelayMs: 25,
+        backoff: 1,
+        overallDeadlineMs: 5_000,
+        shouldRetry: expect.any(Function)
+      })
+    )
     expect(logger.warn).not.toHaveBeenCalled()
   })
 
@@ -196,7 +219,6 @@ describe('SessionService', () => {
       },
       2
     )
-
     expect(logger.warn).toHaveBeenCalledWith('[SessionResolution] Terminal lookup', {
       operation: 'sessions.restore',
       sessionId: 'session-1',
@@ -215,22 +237,33 @@ describe('SessionService', () => {
     expect(serializedArguments).not.toContain('stack')
   })
 
-  it('does not retry an unsettled timeout as a classified transient result', async () => {
-    const scheduler = createScheduler()
-    const timeoutError = new Error('lookup timed out')
-    timeoutError.name = 'TimeoutError'
-    scheduler.timeout.mockRejectedValue(timeoutError)
+  it('does not retry a read that settles after the overall observation deadline', async () => {
+    vi.useFakeTimers()
+    const scheduler = createNodeOperationRunner()
+    const read = deferred<ReturnType<typeof transient>>()
     const sessionRepository = createSessionRepository()
-    sessionRepository.resolve.mockReturnValue(new Promise(() => {}))
+    sessionRepository.resolve.mockReturnValue(read.promise)
     const service = new SessionService({
       sessionRepository: sessionRepository as any,
       messageRepository: createMessageRepository() as any,
-      scheduler: scheduler as any
+      scheduler
     })
 
-    await expect(service.restoreSession('session-1')).rejects.toBe(timeoutError)
-    expect(sessionRepository.resolve).toHaveBeenCalledTimes(1)
-    expect(logger.warn).not.toHaveBeenCalled()
+    try {
+      const restoring = service.restoreSession('session-1')
+      const deadline = expect(restoring).rejects.toMatchObject({
+        name: 'ObservationDeadlineError'
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      await deadline
+
+      read.resolve(transient('session-1'))
+      await vi.advanceTimersByTimeAsync(100)
+      expect(sessionRepository.resolve).toHaveBeenCalledTimes(1)
+      expect(logger.warn).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('uses the same bounded retry for active-session reads', async () => {
@@ -261,6 +294,15 @@ describe('SessionService', () => {
       }
     })
     expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(2)
+    expect(scheduler.retryIdempotent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxAttempts: 2,
+        initialDelayMs: 25,
+        backoff: 1,
+        overallDeadlineMs: 5_000,
+        shouldRetry: expect.any(Function)
+      })
+    )
     expect(logger.warn).not.toHaveBeenCalled()
   })
 
@@ -334,8 +376,256 @@ describe('SessionService', () => {
       ]
     })
     expect(sessionRepository.resolveList).toHaveBeenCalledTimes(1)
-    expect(scheduler.retry).not.toHaveBeenCalled()
+    expect(scheduler.retryIdempotent).not.toHaveBeenCalled()
     expect(logger.warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits 25ms after a settled transient restore and never overlaps attempts', async () => {
+    vi.useFakeTimers()
+    const scheduler = createNodeOperationRunner()
+    const first = deferred<ReturnType<typeof transient>>()
+    const sessionRepository = createSessionRepository()
+    let concurrent = 0
+    let maxConcurrent = 0
+    sessionRepository.resolve
+      .mockImplementationOnce(async () => {
+        concurrent += 1
+        maxConcurrent = Math.max(maxConcurrent, concurrent)
+        try {
+          return await first.promise
+        } finally {
+          concurrent -= 1
+        }
+      })
+      .mockImplementationOnce(async () => {
+        concurrent += 1
+        maxConcurrent = Math.max(maxConcurrent, concurrent)
+        try {
+          return available({ id: 'session-1' })
+        } finally {
+          concurrent -= 1
+        }
+      })
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler
+    })
+
+    try {
+      const restoring = service.restoreSession('session-1')
+      await vi.advanceTimersByTimeAsync(100)
+      expect(sessionRepository.resolve).toHaveBeenCalledTimes(1)
+
+      first.resolve(transient('session-1'))
+      await vi.advanceTimersByTimeAsync(24)
+      expect(sessionRepository.resolve).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+
+      await expect(restoring).resolves.toMatchObject({ session: { id: 'session-1' } })
+      expect(sessionRepository.resolve).toHaveBeenCalledTimes(2)
+      expect(maxConcurrent).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps active binding reads sequential through transient settlement and backoff', async () => {
+    vi.useFakeTimers()
+    const scheduler = createNodeOperationRunner()
+    const first = deferred<{
+      binding: 'bound'
+      sessionId: string
+      resolution: ReturnType<typeof transient>
+    }>()
+    const sessionRepository = createSessionRepository()
+    let concurrent = 0
+    let maxConcurrent = 0
+    sessionRepository.resolveActive
+      .mockImplementationOnce(async () => {
+        concurrent += 1
+        maxConcurrent = Math.max(maxConcurrent, concurrent)
+        try {
+          return await first.promise
+        } finally {
+          concurrent -= 1
+        }
+      })
+      .mockImplementationOnce(async () => {
+        concurrent += 1
+        maxConcurrent = Math.max(maxConcurrent, concurrent)
+        try {
+          return {
+            binding: 'bound',
+            sessionId: 'session-1',
+            resolution: available({ id: 'session-1' })
+          }
+        } finally {
+          concurrent -= 1
+        }
+      })
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler
+    })
+
+    try {
+      const reading = service.getActiveSession({ webContentsId: 7, windowId: null })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(1)
+      expect(sessionRepository.deactivate).not.toHaveBeenCalled()
+
+      first.resolve({
+        binding: 'bound',
+        sessionId: 'session-1',
+        resolution: transient('session-1')
+      })
+      await vi.advanceTimersByTimeAsync(24)
+      expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(1)
+      expect(sessionRepository.deactivate).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+
+      await expect(reading).resolves.toMatchObject({ session: { id: 'session-1' } })
+      expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(2)
+      expect(sessionRepository.deactivate).not.toHaveBeenCalled()
+      expect(maxConcurrent).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retains the active binding when a deferred read settles after its deadline', async () => {
+    vi.useFakeTimers()
+    const scheduler = createNodeOperationRunner()
+    const first = deferred<{
+      binding: 'bound'
+      sessionId: string
+      resolution: ReturnType<typeof transient>
+    }>()
+    const sessionRepository = createSessionRepository()
+    sessionRepository.resolveActive.mockReturnValue(first.promise)
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler
+    })
+
+    try {
+      const reading = service.getActiveSession({ webContentsId: 7, windowId: null })
+      const deadline = expect(reading).rejects.toMatchObject({
+        name: 'ObservationDeadlineError'
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      await deadline
+      expect(sessionRepository.deactivate).not.toHaveBeenCalled()
+
+      first.resolve({
+        binding: 'bound',
+        sessionId: 'session-1',
+        resolution: transient('session-1')
+      })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(1)
+      expect(sessionRepository.deactivate).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    {
+      availability: 'missing' as const,
+      sessionId: 'session-1'
+    },
+    {
+      availability: 'unavailable' as const,
+      sessionId: 'session-1',
+      record: { id: 'session-1', agentId: 'removed-agent' },
+      reason: 'agent_unknown' as const
+    }
+  ])('does not retry an authoritative active $availability result', async (resolution) => {
+    const scheduler = createScheduler()
+    const sessionRepository = createSessionRepository()
+    sessionRepository.resolveActive.mockResolvedValue({
+      binding: 'bound',
+      sessionId: 'session-1',
+      resolution
+    })
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler: scheduler as any
+    })
+
+    await expect(
+      service.getActiveSession({ webContentsId: 7, windowId: null })
+    ).resolves.toMatchObject({
+      session: null,
+      resolution: { availability: resolution.availability }
+    })
+    expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(1)
+  })
+
+  it('drains late list and page reads without retrying them', async () => {
+    vi.useFakeTimers()
+    const scheduler = createNodeOperationRunner()
+    const list = deferred<ReturnType<typeof available>[]>()
+    const page = deferred<ChatMessagePageResult>()
+    const sessionRepository = createSessionRepository()
+    sessionRepository.resolveList.mockReturnValue(list.promise)
+    const messageRepository = createMessageRepository()
+    messageRepository.listPageBySession.mockReturnValue(page.promise)
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: messageRepository as any,
+      scheduler
+    })
+
+    try {
+      const listing = service.listSessions()
+      const listDeadline = expect(listing).rejects.toMatchObject({
+        name: 'ObservationDeadlineError'
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      await listDeadline
+      list.resolve([available({ id: 'late' })])
+      await Promise.resolve()
+      expect(sessionRepository.resolveList).toHaveBeenCalledTimes(1)
+
+      const paging = service.listMessagesPage('session-1')
+      const pageDeadline = expect(paging).rejects.toMatchObject({
+        name: 'ObservationDeadlineError'
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      await pageDeadline
+      page.resolve({ messages: [], nextCursor: null, hasMore: false })
+      await Promise.resolve()
+      expect(messageRepository.listPageBySession).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('activates and deactivates exactly once without an operation runner wrapper', async () => {
+    const scheduler = createScheduler()
+    const sessionRepository = createSessionRepository()
+    sessionRepository.activate.mockResolvedValue(undefined)
+    sessionRepository.deactivate.mockResolvedValue(undefined)
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler: scheduler as any
+    })
+
+    await service.activateSession({ webContentsId: 7, windowId: null }, 'session-1')
+    await service.deactivateSession({ webContentsId: 7, windowId: null })
+
+    expect(sessionRepository.activate).toHaveBeenCalledOnce()
+    expect(sessionRepository.deactivate).toHaveBeenCalledOnce()
+    expect(scheduler.observeIdempotent).not.toHaveBeenCalled()
+    expect(scheduler.retryIdempotent).not.toHaveBeenCalled()
+    expect(scheduler.timeout).not.toHaveBeenCalled()
   })
 
   it('removes the internal transient cause from public route results', async () => {

@@ -41,6 +41,8 @@ const TRACKED_GROWTH_BASELINE_PATH = path.join(
   ROOT,
   'docs/architecture/baselines/architecture-growth.json'
 )
+const ARCHITECTURE_GUARD_PATH = path.join(ROOT, 'scripts/architecture-guard.mjs')
+const OPERATION_RUNNER_PATH = path.join(ROOT, 'src/main/routes/operationRunner.ts')
 const FIXTURE_PATHS = [
   FIXTURE_PATH,
   MEMORY_CORE_FIXTURE_PATH,
@@ -122,6 +124,125 @@ describe.sequential('architecture guard', () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('Architecture guard passed.')
+  })
+
+  it('pins the final two legacy calls and the removed retry surface', async () => {
+    const [guardSource, runnerSource] = await Promise.all([
+      readFile(ARCHITECTURE_GUARD_PATH, 'utf8'),
+      readFile(OPERATION_RUNNER_PATH, 'utf8')
+    ])
+    const allowlistBody = guardSource.match(
+      /const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map\(\[([\s\S]*?)\]\)/
+    )?.[1]
+    const allowlistedCalls = [
+      ...(allowlistBody ?? '').matchAll(/\['([^']+)',\s*(\d+)\]/g)
+    ].map((match) => [match[1], Number(match[2])])
+    const runnerInterface = runnerSource.match(
+      /export interface OperationRunner \{([\s\S]*?)^\}/m
+    )?.[1]
+
+    expect(allowlistedCalls).toEqual([
+      ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
+      ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
+    ])
+    expect(allowlistBody).not.toContain('#retry')
+    expect(runnerInterface).not.toMatch(/^\s*retry(?:<|\s*\()/m)
+
+    const result = runArchitectureGuard()
+    expect(result.status).toBe(0)
+  })
+
+  it.each([
+    [
+      'namespace factory',
+      OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import * as runnerApi from './operationRunner'
+        const runner = runnerApi.createNodeOperationRunner()
+        export const load = () => runner.timeout({ task: Promise.resolve(), ms: 1, reason: 'new' })
+      `
+    ],
+    [
+      'namespace type',
+      OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import * as runnerApi from './operationRunner'
+        export class Fixture {
+          constructor(private readonly runner: runnerApi.OperationRunner) {}
+          load() {
+            return this.runner.timeout({ task: Promise.resolve(), ms: 1, reason: 'new' })
+          }
+        }
+      `
+    ],
+    [
+      'namespace destructure and method alias outside routes',
+      MAIN_OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import * as runnerApi from './routes/operationRunner'
+        const { createNodeOperationRunner: makeRunner } = runnerApi
+        const { timeout: wait } = makeRunner()
+        export const renamedOwner = () => wait({ task: Promise.resolve(), ms: 1, reason: 'new' })
+      `
+    ]
+  ])('fails closed for an operation runner %s import', async (_label, filePath, source) => {
+    await writeFixture(filePath, source)
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[operation-runner-namespace-import]')
+    expect(result.stderr).toContain(path.basename(filePath))
+  })
+
+  it('tracks named factory and property aliases to a renamed owner', async () => {
+    await writeFixture(
+      OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import { createNodeOperationRunner as importedFactory } from './operationRunner'
+
+        export function renamedOwner() {
+          const factoryAlias = importedFactory
+          const runnerAlias = factoryAlias()
+          const timeoutAlias = runnerAlias.timeout
+          return timeoutAlias({ task: Promise.resolve(), ms: 1, reason: 'new' })
+        }
+      `
+    )
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[operation-runner-legacy-call]')
+    expect(result.stderr).toContain(
+      '__architecture_guard_operation_runner_fixture__.ts#renamedOwner#timeout'
+    )
+  })
+
+  it('tracks a named import through a local type alias', async () => {
+    await writeFixture(
+      OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import type { OperationRunner as ImportedRunner } from './operationRunner'
+        type LocalRunner = ImportedRunner
+
+        export class Fixture {
+          constructor(private readonly runner: LocalRunner) {}
+
+          async renamedOwner() {
+            return await this.runner.timeout({ task: Promise.resolve(), ms: 1, reason: 'new' })
+          }
+        }
+      `
+    )
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[operation-runner-legacy-call]')
+    expect(result.stderr).toContain(
+      '__architecture_guard_operation_runner_fixture__.ts#renamedOwner#timeout'
+    )
   })
 
   it('fails when a renamed route field makes a direct legacy operation runner call', async () => {

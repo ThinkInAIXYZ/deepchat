@@ -32,23 +32,40 @@
 
 ## SCH-002B：Safe consumer migration
 
-- [ ] 等 `SES-002` 合入并 rebase，不复制 availability adapter。
-- [ ] `restore` 保留 typed transient settled-only `2 attempts/25ms`。
-- [ ] `getActive` 同样保留 typed transient settled-only `2 attempts/25ms`。
-- [ ] restore/getActive 的 attempt、backoff、deadline、late settle 期间均保留 binding。
-- [ ] 只有 SES-002 权威 `missing` 允许 getActive unbind；unavailable/transient/deadline 不清 binding。
-- [ ] session list/page 使用 idempotent observation，不做 per-row retry。
-- [ ] activate/deactivate 删除无效 timeout wrapper。
-- [ ] provider model getters 删除 `Promise.resolve` + timeout wrapper。
-- [ ] `providers.testConnection` 暂不改：精确 legacy allowlist、无 automatic retry、tests 固定 model 60s
+- [x] 等 `SES-002` 合入并 rebase，不复制 availability adapter。
+- [x] `restore` 保留 typed transient settled-only `2 attempts/25ms`。
+- [x] `getActive` 同样保留 typed transient settled-only `2 attempts/25ms`。
+- [x] restore/getActive 的 attempt、backoff、deadline、late settle 期间均保留 binding。
+- [x] 只有 SES-002 权威 `missing` 允许 getActive unbind；unavailable/transient/deadline 不清 binding。
+- [x] session list/page 使用 idempotent observation，不做 per-row retry。
+- [x] activate/deactivate 删除无效 timeout wrapper。
+- [x] provider model getters 删除 `Promise.resolve` + timeout wrapper。
+- [x] `providers.testConnection` 暂不改：精确 legacy allowlist、无 automatic retry、tests 固定 model 60s
   observation/no-model no-uniform-bound truth。
-- [ ] Chat preflight reads 迁 idempotent observation，abort 后不进入下一 mutation。
-- [ ] Chat send/steer/respond 删除 non-cancellable mutation 外层 deadline。
-- [ ] stop 保留 both-cleanups-attempted，不把 cancel request 说成 terminal settlement。
-- [ ] static allowlist 精确为 `sessions.create` + `providers.testConnection` 两项。
-- [ ] 保持 AgentRuntime exactly-once cancel/stale-run tests 全绿。
-- [ ] 独立 verify agent 对每个 consumer 重做 capability 分类。
-- [ ] 跑 focused/full tests、typecheck、format、i18n、lint。
+- [x] Chat preflight reads 迁 idempotent observation，abort 后不进入下一 mutation。
+- [x] verifier repair：stop fence 覆盖同 session 全部并发 steer preflight；旧 cleanup 不删新 fence。
+- [x] Chat send/steer/respond 删除 non-cancellable mutation 外层 deadline。
+- [x] stop 保留 both-cleanups-attempted，不把 cancel request 说成 terminal settlement。
+- [x] static allowlist 精确为 `sessions.create` + `providers.testConnection` 两项。
+- [x] verifier repair：禁止 production namespace import 绕过 OperationRunner provenance guard，并补 alias 负测。
+- [x] production legacy retry caller 归零后删除 `retry()` interface/factory adapter/input。
+- [x] 保持 AgentRuntime exactly-once cancel/stale-run tests 全绿。
+- [x] 独立 verify agent 对每个 consumer 重做 capability 分类。
+- [x] 跑 focused/full tests、typecheck、format、i18n、lint。
+
+SCH-002B development 验证记录：
+
+- route/runner/guard/provider presenter focused：`107 passed`；session binding 与 AgentRuntime focused：
+  `276 passed`。
+- `typecheck`、`format`、`i18n`、`lint` 全部通过。
+- single-worker full：`472` files，`4726 passed / 5 failed / 140 skipped`；在未修改的基线
+  `fe126bf3` 上重跑失败文件得到完全相同的 `5` 个失败，新增失败数为 `0`。基线失败属于
+  long-steer rebudget、debug mock plan block 与 Spotlight Pinia setup，不在 SCH-002B scope。
+- final independent focused：`9` files，`438 passed`；额外 adversarial `46 passed`，闭合并发 steer
+  preflight stop fence、stale cleanup/new fence 和 operation-runner namespace/type/alias guard 绕过。
+- verifier repair focused：Chat stop/steer fence 与 architecture adversarial guard 共 `46 passed`；namespace
+  factory/type/destructure、factory/property alias、local type alias、routes 外与 renamed owner 均有负测。
+  repair 后 `typecheck`、`format`、`i18n`、`lint` 全部通过；combined full 留给 final verifier/merge gate。
 
 ## PRV-CAN-001：Provider owner cancellation（dependent slice）
 

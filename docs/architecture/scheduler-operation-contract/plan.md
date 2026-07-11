@@ -193,7 +193,9 @@ pnpm run lint
 
 ### Chat
 
-- session/agent/message preflight read 用 `observeIdempotent`，route stop 后不再进入下一 mutation；
+- session/agent/message preflight read 用 `observeIdempotent`；同 session 的 send 与全部并发 steer preflight
+  都注册到 stop fence。stop 只 abort 尚未进入 owner mutation 的 wait；late read 不再调用 owner。steer 不占
+  send lock，旧 preflight cleanup 不得删除 stop 后新建的 fence；
 - `sendMessage/steerActiveTurn/respondToolInteraction` 删除 non-cancellable mutation 外层 deadline，等待现有 owner
   acceptance/result；
 - 删除把 30 分钟常量描述为 generation timeout 的语义；
@@ -209,8 +211,9 @@ SessionService.createSession
 ProviderService.testConnection
 ```
 
-guard 精确到 method/path，任何新增 consumer 都 blocking。create 由 003 atomic cutover 删除；provider 由
-`PRV-CAN-001` 删除。
+旧 `retry()` 在本片迁移后已没有 production caller，因此同时删除 interface、factory adapter 与 legacy input；
+settled-only retry 只保留语义明确的 `retryIdempotent()`。`timeout()` guard 精确到 method/path，任何新增
+consumer 都 blocking。create 由 003 atomic cutover 删除；provider 由 `PRV-CAN-001` 删除。
 
 ### Focused tests
 
@@ -225,7 +228,7 @@ guard 精确到 method/path，任何新增 consumer 都 blocking。create 由 00
 | activate/deactivate | effect/event exactly once，无 runner |
 | listModels | getter exactly once，无 timer/runner |
 | provider model/no-model | 固定当前两类 timeout truth，不声称 cancellation、不 retry |
-| chat stop during preflight | mutation 不启动；cleanup request 各一次 |
+| chat stop during preflight | 同 session 全部 send/steer preflight 被 fence，mutation 不启动；cleanup request 各一次；stop 后新 steer 正常 |
 | runtime cancellation | single terminal hook，stale run 不覆盖 newer run |
 
 ### 影响、收益、风险

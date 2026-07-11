@@ -17,18 +17,8 @@ export class ProviderService {
     providerModels: ReturnType<ProviderCatalogPort['getProviderModels']>
     customModels: ReturnType<ProviderCatalogPort['getCustomModels']>
   }> {
-    const [providerModels, customModels] = await Promise.all([
-      this.deps.scheduler.timeout({
-        task: Promise.resolve(this.deps.providerCatalogPort.getProviderModels(providerId)),
-        ms: PROVIDER_QUERY_TIMEOUT_MS,
-        reason: `providers.listModels:${providerId}:provider`
-      }),
-      this.deps.scheduler.timeout({
-        task: Promise.resolve(this.deps.providerCatalogPort.getCustomModels(providerId)),
-        ms: PROVIDER_QUERY_TIMEOUT_MS,
-        reason: `providers.listModels:${providerId}:custom`
-      })
-    ])
+    const providerModels = this.deps.providerCatalogPort.getProviderModels(providerId)
+    const customModels = this.deps.providerCatalogPort.getCustomModels(providerId)
 
     return {
       providerModels,
