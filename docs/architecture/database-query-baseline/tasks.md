@@ -17,7 +17,7 @@
 - [x] 独立 verifier 复核 SQL 等价性、数据分布、统计口径和结论边界。
 - [x] 跑 `typecheck:node`、`format:check`、script `oxlint --no-ignore`、syntax、`git diff --check`；不跑
   full/E2E。
-- [ ] 本地合并并回填统一实施台账。
+- [x] 本地 squash 合并为 `8d0b158f`，并回填统一实施台账。
 
 ## Blocking gate
 
