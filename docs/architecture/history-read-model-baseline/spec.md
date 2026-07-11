@@ -85,7 +85,7 @@ Findings: `P-01`, `P-02`
 | --- | --- | --- |
 | `HIS-002` | 非空 session 的 `hadMessages` 路径真实执行完整 history materialization | `GO`，可进入 predicate contract 工作 |
 | `HIS-003` | real history query/materialization 携带 trace count；12 个 plan 均全局聚合 trace，noise 对 SQL time 有重复影响 | `GO`，可进入 projection contract 工作 |
-| `HIS-004` | 一次 send 在 provider-start 前有 `8` 次完整 read，但 `HIS-002/003` 尚未先完成 contract 稳定 | `NO-GO`，保持顺序门禁，不提前做 cache/snapshot |
+| `HIS-004` | 一次 send 在 provider-start 前有 `8` 次完整 read；必须先完成 `HIS-002/003` contract | 当时 `NO-GO`；前置后续已完成，HIS-004 已用两个 owner-local snapshot 实施为 direct quick `2 reads / 10 SQL` |
 
 若数据否定 finding，对应任务标记“证据否定”，不得为了完成路线图强行重构。
 

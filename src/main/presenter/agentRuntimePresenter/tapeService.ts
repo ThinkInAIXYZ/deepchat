@@ -867,12 +867,13 @@ export class DeepChatTapeService {
 
   ensureSessionTapeReady(
     sessionId: string,
-    messageStore: DeepChatMessageStore
+    messageStore: DeepChatMessageStore,
+    existingHistoryRecords?: readonly ChatMessageRecord[]
   ): TapeBackfillResult {
     const table = this.table
-    const historyRecords = messageStore
-      .getRuntimeMessages(sessionId)
-      .sort((left, right) => left.orderSeq - right.orderSeq)
+    const historyRecords = [
+      ...(existingHistoryRecords ?? messageStore.getRuntimeMessages(sessionId))
+    ].sort((left, right) => left.orderSeq - right.orderSeq)
     const maxOrderSeq = historyRecords.reduce(
       (currentMax, record) => Math.max(currentMax, record.orderSeq),
       0

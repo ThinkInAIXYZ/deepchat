@@ -27,7 +27,8 @@ Evidence: `docs/architecture/history-read-model-baseline/results/{raw.json,repor
 
 - 不修 empty file/link bucket 的 per-user fallback N+1。
 - 不拆 runtime/UI history projection，不改 global trace aggregation。
-- 不做一次 send snapshot/cache；`HIS-004` 继续保持 NO-GO。
+- 本切片不做一次 send snapshot/cache；当时 `HIS-004` 保持 NO-GO，待
+  HIS-002/003 contract 稳定后已由独立 architecture SDD 实施。
 - 不增加 runtime flag、metric hook、事件总线或通用 repository abstraction。
 
 ## 验收

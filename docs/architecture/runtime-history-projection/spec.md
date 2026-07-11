@@ -20,7 +20,7 @@ trace count，却复用了同一 query。HIS-001 的 12 个 query plan 都证明
 | Projection | Owner / caller | Trace contract |
 | --- | --- | --- |
 | rich history | public `AgentRuntimePresenter.getMessages()`、renderer/debug consumer | 保留真实 `traceCount` |
-| runtime history | pending/question guard、context fallback、compaction fallback、Tape lazy backfill | 不 join/count trace；record 的 `traceCount` 固定为 `0` |
+| runtime history | pending/question guard、context fallback、compaction fallback、Tape lazy backfill | 不 join/count trace；record 的 `traceCount` 固定为 `0`；允许同 owner turn 传入已有 runtime snapshot |
 | paged UI history | 现有 `listMessagesPage()` | 保留按 message id 的 correlated trace count，不在本任务修改 |
 
 - `DeepChatMessagesTable.getBySessionForRuntime()` 只按 session/order 读取 message header，不引用
@@ -34,7 +34,8 @@ trace count，却复用了同一 query。HIS-001 的 12 个 query plan 都证明
 
 - Tape message record 的 `traceCount` 从来不是 trace UI 的真源；trace UI/replay trace payload 继续读取
   `deepchat_message_traces`。
-- runtime backfill 写入的 message record 使用 `traceCount=0`。历史 Tape 中已有的非零值保持可读，不做 data
+- runtime backfill 写入的 message record 使用 `traceCount=0`。Tape 可以消费同 owner turn 的局部
+  runtime snapshot；未传入时仍 fresh read。历史 Tape 中已有的非零值保持可读，不做 data
   migration，也不重写旧 entry。
 - message/tool provenance、payload shape、effective view、ViewManifest selection、replay export shape不变。
 - live append 仍走现有 single-message read；本任务只改变 lazy full-history backfill/query。
@@ -58,7 +59,9 @@ trace count，却复用了同一 query。HIS-001 的 12 个 query plan 都证明
 
 - runtime predicate、context/compaction fallback 与 Tape full backfill 均使用 trace-free projection；public rich、
   paged UI、single-message 与 mutation paths保持原 contract。
-- direct quick 为 `7` 次 history read：`0 rich / 7 runtime`，对应 `0 rich header / 7 runtime header / 35 SQL`。
+- HIS-003B 交付时 direct quick 为 `7` 次 history read：`0 rich / 7 runtime`，对应
+  `0 rich header / 7 runtime header / 35 SQL`。HIS-004 在不改变本 projection contract 的前提下，
+  用两个 owner-local snapshot 将当前 direct quick 收敛为 `0 rich / 2 runtime / 10 SQL`。
 - real SQLite runtime plan 不含 trace table或 `MATERIALIZE`，rich projection仍返回真实 `traceCount=2`。
 - legacy Tape `traceCount=7` 可读，新 runtime backfill全部为 `0`；Tape、manifest、replay focused tests通过。
 - Electron focused `340 passed`，另有 Tape focused `53 passed`；typecheck、format、i18n、lint、guards、diff

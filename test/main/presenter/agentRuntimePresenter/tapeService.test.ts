@@ -307,6 +307,29 @@ describe('DeepChatTapeService', () => {
     ).toEqual([0, 0])
   })
 
+  it('uses supplied runtime records without rereading or mutating their order', () => {
+    const { table } = createTapeTableMock()
+    const records = [
+      createRecord({ id: 'a2', orderSeq: 2, role: 'assistant', content: '[]' }),
+      createRecord({ id: 'u1', orderSeq: 1 })
+    ]
+    const messageStore = {
+      getRuntimeMessages: vi.fn(() => {
+        throw new Error('supplied records must avoid a runtime reread')
+      })
+    }
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    const result = service.ensureSessionTapeReady('s1', messageStore as any, records)
+
+    expect(records.map((record) => record.id)).toEqual(['a2', 'u1'])
+    expect(result.historyRecords.map((record) => record.id)).toEqual(['u1', 'a2'])
+    expect(messageStore.getRuntimeMessages).not.toHaveBeenCalled()
+  })
+
   it('keeps legacy nonzero tape trace counts readable', () => {
     const { table, entries } = createTapeTableMock()
     table.append({

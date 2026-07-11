@@ -951,17 +951,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return await this.getResolvedSessionState(sessionId, 'summary')
   }
 
+  private async getQueueSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
+    return await this.getResolvedSessionState(sessionId, 'queue')
+  }
+
   private async getResolvedSessionState(
     sessionId: string,
-    hydrationMode: 'full' | 'summary'
+    hydrationMode: 'full' | 'summary' | 'queue'
   ): Promise<DeepChatSessionState | null> {
     const state = this.runtimeState.get(sessionId)
     if (state) {
       this.getSessionAgentId(sessionId)
-      if (this.hasPendingInteractions(sessionId)) {
+      if (hydrationMode !== 'queue' && this.hasPendingInteractions(sessionId)) {
         state.status = 'generating'
       }
-      if (hydrationMode === 'full') {
+      if (hydrationMode !== 'summary') {
         await this.getEffectiveSessionGenerationSettings(sessionId)
       }
       return { ...state }
@@ -972,13 +976,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     this.getSessionAgentId(sessionId)
     const rebuilt: DeepChatSessionState = {
-      status: this.hasPendingInteractions(sessionId) ? 'generating' : 'idle',
+      status:
+        hydrationMode !== 'queue' && this.hasPendingInteractions(sessionId) ? 'generating' : 'idle',
       providerId: dbSession.provider_id,
       modelId: dbSession.model_id,
       permissionMode: normalizePermissionMode(dbSession.permission_mode)
     }
     this.runtimeState.set(sessionId, rebuilt)
-    if (hydrationMode === 'full') {
+    if (hydrationMode !== 'summary') {
       await this.getEffectiveSessionGenerationSettings(sessionId)
     }
     return { ...rebuilt }
@@ -1060,10 +1065,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     content: string | SendMessageInput,
     options?: QueuePendingInputOptions
   ): Promise<PendingSessionInputRecord> {
-    const state = await this.getSessionState(sessionId)
+    const state = await this.getQueueSessionState(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    const historyRecords = this.messageStore.getRuntimeMessages(sessionId)
     const projectDir =
       options && Object.prototype.hasOwnProperty.call(options, 'projectDir')
         ? this.resolveProjectDir(sessionId, options.projectDir)
@@ -1074,8 +1080,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const shouldClaimImmediately =
-      ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
-      this.shouldStartQueuedInputImmediately(sessionId, state.status)
+      ((options?.source ?? 'send') === 'send' &&
+        this.isAwaitingToolQuestionFollowUpInRecords(historyRecords)) ||
+      this.shouldStartQueuedInputImmediately(sessionId, state.status, historyRecords)
     const record = this.pendingInputCoordinator.queuePendingInput(sessionId, content, {
       state: shouldClaimImmediately ? 'claimed' : 'pending'
     })
@@ -1084,7 +1091,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       void this.processMessage(sessionId, record.payload, {
         projectDir,
         pendingQueueItemId: record.id,
-        pendingQueueItemSource: options?.source ?? 'send'
+        pendingQueueItemSource: options?.source ?? 'send',
+        historyRecords
       })
       return record
     }
@@ -1127,7 +1135,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return
     }
 
-    if (!this.canStartPendingQueueDrain(sessionId, state.status, 'enqueue')) {
+    const historyRecords = this.messageStore.getRuntimeMessages(sessionId)
+    if (!this.canStartPendingQueueDrain(sessionId, state.status, 'enqueue', historyRecords)) {
       if (this.drainingPendingQueues.has(sessionId) || state.status === 'generating') {
         this.queueVisibleSteerInput(sessionId, normalizedInput)
         return
@@ -1243,11 +1252,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       pendingQueueItemId?: string
       pendingQueueItemSource?: ProcessPendingInputSource
       maxProviderRounds?: number
+      historyRecords?: readonly ChatMessageRecord[]
     }
   ): Promise<MessageStartResult> {
     const state = this.runtimeState.get(sessionId)
     if (!state) throw new Error(`Session ${sessionId} not found`)
-    if (this.hasPendingInteractions(sessionId)) {
+    const runtimeHistoryRecords =
+      context?.historyRecords ?? this.messageStore.getRuntimeMessages(sessionId)
+    if (this.hasPendingInteractionsInRecords(runtimeHistoryRecords)) {
       throw new Error('Pending tool interactions must be resolved before sending a new message.')
     }
 
@@ -1321,7 +1333,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const baseSystemPrompt = runtimePair.systemPrompt
       this.logSlowPreStreamStep(sessionId, 'system-prompt', stepStartedAt)
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+      const tapeReady = this.tapeService.ensureSessionTapeReady(
+        sessionId,
+        this.messageStore,
+        runtimeHistoryRecords
+      )
       const historyRecords = getTapeContextHistoryRecords(tapeReady.historyRecords)
       const userContent: UserMessageContent = {
         text: normalizedInput.text,
@@ -4131,8 +4147,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     reason: 'enqueue' | 'completed'
   ): Promise<boolean> {
-    const state = await this.getSessionState(sessionId)
-    if (!state || !this.canStartPendingQueueDrain(sessionId, state.status, reason)) {
+    const state = await this.getQueueSessionState(sessionId)
+    if (!state) {
+      return false
+    }
+    const historyRecords = this.messageStore.getRuntimeMessages(sessionId)
+    if (!this.canStartPendingQueueDrain(sessionId, state.status, reason, historyRecords)) {
       return false
     }
 
@@ -4167,7 +4187,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     void this.processMessage(sessionId, claimedInput.payload, {
       projectDir: this.resolveProjectDir(sessionId),
       pendingQueueItemId: claimedInput.id,
-      pendingQueueItemSource: pendingInputSource
+      pendingQueueItemSource: pendingInputSource,
+      historyRecords
     })
       .catch((error) => {
         console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
@@ -4192,9 +4213,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private shouldStartQueuedInputImmediately(
     sessionId: string,
-    status: DeepChatSessionState['status']
+    status: DeepChatSessionState['status'],
+    historyRecords: readonly ChatMessageRecord[]
   ): boolean {
-    if (!this.canStartPendingQueueDrain(sessionId, status, 'enqueue')) {
+    if (!this.canStartPendingQueueDrain(sessionId, status, 'enqueue', historyRecords)) {
       return false
     }
     return !this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
@@ -4203,15 +4225,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private canStartPendingQueueDrain(
     sessionId: string,
     status: DeepChatSessionState['status'],
-    reason: 'enqueue' | 'completed'
+    reason: 'enqueue' | 'completed',
+    historyRecords: readonly ChatMessageRecord[]
   ): boolean {
     if (!this.canDrainPendingQueueFromStatus(status, reason)) {
       return false
     }
-    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
+    if (this.isAwaitingToolQuestionFollowUpInRecords(historyRecords)) {
       return false
     }
-    if (this.hasPendingInteractions(sessionId)) {
+    if (this.hasPendingInteractionsInRecords(historyRecords)) {
       return false
     }
     if (this.drainingPendingQueues.has(sessionId)) {
@@ -7385,7 +7408,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private hasPendingInteractions(sessionId: string): boolean {
-    const messages = this.messageStore.getRuntimeMessages(sessionId)
+    return this.hasPendingInteractionsInRecords(this.messageStore.getRuntimeMessages(sessionId))
+  }
+
+  private hasPendingInteractionsInRecords(messages: readonly ChatMessageRecord[]): boolean {
     for (const message of messages) {
       if (message.role !== 'assistant') continue
       const blocks = this.parseAssistantBlocks(message.content)
@@ -7398,7 +7424,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private isAwaitingToolQuestionFollowUp(sessionId: string): boolean {
-    const messages = this.messageStore.getRuntimeMessages(sessionId)
+    return this.isAwaitingToolQuestionFollowUpInRecords(
+      this.messageStore.getRuntimeMessages(sessionId)
+    )
+  }
+
+  private isAwaitingToolQuestionFollowUpInRecords(messages: readonly ChatMessageRecord[]): boolean {
     let latestUserOrderSeq = 0
 
     for (const message of messages) {

@@ -1394,6 +1394,103 @@ describe('AgentRuntimePresenter', () => {
   })
 
   describe('processMessage', () => {
+    it('reads runtime history once when no queue snapshot is supplied', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mockClear()
+
+      await agent.processMessage('s1', 'Hello')
+
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).toHaveBeenCalledWith(
+        's1'
+      )
+    })
+
+    it('reuses a supplied queue snapshot for the initial guard and Tape backfill', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const historyRecords: ChatMessageRecord[] = []
+      sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mockClear()
+
+      await agent.processMessage('s1', 'Hello', { historyRecords } as any)
+
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).not.toHaveBeenCalled()
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('blocks a supplied queue snapshot containing a pending interaction without rereading', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const historyRecords: ChatMessageRecord[] = [
+        {
+          id: 'pending-question',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'question_request',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+              extra: { needsUserAction: true }
+            }
+          ]),
+          status: 'pending',
+          isContextEdge: 0,
+          metadata: '{}',
+          traceCount: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ]
+      sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mockClear()
+
+      await expect(agent.processMessage('s1', 'Hello', { historyRecords } as any)).rejects.toThrow(
+        'Pending tool interactions must be resolved'
+      )
+
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
+    it('observes pre-stream clear before a supplied snapshot reaches Tape or the provider', async () => {
+      let releaseTools: () => void = () => undefined
+      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseTools = () => resolve([])
+          })
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const tapeSpy = vi.spyOn((agent as any).tapeService, 'ensureSessionTapeReady')
+      const processPromise = agent.processMessage('s1', 'Hello', {
+        historyRecords: [
+          {
+            id: 'stale-user',
+            sessionId: 's1',
+            orderSeq: 1,
+            role: 'user',
+            content: JSON.stringify({ text: 'stale', files: [] }),
+            status: 'sent',
+            isContextEdge: 0,
+            metadata: '{}',
+            traceCount: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ]
+      } as any)
+      await Promise.resolve()
+
+      await agent.clearMessages('s1')
+      releaseTools()
+      await processPromise
+
+      expect(tapeSpy).not.toHaveBeenCalled()
+      expect(llmProvider.getProviderInstance).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
     it('does not cache a prompt/tool pair when persisted pin reads fail', async () => {
       const skillPresenter = getSkillPresenterMock()
       const readError = new PersistedSkillPinsReadError('s1', new Error('database unavailable'))
@@ -4503,7 +4600,60 @@ describe('AgentRuntimePresenter', () => {
           pendingQueueItemId: claimedRecord.id
         })
       )
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).toHaveBeenCalledTimes(1)
+      expect((processSpy.mock.calls[0][2] as any).historyRecords).toEqual([])
       expect(result).toBe(claimedRecord)
+    })
+
+    it('captures history after deferred settings hydration and reuses it for queue guards', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const settings = await (agent as any).getEffectiveSessionGenerationSettings('s1')
+      let releaseHydration: () => void = () => undefined
+      const hydration = new Promise<void>((resolve) => {
+        releaseHydration = resolve
+      })
+      vi.spyOn(agent as any, 'getEffectiveSessionGenerationSettings').mockImplementationOnce(
+        async () => {
+          await hydration
+          return settings
+        }
+      )
+      const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
+
+      const queued = agent.queuePendingInput('s1', 'Wait for the question', { source: 'queue' })
+      await Promise.resolve()
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).not.toHaveBeenCalled()
+
+      sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mockReturnValue([
+        {
+          id: 'a1',
+          session_id: 's1',
+          order_seq: 1,
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'question_request',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+              extra: { needsUserAction: true }
+            }
+          ]),
+          status: 'pending',
+          is_context_edge: 0,
+          metadata: '{}',
+          trace_count: 0,
+          created_at: 1,
+          updated_at: 1
+        }
+      ])
+      releaseHydration()
+      const result = await queued
+
+      expect(result.state).toBe('pending')
+      expect(processSpy).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).toHaveBeenCalled()
     })
 
     it('keeps queue-origin inputs pending while waiting for a tool follow-up', async () => {
@@ -4537,6 +4687,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('auto-continues the queue with the next item when a queued turn is stopped', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const processMessageSpy = vi.spyOn(agent, 'processMessage')
       // nanoid is mocked to a constant in this suite; hand out distinct ids so the two pending
       // inputs do not collide on insert.
       const { nanoid } = await import('nanoid')
@@ -4586,6 +4737,9 @@ describe('AgentRuntimePresenter', () => {
       expect(toolPresenter.clearAgentPlanState).toHaveBeenCalledTimes(2)
       expect(toolPresenter.clearAgentPlanState).toHaveBeenNthCalledWith(1, 's1')
       expect(toolPresenter.clearAgentPlanState).toHaveBeenNthCalledWith(2, 's1')
+      expect((processMessageSpy.mock.calls[0][2] as any).historyRecords).not.toBe(
+        (processMessageSpy.mock.calls[1][2] as any).historyRecords
+      )
 
       const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)
@@ -4719,6 +4873,10 @@ describe('AgentRuntimePresenter', () => {
         's1',
         4
       )
+      const latestRuntimeSnapshot =
+        sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mock.results.at(-1)?.value
+      expect(latestRuntimeSnapshot.map((row: any) => row.id)).not.toContain('retry-user')
+      expect(latestRuntimeSnapshot.map((row: any) => row.id)).not.toContain('retry-assistant')
     })
 
     it('rewinds the memory cursor when editing a consumed user message', async () => {

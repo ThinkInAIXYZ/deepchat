@@ -701,12 +701,12 @@ describeBenchmark('HIS-001 real SQLite history read baseline', () => {
             if (quickCheck) {
               expect(samples).toEqual([
                 expect.objectContaining({
-                  getMessagesCallCount: 7,
+                  getMessagesCallCount: 2,
                   richGetMessagesCallCount: 0,
-                  runtimeGetMessagesCallCount: 7,
+                  runtimeGetMessagesCallCount: 2,
                   richHeaderCallCount: 0,
-                  runtimeHeaderCallCount: 7,
-                  historySqlStatementCount: 35
+                  runtimeHeaderCallCount: 2,
+                  historySqlStatementCount: 10
                 })
               ])
             }
