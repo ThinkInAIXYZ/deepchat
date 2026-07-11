@@ -88,6 +88,19 @@ export class SkillRuntimeUpdatingError extends Error {
   }
 }
 
+export class PersistedSkillPinsReadError extends Error {
+  readonly code = 'PERSISTED_SKILL_PINS_READ_FAILED'
+  readonly retryable = true
+
+  constructor(
+    readonly conversationId: string,
+    readonly cause: unknown
+  ) {
+    super(`Failed to read persisted skill pins for ${conversationId}`)
+    this.name = 'PersistedSkillPinsReadError'
+  }
+}
+
 export type SkillRuntimePreference = 'auto' | 'system' | 'builtin'
 
 export interface SkillRuntimePolicy {
@@ -377,6 +390,7 @@ export interface ISkillPresenter {
   listSkillScripts(name: string): Promise<SkillScriptDescriptor[]>
 
   // Session state management
+  getPinnedActiveSkills(conversationId: string): Promise<string[]>
   getActiveSkills(conversationId: string): Promise<string[]>
   setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
   clearNewAgentSessionSkills?(conversationId: string): Promise<void>

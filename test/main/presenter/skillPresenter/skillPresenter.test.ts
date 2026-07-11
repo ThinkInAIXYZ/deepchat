@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import type { IConfigPresenter } from '../../../../src/shared/presenter'
-import type { PublishedSkillEntry, SkillMetadata } from '../../../../src/shared/types/skill'
+import {
+  PersistedSkillPinsReadError,
+  type PublishedSkillEntry,
+  type SkillMetadata
+} from '../../../../src/shared/types/skill'
 import { app } from 'electron'
 
 const DEFAULT_SKILLS_DIR = '/mock/home/.deepchat/skills'
@@ -2456,6 +2460,51 @@ describe('SkillPresenter', () => {
   })
 
   describe('getActiveSkills', () => {
+    it('reads persisted pins without triggering catalog discovery', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      newSessionActiveSkillsStore.set('new-session-raw-pins', ['available', 'not-yet-discovered'])
+      const discoverySpy = vi
+        .spyOn(skillPresenter, 'getMetadataList')
+        .mockRejectedValue(new Error('catalog discovery must stay inside runtime deadline'))
+
+      const pinned = await skillPresenter.getPinnedActiveSkills('new-session-raw-pins')
+
+      expect(pinned).toEqual(['available', 'not-yet-discovered'])
+      expect(discoverySpy).not.toHaveBeenCalled()
+    })
+
+    it('returns authoritative empty pins without starting imported legacy repair', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+        () => new Promise(() => undefined)
+      )
+
+      await expect(
+        skillPresenter.getPinnedActiveSkills('legacy-session-empty-pins')
+      ).resolves.toEqual([])
+      expect(skillSessionStatePort.hasNewSession).not.toHaveBeenCalled()
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).not.toHaveBeenCalled()
+    })
+
+    it('propagates persisted pin read failures as retryable typed errors', async () => {
+      const cause = new Error('database unavailable')
+      ;(skillSessionStatePort.getPersistedNewSessionSkills as Mock).mockImplementationOnce(() => {
+        throw cause
+      })
+
+      const pending = skillPresenter.getPinnedActiveSkills('legacy-session-db-error')
+
+      await expect(pending).rejects.toMatchObject({
+        name: 'PersistedSkillPinsReadError',
+        code: 'PERSISTED_SKILL_PINS_READ_FAILED',
+        retryable: true,
+        conversationId: 'legacy-session-db-error',
+        cause
+      })
+      await expect(pending).rejects.toBeInstanceOf(PersistedSkillPinsReadError)
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).not.toHaveBeenCalled()
+    })
+
     it('should return empty skills for new agent sessions', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
 

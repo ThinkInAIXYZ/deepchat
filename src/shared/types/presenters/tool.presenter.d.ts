@@ -6,6 +6,7 @@
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
 import type { PermissionMode } from '../agent-interface'
 import type { AgentPlanSnapshot } from '../agent-plan'
+import type { SkillRuntimeSnapshot } from '../skill'
 
 export type AgentToolProgressUpdate =
   | {
@@ -40,6 +41,7 @@ export interface IToolPresenter {
     agentWorkspacePath?: string | null
     conversationId?: string
     activeSkillNames?: string[]
+    skillRuntimeSnapshot?: SkillRuntimeSnapshot
   }): Promise<MCPToolDefinition[]>
 
   /**

@@ -520,26 +520,10 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
       if (executed.toolsChanged) {
         const activeSkillNames = hooks?.getActiveSkillNames?.()
-        if (params.refreshTools) {
-          try {
-            currentTools = await params.refreshTools(activeSkillNames)
-          } catch (error) {
-            console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
-          }
-        }
-        if (params.refreshSystemPrompt) {
-          try {
-            const refreshedSystemPrompt = await params.refreshSystemPrompt(
-              activeSkillNames,
-              currentTools
-            )
-            replaceLeadingSystemMessage(conversationMessages, refreshedSystemPrompt)
-          } catch (error) {
-            console.warn(
-              '[ProcessStream] failed to refresh system prompt after skill activation:',
-              error
-            )
-          }
+        if (params.refreshRuntimePair) {
+          const refreshedPair = await params.refreshRuntimePair(activeSkillNames)
+          currentTools = refreshedPair.tools
+          replaceLeadingSystemMessage(conversationMessages, refreshedPair.systemPrompt)
         }
       }
     }

@@ -545,10 +545,10 @@ describe('processStream', () => {
       return [...activeSkillNames]
     })
     const getActiveSkillNames = vi.fn(() => [...activeSkillNames])
-    const refreshTools = vi
-      .fn()
-      .mockResolvedValue([makeTool('skill_view'), makeTool('deepchat_settings_set_theme')])
-    const refreshSystemPrompt = vi.fn().mockResolvedValue('refreshed skill prompt')
+    const refreshRuntimePair = vi.fn().mockResolvedValue({
+      tools: [makeTool('skill_view'), makeTool('deepchat_settings_set_theme')],
+      systemPrompt: 'refreshed skill prompt'
+    })
 
     const coreStream = vi.fn(
       function (messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
@@ -600,8 +600,7 @@ describe('processStream', () => {
       coreStream,
       toolPresenter,
       tools: [makeTool('skill_view')],
-      refreshTools,
-      refreshSystemPrompt,
+      refreshRuntimePair,
       hooks: {
         activateSkill,
         getActiveSkillNames
@@ -614,20 +613,69 @@ describe('processStream', () => {
 
     expect(activateSkill).toHaveBeenCalledWith('deepchat-settings')
     expect(getActiveSkillNames).toHaveBeenCalled()
-    expect(refreshTools).toHaveBeenCalledTimes(1)
-    expect(refreshTools).toHaveBeenCalledWith(['deepchat-settings'])
-    expect(refreshSystemPrompt).toHaveBeenCalledTimes(1)
-    expect(refreshSystemPrompt).toHaveBeenCalledWith(
-      ['deepchat-settings'],
-      [
-        expect.objectContaining({ function: expect.objectContaining({ name: 'skill_view' }) }),
-        expect.objectContaining({
-          function: expect.objectContaining({ name: 'deepchat_settings_set_theme' })
-        })
-      ]
-    )
+    expect(refreshRuntimePair).toHaveBeenCalledTimes(1)
+    expect(refreshRuntimePair).toHaveBeenCalledWith(['deepchat-settings'])
     expect(coreStream).toHaveBeenCalledTimes(3)
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('terminates the turn when the atomic runtime pair refresh fails after skill activation', async () => {
+    const toolPresenter = {
+      ...createMockToolPresenter(),
+      callTool: vi.fn().mockResolvedValue({
+        content:
+          '{"success":true,"name":"deepchat-settings","activeForCurrentMessage":true,"activatedForMessage":true}',
+        rawData: {
+          toolCallId: 'tc1',
+          content: '{"success":true}',
+          isError: false,
+          toolResult: {
+            activationApplied: true,
+            activationSource: 'skill_md',
+            activatedSkill: 'deepchat-settings'
+          }
+        }
+      })
+    } as unknown as IToolPresenter
+    const coreStream = vi.fn(() =>
+      (async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'tc1',
+          tool_call_name: 'skill_view'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'tc1',
+          tool_call_arguments_complete: '{"name":"deepchat-settings"}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    ) as unknown as ProcessParams['coreStream']
+    const refreshRuntimePair = vi
+      .fn()
+      .mockRejectedValue(new Error('activation refresh registry failure'))
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('skill_view')],
+      refreshRuntimePair,
+      hooks: {
+        activateSkill: vi.fn(async () => ['deepchat-settings']),
+        getActiveSkillNames: vi.fn(() => ['deepchat-settings'])
+      }
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+
+    await expect(promise).resolves.toMatchObject({
+      status: 'error',
+      stopReason: 'error',
+      errorMessage: 'activation refresh registry failure'
+    })
+    expect(refreshRuntimePair).toHaveBeenCalledWith(['deepchat-settings'])
+    expect(coreStream).toHaveBeenCalledTimes(1)
   })
 
   it('does not refresh tools after linked-file skill_view reads', async () => {
@@ -649,7 +697,10 @@ describe('processStream', () => {
         }
       })
     } as unknown as IToolPresenter
-    const refreshTools = vi.fn().mockResolvedValue([makeTool('deepchat_settings_set_theme')])
+    const refreshRuntimePair = vi.fn().mockResolvedValue({
+      tools: [makeTool('deepchat_settings_set_theme')],
+      systemPrompt: 'unused'
+    })
 
     const coreStream = vi.fn(
       function (_messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
@@ -683,14 +734,14 @@ describe('processStream', () => {
       coreStream,
       toolPresenter,
       tools: [makeTool('skill_view')],
-      refreshTools
+      refreshRuntimePair
     })
 
     const promise = processStream(params)
     await vi.runAllTimersAsync()
     await promise
 
-    expect(refreshTools).not.toHaveBeenCalled()
+    expect(refreshRuntimePair).not.toHaveBeenCalled()
     expect(coreStream).toHaveBeenCalledTimes(2)
   })
 

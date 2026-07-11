@@ -464,10 +464,15 @@ export class Presenter implements IPresenter {
         }
         throw new SessionResolutionError('skills.hasNewSession', resolution)
       },
-      getPersistedNewSessionSkills: (conversationId) =>
-        (
+      getPersistedNewSessionSkills: (conversationId) => {
+        const table = (
           this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
-        ).newSessionsTable?.getActiveSkills(conversationId) ?? [],
+        ).newSessionsTable
+        if (!table) {
+          throw new Error('New sessions table is not initialized')
+        }
+        return table.getPersistedActiveSkillPins(conversationId)
+      },
       setPersistedNewSessionSkills: (conversationId, skills) => {
         const sqlitePresenter = this
           .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter

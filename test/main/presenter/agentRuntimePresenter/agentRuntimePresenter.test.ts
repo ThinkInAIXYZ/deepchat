@@ -18,6 +18,7 @@ import {
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
+import { PersistedSkillPinsReadError } from '@shared/types/skill'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -58,7 +59,10 @@ vi.mock('@/presenter', () => ({
   presenter: {
     skillPresenter: {
       getMetadataList: vi.fn().mockResolvedValue([]),
+      getPinnedActiveSkills: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
+      getPublishedRuntimeSnapshot: vi.fn(),
+      waitForStableRuntimeSnapshot: vi.fn(),
       loadSkillContent: vi.fn().mockResolvedValue(null),
       viewDraftSkill: vi.fn(),
       installDraftSkill: vi.fn(),
@@ -78,7 +82,7 @@ vi.mock('@/presenter', () => ({
 
 vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
-  buildSystemEnvPrompt: vi.fn(
+  buildSystemEnvPromptSnapshot: vi.fn(
     async (options?: {
       providerId?: string
       modelId?: string
@@ -88,18 +92,22 @@ vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
       const providerId = options?.providerId || 'unknown-provider'
       const modelId = options?.modelId || 'unknown-model'
       const dateText = (options?.now ?? new Date()).toDateString()
-      return [
+      const prompt = [
         'ENV_BLOCK',
         `MODEL:${providerId}/${modelId}`,
         `WORKDIR:${options?.workdir ?? ''}`,
         `DATE:${dateText}`
       ].join('\n')
+      return { prompt, revision: prompt }
     }
   )
 }))
 
 vi.mock('@/lib/agentRuntime/verificationPolicyPromptBuilder', () => ({
-  buildVerificationPolicyPrompt: vi.fn(async () => '## Verification Policy')
+  buildVerificationPolicySnapshot: vi.fn(async () => ({
+    prompt: '## Verification Policy',
+    revision: 'verification-policy'
+  }))
 }))
 
 // Mock processStream to avoid timer/async complexity
@@ -113,9 +121,9 @@ import { eventBus } from '@/eventbus'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
-  buildSystemEnvPrompt
+  buildSystemEnvPromptSnapshot
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
-import { buildVerificationPolicyPrompt } from '@/lib/agentRuntime/verificationPolicyPromptBuilder'
+import { buildVerificationPolicySnapshot } from '@/lib/agentRuntime/verificationPolicyPromptBuilder'
 
 function getPublishedPayloads(eventName: string): any[] {
   return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
@@ -152,7 +160,10 @@ function deferred<T>() {
 function getSkillPresenterMock() {
   return presenter.skillPresenter as {
     getMetadataList: ReturnType<typeof vi.fn>
+    getPinnedActiveSkills: ReturnType<typeof vi.fn>
     getActiveSkills: ReturnType<typeof vi.fn>
+    getPublishedRuntimeSnapshot: ReturnType<typeof vi.fn>
+    waitForStableRuntimeSnapshot: ReturnType<typeof vi.fn>
     loadSkillContent: ReturnType<typeof vi.fn>
     viewDraftSkill: ReturnType<typeof vi.fn>
     installDraftSkill: ReturnType<typeof vi.fn>
@@ -644,8 +655,39 @@ describe('AgentRuntimePresenter', () => {
     ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'completed' })
     const skillPresenter = getSkillPresenterMock()
     skillPresenter.getMetadataList.mockResolvedValue([])
-    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getPinnedActiveSkills.mockResolvedValue([])
     skillPresenter.loadSkillContent.mockResolvedValue(null)
+    let publishedSkillSnapshot = { epoch: 0, entries: new Map<string, any>() }
+    skillPresenter.getPublishedRuntimeSnapshot.mockImplementation(() => publishedSkillSnapshot)
+    skillPresenter.waitForStableRuntimeSnapshot.mockImplementation(
+      async ({ requiredSkillNames }: { requiredSkillNames: string[] }) => {
+        const metadataList = await skillPresenter.getMetadataList()
+        const entries = new Map<string, any>()
+        for (const metadata of metadataList) {
+          const name = metadata.name?.trim()
+          if (!name) continue
+          const content = requiredSkillNames.includes(name)
+            ? await skillPresenter.loadSkillContent(name)
+            : null
+          entries.set(name, {
+            sourceVersion: `${name}:${content?.content ?? 'metadata'}`,
+            availability: content ? 'ready' : 'metadata_only',
+            metadata: {
+              description: '',
+              path: `/tmp/${name}/SKILL.md`,
+              skillRoot: `/tmp/${name}`,
+              ...metadata,
+              name
+            },
+            renderedContent: content?.content,
+            allowedTools: metadata.allowedTools ?? [],
+            scripts: []
+          })
+        }
+        publishedSkillSnapshot = { epoch: 0, entries }
+        return publishedSkillSnapshot
+      }
+    )
     skillPresenter.viewDraftSkill.mockResolvedValue({ success: false, action: 'view', draftId: '' })
     skillPresenter.installDraftSkill.mockResolvedValue({
       success: false,
@@ -1346,6 +1388,31 @@ describe('AgentRuntimePresenter', () => {
   })
 
   describe('processMessage', () => {
+    it('does not cache a prompt/tool pair when persisted pin reads fail', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const readError = new PersistedSkillPinsReadError('s1', new Error('database unavailable'))
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      skillPresenter.getPinnedActiveSkills
+        .mockRejectedValueOnce(readError)
+        .mockResolvedValueOnce([])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'First message')
+
+      expect(consoleError).toHaveBeenCalledWith('[DeepChatAgent] processMessage error:', readError)
+      expect((agent as any).systemPromptCache.has('s1')).toBe(false)
+      expect((agent as any).toolProfileCache.has('s1')).toBe(false)
+      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+
+      await agent.processMessage('s1', 'Second message')
+
+      expect(skillPresenter.getPinnedActiveSkills.mock.calls.length).toBeGreaterThanOrEqual(2)
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      consoleError.mockRestore()
+    })
+
     it('creates user and assistant messages with correct order_seq', async () => {
       sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
         .mockReturnValueOnce(0) // user message: seq 1
@@ -2506,13 +2573,13 @@ describe('AgentRuntimePresenter', () => {
     it('reuses cached system prompt within the same day', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
-      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+      const envBuilder = buildSystemEnvPromptSnapshot as ReturnType<typeof vi.fn>
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'First message')
       await agent.processMessage('s1', 'Second message')
 
-      expect(envBuilder).toHaveBeenCalledTimes(1)
+      expect(envBuilder).toHaveBeenCalledTimes(2)
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
@@ -2524,29 +2591,37 @@ describe('AgentRuntimePresenter', () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const startedAt = Date.now()
-      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
-      const verificationBuilder = buildVerificationPolicyPrompt as ReturnType<typeof vi.fn>
+      const envBuilder = buildSystemEnvPromptSnapshot as ReturnType<typeof vi.fn>
+      const verificationBuilder = buildVerificationPolicySnapshot as ReturnType<typeof vi.fn>
       const envStarted = deferred<void>()
       let envDeadlineAt: number | undefined
       let verificationDeadlineAt: number | undefined
 
       envBuilder.mockImplementationOnce(
         async (options: { deadlineAt?: number }) =>
-          new Promise<string>((resolve) => {
+          new Promise<{ prompt: string; revision: string }>((resolve) => {
             envDeadlineAt = options.deadlineAt
             envStarted.resolve()
             setTimeout(
-              () => resolve('ENV_DEADLINE_FALLBACK'),
+              () =>
+                resolve({
+                  prompt: 'ENV_DEADLINE_FALLBACK',
+                  revision: 'env-deadline-fallback'
+                }),
               Math.max(0, (options.deadlineAt ?? Date.now()) - Date.now())
             )
           })
       )
       verificationBuilder.mockImplementationOnce(
-        async (_workdir: string | null, options: { deadlineAt?: number }) =>
-          new Promise<string>((resolve) => {
+        async (options: { deadlineAt?: number }) =>
+          new Promise<{ prompt: string; revision: string }>((resolve) => {
             verificationDeadlineAt = options.deadlineAt
             setTimeout(
-              () => resolve('## Verification Policy\nVERIFICATION_DEADLINE_FALLBACK'),
+              () =>
+                resolve({
+                  prompt: '## Verification Policy\nVERIFICATION_DEADLINE_FALLBACK',
+                  revision: 'verification-deadline-fallback'
+                }),
               Math.max(0, (options.deadlineAt ?? Date.now()) - Date.now())
             )
           })
@@ -2574,6 +2649,95 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.messages[0].content).toContain('ENV_DEADLINE_FALLBACK')
       expect(callArgs.messages[0].content).toContain('VERIFICATION_DEADLINE_FALLBACK')
+    })
+
+    it('bounds catalog discovery from the real processMessage pre-stream entry', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const startedAt = Date.now()
+      const skillPresenter = getSkillPresenterMock()
+      const discoveryStarted = deferred<void>()
+      const metadata = {
+        name: 'review',
+        description: 'Review changes',
+        path: '/skills/review/SKILL.md',
+        skillRoot: '/skills/review'
+      }
+      const snapshot = {
+        epoch: 2,
+        entries: new Map([
+          [
+            'review',
+            {
+              sourceVersion: 'review-v1',
+              availability: 'ready',
+              metadata,
+              renderedContent: 'REVIEW BODY',
+              allowedTools: [],
+              scripts: []
+            }
+          ]
+        ])
+      }
+      skillPresenter.getPinnedActiveSkills.mockResolvedValue(['review'])
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
+      skillPresenter.getPublishedRuntimeSnapshot.mockReturnValue(snapshot)
+      skillPresenter.waitForStableRuntimeSnapshot.mockResolvedValue(snapshot)
+      skillPresenter.getMetadataList.mockImplementation(() => {
+        discoveryStarted.resolve()
+        return new Promise(() => undefined)
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const processing = agent.processMessage('s1', 'First message')
+      await discoveryStarted.promise
+
+      expect(buildSystemEnvPromptSnapshot).toHaveBeenCalledTimes(1)
+      expect(skillPresenter.getActiveSkills).not.toHaveBeenCalled()
+      expect(skillPresenter.waitForStableRuntimeSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({ deadlineAt: startedAt + 200 })
+      )
+      await vi.advanceTimersByTimeAsync(199)
+      expect(processStream).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1)
+      await processing
+      expect(Date.now()).toBe(startedAt + 200)
+      expect(processStream).not.toHaveBeenCalled()
+      expect((await agent.getSessionState('s1'))?.status).toBe('error')
+    })
+
+    it('retries a transient tool-definition failure on the next real turn', async () => {
+      toolPresenter.getAllToolDefinitions
+        .mockRejectedValueOnce(new Error('transient tool registry failure'))
+        .mockResolvedValueOnce([
+          {
+            type: 'function',
+            source: 'agent',
+            function: {
+              name: 'read',
+              description: 'read',
+              parameters: { type: 'object', properties: {} }
+            },
+            server: { name: 'agent-filesystem', icons: '', description: '' }
+          }
+        ])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'First message')
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+      expect(processStream).not.toHaveBeenCalled()
+      expect((agent as any).systemPromptCache.has('s1')).toBe(false)
+      expect((agent as any).toolProfileCache.has('s1')).toBe(false)
+
+      await agent.processMessage('s1', 'Second message')
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect((processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].tools).toEqual([
+        expect.objectContaining({ function: expect.objectContaining({ name: 'read' }) })
+      ])
     })
 
     it('invalidates cached tools when the MCP client list changes', async () => {
@@ -2606,7 +2770,7 @@ describe('AgentRuntimePresenter', () => {
     it('invalidates cached prompt after system prompt update', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
-      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+      const envBuilder = buildSystemEnvPromptSnapshot as ReturnType<typeof vi.fn>
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Before update')
@@ -2623,7 +2787,7 @@ describe('AgentRuntimePresenter', () => {
     it('invalidates cached prompt after session project directory update', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
-      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+      const envBuilder = buildSystemEnvPromptSnapshot as ReturnType<typeof vi.fn>
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Before project update')
@@ -2667,7 +2831,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('invalidates cached prompt across natural days', async () => {
       vi.useFakeTimers()
-      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+      const envBuilder = buildSystemEnvPromptSnapshot as ReturnType<typeof vi.fn>
 
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -2687,16 +2851,16 @@ describe('AgentRuntimePresenter', () => {
     it('invalidates cached prompt when pinned skills change', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
-      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+      const envBuilder = buildSystemEnvPromptSnapshot as ReturnType<typeof vi.fn>
       const skillPresenter = presenter.skillPresenter as {
         getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
+        getPinnedActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
 
       skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
-      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
-      skillPresenter.getActiveSkills.mockResolvedValueOnce([])
+      skillPresenter.getPinnedActiveSkills.mockResolvedValue(['skill-a'])
+      skillPresenter.getPinnedActiveSkills.mockResolvedValueOnce([])
       skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A instructions' })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -2714,12 +2878,12 @@ describe('AgentRuntimePresenter', () => {
     it('does not load stale skill pins when the skill is absent from available metadata', async () => {
       const skillPresenter = presenter.skillPresenter as {
         getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
+        getPinnedActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
 
       skillPresenter.getMetadataList.mockResolvedValue([])
-      skillPresenter.getActiveSkills.mockResolvedValue(['plugin-skill'])
+      skillPresenter.getPinnedActiveSkills.mockResolvedValue(['plugin-skill'])
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Click a native app button')
@@ -2736,7 +2900,7 @@ describe('AgentRuntimePresenter', () => {
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const skillPresenter = presenter.skillPresenter as {
         getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
+        getPinnedActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
@@ -2773,7 +2937,7 @@ describe('AgentRuntimePresenter', () => {
       ])
       toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
       skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
-      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillPresenter.getPinnedActiveSkills.mockResolvedValue(['skill-a'])
       skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A body' })
 
       await agent.initSession('s1', {
@@ -2858,12 +3022,12 @@ describe('AgentRuntimePresenter', () => {
     it('omits skill metadata when skill management tools are unavailable', async () => {
       const skillPresenter = presenter.skillPresenter as {
         getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
+        getPinnedActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
 
       skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
-      skillPresenter.getActiveSkills.mockResolvedValue([])
+      skillPresenter.getPinnedActiveSkills.mockResolvedValue([])
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
@@ -3059,7 +3223,7 @@ describe('AgentRuntimePresenter', () => {
       expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
       expect(toolPresenter.buildToolSystemPrompt).not.toHaveBeenCalled()
       expect(buildRuntimeCapabilitiesPrompt).not.toHaveBeenCalled()
-      expect(buildSystemEnvPrompt).not.toHaveBeenCalled()
+      expect(buildSystemEnvPromptSnapshot).not.toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.tools).toEqual([])
@@ -3111,7 +3275,7 @@ describe('AgentRuntimePresenter', () => {
         })
       )
       expect(buildRuntimeCapabilitiesPrompt).toHaveBeenCalled()
-      expect(buildSystemEnvPrompt).toHaveBeenCalled()
+      expect(buildSystemEnvPromptSnapshot).toHaveBeenCalled()
       expect(toolPresenter.buildToolSystemPrompt).toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
@@ -5587,7 +5751,27 @@ describe('AgentRuntimePresenter', () => {
       ])
     })
 
+    it('propagates persisted pin read failures from manual compaction without caching a pair', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const readError = new PersistedSkillPinsReadError('s1', new Error('database unavailable'))
+      skillPresenter.getPinnedActiveSkills.mockRejectedValueOnce(readError)
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { contextLength: 128000, maxTokens: 4096 }
+      })
+
+      await expect(agent.compactSession('s1')).rejects.toBe(readError)
+      expect((agent as any).systemPromptCache.has('s1')).toBe(false)
+      expect((agent as any).toolProfileCache.has('s1')).toBe(false)
+      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+    })
+
     it('manually compacts without creating a user turn or streaming', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
         autoCompactionEnabled: false,
         autoCompactionRetainRecentPairs: 1
@@ -5614,6 +5798,8 @@ describe('AgentRuntimePresenter', () => {
       })
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
       expect(processStream).not.toHaveBeenCalled()
+      expect(skillPresenter.getPinnedActiveSkills).toHaveBeenCalledWith('s1')
+      expect(skillPresenter.getActiveSkills).not.toHaveBeenCalled()
 
       const insertRows = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.map(
         ([row]: any[]) => row
@@ -5996,7 +6182,59 @@ describe('AgentRuntimePresenter', () => {
       return row
     }
 
+    it('propagates persisted pin read failures from resume without caching a pair', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const readError = new PersistedSkillPinsReadError('s1', new Error('database unavailable'))
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      skillPresenter.getPinnedActiveSkills.mockRejectedValueOnce(readError)
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Pick one',
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'Pick one',
+              questionOptions: [{ label: 'A' }]
+            }
+          }
+        ]
+      })
+
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'question_option',
+          optionLabel: 'A'
+        })
+      ).rejects.toBe(readError)
+      expect(consoleError).toHaveBeenCalledWith(
+        '[DeepChatAgent] resumeAssistantMessage error:',
+        readError
+      )
+      expect(skillPresenter.getActiveSkills).not.toHaveBeenCalled()
+      expect((agent as any).systemPromptCache.has('s1')).toBe(false)
+      expect((agent as any).toolProfileCache.has('s1')).toBe(false)
+      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect((agent as any).runtimeState.get('s1').status).toBe('error')
+      consoleError.mockRestore()
+    })
+
     it('handles question_option and resumes assistant message', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
       const prepareForResumeTurn = vi.spyOn(
         (agent as any).compactionService,
         'prepareForResumeTurn'
@@ -6050,6 +6288,8 @@ describe('AgentRuntimePresenter', () => {
         })
       )
       expect(processStream).toHaveBeenCalledTimes(1)
+      expect(skillPresenter.getPinnedActiveSkills).toHaveBeenCalledWith('s1')
+      expect(skillPresenter.getActiveSkills).not.toHaveBeenCalled()
     })
 
     it('inserts resume compaction indicators before the assistant message being resumed', async () => {

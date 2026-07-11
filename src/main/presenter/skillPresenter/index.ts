@@ -46,7 +46,8 @@ import {
   PublishedSkillEntry,
   PublishedSkillSourceError,
   SkillRuntimeSnapshot,
-  WaitForStableSkillRuntimeOptions
+  WaitForStableSkillRuntimeOptions,
+  PersistedSkillPinsReadError
 } from '@shared/types/skill'
 import type {
   SkillManagementItem,
@@ -3347,19 +3348,29 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   /**
+   * Get persisted skill pins without triggering catalog discovery.
+   * Runtime callers validate these names against one bounded immutable snapshot.
+   */
+  async getPinnedActiveSkills(conversationId: string): Promise<string[]> {
+    try {
+      return this.sessionStatePort.getPersistedNewSessionSkills(conversationId)
+    } catch (error) {
+      throw new PersistedSkillPinsReadError(conversationId, error)
+    }
+  }
+
+  /**
    * Get active skills for a conversation
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
-    if (await this.isNewAgentSession(conversationId)) {
-      const skills = await this.loadNewSessionSkills(conversationId)
-      const validSkills = await this.validateSkillNames(skills)
-      if (!this.areSkillListsEqual(validSkills, skills)) {
-        this.setPersistedNewSessionSkills(conversationId, validSkills)
-      }
-      return validSkills
+    const skills = (await this.isNewAgentSession(conversationId))
+      ? await this.loadNewSessionSkills(conversationId)
+      : []
+    const validSkills = await this.validateSkillNames(skills)
+    if (!this.areSkillListsEqual(validSkills, skills)) {
+      this.setPersistedNewSessionSkills(conversationId, validSkills)
     }
-
-    return []
+    return validSkills
   }
 
   /**

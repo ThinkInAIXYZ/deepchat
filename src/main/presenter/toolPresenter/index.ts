@@ -7,6 +7,7 @@ import type {
 } from '@shared/presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { PermissionMode } from '@shared/types/agent-interface'
+import type { SkillRuntimeSnapshot } from '@shared/types/skill'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
@@ -67,6 +68,7 @@ export interface IToolPresenter {
     agentWorkspacePath?: string | null
     conversationId?: string
     activeSkillNames?: string[]
+    skillRuntimeSnapshot?: SkillRuntimeSnapshot
   }): Promise<MCPToolDefinition[]>
   syncAgentToolContext?(context: {
     chatMode?: 'agent' | 'acp agent'
@@ -192,6 +194,7 @@ export class ToolPresenter implements IToolPresenter {
     agentWorkspacePath?: string | null
     conversationId?: string
     activeSkillNames?: string[]
+    skillRuntimeSnapshot?: SkillRuntimeSnapshot
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const mapper = this.resolveMapper(context.conversationId)
@@ -235,7 +238,8 @@ export class ToolPresenter implements IToolPresenter {
           supportsVision,
           agentWorkspacePath,
           conversationId: context.conversationId,
-          activeSkillNames: context.activeSkillNames
+          activeSkillNames: context.activeSkillNames,
+          skillRuntimeSnapshot: context.skillRuntimeSnapshot
         }),
         'agent'
       )

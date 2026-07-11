@@ -84,9 +84,18 @@ import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import {
   buildRuntimeCapabilitiesPrompt,
-  buildSystemEnvPrompt
+  buildSystemEnvPromptSnapshot,
+  type SystemEnvPromptSnapshot
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
-import { buildVerificationPolicyPrompt } from '@/lib/agentRuntime/verificationPolicyPromptBuilder'
+import {
+  buildVerificationPolicySnapshot,
+  type VerificationPolicySnapshot
+} from '@/lib/agentRuntime/verificationPolicyPromptBuilder'
+import {
+  SkillRuntimeUpdatingError,
+  type PublishedSkillEntry,
+  type SkillRuntimeSnapshot
+} from '@shared/types/skill'
 import type { ContextBuildMetadata } from './contextBuilder'
 import {
   buildTapeChatView,
@@ -507,6 +516,10 @@ type SystemPromptCacheEntry = {
   prompt: string
   dayKey: string
   fingerprint: string
+  envRevision: string
+  verificationPolicyRevision: string
+  skillMutationEpoch: number
+  pairFingerprint?: string
 }
 
 type ToolProfileKind = 'code' | 'research' | 'analysis' | 'general'
@@ -515,6 +528,29 @@ type ToolProfileCacheEntry = {
   profile: ToolProfileKind
   fingerprint: string
   tools: MCPToolDefinition[]
+  skillMutationEpoch: number
+  pairFingerprint?: string
+}
+
+type StableSkillRuntimeView = {
+  snapshot: SkillRuntimeSnapshot
+  visibleSkillNames: ReadonlySet<string>
+}
+
+type RuntimeSourceSnapshots = {
+  env: SystemEnvPromptSnapshot
+  verificationPolicy: VerificationPolicySnapshot
+  skills: StableSkillRuntimeView
+}
+
+type RuntimePromptToolPair = {
+  systemPrompt: string
+  tools: MCPToolDefinition[]
+}
+
+type ToolProfileResolution = {
+  kind: ToolProfileKind
+  fingerprint: string
 }
 
 type ActiveGeneration = {
@@ -619,7 +655,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
     | 'getMetadataList'
-    | 'getActiveSkills'
+    | 'getPinnedActiveSkills'
+    | 'getPublishedRuntimeSnapshot'
+    | 'waitForStableRuntimeSnapshot'
     | 'loadSkillContent'
     | 'viewDraftSkill'
     | 'installDraftSkill'
@@ -643,7 +681,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       skillPresenter?: Pick<
         ISkillPresenter,
         | 'getMetadataList'
-        | 'getActiveSkills'
+        | 'getPinnedActiveSkills'
+        | 'getPublishedRuntimeSnapshot'
+        | 'waitForStableRuntimeSnapshot'
         | 'loadSkillContent'
         | 'viewDraftSkill'
         | 'installDraftSkill'
@@ -1266,21 +1306,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       this.logSlowPreStreamStep(sessionId, 'active-skills', stepStartedAt)
       stepStartedAt = Date.now()
-      const tools = await this.loadToolDefinitionsForSession(
+      const runtimePair = await this.buildRuntimePromptToolPair(
         sessionId,
+        generationSettings.systemPrompt,
         projectDir,
-        effectiveActiveSkillNames
+        effectiveActiveSkillNames,
+        preStreamAbortSignal
       )
+      const tools = runtimePair.tools
       this.logSlowPreStreamStep(sessionId, 'tool-definitions', stepStartedAt)
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
       stepStartedAt = Date.now()
-      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
-        sessionId,
-        generationSettings.systemPrompt,
-        tools,
-        effectiveActiveSkillNames
-      )
+      const baseSystemPrompt = runtimePair.systemPrompt
       this.logSlowPreStreamStep(sessionId, 'system-prompt', stepStartedAt)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
@@ -1423,13 +1461,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         tools,
         baseSystemPrompt,
         maxProviderRounds: context?.maxProviderRounds,
-        refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
-          const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
-            sessionId,
-            generationSettings.systemPrompt,
-            refreshedTools,
-            activeSkillNames ?? effectiveActiveSkillNames
-          )
+        decorateRefreshedSystemPrompt: async (refreshedBasePrompt) => {
           return await this.appendMemoryInjection(
             sessionId,
             appendReconstructionAnchorStateSection(
@@ -3107,18 +3139,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
       const projectDir = this.resolveProjectDir(sessionId)
-      const tools = await this.loadToolDefinitionsForSession(
-        sessionId,
-        projectDir,
-        activeSkillNames
-      )
-      const toolReserveTokens = estimateToolReserveTokens(tools)
-      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
+      const runtimePair = await this.buildRuntimePromptToolPair(
         sessionId,
         generationSettings.systemPrompt,
-        tools,
-        activeSkillNames
+        projectDir,
+        activeSkillNames,
+        new AbortController().signal
       )
+      const tools = runtimePair.tools
+      const toolReserveTokens = estimateToolReserveTokens(tools)
+      const baseSystemPrompt = runtimePair.systemPrompt
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
 
       const intent = await this.compactionService.prepareForManualCompaction({
@@ -3293,10 +3323,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
     viewContext?: PendingTapeViewContext
-    refreshSystemPrompt?: (
-      activeSkillNames: string[] | undefined,
-      toolDefinitions: MCPToolDefinition[]
-    ) => Promise<string>
+    decorateRefreshedSystemPrompt?: (baseSystemPrompt: string) => Promise<string>
     maxProviderRounds?: number
     preStreamStartedAt?: number
     onRunRegistered?: (runId: string) => void
@@ -3312,7 +3339,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       promptPreview,
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
-      refreshSystemPrompt,
+      decorateRefreshedSystemPrompt,
       maxProviderRounds,
       preStreamStartedAt,
       onRunRegistered
@@ -3460,26 +3487,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           reviewConversationMessages = nextMessages
         },
         maxProviderRounds,
-        refreshTools: async (activeSkillNames) =>
-          await this.loadToolDefinitionsForSession(
-            sessionId,
-            projectDir,
-            getEffectiveRuntimeSkillNames(activeSkillNames)
-          ),
-        refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
-          if (refreshSystemPrompt) {
-            return await refreshSystemPrompt(
-              getEffectiveRuntimeSkillNames(activeSkillNames),
-              refreshedTools
-            )
-          }
-          const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
+        refreshRuntimePair: async (activeSkillNames) => {
+          const refreshedPair = await this.buildRuntimePromptToolPair(
             sessionId,
             generationSettings.systemPrompt,
-            refreshedTools,
-            getEffectiveRuntimeSkillNames(activeSkillNames)
+            projectDir,
+            getEffectiveRuntimeSkillNames(activeSkillNames),
+            abortController.signal
           )
-          return refreshedBasePrompt
+          if (!decorateRefreshedSystemPrompt) {
+            return refreshedPair
+          }
+          return {
+            tools: refreshedPair.tools,
+            systemPrompt: await decorateRefreshedSystemPrompt(refreshedPair.systemPrompt)
+          }
         },
         toolPresenter: this.toolPresenter,
         coreStream: async function* (
@@ -4422,19 +4444,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const projectDir = this.resolveProjectDir(sessionId)
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
-      const tools = await this.loadToolDefinitionsForSession(
-        sessionId,
-        projectDir,
-        activeSkillNames
-      )
-      const toolReserveTokens = estimateToolReserveTokens(tools)
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
+      const runtimePair = await this.buildRuntimePromptToolPair(
         sessionId,
         generationSettings.systemPrompt,
-        tools,
-        activeSkillNames
+        projectDir,
+        activeSkillNames,
+        preStreamAbortSignal
       )
+      const tools = runtimePair.tools
+      const toolReserveTokens = estimateToolReserveTokens(tools)
+      this.throwIfAbortRequested(preStreamAbortSignal)
+      const baseSystemPrompt = runtimePair.systemPrompt
       this.throwIfAbortRequested(preStreamAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
       const resumeTargetOrderSeq =
@@ -4589,37 +4609,366 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
-  private async buildSystemPromptWithSkills(
+  private async buildRuntimePromptToolPair(
     sessionId: string,
     basePrompt: string,
-    toolDefinitions: MCPToolDefinition[],
-    activeSkillNamesOverride?: string[]
-  ): Promise<string> {
+    projectDir: string | null,
+    activeSkillNames: string[],
+    signal: AbortSignal
+  ): Promise<RuntimePromptToolPair> {
     const normalizedBase = basePrompt?.trim() ?? ''
     const state = this.runtimeState.get(sessionId)
     const providerId = state?.providerId?.trim() || 'unknown-provider'
     const modelId = state?.modelId?.trim() || 'unknown-model'
     if (this.isAcpBackedSubagentSession(sessionId, providerId)) {
-      return normalizedBase
+      return { systemPrompt: normalizedBase, tools: [] }
     }
 
-    const workdir = this.resolveProjectDir(sessionId)
+    const workdir = projectDir?.trim() || null
     const now = new Date()
     const dayKey = this.buildLocalDayKey(now)
-
     const skillsEnabled = this.configPresenter.getSkillsEnabled()
+    const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
+    const requestedActiveSkillNames = this.filterSkillNamesByPolicy(
+      this.normalizeSkillNames(activeSkillNames),
+      extensionPolicy
+    )
+    const deadlineAt = Date.now() + SYSTEM_PROMPT_SOURCE_LOOKUP_BUDGET_MS
+    const envPromise = buildSystemEnvPromptSnapshot({
+      providerId,
+      modelId,
+      workdir,
+      now,
+      modelLookup: this.providerCatalogPort,
+      signal,
+      deadlineAt
+    })
+    const verificationPolicyPromise = buildVerificationPolicySnapshot({
+      workdir,
+      signal,
+      deadlineAt
+    })
+    const skillsPromise = this.captureStableSkillRuntimeView({
+      requiredSkillNames: skillsEnabled ? requestedActiveSkillNames : [],
+      signal,
+      deadlineAt,
+      skillsEnabled
+    })
+
+    let sources: RuntimeSourceSnapshots
+    try {
+      const [env, verificationPolicy, skills] = await Promise.all([
+        envPromise,
+        verificationPolicyPromise,
+        skillsPromise
+      ])
+      sources = { env, verificationPolicy, skills }
+    } catch (error) {
+      if (!(error instanceof SkillRuntimeUpdatingError)) {
+        throw error
+      }
+      const [env, verificationPolicy] = await Promise.all([envPromise, verificationPolicyPromise])
+      return this.resolveMatchingRuntimePairFallback({
+        sessionId,
+        providerId,
+        modelId,
+        workdir,
+        basePrompt: normalizedBase,
+        dayKey,
+        skillsEnabled,
+        requestedActiveSkillNames,
+        extensionPolicy,
+        env,
+        verificationPolicy
+      })
+    }
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const skillContext = this.buildSkillPromptContext(
+        sources.skills,
+        requestedActiveSkillNames,
+        extensionPolicy,
+        skillsEnabled
+      )
+      const toolProfile = await this.resolveToolProfile(
+        sessionId,
+        workdir,
+        skillContext.activeSkillNames,
+        extensionPolicy,
+        sources.skills.snapshot.epoch
+      )
+      const cachedTools = this.toolProfileCache.get(sessionId)
+      const tools =
+        cachedTools &&
+        cachedTools.profile === toolProfile.kind &&
+        cachedTools.fingerprint === toolProfile.fingerprint
+          ? [...cachedTools.tools]
+          : await this.buildToolDefinitionsFromSnapshot({
+              sessionId,
+              projectDir: workdir,
+              activeSkillNames: skillContext.activeSkillNames,
+              extensionPolicy,
+              skillSnapshot: sources.skills.snapshot
+            })
+      if (
+        cachedTools?.profile === toolProfile.kind &&
+        cachedTools.fingerprint === toolProfile.fingerprint
+      ) {
+        this.toolPresenter?.syncAgentToolContext?.({
+          chatMode: 'agent',
+          agentWorkspacePath: workdir
+        })
+      }
+      const promptFingerprint = this.buildSystemPromptFingerprint({
+        providerId,
+        modelId,
+        workdir,
+        basePrompt: normalizedBase,
+        skillsEnabled,
+        availableSkillNames: skillContext.availableSkills.map((skill) => skill.name),
+        activeSkillNames: skillContext.activeSkillNames,
+        toolSignature: this.buildToolSignature(tools),
+        skillDraftSuggestionsEnabled:
+          this.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false,
+        envRevision: sources.env.revision,
+        verificationPolicyRevision: sources.verificationPolicy.revision,
+        skillMutationEpoch: sources.skills.snapshot.epoch
+      })
+      const cachedPrompt = this.systemPromptCache.get(sessionId)
+      if (
+        cachedPrompt?.dayKey === dayKey &&
+        cachedPrompt.fingerprint === promptFingerprint &&
+        cachedTools?.profile === toolProfile.kind &&
+        cachedTools.fingerprint === toolProfile.fingerprint
+      ) {
+        return { systemPrompt: cachedPrompt.prompt, tools }
+      }
+
+      const systemPrompt = this.buildSystemPromptWithSkills({
+        sessionId,
+        basePrompt: normalizedBase,
+        toolDefinitions: tools,
+        availableSkills: skillContext.availableSkills,
+        activeSkillNames: skillContext.activeSkillNames,
+        skillSnapshot: sources.skills.snapshot,
+        envPrompt: sources.env.prompt,
+        verificationPolicyPrompt: sources.verificationPolicy.prompt,
+        skillsEnabled
+      })
+
+      let confirmedSkills: StableSkillRuntimeView
+      try {
+        const confirmedSnapshot =
+          skillsEnabled && this.skillPresenter
+            ? await this.skillPresenter.waitForStableRuntimeSnapshot({
+                requiredSkillNames: requestedActiveSkillNames,
+                signal,
+                deadlineAt
+              })
+            : sources.skills.snapshot
+        confirmedSkills =
+          confirmedSnapshot.epoch === sources.skills.snapshot.epoch
+            ? sources.skills
+            : await this.captureStableSkillRuntimeView({
+                requiredSkillNames: skillsEnabled ? requestedActiveSkillNames : [],
+                signal,
+                deadlineAt,
+                skillsEnabled
+              })
+      } catch (error) {
+        if (!(error instanceof SkillRuntimeUpdatingError)) {
+          throw error
+        }
+        return this.resolveMatchingRuntimePairFallback({
+          sessionId,
+          providerId,
+          modelId,
+          workdir,
+          basePrompt: normalizedBase,
+          dayKey,
+          skillsEnabled,
+          requestedActiveSkillNames,
+          extensionPolicy,
+          env: sources.env,
+          verificationPolicy: sources.verificationPolicy
+        })
+      }
+
+      if (confirmedSkills.snapshot.epoch !== sources.skills.snapshot.epoch) {
+        if (attempt === 0) {
+          sources = { ...sources, skills: confirmedSkills }
+          continue
+        }
+        return this.resolveMatchingRuntimePairFallback({
+          sessionId,
+          providerId,
+          modelId,
+          workdir,
+          basePrompt: normalizedBase,
+          dayKey,
+          skillsEnabled,
+          requestedActiveSkillNames,
+          extensionPolicy,
+          env: sources.env,
+          verificationPolicy: sources.verificationPolicy
+        })
+      }
+
+      const pairFingerprint = this.buildRuntimePairFingerprint({
+        providerId,
+        modelId,
+        workdir,
+        basePrompt: normalizedBase,
+        dayKey,
+        skillsEnabled,
+        requestedActiveSkillNames,
+        extensionPolicy,
+        envRevision: sources.env.revision,
+        verificationPolicyRevision: sources.verificationPolicy.revision,
+        skillMutationEpoch: sources.skills.snapshot.epoch,
+        sessionId
+      })
+      this.toolProfileCache.set(sessionId, {
+        profile: toolProfile.kind,
+        fingerprint: toolProfile.fingerprint,
+        tools,
+        skillMutationEpoch: sources.skills.snapshot.epoch,
+        pairFingerprint
+      })
+      this.systemPromptCache.set(sessionId, {
+        prompt: systemPrompt,
+        dayKey,
+        fingerprint: promptFingerprint,
+        envRevision: sources.env.revision,
+        verificationPolicyRevision: sources.verificationPolicy.revision,
+        skillMutationEpoch: sources.skills.snapshot.epoch,
+        pairFingerprint
+      })
+      return { systemPrompt, tools }
+    }
+
+    throw new SkillRuntimeUpdatingError()
+  }
+
+  private async captureStableSkillRuntimeView(options: {
+    requiredSkillNames: string[]
+    signal: AbortSignal
+    deadlineAt: number
+    skillsEnabled: boolean
+  }): Promise<StableSkillRuntimeView> {
     const skillPresenter = this.skillPresenter
-    const availableSkills: Array<{
+    if (!options.skillsEnabled || !skillPresenter) {
+      return {
+        snapshot: Object.freeze({ epoch: 0, entries: new Map<string, PublishedSkillEntry>() }),
+        visibleSkillNames: new Set()
+      }
+    }
+
+    // Discovery and the initial readiness wait share the caller's source-preparation start time.
+    // After both settle, the lookup between stable samples captures visibility from the same
+    // epoch; it is intentionally a compatibility-cache read, bounded by the original deadline,
+    // rather than a source-disk read.
+    const initialSnapshotPromise = skillPresenter.waitForStableRuntimeSnapshot({
+      requiredSkillNames: options.requiredSkillNames,
+      signal: options.signal,
+      deadlineAt: options.deadlineAt
+    })
+    const discoveryPromise = this.waitForRuntimePreparation(
+      skillPresenter.getMetadataList(),
+      options.signal,
+      options.deadlineAt
+    )
+    const [initialSnapshot] = await Promise.all([initialSnapshotPromise, discoveryPromise])
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const snapshot =
+        attempt === 0
+          ? initialSnapshot
+          : await skillPresenter.waitForStableRuntimeSnapshot({
+              requiredSkillNames: options.requiredSkillNames,
+              signal: options.signal,
+              deadlineAt: options.deadlineAt
+            })
+      const visibleMetadata = await this.waitForRuntimePreparation(
+        skillPresenter.getMetadataList(),
+        options.signal,
+        options.deadlineAt
+      )
+      const confirmed = await skillPresenter.waitForStableRuntimeSnapshot({
+        requiredSkillNames: options.requiredSkillNames,
+        signal: options.signal,
+        deadlineAt: options.deadlineAt
+      })
+      if (confirmed.epoch === snapshot.epoch) {
+        return {
+          snapshot: confirmed,
+          visibleSkillNames: new Set(
+            visibleMetadata.map((metadata) => metadata.name?.trim()).filter(Boolean)
+          )
+        }
+      }
+      if (attempt === 1) {
+        break
+      }
+    }
+
+    throw new SkillRuntimeUpdatingError()
+  }
+
+  private async waitForRuntimePreparation<T>(
+    pending: Promise<T>,
+    signal: AbortSignal,
+    deadlineAt: number
+  ): Promise<T> {
+    this.throwIfAbortRequested(signal)
+    const remainingMs = Math.max(0, deadlineAt - Date.now())
+    if (remainingMs === 0) {
+      throw new SkillRuntimeUpdatingError()
+    }
+
+    return await new Promise<T>((resolve, reject) => {
+      let settled = false
+      const finish = (action: () => void) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        signal.removeEventListener('abort', onAbort)
+        action()
+      }
+      const onAbort = () => finish(() => reject(signal.reason ?? createAbortError()))
+      const timeout = setTimeout(
+        () => finish(() => reject(new SkillRuntimeUpdatingError())),
+        remainingMs
+      )
+      signal.addEventListener('abort', onAbort, { once: true })
+      if (signal.aborted) {
+        onAbort()
+      }
+      void pending.then(
+        (value) => finish(() => resolve(value)),
+        (error) => finish(() => reject(error))
+      )
+    })
+  }
+
+  private buildSkillPromptContext(
+    runtimeView: StableSkillRuntimeView,
+    requestedActiveSkillNames: string[],
+    extensionPolicy: AgentExtensionPolicy,
+    skillsEnabled: boolean
+  ): {
+    availableSkills: Array<{
       name: string
       description: string
       category?: string | null
       platforms?: string[]
-    }> = []
-    const activeSkillNames: string[] = activeSkillNamesOverride ? [...activeSkillNamesOverride] : []
-    const skillDraftSuggestionsEnabled =
-      this.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false
+    }>
+    activeSkillNames: string[]
+  } {
+    if (!skillsEnabled) {
+      return { availableSkills: [], activeSkillNames: [] }
+    }
 
-    const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
     const allowedSkillNameSet =
       extensionPolicy.enabledSkillNames === null || extensionPolicy.enabledSkillNames === undefined
         ? null
@@ -4628,86 +4977,161 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       extensionPolicy.enabledPluginIds === null || extensionPolicy.enabledPluginIds === undefined
         ? null
         : new Set(this.normalizeSkillNames(extensionPolicy.enabledPluginIds))
+    const availableSkills = Array.from(runtimeView.snapshot.entries.values())
+      .filter((entry) => entry.availability !== 'quarantined')
+      .map((entry) => entry.metadata)
+      .filter((metadata) => {
+        const name = metadata.name?.trim()
+        const ownerPluginId = metadata.ownerPluginId?.trim()
+        return (
+          Boolean(name) &&
+          runtimeView.visibleSkillNames.has(name) &&
+          (!allowedSkillNameSet || allowedSkillNameSet.has(name)) &&
+          (!ownerPluginId || !allowedPluginIdSet || allowedPluginIdSet.has(ownerPluginId))
+        )
+      })
+      .map((metadata) => ({
+        name: metadata.name.trim(),
+        description: metadata.description?.trim() || '',
+        category: metadata.category ?? null,
+        platforms: metadata.platforms ? [...metadata.platforms] : undefined
+      }))
+    const availableNames = new Set(availableSkills.map((skill) => skill.name))
+    return {
+      availableSkills,
+      activeSkillNames: requestedActiveSkillNames.filter((name) => availableNames.has(name))
+    }
+  }
 
-    if (skillsEnabled && skillPresenter) {
-      if (skillPresenter.getMetadataList) {
-        const stepStartedAt = Date.now()
-        try {
-          const metadataList = await skillPresenter.getMetadataList()
-          for (const metadata of metadataList) {
-            const skillName = metadata?.name?.trim()
-            const ownerPluginId = metadata?.ownerPluginId?.trim()
-            if (
-              skillName &&
-              (!allowedSkillNameSet || allowedSkillNameSet.has(skillName)) &&
-              (!ownerPluginId || !allowedPluginIdSet || allowedPluginIdSet.has(ownerPluginId))
-            ) {
-              availableSkills.push({
-                name: skillName,
-                description: metadata.description?.trim() || '',
-                category: metadata.category ?? null,
-                platforms: metadata.platforms
-              })
-            }
-          }
-        } catch (error) {
-          console.warn(
-            `[DeepChatAgent] Failed to load skills metadata for session ${sessionId}:`,
-            error
-          )
-        }
-        this.logSlowPreStreamStep(sessionId, 'system-prompt.skills-metadata-load', stepStartedAt)
-      }
-
-      if (!activeSkillNamesOverride && skillPresenter.getActiveSkills) {
-        const stepStartedAt = Date.now()
-        try {
-          const activeSkills = await skillPresenter.getActiveSkills(sessionId)
-          for (const skillName of activeSkills) {
-            const normalizedName = skillName?.trim()
-            if (normalizedName) {
-              activeSkillNames.push(normalizedName)
-            }
-          }
-        } catch (error) {
-          console.warn(
-            `[DeepChatAgent] Failed to load active skills for session ${sessionId}:`,
-            error
-          )
-        }
-        this.logSlowPreStreamStep(sessionId, 'system-prompt.active-skills-load', stepStartedAt)
-      }
+  private async buildToolDefinitionsFromSnapshot(params: {
+    sessionId: string
+    projectDir: string | null
+    activeSkillNames: string[]
+    extensionPolicy: AgentExtensionPolicy
+    skillSnapshot: SkillRuntimeSnapshot
+  }): Promise<MCPToolDefinition[]> {
+    if (!this.toolPresenter) {
+      return []
     }
 
+    const agentId = this.getSessionAgentId(params.sessionId) ?? 'deepchat'
+    return await this.toolPresenter.getAllToolDefinitions({
+      agentId,
+      enabledPluginIds: params.extensionPolicy.enabledPluginIds ?? undefined,
+      disabledAgentTools: this.getDisabledAgentTools(params.sessionId),
+      chatMode: 'agent',
+      conversationId: params.sessionId,
+      agentWorkspacePath: params.projectDir,
+      activeSkillNames: params.activeSkillNames,
+      skillRuntimeSnapshot: params.skillSnapshot
+    })
+  }
+
+  private resolveMatchingRuntimePairFallback(params: {
+    sessionId: string
+    providerId: string
+    modelId: string
+    workdir: string | null
+    basePrompt: string
+    dayKey: string
+    skillsEnabled: boolean
+    requestedActiveSkillNames: string[]
+    extensionPolicy: AgentExtensionPolicy
+    env: SystemEnvPromptSnapshot
+    verificationPolicy: VerificationPolicySnapshot
+  }): RuntimePromptToolPair {
+    const skillMutationEpoch = this.skillPresenter?.getPublishedRuntimeSnapshot().epoch ?? 0
+    const pairFingerprint = this.buildRuntimePairFingerprint({
+      ...params,
+      envRevision: params.env.revision,
+      verificationPolicyRevision: params.verificationPolicy.revision,
+      skillMutationEpoch
+    })
+    const prompt = this.systemPromptCache.get(params.sessionId)
+    const tools = this.toolProfileCache.get(params.sessionId)
+    if (
+      prompt?.dayKey === params.dayKey &&
+      prompt.envRevision === params.env.revision &&
+      prompt.verificationPolicyRevision === params.verificationPolicy.revision &&
+      prompt.skillMutationEpoch === skillMutationEpoch &&
+      prompt.pairFingerprint === pairFingerprint &&
+      tools?.skillMutationEpoch === skillMutationEpoch &&
+      tools.pairFingerprint === pairFingerprint
+    ) {
+      return { systemPrompt: prompt.prompt, tools: [...tools.tools] }
+    }
+    throw new SkillRuntimeUpdatingError()
+  }
+
+  private buildRuntimePairFingerprint(params: {
+    sessionId: string
+    providerId: string
+    modelId: string
+    workdir: string | null
+    basePrompt: string
+    dayKey: string
+    skillsEnabled: boolean
+    requestedActiveSkillNames: string[]
+    extensionPolicy: AgentExtensionPolicy
+    envRevision: string
+    verificationPolicyRevision: string
+    skillMutationEpoch: number
+  }): string {
+    return JSON.stringify({
+      providerId: params.providerId,
+      modelId: params.modelId,
+      workdir: params.workdir ?? '',
+      basePrompt: params.basePrompt,
+      dayKey: params.dayKey,
+      skillsEnabled: params.skillsEnabled,
+      requestedActiveSkillNames: params.requestedActiveSkillNames,
+      enabledPluginIds: this.normalizeNullablePolicyList(params.extensionPolicy.enabledPluginIds),
+      enabledSkillNames: this.normalizeNullablePolicyList(params.extensionPolicy.enabledSkillNames),
+      disabledAgentTools: this.getDisabledAgentTools(params.sessionId).sort((left, right) =>
+        left.localeCompare(right)
+      ),
+      skillDraftSuggestionsEnabled:
+        this.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false,
+      toolRegistryRevision: this.toolRegistryRevision,
+      envRevision: params.envRevision,
+      verificationPolicyRevision: params.verificationPolicyRevision,
+      skillMutationEpoch: params.skillMutationEpoch
+    })
+  }
+
+  private buildSystemPromptWithSkills(params: {
+    sessionId: string
+    basePrompt: string
+    toolDefinitions: MCPToolDefinition[]
+    availableSkills: Array<{
+      name: string
+      description: string
+      category?: string | null
+      platforms?: string[]
+    }>
+    activeSkillNames: string[]
+    skillSnapshot: SkillRuntimeSnapshot
+    envPrompt: string
+    verificationPolicyPrompt: string
+    skillsEnabled: boolean
+  }): string {
+    const {
+      sessionId,
+      basePrompt: normalizedBase,
+      toolDefinitions,
+      availableSkills,
+      activeSkillNames,
+      skillSnapshot,
+      envPrompt,
+      verificationPolicyPrompt,
+      skillsEnabled
+    } = params
+    const skillDraftSuggestionsEnabled =
+      this.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false
     let stepStartedAt = Date.now()
     const normalizedAvailableSkills = this.normalizeSkillMetadata(availableSkills)
-    const availableSkillNames = new Set(normalizedAvailableSkills.map((skill) => skill.name))
-    const normalizedActiveSkills = this.filterSkillNamesByPolicy(
-      activeSkillNames.filter((skillName) => availableSkillNames.has(skillName)),
-      extensionPolicy
-    )
+    const normalizedActiveSkills = this.normalizeSkillNames(activeSkillNames)
     const agentToolNames = this.getAgentToolNames(toolDefinitions)
-    const fingerprint = this.buildSystemPromptFingerprint({
-      providerId,
-      modelId,
-      workdir,
-      basePrompt: normalizedBase,
-      skillsEnabled,
-      availableSkillNames: normalizedAvailableSkills.map((skill) => skill.name),
-      activeSkillNames: normalizedActiveSkills,
-      toolSignature: this.buildToolSignature(toolDefinitions),
-      skillDraftSuggestionsEnabled
-    })
-    this.logSlowPreStreamStep(sessionId, 'system-prompt.fingerprint', stepStartedAt)
-
-    const cachedPrompt = this.systemPromptCache.get(sessionId)
-    if (
-      cachedPrompt &&
-      cachedPrompt.dayKey === dayKey &&
-      cachedPrompt.fingerprint === fingerprint
-    ) {
-      return cachedPrompt.prompt
-    }
 
     const runtimePrompt = buildRuntimeCapabilitiesPrompt({
       hasYoBrowser: toolDefinitions.some(
@@ -4730,62 +5154,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       : ''
 
     let skillsPrompt = ''
-    if (skillsEnabled && skillPresenter?.loadSkillContent && normalizedActiveSkills.length > 0) {
+    if (skillsEnabled && normalizedActiveSkills.length > 0) {
       stepStartedAt = Date.now()
       const skillSections: string[] = []
       for (const skillName of normalizedActiveSkills) {
-        try {
-          const skill = await skillPresenter.loadSkillContent(skillName)
-          const content = skill?.content?.trim()
-          if (content) {
-            skillSections.push(`### ${skillName}\n${content}`)
-          }
-        } catch (error) {
-          console.warn(
-            `[DeepChatAgent] Failed to load skill content for "${skillName}" in session ${sessionId}:`,
-            error
-          )
+        const entry = skillSnapshot.entries.get(skillName)
+        const content = entry?.availability === 'ready' ? entry.renderedContent?.trim() : undefined
+        if (content) {
+          skillSections.push(`### ${skillName}\n${content}`)
         }
       }
       skillsPrompt = this.buildPinnedSkillsPrompt(skillSections)
       this.logSlowPreStreamStep(sessionId, 'system-prompt.pinned-skills-load', stepStartedAt)
     }
-
-    const sourceLookupDeadlineAt = Date.now() + SYSTEM_PROMPT_SOURCE_LOOKUP_BUDGET_MS
-    const envPromptStartedAt = Date.now()
-    const envPromptPromise = buildSystemEnvPrompt({
-      providerId,
-      modelId,
-      workdir,
-      now,
-      modelLookup: this.providerCatalogPort,
-      deadlineAt: sourceLookupDeadlineAt
-    }).then(
-      (prompt) => {
-        this.logSlowPreStreamStep(sessionId, 'system-prompt.env-prompt', envPromptStartedAt)
-        return prompt
-      },
-      (error) => {
-        console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
-        return ''
-      }
-    )
-    const verificationPolicyStartedAt = Date.now()
-    const verificationPolicyPromptPromise = buildVerificationPolicyPrompt(workdir, {
-      deadlineAt: sourceLookupDeadlineAt
-    }).then((prompt) => {
-      this.logSlowPreStreamStep(
-        sessionId,
-        'system-prompt.verification-policy',
-        verificationPolicyStartedAt
-      )
-      return prompt
-    })
-
-    const [envPrompt, verificationPolicyPrompt] = await Promise.all([
-      envPromptPromise,
-      verificationPolicyPromptPromise
-    ])
 
     let toolingPrompt = ''
     if (this.toolPresenter) {
@@ -4816,12 +5197,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       verificationPolicyPrompt
     ])
     this.logSlowPreStreamStep(sessionId, 'system-prompt.compose', stepStartedAt)
-
-    this.systemPromptCache.set(sessionId, {
-      prompt: composedPrompt,
-      dayKey,
-      fingerprint
-    })
 
     return composedPrompt
   }
@@ -5052,6 +5427,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     activeSkillNames: string[]
     toolSignature: string[]
     skillDraftSuggestionsEnabled: boolean
+    envRevision: string
+    verificationPolicyRevision: string
+    skillMutationEpoch: number
   }): string {
     return JSON.stringify({
       providerId: params.providerId,
@@ -5062,7 +5440,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       availableSkillNames: params.availableSkillNames,
       activeSkillNames: params.activeSkillNames,
       toolSignature: params.toolSignature,
-      skillDraftSuggestionsEnabled: params.skillDraftSuggestionsEnabled
+      skillDraftSuggestionsEnabled: params.skillDraftSuggestionsEnabled,
+      envRevision: params.envRevision,
+      verificationPolicyRevision: params.verificationPolicyRevision,
+      skillMutationEpoch: params.skillMutationEpoch
     })
   }
 
@@ -6595,17 +6976,31 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     try {
-      const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
       const policy = await this.resolveAgentExtensionPolicy(sessionId)
       const effectiveActiveSkillNames =
         activeSkillNamesOverride === undefined
           ? await this.resolveActiveSkillNamesForToolProfile(sessionId)
           : this.filterSkillNamesByPolicy(activeSkillNamesOverride, policy)
+      const signal = new AbortController().signal
+      const skillsEnabled = this.configPresenter.getSkillsEnabled()
+      const runtimeView = await this.captureStableSkillRuntimeView({
+        requiredSkillNames: skillsEnabled ? effectiveActiveSkillNames : [],
+        signal,
+        deadlineAt: Date.now() + SYSTEM_PROMPT_SOURCE_LOOKUP_BUDGET_MS,
+        skillsEnabled
+      })
+      const skillContext = this.buildSkillPromptContext(
+        runtimeView,
+        effectiveActiveSkillNames,
+        policy,
+        skillsEnabled
+      )
       const profile = await this.resolveToolProfile(
         sessionId,
         projectDir,
-        effectiveActiveSkillNames,
-        policy
+        skillContext.activeSkillNames,
+        policy,
+        runtimeView.snapshot.epoch
       )
       const cachedProfile = this.toolProfileCache.get(sessionId)
       if (
@@ -6620,26 +7015,25 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         return cachedProfile.tools
       }
 
-      const tools = await this.toolPresenter.getAllToolDefinitions({
-        agentId,
-        enabledPluginIds: policy.enabledPluginIds ?? undefined,
-        disabledAgentTools: this.getDisabledAgentTools(sessionId),
-        chatMode: 'agent',
-        conversationId: sessionId,
-        agentWorkspacePath: projectDir,
-        activeSkillNames: effectiveActiveSkillNames
+      const tools = await this.buildToolDefinitionsFromSnapshot({
+        sessionId,
+        projectDir,
+        activeSkillNames: skillContext.activeSkillNames,
+        extensionPolicy: policy,
+        skillSnapshot: runtimeView.snapshot
       })
 
       this.toolProfileCache.set(sessionId, {
         profile: profile.kind,
         fingerprint: profile.fingerprint,
-        tools
+        tools,
+        skillMutationEpoch: runtimeView.snapshot.epoch
       })
 
       return tools
     } catch (error) {
       console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
-      return []
+      throw error
     }
   }
 
@@ -6647,8 +7041,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     projectDir: string | null,
     activeSkillNamesOverride?: string[],
-    extensionPolicy?: AgentExtensionPolicy
-  ): Promise<{ kind: ToolProfileKind; fingerprint: string }> {
+    extensionPolicy?: AgentExtensionPolicy,
+    skillMutationEpoch: number = 0
+  ): Promise<ToolProfileResolution> {
     const normalizedProjectDir = projectDir?.trim() || null
     const skillsEnabled = this.configPresenter.getSkillsEnabled()
     const policy = extensionPolicy ?? (await this.resolveAgentExtensionPolicy(sessionId))
@@ -6676,29 +7071,22 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         enabledPluginIds: this.normalizeNullablePolicyList(policy.enabledPluginIds),
         enabledSkillNames: this.normalizeNullablePolicyList(policy.enabledSkillNames),
         skillsEnabled,
-        activeSkillNames
+        activeSkillNames,
+        skillMutationEpoch
       })
     }
   }
 
   private async resolveActiveSkillNamesForToolProfile(sessionId: string): Promise<string[]> {
-    if (!this.configPresenter.getSkillsEnabled() || !this.skillPresenter?.getActiveSkills) {
+    if (!this.configPresenter.getSkillsEnabled() || !this.skillPresenter?.getPinnedActiveSkills) {
       return []
     }
 
-    try {
-      const policy = await this.resolveAgentExtensionPolicy(sessionId)
-      return this.filterSkillNamesByPolicy(
-        this.normalizeSkillNames(await this.skillPresenter.getActiveSkills(sessionId)),
-        policy
-      )
-    } catch (error) {
-      console.warn(
-        `[DeepChatAgent] Failed to load active skills for tool profile in session ${sessionId}:`,
-        error
-      )
-      return []
-    }
+    const policy = await this.resolveAgentExtensionPolicy(sessionId)
+    return this.filterSkillNamesByPolicy(
+      this.normalizeSkillNames(await this.skillPresenter.getPinnedActiveSkills(sessionId)),
+      policy
+    )
   }
 
   private async resolveAgentExtensionPolicy(sessionId: string): Promise<AgentExtensionPolicy> {
