@@ -120,6 +120,10 @@ const hasPresenterType = (
   ) {
     return true
   }
+  const baseConstraint = checker.getBaseConstraintOfType(type)
+  if (baseConstraint && hasPresenterType(baseConstraint, checker, seen)) {
+    return true
+  }
   if (type.isUnionOrIntersection()) {
     return type.types.some((member) => hasPresenterType(member, checker, seen))
   }
@@ -259,6 +263,32 @@ const scanLegacyReferences = (program: ts.Program, sourceFiles: ts.SourceFile[])
           record(element, method ?? '<computed-destructure>')
         }
       }
+    } else if (
+      ts.isParameter(node) &&
+      ts.isObjectBindingPattern(node.name) &&
+      hasPresenterType(checker.getTypeAtLocation(node), checker)
+    ) {
+      for (const element of node.name.elements) {
+        const method = staticName(element.propertyName ?? element.name)
+        if (method === null || LEGACY_METHODS.has(method)) {
+          record(element, method ?? '<computed-destructure>')
+        }
+      }
+    } else if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isObjectLiteralExpression(unwrap(node.left)) &&
+      isPresenterExpression(node.right, checker, assignments)
+    ) {
+      for (const property of unwrap(node.left).properties) {
+        const method =
+          ts.isShorthandPropertyAssignment(property) || ts.isPropertyAssignment(property)
+            ? staticName(property.name)
+            : null
+        if (method === null || LEGACY_METHODS.has(method)) {
+          record(property, method ?? '<computed-destructure>')
+        }
+      }
     }
     ts.forEachChild(node, visit)
   }
@@ -293,11 +323,14 @@ describe('session resolution source contract', () => {
 
     expect(references).toEqual([
       'test/fixtures/sessionResolutionGuard/positive.ts#aliasedReference#getSessionList',
+      'test/fixtures/sessionResolutionGuard/positive.ts#assignmentDestructuredReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#boundReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#computedReference#<computed-access>',
+      'test/fixtures/sessionResolutionGuard/positive.ts#constrainedTypeParameterReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#destructuredReference#getActiveSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#destructuredRootReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#directReference#getSession',
+      'test/fixtures/sessionResolutionGuard/positive.ts#parameterDestructuredReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#pickReference#getSession',
       'test/fixtures/sessionResolutionGuard/positive.ts#typeAliasReference#getSessionList',
       'test/fixtures/sessionResolutionGuard/positive.ts#typedAssignmentReference#getSessionList',

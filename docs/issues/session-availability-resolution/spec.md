@@ -455,12 +455,14 @@ The migration inventory is fixed before implementation:
 | tests and third-party Presenter mocks | legacy methods remain type-compatible; new contract tests target `resolve*` directly |
 
 `SES-002` uses a TypeScript AST/type/provenance guard rather than a text grep. It follows direct property access,
-local aliases, local assignment chains, object destructuring and bound method references rooted in the
-repository-owned `IAgentSessionPresenter` type, including `Pick`, `Partial` and local type aliases. The real
-`Presenter.agentSessionPresenter` property is covered through that type source, not by trusting the property
-name. Positive and negative fixtures prove these forms are distinguished from unrelated `any` values and classes
-that happen to expose the same nested property or method names. After migration, the allowlist names the owning
-method and adapter exactly; the floating button's
+local aliases, local assignment chains, variable/parameter/assignment object destructuring and bound method
+references rooted in the repository-owned `IAgentSessionPresenter` type, including `Pick`, `Partial`, constrained
+type parameters and local type aliases. The real `Presenter.agentSessionPresenter` property is covered through
+that type source, not by trusting the property name. Positive and negative fixtures prove these forms are
+distinguished from unrelated `any` values and classes that happen to expose the same nested property or method
+names. This is intentionally not full JavaScript dataflow: computed assignments, re-exports and values that have
+already been erased to `any` remain outside the guard. After migration, the allowlist names the owning method and
+adapter exactly; the floating button's
 `loadSessions#getSessionList` boundary is the sole production entry. An unexplained legacy reference is a failing
 test, not an implicit compatibility decision.
 

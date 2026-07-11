@@ -38,6 +38,24 @@ export function pickReference(sessionPresenter: Pick<FullPort, 'getSession'>): P
   return sessionPresenter.getSession('session-1')
 }
 
+export function constrainedTypeParameterReference<T extends Pick<FullPort, 'getSession'>>(
+  sessionPresenter: T
+): Promise<unknown> {
+  return sessionPresenter.getSession('session-1')
+}
+
+export function parameterDestructuredReference({
+  getSession
+}: Pick<FullPort, 'getSession'>): Promise<unknown> {
+  return getSession('session-1')
+}
+
+export function assignmentDestructuredReference(): Promise<unknown> {
+  let getSession: FullPort['getSession']
+  ;({ getSession } = presenter.agentSessionPresenter)
+  return getSession('session-1')
+}
+
 type SessionListPort = Partial<Pick<FullPort, 'getSessionList'>>
 
 export function typeAliasReference(

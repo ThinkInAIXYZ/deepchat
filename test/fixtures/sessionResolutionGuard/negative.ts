@@ -31,6 +31,12 @@ export function unrelatedNestedAny(container: any): unknown {
   return container.agentSessionPresenter.getSession()
 }
 
+export function unrelatedAnyDestructuring(container: any): unknown {
+  let getSession: () => unknown
+  ;({ getSession } = container.agentSessionPresenter)
+  return getSession()
+}
+
 interface IAgentSessionPresenter {
   getSession(): unknown
 }
@@ -39,4 +45,18 @@ export function unrelatedSameNamedPort(
   sessionPresenter: Pick<IAgentSessionPresenter, 'getSession'>
 ): unknown {
   return sessionPresenter.getSession()
+}
+
+export function unrelatedParameterDestructuring({
+  getSession
+}: Pick<IAgentSessionPresenter, 'getSession'>): unknown {
+  return getSession()
+}
+
+export function unrelatedAssignmentDestructuring(
+  sessionPresenter: Pick<IAgentSessionPresenter, 'getSession'>
+): unknown {
+  let getSession: () => unknown
+  ;({ getSession } = sessionPresenter)
+  return getSession()
 }
