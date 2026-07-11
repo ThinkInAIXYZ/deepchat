@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createPinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { flushPromises, shallowMount } from '@vue/test-utils'
+
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -40,6 +43,7 @@ const translations: Record<string, string> = {
   'settings.pluginsHub.capabilities': 'Capabilities',
   'settings.pluginsHub.cuaDescription': 'CUA localized description',
   'settings.plugins.runtime': 'Runtime',
+  'settings.plugins.runtimeState': 'State',
   'settings.plugins.version': 'Version',
   'settings.remote.feishu.description': 'Feishu localized description',
   'settings.remote.feishu.title': 'Feishu localized title',
@@ -81,7 +85,7 @@ async function mountDetail(
 
   const pluginId = options.pluginId ?? 'com.deepchat.plugins.feishu'
   const remoteChannel = pluginId.startsWith('remote:') ? pluginId.slice('remote:'.length) : 'feishu'
-  const remoteEnabled = options.remoteEnabled ?? false
+  let remoteEnabled = options.remoteEnabled ?? false
   const pluginName =
     pluginId === 'com.deepchat.plugins.cua' ? 'CUA Computer Use Runtime' : 'Feishu/Lark Integration'
   const pluginClient = {
@@ -91,29 +95,30 @@ async function mountDetail(
       publisher: 'DeepChat',
       version: '1.0.4',
       enabled: options.enabled ?? false,
-      capabilities: [],
+      capabilities: ['runtime.manage'],
       mcpServers: []
     }),
     enablePlugin: vi.fn().mockResolvedValue({ ok: true }),
     disablePlugin: vi.fn().mockResolvedValue({ ok: true })
   }
   const remoteControlClient = {
-    getChannelSettings: vi
-      .fn()
-      .mockResolvedValue(
-        remoteChannel === 'telegram'
-          ? defaultTelegramSettings(remoteEnabled)
-          : defaultFeishuSettings(remoteEnabled)
-      ),
-    getChannelStatus: vi.fn().mockResolvedValue({
+    getChannelSettings: vi.fn(async () =>
+      remoteChannel === 'telegram'
+        ? defaultTelegramSettings(remoteEnabled)
+        : defaultFeishuSettings(remoteEnabled)
+    ),
+    getChannelStatus: vi.fn(async () => ({
       channel: remoteChannel,
       enabled: remoteEnabled,
       state: remoteEnabled ? 'running' : 'disabled',
       bindingCount: 1,
       allowedUserCount: 1,
       lastError: null
-    }),
-    saveChannelSettings: vi.fn().mockResolvedValue({})
+    })),
+    saveChannelSettings: vi.fn(async (_channel: string, settings: { remoteEnabled: boolean }) => {
+      remoteEnabled = settings.remoteEnabled
+      return settings
+    })
   }
   const router = {
     push: vi.fn()
@@ -160,6 +165,7 @@ async function mountDetail(
     .default
   const wrapper = shallowMount(OfficialPluginDetailPage, {
     global: {
+      plugins: [createPinia()],
       stubs: {
         Button: buttonStub,
         ScrollArea: passthrough('ScrollArea'),
@@ -216,6 +222,15 @@ describe('OfficialPluginDetailPage', () => {
     expect(wrapper.text()).not.toContain('DeepChat · com.deepchat.plugins.cua')
   })
 
+  it('uses a distinct runtime state label without internal capabilities', async () => {
+    const { wrapper } = await mountDetail({ pluginId: 'com.deepchat.plugins.cua' })
+
+    expect(wrapper.text()).toContain('Runtime')
+    expect(wrapper.text()).toContain('State')
+    expect(wrapper.text()).not.toContain('Capabilities')
+    expect(wrapper.text()).not.toContain('runtime.manage')
+  })
+
   it('uses the plugin enable button to start Feishu remote too', async () => {
     const { wrapper, pluginClient, remoteControlClient } = await mountDetail()
 
@@ -235,6 +250,8 @@ describe('OfficialPluginDetailPage', () => {
       'feishu',
       expect.objectContaining({ remoteEnabled: true })
     )
+    expect(pluginClient.getPlugin).toHaveBeenCalledTimes(1)
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Disable')).toBe(true)
     expect(findRemoteSettingsKey(wrapper)).toBe('feishu:1')
   })
 
@@ -279,6 +296,7 @@ describe('OfficialPluginDetailPage', () => {
       'telegram',
       expect.objectContaining({ remoteEnabled: true })
     )
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Disable')).toBe(true)
   })
 
   it('uses the top detail button to stop remote virtual plugins', async () => {

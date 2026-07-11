@@ -10,6 +10,7 @@ function createMockAgent(): IAgentImplementation {
     processMessage: vi.fn(),
     cancelGeneration: vi.fn(),
     getMessages: vi.fn(),
+    hasMessages: vi.fn(),
     getMessageIds: vi.fn(),
     getMessage: vi.fn()
   }

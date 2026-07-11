@@ -181,36 +181,19 @@
           {{ errorMessage }}
         </div>
 
-        <section class="grid gap-3 md:grid-cols-2">
-          <div class="rounded-lg border border-border p-4">
-            <div class="mb-3 text-sm font-semibold">{{ t('settings.plugins.runtime') }}</div>
-            <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-              <dt class="text-muted-foreground">{{ t('settings.plugins.runtime') }}</dt>
-              <dd>{{ formatRuntimeState(plugin.runtime?.state) }}</dd>
-              <dt class="text-muted-foreground">{{ t('settings.plugins.version') }}</dt>
-              <dd>{{ plugin.runtime?.version || '-' }}</dd>
-              <dt class="text-muted-foreground">{{ t('settings.plugins.command') }}</dt>
-              <dd class="truncate font-mono text-xs">{{ plugin.runtime?.command || '-' }}</dd>
-            </dl>
-            <p v-if="plugin.runtime?.lastError" class="mt-3 break-all text-xs text-destructive">
-              {{ plugin.runtime.lastError }}
-            </p>
-          </div>
-
-          <div class="rounded-lg border border-border p-4">
-            <div class="mb-3 text-sm font-semibold">
-              {{ t('settings.pluginsHub.capabilities') }}
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <span
-                v-for="capability in plugin.capabilities"
-                :key="capability"
-                class="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground"
-              >
-                {{ capability }}
-              </span>
-            </div>
-          </div>
+        <section class="rounded-lg border border-border p-4">
+          <div class="mb-3 text-sm font-semibold">{{ t('settings.plugins.runtime') }}</div>
+          <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+            <dt class="text-muted-foreground">{{ t('settings.plugins.runtimeState') }}</dt>
+            <dd>{{ formatRuntimeState(plugin.runtime?.state) }}</dd>
+            <dt class="text-muted-foreground">{{ t('settings.plugins.version') }}</dt>
+            <dd>{{ plugin.runtime?.version || '-' }}</dd>
+            <dt class="text-muted-foreground">{{ t('settings.plugins.command') }}</dt>
+            <dd class="truncate font-mono text-xs">{{ plugin.runtime?.command || '-' }}</dd>
+          </dl>
+          <p v-if="plugin.runtime?.lastError" class="mt-3 break-all text-xs text-destructive">
+            {{ plugin.runtime.lastError }}
+          </p>
         </section>
 
         <section v-if="plugin.mcpServers?.length" class="rounded-lg border border-border p-4">
@@ -268,30 +251,24 @@ import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
+import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import RemoteSettings from '../../../settings/components/RemoteSettings.vue'
-import type {
-  ChannelSettingsMap,
-  RemoteChannel,
-  RemoteChannelSettings,
-  RemoteChannelStatus
-} from '@shared/presenter'
-import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
+import type { ChannelSettingsMap, RemoteChannel } from '@shared/presenter'
+import type { PluginActionResult, PluginRuntimeState } from '@shared/types/plugin'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const pluginClient = createPluginClient()
 const remoteControlClient = createRemoteControlClient()
+const pluginCatalogStore = usePluginCatalogStore()
 
-const plugin = ref<PluginListItem | null>(null)
 const loading = ref(false)
 const remoteLoading = ref(false)
 const pending = ref(false)
 const errorMessage = ref('')
 const remoteErrorMessage = ref('')
 const lastActionData = ref('')
-const remoteSettings = ref<RemoteChannelSettings | null>(null)
-const remoteStatus = ref<RemoteChannelStatus | null>(null)
 const remoteSettingsVersion = ref(0)
 const FEISHU_PLUGIN_ID = 'com.deepchat.plugins.feishu'
 const remoteI18nKeyByChannel: Record<RemoteChannel, string> = {
@@ -330,9 +307,14 @@ const remoteChannel = computed<RemoteChannel | null>(() => {
     ? (channel as RemoteChannel)
     : null
 })
+const plugin = computed(() => pluginCatalogStore.getPlugin(pluginId.value))
+const remoteStatus = computed(() => {
+  const channel = remoteChannel.value
+  return channel ? (pluginCatalogStore.remoteStatuses[channel] ?? null) : null
+})
 const isFeishuPlugin = computed(() => pluginId.value === FEISHU_PLUGIN_ID)
 const isCuaPlugin = computed(() => pluginId.value === CUA_PLUGIN_ID)
-const remoteEnabled = computed(() => Boolean(remoteSettings.value?.remoteEnabled))
+const remoteEnabled = computed(() => Boolean(remoteStatus.value?.enabled))
 const remoteTitle = computed(() => {
   const channel = remoteChannel.value
   return channel ? t(`settings.remote.${remoteI18nKeyByChannel[channel]}.title`) : ''
@@ -380,15 +362,17 @@ function formatRuntimeState(state?: PluginRuntimeState): string {
 
 async function loadPlugin(): Promise<void> {
   if (!pluginId.value) {
-    plugin.value = null
     return
   }
-  loading.value = true
+  loading.value = !plugin.value
   errorMessage.value = ''
+  const version = pluginCatalogStore.capturePluginRefresh()
   try {
-    plugin.value = (await pluginClient.getPlugin(pluginId.value)) ?? null
+    const nextPlugin = await pluginClient.getPlugin(pluginId.value)
+    if (nextPlugin) {
+      pluginCatalogStore.replacePlugin(nextPlugin, version)
+    }
   } catch (error) {
-    plugin.value = null
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.loadFailed')
   } finally {
     loading.value = false
@@ -398,27 +382,23 @@ async function loadPlugin(): Promise<void> {
 async function loadRemotePlugin(): Promise<void> {
   const channel = remoteChannel.value
   if (!channel) {
-    remoteSettings.value = null
-    remoteStatus.value = null
     return
   }
 
-  plugin.value = null
-  remoteLoading.value = true
+  remoteLoading.value = !remoteStatus.value
   remoteErrorMessage.value = ''
   errorMessage.value = ''
+  const version = pluginCatalogStore.captureRemoteRefresh()
   try {
-    const [settings, status] = await Promise.all([
-      remoteControlClient.getChannelSettings(channel),
-      remoteControlClient.getChannelStatus(channel)
-    ])
-    remoteSettings.value = settings
-    remoteStatus.value = status
+    const status = await remoteControlClient.getChannelStatus(channel)
+    pluginCatalogStore.replaceRemoteStatus(status, version)
   } catch (error) {
-    remoteSettings.value = null
-    remoteStatus.value = null
-    remoteErrorMessage.value =
-      error instanceof Error ? error.message : t('common.error.requestFailed')
+    if (remoteStatus.value) {
+      console.warn(`[OfficialPluginDetailPage] Failed to refresh ${channel} status:`, error)
+    } else {
+      remoteErrorMessage.value =
+        error instanceof Error ? error.message : t('common.error.requestFailed')
+    }
   } finally {
     remoteLoading.value = false
   }
@@ -430,23 +410,37 @@ async function loadCurrentDetail(): Promise<void> {
     return
   }
 
-  remoteSettings.value = null
-  remoteStatus.value = null
   await loadPlugin()
 }
 
-async function runPluginAction(action: () => Promise<PluginActionResult>): Promise<void> {
+async function runPluginAction(
+  enabled: boolean,
+  action: () => Promise<PluginActionResult>,
+  afterSuccess?: () => Promise<void>
+): Promise<void> {
+  const currentPlugin = plugin.value
+  if (!currentPlugin) {
+    return
+  }
+
   pending.value = true
   errorMessage.value = ''
   lastActionData.value = ''
+  const previous = pluginCatalogStore.beginPluginEnabledMutation(currentPlugin.id, enabled)
+  let pluginActionSucceeded = false
   try {
     const result = await action()
     if (!result.ok) {
       throw new Error(result.error || t('settings.plugins.actionFailed'))
     }
+    pluginActionSucceeded = true
+    pluginCatalogStore.commitPluginMutation(result.status)
     lastActionData.value = result.data ? JSON.stringify(result.data, null, 2) : ''
-    await loadPlugin()
+    await afterSuccess?.()
   } catch (error) {
+    if (!pluginActionSucceeded) {
+      pluginCatalogStore.rollbackPluginMutation(previous)
+    }
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
   } finally {
     pending.value = false
@@ -457,15 +451,20 @@ async function setRemoteChannelEnabled<T extends RemoteChannel>(
   channel: T,
   remoteEnabled: boolean
 ): Promise<void> {
-  const settings = await remoteControlClient.getChannelSettings(channel)
-  if (settings.remoteEnabled === remoteEnabled) {
-    return
+  const previous = pluginCatalogStore.beginRemoteEnabledMutation(channel, remoteEnabled)
+  try {
+    const settings = await remoteControlClient.getChannelSettings(channel)
+    if (settings.remoteEnabled !== remoteEnabled) {
+      await remoteControlClient.saveChannelSettings(channel, {
+        ...settings,
+        remoteEnabled
+      } as ChannelSettingsMap[T])
+    }
+    pluginCatalogStore.commitRemoteMutation(await remoteControlClient.getChannelStatus(channel))
+  } catch (error) {
+    pluginCatalogStore.rollbackRemoteMutation(channel, previous)
+    throw error
   }
-
-  await remoteControlClient.saveChannelSettings(channel, {
-    ...settings,
-    remoteEnabled
-  } as ChannelSettingsMap[T])
 }
 
 async function setFeishuRemoteEnabled(remoteEnabled: boolean): Promise<void> {
@@ -477,7 +476,6 @@ async function runRemoteAction(action: () => Promise<void>): Promise<void> {
   errorMessage.value = ''
   try {
     await action()
-    await loadRemotePlugin()
     remoteSettingsVersion.value += 1
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
@@ -491,14 +489,16 @@ function enablePlugin(): void {
   if (!currentPlugin) {
     return
   }
-  void runPluginAction(async () => {
-    const result = await pluginClient.enablePlugin(currentPlugin.id)
-    if (result.ok && currentPlugin.id === FEISHU_PLUGIN_ID) {
-      await setFeishuRemoteEnabled(true)
-      remoteSettingsVersion.value += 1
-    }
-    return result
-  })
+  void runPluginAction(
+    true,
+    () => pluginClient.enablePlugin(currentPlugin.id),
+    currentPlugin.id === FEISHU_PLUGIN_ID
+      ? async () => {
+          await setFeishuRemoteEnabled(true)
+          remoteSettingsVersion.value += 1
+        }
+      : undefined
+  )
 }
 
 function disablePlugin(): void {
@@ -506,14 +506,16 @@ function disablePlugin(): void {
   if (!currentPlugin) {
     return
   }
-  void runPluginAction(async () => {
-    const result = await pluginClient.disablePlugin(currentPlugin.id)
-    if (result.ok && currentPlugin.id === FEISHU_PLUGIN_ID) {
-      await setFeishuRemoteEnabled(false)
-      remoteSettingsVersion.value += 1
-    }
-    return result
-  })
+  void runPluginAction(
+    false,
+    () => pluginClient.disablePlugin(currentPlugin.id),
+    currentPlugin.id === FEISHU_PLUGIN_ID
+      ? async () => {
+          await setFeishuRemoteEnabled(false)
+          remoteSettingsVersion.value += 1
+        }
+      : undefined
+  )
 }
 
 function enableRemotePlugin(): void {

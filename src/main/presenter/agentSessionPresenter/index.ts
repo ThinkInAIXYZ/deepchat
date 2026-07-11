@@ -756,7 +756,7 @@ export class AgentSessionPresenter {
 
     const agent = await this.resolveAgentImplementation(session.agentId)
     const state = await agent.getSessionState(sessionId)
-    const hadMessages = (await agent.getMessages(sessionId)).length > 0
+    const hadMessages = await agent.hasMessages(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId) {
       if ((await this.getAgentType(session.agentId)) === 'acp') {
@@ -3103,11 +3103,10 @@ export class AgentSessionPresenter {
     sessionId: string
   ): Promise<boolean> {
     try {
-      const ids = await agent.getMessageIds(sessionId)
-      return ids.length > 0
+      return await agent.hasMessages(sessionId)
     } catch (error) {
       console.warn(
-        `[AgentSessionPresenter] Failed to inspect message ids for session=${sessionId}:`,
+        `[AgentSessionPresenter] Failed to inspect messages for session=${sessionId}:`,
         error
       )
       return true

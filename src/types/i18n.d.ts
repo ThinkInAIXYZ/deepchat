@@ -1026,6 +1026,85 @@ declare module 'vue-i18n' {
         similarityThresholdHint: string
         weightHint: string
       }
+      redesign: {
+        tabMemories: string
+        tabPersona: string
+        tabDiagnostics: string
+        statusEnabled: string
+        statusDisabled: string
+        memoryCount: string
+        embeddingModel: string
+        embeddingMissing: string
+        embeddingMissingHint: string
+        enableMemory: string
+        configure: string
+        emptyTitle: string
+        disabledTitle: string
+        emptyDescription: string
+        disabledDescription: string
+        addMemory: string
+        loadMore: string
+        configTitle: string
+        configDescription: string
+        relativeWeightsHint: string
+        configLoadFailed: string
+        configSaveFailed: string
+        detailTitle: string
+        createdAt: string
+        unsavedTitle: string
+        unsavedDescription: string
+        discardChanges: string
+        contentLabel: string
+        contentPlaceholder: string
+        categoryLabel: string
+        importanceLabel: string
+        kindLine: string
+        statusLine: string
+        archivedEditHint: string
+        editRejected: string
+        sourceConversation: string
+        sourceManual: string
+        lifecycleDetails: string
+        archive: string
+        includeArchived: string
+        archivedMatches: string
+        refresh: string
+        inboxTitle: string
+        inboxDescription: string
+        conflictBadge: string
+        personaDraftBadge: string
+        conflictSectionTitle: string
+        conflictExisting: string
+        conflictNew: string
+        personaDraftSectionTitle: string
+        diagnosticsTitle: string
+        diagnosticsDescription: string
+        pipelineTitle: string
+        archiveCandidatesTitle: string
+        archiveCandidatesDescription: string
+        recentFailuresTitle: string
+        activityTitle: string
+        dangerZoneTitle: string
+        dangerZoneDescription: string
+        audit: {
+          'memory-add': string
+          'memory-archive': string
+          'memory-restore': string
+          'memory-delete': string
+          'memory-maintenance-llm': string
+          'memory-reflect': string
+          'persona-evolve': string
+          'memory-repair': string
+          'memory-forget': string
+          'memory-manual-edit': string
+          'memory-challenge-resolved': string
+          'memory-persona-approve': string
+          'memory-persona-reject': string
+          'memory-persona-rollback': string
+          'memory-persona-anchor': string
+          'memory-reindex': string
+        }
+      }
     }
     loading: string
     copied: string
@@ -1753,6 +1832,7 @@ declare module 'vue-i18n' {
       disable: string
       openSettings: string
       runtime: string
+      runtimeState: string
       version: string
       command: string
       status: {
@@ -2037,6 +2117,8 @@ declare module 'vue-i18n' {
           byCategory: string
           byStatus: string
           pipeline: string
+          reindex: string
+          reindexing: string
           quality: string
           topAccessed: string
           noTopAccessed: string
@@ -2905,6 +2987,15 @@ declare module 'vue-i18n' {
           custom: string
         }
       }
+      authRequired: string
+      authenticate: string
+      authFailed: string
+      authCallbackTitle: string
+      authCallbackDescription: string
+      authCallbackPlaceholder: string
+      completeAuthentication: string
+      saveSuccess: string
+      saveFailed: string
     }
     cronJobs: {
       title: string
@@ -3494,27 +3585,11 @@ declare module 'vue-i18n' {
       manage: string
       emptySearch: string
       pluginNotFound: string
-      capabilities: string
       actionResult: string
       cuaDescription: string
-      agentScopeTitle: string
-      agentScopeDescription: string
-      agentScopeNoAgent: string
+      acpUnavailableTitle: string
+      acpUnavailableDescription: string
       agentScopeUnsupported: string
-      agentScopeRefresh: string
-      agentScopePlugins: string
-      agentScopeSkills: string
-      agentScopeMcp: string
-      agentScopeInherited: string
-      agentScopeCustom: string
-      agentScopeInheritedSummary: string
-      agentScopeDenyAllSummary: string
-      agentScopeSelectedSummary: string
-      agentScopeSelectAll: string
-      agentScopeClearAll: string
-      agentScopeNoPlugins: string
-      agentScopeNoSkills: string
-      agentScopeNoMcp: string
     }
     controlCenter: {
       groups: {

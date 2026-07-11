@@ -1202,8 +1202,7 @@ async function runToolCall(params: {
         signal: io.abortSignal,
         permissionMode: toolPermissionMode,
         activeSkillNames: hooks?.getActiveSkillNames?.(),
-        enabledSkillNames: hooks?.getEnabledSkillNames?.(),
-        enabledPluginIds: hooks?.getEnabledPluginIds?.()
+        enabledSkillNames: hooks?.getEnabledSkillNames?.()
       })
 
     let toolCallResult = await callTool()

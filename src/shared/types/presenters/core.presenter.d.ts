@@ -1801,7 +1801,6 @@ export interface IMCPPresenter {
       | {
           enabledTools?: string[]
           enabledServerIds?: string[]
-          enabledPluginIds?: string[]
           agentId?: string
           conversationId?: string
         }
@@ -1822,7 +1821,6 @@ export interface IMCPPresenter {
       signal?: AbortSignal
       agentId?: string
       enabledServerIds?: string[]
-      enabledPluginIds?: string[]
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }>
   preCheckToolPermission?(
@@ -1830,7 +1828,6 @@ export interface IMCPPresenter {
     options?: {
       agentId?: string
       enabledServerIds?: string[]
-      enabledPluginIds?: string[]
     }
   ): Promise<{
     needsPermission: true

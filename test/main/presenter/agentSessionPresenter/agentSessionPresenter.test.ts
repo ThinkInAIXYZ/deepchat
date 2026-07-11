@@ -88,6 +88,7 @@ function createMockDeepChatAgent() {
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
+    hasMessages: vi.fn().mockResolvedValue(false),
     getSessionCompactionState: vi.fn().mockResolvedValue({
       status: 'idle',
       cursorOrderSeq: 1,
@@ -1131,6 +1132,7 @@ describe('AgentSessionPresenter', () => {
         created_at: 1000,
         updated_at: 1000
       })
+      deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await presenter.sendMessage('s1', 'Follow-up')
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
@@ -1141,6 +1143,9 @@ describe('AgentSessionPresenter', () => {
           projectDir: '/tmp/workspace'
         }
       )
+      expect(deepChatAgent.hasMessages).toHaveBeenCalledWith('s1')
+      expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
     })
 
     it('routes active generation submissions to queue', async () => {
@@ -1317,7 +1322,7 @@ describe('AgentSessionPresenter', () => {
       }
       sqlitePresenter.newSessionsTable.list.mockReturnValue([draftRow])
       sqlitePresenter.newSessionsTable.get.mockReturnValue(draftRow)
-      deepChatAgent.getMessageIds.mockResolvedValue([])
+      deepChatAgent.hasMessages.mockResolvedValue(false)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',
@@ -2207,8 +2212,8 @@ describe('AgentSessionPresenter', () => {
         filters?.parentSessionId ? [] : rows
       )
       configPresenter.getAgentType.mockResolvedValue('deepchat')
-      deepChatAgent.getMessageIds.mockImplementation(async (sessionId: string) =>
-        sessionId === 's-ready' ? ['m1'] : []
+      deepChatAgent.hasMessages.mockImplementation(
+        async (sessionId: string) => sessionId === 's-ready'
       )
 
       const impact = await presenter.getAgentTransferImpact('deepchat-writer')
@@ -2218,6 +2223,38 @@ describe('AgentSessionPresenter', () => {
       expect(impact.emptyDrafts).toBe(1)
       expect(impact.blockedSessions).toBe(0)
       expect(impact.samples.map((sample) => sample.id)).toEqual(['s-ready'])
+    })
+
+    it('treats an existence query failure as having messages', async () => {
+      sqlitePresenter.newSessionsTable.list.mockImplementation((filters: any) =>
+        filters?.parentSessionId
+          ? []
+          : [
+              {
+                id: 's-draft',
+                agent_id: 'deepchat-writer',
+                title: 'Draft',
+                project_dir: null,
+                is_pinned: 0,
+                is_draft: 1,
+                session_kind: 'regular',
+                parent_session_id: null,
+                subagent_enabled: 0,
+                subagent_meta_json: null,
+                created_at: 1000,
+                updated_at: 1000
+              }
+            ]
+      )
+      configPresenter.getAgentType.mockResolvedValue('deepchat')
+      deepChatAgent.hasMessages.mockRejectedValue(new Error('query failed'))
+
+      const impact = await presenter.getAgentTransferImpact('deepchat-writer')
+
+      expect(impact.movableSessions).toBe(1)
+      expect(impact.emptyDrafts).toBe(0)
+      expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
     })
 
     it('rejects blank agent ids for destructive agent-session deletion', async () => {
@@ -2269,7 +2306,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: ['agent_filesystem_read_file'],
         subagentEnabled: false
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'anthropic',
@@ -2339,7 +2376,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: true
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockImplementation(async () => {
         if (row.agent_id === 'deepchat-coder') {
           return {
@@ -2417,7 +2454,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: true
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',
@@ -2509,7 +2546,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: true
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'openai',
@@ -2553,7 +2590,7 @@ describe('AgentSessionPresenter', () => {
         }
         return null
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await expect(presenter.moveSessionToAgent('s-deepchat', 'acp-coder')).rejects.toThrow(
         'Conversation history cannot be moved to ACP agents.'
@@ -2612,7 +2649,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: false
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await expect(
         presenter.moveSessionToAgent('s-deepchat', 'deepchat-acp-default')
@@ -2643,7 +2680,7 @@ describe('AgentSessionPresenter', () => {
       configPresenter.getAgentType.mockImplementation(async (agentId: string) =>
         agentId === 'acp-coder' || agentId === 'acp-reviewer' ? 'acp' : null
       )
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',

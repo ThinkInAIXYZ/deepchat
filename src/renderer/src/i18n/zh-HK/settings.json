@@ -2751,6 +2751,7 @@
     "disable": "停用",
     "openSettings": "设置",
     "runtime": "运行时",
+    "runtimeState": "狀態",
     "version": "版本",
     "command": "命令",
     "status": {
@@ -2972,26 +2973,10 @@
     "manage": "管理",
     "emptySearch": "沒有可用插件。",
     "pluginNotFound": "找不到插件。",
-    "capabilities": "能力",
     "actionResult": "操作結果",
     "cuaDescription": "DeepChat 基於 trycua/cua 專案實作的 ComputerUse 插件",
-    "agentScopeTitle": "Current agent scope",
-    "agentScopeDescription": "Choose which globally installed plugins, skills, and MCP servers the current DeepChat agent can use. Plugin-owned MCP servers follow plugin selection.",
-    "agentScopeNoAgent": "No DeepChat agent is selected.",
-    "agentScopeUnsupported": "Agent-scoped extensions are only available for DeepChat agents.",
-    "agentScopeRefresh": "Refresh",
-    "agentScopePlugins": "Plugins",
-    "agentScopeSkills": "Skills",
-    "agentScopeMcp": "MCP servers",
-    "agentScopeInherited": "Inherited",
-    "agentScopeCustom": "Custom",
-    "agentScopeInheritedSummary": "Use the default availability ({count} available).",
-    "agentScopeDenyAllSummary": "None selected; this category is disabled for this agent.",
-    "agentScopeSelectedSummary": "{count} selected",
-    "agentScopeSelectAll": "Select all",
-    "agentScopeClearAll": "Clear",
-    "agentScopeNoPlugins": "No enabled plugins available.",
-    "agentScopeNoSkills": "No skills available.",
-    "agentScopeNoMcp": "No global MCP servers available."
+    "acpUnavailableTitle": "ACP Agent 無法使用插件",
+    "acpUnavailableDescription": "ACP Agent 透過自身的執行環境管理工具和擴充功能。請選擇 DeepChat Agent 後再使用插件。",
+    "agentScopeUnsupported": "Agent 層級的擴充功能只適用於 DeepChat Agent。"
   }
 }

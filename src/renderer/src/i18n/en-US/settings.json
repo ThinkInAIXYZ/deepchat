@@ -2747,6 +2747,7 @@
     "disable": "Disable",
     "openSettings": "Settings",
     "runtime": "Runtime",
+    "runtimeState": "State",
     "version": "Version",
     "command": "Command",
     "status": {
@@ -2768,27 +2769,11 @@
     "manage": "Manage",
     "emptySearch": "No available plugins.",
     "pluginNotFound": "Plugin not found.",
-    "capabilities": "Capabilities",
     "actionResult": "Action result",
     "cuaDescription": "DeepChat's ComputerUse plugin built on the trycua/cua project.",
-    "agentScopeTitle": "Current agent scope",
-    "agentScopeDescription": "Choose which globally installed plugins, skills, and MCP servers the current DeepChat agent can use. Plugin-owned MCP servers follow plugin selection.",
-    "agentScopeNoAgent": "No DeepChat agent is selected.",
-    "agentScopeUnsupported": "Agent-scoped extensions are only available for DeepChat agents.",
-    "agentScopeRefresh": "Refresh",
-    "agentScopePlugins": "Plugins",
-    "agentScopeSkills": "Skills",
-    "agentScopeMcp": "MCP servers",
-    "agentScopeInherited": "Inherited",
-    "agentScopeCustom": "Custom",
-    "agentScopeInheritedSummary": "Use the default availability ({count} available).",
-    "agentScopeDenyAllSummary": "None selected; this category is disabled for this agent.",
-    "agentScopeSelectedSummary": "{count} selected",
-    "agentScopeSelectAll": "Select all",
-    "agentScopeClearAll": "Clear",
-    "agentScopeNoPlugins": "No enabled plugins available.",
-    "agentScopeNoSkills": "No skills available.",
-    "agentScopeNoMcp": "No global MCP servers available."
+    "acpUnavailableTitle": "Plugins are unavailable for ACP agents",
+    "acpUnavailableDescription": "ACP agents manage tools and extensions through their own runtime. Select a DeepChat agent to use Plugins.",
+    "agentScopeUnsupported": "Agent-scoped extensions are only available for DeepChat agents."
   },
   "controlCenter": {
     "groups": {

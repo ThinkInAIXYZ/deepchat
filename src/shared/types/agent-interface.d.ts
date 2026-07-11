@@ -202,6 +202,9 @@ export interface IAgentImplementation {
   /** Get all messages for a session, ordered by order_seq */
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
 
+  /** Check whether a session has any messages */
+  hasMessages(sessionId: string): Promise<boolean>
+
   /** Get a page of messages for a session, ordered by order_seq ASC */
   listMessagesPage?(
     sessionId: string,
@@ -729,7 +732,6 @@ export interface DeepChatAgentConfig {
   systemPrompt?: string
   permissionMode?: PermissionMode
   disabledAgentTools?: string[]
-  enabledPluginIds?: string[] | null
   enabledSkillNames?: string[] | null
   enabledMcpServerIds?: string[] | null
   subagentEnabled?: boolean

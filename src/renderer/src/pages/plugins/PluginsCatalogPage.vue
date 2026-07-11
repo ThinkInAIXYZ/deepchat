@@ -21,8 +21,6 @@
         {{ errorMessage }}
       </div>
 
-      <AgentExtensionPolicyPanel :kinds="['plugins']" />
-
       <section class="space-y-4">
         <div class="border-b border-border/70 pb-2">
           <h2 class="text-sm font-semibold">{{ t('settings.pluginsHub.available') }}</h2>
@@ -83,6 +81,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -91,8 +90,8 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'
-import type { RemoteChannel, RemoteChannelDescriptor, RemoteChannelStatus } from '@shared/presenter'
-import AgentExtensionPolicyPanel from './AgentExtensionPolicyPanel.vue'
+import type { RemoteChannel } from '@shared/presenter'
+import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 
 type CatalogItem = {
   id: string
@@ -107,54 +106,6 @@ type CatalogItem = {
   iconClass?: string
   actionLabel: string
 }
-
-const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
-  {
-    id: 'telegram',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.telegram.title',
-    descriptionKey: 'settings.remote.telegram.description',
-    supportsPairing: true,
-    supportsNotifications: true
-  },
-  {
-    id: 'feishu',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.feishu.title',
-    descriptionKey: 'settings.remote.feishu.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'qqbot',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.qqbot.title',
-    descriptionKey: 'settings.remote.qqbot.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'discord',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.discord.title',
-    descriptionKey: 'settings.remote.discord.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'weixin-ilink',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.weixinIlink.title',
-    descriptionKey: 'settings.remote.weixinIlink.description',
-    supportsPairing: false,
-    supportsNotifications: false
-  }
-]
 
 const remoteIconByChannel: Record<RemoteChannel, string> = {
   telegram: 'lucide:send',
@@ -187,10 +138,9 @@ const { t } = useI18n()
 const router = useRouter()
 const pluginClient = createPluginClient()
 const remoteControlClient = createRemoteControlClient()
+const pluginCatalogStore = usePluginCatalogStore()
+const { plugins, remoteChannels, remoteStatuses } = storeToRefs(pluginCatalogStore)
 
-const plugins = ref<PluginListItem[]>([])
-const remoteChannels = ref<RemoteChannelDescriptor[]>(fallbackRemoteChannels)
-const remoteStatuses = ref<Partial<Record<RemoteChannel, RemoteChannelStatus | null>>>({})
 const loading = ref(false)
 const errorMessage = ref('')
 const pendingItemId = ref<string | null>(null)
@@ -208,9 +158,6 @@ const officialPluginEnabled = (plugin: PluginListItem): boolean =>
   plugin.enabled ||
   (isFeishuOfficialPlugin(plugin) && Boolean(remoteStatuses.value.feishu?.enabled))
 
-const implementedRemoteChannels = computed(() =>
-  remoteChannels.value.filter((channel) => channel.implemented)
-)
 const hasFeishuOfficialPlugin = computed(() => plugins.value.some(isFeishuOfficialPlugin))
 
 const catalogItems = computed<CatalogItem[]>(() => {
@@ -230,7 +177,7 @@ const catalogItems = computed<CatalogItem[]>(() => {
     }
   })
 
-  const remoteItems = implementedRemoteChannels.value
+  const remoteItems = remoteChannels.value
     .filter((channel) => channel.id !== 'feishu' || !hasFeishuOfficialPlugin.value)
     .map((channel) => {
       const status = remoteStatuses.value[channel.id]
@@ -263,13 +210,9 @@ async function loadCatalog(): Promise<void> {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [pluginItems, channels] = await Promise.all([
-      pluginClient.listPlugins(),
-      remoteControlClient.listRemoteChannels().catch(() => fallbackRemoteChannels)
-    ])
-    plugins.value = pluginItems
-    remoteChannels.value = channels ?? fallbackRemoteChannels
-    await loadRemoteStatuses()
+    const pluginVersion = pluginCatalogStore.capturePluginRefresh()
+    const [pluginItems] = await Promise.all([pluginClient.listPlugins(), loadRemoteCatalog()])
+    pluginCatalogStore.replacePlugins(pluginItems, pluginVersion)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.loadFailed')
   } finally {
@@ -277,29 +220,36 @@ async function loadCatalog(): Promise<void> {
   }
 }
 
-async function loadRemoteStatuses(): Promise<void> {
-  const entries = await Promise.all(
-    implementedRemoteChannels.value.map(async (channel) => [
-      channel.id,
-      await remoteControlClient.getChannelStatus(channel.id).catch(() => null)
-    ])
-  )
-  remoteStatuses.value = Object.fromEntries(entries)
+async function loadRemoteCatalog(): Promise<void> {
+  const version = pluginCatalogStore.captureRemoteRefresh()
+  try {
+    const channels = await remoteControlClient.listRemoteChannels()
+    const statuses = await Promise.all(
+      channels.map((channel) => remoteControlClient.getChannelStatus(channel.id))
+    )
+    pluginCatalogStore.replaceRemoteSnapshot(channels, statuses, version)
+  } catch (error) {
+    console.warn('[PluginsCatalogPage] Failed to load remote channels:', error)
+  }
 }
 
 async function runPluginAction(
   itemId: string,
+  plugin: PluginListItem,
+  enabled: boolean,
   action: () => Promise<PluginActionResult>
 ): Promise<void> {
   pendingItemId.value = itemId
   errorMessage.value = ''
+  const previous = pluginCatalogStore.beginPluginEnabledMutation(plugin.id, enabled)
   try {
     const result = await action()
     if (!result.ok) {
       throw new Error(result.error || t('settings.plugins.actionFailed'))
     }
-    await loadCatalog()
+    pluginCatalogStore.commitPluginMutation(result.status)
   } catch (error) {
+    pluginCatalogStore.rollbackPluginMutation(previous)
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
   } finally {
     pendingItemId.value = null
@@ -312,7 +262,7 @@ function handleCatalogAction(item: CatalogItem): void {
     if (item.enabled || isFeishuOfficialPlugin(plugin)) {
       void router.push({ name: 'plugins-detail', params: { pluginId: plugin.id } })
     } else {
-      void runPluginAction(item.id, () => pluginClient.enablePlugin(plugin.id))
+      void runPluginAction(item.id, plugin, true, () => pluginClient.enablePlugin(plugin.id))
     }
     return
   }

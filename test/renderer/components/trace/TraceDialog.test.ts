@@ -108,6 +108,34 @@ vi.mock(
 )
 
 vi.mock(
+  '@shadcn/components/ui/select',
+  () => ({
+    Select: {
+      name: 'Select',
+      props: ['modelValue'],
+      emits: ['update:modelValue'],
+      template: '<div data-testid="request-select"><slot /></div>'
+    },
+    SelectTrigger: {
+      name: 'SelectTrigger',
+      template: '<button v-bind="$attrs"><slot /></button>'
+    },
+    SelectValue: {
+      name: 'SelectValue',
+      props: ['placeholder'],
+      template: '<span>{{ placeholder }}</span>'
+    },
+    SelectContent: { name: 'SelectContent', template: '<div><slot /></div>' },
+    SelectItem: {
+      name: 'SelectItem',
+      props: ['value'],
+      template: '<span><slot /></span>'
+    }
+  }),
+  { virtual: true }
+)
+
+vi.mock(
   '@shadcn/components/ui/tabs',
   () => ({
     Tabs: {
@@ -366,7 +394,7 @@ describe('TraceDialog', () => {
     expect(setThemeMock).toHaveBeenCalledWith('vitesse-light')
   })
 
-  it('shows latest trace by default and supports switching trace history', async () => {
+  it('shows latest trace by default and switches history from the compact selector', async () => {
     listMessageTraceDiagnosticsMock.mockResolvedValue({
       traces: [
         {
@@ -396,7 +424,7 @@ describe('TraceDialog', () => {
           createdAt: 1000
         }
       ],
-      manifests: []
+      manifests: [makeManifestRecord(2, 'view_latest', { integrity: 'valid' })]
     })
 
     const wrapper = mountDialog()
@@ -407,10 +435,21 @@ describe('TraceDialog', () => {
     expect(listMessageTraceDiagnosticsMock).toHaveBeenCalledWith('m1')
     expect(wrapper.text()).toContain('https://api.example.com/second')
 
-    const historyButton = wrapper.findAll('button').find((btn) => btn.text().trim() === '#1')
-    expect(historyButton).toBeDefined()
+    const requestSelect = wrapper.getComponent({ name: 'Select' })
+    expect(requestSelect.props('modelValue')).toBe(2)
+    expect(wrapper.getComponent({ name: 'SelectTrigger' }).attributes('aria-label')).toBe(
+      'traceDialog.requestSeq'
+    )
+    expect(wrapper.findAllComponents({ name: 'SelectItem' })).toHaveLength(2)
+    const summaryRow = requestSelect.element.parentElement
+    expect(summaryRow?.classList.contains('flex-wrap')).toBe(true)
+    expect(summaryRow?.textContent).toContain('openai')
+    expect(summaryRow?.textContent).toContain('gpt-4o')
+    const detailsRow = summaryRow?.nextElementSibling
+    expect(detailsRow?.textContent).toContain('traceDialog.integrity.valid')
+    expect(detailsRow?.textContent).toContain('https://api.example.com/second')
 
-    await historyButton!.trigger('click')
+    requestSelect.vm.$emit('update:modelValue', 1)
     await flushPromises()
 
     expect(wrapper.text()).toContain('https://api.example.com/first')
@@ -461,10 +500,7 @@ describe('TraceDialog', () => {
 
     expect(wrapper.text()).toContain('https://api.example.com/second')
 
-    const manifestOnlyButton = wrapper.findAll('button').find((btn) => btn.text().trim() === '#1')
-    expect(manifestOnlyButton).toBeDefined()
-
-    await manifestOnlyButton!.trigger('click')
+    wrapper.getComponent({ name: 'Select' }).vm.$emit('update:modelValue', 1)
     await flushPromises()
 
     expect(wrapper.text()).toContain('traceDialog.requestUnavailable')

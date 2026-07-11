@@ -286,6 +286,10 @@ export class DeepChatMessageStore {
     return this.toRecords(rows)
   }
 
+  hasMessages(sessionId: string): boolean {
+    return this.sqlitePresenter.deepchatMessagesTable.hasBySession(sessionId)
+  }
+
   listMessagesPage(
     sessionId: string,
     options?: {
@@ -733,12 +737,12 @@ export class DeepChatMessageStore {
         return row.content
       }
 
-      const fileRows =
-        maps?.fileRows.get(row.id) ??
-        this.sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds([row.id])
-      const linkRows =
-        maps?.linkRows.get(row.id) ??
-        this.sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds([row.id])
+      const fileRows = maps
+        ? (maps.fileRows.get(row.id) ?? [])
+        : this.sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds([row.id])
+      const linkRows = maps
+        ? (maps.linkRows.get(row.id) ?? [])
+        : this.sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds([row.id])
 
       const rawUserContent = this.parseUserContent(row.content)
       const activeSkills = rawUserContent?.activeSkills ?? []
@@ -754,9 +758,9 @@ export class DeepChatMessageStore {
       } satisfies UserMessageContent)
     }
 
-    const assistantRows =
-      maps?.assistantRows.get(row.id) ??
-      this.sqlitePresenter.deepchatAssistantBlocksTable.listByMessageId(row.id)
+    const assistantRows = maps
+      ? (maps.assistantRows.get(row.id) ?? [])
+      : this.sqlitePresenter.deepchatAssistantBlocksTable.listByMessageId(row.id)
     if (assistantRows.length === 0) {
       return row.content
     }

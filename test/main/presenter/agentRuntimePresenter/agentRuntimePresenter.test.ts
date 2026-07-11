@@ -233,6 +233,7 @@ function createMockSqlitePresenter() {
     incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
     getBySession: vi.fn().mockReturnValue([]),
+    hasBySession: vi.fn().mockReturnValue(false),
     getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
     listPageBySession: vi.fn().mockReturnValue([]),
     getByStatus: vi.fn().mockReturnValue([]),
@@ -2865,10 +2866,9 @@ describe('AgentRuntimePresenter', () => {
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
     })
 
-    it('ignores historical agent MCP server allowlists for session tool discovery', async () => {
+    it('omits historical MCP and plugin policies from session tool discovery', async () => {
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
         enabledMcpServerIds: [],
-        enabledPluginIds: ['plugin-a'],
         enabledSkillNames: ['skill-a']
       })
 
@@ -2877,7 +2877,7 @@ describe('AgentRuntimePresenter', () => {
 
       const toolContext = toolPresenter.getAllToolDefinitions.mock.calls[0][0]
       expect(toolContext).not.toHaveProperty('enabledMcpServerIds')
-      expect(toolContext.enabledPluginIds).toEqual(['plugin-a'])
+      expect(toolContext).not.toHaveProperty('enabledPluginIds')
     })
 
     it('invalidates cached prompt after system prompt update', async () => {
@@ -4704,10 +4704,14 @@ describe('AgentRuntimePresenter', () => {
     })
   })
 
-  describe('getMessages / getMessageIds / getMessage', () => {
+  describe('getMessages / hasMessages / getMessageIds / getMessage', () => {
     it('delegates to messageStore', async () => {
       const messages = await agent.getMessages('s1')
       expect(messages).toEqual([])
+
+      sqlitePresenter.deepchatMessagesTable.hasBySession.mockReturnValue(true)
+      await expect(agent.hasMessages('s1')).resolves.toBe(true)
+      expect(sqlitePresenter.deepchatMessagesTable.hasBySession).toHaveBeenCalledWith('s1')
 
       const ids = await agent.getMessageIds('s1')
       expect(ids).toEqual([])
