@@ -40,6 +40,48 @@ const SearchResultSchema = z.custom<SearchResult>()
 const AgentSchema = z.custom<Agent>()
 const AgentTransferImpactSchema = z.custom<AgentTransferImpact>()
 
+export const SessionRecordSchema = SessionWithStateSchema.omit({
+  status: true,
+  providerId: true,
+  modelId: true
+})
+
+export const SessionResolutionStageSchema = z.enum([
+  'record_read',
+  'agent_lookup',
+  'runtime_resolution',
+  'state_read'
+])
+
+export const PublicSessionResolutionSchema = z.discriminatedUnion('availability', [
+  z.object({
+    availability: z.literal('available'),
+    session: SessionWithStateSchema
+  }),
+  z.object({
+    availability: z.literal('unavailable'),
+    sessionId: EntityIdSchema,
+    record: SessionRecordSchema,
+    reason: z.literal('agent_unknown')
+  }),
+  z.object({
+    availability: z.literal('transient_error'),
+    sessionId: EntityIdSchema,
+    record: SessionRecordSchema.nullable(),
+    error: z.object({
+      code: z.literal('SESSION_RESOLUTION_FAILED'),
+      stage: SessionResolutionStageSchema,
+      retryable: z.literal(true)
+    })
+  }),
+  z.object({
+    availability: z.literal('missing'),
+    sessionId: EntityIdSchema
+  })
+])
+
+export type PublicSessionResolution = z.output<typeof PublicSessionResolutionSchema>
+
 const AcpSessionCommandSchema = z.object({
   name: z.string(),
   description: z.string(),
@@ -91,6 +133,7 @@ export const sessionsRestoreRoute = defineRouteContract({
   }),
   output: z.object({
     session: SessionWithStateSchema.nullable(),
+    resolution: PublicSessionResolutionSchema.optional(),
     messages: z.array(ChatMessageRecordSchema),
     nextCursor: MessagePageCursorSchema.nullable(),
     hasMore: z.boolean()
@@ -111,7 +154,8 @@ export const sessionsListRoute = defineRouteContract({
   name: 'sessions.list',
   input: SessionListFiltersSchema,
   output: z.object({
-    sessions: z.array(SessionWithStateSchema)
+    sessions: z.array(SessionWithStateSchema),
+    results: z.array(PublicSessionResolutionSchema).optional()
   })
 })
 
@@ -163,7 +207,8 @@ export const sessionsGetActiveRoute = defineRouteContract({
   name: 'sessions.getActive',
   input: z.object({}),
   output: z.object({
-    session: SessionWithStateSchema.nullable()
+    session: SessionWithStateSchema.nullable(),
+    resolution: PublicSessionResolutionSchema.nullable().optional()
   })
 })
 

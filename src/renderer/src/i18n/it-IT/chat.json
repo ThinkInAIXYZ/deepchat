@@ -485,5 +485,14 @@
       "amendRetryable": "La modifica non è riuscita. La memoria originale è stata ripristinata; riprova.",
       "amendRestoreFailed": "La modifica non è riuscita e non è stato possibile ripristinare la memoria originale."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent non disponibile",
+    "unavailableDescription": "Questa conversazione è ancora salvata, ma il relativo Agent non può essere risolto.",
+    "transientTitle": "Problema temporaneo",
+    "transientDescription": "Non è stato possibile aggiornare la sessione. I messaggi nella cache non sono stati modificati.",
+    "missingTitle": "La sessione non esiste più",
+    "missingDescription": "La sessione è stata rimossa ed è stata aperta una nuova conversazione.",
+    "retry": "Riprova"
   }
 }

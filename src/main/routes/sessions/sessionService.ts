@@ -5,6 +5,7 @@ import type {
   SessionWithState
 } from '@shared/types/agent-interface'
 import type { ActiveSessionResolution, SessionResolutionResult } from '@shared/presenter'
+import type { PublicSessionResolution } from '@shared/contracts/routes'
 import {
   getAvailableSession,
   reportTerminalSessionResolution
@@ -26,6 +27,39 @@ class RetryableSessionReadError extends Error {
 
 class NonRetryableSessionReadFailure {
   constructor(readonly error: unknown) {}
+}
+
+function toPublicSessionResolution(resolution: SessionResolutionResult): PublicSessionResolution {
+  switch (resolution.availability) {
+    case 'available':
+      return {
+        availability: 'available',
+        session: resolution.session
+      }
+    case 'unavailable':
+      return {
+        availability: 'unavailable',
+        sessionId: resolution.sessionId,
+        record: resolution.record,
+        reason: resolution.reason
+      }
+    case 'missing':
+      return {
+        availability: 'missing',
+        sessionId: resolution.sessionId
+      }
+    case 'transient_error':
+      return {
+        availability: 'transient_error',
+        sessionId: resolution.sessionId,
+        record: resolution.record,
+        error: {
+          code: resolution.error.code,
+          stage: resolution.error.stage,
+          retryable: true
+        }
+      }
+  }
 }
 
 export type SessionRouteContext = {
@@ -59,6 +93,7 @@ export class SessionService {
   ): Promise<
     {
       session: SessionWithState | null
+      resolution: PublicSessionResolution
     } & ChatMessagePageResult
   > {
     const effectiveLimit = limit ?? DEFAULT_RESTORE_MESSAGE_LIMIT
@@ -72,6 +107,7 @@ export class SessionService {
       reportTerminalSessionResolution('sessions.restore', resolution, attemptCount)
       return {
         session: null,
+        resolution: toPublicSessionResolution(resolution),
         messages: [],
         nextCursor: null,
         hasMore: false
@@ -88,6 +124,7 @@ export class SessionService {
 
     return {
       session,
+      resolution: toPublicSessionResolution(resolution),
       ...page
     }
   }
@@ -106,7 +143,9 @@ export class SessionService {
     })
   }
 
-  async listSessions(filters?: SessionListFilters) {
+  async listSessions(
+    filters?: SessionListFilters
+  ): Promise<{ sessions: SessionWithState[]; results: PublicSessionResolution[] }> {
     const resolutions = await this.deps.scheduler.timeout({
       task: this.deps.sessionRepository.resolveList(filters),
       ms: SESSION_OPERATION_TIMEOUT_MS,
@@ -122,7 +161,10 @@ export class SessionService {
         reportTerminalSessionResolution('sessions.list', resolution)
       }
     }
-    return sessions
+    return {
+      sessions,
+      results: resolutions.map(toPublicSessionResolution)
+    }
   }
 
   async activateSession(context: SessionRouteContext, sessionId: string): Promise<void> {
@@ -141,7 +183,9 @@ export class SessionService {
     })
   }
 
-  async getActiveSession(context: SessionRouteContext): Promise<SessionWithState | null> {
+  async getActiveSession(
+    context: SessionRouteContext
+  ): Promise<{ session: SessionWithState | null; resolution: PublicSessionResolution | null }> {
     let attemptCount = 0
     let active: ActiveSessionResolution
 
@@ -187,14 +231,17 @@ export class SessionService {
     }
 
     if (active.binding === 'none') {
-      return null
+      return { session: null, resolution: null }
     }
 
     const session = getAvailableSession(active.resolution)
     if (!session) {
       reportTerminalSessionResolution('sessions.getActive', active.resolution, attemptCount)
     }
-    return session
+    return {
+      session,
+      resolution: toPublicSessionResolution(active.resolution)
+    }
   }
 
   private async resolveSessionWithRetry(

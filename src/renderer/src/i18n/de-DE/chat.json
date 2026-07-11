@@ -485,5 +485,14 @@
       "amendRetryable": "Die Änderung ist fehlgeschlagen. Die ursprüngliche Erinnerung wurde wiederhergestellt. Bitte versuche es erneut.",
       "amendRestoreFailed": "Die Änderung ist fehlgeschlagen, und die ursprüngliche Erinnerung konnte nicht wiederhergestellt werden."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent nicht verfügbar",
+    "unavailableDescription": "Diese Unterhaltung ist weiterhin gespeichert, aber ihr Agent kann nicht aufgelöst werden.",
+    "transientTitle": "Vorübergehendes Problem",
+    "transientDescription": "Die Sitzung konnte nicht aktualisiert werden. Deine zwischengespeicherten Nachrichten bleiben unverändert.",
+    "missingTitle": "Sitzung existiert nicht mehr",
+    "missingDescription": "Die Sitzung wurde entfernt und eine neue Unterhaltung wurde geöffnet.",
+    "retry": "Erneut versuchen"
   }
 }

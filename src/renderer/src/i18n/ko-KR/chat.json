@@ -485,5 +485,14 @@
       "amendRetryable": "수정에 실패했습니다. 원래 기억은 복원되었으니 다시 시도하세요.",
       "amendRestoreFailed": "수정에 실패했고 원래 기억도 복원하지 못했습니다."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent를 사용할 수 없음",
+    "unavailableDescription": "이 대화는 저장되어 있지만 사용하던 Agent를 확인할 수 없습니다.",
+    "transientTitle": "일시적인 문제",
+    "transientDescription": "세션을 새로 고치지 못했습니다. 캐시된 메시지는 변경되지 않았습니다.",
+    "missingTitle": "세션이 더 이상 존재하지 않음",
+    "missingDescription": "세션이 삭제되어 새 대화를 열었습니다.",
+    "retry": "다시 시도"
   }
 }

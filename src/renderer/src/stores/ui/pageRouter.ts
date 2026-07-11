@@ -32,9 +32,17 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
       }
 
       // 1. Check for the active agent session bound to this renderer first.
-      const { session: activeAgentSession } = await sessionClient.getActive()
+      const { session: activeAgentSession, resolution } = await sessionClient.getActive()
       if (activeAgentSession) {
         route.value = { name: 'chat', sessionId: activeAgentSession.id }
+        return
+      }
+      if (
+        resolution &&
+        resolution.availability !== 'missing' &&
+        resolution.availability !== 'available'
+      ) {
+        route.value = { name: 'chat', sessionId: resolution.sessionId }
         return
       }
 

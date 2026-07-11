@@ -8,6 +8,7 @@ import { createTabClient } from '@api/TabClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
+import type { PublicSessionResolution } from '@shared/contracts/routes'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
@@ -24,11 +25,17 @@ import {
 } from '@/lib/onboardingResume'
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
-import { useMessageStore } from './message'
+import { useMessageStore, type MessageRestoreOutcome } from './message'
 import { useAgentPlanStore } from './agentPlan'
 import { bindSessionStoreIpc } from './sessionIpc'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
+
+export type UISessionAvailability = {
+  availability: PublicSessionResolution['availability']
+  sessionId: string
+  source: 'main' | 'legacy' | 'renderer'
+}
 
 export interface UISession {
   id: string
@@ -286,6 +293,8 @@ export const useSessionStore = defineStore('session', () => {
   const bootstrapActiveSession = ref<UISession | null>(null)
   const activeSessionSummary = ref<UIActiveSessionSummary | null>(null)
   const activeSessionId = ref<string | null>(null)
+  const availabilityBySessionId = ref<Record<string, UISessionAvailability>>({})
+  const missingSessionNoticeSequence = ref(0)
   const groupMode = ref<GroupMode>(DEFAULT_GROUP_MODE)
   const loading = ref(false)
   const loadingMore = ref(false)
@@ -302,9 +311,26 @@ export const useSessionStore = defineStore('session', () => {
       console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
     })
 
+  const pruneSessionAvailability = (): void => {
+    const retainedSessionIds = new Set(sessions.value.map((session) => session.id))
+    if (activeSessionId.value) {
+      retainedSessionIds.add(activeSessionId.value)
+    }
+
+    const entries = Object.entries(availabilityBySessionId.value).filter(([sessionId]) =>
+      retainedSessionIds.has(sessionId)
+    )
+    if (entries.length === Object.keys(availabilityBySessionId.value).length) {
+      return
+    }
+
+    availabilityBySessionId.value = Object.fromEntries(entries)
+  }
+
   const setActiveSessionId = (sessionId: string | null): void => {
     activeSessionId.value = sessionId
     messageStore.setCurrentSessionId(sessionId)
+    pruneSessionAvailability()
   }
 
   const createActivationNavigationRequest = (): number => {
@@ -368,14 +394,18 @@ export const useSessionStore = defineStore('session', () => {
 
   const upsertSessions = (updates: UISession[]): void => {
     sessions.value = mergeSessions(sessions.value, updates)
+    pruneSessionAvailability()
   }
 
   const removeSessions = (sessionIds: string[]): void => {
     const targetIds = new Set(sessionIds)
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
+    const remainingAvailability = { ...availabilityBySessionId.value }
     for (const sessionId of targetIds) {
       agentPlanStore.purge(sessionId)
+      delete remainingAvailability[sessionId]
     }
+    availabilityBySessionId.value = remainingAvailability
 
     if (bootstrapActiveSession.value && targetIds.has(bootstrapActiveSession.value.id)) {
       bootstrapActiveSession.value = null
@@ -391,6 +421,7 @@ export const useSessionStore = defineStore('session', () => {
       setActiveSessionId(null)
       pageRouter.goToNewThread()
     }
+    pruneSessionAvailability()
   }
 
   const activeSession: ComputedRef<UIActiveSessionSummary | undefined> = computed(() => {
@@ -411,6 +442,27 @@ export const useSessionStore = defineStore('session', () => {
   })
 
   const hasActiveSession: ComputedRef<boolean> = computed(() => activeSessionId.value !== null)
+  const activeSessionAvailability = computed(() => {
+    const sessionId = activeSessionId.value
+    return sessionId ? (availabilityBySessionId.value[sessionId] ?? null) : null
+  })
+
+  const setSessionAvailability = (
+    sessionId: string,
+    availability: UISessionAvailability['availability'],
+    source: UISessionAvailability['source']
+  ): void => {
+    if (
+      activeSessionId.value !== sessionId &&
+      !sessions.value.some((session) => session.id === sessionId)
+    ) {
+      return
+    }
+    availabilityBySessionId.value = {
+      ...availabilityBySessionId.value,
+      [sessionId]: { availability, sessionId, source }
+    }
+  }
 
   const newConversationTargetAgentId = computed(() => {
     const selectedAgentId =
@@ -495,20 +547,81 @@ export const useSessionStore = defineStore('session', () => {
     activeSessionSummary.value = mapToUIActiveSessionSummary(session)
     const lightweightSession = mapToUISession(session)
     upsertSessions([lightweightSession])
+    setSessionAvailability(session.id, 'available', 'main')
     if (activeSessionId.value === session.id) {
       bootstrapActiveSession.value = lightweightSession
       syncSelectedAgentToSession(session.id)
     }
   }
 
-  const hydrateActiveSessionSummary = async (sessionId: string): Promise<void> => {
+  const applySessionRestoreOutcome = (outcome: MessageRestoreOutcome): void => {
+    if (outcome.rendererTransient) {
+      setSessionAvailability(outcome.sessionId, 'transient_error', 'renderer')
+      return
+    }
+
+    const resolution = outcome.resolution
+    if (resolution === null) {
+      if (activeSessionId.value !== outcome.sessionId) {
+        return
+      }
+
+      createActivationNavigationRequest()
+      messageStore.clear()
+      clearActiveSessionSummary()
+      setActiveSessionId(null)
+      pageRouter.goToNewThread()
+      return
+    }
+
+    if (!resolution) {
+      if (outcome.session) {
+        applyRestoredSession(outcome.session)
+        setSessionAvailability(outcome.sessionId, 'available', 'legacy')
+      } else {
+        setSessionAvailability(outcome.sessionId, 'transient_error', 'legacy')
+      }
+      return
+    }
+
+    setSessionAvailability(outcome.sessionId, resolution.availability, 'main')
+    if (resolution.availability === 'available') {
+      applyRestoredSession(resolution.session)
+      return
+    }
+
+    if (resolution.availability !== 'missing' || activeSessionId.value !== outcome.sessionId) {
+      return
+    }
+
+    createActivationNavigationRequest()
+    messageStore.clear()
+    clearActiveSessionSummary()
+    setActiveSessionId(null)
+    missingSessionNoticeSequence.value += 1
+    pageRouter.goToNewThread()
+  }
+
+  const hydrateActiveSessionSummary = async (sessionId: string): Promise<MessageRestoreOutcome> => {
     try {
       const active = await sessionClient.getActive()
-      if (active.session?.id === sessionId) {
-        applyRestoredSession(active.session)
+      const resolvedSessionId = active.resolution
+        ? active.resolution.availability === 'available'
+          ? active.resolution.session.id
+          : active.resolution.sessionId
+        : active.session?.id
+      return {
+        sessionId: resolvedSessionId ?? sessionId,
+        session: active.session,
+        resolution: active.resolution
       }
     } catch (restoreError) {
       console.warn('[sessionStore] Failed to hydrate selected session:', restoreError)
+      return {
+        sessionId,
+        session: null,
+        rendererTransient: true
+      }
     }
   }
 
@@ -560,6 +673,7 @@ export const useSessionStore = defineStore('session', () => {
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
           : sortSessions(nextSessions)
+        pruneSessionAvailability()
         hasLoadedInitialPage.value = true
         hasMore.value = result.hasMore
         nextCursor.value = result.nextCursor
@@ -675,6 +789,7 @@ export const useSessionStore = defineStore('session', () => {
       setActiveSessionId(session.id)
       bootstrapActiveSession.value = lightweightSession
       activeSessionSummary.value = mapToUIActiveSessionSummary(session)
+      setSessionAvailability(session.id, 'available', 'main')
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
       await completeOnboardingStep('first-chat')
@@ -698,12 +813,22 @@ export const useSessionStore = defineStore('session', () => {
       clearActiveSessionSummary()
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId)
+      if (!isCurrentActivationNavigation(requestId, sessionId)) {
+        return
+      }
+      const outcome = await hydrateActiveSessionSummary(sessionId)
+      if (!isCurrentActivationNavigation(requestId, sessionId) || outcome.sessionId !== sessionId) {
+        return
+      }
+      applySessionRestoreOutcome(outcome)
       if (!isCurrentActivationNavigation(requestId, sessionId)) {
         return
       }
       pageRouter.goToChat(sessionId)
     } catch (selectError) {
+      if (activationNavigationRequestId !== requestId) {
+        return
+      }
       error.value = `Failed to select session: ${selectError}`
     }
   }
@@ -927,7 +1052,9 @@ export const useSessionStore = defineStore('session', () => {
       if (activeSessionId.value === sessionId) {
         messageStore.clearStreamingState()
         const restored = await messageStore.loadMessages(sessionId)
-        applyRestoredSession(restored)
+        if (restored) {
+          applySessionRestoreOutcome(restored)
+        }
       }
     } catch (clearError) {
       error.value = `Failed to clear session messages: ${clearError}`
@@ -1023,7 +1150,11 @@ export const useSessionStore = defineStore('session', () => {
       }
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId)
+      const outcome = await hydrateActiveSessionSummary(sessionId)
+      if (!isCurrentActivationNavigation(requestId, sessionId) || outcome.sessionId !== sessionId) {
+        return
+      }
+      applySessionRestoreOutcome(outcome)
       if (!isCurrentActivationNavigation(requestId, sessionId)) {
         return
       }
@@ -1047,6 +1178,9 @@ export const useSessionStore = defineStore('session', () => {
   return {
     sessions,
     activeSessionId,
+    availabilityBySessionId,
+    activeSessionAvailability,
+    missingSessionNoticeSequence,
     groupMode,
     loading,
     loadingMore,
@@ -1059,6 +1193,7 @@ export const useSessionStore = defineStore('session', () => {
     newConversationTargetAgentId,
     applyBootstrapShell,
     applyRestoredSession,
+    applySessionRestoreOutcome,
     fetchSessions,
     loadNextPage,
     refreshSessionsByIds,

@@ -485,5 +485,14 @@
       "amendRetryable": "Ændringen mislykkedes. Den oprindelige hukommelse er gendannet, så prøv igen.",
       "amendRestoreFailed": "Ændringen mislykkedes, og den oprindelige hukommelse kunne ikke gendannes."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent er ikke tilgængelig",
+    "unavailableDescription": "Samtalen er stadig gemt, men dens Agent kan ikke findes.",
+    "transientTitle": "Midlertidigt problem",
+    "transientDescription": "Sessionen kunne ikke opdateres. Dine cachelagrede beskeder er uændrede.",
+    "missingTitle": "Sessionen findes ikke længere",
+    "missingDescription": "Sessionen blev fjernet, og en ny samtale er nu åbnet.",
+    "retry": "Prøv igen"
   }
 }

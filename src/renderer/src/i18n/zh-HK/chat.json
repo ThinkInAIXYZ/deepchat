@@ -485,5 +485,14 @@
       "amendRetryable": "修改失敗，原記憶已還原。請保留輸入後重試。",
       "amendRestoreFailed": "修改失敗，而且原記憶未能還原。請手動重新記住這段內容。"
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent 不可用",
+    "unavailableDescription": "呢個會話仍然保存在本機，但目前無法解析佢使用嘅 Agent。",
+    "transientTitle": "暫時無法讀取會話",
+    "transientDescription": "會話重新整理失敗，已快取嘅訊息唔會被清除。",
+    "missingTitle": "會話已不存在",
+    "missingDescription": "呢個會話已被移除，而家已開啟新會話。",
+    "retry": "重試"
   }
 }

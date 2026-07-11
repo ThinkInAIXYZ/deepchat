@@ -86,6 +86,10 @@ describe('SessionService', () => {
 
     await expect(service.restoreSession('session-1')).resolves.toEqual({
       session: { id: 'session-1' },
+      resolution: {
+        availability: 'available',
+        session: { id: 'session-1' }
+      },
       messages: [{ id: 'message-1', sessionId: 'session-1' }],
       nextCursor: null,
       hasMore: false
@@ -110,6 +114,10 @@ describe('SessionService', () => {
 
     await expect(service.restoreSession('missing-session')).resolves.toEqual({
       session: null,
+      resolution: {
+        availability: 'missing',
+        sessionId: 'missing-session'
+      },
       messages: [],
       nextCursor: null,
       hasMore: false
@@ -246,7 +254,11 @@ describe('SessionService', () => {
     })
 
     await expect(service.getActiveSession({ webContentsId: 7, windowId: null })).resolves.toEqual({
-      id: 'session-1'
+      session: { id: 'session-1' },
+      resolution: {
+        availability: 'available',
+        session: { id: 'session-1' }
+      }
     })
     expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(2)
     expect(logger.warn).not.toHaveBeenCalled()
@@ -266,7 +278,20 @@ describe('SessionService', () => {
       scheduler: scheduler as any
     })
 
-    await expect(service.getActiveSession({ webContentsId: 7, windowId: null })).resolves.toBeNull()
+    await expect(
+      service.getActiveSession({ webContentsId: 7, windowId: null })
+    ).resolves.toMatchObject({
+      session: null,
+      resolution: {
+        availability: 'transient_error',
+        sessionId: 'session-1',
+        error: {
+          code: 'SESSION_RESOLUTION_FAILED',
+          stage: 'record_read',
+          retryable: true
+        }
+      }
+    })
     expect(sessionRepository.resolveActive).toHaveBeenCalledTimes(2)
     expect(logger.warn).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledWith(
@@ -293,9 +318,49 @@ describe('SessionService', () => {
       scheduler: scheduler as any
     })
 
-    await expect(service.listSessions()).resolves.toEqual([{ id: 'healthy' }])
+    await expect(service.listSessions()).resolves.toEqual({
+      sessions: [{ id: 'healthy' }],
+      results: [
+        {
+          availability: 'unavailable',
+          sessionId: 'unknown',
+          record: { id: 'unknown', agentId: 'removed' },
+          reason: 'agent_unknown'
+        },
+        {
+          availability: 'available',
+          session: { id: 'healthy' }
+        }
+      ]
+    })
     expect(sessionRepository.resolveList).toHaveBeenCalledTimes(1)
     expect(scheduler.retry).not.toHaveBeenCalled()
     expect(logger.warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes the internal transient cause from public route results', async () => {
+    const scheduler = createScheduler()
+    const sessionRepository = createSessionRepository()
+    sessionRepository.resolve.mockResolvedValue(transient('session-1'))
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler: scheduler as any
+    })
+
+    const result = await service.restoreSession('session-1')
+
+    expect(result.resolution).toEqual({
+      availability: 'transient_error',
+      sessionId: 'session-1',
+      record: null,
+      error: {
+        code: 'SESSION_RESOLUTION_FAILED',
+        stage: 'record_read',
+        retryable: true
+      }
+    })
+    expect(JSON.stringify(result)).not.toContain('temporary read failure')
+    expect(JSON.stringify(result)).not.toContain('cause')
   })
 })

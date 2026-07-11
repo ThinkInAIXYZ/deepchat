@@ -485,5 +485,14 @@
       "amendRetryable": "The edit failed. The original memory was restored, so you can retry.",
       "amendRestoreFailed": "The edit failed, and the original memory could not be restored."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent unavailable",
+    "unavailableDescription": "This conversation is still saved, but its Agent cannot be resolved.",
+    "transientTitle": "Temporary issue",
+    "transientDescription": "This session could not be refreshed. Your cached messages are unchanged.",
+    "missingTitle": "Session no longer exists",
+    "missingDescription": "The session was removed and a new thread is now open.",
+    "retry": "Retry"
   }
 }

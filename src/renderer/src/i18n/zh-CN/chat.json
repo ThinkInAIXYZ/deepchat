@@ -485,5 +485,14 @@
       "amendRetryable": "修改失败，原记忆已恢复。请保留输入后重试。",
       "amendRestoreFailed": "修改失败，且原记忆未能恢复。请手动重新记住这段内容。"
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent 不可用",
+    "unavailableDescription": "这条会话仍然保存在本地，但当前无法解析它使用的 Agent。",
+    "transientTitle": "暂时无法读取会话",
+    "transientDescription": "会话刷新失败，已缓存的消息不会被清除。",
+    "missingTitle": "会话已不存在",
+    "missingDescription": "这条会话已被移除，现已打开新会话。",
+    "retry": "重试"
   }
 }
