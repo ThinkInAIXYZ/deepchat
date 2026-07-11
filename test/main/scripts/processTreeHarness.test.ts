@@ -4,7 +4,8 @@ import { EventEmitter } from 'node:events'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   captureProcessIdentity,
   cleanupMarkedIdentity,
@@ -13,10 +14,16 @@ import {
   ProcessIdentityVerificationError
 } from '../../../scripts/process-tree-harness/identity.mjs'
 import {
+  captureReadyIdentities,
+  cleanupCapturedIdentities,
   evaluateHarnessContract,
   runProcessTreeHarness,
   waitForChildExit
 } from '../../../scripts/process-tree-harness.mjs'
+
+const harnessPath = fileURLToPath(
+  new URL('../../../scripts/process-tree-harness.mjs', import.meta.url)
+)
 
 const children: Array<{
   child: ReturnType<typeof spawn>
@@ -141,6 +148,33 @@ describe.sequential('process tree harness ownership', () => {
     }
   )
 
+  it.runIf(process.platform !== 'win32')(
+    'lets the CLI exit promptly after an early owner exit without a dangling poll timer',
+    async () => {
+      const outputDir = await mkdtemp(path.join(tmpdir(), 'deepchat-ptg-test-'))
+      temporaryDirectories.push(outputDir)
+      const startedAt = Date.now()
+      const child = spawn(
+        process.execPath,
+        [
+          harnessPath,
+          '--electron',
+          '/usr/bin/false',
+          '--observation-ms',
+          '0',
+          '--output-dir',
+          outputDir
+        ],
+        { stdio: 'ignore' }
+      )
+      children.push({ child })
+
+      await expect(waitForChildExit(child, 3_000)).resolves.toEqual({ code: 1, signal: null })
+      expect(Date.now() - startedAt).toBeLessThan(2_000)
+    },
+    5_000
+  )
+
   it('rejects wrong owner exits and wrong healthy settlement details', () => {
     const base = {
       mode: 'healthy-shutdown',
@@ -200,6 +234,59 @@ describe.sequential('process tree harness ownership', () => {
     await expect(
       captureProcessIdentity(identity.pid, `${identity.marker}-different`)
     ).rejects.toBeInstanceOf(ProcessIdentityVerificationError)
+  })
+
+  it('fails a Windows-style utility marker closed and never schedules it for signalling', async () => {
+    const marker = 'deepchat-ptg-windows-synthetic'
+    const events = [
+      { type: 'process-ready', role: 'owner', pid: 101 },
+      {
+        type: 'process-ready',
+        role: 'utility-host',
+        pid: 102,
+        markerMechanism: 'utility-event-unverified'
+      },
+      { type: 'process-ready', role: 'shell', pid: 103 },
+      { type: 'process-ready', role: 'grandchild', pid: 104 }
+    ]
+    const parentByPid = new Map([
+      [101, 1],
+      [102, 101],
+      [103, 102],
+      [104, 103]
+    ])
+    const captureIdentity = vi.fn(async (pid, capturedMarker, commandMarkerRequired) => ({
+      pid,
+      parentPid: parentByPid.get(pid),
+      startIdentity: `windows-creation-date-${pid}`,
+      commandLine: commandMarkerRequired ? `fixture ${capturedMarker}` : 'electron utility',
+      marker: capturedMarker,
+      commandMarkerRequired
+    }))
+
+    await expect(captureReadyIdentities(events, marker, true, captureIdentity)).rejects.toMatchObject(
+      { code: 'PROCESS_IDENTITY_UNVERIFIED' }
+    )
+
+    const captured = await captureReadyIdentities(events, marker, false, captureIdentity)
+    expect(captured.unverified).toEqual([
+      expect.objectContaining({
+        role: 'utility',
+        pid: 102,
+        signalable: false,
+        verificationCode: 'PROCESS_IDENTITY_UNVERIFIED'
+      })
+    ])
+    const signal = vi.fn()
+    const attempts = await cleanupCapturedIdentities(
+      [],
+      [{ ...captured.unverified[0], marker }],
+      captured.unverified,
+      signal
+    )
+
+    expect(attempts).toEqual([])
+    expect(signal).not.toHaveBeenCalled()
   })
 
   it.runIf(process.platform === 'darwin').each(['owner-loss', 'callback-observation'] as const)(

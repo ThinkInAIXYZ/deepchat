@@ -327,7 +327,10 @@ and the captured `lstart` before treating the utility PID as signalable. A platf
 externally verify the marker fails with `PROCESS_IDENTITY_UNVERIFIED`; cleanup does not signal that
 unverified PID. Owner, shell, and grandchild markers remain command-line arguments. Identity-safe
 cleanup treats either a start-identity mismatch or marker mismatch as unrelated and sends no
-signal.
+signal. In particular, if a native Windows utility command line does not expose the marker, the
+development probe fails safely: PID plus `CreationDate` may be retained for survivor observation,
+but never authorizes a signal. The artifact records `signalAttempted: false` and whether that
+survivor requires operator cleanup.
 
 The modes are measurements rather than mechanism choices:
 
@@ -353,8 +356,10 @@ identity and marker immediately before each exact PID signal, tries TERM then KI
 grace, and checks identity again. It never uses `pkill`, `killall`, a marker-wide signal, a process
 group, or a cached PID after identity or marker mismatch. Tests cover successful cleanup,
 PID/start-identity mismatch, same-start-identity marker mismatch, early owner exit using
-`/usr/bin/false`, exit/timeout exactly-once listener settlement, real Electron artifact persistence,
-wrong owner exit, wrong healthy settlement, and exactly-once healthy utility settlement.
+`/usr/bin/false`, cancellation of the losing readiness poll with a separate CLI wall-time check,
+exit/timeout exactly-once listener settlement, a synthetic Windows utility-marker failure with zero
+cleanup calls for that role, real Electron artifact persistence, wrong owner exit, wrong healthy
+settlement, and exactly-once healthy utility settlement.
 
 Retained macOS development-fixture evidence is under
 [`evidence/macos`](./evidence/macos). On Darwin 25.5.0 arm64 with Electron 40.10.5:
@@ -400,6 +405,12 @@ confirm `cleanup.allMarkedGone` is `true`. A `contractSatisfied: false` pre-chan
 recorded failure to contain, not a failed measurement. The current harness labels itself
 `development-fixture` and `packaged: false`; packaged app entry and native package evidence belong
 to the later full matrix and must not be claimed by changing metadata.
+
+On Windows, a `PROCESS_IDENTITY_UNVERIFIED` result is an intentional safe failure when the utility
+marker is absent from externally queried process data. Preserve the non-zero CLI result and the
+artifact, verify that the utility cleanup record has `signalAttempted: false`, and perform any
+required cleanup manually in that disposable runner. Do not relabel this as an executable matrix
+pass or signal the PID from the harness based only on `CreationDate`.
 
 Run both development bundles and packaged applications for entry resolution and native behavior.
 CI evidence is required from native macOS, Windows, and Linux runners; emulation or one host cannot
