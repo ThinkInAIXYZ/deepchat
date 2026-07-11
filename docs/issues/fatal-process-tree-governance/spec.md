@@ -1,9 +1,11 @@
 # Fatal Process Tree Governance
 
 Status: `PTG-001` specification complete; `PTG-H0` direct-child helper limits merged in PR #1932
-(`4889309b`); `PTG-M1` static launcher inventory guard implemented. Runtime parent-loss fixtures,
-descendant containment, and the native matrix are not implemented. This issue remains a blocking
-dependency for `FTL-002`.
+(`4889309b`); `PTG-M1` static launcher inventory guard implemented; `PTG-M2A` adds the reusable
+mechanism-neutral real Electron harness and retained macOS development-fixture evidence. Runtime
+owner fixtures beyond the neutral marked tree, descendant containment, Windows/Linux evidence, and
+the packaged native matrix are not implemented. This issue remains a blocking dependency for
+`FTL-002`.
 
 Runtime owners: every main-process domain that launches an OS process, plus utility hosts that
 launch or retain resources on behalf of the main process.
@@ -44,14 +46,16 @@ used Electron 40.10.5 and the production background-exec launch path:
 
 Observed macOS result: `[utility host exited, shell alive, grandchild alive]`.
 
-The same branch ran a narrower exploratory parent-loss probe. The utility process registered `parentPort`
-`close`, `disconnect`, `exit`, and `error` listeners and process `disconnect`, `beforeExit`, `exit`,
-`SIGTERM`, `SIGHUP`, and `SIGINT` listeners before main-process exit. The main side observed utility
-exit code `0`, but none of those utility-side JavaScript callbacks recorded an event; the shell and
-grandchild were reparented and remained alive. No reusable fixture or result artifact was preserved,
-so this is branch-local exploratory observation, not acceptance evidence and not enough to eliminate
-a candidate. The PTG harness must reproduce it before any mechanism decision. It says nothing about
-Windows or Linux.
+The same branch ran a narrower exploratory parent-loss probe. `PTG-M2A` now reproduces that probe
+and retains the exact macOS result. The utility registered `parentPort` `close`, `disconnect`,
+`exit`, and `error` probes plus process `disconnect`, `beforeExit`, `exit`, `SIGTERM`, `SIGHUP`, and
+`SIGINT` probes before main-process exit. Electron 40.10.5 documents only the `message` event and
+`postMessage()` on `parentPort`; the four lifecycle event names are deliberately recorded as
+runtime EventEmitter probes with `documentedByElectron: false`, not represented as supported API.
+The main side observed utility exit code `0`, but none of the registered utility-side callbacks
+recorded an event; the shell and grandchild were reparented and remained alive. This is reusable
+macOS development-fixture evidence, but it is not enough to eliminate a cross-platform candidate.
+It says nothing about Windows or Linux.
 
 ## Existing code truth
 
@@ -293,6 +297,135 @@ Assertions must use PID plus a unique command marker and a captured start identi
 must be checked when applicable. PID absence alone is insufficient because of reuse. The harness
 must kill only marked survivors in `finally`, including when assertions fail or time out.
 
+### Mechanism-neutral marked-tree harness (`PTG-M2A`)
+
+[`process-tree-harness.mjs`](../../../scripts/process-tree-harness.mjs) runs independently of the
+`FTL-002` fatal helper and production containment code. It launches this disposable tree:
+
+```text
+Node measurement owner
+└─ real Electron main fixture
+   └─ Electron utilityProcess host
+      └─ OS shell
+         └─ marked Node grandchild
+```
+
+The outer Node measurement process registers the Electron owner's exit observation immediately
+after `spawn`, then waits until all four Electron-owned roles report readiness. Readiness is raced
+against early owner exit, preserving its exact code and signal instead of waiting for the tree-ready
+timeout. Only after capturing each PID, parent PID, command line, unique run marker, and OS start
+identity and verifying every parent edge does the harness permit the selected owner action. Darwin
+identity uses `ps` parent PID, `lstart`, and full command line. Linux reads parent PID and kernel
+start ticks from `/proc/<pid>/stat` and the command from `/proc/<pid>/cmdline`, avoiding the
+second-resolution `ps` start-time collision. Windows identity uses
+`Win32_Process.ParentProcessId`, `CreationDate`, and `CommandLine`.
+
+Electron does not include utility script arguments in the native utility command line on macOS.
+The utility fixture therefore applies the run marker through `process.title`; retained macOS
+evidence confirms that `ps` exposes that unique marker. The harness requires this external marker
+and the captured `lstart` before treating the utility PID as signalable. A platform that cannot
+externally verify the marker fails with `PROCESS_IDENTITY_UNVERIFIED`; cleanup does not signal that
+unverified PID. Owner, shell, and grandchild markers remain command-line arguments. Identity-safe
+cleanup treats either a start-identity mismatch or marker mismatch as unrelated and sends no
+signal. A Linux `/proc` identity read denied by `EACCES`/`EPERM`, or a live Windows process whose
+`CommandLine` or `CreationDate` start identity is unavailable, remains `unknown` rather than being
+filtered into `absent`. Identity capture independently rejects an absent, empty, or non-string start
+identity even if a platform parser regresses. Unknown visibility forces `manualCleanupRequired:
+true`, `allMarkedGone: false`, and a failed containment contract; it never authorizes a signal. In
+particular, if a native Windows utility command line does not expose the marker, the
+development probe fails safely: PID plus `CreationDate` may be retained for survivor observation,
+but never authorizes a signal. The artifact records `signalAttempted: false` and whether that
+survivor requires operator cleanup. A strict capture error carries every identity captured before
+the failure, including a non-signalable utility identity; the outer harness consumes that partial
+result directly instead of discarding it and attempting a relaxed recapture. If any later census or
+identity query is unavailable, the artifact records `unknown`/`null` visibility,
+`manualCleanupRequired: true`, `contractSatisfied: false`, and `allMarkedGone: false`. Unknown is
+never treated as process absence.
+
+The modes are measurements rather than mechanism choices:
+
+- `healthy-shutdown` writes a cooperative stop sentinel. The grandchild exits, the shell reaps it,
+  the utility settles once, and Electron exits normally.
+- `owner-loss` directly calls `process.exit(17)` in the Electron main fixture. It does not import or
+  simulate the future fatal helper.
+- `callback-observation` performs the same forced owner loss after registering utility
+  `parentPort` and process lifecycle observations. The artifact separately records every probe,
+  whether registration happened, and whether Electron documents the event. A missing callback is
+  recorded as an exact empty observation, not inferred from logs or replaced by a synthetic event.
+
+Each run writes JSON and Markdown with the platform, architecture, OS release, Electron and Node
+versions, development/packaged flag, owner exit, all captured identities, pre-action/post-action/
+post-cleanup census, callback probes and observed callbacks, utility settlements, expected and
+actual owner exit, exact role status, per-condition contract checks, stderr, cleanup attempts, and a
+SHA-256 digest of the harness sources used for that run. Persisted diagnostics replace the resolved
+Electron, Node, harness, run-root, output, home, and temporary paths with stable semantic labels;
+process roles, markers, parent edges, start identities, and cleanup decisions remain intact without
+publishing a runner's username or checkout layout. The CLI exits successfully when measurement and
+cleanup complete even if `contractSatisfied` is `false`; an orphan is never relabelled as a passing
+containment assertion. Harness errors or a marked cleanup survivor make the CLI fail.
+
+Cleanup is deliberately narrower than a production mechanism. It checks the captured start
+identity and marker immediately before each exact PID signal, tries TERM then KILL with bounded
+grace, and checks identity again. It never uses `pkill`, `killall`, a marker-wide signal, a process
+group, or a cached PID after identity or marker mismatch. Tests cover successful cleanup,
+PID/start-identity mismatch, same-start-identity marker mismatch, early owner exit using
+`/usr/bin/false`, cancellation of the losing readiness poll with a separate CLI wall-time check,
+exit/timeout exactly-once listener settlement, a synthetic Windows utility-marker failure with zero
+cleanup calls for that role, retention of that partial identity when later process visibility fails,
+fail-closed artifact cleanup fields for unknown visibility, real Electron artifact persistence,
+wrong owner exit, wrong healthy settlement, and exactly-once healthy utility settlement.
+
+Retained macOS development-fixture evidence is under
+[`evidence/macos`](./evidence/macos). On Darwin 25.5.0 arm64 with Electron 40.10.5:
+
+- healthy shutdown produced `[owner absent, utility absent, shell absent, grandchild absent]` and
+  one `shell-close:0:null`, code-0 utility settlement with `settlementCount: 1`; owner exit code was
+  the mode-required `0`, every pre-cleanup census check passed, and `contractSatisfied` was `true`;
+- forced owner loss produced `[owner absent, utility absent, shell match, grandchild match]` after
+  five seconds, with the mode-required owner exit code `17`; `contractSatisfied` remained `false`;
+- callback observation forced the owner to exit with code 17; after five seconds it produced
+  `[owner absent, utility absent, shell match, grandchild match]`. All four undocumented
+  `parentPort` probes and six process probes were recorded as registered, while observed utility
+  callbacks remained exactly empty;
+- identity-safe `finally` cleanup removed both survivors and the post-cleanup marked census was
+  empty.
+
+These files preserve the pre-change result that was previously only branch-local. They do not prove
+Windows or Linux behavior, do not cover a packaged DeepChat application, do not select a watchdog
+or OS containment primitive, and do not satisfy any `FTL-002` unlock condition.
+
+Native runner commands use the same source and must retain their own output rather than copying the
+macOS artifact:
+
+```bash
+# macOS or Linux, from a native checkout with dependencies installed
+pnpm exec vitest run test/main/scripts/processTreeHarness.test.ts
+pnpm run smoke:process-tree-harness -- --mode healthy-shutdown --observation-ms 250 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode owner-loss --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode callback-observation --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+```
+
+```powershell
+# Windows PowerShell, from a native checkout with dependencies installed
+pnpm exec vitest run test/main/scripts/processTreeHarness.test.ts
+pnpm run smoke:process-tree-harness -- --mode healthy-shutdown --observation-ms 250 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode owner-loss --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode callback-observation --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+```
+
+PR manual validation must attach each runner's JSON and Markdown, verify that runtime platform and
+Electron version are native rather than emulated, inspect every exact role status and callback, and
+confirm `cleanup.allMarkedGone` is `true`. A `contractSatisfied: false` pre-change result remains a
+recorded failure to contain, not a failed measurement. The current harness labels itself
+`development-fixture` and `packaged: false`; packaged app entry and native package evidence belong
+to the later full matrix and must not be claimed by changing metadata.
+
+On Windows, a `PROCESS_IDENTITY_UNVERIFIED` result is an intentional safe failure when the utility
+marker is absent from externally queried process data. Preserve the non-zero CLI result and the
+artifact, verify that the utility cleanup record has `signalAttempted: false`, and perform any
+required cleanup manually in that disposable runner. Do not relabel this as an executable matrix
+pass or signal the PID from the harness based only on `CreationDate`.
+
 Run both development bundles and packaged applications for entry resolution and native behavior.
 CI evidence is required from native macOS, Windows, and Linux runners; emulation or one host cannot
 close the issue.
@@ -300,8 +433,9 @@ close the issue.
 ## Ordered implementation tasks
 
 - [x] Record the branch-local macOS background-exec orphan and bounded result.
-- [ ] Reproduce the exploratory macOS utility callback observation in a reusable PTG fixture, retain
-      the result, and run the same probe on Windows and Linux.
+- [ ] Reproduce the exploratory utility callback observation in a reusable PTG fixture and run it
+      on all targets. `PTG-M2A` retained the macOS development-fixture result; Windows, Linux, and
+      packaged results remain open.
 - [x] Complete the baseline source launcher inventory and explicit exclusions.
 - [x] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
       `node-pty`, Electron `utilityProcess.fork`, MCP SDK `StdioClientTransport`,
@@ -309,7 +443,7 @@ close the issue.
       unclassified.
 - [x] Deliver `PTG-H0`: add the 30-second workspace Git, 10-second device query, and five-second
       `SkillExecutionService.hasCommand` healthy-path limits with deterministic timeout tests.
-- [ ] Build a mechanism-neutral real Electron marked-tree harness independent of the `FTL-002`
+- [x] Build a mechanism-neutral real Electron marked-tree harness independent of the `FTL-002`
       fatal helper; trigger forced main exit directly.
 - [ ] Implement every required runtime and helper-launcher fixture without changing runtime
       behavior.

@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 3,
+  "runId": "819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+  "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+  "phase": "pre-change",
+  "mode": "owner-loss",
+  "startedAt": "2026-07-11T02:40:26.415Z",
+  "completedAt": "2026-07-11T02:40:32.028Z",
+  "runtime": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "osRelease": "25.5.0",
+    "distribution": "development-fixture",
+    "packaged": false,
+    "nodeVersion": "v24.18.0",
+    "electronVersion": "40.10.5",
+    "electronExecutable": "<electron-executable>",
+    "harnessSha256": "2aee227418e97c2898c9de8e7dea47e6bb3a163be20ea6d3b183f4a682f84cfc"
+  },
+  "processTree": {
+    "owner": {
+      "pid": 18806,
+      "parentPid": 18797,
+      "startIdentity": "Sat Jul 11 10:40:26 2026",
+      "commandLine": "<electron-executable> <harness-root>/process-tree-harness/electron-main.mjs --ptg-marker=deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+      "commandMarkerRequired": true,
+      "role": "owner",
+      "markerSource": "command-line",
+      "signalable": true
+    },
+    "utility": {
+      "pid": 18809,
+      "parentPid": 18806,
+      "startIdentity": "Sat Jul 11 10:40:26 2026",
+      "commandLine": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0           ",
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+      "commandMarkerRequired": true,
+      "role": "utility",
+      "markerSource": "process-title",
+      "signalable": true
+    },
+    "shell": {
+      "pid": 18810,
+      "parentPid": 18809,
+      "startIdentity": "Sat Jul 11 10:40:26 2026",
+      "commandLine": "/bin/zsh -c \"$1\" \"$2\" \"$3\" \"$4\" \"$5\" & wait ptg-shell-deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <node-executable> <harness-root>/process-tree-harness/grandchild.mjs deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <run-root>/events.jsonl <run-root>/healthy-stop",
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+      "commandMarkerRequired": true,
+      "role": "shell",
+      "markerSource": "command-line",
+      "signalable": true
+    },
+    "grandchild": {
+      "pid": 18811,
+      "parentPid": 18810,
+      "startIdentity": "Sat Jul 11 10:40:26 2026",
+      "commandLine": "<node-executable> <harness-root>/process-tree-harness/grandchild.mjs deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <run-root>/events.jsonl <run-root>/healthy-stop",
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+      "commandMarkerRequired": true,
+      "role": "grandchild",
+      "markerSource": "command-line",
+      "signalable": true
+    }
+  },
+  "events": [
+    {
+      "at": "2026-07-11T02:40:26.545Z",
+      "type": "process-ready",
+      "role": "owner",
+      "pid": 18806,
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+      "electronVersion": "40.10.5"
+    },
+    {
+      "at": "2026-07-11T02:40:26.549Z",
+      "type": "process-ready",
+      "role": "utility-host",
+      "pid": 18809,
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0"
+    },
+    {
+      "at": "2026-07-11T02:40:26.614Z",
+      "type": "process-ready",
+      "role": "utility",
+      "pid": 18809,
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+      "markerMechanism": "process-title"
+    },
+    {
+      "at": "2026-07-11T02:40:26.614Z",
+      "type": "process-ready",
+      "role": "shell",
+      "pid": 18810,
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0"
+    },
+    {
+      "at": "2026-07-11T02:40:26.635Z",
+      "type": "process-ready",
+      "role": "grandchild",
+      "pid": 18811,
+      "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0"
+    },
+    {
+      "at": "2026-07-11T02:40:26.642Z",
+      "type": "tree-ready",
+      "shellPid": 18810
+    },
+    {
+      "at": "2026-07-11T02:40:26.745Z",
+      "type": "owner-forced-exit",
+      "pid": 18806,
+      "code": 17
+    },
+    {
+      "at": "2026-07-11T02:40:26.746Z",
+      "type": "utility-host-exit",
+      "code": 0
+    }
+  ],
+  "census": {
+    "before": [],
+    "preExit": [
+      {
+        "pid": 18806,
+        "parentPid": 18797,
+        "startIdentity": "Sat Jul 11 10:40:26 2026",
+        "commandLine": "<electron-executable> <harness-root>/process-tree-harness/electron-main.mjs --ptg-marker=deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+        "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+        "commandMarkerRequired": true,
+        "role": "owner",
+        "markerSource": "command-line",
+        "signalable": true
+      },
+      {
+        "pid": 18809,
+        "parentPid": 18806,
+        "startIdentity": "Sat Jul 11 10:40:26 2026",
+        "commandLine": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0           ",
+        "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+        "commandMarkerRequired": true,
+        "role": "utility",
+        "markerSource": "process-title",
+        "signalable": true
+      },
+      {
+        "pid": 18810,
+        "parentPid": 18809,
+        "startIdentity": "Sat Jul 11 10:40:26 2026",
+        "commandLine": "/bin/zsh -c \"$1\" \"$2\" \"$3\" \"$4\" \"$5\" & wait ptg-shell-deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <node-executable> <harness-root>/process-tree-harness/grandchild.mjs deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <run-root>/events.jsonl <run-root>/healthy-stop",
+        "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+        "commandMarkerRequired": true,
+        "role": "shell",
+        "markerSource": "command-line",
+        "signalable": true
+      },
+      {
+        "pid": 18811,
+        "parentPid": 18810,
+        "startIdentity": "Sat Jul 11 10:40:26 2026",
+        "commandLine": "<node-executable> <harness-root>/process-tree-harness/grandchild.mjs deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <run-root>/events.jsonl <run-root>/healthy-stop",
+        "marker": "deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0",
+        "commandMarkerRequired": true,
+        "role": "grandchild",
+        "markerSource": "command-line",
+        "signalable": true
+      }
+    ],
+    "postObservation": [
+      {
+        "pid": 18810,
+        "parentPid": 1,
+        "startIdentity": "Sat Jul 11 10:40:26 2026",
+        "commandLine": "/bin/zsh -c \"$1\" \"$2\" \"$3\" \"$4\" \"$5\" & wait ptg-shell-deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <node-executable> <harness-root>/process-tree-harness/grandchild.mjs deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <run-root>/events.jsonl <run-root>/healthy-stop"
+      },
+      {
+        "pid": 18811,
+        "parentPid": 18810,
+        "startIdentity": "Sat Jul 11 10:40:26 2026",
+        "commandLine": "<node-executable> <harness-root>/process-tree-harness/grandchild.mjs deepchat-ptg-819e4f5f-d8aa-4a08-9e9f-3a17a4c082c0 <run-root>/events.jsonl <run-root>/healthy-stop"
+      }
+    ],
+    "postCleanup": []
+  },
+  "ownerExit": {
+    "code": 17,
+    "signal": null
+  },
+  "observation": {
+    "windowMs": 5000,
+    "statusByRole": {
+      "owner": "absent",
+      "utility": "absent",
+      "shell": "match",
+      "grandchild": "match"
+    },
+    "expectedOwnerExit": {
+      "code": 17,
+      "signal": null
+    },
+    "utilityCallbacks": [],
+    "utilityProbes": [],
+    "utilitySettlements": [],
+    "checks": {
+      "processStatusesSatisfied": false,
+      "ownerExitSatisfied": true,
+      "healthySettlementSatisfied": true,
+      "censusSatisfied": false
+    },
+    "contractSatisfied": false
+  },
+  "cleanup": {
+    "attempts": [
+      {
+        "pid": 18811,
+        "before": "match",
+        "signals": [
+          "SIGTERM"
+        ],
+        "after": "absent"
+      },
+      {
+        "pid": 18810,
+        "before": "absent",
+        "signals": [],
+        "after": "absent"
+      },
+      {
+        "pid": 18809,
+        "before": "absent",
+        "signals": [],
+        "after": "absent"
+      },
+      {
+        "pid": 18806,
+        "before": "absent",
+        "signals": [],
+        "after": "absent"
+      }
+    ],
+    "statusByRole": {
+      "owner": "absent",
+      "utility": "absent",
+      "shell": "absent",
+      "grandchild": "absent"
+    },
+    "unverified": [],
+    "visibilityErrors": [],
+    "manualCleanupRequired": false,
+    "allMarkedGone": true
+  },
+  "stderr": "",
+  "error": null,
+  "errorCode": null
+}
