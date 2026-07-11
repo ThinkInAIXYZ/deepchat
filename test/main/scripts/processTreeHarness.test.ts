@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,7 @@ import {
   captureReadyIdentities,
   cleanupCapturedIdentities,
   evaluateHarnessContract,
+  redactArtifactPaths,
   runProcessTreeHarness,
   waitForChildExit
 } from '../../../scripts/process-tree-harness.mjs'
@@ -56,6 +57,32 @@ afterEach(async () => {
 })
 
 describe.sequential('process tree harness ownership', () => {
+  it('redacts volatile paths without removing process markers or diagnostic roles', () => {
+    const marker = 'deepchat-ptg-portable-evidence'
+    const artifact = {
+      electronExecutable: '/workspace/runtime/Electron',
+      commandLine:
+        '/workspace/runtime/Electron /workspace/project/scripts/owner.mjs ' +
+        `${marker} /private/tmp/harness/events.jsonl`,
+      nested: ['/workspace/user/.runtime/node', marker]
+    }
+
+    expect(
+      redactArtifactPaths(artifact, {
+        'electron-executable': '/workspace/runtime/Electron',
+        'harness-root': '/workspace/project/scripts',
+        'node-executable': '/workspace/user/.runtime/node',
+        'run-root': '/private/tmp/harness',
+        home: '/workspace/user'
+      })
+    ).toEqual({
+      electronExecutable: '<electron-executable>',
+      commandLine:
+        `<electron-executable> <harness-root>/owner.mjs ${marker} <run-root>/events.jsonl`,
+      nested: ['<node-executable>', marker]
+    })
+  })
+
   it('parses Linux proc start ticks after a parenthesized command name', () => {
     const remainingFields = ['S', '42', ...Array(17).fill('0'), '777']
 
@@ -437,6 +464,9 @@ setTimeout(() => process.exit(17), 250)
       }
       expect(result.artifact.processTree.utility.markerSource).toBe('process-title')
       expect(result.artifact.processTree.utility.commandLine).toContain(result.artifact.marker)
+      expect(result.artifact.runtime.electronExecutable).toBe('<electron-executable>')
+      expect(JSON.stringify(result.artifact)).not.toContain(homedir())
+      expect(JSON.stringify(result.artifact)).not.toContain(tmpdir())
       expect(persisted).toEqual(result.artifact)
     },
     20_000

@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { release, tmpdir } from 'node:os'
+import { homedir, release, tmpdir } from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -349,6 +349,28 @@ async function hashHarnessSources(paths) {
   return hash.digest('hex')
 }
 
+export function redactArtifactPaths(value, pathBindings) {
+  const replacements = Object.entries(pathBindings)
+    .filter(([, sourcePath]) => typeof sourcePath === 'string' && sourcePath.length > 0)
+    .sort(([, left], [, right]) => right.length - left.length)
+
+  const redact = (entry) => {
+    if (typeof entry === 'string') {
+      return replacements.reduce(
+        (result, [label, sourcePath]) => result.replaceAll(sourcePath, `<${label}>`),
+        entry
+      )
+    }
+    if (Array.isArray(entry)) return entry.map(redact)
+    if (entry && typeof entry === 'object') {
+      return Object.fromEntries(Object.entries(entry).map(([key, child]) => [key, redact(child)]))
+    }
+    return entry
+  }
+
+  return redact(value)
+}
+
 export function evaluateHarnessContract({
   mode,
   error,
@@ -615,7 +637,8 @@ export async function runProcessTreeHarness(options = {}) {
     postObservation
   })
 
-  const artifact = {
+  const artifact = redactArtifactPaths(
+    {
     schemaVersion: 3,
     runId,
     marker,
@@ -668,7 +691,17 @@ export async function runProcessTreeHarness(options = {}) {
     stderr,
     error,
     errorCode
-  }
+    },
+    {
+      'run-root': runRoot,
+      'output-dir': outputDir,
+      'electron-executable': electronPath,
+      'node-executable': process.execPath,
+      'harness-root': scriptDir,
+      home: homedir(),
+      tmp: tmpdir()
+    }
+  )
   const output = await writeArtifact(artifact, outputDir)
   await rm(runRoot, { recursive: true, force: true })
   return { artifact, ...output }

@@ -352,9 +352,12 @@ Each run writes JSON and Markdown with the platform, architecture, OS release, E
 versions, development/packaged flag, owner exit, all captured identities, pre-action/post-action/
 post-cleanup census, callback probes and observed callbacks, utility settlements, expected and
 actual owner exit, exact role status, per-condition contract checks, stderr, cleanup attempts, and a
-SHA-256 digest of the harness sources used for that run. The CLI exits successfully when measurement
-and cleanup complete even if `contractSatisfied` is `false`; an orphan is never relabelled as a
-passing containment assertion. Harness errors or a marked cleanup survivor make the CLI fail.
+SHA-256 digest of the harness sources used for that run. Persisted diagnostics replace the resolved
+Electron, Node, harness, run-root, output, home, and temporary paths with stable semantic labels;
+process roles, markers, parent edges, start identities, and cleanup decisions remain intact without
+publishing a runner's username or checkout layout. The CLI exits successfully when measurement and
+cleanup complete even if `contractSatisfied` is `false`; an orphan is never relabelled as a passing
+containment assertion. Harness errors or a marked cleanup survivor make the CLI fail.
 
 Cleanup is deliberately narrower than a production mechanism. It checks the captured start
 identity and marker immediately before each exact PID signal, tries TERM then KILL with bounded
