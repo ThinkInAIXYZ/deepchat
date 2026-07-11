@@ -20,6 +20,7 @@ Finding: `A-03`
 - node 配置中的 `@/*` 整体指向 main；architecture guard 必须拒绝 shared 下所有 `@/*` import，不能只识别 presenter alias。
 - 只修 repo-owned declaration diagnostics，不顺手重构 presenter runtime。
 - `DCL-001` 让独立 strict declaration probe 为零；`DCL-002` 再把同一 probe 固化为常规脚本/CI gate。
+- `DCL-002` 使用 node 的 `tsconfig.node.json` 和 web 实际 typecheck 使用的 `tsconfig.app.tsgo.json`；挂入现有 `typecheck` 链即可复用 build/PR gate，不另建重复 CI job。
 
 ## Owner 决策
 
@@ -45,3 +46,9 @@ icon；legacy tool call 缺 name 时保持可序列化的空字符串。这里�
 - node/web typecheck、format、i18n、lint、architecture guard、diff check 通过；
 - targeted declaration/shortcut/sync tests 通过；不跑 full/E2E；
 - 无 `[NEEDS CLARIFICATION]`。
+
+## DCL-002 固化结果
+
+- `pnpm run typecheck:declarations` 强制 `skipLibCheck=false`、`composite=false`，分别检查 node/web context 下的 repo-owned shared declarations。
+- 文件系统独立枚举全部 `src/shared/**/*.d.ts`，tsconfig 只提供真实 compiler options；因此 partial include/exclude 不能让 declaration 逃逸，zero-root 时也会 fail closed。
+- 常规 `pnpm run typecheck` 先执行 declaration gate；现有 build 与 PR check 已调用该命令，因此无需增加另一套 workflow。

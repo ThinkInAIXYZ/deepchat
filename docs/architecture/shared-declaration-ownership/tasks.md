@@ -7,3 +7,11 @@
 - [x] strict declaration probe 达到 0 diagnostics。
 - [x] targeted tests、typecheck、format、i18n、lint、diff check 通过。
 - [x] 独立审查 PASS；本地合入与统一台账更新由总路线图提交记录。
+
+## DCL-002
+
+- [x] 固化 node/web shared declaration strict check。
+- [x] strict diagnostic、partial-root 与 zero-root 反例 fail closed。
+- [x] 接入现有 typecheck/build/PR gate，不新增重复 CI job。
+- [x] targeted tests、typecheck、format、i18n、lint、diff check 通过。
+- [x] 独立审查 PASS；本地合入与统一台账更新由总路线图提交记录。
