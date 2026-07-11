@@ -242,7 +242,8 @@ function createMockSqlitePresenter() {
     getDatabase: vi.fn(() => db),
     configTables: {
       getAgentSetting: vi.fn().mockReturnValue(null),
-      setAgentSetting: vi.fn()
+      setAgentSetting: vi.fn(),
+      deleteAgentSetting: vi.fn()
     },
     sessionCreateOperationsTable: {
       markPendingUnknown: vi.fn(() => 0),
@@ -369,7 +370,7 @@ function createMockSqlitePresenter() {
       upsert: vi.fn(),
       refreshSessionTitle: vi.fn(),
       deleteBySession: vi.fn(),
-      searchFts: vi.fn().mockReturnValue([]),
+      searchFts: vi.fn().mockReturnValue({ kind: 'available', rows: [] }),
       searchLike: vi.fn().mockReturnValue([])
     }
   } as any
@@ -383,13 +384,7 @@ describe('AgentSessionPresenter', () => {
   let skillPresenter: ReturnType<typeof createMockSkillPresenter>
   let presenter: AgentSessionPresenter
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-    deepChatAgent = createMockDeepChatAgent()
-    llmProviderPresenter = createMockLlmProviderPresenter()
-    configPresenter = createMockConfigPresenter()
-    sqlitePresenter = createMockSqlitePresenter()
-    skillPresenter = createMockSkillPresenter()
+  const recreatePresenter = (): void => {
     presenter = new AgentSessionPresenter(
       deepChatAgent as any,
       llmProviderPresenter,
@@ -397,6 +392,16 @@ describe('AgentSessionPresenter', () => {
       sqlitePresenter,
       skillPresenter
     )
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    deepChatAgent = createMockDeepChatAgent()
+    llmProviderPresenter = createMockLlmProviderPresenter()
+    configPresenter = createMockConfigPresenter()
+    sqlitePresenter = createMockSqlitePresenter()
+    skillPresenter = createMockSkillPresenter()
+    recreatePresenter()
   })
 
   describe('createSession', () => {
@@ -1515,30 +1520,33 @@ describe('AgentSessionPresenter', () => {
 
   describe('searchHistory', () => {
     it('returns session and message hits sorted by title relevance before recency', async () => {
-      sqlitePresenter.deepchatSearchDocumentsTable.searchFts.mockReturnValue([
-        {
-          document_key: 'session:session-1',
-          session_id: 'session-1',
-          message_id: null,
-          document_kind: 'session',
-          role: null,
-          title: 'Release checklist',
-          content: '',
-          updated_at: 200,
-          rank: 0
-        },
-        {
-          document_key: 'message:message-1',
-          session_id: 'session-1',
-          message_id: 'message-1',
-          document_kind: 'message',
-          role: 'assistant',
-          title: 'Release checklist',
-          content: 'pnpm run build still fails on arm64',
-          updated_at: 100,
-          rank: 1
-        }
-      ])
+      sqlitePresenter.deepchatSearchDocumentsTable.searchFts.mockReturnValue({
+        kind: 'available',
+        rows: [
+          {
+            document_key: 'session:session-1',
+            session_id: 'session-1',
+            message_id: null,
+            document_kind: 'session',
+            role: null,
+            title: 'Release checklist',
+            content: '',
+            updated_at: 200,
+            rank: 0
+          },
+          {
+            document_key: 'message:message-1',
+            session_id: 'session-1',
+            message_id: 'message-1',
+            document_kind: 'message',
+            role: 'assistant',
+            title: 'Release checklist',
+            content: 'pnpm run build still fails on arm64',
+            updated_at: 100,
+            rank: 1
+          }
+        ]
+      })
 
       const result = await presenter.searchHistory('release', { limit: 5 })
 
@@ -1562,8 +1570,122 @@ describe('AgentSessionPresenter', () => {
       ])
     })
 
+    it('treats an available empty FTS result as authoritative after normalization', async () => {
+      sqlitePresenter.configTables.getAgentSetting.mockReturnValue({ status: 'completed' })
+      recreatePresenter()
+
+      await expect(presenter.searchHistory('missing')).resolves.toEqual([])
+
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.searchLike).not.toHaveBeenCalled()
+      expect(sqlitePresenter.db.prepare).not.toHaveBeenCalled()
+    })
+
+    it('uses structured LIKE without raw scans when normalized FTS is unavailable', async () => {
+      sqlitePresenter.configTables.getAgentSetting.mockReturnValue({ status: 'completed' })
+      sqlitePresenter.deepchatSearchDocumentsTable.searchFts.mockReturnValue({
+        kind: 'unavailable'
+      })
+      recreatePresenter()
+
+      await expect(presenter.searchHistory('missing')).resolves.toEqual([])
+
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.searchLike).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.db.prepare).not.toHaveBeenCalled()
+    })
+
+    it('uses structured LIKE without raw scans when normalized FTS throws', async () => {
+      sqlitePresenter.configTables.getAgentSetting.mockReturnValue({ status: 'completed' })
+      sqlitePresenter.deepchatSearchDocumentsTable.searchFts.mockImplementation(() => {
+        throw new Error('fts query failed')
+      })
+      recreatePresenter()
+
+      await expect(presenter.searchHistory('missing')).resolves.toEqual([])
+
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.searchLike).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.db.prepare).not.toHaveBeenCalled()
+    })
+
+    it('keeps raw table fallback while normalization is incomplete', async () => {
+      const result = await presenter.searchHistory('release')
+
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.searchLike).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.db.prepare).toHaveBeenCalledTimes(2)
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'session', sessionId: 'session-1' }),
+          expect.objectContaining({ kind: 'message', messageId: 'message-1' })
+        ])
+      )
+    })
+
+    it('refreshes normalization authority after the active database is replaced', async () => {
+      sqlitePresenter.configTables.getAgentSetting.mockReturnValue({ status: 'completed' })
+      recreatePresenter()
+      sqlitePresenter.configTables.getAgentSetting.mockReturnValue(undefined)
+
+      presenter.refreshMainlineNormalizationStatus()
+      const result = await presenter.searchHistory('release')
+
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.searchLike).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.db.prepare).toHaveBeenCalledTimes(2)
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'session', sessionId: 'session-1' }),
+          expect.objectContaining({ kind: 'message', messageId: 'message-1' })
+        ])
+      )
+    })
+
+    it('invalidates completed normalization when raw history is imported', async () => {
+      sqlitePresenter.configTables.getAgentSetting.mockReturnValue({ status: 'completed' })
+      recreatePresenter()
+
+      presenter.invalidateMainlineNormalizationStatus()
+      const result = await presenter.searchHistory('release')
+
+      expect(sqlitePresenter.configTables.deleteAgentSetting).toHaveBeenCalledWith(
+        'sqlite-mainline-normalization-v1'
+      )
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.searchLike).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.db.prepare).toHaveBeenCalledTimes(2)
+      expect(result).not.toEqual([])
+    })
+
     it('returns an empty array when query is blank', async () => {
       await expect(presenter.searchHistory('   ')).resolves.toEqual([])
+    })
+  })
+
+  describe('legacy import normalization', () => {
+    it('invalidates completion after the startup importer adds raw history', async () => {
+      const legacyImportService = (presenter as any).legacyImportService
+      vi.spyOn(legacyImportService, 'getStatus').mockReturnValue({ status: 'idle' })
+      vi.spyOn(legacyImportService, 'start').mockResolvedValue({
+        importedSessions: 1,
+        importedMessages: 2
+      })
+
+      await presenter.startLegacyImportTask()
+
+      expect(sqlitePresenter.configTables.deleteAgentSetting).toHaveBeenCalledWith(
+        'sqlite-mainline-normalization-v1'
+      )
+    })
+
+    it('does not invalidate from historical counts when startup import is already complete', async () => {
+      const legacyImportService = (presenter as any).legacyImportService
+      const completed = {
+        status: 'completed',
+        importedSessions: 1,
+        importedMessages: 2
+      }
+      vi.spyOn(legacyImportService, 'getStatus').mockReturnValue(completed)
+      vi.spyOn(legacyImportService, 'start').mockResolvedValue(completed)
+
+      await presenter.startLegacyImportTask()
+
+      expect(sqlitePresenter.configTables.deleteAgentSetting).not.toHaveBeenCalled()
     })
   })
 

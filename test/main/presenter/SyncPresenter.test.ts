@@ -18,7 +18,12 @@ const cloudStorageMocks = vi.hoisted(() => ({
 }))
 
 const mainPresenterMocks = vi.hoisted(() => ({
-  broadcastConversationThreadListUpdate: vi.fn()
+  broadcastConversationThreadListUpdate: vi.fn(),
+  agentSessionPresenter: {
+    invalidateMainlineNormalizationStatus: vi.fn(),
+    refreshMainlineNormalizationStatus: vi.fn(),
+    suspendMainlineNormalizationStatus: vi.fn()
+  }
 }))
 
 vi.mock('better-sqlite3-multiple-ciphers', async () => {
@@ -344,6 +349,9 @@ describe('SyncPresenter backup import', () => {
     cloudStorageMocks.listRemoteBackups.mockReset()
     cloudStorageMocks.downloadLatest.mockReset()
     mainPresenterMocks.broadcastConversationThreadListUpdate.mockReset()
+    mainPresenterMocks.agentSessionPresenter.invalidateMainlineNormalizationStatus.mockReset()
+    mainPresenterMocks.agentSessionPresenter.refreshMainlineNormalizationStatus.mockReset()
+    mainPresenterMocks.agentSessionPresenter.suspendMainlineNormalizationStatus.mockReset()
     vi.mocked(publishDeepchatEvent).mockClear()
 
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-user-'))
@@ -490,33 +498,42 @@ describe('SyncPresenter backup import', () => {
       }
     })
 
-    const backupFile = createBackupArchive(syncDir, Date.now(), {
-      conversations: [
-        { id: 'conv-1', title: 'Local conversation' },
-        { id: 'conv-2', title: 'Imported conversation' }
-      ],
-      appSettings: { theme: 'dark', locale: 'zh' },
-      customPrompts: {
-        prompts: [
-          { id: 'prompt-local', title: 'Local prompt (ignored)' },
-          { id: 'prompt-imported', title: 'Imported prompt' }
-        ]
-      },
-      systemPrompts: {
-        prompts: [
-          { id: 'system-local', title: 'Local system prompt (ignored)' },
-          { id: 'system-imported', title: 'Imported system prompt' }
-        ]
-      },
-      mcpSettings: {
-        mcpServers: {
-          imported: { command: 'bunx imported', type: 'stdio', enabled: false },
-          knowledge: { command: 'bunx knowledge', type: 'stdio', enabled: true }
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [
+          { id: 'conv-1', title: 'Local conversation' },
+          { id: 'conv-2', title: 'Imported conversation' }
+        ],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: {
+          prompts: [
+            { id: 'prompt-local', title: 'Local prompt (ignored)' },
+            { id: 'prompt-imported', title: 'Imported prompt' }
+          ]
         },
-        defaultServers: ['imported'],
-        additional: true
+        systemPrompts: {
+          prompts: [
+            { id: 'system-local', title: 'Local system prompt (ignored)' },
+            { id: 'system-imported', title: 'Imported system prompt' }
+          ]
+        },
+        mcpSettings: {
+          mcpServers: {
+            imported: { command: 'bunx imported', type: 'stdio', enabled: false },
+            knowledge: { command: 'bunx knowledge', type: 'stdio', enabled: true }
+          },
+          defaultServers: ['imported'],
+          additional: true
+        }
+      },
+      {
+        extraAgentTables: {
+          new_sessions: [{ id: 'session-imported' }]
+        }
       }
-    })
+    )
 
     const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
 
@@ -528,6 +545,15 @@ describe('SyncPresenter backup import', () => {
     expect(result.importedSessions).toBe(1)
     expect(sqlitePresenter.close).toHaveBeenCalled()
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
+    expect(
+      mainPresenterMocks.agentSessionPresenter.suspendMainlineNormalizationStatus
+    ).toHaveBeenCalledOnce()
+    expect(
+      mainPresenterMocks.agentSessionPresenter.invalidateMainlineNormalizationStatus
+    ).toHaveBeenCalledOnce()
+    expect(
+      mainPresenterMocks.agentSessionPresenter.refreshMainlineNormalizationStatus
+    ).not.toHaveBeenCalled()
     expect(configImportMocks.importLegacyConfig).toHaveBeenCalledWith(
       expect.stringContaining('deepchat-backup-'),
       'increment'
@@ -1053,6 +1079,12 @@ describe('SyncPresenter backup import', () => {
     expect(result.sourceDbType).toBe('agent')
     expect(result.importedSessions).toBe(1)
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
+    expect(
+      mainPresenterMocks.agentSessionPresenter.refreshMainlineNormalizationStatus
+    ).toHaveBeenCalledOnce()
+    expect(
+      mainPresenterMocks.agentSessionPresenter.invalidateMainlineNormalizationStatus
+    ).not.toHaveBeenCalled()
     expect(configImportMocks.importLegacyConfig).toHaveBeenCalledWith(
       expect.stringContaining('deepchat-backup-'),
       'overwrite'
@@ -1116,6 +1148,9 @@ describe('SyncPresenter backup import', () => {
     expect(result.sourceDbType).toBe('chat')
     expect(result.importedSessions).toBe(2)
     expect(sqlitePresenter.importLegacyChatDb).toHaveBeenCalledTimes(1)
+    expect(
+      mainPresenterMocks.agentSessionPresenter.invalidateMainlineNormalizationStatus
+    ).toHaveBeenCalledOnce()
     const [sourcePathArg, modeArg] = sqlitePresenter.importLegacyChatDb.mock.calls[0]
     expect(typeof sourcePathArg).toBe('string')
     expect(sourcePathArg.endsWith(path.join('database', 'chat.db'))).toBe(true)

@@ -13,6 +13,12 @@ export interface DeepChatSearchDocumentRow {
   updated_at: number
 }
 
+export type DeepChatFtsSearchRow = DeepChatSearchDocumentRow & { rank: number }
+
+export type DeepChatFtsSearchResult =
+  | { kind: 'available'; rows: DeepChatFtsSearchRow[] }
+  | { kind: 'unavailable' }
+
 const NORMALIZATION_SCHEMA_VERSION = 26
 const FTS_TABLE_NAME = 'deepchat_search_documents_fts'
 const FTS_TRIGGER_NAMES = [
@@ -77,7 +83,7 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
       return false
     }
 
-    return this.hasCompatibleFtsTable()
+    return this.hasCompatibleFtsTable() && this.hasFtsTriggers()
   }
 
   private hasFtsTable(): boolean {
@@ -207,37 +213,40 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
     this.db.prepare('DELETE FROM deepchat_search_documents WHERE session_id = ?').run(sessionId)
   }
 
-  searchFts(query: string, limit: number): Array<DeepChatSearchDocumentRow & { rank: number }> {
+  searchFts(query: string, limit: number): DeepChatFtsSearchResult {
     if (!this.isFtsAvailable()) {
-      return []
+      return { kind: 'unavailable' }
     }
 
     const matchQuery = buildFtsMatchQuery(query)
     if (!matchQuery) {
-      return []
+      return { kind: 'available', rows: [] }
     }
 
-    return this.db
-      .prepare(
-        `SELECT
-           d.rowid,
-           d.document_key,
-           d.session_id,
-           d.message_id,
-           d.document_kind,
-           d.role,
-           d.title,
-           d.content,
-           d.updated_at,
-           bm25(deepchat_search_documents_fts) AS rank
-         FROM deepchat_search_documents_fts
-         JOIN deepchat_search_documents d
-           ON d.rowid = deepchat_search_documents_fts.rowid
-         WHERE deepchat_search_documents_fts MATCH ?
-         ORDER BY rank ASC, d.updated_at DESC
-         LIMIT ?`
-      )
-      .all(matchQuery, limit) as Array<DeepChatSearchDocumentRow & { rank: number }>
+    return {
+      kind: 'available',
+      rows: this.db
+        .prepare(
+          `SELECT
+             d.rowid,
+             d.document_key,
+             d.session_id,
+             d.message_id,
+             d.document_kind,
+             d.role,
+             d.title,
+             d.content,
+             d.updated_at,
+             bm25(deepchat_search_documents_fts) AS rank
+           FROM deepchat_search_documents_fts
+           JOIN deepchat_search_documents d
+             ON d.rowid = deepchat_search_documents_fts.rowid
+           WHERE deepchat_search_documents_fts MATCH ?
+           ORDER BY rank ASC, d.updated_at DESC
+           LIMIT ?`
+        )
+        .all(matchQuery, limit) as DeepChatFtsSearchRow[]
+    }
   }
 
   searchLike(query: string, limit: number): Array<DeepChatSearchDocumentRow & { rank: number }> {

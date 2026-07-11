@@ -302,7 +302,10 @@ export class AgentSessionPresenter {
   private sessionPermissionPort?: SessionPermissionPort
   private sessionUiPort?: SessionUiPort
   private usageStatsBackfillPromise: Promise<void> | null = null
+  private legacyImportPromise: Promise<LegacyImportStatus> | null = null
   private mainlineNormalizationPromise: Promise<void> | null = null
+  private mainlineNormalizationGeneration = 0
+  private mainlineNormalizationCompleted = false
   private disabledSearchToolCleanupPromise: Promise<void> | null = null
   private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
   private readonly createSessionFlights = new Map<string, Promise<SessionWithState | null>>()
@@ -331,6 +334,7 @@ export class AgentSessionPresenter {
     this.providerSessionPort = runtimePorts?.providerSessionPort
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort ?? sessionRuntimePort
     this.sessionUiPort = runtimePorts?.sessionUiPort ?? sessionRuntimePort
+    this.refreshMainlineNormalizationStatus()
 
     // Register the built-in deepchat agent
     this.agentRegistry.register(
@@ -1329,17 +1333,18 @@ export class AgentSessionPresenter {
     }
 
     const searchDocumentLimit = limit * MESSAGE_SEARCH_OVERQUERY_FACTOR
-    const searchDocumentRows = this.sqlitePresenter.deepchatSearchDocumentsTable.searchFts(
-      normalizedQuery,
-      searchDocumentLimit
-    )
+    const searchDocuments = this.sqlitePresenter.deepchatSearchDocumentsTable
+    let ftsSearch: ReturnType<typeof searchDocuments.searchFts> | null = null
+    try {
+      ftsSearch = searchDocuments.searchFts(normalizedQuery, searchDocumentLimit)
+    } catch {
+      // A local FTS query failure changes the search path, not the public route contract.
+    }
     const candidateSearchRows =
-      searchDocumentRows.length > 0
-        ? searchDocumentRows
-        : this.sqlitePresenter.deepchatSearchDocumentsTable.searchLike(
-            normalizedQuery,
-            searchDocumentLimit
-          )
+      ftsSearch?.kind === 'available' &&
+      (ftsSearch.rows.length > 0 || this.mainlineNormalizationCompleted)
+        ? ftsSearch.rows
+        : searchDocuments.searchLike(normalizedQuery, searchDocumentLimit)
 
     if (candidateSearchRows.length > 0) {
       const hits = candidateSearchRows
@@ -1397,6 +1402,10 @@ export class AgentSessionPresenter {
           .slice(0, limit)
           .map(({ rank: _rank, ...item }) => item)
       }
+    }
+
+    if (this.mainlineNormalizationCompleted) {
+      return []
     }
 
     const likeQuery = `%${normalizedQuery}%`
@@ -1752,15 +1761,35 @@ export class AgentSessionPresenter {
   }
 
   async retryLegacyImport(): Promise<LegacyImportStatus> {
-    return await this.legacyImportService.retry()
+    return await this.runLegacyImport(true)
   }
 
   async startLegacyImport(): Promise<void> {
-    this.legacyImportService.startInBackground(false)
+    void this.runLegacyImport(false).catch((error) => {
+      console.error('[LegacyChatImport] Background import failed:', error)
+    })
   }
 
   async startLegacyImportTask(): Promise<void> {
-    await this.legacyImportService.start(false)
+    await this.runLegacyImport(false)
+  }
+
+  refreshMainlineNormalizationStatus(): void {
+    this.mainlineNormalizationGeneration += 1
+    this.mainlineNormalizationCompleted =
+      this.sqlitePresenter.configTables.getAgentSetting<{ status?: string }>(
+        SQLITE_MAINLINE_NORMALIZATION_KEY
+      )?.status === 'completed'
+  }
+
+  suspendMainlineNormalizationStatus(): void {
+    this.mainlineNormalizationGeneration += 1
+    this.mainlineNormalizationCompleted = false
+  }
+
+  invalidateMainlineNormalizationStatus(): void {
+    this.suspendMainlineNormalizationStatus()
+    this.sqlitePresenter.configTables.deleteAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY)
   }
 
   async startUsageStatsBackfill(): Promise<void> {
@@ -1795,13 +1824,18 @@ export class AgentSessionPresenter {
   async startMainlineNormalizationBackfillTask(
     taskContext?: StartupWorkloadTaskContext
   ): Promise<void> {
+    if (this.legacyImportPromise) {
+      await this.legacyImportPromise
+    }
+
     const current =
       this.sqlitePresenter.configTables.getAgentSetting<{
         status?: 'running' | 'completed' | 'failed'
         updatedAt?: number
       }>(SQLITE_MAINLINE_NORMALIZATION_KEY) ?? null
 
-    if (current?.status === 'completed') {
+    this.mainlineNormalizationCompleted = current?.status === 'completed'
+    if (this.mainlineNormalizationCompleted) {
       return
     }
 
@@ -1816,6 +1850,32 @@ export class AgentSessionPresenter {
     )
 
     return await this.mainlineNormalizationPromise
+  }
+
+  private async runLegacyImport(force: boolean): Promise<LegacyImportStatus> {
+    if (this.legacyImportPromise) {
+      return await this.legacyImportPromise
+    }
+
+    this.legacyImportPromise = (async () => {
+      if (this.mainlineNormalizationPromise) {
+        await this.mainlineNormalizationPromise
+      }
+
+      const importAlreadyCompleted =
+        !force && this.legacyImportService.getStatus().status === 'completed'
+      const status = force
+        ? await this.legacyImportService.retry()
+        : await this.legacyImportService.start(false)
+      if (!importAlreadyCompleted && (status.importedSessions > 0 || status.importedMessages > 0)) {
+        this.invalidateMainlineNormalizationStatus()
+      }
+      return status
+    })().finally(() => {
+      this.legacyImportPromise = null
+    })
+
+    return await this.legacyImportPromise
   }
 
   async startDisabledSearchToolCleanupBackfill(): Promise<void> {
@@ -3706,6 +3766,8 @@ export class AgentSessionPresenter {
   ): Promise<void> {
     const startedAt = Date.now()
     const batchSize = 50
+    const generation = this.mainlineNormalizationGeneration
+    this.mainlineNormalizationCompleted = false
     this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
       status: 'running',
       startedAt,
@@ -3718,7 +3780,10 @@ export class AgentSessionPresenter {
       const db = this.sqlitePresenter.getDatabase()
       let processedCount = 0
       let batchCount = 0
-      const yieldForBatch = async (): Promise<void> => {
+      const yieldForBatch = async (): Promise<boolean> => {
+        if (generation !== this.mainlineNormalizationGeneration) {
+          return false
+        }
         this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
           status: 'running',
           startedAt,
@@ -3727,6 +3792,7 @@ export class AgentSessionPresenter {
           processedCount
         })
         await (taskContext?.yield() ?? this.yieldToEventLoop())
+        return generation === this.mainlineNormalizationGeneration
       }
 
       let sessionCursor: { updatedAt: number; id: string } | null = null
@@ -3784,7 +3850,9 @@ export class AgentSessionPresenter {
           batchCount += 1
           if (batchCount >= batchSize) {
             batchCount = 0
-            await yieldForBatch()
+            if (!(await yieldForBatch())) {
+              return
+            }
           }
         }
       }
@@ -3821,9 +3889,15 @@ export class AgentSessionPresenter {
           batchCount += 1
           if (batchCount >= batchSize) {
             batchCount = 0
-            await yieldForBatch()
+            if (!(await yieldForBatch())) {
+              return
+            }
           }
         }
+      }
+
+      if (generation !== this.mainlineNormalizationGeneration) {
+        return
       }
 
       const finishedAt = Date.now()
@@ -3836,12 +3910,17 @@ export class AgentSessionPresenter {
         processedCount,
         durationMs
       })
+      this.mainlineNormalizationCompleted = true
       logger.info('[SQLiteMainlineNormalization] Backfill completed', {
         processedCount,
         durationMs
       })
     } catch (error) {
+      if (generation !== this.mainlineNormalizationGeneration) {
+        return
+      }
       const finishedAt = Date.now()
+      this.mainlineNormalizationCompleted = false
       this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
         status: 'failed',
         startedAt,

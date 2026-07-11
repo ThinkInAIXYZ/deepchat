@@ -352,6 +352,8 @@ export class SyncPresenter implements ISyncPresenter {
 
     let sqliteClosed = false
     let sqliteReopenedForLegacyImport = false
+    let mainlineNormalizationSuspended = false
+    let invalidateMainlineNormalizationAfterImport = false
 
     try {
       await this.extractBackupArchive(backupZipPath, extractionDir)
@@ -383,6 +385,8 @@ export class SyncPresenter implements ISyncPresenter {
         activeDatabasePassword
       )
 
+      this.suspendMainlineNormalizationStatus()
+      mainlineNormalizationSuspended = true
       this.sqlitePresenter.close()
       sqliteClosed = true
 
@@ -448,6 +452,9 @@ export class SyncPresenter implements ISyncPresenter {
           importer.close()
           importedConversationCount =
             summary.tableCounts.new_sessions || summary.tableCounts.conversations || 0
+          invalidateMainlineNormalizationAfterImport = Boolean(
+            summary.tableCounts.new_sessions || summary.tableCounts.deepchat_messages
+          )
 
           if (usesSqliteConfigStorage) {
             configImportService.ensureConfigMigrationMarker()
@@ -468,6 +475,9 @@ export class SyncPresenter implements ISyncPresenter {
           importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
         )
         importedConversationCount = summary.importedSessions
+        invalidateMainlineNormalizationAfterImport = Boolean(
+          summary.importedSessions || summary.importedMessages
+        )
 
         this.sqlitePresenter.close()
         sqliteClosed = true
@@ -489,6 +499,8 @@ export class SyncPresenter implements ISyncPresenter {
         this.sqlitePresenter.reopen()
         this.reattachConfigPresenterStorage()
       }
+      this.syncMainlineNormalizationStatus(invalidateMainlineNormalizationAfterImport)
+      mainlineNormalizationSuspended = false
       await this.broadcastThreadListUpdateAfterImport()
       if (importMode === ImportMode.OVERWRITE) {
         await this.resetShellWindowsToSingleNewChatTab()
@@ -519,10 +531,15 @@ export class SyncPresenter implements ISyncPresenter {
         try {
           this.sqlitePresenter.reopen()
           this.reattachConfigPresenterStorage()
+          this.syncMainlineNormalizationStatus(false)
+          mainlineNormalizationSuspended = false
           await this.broadcastThreadListUpdateAfterImport()
         } catch (reopenError) {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
         }
+      }
+      if (mainlineNormalizationSuspended && !sqliteClosed) {
+        this.syncMainlineNormalizationStatus(false)
       }
       publishDeepchatEvent('sync.import.error', {
         error: errorMessage,
@@ -679,6 +696,45 @@ export class SyncPresenter implements ISyncPresenter {
         setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
       }
     ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
+  }
+
+  private syncMainlineNormalizationStatus(invalidate: boolean): void {
+    const agentSessionPresenter = this.getAgentSessionNormalizationOwner()
+    if (invalidate) {
+      agentSessionPresenter.invalidateMainlineNormalizationStatus()
+      return
+    }
+    agentSessionPresenter.refreshMainlineNormalizationStatus()
+  }
+
+  private suspendMainlineNormalizationStatus(): void {
+    this.getAgentSessionNormalizationOwner().suspendMainlineNormalizationStatus()
+  }
+
+  private getAgentSessionNormalizationOwner(): {
+    invalidateMainlineNormalizationStatus: () => void
+    refreshMainlineNormalizationStatus: () => void
+    suspendMainlineNormalizationStatus: () => void
+  } {
+    const agentSessionPresenter = presenter?.agentSessionPresenter as unknown as
+      | {
+          invalidateMainlineNormalizationStatus?: () => void
+          refreshMainlineNormalizationStatus?: () => void
+          suspendMainlineNormalizationStatus?: () => void
+        }
+      | undefined
+    if (
+      !agentSessionPresenter?.invalidateMainlineNormalizationStatus ||
+      !agentSessionPresenter.refreshMainlineNormalizationStatus ||
+      !agentSessionPresenter.suspendMainlineNormalizationStatus
+    ) {
+      throw new Error('Agent session normalization owner unavailable')
+    }
+    return agentSessionPresenter as {
+      invalidateMainlineNormalizationStatus: () => void
+      refreshMainlineNormalizationStatus: () => void
+      suspendMainlineNormalizationStatus: () => void
+    }
   }
 
   private createConfigImportService(): SyncConfigImportService {
