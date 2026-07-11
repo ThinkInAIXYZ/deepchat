@@ -708,6 +708,8 @@ Restart recovery history (content-free)
   no-model unbounded truth 有 tests，`PRV-CAN-001` 未完成前不假称 owner cancellation。
 - session/chat safe consumers 按 inventory 迁移；legacy allowlist 包含 `sessions.create` 与精确的
   `providers.testConnection`，不得扩大。
+- production legacy retry caller 为零，`retry()` surface/adapter/input 已删除；settled-only retry 只经
+  `retryIdempotent()` 暴露。
 - `AgentRuntimePresenter` exactly-once cancel settlement tests 不变绿转红。
 
 ### SCH-003 implementation

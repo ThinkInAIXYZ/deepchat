@@ -436,8 +436,16 @@ describe('createNodeOperationRunner', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('keeps the allowlisted legacy timeout and retry behavior during migration', async () => {
+  it('keeps the allowlisted legacy timeout behavior during migration', async () => {
     const runner = createNodeOperationRunner()
+    expect(Object.keys(runner).sort()).toEqual([
+      'observeIdempotent',
+      'retryIdempotent',
+      'sleep',
+      'timeout'
+    ])
+    expect('retry' in runner).toBe(false)
+
     const legacyTimeout = runner.timeout({
       task: new Promise<void>(() => {}),
       ms: 10,
@@ -447,19 +455,6 @@ describe('createNodeOperationRunner', () => {
 
     await vi.advanceTimersByTimeAsync(10)
     await timeout
-
-    const task = vi.fn().mockRejectedValueOnce(new Error('first')).mockResolvedValueOnce('ok')
-    const legacyRetry = runner.retry({
-      task,
-      maxAttempts: 2,
-      initialDelayMs: 1,
-      backoff: 1,
-      reason: 'legacy-retry'
-    })
-    await vi.advanceTimersByTimeAsync(1)
-
-    await expect(legacyRetry).resolves.toBe('ok')
-    expect(task).toHaveBeenCalledTimes(2)
     expect(vi.getTimerCount()).toBe(0)
   })
 })

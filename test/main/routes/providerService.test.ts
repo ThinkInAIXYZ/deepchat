@@ -3,8 +3,9 @@ import { ProviderService } from '@/routes/providers/providerService'
 describe('ProviderService', () => {
   const createScheduler = () => ({
     sleep: vi.fn(),
-    timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task),
-    retry: vi.fn()
+    observeIdempotent: vi.fn(),
+    retryIdempotent: vi.fn(),
+    timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task)
   })
 
   it('lists provider and custom models through the provider catalog port', async () => {
@@ -59,7 +60,9 @@ describe('ProviderService', () => {
 
     expect(providerCatalogPort.getProviderModels).toHaveBeenCalledWith('openai')
     expect(providerCatalogPort.getCustomModels).toHaveBeenCalledWith('openai')
-    expect(scheduler.timeout).toHaveBeenCalledTimes(2)
+    expect(scheduler.timeout).not.toHaveBeenCalled()
+    expect(scheduler.observeIdempotent).not.toHaveBeenCalled()
+    expect(scheduler.retryIdempotent).not.toHaveBeenCalled()
   })
 
   it('tests provider connections through the provider execution port', async () => {
@@ -92,5 +95,6 @@ describe('ProviderService', () => {
 
     expect(providerExecutionPort.testConnection).toHaveBeenCalledWith('openai', 'gpt-5.4')
     expect(scheduler.timeout).toHaveBeenCalledTimes(1)
+    expect(scheduler.retryIdempotent).not.toHaveBeenCalled()
   })
 })

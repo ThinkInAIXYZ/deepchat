@@ -41,6 +41,8 @@ const TRACKED_GROWTH_BASELINE_PATH = path.join(
   ROOT,
   'docs/architecture/baselines/architecture-growth.json'
 )
+const ARCHITECTURE_GUARD_PATH = path.join(ROOT, 'scripts/architecture-guard.mjs')
+const OPERATION_RUNNER_PATH = path.join(ROOT, 'src/main/routes/operationRunner.ts')
 const FIXTURE_PATHS = [
   FIXTURE_PATH,
   MEMORY_CORE_FIXTURE_PATH,
@@ -122,6 +124,32 @@ describe.sequential('architecture guard', () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('Architecture guard passed.')
+  })
+
+  it('pins the final two legacy calls and the removed retry surface', async () => {
+    const [guardSource, runnerSource] = await Promise.all([
+      readFile(ARCHITECTURE_GUARD_PATH, 'utf8'),
+      readFile(OPERATION_RUNNER_PATH, 'utf8')
+    ])
+    const allowlistBody = guardSource.match(
+      /const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map\(\[([\s\S]*?)\]\)/
+    )?.[1]
+    const allowlistedCalls = [
+      ...(allowlistBody ?? '').matchAll(/\['([^']+)',\s*(\d+)\]/g)
+    ].map((match) => [match[1], Number(match[2])])
+    const runnerInterface = runnerSource.match(
+      /export interface OperationRunner \{([\s\S]*?)^\}/m
+    )?.[1]
+
+    expect(allowlistedCalls).toEqual([
+      ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
+      ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
+    ])
+    expect(allowlistBody).not.toContain('#retry')
+    expect(runnerInterface).not.toMatch(/^\s*retry(?:<|\s*\()/m)
+
+    const result = runArchitectureGuard()
+    expect(result.status).toBe(0)
   })
 
   it('fails when a renamed route field makes a direct legacy operation runner call', async () => {

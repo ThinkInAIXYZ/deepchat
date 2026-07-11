@@ -25,10 +25,6 @@ class RetryableSessionReadError extends Error {
   }
 }
 
-class NonRetryableSessionReadFailure {
-  constructor(readonly error: unknown) {}
-}
-
 function toPublicSessionResolution(resolution: SessionResolutionResult): PublicSessionResolution {
   switch (resolution.availability) {
     case 'available':
@@ -114,11 +110,12 @@ export class SessionService {
       }
     }
 
-    const page = await this.deps.scheduler.timeout({
-      task: this.deps.messageRepository.listPageBySession(sessionId, {
-        limit: effectiveLimit
-      }),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
+    const page = await this.deps.scheduler.observeIdempotent({
+      task: async () =>
+        await this.deps.messageRepository.listPageBySession(sessionId, {
+          limit: effectiveLimit
+        }),
+      deadlineMs: SESSION_OPERATION_TIMEOUT_MS,
       reason: `sessions.restore:${sessionId}:messages`
     })
 
@@ -136,9 +133,9 @@ export class SessionService {
       cursor?: MessagePageCursor | null
     }
   ): Promise<ChatMessagePageResult> {
-    return await this.deps.scheduler.timeout({
-      task: this.deps.messageRepository.listPageBySession(sessionId, options),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
+    return await this.deps.scheduler.observeIdempotent({
+      task: async () => await this.deps.messageRepository.listPageBySession(sessionId, options),
+      deadlineMs: SESSION_OPERATION_TIMEOUT_MS,
       reason: `sessions.listMessagesPage:${sessionId}`
     })
   }
@@ -146,9 +143,9 @@ export class SessionService {
   async listSessions(
     filters?: SessionListFilters
   ): Promise<{ sessions: SessionWithState[]; results: PublicSessionResolution[] }> {
-    const resolutions = await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.resolveList(filters),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
+    const resolutions = await this.deps.scheduler.observeIdempotent({
+      task: async () => await this.deps.sessionRepository.resolveList(filters),
+      deadlineMs: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.list'
     })
 
@@ -168,19 +165,11 @@ export class SessionService {
   }
 
   async activateSession(context: SessionRouteContext, sessionId: string): Promise<void> {
-    await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.activate(context.webContentsId, sessionId),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
-      reason: `sessions.activate:${sessionId}`
-    })
+    await this.deps.sessionRepository.activate(context.webContentsId, sessionId)
   }
 
   async deactivateSession(context: SessionRouteContext): Promise<void> {
-    await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.deactivate(context.webContentsId),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
-      reason: 'sessions.deactivate'
-    })
+    await this.deps.sessionRepository.deactivate(context.webContentsId)
   }
 
   async getActiveSession(
@@ -190,21 +179,10 @@ export class SessionService {
     let active: ActiveSessionResolution
 
     try {
-      const read = await this.deps.scheduler.retry<
-        ActiveSessionResolution | NonRetryableSessionReadFailure
-      >({
+      active = await this.deps.scheduler.retryIdempotent({
         task: async () => {
           attemptCount += 1
-          let result: ActiveSessionResolution
-          try {
-            result = await this.deps.scheduler.timeout({
-              task: this.deps.sessionRepository.resolveActive(context.webContentsId),
-              ms: SESSION_OPERATION_TIMEOUT_MS,
-              reason: 'sessions.getActive'
-            })
-          } catch (error) {
-            return new NonRetryableSessionReadFailure(error)
-          }
+          const result = await this.deps.sessionRepository.resolveActive(context.webContentsId)
           if (result.binding === 'bound' && result.resolution.availability === 'transient_error') {
             throw new RetryableSessionReadError(result.resolution)
           }
@@ -213,12 +191,10 @@ export class SessionService {
         maxAttempts: 2,
         initialDelayMs: 25,
         backoff: 1,
+        overallDeadlineMs: SESSION_OPERATION_TIMEOUT_MS,
+        shouldRetry: (error) => error instanceof RetryableSessionReadError,
         reason: 'sessions.getActive'
       })
-      if (read instanceof NonRetryableSessionReadFailure) {
-        throw read.error
-      }
-      active = read
     } catch (error) {
       if (!(error instanceof RetryableSessionReadError)) {
         throw error
@@ -250,21 +226,10 @@ export class SessionService {
   ): Promise<{ resolution: SessionResolutionResult; attemptCount: number }> {
     let attemptCount = 0
     try {
-      const read = await this.deps.scheduler.retry<
-        SessionResolutionResult | NonRetryableSessionReadFailure
-      >({
+      const read = await this.deps.scheduler.retryIdempotent({
         task: async () => {
           attemptCount += 1
-          let result: SessionResolutionResult
-          try {
-            result = await this.deps.scheduler.timeout({
-              task: this.deps.sessionRepository.resolve(sessionId),
-              ms: SESSION_OPERATION_TIMEOUT_MS,
-              reason: `${reason}:session`
-            })
-          } catch (error) {
-            return new NonRetryableSessionReadFailure(error)
-          }
+          const result = await this.deps.sessionRepository.resolve(sessionId)
           if (result.availability === 'transient_error') {
             throw new RetryableSessionReadError(result)
           }
@@ -273,11 +238,10 @@ export class SessionService {
         maxAttempts: 2,
         initialDelayMs: 25,
         backoff: 1,
+        overallDeadlineMs: SESSION_OPERATION_TIMEOUT_MS,
+        shouldRetry: (error) => error instanceof RetryableSessionReadError,
         reason
       })
-      if (read instanceof NonRetryableSessionReadFailure) {
-        throw read.error
-      }
       return { resolution: read, attemptCount }
     } catch (error) {
       if (!(error instanceof RetryableSessionReadError)) {

@@ -17,6 +17,16 @@ const {
   mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'mock completion' })
 }))
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
   return {
@@ -323,6 +333,73 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(result).toHaveProperty('errorMsg')
       expect(result.isOk).toBe(true)
     }, 10000)
+
+    it('keeps the model-specific connection check as a 60-second observation', async () => {
+      vi.useFakeTimers()
+      const completion = deferred<{ content: string }>()
+      const provider = {
+        completions: vi.fn().mockReturnValue(completion.promise),
+        check: vi.fn()
+      }
+      vi.spyOn(llmProviderPresenter, 'getProviderInstance').mockReturnValue(provider as any)
+
+      try {
+        let settled = false
+        const checking = llmProviderPresenter.check('mock-openai-api', 'mock-model')
+        void checking.finally(() => {
+          settled = true
+        })
+
+        await vi.advanceTimersByTimeAsync(59_999)
+        expect(settled).toBe(false)
+        expect(provider.completions).toHaveBeenCalledWith(
+          [{ role: 'user', content: 'hi' }],
+          'mock-model',
+          0.1,
+          10
+        )
+
+        await vi.advanceTimersByTimeAsync(1)
+        await expect(checking).resolves.toEqual({
+          isOk: false,
+          errorMsg: 'Model response is invalid'
+        })
+
+        completion.resolve({ content: 'late owner response' })
+        await Promise.resolve()
+        expect(provider.completions).toHaveBeenCalledOnce()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps the provider-native connection check without a uniform route deadline', async () => {
+      vi.useFakeTimers()
+      const nativeCheck = deferred<{ isOk: boolean; errorMsg: string | null }>()
+      const provider = {
+        completions: vi.fn(),
+        check: vi.fn().mockReturnValue(nativeCheck.promise)
+      }
+      vi.spyOn(llmProviderPresenter, 'getProviderInstance').mockReturnValue(provider as any)
+
+      try {
+        let settled = false
+        const checking = llmProviderPresenter.check('mock-openai-api')
+        void checking.finally(() => {
+          settled = true
+        })
+
+        expect(vi.getTimerCount()).toBe(0)
+        await vi.advanceTimersByTimeAsync(600_000)
+        expect(settled).toBe(false)
+        expect(provider.check).toHaveBeenCalledOnce()
+
+        nativeCheck.resolve({ isOk: true, errorMsg: null })
+        await expect(checking).resolves.toEqual({ isOk: true, errorMsg: null })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('Non-stream Completion', () => {

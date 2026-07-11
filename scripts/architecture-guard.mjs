@@ -151,25 +151,10 @@ const OPERATION_RUNNER_ALLOWED_METHODS = new Set([
   'sleep',
   'observeIdempotent',
   'retryIdempotent',
-  'timeout',
-  'retry'
+  'timeout'
 ])
 const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map([
   ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#restoreSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#listMessagesPage#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#listSessions#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#activateSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#deactivateSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#getActiveSession#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#getActiveSession#retry', 1],
-  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#timeout', 1],
-  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#retry', 1],
-  ['src/main/routes/chat/chatService.ts#sendMessage#timeout', 3],
-  ['src/main/routes/chat/chatService.ts#steerActiveTurn#timeout', 2],
-  ['src/main/routes/chat/chatService.ts#stopStream#timeout', 2],
-  ['src/main/routes/chat/chatService.ts#respondToolInteraction#timeout', 1],
-  ['src/main/routes/providers/providerService.ts#listModels#timeout', 2],
   ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
 ])
 

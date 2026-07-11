@@ -10,9 +10,6 @@ import type { OperationRunner } from '../operationRunner'
 import { requireAvailableSession } from '@/presenter/agentSessionPresenter/sessionResolution'
 
 const CHAT_LOOKUP_TIMEOUT_MS = 5_000
-const CHAT_SEND_TIMEOUT_MS = 30 * 60 * 1_000
-const CHAT_STOP_TIMEOUT_MS = 5_000
-const CHAT_INTERACTION_TIMEOUT_MS = CHAT_SEND_TIMEOUT_MS
 
 export class ChatService {
   private readonly activeControllers = new Map<string, AbortController>()
@@ -44,57 +41,32 @@ export class ChatService {
     this.activeControllers.set(sessionId, controller)
 
     try {
-      const resolution = await this.deps.scheduler.timeout({
-        task: this.deps.sessionRepository.resolve(sessionId),
-        ms: CHAT_LOOKUP_TIMEOUT_MS,
-        reason: `chat.sendMessage:${sessionId}:session`
+      const resolution = await this.deps.scheduler.observeIdempotent({
+        task: async () => await this.deps.sessionRepository.resolve(sessionId),
+        deadlineMs: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.sendMessage:${sessionId}:session`,
+        signal: controller.signal
       })
       const session = requireAvailableSession('chat.sendMessage', resolution)
 
-      const agentType = await this.deps.scheduler.timeout({
-        task: this.deps.providerCatalogPort.getAgentType(session.agentId),
-        ms: CHAT_LOOKUP_TIMEOUT_MS,
-        reason: `chat.sendMessage:${sessionId}:agentType`
+      const agentType = await this.deps.scheduler.observeIdempotent({
+        task: async () => await this.deps.providerCatalogPort.getAgentType(session.agentId),
+        deadlineMs: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.sendMessage:${sessionId}:agentType`,
+        signal: controller.signal
       })
 
       if (!agentType) {
         throw new Error(`Agent type not found: ${session.agentId}`)
       }
 
-      const result = await this.deps.scheduler.timeout({
-        task: this.deps.providerExecutionPort.sendMessage(sessionId, content),
-        ms: CHAT_SEND_TIMEOUT_MS,
-        reason: `chat.sendMessage:${sessionId}`,
-        signal: controller.signal
-      })
+      const result = await this.deps.providerExecutionPort.sendMessage(sessionId, content)
 
       return {
         accepted: true,
         requestId: result.requestId,
         messageId: result.messageId
       }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'TimeoutError') {
-        const cleanupResults = await Promise.allSettled([
-          Promise.resolve(this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)),
-          this.deps.providerExecutionPort.cancelGeneration(sessionId)
-        ])
-        const clearPermissionsResult = cleanupResults[0]
-        if (clearPermissionsResult?.status === 'rejected') {
-          console.warn(
-            `[ChatService] Failed to clear session permissions after send timeout for ${sessionId}:`,
-            clearPermissionsResult.reason
-          )
-        }
-        const cancelGenerationResult = cleanupResults[1]
-        if (cancelGenerationResult?.status === 'rejected') {
-          console.warn(
-            `[ChatService] Failed to cancel generation after send timeout for ${sessionId}:`,
-            cancelGenerationResult.reason
-          )
-        }
-      }
-      throw error
     } finally {
       if (this.activeControllers.get(sessionId) === controller) {
         this.activeControllers.delete(sessionId)
@@ -106,18 +78,14 @@ export class ChatService {
     sessionId: string,
     content: string | SendMessageInput
   ): Promise<{ accepted: true }> {
-    const resolution = await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.resolve(sessionId),
-      ms: CHAT_LOOKUP_TIMEOUT_MS,
+    const resolution = await this.deps.scheduler.observeIdempotent({
+      task: async () => await this.deps.sessionRepository.resolve(sessionId),
+      deadlineMs: CHAT_LOOKUP_TIMEOUT_MS,
       reason: `chat.steerActiveTurn:${sessionId}:session`
     })
     requireAvailableSession('chat.steerActiveTurn', resolution)
 
-    await this.deps.scheduler.timeout({
-      task: this.deps.providerExecutionPort.steerActiveTurn(sessionId, content),
-      ms: CHAT_SEND_TIMEOUT_MS,
-      reason: `chat.steerActiveTurn:${sessionId}`
-    })
+    await this.deps.providerExecutionPort.steerActiveTurn(sessionId, content)
 
     return { accepted: true }
   }
@@ -127,12 +95,13 @@ export class ChatService {
     requestId?: string
   }): Promise<{ stopped: boolean }> {
     let targetSessionId = input.sessionId ?? null
+    const requestId = input.requestId
 
-    if (!targetSessionId && input.requestId) {
-      const message = await this.deps.scheduler.timeout({
-        task: this.deps.messageRepository.get(input.requestId),
-        ms: CHAT_LOOKUP_TIMEOUT_MS,
-        reason: `chat.stopStream:${input.requestId}:message`
+    if (!targetSessionId && requestId) {
+      const message = await this.deps.scheduler.observeIdempotent({
+        task: async () => await this.deps.messageRepository.get(requestId),
+        deadlineMs: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.stopStream:${requestId}:message`
       })
       targetSessionId = message?.sessionId ?? null
     }
@@ -147,34 +116,29 @@ export class ChatService {
       this.activeControllers.delete(targetSessionId)
     }
 
-    await this.deps.scheduler.timeout({
-      task: Promise.allSettled([
-        Promise.resolve().then(() =>
-          this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
-        ),
-        Promise.resolve().then(() =>
-          this.deps.providerExecutionPort.cancelGeneration(targetSessionId)
-        )
-      ]).then((results) => {
-        const clearPermissionsResult = results[0]
-        if (clearPermissionsResult?.status === 'rejected') {
-          console.warn(
-            `[ChatService] Failed to clear session permissions during stop for ${targetSessionId}:`,
-            clearPermissionsResult.reason
-          )
-        }
+    const cleanupResults = await Promise.allSettled([
+      Promise.resolve().then(() =>
+        this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
+      ),
+      Promise.resolve().then(() =>
+        this.deps.providerExecutionPort.cancelGeneration(targetSessionId)
+      )
+    ])
+    const clearPermissionsResult = cleanupResults[0]
+    if (clearPermissionsResult?.status === 'rejected') {
+      console.warn(
+        `[ChatService] Failed to clear session permissions during stop for ${targetSessionId}:`,
+        clearPermissionsResult.reason
+      )
+    }
 
-        const cancelGenerationResult = results[1]
-        if (cancelGenerationResult?.status === 'rejected') {
-          console.warn(
-            `[ChatService] Failed to cancel generation during stop for ${targetSessionId}:`,
-            cancelGenerationResult.reason
-          )
-        }
-      }),
-      ms: CHAT_STOP_TIMEOUT_MS,
-      reason: `chat.stopStream:${targetSessionId}`
-    })
+    const cancelGenerationResult = cleanupResults[1]
+    if (cancelGenerationResult?.status === 'rejected') {
+      console.warn(
+        `[ChatService] Failed to cancel generation during stop for ${targetSessionId}:`,
+        cancelGenerationResult.reason
+      )
+    }
 
     return { stopped: true }
   }
@@ -190,16 +154,12 @@ export class ChatService {
     waitingForUserMessage?: boolean
     handledInline?: boolean
   }> {
-    const result = await this.deps.scheduler.timeout({
-      task: this.deps.providerExecutionPort.respondToolInteraction(
-        input.sessionId,
-        input.messageId,
-        input.toolCallId,
-        input.response
-      ),
-      ms: CHAT_INTERACTION_TIMEOUT_MS,
-      reason: `chat.respondToolInteraction:${input.sessionId}:${input.toolCallId}`
-    })
+    const result = await this.deps.providerExecutionPort.respondToolInteraction(
+      input.sessionId,
+      input.messageId,
+      input.toolCallId,
+      input.response
+    )
 
     return {
       accepted: true,

@@ -209,8 +209,9 @@ SessionService.createSession
 ProviderService.testConnection
 ```
 
-guard 精确到 method/path，任何新增 consumer 都 blocking。create 由 003 atomic cutover 删除；provider 由
-`PRV-CAN-001` 删除。
+旧 `retry()` 在本片迁移后已没有 production caller，因此同时删除 interface、factory adapter 与 legacy input；
+settled-only retry 只保留语义明确的 `retryIdempotent()`。`timeout()` guard 精确到 method/path，任何新增
+consumer 都 blocking。create 由 003 atomic cutover 删除；provider 由 `PRV-CAN-001` 删除。
 
 ### Focused tests
 
