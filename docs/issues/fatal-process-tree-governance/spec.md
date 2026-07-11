@@ -1,9 +1,11 @@
 # Fatal Process Tree Governance
 
 Status: `PTG-001` specification complete; `PTG-H0` direct-child helper limits merged in PR #1932
-(`4889309b`); `PTG-M1` static launcher inventory guard implemented. Runtime parent-loss fixtures,
-descendant containment, and the native matrix are not implemented. This issue remains a blocking
-dependency for `FTL-002`.
+(`4889309b`); `PTG-M1` static launcher inventory guard implemented; `PTG-M2A` adds the reusable
+mechanism-neutral real Electron harness and retained macOS development-fixture evidence. Runtime
+owner fixtures beyond the neutral marked tree, descendant containment, Windows/Linux evidence, and
+the packaged native matrix are not implemented. This issue remains a blocking dependency for
+`FTL-002`.
 
 Runtime owners: every main-process domain that launches an OS process, plus utility hosts that
 launch or retain resources on behalf of the main process.
@@ -293,6 +295,92 @@ Assertions must use PID plus a unique command marker and a captured start identi
 must be checked when applicable. PID absence alone is insufficient because of reuse. The harness
 must kill only marked survivors in `finally`, including when assertions fail or time out.
 
+### Mechanism-neutral marked-tree harness (`PTG-M2A`)
+
+[`process-tree-harness.mjs`](../../../scripts/process-tree-harness.mjs) runs independently of the
+`FTL-002` fatal helper and production containment code. It launches this disposable tree:
+
+```text
+Node measurement owner
+└─ real Electron main fixture
+   └─ Electron utilityProcess host
+      └─ OS shell
+         └─ marked Node grandchild
+```
+
+The outer Node owner waits until all four Electron-owned roles report readiness, captures the PID,
+parent PID, command line, unique run marker, and OS start identity, verifies every parent edge, and
+only then permits the selected owner action. POSIX identity uses `ps` parent PID, start time, and full
+command line; Windows identity uses `Win32_Process.ParentProcessId`, `CreationDate`, and
+`CommandLine`. Electron does not expose the utility script or its arguments in the native utility
+process command line. That role is therefore tied to the unique marker by its synchronous utility
+readiness event and then protected against PID reuse by its captured OS start identity. The owner,
+shell, and grandchild additionally require the unique marker in their command lines.
+
+The modes are measurements rather than mechanism choices:
+
+- `healthy-shutdown` writes a cooperative stop sentinel. The grandchild exits, the shell reaps it,
+  the utility settles once, and Electron exits normally.
+- `owner-loss` directly calls `process.exit(17)` in the Electron main fixture. It does not import or
+  simulate the future fatal helper.
+- `callback-observation` performs the same forced owner loss after registering utility
+  `parentPort` and process lifecycle observations. A missing callback is recorded as an exact empty
+  observation, not inferred from logs.
+
+Each run writes JSON and Markdown with the platform, architecture, OS release, Electron and Node
+versions, development/packaged flag, owner exit, all captured identities, pre-action/post-action/
+post-cleanup census, callbacks, exact role status, stderr, cleanup attempts, and a SHA-256 digest of
+the harness sources used for that run. The CLI exits successfully when measurement and cleanup
+complete even if `contractSatisfied` is `false`; an orphan is never relabelled as a passing
+containment assertion. Harness errors or a marked cleanup survivor make the CLI fail.
+
+Cleanup is deliberately narrower than a production mechanism. It checks the captured start
+identity immediately before each exact PID signal, tries TERM then KILL with bounded grace, and
+checks identity again. It never uses `pkill`, `killall`, a marker-wide signal, a process group, or a
+cached PID after identity mismatch. Tests cover successful cleanup, PID/start-identity mismatch,
+timeout listener settlement, real Electron artifact persistence, and exactly-once healthy utility
+settlement.
+
+Retained macOS development-fixture evidence is under
+[`evidence/macos`](./evidence/macos). On Darwin 25.5.0 arm64 with Electron 40.10.5:
+
+- healthy shutdown produced `[owner absent, utility absent, shell absent, grandchild absent]` and
+  one utility settlement;
+- callback observation forced the owner to exit with code 17; after five seconds it produced
+  `[owner absent, utility absent, shell match, grandchild match]` and no utility lifecycle callback;
+- identity-safe `finally` cleanup removed both survivors and the post-cleanup marked census was
+  empty.
+
+These files preserve the pre-change result that was previously only branch-local. They do not prove
+Windows or Linux behavior, do not cover a packaged DeepChat application, do not select a watchdog
+or OS containment primitive, and do not satisfy any `FTL-002` unlock condition.
+
+Native runner commands use the same source and must retain their own output rather than copying the
+macOS artifact:
+
+```bash
+# macOS or Linux, from a native checkout with dependencies installed
+pnpm exec vitest run test/main/scripts/processTreeHarness.test.ts
+pnpm run smoke:process-tree-harness -- --mode healthy-shutdown --observation-ms 250 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode owner-loss --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode callback-observation --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+```
+
+```powershell
+# Windows PowerShell, from a native checkout with dependencies installed
+pnpm exec vitest run test/main/scripts/processTreeHarness.test.ts
+pnpm run smoke:process-tree-harness -- --mode healthy-shutdown --observation-ms 250 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode owner-loss --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+pnpm run smoke:process-tree-harness -- --mode callback-observation --observation-ms 5000 --phase pre-change --output-dir artifacts/ptg
+```
+
+PR manual validation must attach each runner's JSON and Markdown, verify that runtime platform and
+Electron version are native rather than emulated, inspect every exact role status and callback, and
+confirm `cleanup.allMarkedGone` is `true`. A `contractSatisfied: false` pre-change result remains a
+recorded failure to contain, not a failed measurement. The current harness labels itself
+`development-fixture` and `packaged: false`; packaged app entry and native package evidence belong
+to the later full matrix and must not be claimed by changing metadata.
+
 Run both development bundles and packaged applications for entry resolution and native behavior.
 CI evidence is required from native macOS, Windows, and Linux runners; emulation or one host cannot
 close the issue.
@@ -300,8 +388,9 @@ close the issue.
 ## Ordered implementation tasks
 
 - [x] Record the branch-local macOS background-exec orphan and bounded result.
-- [ ] Reproduce the exploratory macOS utility callback observation in a reusable PTG fixture, retain
-      the result, and run the same probe on Windows and Linux.
+- [ ] Reproduce the exploratory utility callback observation in a reusable PTG fixture and run it
+      on all targets. `PTG-M2A` retained the macOS development-fixture result; Windows, Linux, and
+      packaged results remain open.
 - [x] Complete the baseline source launcher inventory and explicit exclusions.
 - [x] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
       `node-pty`, Electron `utilityProcess.fork`, MCP SDK `StdioClientTransport`,
@@ -309,7 +398,7 @@ close the issue.
       unclassified.
 - [x] Deliver `PTG-H0`: add the 30-second workspace Git, 10-second device query, and five-second
       `SkillExecutionService.hasCommand` healthy-path limits with deterministic timeout tests.
-- [ ] Build a mechanism-neutral real Electron marked-tree harness independent of the `FTL-002`
+- [x] Build a mechanism-neutral real Electron marked-tree harness independent of the `FTL-002`
       fatal helper; trigger forced main exit directly.
 - [ ] Implement every required runtime and helper-launcher fixture without changing runtime
       behavior.
