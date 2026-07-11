@@ -1,4 +1,5 @@
 import { estimateTokens, estimateTokenWeight } from '../memoryPresenter/core/injectionPort'
+import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
 export const MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT = 4_000
 export const MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT = 12_000
@@ -28,13 +29,9 @@ export interface MemoryExtractionChunk {
 
 type RenderedFragment = MemoryExtractionFragment & { text: string }
 
-function codePointLength(value: string): number {
-  return Array.from(value).length
-}
-
 function fitsBudget(value: string): boolean {
   return (
-    codePointLength(value) <= MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT &&
+    unicodeCodePointLength(value) <= MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT &&
     estimateTokens(value) <= MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT
   )
 }
@@ -91,9 +88,9 @@ function renderMessageFragments(message: MemoryExtractionMessage): RenderedFragm
   const appendUnit = (unit: string): void => {
     const fragmentIndex = fragments.length
     const prefix = fragmentPrefix(message.role, fragmentIndex)
-    const prefixCodePoints = codePointLength(prefix)
+    const prefixCodePoints = unicodeCodePointLength(prefix)
     const prefixTokenWeight = estimateTokenWeight(prefix)
-    const unitCodePoints = codePointLength(unit)
+    const unitCodePoints = unicodeCodePointLength(unit)
     const unitTokenWeight = estimateTokenWeight(unit)
     const fits =
       prefixCodePoints + contentCodePoints + unitCodePoints <= MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT &&
@@ -161,5 +158,19 @@ export function buildMemoryExtractionChunks(
     }
   }
   flush()
+  const lastChunkByOrderSeq = new Map<number, number>()
+  chunks.forEach((chunk, chunkIndex) => {
+    chunk.fragments.forEach((fragment) => lastChunkByOrderSeq.set(fragment.orderSeq, chunkIndex))
+  })
+  chunks.forEach((chunk, chunkIndex) => {
+    const completedOrderSeqs = [
+      ...new Set(
+        chunk.fragments
+          .filter((fragment) => lastChunkByOrderSeq.get(fragment.orderSeq) === chunkIndex)
+          .map((fragment) => fragment.orderSeq)
+      )
+    ]
+    chunk.cursorCommitOrderSeq = completedOrderSeqs.length ? Math.max(...completedOrderSeqs) : null
+  })
   return chunks
 }

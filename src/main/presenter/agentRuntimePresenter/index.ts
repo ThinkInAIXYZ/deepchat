@@ -81,6 +81,10 @@ import {
 } from '@shared/videoGenerationSettings'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
+import type {
+  DeepChatMemoryIngestionProjectionInput,
+  DeepChatMemoryIngestionProjectionRow
+} from '../sqlitePresenter/tables/deepchatMemoryIngestionProjection'
 import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
@@ -2733,42 +2737,217 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     toOrderSeqInclusive: number
   ): MemoryAdmissionWindow | null {
     if (toOrderSeqInclusive <= fromOrderSeqExclusive) return null
-    const rows = this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
-    const view = buildEffectiveTapeView(rows)
-    const selected = view.messageEntries.filter(
-      (entry) =>
-        entry.record.orderSeq > fromOrderSeqExclusive &&
-        entry.record.orderSeq <= toOrderSeqInclusive
+    const ingestionRange = this.listMemoryIngestionRange(
+      sessionId,
+      fromOrderSeqExclusive,
+      toOrderSeqInclusive
     )
+    let selected: Array<{
+      messageId: string
+      orderSeq: number
+      entryId: number
+      role: 'user' | 'assistant'
+      content: string
+    }>
+    let hadToolUse: boolean
+
+    if (ingestionRange) {
+      selected = ingestionRange.rows.map((row) => ({
+        messageId: row.message_id,
+        orderSeq: row.order_seq,
+        entryId: row.entry_id,
+        role: row.role,
+        content: row.content
+      }))
+      hadToolUse = ingestionRange.rows.some((row) => row.had_tool_use === 1)
+    } else {
+      return null
+    }
+
     if (selected.length === 0) return null
-    const windowMsgIds = new Set(selected.map((entry) => entry.record.id))
-    const hadToolUse = view.rows.some((row) => {
-      const messageId = this.readToolCallMessageId(row)
-      return messageId !== null && windowMsgIds.has(messageId)
-    })
     const messages: MemoryExtractionMessage[] = []
     for (const entry of selected) {
-      const text = this.extractPlainTextFromRecord(entry.record)
+      const text = this.extractPlainTextFromRecord(entry)
       if (!text) continue
       messages.push({
-        orderSeq: entry.record.orderSeq,
+        orderSeq: entry.orderSeq,
         entryId: entry.entryId,
-        role: entry.record.role,
+        role: entry.role,
         text
       })
     }
     const chunks = buildMemoryExtractionChunks(messages)
-    const selectedTailOrderSeq = selected.at(-1)?.record.orderSeq
+    const selectedTailOrderSeq = selected.at(-1)?.orderSeq
     const lastChunk = chunks.at(-1)
-    if (lastChunk && selectedTailOrderSeq !== undefined) {
+    if (lastChunk && selectedTailOrderSeq !== undefined && ingestionRange.cursorCommitAllowed) {
       lastChunk.cursorCommitOrderSeq = selectedTailOrderSeq
       lastChunk.coveredThroughOrderSeq = selectedTailOrderSeq
+    }
+    if (!ingestionRange.cursorCommitAllowed) {
+      chunks.forEach((chunk) => {
+        chunk.cursorCommitOrderSeq = null
+      })
     }
     return {
       chunks,
       hadToolUse,
       visibleTextChars: chunks.reduce((total, chunk) => total + chunk.text.length, 0)
     }
+  }
+
+  private listMemoryIngestionRange(
+    sessionId: string,
+    fromOrderSeqExclusive: number,
+    toOrderSeqInclusive: number
+  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
+    const projectionTable = this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
+    if (
+      !projectionTable ||
+      typeof projectionTable.readCurrentRange !== 'function' ||
+      typeof projectionTable.replaceSession !== 'function' ||
+      typeof projectionTable.invalidateSession !== 'function'
+    ) {
+      return this.buildFullTapeIngestionRange(
+        sessionId,
+        fromOrderSeqExclusive,
+        toOrderSeqInclusive,
+        false
+      )
+    }
+
+    try {
+      const current = projectionTable.readCurrentRange(
+        sessionId,
+        fromOrderSeqExclusive,
+        toOrderSeqInclusive
+      )
+      if (current.current) {
+        return { rows: current.rows, cursorCommitAllowed: true }
+      }
+      return this.rebuildMemoryIngestionRange(
+        sessionId,
+        fromOrderSeqExclusive,
+        toOrderSeqInclusive,
+        current.maxEntryId
+      )
+    } catch (error) {
+      try {
+        projectionTable.invalidateSession(sessionId)
+      } catch {}
+      logger.warn(
+        `[DeepChatAgent] memory ingestion projection unavailable; falling back to Tape: ${String(error)}`
+      )
+      return this.buildFullTapeIngestionRange(
+        sessionId,
+        fromOrderSeqExclusive,
+        toOrderSeqInclusive,
+        false
+      )
+    }
+  }
+
+  private rebuildMemoryIngestionRange(
+    sessionId: string,
+    fromOrderSeqExclusive: number,
+    toOrderSeqInclusive: number,
+    maxEntryId: number
+  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
+    const tapeRows = this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
+    const projectionTable = this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
+    const view = buildEffectiveTapeView(tapeRows)
+    const projectionRows = this.projectionRowsFromEffectiveView(sessionId, view)
+    try {
+      projectionTable.replaceSession(sessionId, projectionRows, maxEntryId)
+      return {
+        rows: this.filterMemoryIngestionRange(
+          projectionRows,
+          fromOrderSeqExclusive,
+          toOrderSeqInclusive
+        ),
+        cursorCommitAllowed: true
+      }
+    } catch (error) {
+      try {
+        projectionTable.invalidateSession(sessionId)
+      } catch {}
+      logger.warn(
+        `[DeepChatAgent] memory ingestion projection rebuild failed; using Tape without cursor commit: ${String(error)}`
+      )
+      return {
+        rows: this.filterMemoryIngestionRange(
+          projectionRows,
+          fromOrderSeqExclusive,
+          toOrderSeqInclusive
+        ),
+        cursorCommitAllowed: false
+      }
+    }
+  }
+
+  private buildFullTapeIngestionRange(
+    sessionId: string,
+    fromOrderSeqExclusive: number,
+    toOrderSeqInclusive: number,
+    cursorCommitAllowed: boolean
+  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
+    try {
+      const view = buildEffectiveTapeView(
+        this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
+      )
+      const rows = this.projectionRowsFromEffectiveView(sessionId, view)
+      return {
+        rows: this.filterMemoryIngestionRange(rows, fromOrderSeqExclusive, toOrderSeqInclusive),
+        cursorCommitAllowed
+      }
+    } catch (error) {
+      logger.warn(`[DeepChatAgent] authoritative Tape fallback failed: ${String(error)}`)
+      return null
+    }
+  }
+
+  private projectionRowsFromEffectiveView(
+    sessionId: string,
+    view: ReturnType<typeof buildEffectiveTapeView>
+  ): DeepChatMemoryIngestionProjectionInput[] {
+    const messageIdsWithToolUse = new Set<string>()
+    for (const row of view.rows) {
+      const messageId = this.readToolCallMessageId(row)
+      if (messageId) messageIdsWithToolUse.add(messageId)
+    }
+    return view.messageEntries.map((entry) => {
+      if (entry.record.status !== 'sent' && entry.record.status !== 'error') {
+        throw new Error('Effective Tape view exposed a pending message during rebuild.')
+      }
+      return {
+        sessionId,
+        messageId: entry.record.id,
+        orderSeq: entry.record.orderSeq,
+        entryId: entry.entryId,
+        role: entry.record.role,
+        content: entry.record.content,
+        status: entry.record.status,
+        hadToolUse: messageIdsWithToolUse.has(entry.record.id)
+      }
+    })
+  }
+
+  private filterMemoryIngestionRange(
+    rows: readonly DeepChatMemoryIngestionProjectionInput[],
+    fromOrderSeqExclusive: number,
+    toOrderSeqInclusive: number
+  ): DeepChatMemoryIngestionProjectionRow[] {
+    return rows
+      .filter((row) => row.orderSeq > fromOrderSeqExclusive && row.orderSeq <= toOrderSeqInclusive)
+      .map((row) => ({
+        session_id: row.sessionId,
+        message_id: row.messageId,
+        order_seq: row.orderSeq,
+        entry_id: row.entryId,
+        role: row.role,
+        content: row.content,
+        status: row.status,
+        had_tool_use: row.hadToolUse ? 1 : 0
+      }))
   }
 
   private readToolCallMessageId(row: DeepChatTapeEntryRow): string | null {
@@ -2783,7 +2962,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
-  private extractPlainTextFromRecord(record: ChatMessageRecord): string {
+  private extractPlainTextFromRecord(record: Pick<ChatMessageRecord, 'role' | 'content'>): string {
     try {
       const parsed = JSON.parse(record.content) as unknown
       if (record.role === 'user') {

@@ -3,27 +3,11 @@ import type { DeepChatTapeEntriesTable } from '../sqlitePresenter/tables/deepcha
 import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { buildEffectiveTapeView } from './tapeEffectiveView'
 import { hashJson } from './tapeViewManifest'
+import { parseAssistantBlocks } from '../sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
+
+export { tapeEntryToMessageRecord } from '../sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
 
 export type TapeFactSource = 'live' | 'backfill' | 'repair'
-
-function parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
-  try {
-    const parsed = JSON.parse(rawContent) as AssistantMessageBlock[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function parsePayload(row: DeepChatTapeEntryRow): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(row.payload_json) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
-  } catch {}
-  return null
-}
 
 function readCompactionStatus(record: ChatMessageRecord): string | null {
   try {
@@ -350,44 +334,6 @@ export function appendMessageRetractionToTape(
   })
 
   return 1
-}
-
-export function tapeEntryToMessageRecord(row: DeepChatTapeEntryRow): ChatMessageRecord | null {
-  if (row.kind !== 'message') {
-    return null
-  }
-  const payload = parsePayload(row)
-  const record = payload?.record
-  if (!record || typeof record !== 'object' || Array.isArray(record)) {
-    return null
-  }
-  const candidate = record as Partial<ChatMessageRecord>
-  if (
-    typeof candidate.id !== 'string' ||
-    typeof candidate.sessionId !== 'string' ||
-    typeof candidate.orderSeq !== 'number' ||
-    (candidate.role !== 'user' && candidate.role !== 'assistant') ||
-    typeof candidate.content !== 'string'
-  ) {
-    return null
-  }
-
-  return {
-    id: candidate.id,
-    sessionId: candidate.sessionId,
-    orderSeq: candidate.orderSeq,
-    role: candidate.role,
-    content: candidate.content,
-    status:
-      candidate.status === 'pending' || candidate.status === 'error' || candidate.status === 'sent'
-        ? candidate.status
-        : 'sent',
-    isContextEdge: typeof candidate.isContextEdge === 'number' ? candidate.isContextEdge : 0,
-    metadata: typeof candidate.metadata === 'string' ? candidate.metadata : '{}',
-    traceCount: typeof candidate.traceCount === 'number' ? candidate.traceCount : 0,
-    createdAt: typeof candidate.createdAt === 'number' ? candidate.createdAt : row.created_at,
-    updatedAt: typeof candidate.updatedAt === 'number' ? candidate.updatedAt : row.created_at
-  }
 }
 
 export function tapeEntriesToEffectiveMessageRecords(

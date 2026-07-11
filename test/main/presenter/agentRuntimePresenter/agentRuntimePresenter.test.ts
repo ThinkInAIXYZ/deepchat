@@ -257,6 +257,9 @@ function createMockSqlitePresenter() {
     deleteByMessageIds: vi.fn()
   }
   let deepchatTapeEntriesTable: any
+  let memoryIngestionProjectionCurrent = false
+  let memoryIngestionProjectionMaxEntryId = 0
+  let memoryIngestionProjectionRows: any[] = []
   return {
     getDatabase: vi.fn(() => ({
       transaction: (fn: () => unknown) => () => fn()
@@ -354,6 +357,7 @@ function createMockSqlitePresenter() {
           created_at: input.createdAt ?? Date.now()
         }
         tapeEntries.push(row)
+        memoryIngestionProjectionCurrent = false
         return row
       }),
       appendAnchor: vi.fn((input: any) => {
@@ -372,6 +376,14 @@ function createMockSqlitePresenter() {
       }),
       getBySession: vi.fn((sessionId: string) =>
         tapeEntries.filter((entry) => entry.session_id === sessionId)
+      ),
+      getMaxEntryId: vi.fn((sessionId: string) =>
+        Math.max(
+          0,
+          ...tapeEntries
+            .filter((entry) => entry.session_id === sessionId)
+            .map((entry) => entry.entry_id)
+        )
       ),
       getLatestAnchor: vi.fn(
         (sessionId: string) =>
@@ -405,8 +417,47 @@ function createMockSqlitePresenter() {
             tapeEntries.splice(index, 1)
           }
         }
+        memoryIngestionProjectionCurrent = false
       })
     }),
+    deepchatMemoryIngestionProjectionTable: {
+      readCurrentRange: vi.fn(
+        (sessionId: string, fromOrderSeqExclusive: number, toOrderSeqInclusive: number) => {
+          const maxEntryId = deepchatTapeEntriesTable.getMaxEntryId(sessionId)
+          const current =
+            memoryIngestionProjectionCurrent && memoryIngestionProjectionMaxEntryId === maxEntryId
+          return {
+            current,
+            maxEntryId,
+            rows: current
+              ? memoryIngestionProjectionRows.filter(
+                  (row) =>
+                    row.session_id === sessionId &&
+                    row.order_seq > fromOrderSeqExclusive &&
+                    row.order_seq <= toOrderSeqInclusive
+                )
+              : []
+          }
+        }
+      ),
+      replaceSession: vi.fn((sessionId: string, rows: any[], maxEntryId: number) => {
+        memoryIngestionProjectionRows = rows.map((row) => ({
+          session_id: row.sessionId,
+          message_id: row.messageId,
+          order_seq: row.orderSeq,
+          entry_id: row.entryId,
+          role: row.role,
+          content: row.content,
+          status: row.status,
+          had_tool_use: row.hadToolUse ? 1 : 0
+        }))
+        memoryIngestionProjectionMaxEntryId = maxEntryId
+        memoryIngestionProjectionCurrent = true
+      }),
+      invalidateSession: vi.fn(() => {
+        memoryIngestionProjectionCurrent = false
+      })
+    },
     deepchatMessagesTable,
     deepchatUserMessagesTable: {
       upsert: vi.fn(),
@@ -1156,6 +1207,90 @@ describe('AgentRuntimePresenter', () => {
           visibleTextChars: 'User: Read package metadata.'.length
         })
       )
+      expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
+    })
+
+    it('rebuilds memory ingestion projection once and uses bounded range reads afterward', () => {
+      installRuntimeRecords([
+        userRecord('u1', 1, 'Read package metadata.'),
+        assistantRecord('a1', 2, [toolBlock('tool-1')])
+      ])
+      let current = false
+      let projectedRows: any[] = []
+      let projectedMaxEntryId = 0
+      const replaceSession = vi.fn((_sessionId: string, rows: any[], maxEntryId: number) => {
+        projectedRows = rows.map((row) => ({
+          session_id: row.sessionId,
+          message_id: row.messageId,
+          order_seq: row.orderSeq,
+          entry_id: row.entryId,
+          role: row.role,
+          content: row.content,
+          status: row.status,
+          had_tool_use: row.hadToolUse ? 1 : 0
+        }))
+        projectedMaxEntryId = maxEntryId
+        current = true
+      })
+      const readCurrentRange = vi.fn(
+        (_sessionId: string, fromExclusive: number, toInclusive: number) => ({
+          current,
+          maxEntryId: current
+            ? projectedMaxEntryId
+            : sqlitePresenter.deepchatTapeEntriesTable.getMaxEntryId('s1'),
+          rows: current
+            ? projectedRows.filter(
+                (row) => row.order_seq > fromExclusive && row.order_seq <= toInclusive
+              )
+            : []
+        })
+      )
+      ;(sqlitePresenter as any).deepchatMemoryIngestionProjectionTable = {
+        readCurrentRange,
+        replaceSession,
+        invalidateSession: vi.fn()
+      }
+
+      const rebuiltWindow = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+      expect(rebuiltWindow).toEqual(
+        expect.objectContaining({
+          hadToolUse: true,
+          visibleTextChars: 'User: Read package metadata.'.length
+        })
+      )
+      expect(replaceSession).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
+
+      sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
+      const rangeWindow = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+
+      expect(rangeWindow).toEqual(rebuiltWindow)
+      expect(replaceSession).toHaveBeenCalledTimes(1)
+      expect(readCurrentRange).toHaveBeenCalledTimes(2)
+      expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).not.toHaveBeenCalled()
+    })
+
+    it('falls back to the authoritative Tape view when projection validation fails', () => {
+      installRuntimeRecords([userRecord('u1', 1, 'Keep the fallback safe.')])
+      const invalidateSession = vi.fn()
+      ;(sqlitePresenter as any).deepchatMemoryIngestionProjectionTable = {
+        readCurrentRange: vi.fn(() => {
+          throw new Error('projection unavailable')
+        }),
+        replaceSession: vi.fn(),
+        invalidateSession
+      }
+      sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
+
+      const window = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+
+      expect(window).toEqual(
+        expect.objectContaining({
+          hadToolUse: false,
+          visibleTextChars: 'User: Keep the fallback safe.'.length
+        })
+      )
+      expect(invalidateSession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
     })
 

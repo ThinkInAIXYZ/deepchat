@@ -55,6 +55,17 @@ describe('buildMemoryExtractionChunks', () => {
     expect(chunks.map((chunk) => chunk.text).join('')).not.toContain('\ud83d\n')
   })
 
+  it('treats every message sharing an order sequence as one cursor commit group', () => {
+    const chunks = buildMemoryExtractionChunks([
+      { orderSeq: 7, entryId: 70, role: 'user', text: '记'.repeat(8_000) },
+      { orderSeq: 7, entryId: 71, role: 'assistant', text: '忆'.repeat(8_000) }
+    ])
+
+    expect(chunks.length).toBeGreaterThan(2)
+    expect(chunks.slice(0, -1).every((chunk) => chunk.cursorCommitOrderSeq === null)).toBe(true)
+    expect(chunks.at(-1)?.cursorCommitOrderSeq).toBe(7)
+  })
+
   it('flushes on message boundaries when the next complete message does not fit', () => {
     const chunks = buildMemoryExtractionChunks([
       { orderSeq: 1, entryId: 1, role: 'user', text: 'a'.repeat(11_500) },

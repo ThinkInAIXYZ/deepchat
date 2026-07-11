@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
+import logger from '@shared/logger'
 import { BaseTable } from './baseTable'
 
 export type DeepChatTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
@@ -53,6 +54,12 @@ export interface DeepChatTapeSearchInput {
   endCreatedAt?: number
 }
 
+export interface DeepChatTapeMutationProjection {
+  applyAppendedEntry(row: DeepChatTapeEntryRow, previousSessionMaxEntryId: number): boolean
+  invalidateSession(sessionId: string): void
+  deleteBySession(sessionId: string): void
+}
+
 export const SUMMARY_ANCHOR_NAMES = [
   'compaction/auto',
   'compaction/manual',
@@ -102,7 +109,10 @@ function escapeLikePattern(value: string): string {
 }
 
 export class DeepChatTapeEntriesTable extends BaseTable {
-  constructor(db: Database.Database) {
+  constructor(
+    db: Database.Database,
+    private readonly mutationProjection?: DeepChatTapeMutationProjection
+  ) {
     super(db, 'deepchat_tape_entries')
   }
 
@@ -144,72 +154,90 @@ export class DeepChatTapeEntriesTable extends BaseTable {
   }
 
   append(input: DeepChatTapeAppendInput): DeepChatTapeEntryRow {
-    const provenanceKey = buildProvenanceKey(input)
-    if (input.idempotent && provenanceKey) {
-      const existing = this.getByProvenanceKey(input.sessionId, provenanceKey)
-      if (existing) {
-        return existing
-      }
-    }
-
-    const createdAt = input.createdAt ?? Date.now()
-    const nextEntryId = this.getMaxEntryId(input.sessionId) + 1
-    const row = {
-      session_id: input.sessionId,
-      entry_id: nextEntryId,
-      kind: input.kind,
-      name: input.name ?? null,
-      source_type: input.source?.type ?? null,
-      source_id: input.source?.id ?? null,
-      source_seq: input.source?.seq ?? null,
-      provenance_key: provenanceKey,
-      payload_json: safeJsonStringify(input.payload),
-      meta_json: safeJsonStringify(input.meta),
-      created_at: createdAt
-    } satisfies DeepChatTapeEntryRow
-
-    try {
-      this.db
-        .prepare(
-          `INSERT INTO deepchat_tape_entries (
-           session_id,
-           entry_id,
-           kind,
-           name,
-           source_type,
-           source_id,
-           source_seq,
-           provenance_key,
-           payload_json,
-           meta_json,
-           created_at
-         )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(
-          row.session_id,
-          row.entry_id,
-          row.kind,
-          row.name,
-          row.source_type,
-          row.source_id,
-          row.source_seq,
-          row.provenance_key,
-          row.payload_json,
-          row.meta_json,
-          row.created_at
-        )
-    } catch (error) {
+    const append = this.db.transaction(() => {
+      const provenanceKey = buildProvenanceKey(input)
       if (input.idempotent && provenanceKey) {
         const existing = this.getByProvenanceKey(input.sessionId, provenanceKey)
         if (existing) {
           return existing
         }
       }
-      throw error
-    }
 
-    return row
+      const createdAt = input.createdAt ?? Date.now()
+      const previousSessionMaxEntryId = this.getMaxEntryId(input.sessionId)
+      const row = {
+        session_id: input.sessionId,
+        entry_id: previousSessionMaxEntryId + 1,
+        kind: input.kind,
+        name: input.name ?? null,
+        source_type: input.source?.type ?? null,
+        source_id: input.source?.id ?? null,
+        source_seq: input.source?.seq ?? null,
+        provenance_key: provenanceKey,
+        payload_json: safeJsonStringify(input.payload),
+        meta_json: safeJsonStringify(input.meta),
+        created_at: createdAt
+      } satisfies DeepChatTapeEntryRow
+
+      try {
+        this.db
+          .prepare(
+            `INSERT INTO deepchat_tape_entries (
+             session_id,
+             entry_id,
+             kind,
+             name,
+             source_type,
+             source_id,
+             source_seq,
+             provenance_key,
+             payload_json,
+             meta_json,
+             created_at
+           )
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            row.session_id,
+            row.entry_id,
+            row.kind,
+            row.name,
+            row.source_type,
+            row.source_id,
+            row.source_seq,
+            row.provenance_key,
+            row.payload_json,
+            row.meta_json,
+            row.created_at
+          )
+      } catch (error) {
+        if (input.idempotent && provenanceKey) {
+          const existing = this.getByProvenanceKey(input.sessionId, provenanceKey)
+          if (existing) {
+            return existing
+          }
+        }
+        throw error
+      }
+
+      if (this.mutationProjection) {
+        try {
+          const applyProjection = this.db.transaction(() =>
+            this.mutationProjection?.applyAppendedEntry(row, previousSessionMaxEntryId)
+          )
+          applyProjection()
+        } catch (error) {
+          this.mutationProjection.invalidateSession(row.session_id)
+          logger.warn(
+            `[Tape] memory ingestion projection append failed; session marked stale: ${String(error)}`
+          )
+        }
+      }
+
+      return row
+    })
+
+    return append()
   }
 
   appendAnchor(input: {
@@ -545,7 +573,11 @@ export class DeepChatTapeEntriesTable extends BaseTable {
   }
 
   deleteBySession(sessionId: string): void {
-    this.db.prepare('DELETE FROM deepchat_tape_entries WHERE session_id = ?').run(sessionId)
+    const remove = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM deepchat_tape_entries WHERE session_id = ?').run(sessionId)
+      this.mutationProjection?.deleteBySession(sessionId)
+    })
+    remove()
   }
 
   private ensureProvenanceColumns(): void {

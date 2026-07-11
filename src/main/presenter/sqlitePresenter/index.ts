@@ -32,6 +32,7 @@ import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import { DeepChatMemoryIngestionProjectionTable } from './tables/deepchatMemoryIngestionProjection'
 import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
 import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
@@ -228,6 +229,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatPendingInputsTable!: DeepChatPendingInputsTable
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
+  public deepchatMemoryIngestionProjectionTable!: DeepChatMemoryIngestionProjectionTable
   public deepchatTapeSearchProjectionTable!: DeepChatTapeSearchProjectionTable
   public deepchatSessionMetadataTable!: DeepChatSessionMetadataTable
   public legacyImportStatusTable!: LegacyImportStatusTable
@@ -435,7 +437,13 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatSearchDocumentsTable = new DeepChatSearchDocumentsTable(this.db)
     this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
-    this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
+    this.deepchatMemoryIngestionProjectionTable = new DeepChatMemoryIngestionProjectionTable(
+      this.db
+    )
+    this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(
+      this.db,
+      this.deepchatMemoryIngestionProjectionTable
+    )
     this.deepchatTapeSearchProjectionTable = new DeepChatTapeSearchProjectionTable(this.db)
     this.deepchatSessionMetadataTable = new DeepChatSessionMetadataTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
@@ -468,6 +476,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatSearchDocumentsTable.createTable()
     this.deepchatPendingInputsTable.createTable()
     this.deepchatUsageStatsTable.createTable()
+    this.deepchatMemoryIngestionProjectionTable.createTable()
     this.deepchatTapeEntriesTable.createTable()
     this.deepchatTapeSearchProjectionTable.createTable()
     this.deepchatSessionMetadataTable.createTable()
@@ -627,6 +636,8 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
         DELETE FROM deepchat_tape_entries;
+        DELETE FROM deepchat_memory_ingestion_projection;
+        DELETE FROM deepchat_memory_ingestion_projection_meta;
         DELETE FROM deepchat_tape_search_projection;
         DELETE FROM deepchat_tape_search_projection_meta;
         DELETE FROM deepchat_session_metadata;
@@ -637,6 +648,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM new_environments;
         DELETE FROM new_sessions;
       `)
+      this.deepchatMemoryIngestionProjectionTable.clearAll()
       this.deepchatTapeSearchProjectionTable.clearAll()
     })
   }

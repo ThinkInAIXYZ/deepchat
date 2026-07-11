@@ -20,6 +20,7 @@ import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import { DeepChatMemoryIngestionProjectionTable } from './tables/deepchatMemoryIngestionProjection'
 import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
 import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
@@ -208,6 +209,14 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'deepchat_tape_entries',
     createTable: (db) => new DeepChatTapeEntriesTable(db)
+  },
+  {
+    name: 'deepchat_memory_ingestion_projection',
+    createTable: (db) => new DeepChatMemoryIngestionProjectionTable(db)
+  },
+  {
+    name: 'deepchat_memory_ingestion_projection_meta',
+    createTable: (db) => new DeepChatMemoryIngestionProjectionTable(db)
   },
   {
     name: 'deepchat_tape_search_projection',
