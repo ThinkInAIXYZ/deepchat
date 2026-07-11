@@ -16,19 +16,19 @@
 
 ## SCH-002A：OperationRunner core
 
-- [ ] 建独立 branch/worktree，基于已合入 SCH-001。
-- [ ] 把 route `Scheduler` 重命名/收窄为 `OperationRunner`。
-- [ ] 实现 `observeIdempotent()`，task 使用 factory，late result 安全 drain。
-- [ ] 实现 `retryIdempotent()`，overall deadline、explicit classifier、最大并发 attempt = 1。
-- [ ] 实现 abortable `sleep()`。
-- [ ] 验证 milliseconds finite integer `0..2_147_483_647`、maxAttempts positive integer、backoff
+- [x] 建独立 branch/worktree，基于已合入 SCH-001。
+- [x] 把 route `Scheduler` 重命名/收窄为 `OperationRunner`。
+- [x] 实现 `observeIdempotent()`，task 使用 factory，late result 安全 drain。
+- [x] 实现 `retryIdempotent()`，overall deadline、explicit classifier、最大并发 attempt = 1。
+- [x] 实现 abortable `sleep()`。
+- [x] 验证 milliseconds finite integer `0..2_147_483_647`、maxAttempts positive integer、backoff
   finite/nonnegative；invalid input 不启动 task/timer。
-- [ ] 不实现/导出/测试零 production consumer 的 `runCancellable()`。
-- [ ] 保留临时 legacy `timeout()` adapter，仅供 allowlisted migration。
-- [ ] 增加 pre-abort、sync throw、late resolve/reject、listener/timer cleanup tests。
-- [ ] 增加 deferred attempt/deadline-in-attempt/backoff tests，断言无 overlap/no next attempt。
+- [x] 不实现/导出/测试零 production consumer 的 `runCancellable()`。
+- [x] 保留临时 legacy `timeout()` adapter，仅供 allowlisted migration。
+- [x] 增加 pre-abort、sync throw、late resolve/reject、listener/timer cleanup tests。
+- [x] 增加 deferred attempt/deadline-in-attempt/backoff tests，断言无 overlap/no next attempt。
 - [ ] 独立 verify agent 审查 observation/retry/resource cleanup 与 unused abstraction guard。
-- [ ] 跑 focused tests、typecheck:node、format:check、lint:architecture、lint。
+- [x] 跑 focused tests、typecheck:node、format:check、lint:architecture、lint。
 
 ## SCH-002B：Safe consumer migration
 

@@ -144,6 +144,33 @@ const INLINE_IPC_CHANNEL_PATTERN =
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
   /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
 const TYPED_ROUTE_CASE_PATTERN = /\bcase\s+[A-Za-z_$][\w$]*Route\.name\s*:/g
+const OPERATION_RUNNER_PATH = path.join(ROOT, 'src/main/routes/operationRunner.ts')
+const RETIRED_ROUTE_SCHEDULER_PATH = path.join(ROOT, 'src/main/routes/scheduler.ts')
+const OPERATION_RUNNER_ALLOWED_METHODS = new Set([
+  'sleep',
+  'observeIdempotent',
+  'retryIdempotent',
+  'timeout',
+  'retry'
+])
+const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map([
+  ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#restoreSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#listMessagesPage#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#listSessions#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#activateSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#deactivateSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#getActiveSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#getActiveSession#retry', 1],
+  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#retry', 1],
+  ['src/main/routes/chat/chatService.ts#sendMessage#timeout', 3],
+  ['src/main/routes/chat/chatService.ts#steerActiveTurn#timeout', 2],
+  ['src/main/routes/chat/chatService.ts#stopStream#timeout', 2],
+  ['src/main/routes/chat/chatService.ts#respondToolInteraction#timeout', 1],
+  ['src/main/routes/providers/providerService.ts#listModels#timeout', 2],
+  ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
+])
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
@@ -217,6 +244,73 @@ function countPhysicalLines(source) {
 
   const lineCount = source.split(/\r\n|\r|\n/).length
   return /(?:\r\n|\r|\n)$/.test(source) ? lineCount - 1 : lineCount
+}
+
+function findOwningClassMethod(source, callIndex) {
+  const methodPattern = /^  (?:private\s+)?(?:async\s+)?([A-Za-z_$][\w$]*)\s*(?:<[^>]+>)?\s*\(/gm
+  let owner
+  let match
+  while ((match = methodPattern.exec(source)) !== null && match.index < callIndex) {
+    owner = match[1]
+  }
+  return owner
+}
+
+async function checkOperationRunnerContract(fileSet, violations) {
+  if (await pathExists(RETIRED_ROUTE_SCHEDULER_PATH)) {
+    violations.push('[operation-runner-retired-scheduler] src/main/routes/scheduler.ts must remain deleted')
+  }
+
+  const runnerSource = await fs.readFile(OPERATION_RUNNER_PATH, 'utf8')
+  const interfaceBody = runnerSource.match(
+    /export interface OperationRunner \{([\s\S]*?)^\}/m
+  )?.[1]
+  const actualMethods = new Set()
+  const methodPattern = /^  ([A-Za-z_$][\w$]*)\s*(?:<[^>]+>)?\s*\(/gm
+  let methodMatch
+  while (interfaceBody && (methodMatch = methodPattern.exec(interfaceBody)) !== null) {
+    actualMethods.add(methodMatch[1])
+  }
+  const unexpectedMethods = [...actualMethods].filter(
+    (method) => !OPERATION_RUNNER_ALLOWED_METHODS.has(method)
+  )
+  const missingMethods = [...OPERATION_RUNNER_ALLOWED_METHODS].filter(
+    (method) => !actualMethods.has(method)
+  )
+  if (unexpectedMethods.length > 0 || missingMethods.length > 0) {
+    violations.push(
+      `[operation-runner-surface] expected ${[...OPERATION_RUNNER_ALLOWED_METHODS].join(', ')}, found ${[...actualMethods].join(', ')}`
+    )
+  }
+
+  const actualLegacyCalls = new Map()
+  for (const filePath of fileSet) {
+    if (!isUnder(filePath, path.join(ROOT, 'src/main/routes'))) continue
+    const source = await fs.readFile(filePath, 'utf8')
+    if (/\brunCancellable\b/.test(source)) {
+      violations.push(`[operation-runner-unused-cancellable] ${relativePath(filePath)}`)
+    }
+
+    const callPattern = /\b(?:this\.deps\.)?scheduler\.(timeout|retry)\s*(?:<[\s\S]*?>)?\s*\(/g
+    let callMatch
+    while ((callMatch = callPattern.exec(source)) !== null) {
+      const owner = findOwningClassMethod(source, callMatch.index) ?? '<module>'
+      const key = `${relativePath(filePath)}#${owner}#${callMatch[1]}`
+      actualLegacyCalls.set(key, (actualLegacyCalls.get(key) ?? 0) + 1)
+    }
+  }
+
+  const allLegacyKeys = new Set([
+    ...LEGACY_OPERATION_RUNNER_ALLOWLIST.keys(),
+    ...actualLegacyCalls.keys()
+  ])
+  for (const key of allLegacyKeys) {
+    const expected = LEGACY_OPERATION_RUNNER_ALLOWLIST.get(key) ?? 0
+    const actual = actualLegacyCalls.get(key) ?? 0
+    if (actual !== expected) {
+      violations.push(`[operation-runner-legacy-call] ${key} expected ${expected}, found ${actual}`)
+    }
+  }
 }
 
 function extractModuleSpecifierOccurrences(source) {
@@ -768,6 +862,7 @@ async function main() {
   }
 
   await checkArchitectureGrowth(fileSet, violations)
+  await checkOperationRunnerContract(fileSet, violations)
 
   const hotPathEdges = await collectHotPathDirectEdges()
   if (hotPathEdges.length > HOT_PATH_EDGE_BASELINE) {

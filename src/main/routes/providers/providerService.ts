@@ -1,6 +1,6 @@
 import type { ProviderCatalogPort } from '@/presenter/runtimePorts'
 import type { ProviderExecutionPort } from '../hotPathPorts'
-import type { Scheduler } from '../scheduler'
+import type { OperationRunner } from '../operationRunner'
 
 const PROVIDER_QUERY_TIMEOUT_MS = 5_000
 
@@ -9,7 +9,7 @@ export class ProviderService {
     private readonly deps: {
       providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
       providerExecutionPort: Pick<ProviderExecutionPort, 'testConnection'>
-      scheduler: Scheduler
+      scheduler: OperationRunner
     }
   ) {}
 

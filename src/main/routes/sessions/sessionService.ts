@@ -11,7 +11,7 @@ import {
   reportTerminalSessionResolution
 } from '@/presenter/agentSessionPresenter/sessionResolution'
 import type { MessageRepository, SessionListFilters, SessionRepository } from '../hotPathPorts'
-import type { Scheduler } from '../scheduler'
+import type { OperationRunner } from '../operationRunner'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
 const DEFAULT_RESTORE_MESSAGE_LIMIT = 100
@@ -72,7 +72,7 @@ export class SessionService {
     private readonly deps: {
       sessionRepository: SessionRepository
       messageRepository: MessageRepository
-      scheduler: Scheduler
+      scheduler: OperationRunner
     }
   ) {}
 
