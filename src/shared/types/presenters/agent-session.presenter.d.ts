@@ -34,6 +34,7 @@ import type { DeepChatTapeViewManifestRecord } from '../tape-view-manifest'
 import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from '../tape-replay'
 import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
+import type { CreateSessionOperationSummary } from '../../contracts/routes/sessions.routes'
 
 export interface HistorySearchOptions {
   limit?: number
@@ -108,7 +109,20 @@ export type ActiveSessionResolution =
     }
 
 export interface IAgentSessionPresenter {
-  createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+  createSession(input: CreateSessionInput, operationId: string): Promise<SessionWithState | null>
+  getCreateOperation(operationId: string): Promise<{
+    operation: CreateSessionOperationSummary | null
+    session: SessionWithState | null
+  }>
+  listCreateOperations(input: {
+    limit: number
+    cursor?: { createdAt: number; operationId: string } | null
+  }): {
+    items: CreateSessionOperationSummary[]
+    nextCursor: { createdAt: number; operationId: string } | null
+    hasMore: boolean
+  }
+  dismissCreateOperation(operationId: string): CreateSessionOperationSummary | null
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
   ensureAcpDraftSession(input: {
     agentId: string

@@ -244,6 +244,7 @@ import {
   sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
+  sessionsDismissCreateOperationRoute,
   sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
   sessionsDeletePendingInputRoute,
@@ -257,6 +258,7 @@ import {
   sessionsGetAcpSessionCommandsRoute,
   sessionsGetAcpSessionConfigOptionsRoute,
   sessionsGetActiveRoute,
+  sessionsGetCreateOperationRoute,
   sessionsGetAgentsRoute,
   sessionsGetAgentTransferImpactRoute,
   sessionsGetDisabledAgentToolsRoute,
@@ -267,6 +269,7 @@ import {
   sessionsGetTapeContextRoute,
   sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
+  sessionsListCreateOperationsRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
@@ -2880,8 +2883,26 @@ export async function dispatchDeepchatRoute(
 
     case sessionsCreateRoute.name: {
       const input = sessionsCreateRoute.input.parse(rawInput)
-      const session = await runtime.sessionService.createSession(input, context)
-      return sessionsCreateRoute.output.parse({ session })
+      const result = await runtime.sessionService.createSession(input)
+      return sessionsCreateRoute.output.parse(result)
+    }
+
+    case sessionsGetCreateOperationRoute.name: {
+      const input = sessionsGetCreateOperationRoute.input.parse(rawInput)
+      const result = await runtime.sessionService.getCreateOperation(input.operationId)
+      return sessionsGetCreateOperationRoute.output.parse(result)
+    }
+
+    case sessionsListCreateOperationsRoute.name: {
+      const input = sessionsListCreateOperationsRoute.input.parse(rawInput)
+      const result = runtime.sessionService.listCreateOperations(input)
+      return sessionsListCreateOperationsRoute.output.parse(result)
+    }
+
+    case sessionsDismissCreateOperationRoute.name: {
+      const input = sessionsDismissCreateOperationRoute.input.parse(rawInput)
+      const operation = runtime.sessionService.dismissCreateOperation(input.operationId)
+      return sessionsDismissCreateOperationRoute.output.parse({ operation })
     }
 
     case sessionsRestoreRoute.name: {

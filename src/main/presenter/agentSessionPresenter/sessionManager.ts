@@ -47,6 +47,7 @@ export class NewSessionManager {
     title: string,
     projectDir: string | null,
     options?: {
+      id?: string
       isDraft?: boolean
       disabledAgentTools?: string[]
       subagentEnabled?: boolean
@@ -56,7 +57,7 @@ export class NewSessionManager {
       metadata?: SessionMetadata | null
     }
   ): string {
-    const id = nanoid()
+    const id = options?.id ?? nanoid()
     this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools,

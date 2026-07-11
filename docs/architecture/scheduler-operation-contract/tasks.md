@@ -103,36 +103,48 @@ PRV-CAN-001 development 验证记录：
 
 ## SCH-003A：Session create backend development slice（不可独立 merge）
 
-- [ ] 建 backend review branch/commit，基于 SCH-002B。
-- [ ] operation schema/DTO 只写在 `sessions.routes.ts` 并通过 schema/route inference取类型。
-- [ ] `sessions.create` output 是 serializable Zod discriminated union：operation/existing/conflict。
-- [ ] renderer 分支需要的 operationId/sessionId/state/stage/code/dismissedAt 全在 output，不读取 Error fields。
-- [ ] 加 guard：`agent-interface.d.ts` 不得复制 session operation DTO。
-- [ ] operation id schema 使用 UUID + length 36；missing/empty/whitespace/non-UUID/overlength 在任何副作用前
+- [x] 建 backend review branch/commit，基于 SCH-002B。
+- [x] operation schema/DTO 只写在 `sessions.routes.ts` 并通过 schema/route inference取类型。
+- [x] `sessions.create` output 是 serializable Zod discriminated union：operation/existing/conflict。
+- [x] renderer 分支需要的 operationId/sessionId/state/stage/code/dismissedAt 全在 output，不读取 Error fields。
+- [x] 加 guard：`agent-interface.d.ts` 不得复制 session operation DTO。
+- [x] operation id schema 使用 UUID + length 36；missing/empty/whitespace/non-UUID/overlength 在任何副作用前
   reject。
-- [ ] 增加 `sessions.getCreateOperation`。
-- [ ] 增加 cursor `sessions.listCreateOperations`：limit int `1..50`、default `20`、复合稳定排序、同毫秒不漏。
-- [ ] history 返回所有 identity 与 `dismissedAt`；dismiss 只供 UI 折叠，history/retry guard 仍可查回。
-- [ ] 实现 domain-specific `session_create_operations` additive table。
-- [ ] journal 只存 identity/fingerprint/stage/content-free error/timestamps，不存 raw payload。
-- [ ] operation 开始前登记 identity 并预分配 session id。
-- [ ] 同 id/same fingerprint 返回 operation；same id/different fingerprint 返回 conflict + old checkable identity。
-- [ ] 新 id + same fingerprint pending/unknown（含 dismissed）返回 existing + old checkable identity且零副作用。
-- [ ] internal typed error 由 route adapter按 class/stable code 映射，禁止按 message 分类。
-- [ ] durable stage 覆盖 record/runtime/input_not_required|input_accepted/completed。
-- [ ] inventory/guard 固定 deepchat/acp 都 resolve 到有 durable queue 的 `agentRuntimeAgent`。
-- [ ] await 现有 `queuePendingInput()` record；删除 unreachable `processMessage` fallback；不新增 accepted-start API。
-- [ ] observation deadline 返回 pending，不 abort/不 throw false TimeoutError。
-- [ ] create 首次 observation 固定 `5_000ms`。
-- [ ] create port/backend 移除 `webContentsId`/`bindWindow`；record/runtime/queue/late success 全程保留原 binding。
-- [ ] terminal success 只发一次 non-activation `created` list notification，不带 active fields，不作为 journal stage。
-- [ ] compensation 全部 settle success 才 failed；任一不确定为 unknown。
-- [ ] restart succeeded 可重建；incomplete pending -> unknown；不 replay payload。
-- [ ] history 只返回 content-free identity/status/cursor，不返回内容/配置/fingerprint。
-- [ ] succeeded 随 session delete；failed/unknown 保留 reconcile/dedupe evidence，不加 speculative TTL worker。
-- [ ] 覆盖 validation/fingerprint/dismiss/cursor/unbound/created-event/queue/cleanup/restart/privacy tests。
+- [x] 增加 `sessions.getCreateOperation`。
+- [x] 增加 cursor `sessions.listCreateOperations`：limit int `1..50`、default `20`、复合稳定排序、同毫秒不漏。
+- [x] history 返回所有 identity 与 `dismissedAt`；dismiss 只供 UI 折叠，history/retry guard 仍可查回。
+- [x] 实现 domain-specific `session_create_operations` additive table。
+- [x] journal 只存 identity/fingerprint/stage/content-free error/timestamps，不存 raw payload。
+- [x] operation 开始前登记 identity 并预分配 session id。
+- [x] 同 id/same fingerprint 返回 operation；same id/different fingerprint 返回 conflict + old checkable identity。
+- [x] 新 id + same fingerprint pending/unknown（含 dismissed）返回 existing + old checkable identity且零副作用。
+- [x] internal typed error 由 route adapter按 class/stable code 映射，禁止按 message 分类。
+- [x] durable stage 覆盖 record/runtime/input_not_required|input_accepted/completed。
+- [x] inventory/guard 固定 deepchat/acp 都 resolve 到有 durable queue 的 `agentRuntimeAgent`。
+- [x] await 现有 `queuePendingInput()` record；删除 unreachable `processMessage` fallback；不新增 accepted-start API。
+- [x] observation deadline 返回 pending，不 abort/不 throw false TimeoutError。
+- [x] create 首次 observation 固定 `5_000ms`。
+- [x] create port/backend 移除 `webContentsId`/`bindWindow`；record/runtime/queue/late success 全程保留原 binding。
+- [x] terminal success 只发一次 non-activation `created` list notification，不带 active fields，不作为 journal stage。
+- [x] compensation 全部 settle success 才 failed；任一不确定为 unknown。
+- [x] restart succeeded 可重建；incomplete pending -> unknown；不 replay payload。
+- [x] history 只返回 content-free identity/status/cursor，不返回内容/配置/fingerprint。
+- [x] succeeded 随 session delete；failed/unknown 保留 reconcile/dedupe evidence，不加 speculative TTL worker。
+- [x] 覆盖 validation/fingerprint/dismiss/cursor/unbound/created-event/queue/cleanup/restart/privacy tests。
 - [ ] 独立 backend verifier 审查 DB truth/stage/acceptance/no-duplicate/binding/privacy。
-- [ ] 明确此 commit 不创建独立 production PR、不单独 merge。
+- [x] 明确此 commit 不创建独立 production PR、不单独 merge。
+
+SCH-003A development 验证记录：
+
+- main/renderer focused：contracts、SessionService、dispatcher、AgentSessionPresenter、schema metadata、architecture
+  guard、真实 `createBridge` serialization 共 `256 passed`；operation/existing/conflict、UUID pre-effect、5 秒
+  pending、single-flight、normalized fingerprint、dismissed dedupe、binding/event、compensation uncertainty、restart/
+  unknown reconciliation、content-free history 均有覆盖。
+- Electron 40 ABI143 native SQLite focused：`5 passed`，覆盖 additive schema/索引、dismiss visibility、restart
+  disposition、same-millisecond cursor 与 succeeded-only delete。
+- `typecheck:node`、`format:check`、`i18n`、`lint`、`git diff --check` 通过。完整 web typecheck 在旧 renderer
+  `result.session` 读取新 discriminated union 处保留唯一预期 003B 编译失败；这是 A/B atomic cutover gate，003A
+  不用类型断言掩盖、不单独 merge。
 
 ## SCH-003B：Renderer/integration atomic cutover
 

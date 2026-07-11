@@ -385,6 +385,8 @@ message 分类。unexpected error 仍作为 generic IPC rejection。
 ### Backend 实施步骤
 
 1. schema validation 后 canonicalize input、计算 DB-only fingerprint、预分配 session id。
+   Canonicalization 复用实际 create normalization：active skills 与 disabled tools 的等价写法必须同 hash，
+   `projectDir` omitted/default 与 explicit null 必须不同 hash。
 2. 副作用前登记 operation：same id/same fingerprint single-flight；different fingerprint 返回 `conflict`
    variant；新 id 若命中同 fingerprint `pending/unknown`（含 dismissed），返回 `existing` variant；两者都带
    old checkable identity/state且零 mutation。
@@ -394,7 +396,9 @@ message 分类。unexpected error 仍作为 generic IPC rejection。
    `processMessage` fallback，绝不 await whole generation。
 5. 保留 `5_000ms` 作为 create 首次 observation deadline；到点返回 `pending`，不 abort、不写 failed。
 6. owner failure 收集所有 compensation outcome：全部 settle success 才 `failed`，任一不确定为 `unknown`。
-7. restart：succeeded + readable session 可重建；incomplete pending 转 unknown；不 replay payload。
+7. restart/reconcile：durable input stage + readable/available session 才收敛 succeeded；其余 incomplete pending
+   转 unknown，不 replay payload。succeeded + authoritative missing 删除 orphan row；transient/unavailable 保留
+   succeeded identity 并返回 stable unavailable code，不误降级 unknown。
 8. history 按 immutable `(createdAt DESC, operationId ASC)` cursor 翻页，返回所有保留 row；state/update/dismiss
    不改变分页位置，dismissed 只由 UI 折叠。
 9. create backend 不接收/使用 `webContentsId`，不 bind window。terminal success 后只发一次不带 active fields 的
@@ -414,6 +418,8 @@ message 分类。unexpected error 仍作为 generic IPC rejection。
 | cleanup all success | failed，record 不残留 |
 | one cleanup unknown | unknown，不自动 retry |
 | restart incomplete | pending -> unknown，不 replay payload |
+| restart/reconcile proof | durable input stage + available -> succeeded；早期 stage/不可用证据保持 unknown |
+| succeeded lookup | available 可重建；missing 删除 orphan；transient/unavailable 保留 succeeded + stable code |
 | invalid operation id | missing/empty/whitespace/non-UUID/overlength 全部 pre-effect reject |
 | create output union | operation/existing/conflict 都经 Zod parse；renderer 所需 id/state/code 只来自 output |
 | conflict/existing | 都返回可 Check 的 old identity；DB/runtime/input/event count = 0 |

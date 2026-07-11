@@ -126,7 +126,7 @@ describe.sequential('architecture guard', () => {
     expect(result.stdout).toContain('Architecture guard passed.')
   })
 
-  it('pins the final legacy call and the removed retry surface', async () => {
+  it('pins removal of the final legacy call and retry surface', async () => {
     const [guardSource, runnerSource] = await Promise.all([
       readFile(ARCHITECTURE_GUARD_PATH, 'utf8'),
       readFile(OPERATION_RUNNER_PATH, 'utf8')
@@ -141,14 +141,47 @@ describe.sequential('architecture guard', () => {
       /export interface OperationRunner \{([\s\S]*?)^\}/m
     )?.[1]
 
-    expect(allowlistedCalls).toEqual([
-      ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1]
-    ])
+    expect(allowlistedCalls).toEqual([])
     expect(allowlistBody).not.toContain('#retry')
     expect(runnerInterface).not.toMatch(/^\s*retry(?:<|\s*\()/m)
 
     const result = runArchitectureGuard()
     expect(result.status).toBe(0)
+  })
+
+  it('pins session create DTO ownership and durable queue acceptance', async () => {
+    const [guardSource, agentInterfaceSource] = await Promise.all([
+      readFile(ARCHITECTURE_GUARD_PATH, 'utf8'),
+      readFile(path.join(ROOT, 'src/shared/types/agent-interface.d.ts'), 'utf8')
+    ])
+
+    expect(guardSource).toContain('[session-create-operation-dto-owner]')
+    expect(guardSource).toContain('[session-create-durable-queue]')
+    expect(guardSource).toContain('[session-create-owner-inventory]')
+    expect(agentInterfaceSource).not.toMatch(
+      /(?:CreateSessionOperation|SessionCreateOperation|CreateOperation)(?:State|Stage|Summary|Output|Envelope|Cursor)?\b/
+    )
+
+    const result = runArchitectureGuard()
+    expect(result.status).toBe(0)
+  })
+
+  it('fails when agent-interface duplicates the session create operation DTO', async () => {
+    const agentInterfacePath = path.join(ROOT, 'src/shared/types/agent-interface.d.ts')
+    const original = await readFile(agentInterfacePath, 'utf8')
+    try {
+      await writeFile(
+        agentInterfacePath,
+        `${original}\nexport interface CreateSessionOperationSummary { operationId: string }\n`,
+        'utf8'
+      )
+
+      const result = runArchitectureGuard()
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('[session-create-operation-dto-owner]')
+    } finally {
+      await writeFile(agentInterfacePath, original, 'utf8')
+    }
   })
 
   it.each([

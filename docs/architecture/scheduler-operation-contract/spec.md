@@ -454,6 +454,9 @@ waitForGenerationSettlement(runId: string): Promise<GenerationTerminalState>
   terminal，不阻止用户创建内容相同的新 session。
 - fingerprint 只用于冲突检测，和 session 数据保存在同一 SQLite/SQLCipher database；不得另建
   plaintext sidecar。日志不得记录 message、file path、fingerprint 或 payload。
+- fingerprint canonicalization 必须与 create 的同步 normalization 一致：`activeSkills` trim/dedupe、
+  `disabledAgentTools` trim/map/dedupe/sort 后等价输入得到同一 fingerprint；`projectDir` omitted 表示使用
+  default，和显式 `null` 表示禁用 default 不是同一输入，必须得到不同 fingerprint。
 
 operation id 是 transport identity，fingerprint 是 restart 后丢失 id 时的 duplicate guard，二者不能互相
 替代。`unknown` 必须先 reconcile：权威 session/runtime/queue 证据能收敛才改成 `succeeded/failed`；仍无法
@@ -484,6 +487,11 @@ updated_at
 不持久化 create message/files payload 的副本。当前进程中的 single-flight entry 持有原始 input 和 Promise；
 journal 只保存 identity、stage 和结果证据。实现要为 `(input_fingerprint, state)` duplicate lookup 与
 `(created_at, operation_id)` history cursor 建窄索引，避免 operation row 增长后每次 create/recovery 全表扫描。
+
+本 slice 的 content-free `error_code` 是 closed enum：`CREATE_SESSION_FAILED`、
+`CREATE_SESSION_CLEANUP_UNCERTAIN`、`CREATE_OPERATION_RESTARTED`、
+`CREATE_OPERATION_SESSION_UNAVAILABLE`。新增 code 必须先更新 route Zod enum 与 renderer copy，不能把任意
+error message 写进 journal/output。
 
 ### Stage 与 terminal 规则
 
@@ -602,6 +610,13 @@ sessions.listCreateOperations({ cursor?, limit?: 1..50 = 20 })
   关注 `pending/unknown`，但 dismissed/history 仍可翻页查回；
 - route 不返回 prompt、files、title、agent/provider/model、fingerprint、error detail 或任何 input payload；
 - app restart 把 persisted incomplete `pending` 保守转为 `unknown`，不重放 payload；
+- restart 时，只有 stage 已是 `input_accepted`/`input_not_required` 且 session record 仍存在，才可直接收敛
+  `succeeded/completed`；其余 incomplete `pending` 转 `unknown`。查询 `unknown` 时也只有上述 durable stage
+  （或 `completed`）与 SES classified `available` 同时成立才收敛 succeeded；较早 stage、`missing`、
+  `unavailable`、`transient_error` 都不得 replay payload 或猜测成功；
+- 查询 persisted `succeeded` 时，SES `available` 可重建 session；authoritative `missing` 删除 orphan
+  succeeded row 并返回双 null；`unavailable/transient_error` 保留 succeeded identity，返回
+  `session: null` + `CREATE_OPERATION_SESSION_UNAVAILABLE` 供以后重查，不降级 unknown；
 - 无论列表只有一条还是多条，UI 都只显示“待确认的创建记录”，必须由用户显式选择“查看结果”；不得把它
   绑定到当前 draft，不得自动 navigate/activate；
 - succeeded session 仍由正常 session list 展示；history row 可用于诊断/去重，直到 session deletion cleanup；

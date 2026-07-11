@@ -453,6 +453,41 @@ function createRuntime() {
       providerId: 'openai',
       modelId: 'gpt-5.4'
     }),
+    getCreateOperation: vi.fn().mockResolvedValue({
+      operation: {
+        operationId: '00000000-0000-4000-8000-000000000001',
+        sessionId: 'session-1',
+        state: 'succeeded',
+        stage: 'completed',
+        code: null,
+        dismissedAt: null,
+        createdAt: 1,
+        updatedAt: 2
+      },
+      session: {
+        id: 'session-1',
+        agentId: 'deepchat',
+        title: 'New Chat',
+        projectDir: '/workspace',
+        isPinned: false,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentEnabled: false,
+        subagentMeta: null,
+        createdAt: 1,
+        updatedAt: 2,
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-5.4'
+      }
+    }),
+    listCreateOperations: vi.fn().mockReturnValue({
+      items: [],
+      nextCursor: null,
+      hasMore: false
+    }),
+    dismissCreateOperation: vi.fn().mockReturnValue(null),
     getSession: vi.fn().mockResolvedValue({
       id: 'session-1',
       agentId: 'deepchat',
@@ -3521,6 +3556,85 @@ describe('dispatchDeepchatRoute', () => {
     expect(uninstallResult).toEqual({ ok: true })
   })
 
+  it.each([undefined, '', '   ', 'not-a-uuid', '00000000-0000-4000-8000-000000000001-extra'])(
+    'rejects invalid session create operation id before presenter effects: %j',
+    async (operationId) => {
+      const { runtime, agentSessionPresenter } = createRuntime()
+
+      await expect(
+        dispatchDeepchatRoute(
+          runtime,
+          'sessions.create',
+          { operationId, agentId: 'deepchat', message: 'hello' },
+          { webContentsId: 88, windowId: 3 }
+        )
+      ).rejects.toThrow()
+      expect(agentSessionPresenter.createSession).not.toHaveBeenCalled()
+    }
+  )
+
+  it('validates operation history cursor and limit before repository reads', async () => {
+    const { runtime, agentSessionPresenter } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.listCreateOperations',
+        { limit: 0 },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).rejects.toThrow()
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.listCreateOperations',
+        {
+          cursor: { createdAt: Number.POSITIVE_INFINITY, operationId: 'invalid' },
+          limit: 20
+        },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).rejects.toThrow()
+    expect(agentSessionPresenter.listCreateOperations).not.toHaveBeenCalled()
+  })
+
+  it('dispatches content-free get, cursor history, and dismiss operation routes', async () => {
+    const { runtime, agentSessionPresenter } = createRuntime()
+    const context = { webContentsId: 88, windowId: 3 }
+    const operationId = '00000000-0000-4000-8000-000000000001'
+
+    const getResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getCreateOperation',
+      { operationId },
+      context
+    )
+    const listResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.listCreateOperations',
+      {},
+      context
+    )
+    const dismissResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.dismissCreateOperation',
+      { operationId },
+      context
+    )
+
+    expect(getResult).toMatchObject({
+      operation: { operationId, state: 'succeeded' },
+      session: { id: 'session-1' }
+    })
+    expect(listResult).toEqual({ items: [], nextCursor: null, hasMore: false })
+    expect(dismissResult).toEqual({ operation: null })
+    expect(agentSessionPresenter.listCreateOperations).toHaveBeenCalledWith({ limit: 20 })
+    expect(agentSessionPresenter.dismissCreateOperation).toHaveBeenCalledWith(operationId)
+    expect(
+      JSON.stringify({ operation: getResult.operation, listResult, dismissResult })
+    ).not.toMatch(/fingerprint|message|files|prompt|providerId|modelId/)
+  })
+
   it('dispatches session and chat routes with renderer context', async () => {
     const { runtime, agentSessionPresenter } = createRuntime()
 
@@ -3528,6 +3642,7 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'sessions.create',
       {
+        operationId: '00000000-0000-4000-8000-000000000001',
         agentId: 'deepchat',
         message: 'hello world'
       },
@@ -3542,12 +3657,15 @@ describe('dispatchDeepchatRoute', () => {
         agentId: 'deepchat',
         message: 'hello world'
       },
-      88
+      '00000000-0000-4000-8000-000000000001'
     )
     expect(createResult).toEqual({
-      session: expect.objectContaining({
-        id: 'session-1'
-      })
+      kind: 'operation',
+      operation: expect.objectContaining({
+        operationId: '00000000-0000-4000-8000-000000000001',
+        state: 'succeeded'
+      }),
+      session: expect.objectContaining({ id: 'session-1' })
     })
 
     await dispatchDeepchatRoute(
