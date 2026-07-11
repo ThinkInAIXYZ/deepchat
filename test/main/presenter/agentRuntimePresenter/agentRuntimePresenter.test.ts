@@ -18,6 +18,7 @@ import {
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
+import { PersistedSkillPinsReadError } from '@shared/types/skill'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -1387,6 +1388,31 @@ describe('AgentRuntimePresenter', () => {
   })
 
   describe('processMessage', () => {
+    it('does not cache a prompt/tool pair when persisted pin reads fail', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const readError = new PersistedSkillPinsReadError('s1', new Error('database unavailable'))
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      skillPresenter.getPinnedActiveSkills
+        .mockRejectedValueOnce(readError)
+        .mockResolvedValueOnce([])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'First message')
+
+      expect(consoleError).toHaveBeenCalledWith('[DeepChatAgent] processMessage error:', readError)
+      expect((agent as any).systemPromptCache.has('s1')).toBe(false)
+      expect((agent as any).toolProfileCache.has('s1')).toBe(false)
+      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+
+      await agent.processMessage('s1', 'Second message')
+
+      expect(skillPresenter.getPinnedActiveSkills.mock.calls.length).toBeGreaterThanOrEqual(2)
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      consoleError.mockRestore()
+    })
+
     it('creates user and assistant messages with correct order_seq', async () => {
       sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
         .mockReturnValueOnce(0) // user message: seq 1
@@ -2654,9 +2680,7 @@ describe('AgentRuntimePresenter', () => {
         ])
       }
       skillPresenter.getPinnedActiveSkills.mockResolvedValue(['review'])
-      skillPresenter.getActiveSkills.mockRejectedValue(
-        new Error('validated lookup would discover outside the runtime deadline')
-      )
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
       skillPresenter.getPublishedRuntimeSnapshot.mockReturnValue(snapshot)
       skillPresenter.waitForStableRuntimeSnapshot.mockResolvedValue(snapshot)
       skillPresenter.getMetadataList.mockImplementation(() => {
@@ -5727,11 +5751,27 @@ describe('AgentRuntimePresenter', () => {
       ])
     })
 
+    it('propagates persisted pin read failures from manual compaction without caching a pair', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const readError = new PersistedSkillPinsReadError('s1', new Error('database unavailable'))
+      skillPresenter.getPinnedActiveSkills.mockRejectedValueOnce(readError)
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { contextLength: 128000, maxTokens: 4096 }
+      })
+
+      await expect(agent.compactSession('s1')).rejects.toBe(readError)
+      expect((agent as any).systemPromptCache.has('s1')).toBe(false)
+      expect((agent as any).toolProfileCache.has('s1')).toBe(false)
+      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+    })
+
     it('manually compacts without creating a user turn or streaming', async () => {
       const skillPresenter = getSkillPresenterMock()
-      skillPresenter.getActiveSkills.mockRejectedValue(
-        new Error('manual compaction must not trigger unbounded catalog discovery')
-      )
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
         autoCompactionEnabled: false,
         autoCompactionRetainRecentPairs: 1
@@ -6142,11 +6182,59 @@ describe('AgentRuntimePresenter', () => {
       return row
     }
 
+    it('propagates persisted pin read failures from resume without caching a pair', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const readError = new PersistedSkillPinsReadError('s1', new Error('database unavailable'))
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      skillPresenter.getPinnedActiveSkills.mockRejectedValueOnce(readError)
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Pick one',
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'Pick one',
+              questionOptions: [{ label: 'A' }]
+            }
+          }
+        ]
+      })
+
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'question_option',
+          optionLabel: 'A'
+        })
+      ).rejects.toBe(readError)
+      expect(consoleError).toHaveBeenCalledWith(
+        '[DeepChatAgent] resumeAssistantMessage error:',
+        readError
+      )
+      expect(skillPresenter.getActiveSkills).not.toHaveBeenCalled()
+      expect((agent as any).systemPromptCache.has('s1')).toBe(false)
+      expect((agent as any).toolProfileCache.has('s1')).toBe(false)
+      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect((agent as any).runtimeState.get('s1').status).toBe('error')
+      consoleError.mockRestore()
+    })
+
     it('handles question_option and resumes assistant message', async () => {
       const skillPresenter = getSkillPresenterMock()
-      skillPresenter.getActiveSkills.mockRejectedValue(
-        new Error('resume must not trigger unbounded catalog discovery')
-      )
+      skillPresenter.getActiveSkills.mockImplementation(() => new Promise(() => undefined))
       const prepareForResumeTurn = vi.spyOn(
         (agent as any).compactionService,
         'prepareForResumeTurn'

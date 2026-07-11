@@ -46,7 +46,8 @@ import {
   PublishedSkillEntry,
   PublishedSkillSourceError,
   SkillRuntimeSnapshot,
-  WaitForStableSkillRuntimeOptions
+  WaitForStableSkillRuntimeOptions,
+  PersistedSkillPinsReadError
 } from '@shared/types/skill'
 import type {
   SkillManagementItem,
@@ -3351,18 +3352,20 @@ export class SkillPresenter implements ISkillPresenter {
    * Runtime callers validate these names against one bounded immutable snapshot.
    */
   async getPinnedActiveSkills(conversationId: string): Promise<string[]> {
-    if (await this.isNewAgentSession(conversationId)) {
-      return await this.loadNewSessionSkills(conversationId)
+    try {
+      return this.sessionStatePort.getPersistedNewSessionSkills(conversationId)
+    } catch (error) {
+      throw new PersistedSkillPinsReadError(conversationId, error)
     }
-
-    return []
   }
 
   /**
    * Get active skills for a conversation
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
-    const skills = await this.getPinnedActiveSkills(conversationId)
+    const skills = (await this.isNewAgentSession(conversationId))
+      ? await this.loadNewSessionSkills(conversationId)
+      : []
     const validSkills = await this.validateSkillNames(skills)
     if (!this.areSkillListsEqual(validSkills, skills)) {
       this.setPersistedNewSessionSkills(conversationId, validSkills)

@@ -20,7 +20,7 @@ const DatabaseCtor = Database!
 const NewSessionsTableCtor = NewSessionsTable!
 const describeIfSqlite = sqliteAvailable && NewSessionsTable ? describe : describe.skip
 
-describeIfSqlite('NewSessionsTable clearProjectDir', () => {
+describeIfSqlite('NewSessionsTable', () => {
   let db: InstanceType<typeof DatabaseCtor> | null
   let table: InstanceType<typeof NewSessionsTableCtor>
 
@@ -77,5 +77,19 @@ describeIfSqlite('NewSessionsTable clearProjectDir', () => {
       project_dir: '/work/app',
       updated_at: 400
     })
+  })
+
+  it('strictly reads persisted active skill pins without hiding corrupt legacy JSON', () => {
+    table.create('session-valid', 'agent', 'Valid', null, { activeSkills: ['review'] })
+    expect(table.getPersistedActiveSkillPins('session-valid')).toEqual(['review'])
+    expect(table.getPersistedActiveSkillPins('session-missing')).toEqual([])
+
+    table.create('session-corrupt', 'agent', 'Corrupt', null)
+    db!
+      .prepare('UPDATE new_sessions SET active_skills = ? WHERE id = ?')
+      .run('{not-json', 'session-corrupt')
+
+    expect(() => table.getPersistedActiveSkillPins('session-corrupt')).toThrow(SyntaxError)
+    expect(table.getActiveSkills('session-corrupt')).toEqual([])
   })
 })

@@ -501,6 +501,9 @@ AND same stable-even skillMutationEpoch
    `processMessage()`、manual compaction 和 resume 在进入该 orchestration 前只允许读取 session 持久化的
    raw skill pins；该读取不得调用 metadata validation/discovery。raw names 必须在同一个 bounded immutable
    skill snapshot 中完成 availability/policy filter，避免在 `deadlineAt` 创建前先做一次无界 source discovery。
+   raw API 只读当前 session 的 normalized pin rows 或 legacy JSON column；authoritative missing/empty 返回
+   `[]`，DB/read/parse failure 以 retryable typed error 传播，不能伪装成 empty。imported legacy 全库 repair
+   只保留在 compatibility `getActiveSkills()` 和明确 migration lifecycle，不得进入 runtime prelude。
 2. env/verification snapshots 和 stable skill epoch 必须在 cache hit 判定前取得。两个 file snapshot
    都 pending 时，wall-clock upper bound 是 overall `200ms` 加微小同步 compose/hash 开销，不是 `400ms`。
 3. cache entry 记录使用的 revisions/epoch，便于测试和 debug；日志不得输出 `AGENTS.md`、
@@ -569,6 +572,8 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 - [ ] `processMessage()`、manual compaction 和 resume 的 active-skill prelude 只读取 raw persisted pins，
       不在 deadline 创建前触发 metadata discovery；slow/hung discovery 在三条生产入口都受同一 signal/
       absolute `200ms` deadline 约束。
+- [ ] imported legacy empty pins 不触发全库 repair；raw DB/read/parse failure typed 传播，三条生产入口均不把
+      failure 当作 `[]`，也不缓存由 failure 产生的 prompt/tool pair。
 - [ ] stable read 中途 epoch 变化时丢弃 candidate并在原 deadline 内最多重建一次；持续变化不写长期
       cache，也不发送已知 mixed pair。
 - [ ] watcher 外部编辑在 event 被观察前，以及 observed event 的 private staging 期间，允许继续命中旧

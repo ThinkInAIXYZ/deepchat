@@ -344,14 +344,7 @@ export class NewSessionsTable extends BaseTable {
   }
 
   getActiveSkills(id: string): string[] {
-    const normalizedRows = this.db
-      .prepare(
-        `SELECT skill_name
-         FROM new_session_active_skills
-         WHERE session_id = ?
-         ORDER BY ordinal`
-      )
-      .all(id) as Array<{ skill_name: string }>
+    const normalizedRows = this.listActiveSkillRows(id)
     if (normalizedRows.length > 0) {
       return normalizedRows.map((row) => row.skill_name)
     }
@@ -360,6 +353,18 @@ export class NewSessionsTable extends BaseTable {
       | { active_skills?: string | null }
       | undefined
     return this.parseActiveSkills(row?.active_skills)
+  }
+
+  getPersistedActiveSkillPins(id: string): string[] {
+    const normalizedRows = this.listActiveSkillRows(id)
+    if (normalizedRows.length > 0) {
+      return normalizedRows.map((row) => row.skill_name)
+    }
+
+    const row = this.db.prepare('SELECT active_skills FROM new_sessions WHERE id = ?').get(id) as
+      | { active_skills?: string | null }
+      | undefined
+    return this.parsePersistedStringArray(row?.active_skills)
   }
 
   updateActiveSkills(id: string, activeSkills: string[]): void {
@@ -437,6 +442,17 @@ export class NewSessionsTable extends BaseTable {
     return this.parseStringArray(raw)
   }
 
+  private listActiveSkillRows(id: string): Array<{ skill_name: string }> {
+    return this.db
+      .prepare(
+        `SELECT skill_name
+         FROM new_session_active_skills
+         WHERE session_id = ?
+         ORDER BY ordinal`
+      )
+      .all(id) as Array<{ skill_name: string }>
+  }
+
   private replaceActiveSkillsRows(sessionId: string, activeSkills: string[]): void {
     const insert = this.db.prepare(
       `INSERT INTO new_session_active_skills (
@@ -486,5 +502,17 @@ export class NewSessionsTable extends BaseTable {
     } catch {
       return []
     }
+  }
+
+  private parsePersistedStringArray(raw: string | null | undefined): string[] {
+    if (!raw) {
+      return []
+    }
+
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
+      throw new TypeError('Persisted skill pins must be a JSON string array')
+    }
+    return parsed
   }
 }

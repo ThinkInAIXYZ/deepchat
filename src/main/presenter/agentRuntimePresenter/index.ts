@@ -7082,19 +7082,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return []
     }
 
-    try {
-      const policy = await this.resolveAgentExtensionPolicy(sessionId)
-      return this.filterSkillNamesByPolicy(
-        this.normalizeSkillNames(await this.skillPresenter.getPinnedActiveSkills(sessionId)),
-        policy
-      )
-    } catch (error) {
-      console.warn(
-        `[DeepChatAgent] Failed to load active skills for tool profile in session ${sessionId}:`,
-        error
-      )
-      return []
-    }
+    const policy = await this.resolveAgentExtensionPolicy(sessionId)
+    return this.filterSkillNamesByPolicy(
+      this.normalizeSkillNames(await this.skillPresenter.getPinnedActiveSkills(sessionId)),
+      policy
+    )
   }
 
   private async resolveAgentExtensionPolicy(sessionId: string): Promise<AgentExtensionPolicy> {
