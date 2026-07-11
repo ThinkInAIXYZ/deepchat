@@ -83,6 +83,37 @@ describe('createNodeOperationRunner', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('preserves a synchronous task error when the task aborts observation before throwing', async () => {
+    const runner = createNodeOperationRunner()
+    const controller = new AbortController()
+    const expected = new Error('task owns this failure')
+    const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+    const unhandledRejection = vi.fn()
+    process.on('unhandledRejection', unhandledRejection)
+
+    try {
+      await expect(
+        runner.observeIdempotent({
+          task: () => {
+            controller.abort()
+            throw expected
+          },
+          deadlineMs: 100,
+          reason: 'abort-then-throw',
+          signal: controller.signal
+        })
+      ).rejects.toBe(expected)
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(unhandledRejection).not.toHaveBeenCalled()
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      process.removeListener('unhandledRejection', unhandledRejection)
+    }
+  })
+
   it('stops observing at the deadline and safely drains a late resolution', async () => {
     const runner = createNodeOperationRunner()
     const task = deferred<string>()

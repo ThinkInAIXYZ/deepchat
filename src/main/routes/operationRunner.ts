@@ -176,6 +176,7 @@ function createStopGate(input: {
     timer = setTimeout(() => stop(input.deadlineError()), input.deadlineMs)
     input.signal?.addEventListener('abort', onAbort, { once: true })
   })
+  drain(promise)
 
   return {
     promise,
