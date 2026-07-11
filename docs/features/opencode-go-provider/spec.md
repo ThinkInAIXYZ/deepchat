@@ -1,5 +1,7 @@
 # OpenCode Go Provider
 
+Status: implemented; maintained provider contract
+
 Linked GitHub issue: #1896
 
 ## User Need

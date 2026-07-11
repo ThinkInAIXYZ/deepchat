@@ -1,6 +1,6 @@
 # Database Query Baseline Specification
 
-Status: accepted for measurement
+Status: measured and independently verified; maintained benchmark contract
 
 Task: `DB-001`
 
@@ -101,8 +101,7 @@ production caller，即使更快也不得据此实施。
 
 - 可重复 benchmark：`scripts/database-query-baseline.mjs`；
 - 原始 JSON：`docs/architecture/database-query-baseline/results/*.json`；
-- 人类可读结论：`docs/architecture/database-query-baseline/results/report.md`；
-- 本 SDD 的 `plan.md`、`tasks.md`。
+- 人类可读结论：`docs/architecture/database-query-baseline/results/report.md`。
 
 临时 SQLite 文件必须写入 OS temp directory 并在成功/失败时清理，不能进入仓库或用户数据库。
 

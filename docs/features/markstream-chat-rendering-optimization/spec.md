@@ -1,5 +1,7 @@
 # MarkStream Chat Rendering Optimization Spec
 
+Status: implemented; maintained renderer contract
+
 ## User need
 
 DeepChat's assistant messages can stream long Markdown responses with code blocks, Mermaid diagrams, tables, references, artifacts, and search highlights. Rendering must feel smooth while content is generating and stay fast when browsing completed long conversations.

@@ -1,5 +1,7 @@
 # Perf Audit Review Hardening Spec
 
+Status: implemented; maintained regression contract
+
 ## User Need
 
 The `perf/audit-fixes` branch should keep its performance improvements without introducing startup,

@@ -1,8 +1,8 @@
 # Shared Declaration Ownership
 
-Status: accepted for implementation
+Status: implemented; maintained declaration-boundary contract
 
-Tasks: `DCL-001`, then `DCL-002`
+Delivered by: `DCL-001`, then `DCL-002`
 
 Finding: `A-03`
 

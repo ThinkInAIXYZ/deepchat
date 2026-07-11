@@ -1,5 +1,7 @@
 # Agent Memory Test Seams Spec
 
+Status: implemented; maintained test-boundary contract
+
 ## User Need
 
 Agent memory tests should keep their lifecycle and race coverage without forcing `MemoryPresenter`
@@ -21,8 +23,7 @@ existing service-level `getMutableRuntimeStateForTests()` seams.
 
 ## Constraints
 
-- Do not create a GitHub issue, branch, or commit.
-- Keep this as a local refactor; do not rewrite tests into broader behavior-only harnesses.
+- Keep this as a localized test-boundary refactor; do not rewrite tests into broader behavior-only harnesses.
 - Preserve the existing service-level test seams for this change.
 
 ## Non-Goals
