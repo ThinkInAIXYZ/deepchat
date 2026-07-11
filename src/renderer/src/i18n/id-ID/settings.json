@@ -2692,6 +2692,7 @@
     "disable": "nonaktifkan",
     "openSettings": "pengaturan",
     "runtime": "waktu proses",
+    "runtimeState": "Status",
     "version": "versi",
     "command": "perintah",
     "status": {

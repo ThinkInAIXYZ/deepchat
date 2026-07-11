@@ -184,7 +184,7 @@
         <section class="rounded-lg border border-border p-4">
           <div class="mb-3 text-sm font-semibold">{{ t('settings.plugins.runtime') }}</div>
           <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-            <dt class="text-muted-foreground">{{ t('settings.plugins.runtime') }}</dt>
+            <dt class="text-muted-foreground">{{ t('settings.plugins.runtimeState') }}</dt>
             <dd>{{ formatRuntimeState(plugin.runtime?.state) }}</dd>
             <dt class="text-muted-foreground">{{ t('settings.plugins.version') }}</dt>
             <dd>{{ plugin.runtime?.version || '-' }}</dd>

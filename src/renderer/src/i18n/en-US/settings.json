@@ -2747,6 +2747,7 @@
     "disable": "Disable",
     "openSettings": "Settings",
     "runtime": "Runtime",
+    "runtimeState": "State",
     "version": "Version",
     "command": "Command",
     "status": {

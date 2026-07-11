@@ -1832,6 +1832,7 @@ declare module 'vue-i18n' {
       disable: string
       openSettings: string
       runtime: string
+      runtimeState: string
       version: string
       command: string
       status: {

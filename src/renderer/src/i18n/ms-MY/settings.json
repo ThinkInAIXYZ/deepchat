@@ -2692,6 +2692,7 @@
     "disable": "nyahaktifkan",
     "openSettings": "sediakan",
     "runtime": "masa jalan",
+    "runtimeState": "Keadaan",
     "version": "Versi",
     "command": "Pesanan",
     "status": {

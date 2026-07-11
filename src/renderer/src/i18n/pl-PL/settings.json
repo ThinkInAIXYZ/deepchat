@@ -2692,6 +2692,7 @@
     "disable": "Wyłącz",
     "openSettings": "Ustawienia",
     "runtime": "Czas wykonania",
+    "runtimeState": "Stan",
     "version": "Wersja",
     "command": "Polecenie",
     "status": {

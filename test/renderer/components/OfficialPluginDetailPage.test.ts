@@ -43,6 +43,7 @@ const translations: Record<string, string> = {
   'settings.pluginsHub.capabilities': 'Capabilities',
   'settings.pluginsHub.cuaDescription': 'CUA localized description',
   'settings.plugins.runtime': 'Runtime',
+  'settings.plugins.runtimeState': 'State',
   'settings.plugins.version': 'Version',
   'settings.remote.feishu.description': 'Feishu localized description',
   'settings.remote.feishu.title': 'Feishu localized title',
@@ -221,10 +222,11 @@ describe('OfficialPluginDetailPage', () => {
     expect(wrapper.text()).not.toContain('DeepChat · com.deepchat.plugins.cua')
   })
 
-  it('does not display internal plugin capabilities', async () => {
+  it('uses a distinct runtime state label without internal capabilities', async () => {
     const { wrapper } = await mountDetail({ pluginId: 'com.deepchat.plugins.cua' })
 
     expect(wrapper.text()).toContain('Runtime')
+    expect(wrapper.text()).toContain('State')
     expect(wrapper.text()).not.toContain('Capabilities')
     expect(wrapper.text()).not.toContain('runtime.manage')
   })

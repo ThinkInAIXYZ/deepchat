@@ -197,6 +197,10 @@ describe('PluginsCatalogPage', () => {
     await flushPromises()
 
     expect(wrapper.findAll('article')).toHaveLength(2)
+    expect(warn).toHaveBeenCalledWith(
+      '[PluginsCatalogPage] Failed to load remote channels:',
+      expect.objectContaining({ message: 'IPC unavailable' })
+    )
     warn.mockRestore()
   })
 })

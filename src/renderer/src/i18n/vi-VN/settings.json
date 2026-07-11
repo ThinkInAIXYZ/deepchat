@@ -2692,6 +2692,7 @@
     "disable": "Vô hiệu hóa",
     "openSettings": "Cài đặt",
     "runtime": "Thời gian chạy",
+    "runtimeState": "Trạng thái",
     "version": "Phiên bản",
     "command": "Lệnh",
     "status": {

@@ -2751,6 +2751,7 @@
     "disable": "停用",
     "openSettings": "设置",
     "runtime": "运行时",
+    "runtimeState": "狀態",
     "version": "版本",
     "command": "命令",
     "status": {

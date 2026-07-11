@@ -2692,6 +2692,7 @@
     "disable": "Disattiva",
     "openSettings": "Impostazioni",
     "runtime": "Runtime",
+    "runtimeState": "Stato",
     "version": "Versione",
     "command": "Comando",
     "status": {

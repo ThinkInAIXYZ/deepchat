@@ -2692,6 +2692,7 @@
     "disable": "Devre dışı bırakmak",
     "openSettings": "Ayarlar",
     "runtime": "Çalışma zamanı",
+    "runtimeState": "Durum",
     "version": "Sürüm",
     "command": "Emretmek",
     "status": {
