@@ -744,10 +744,11 @@ git diff --check
 2026-07-11 automated evidence：
 
 - source snapshot、runtime orchestration、SkillPresenter、SkillTools 和 AgentToolManager focused suite：
-  `403 passed`；
+  `428 passed / 2 skipped`；其中 raw persisted-pin regression 覆盖 imported legacy empty pin、typed
+  read failure、process/manual compaction/resume 三条 production entry 和 failed-pair cache exclusion；
 - `pnpm run typecheck`、`pnpm run format`、`pnpm run i18n`、`pnpm run lint`、
   `git diff --check`：通过；
-- full suite：`4564 passed / 5 failed / 135 skipped`。5 个失败与合入前 baseline 相同：
+- full suite：`4629 passed / 5 failed / 136 skipped`。5 个失败与合入前 baseline 相同：
   `SpotlightOverlay.test.ts` 3 个、`agentSessionPresenter/integration.test.ts` 1 个、
   `createMockChatSession.test.ts` 1 个。
 
