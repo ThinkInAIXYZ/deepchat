@@ -703,6 +703,7 @@ export class MaintenanceService {
 
   private async runCheapMaintenance(agentId: string, now: number, archive: boolean): Promise<void> {
     let workingDirty = this.ports.repairConflictIntegrity(agentId)
+    this.ctx.deps.auditRepository?.pruneOperationalEvents(agentId)
     if (archive) {
       this.archiveStale(agentId, now)
       await this.pruneDeadVectors(agentId)

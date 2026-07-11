@@ -292,6 +292,7 @@ export interface MemoryAuditRepositoryPort {
     scanLimit: number,
     failuresLimit: number
   ): AgentMemoryHealthAuditStats
+  pruneOperationalEvents(agentId: string, keep?: number, limit?: number): number
 }
 
 export interface MemoryAuditListOptions {

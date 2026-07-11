@@ -59,6 +59,16 @@ export interface AgentMemoryHealthAuditStats {
   recentFailures: AgentMemoryHealthRecentFailureRow[]
 }
 
+export const AGENT_MEMORY_OPERATIONAL_AUDIT_EVENT_TYPES = [
+  'memory/maintenance_llm',
+  'memory/reflect',
+  'memory/repair',
+  'memory/conflict_repair',
+  'memory/extract'
+] as const
+const AGENT_MEMORY_OPERATIONAL_AUDIT_EVENT_TYPES_SQL =
+  AGENT_MEMORY_OPERATIONAL_AUDIT_EVENT_TYPES.map((eventType) => `'${eventType}'`).join(', ')
+
 const AGENT_MEMORY_AUDIT_SCHEMA_VERSION = 38
 
 const AGENT_MEMORY_AUDIT_INDEX_SQL = `
@@ -68,6 +78,10 @@ const AGENT_MEMORY_AUDIT_INDEX_SQL = `
     ON agent_memory_audit(agent_id, event_type, created_at);
   CREATE INDEX IF NOT EXISTS idx_agent_memory_audit_agent_memory_ref
     ON agent_memory_audit(agent_id, memory_ref_id, created_at);
+  DROP INDEX IF EXISTS idx_agent_memory_audit_operational_retention;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_audit_operational_retention_v2
+    ON agent_memory_audit(agent_id, created_at DESC, id DESC)
+    WHERE event_type IN (${AGENT_MEMORY_OPERATIONAL_AUDIT_EVENT_TYPES_SQL});
 `
 
 const AGENT_MEMORY_AUDIT_OUTPUT_MEMORY_REF_SQL = `
@@ -397,6 +411,27 @@ export class AgentMemoryAuditTable extends BaseTable {
     }
 
     return stats
+  }
+
+  pruneOperationalEvents(agentId: string, keep = 10_000, limit = 500): number {
+    const normalizedKeep = Math.max(0, Math.floor(keep))
+    const normalizedLimit = Math.min(500, Math.max(0, Math.floor(limit)))
+    if (normalizedLimit === 0) return 0
+    const result = this.db
+      .prepare(
+        `WITH prunable AS (
+           SELECT id
+           FROM agent_memory_audit
+           WHERE agent_id = ?
+             AND event_type IN (${AGENT_MEMORY_OPERATIONAL_AUDIT_EVENT_TYPES_SQL})
+           ORDER BY created_at DESC, id DESC
+           LIMIT ? OFFSET ?
+         )
+         DELETE FROM agent_memory_audit
+         WHERE id IN (SELECT id FROM prunable)`
+      )
+      .run(agentId, normalizedLimit, normalizedKeep)
+    return result.changes
   }
 
   clearByAgent(agentId: string): number {

@@ -1359,6 +1359,26 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
     }
     return stats
   }
+
+  pruneOperationalEvents(agentId: string, keep = 10_000, limit = 500): number {
+    const operationalTypes = new Set([
+      'memory/maintenance_llm',
+      'memory/reflect',
+      'memory/repair',
+      'memory/conflict_repair',
+      'memory/extract'
+    ])
+    const normalizedKeep = Math.max(0, Math.floor(keep))
+    const normalizedLimit = Math.min(500, Math.max(0, Math.floor(limit)))
+    const prunableIds = this.rows
+      .filter((row) => row.agent_id === agentId && operationalTypes.has(row.event_type))
+      .sort((a, b) => b.created_at - a.created_at || b.id.localeCompare(a.id))
+      .slice(normalizedKeep, normalizedKeep + normalizedLimit)
+      .map((row) => row.id)
+    const prunable = new Set(prunableIds)
+    this.rows = this.rows.filter((row) => !prunable.has(row.id))
+    return prunable.size
+  }
 }
 
 export class FakeVectorStore implements IMemoryVectorStore {
