@@ -39,7 +39,7 @@ type ParsedMessageCacheEntry = {
 export type MessageRestoreOutcome = {
   sessionId: string
   session: SessionWithState | null
-  resolution?: PublicSessionResolution
+  resolution?: PublicSessionResolution | null
   rendererTransient?: true
 }
 

@@ -665,6 +665,18 @@ Renderer 性能边界也保持不变：sidebar 仍只调用 `listLightweight`，
 新增响应式状态只是一份按 session id 索引的小记录和一个 active computed，ChatPage 只在异常状态挂载一个
 panel，没有给 message row 或 sidebar row 增加 watcher/component。
 
+独立复核补强了三条 renderer 生命周期约束：
+
+- `getActive` hydration 只返回纯 outcome；`selectSession` 与当前窗口的 `activated` IPC handler 都先核对
+  request id、当前 active id 和 response session id，再同步 apply。较早的 A 请求即使晚于 B 完成，也不能
+  写入 A 的 summary/availability；全局 `getActive` 若已经返回 B，也不能把 B 的结果标到调用方 A 上。
+- `getActive.resolution` 保留三值：`null` 是主进程确认的 unbound，清理 renderer active ownership 并回到
+  New Thread；`undefined` 是旧主进程未提供 additive field，继续作为 legacy transient；object 才是 bound
+  resolution。mapper 不再用 nullish coalescing 合并前两者。
+- `availabilityBySessionId` 的 owner set 是当前 active id 与 renderer 当前持有的 lightweight list id 并集；
+  list replacement、close/deactivate、delete/prune 时同步收敛。非 owner 的历史 lookup 不写入 map，而当前
+  active 的 `unavailable`/`transient_error` 即使暂时不在首屏 list 也必须保留。
+
 ## Error visibility and privacy
 
 ### Main diagnostics
@@ -979,8 +991,10 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 
 `SES-003` implementation validation on 2026-07-11:
 
-- focused main/renderer/API/schema suite: `244 passed`;
-- full repository suite: `4630 passed`, `5` known baseline failures, `135 skipped`;
+- focused main/renderer/API/schema suites after independent-review fixes: `388 passed` (`248` renderer/route
+  coverage plus `140` Presenter/consumer coverage);
+- full repository suite after independent-review fixes: `4635 passed`, `5` known baseline failures,
+  `135 skipped`;
 - the five failures remain the three `SpotlightOverlay` Pinia-fixture failures, the existing converted-steer
   context assertion, and the debug mock missing-plan assertion;
 - `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck` and `git diff --check` passed;

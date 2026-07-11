@@ -475,6 +475,123 @@ describe('sessionStore public availability', () => {
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(pageRouter.goToChat).not.toHaveBeenCalled()
   })
+
+  it('distinguishes authoritative unbound from a legacy absent resolution', async () => {
+    const { store, sessionClient, pageRouter, clearMessages } = await setupStore()
+    store.sessions.value = [createSession()]
+    sessionClient.getActive.mockResolvedValueOnce({ session: null, resolution: null })
+
+    await store.selectSession('session-1')
+
+    expect(store.activeSessionId.value).toBeNull()
+    expect(store.availabilityBySessionId.value['session-1']).toBeUndefined()
+    expect(store.missingSessionNoticeSequence.value).toBe(0)
+    expect(clearMessages).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+
+    pageRouter.goToNewThread.mockClear()
+    clearMessages.mockClear()
+    sessionClient.getActive.mockResolvedValueOnce({ session: null })
+
+    await store.selectSession('session-1')
+
+    expect(store.activeSessionId.value).toBe('session-1')
+    expect(store.activeSessionAvailability.value).toEqual({
+      availability: 'transient_error',
+      sessionId: 'session-1',
+      source: 'legacy'
+    })
+    expect(clearMessages).not.toHaveBeenCalled()
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
+  })
+
+  it('does not apply a getActive result for a different bound session', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-a' }), createSession({ id: 'session-b' })]
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: createSession({ id: 'session-b', providerId: 'acp', modelId: 'dimcode' }),
+      resolution: {
+        availability: 'available',
+        session: createSession({ id: 'session-b', providerId: 'acp', modelId: 'dimcode' })
+      }
+    })
+
+    await store.selectSession('session-a')
+
+    expect(store.activeSessionId.value).toBe('session-a')
+    expect(store.availabilityBySessionId.value['session-a']).toBeUndefined()
+    expect(store.availabilityBySessionId.value['session-b']).toBeUndefined()
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+  })
+
+  it('bounds availability to the active session and current lightweight list', async () => {
+    const { store, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({ id: 'session-active' }),
+      createSession({ id: 'session-kept' }),
+      createSession({ id: 'session-pruned' })
+    ]
+    store.activeSessionId.value = 'session-active'
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-active',
+      session: null,
+      rendererTransient: true
+    })
+    for (const sessionId of ['session-kept', 'session-pruned']) {
+      store.applySessionRestoreOutcome({
+        sessionId,
+        session: null,
+        resolution: {
+          availability: 'unavailable',
+          sessionId,
+          record: createSession({ id: sessionId }),
+          reason: 'agent_unknown'
+        }
+      })
+    }
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-never-owned',
+      session: null,
+      rendererTransient: true
+    })
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [createSession({ id: 'session-kept' })],
+      hasMore: false,
+      nextCursor: null
+    })
+
+    await store.fetchSessions()
+
+    expect(store.availabilityBySessionId.value).toMatchObject({
+      'session-active': {
+        availability: 'transient_error',
+        source: 'renderer'
+      },
+      'session-kept': {
+        availability: 'unavailable',
+        source: 'main'
+      }
+    })
+    expect(store.availabilityBySessionId.value['session-pruned']).toBeUndefined()
+    expect(store.availabilityBySessionId.value['session-never-owned']).toBeUndefined()
+  })
+
+  it('releases active-only availability when the session is closed', async () => {
+    const { store } = await setupStore()
+    store.activeSessionId.value = 'session-active-only'
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-active-only',
+      session: null,
+      rendererTransient: true
+    })
+
+    await store.closeSession()
+
+    expect(store.activeSessionId.value).toBeNull()
+    expect(store.availabilityBySessionId.value).toEqual({})
+  })
 })
 
 describe('sessionStore.getFilteredGroups', () => {
@@ -1276,6 +1393,67 @@ describe('sessionStore streaming cleanup', () => {
     expect(tabClient.notifyRendererActivated).not.toHaveBeenCalledWith('session-stale')
   })
 
+  it('lets the latest IPC activation win before either hydration outcome is applied', async () => {
+    const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({ id: 'session-a', agentId: 'deepchat' }),
+      createSession({ id: 'session-b', agentId: 'dimcode' })
+    ]
+    let resolveSessionA: (value: { session: ReturnType<typeof createSession> }) => void = () =>
+      undefined
+    let resolveSessionB: (value: { session: ReturnType<typeof createSession> }) => void = () =>
+      undefined
+    sessionClient.getActive
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSessionA = resolve
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSessionB = resolve
+        })
+      )
+
+    emitSessionUpdate({
+      sessionIds: ['session-a'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-a'
+    })
+    await Promise.resolve()
+    emitSessionUpdate({
+      sessionIds: ['session-b'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-b'
+    })
+    await Promise.resolve()
+
+    resolveSessionB({
+      session: createSession({
+        id: 'session-b',
+        agentId: 'dimcode',
+        providerId: 'acp',
+        modelId: 'dimcode'
+      })
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    resolveSessionA({
+      session: createSession({ id: 'session-a', providerId: 'openai', modelId: 'gpt-4' })
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.activeSessionAvailability.value).toMatchObject({
+      availability: 'available',
+      sessionId: 'session-b'
+    })
+    expect(store.availabilityBySessionId.value['session-a']).toBeUndefined()
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
+    expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
+  })
+
   it('lets the latest selected session win when hydration resolves out of order', async () => {
     const { store, pageRouter, sessionClient } = await setupStore()
     store.sessions.value = [
@@ -1313,6 +1491,11 @@ describe('sessionStore streaming cleanup', () => {
     await firstSelection
 
     expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.activeSessionAvailability.value).toMatchObject({
+      availability: 'available',
+      sessionId: 'session-b'
+    })
+    expect(store.availabilityBySessionId.value['session-a']).toBeUndefined()
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
   })
