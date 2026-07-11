@@ -451,6 +451,22 @@ export function evaluateCleanupOutcome({
   }
 }
 
+export function createUnverifiedCleanupRecord(identity, status) {
+  return {
+    role: identity.role,
+    pid: identity.pid,
+    parentPid: identity.parentPid,
+    startIdentity: identity.startIdentity,
+    markerSource: identity.markerSource,
+    verificationCode: identity.verificationCode,
+    status,
+    signalable: false,
+    signalAttempted: false,
+    signalAttempts: 0,
+    manualCleanupRequired: status !== 'absent'
+  }
+}
+
 export async function runProcessTreeHarness(options = {}) {
   const mode = options.mode ?? 'owner-loss'
   if (!MODES.has(mode)) throw new Error(`Unsupported harness mode: ${mode}`)
@@ -625,19 +641,7 @@ export async function runProcessTreeHarness(options = {}) {
         identityVisibilityErrors,
         getIdentityStatus
       )
-      return {
-        role: identity.role,
-        pid: identity.pid,
-        parentPid: identity.parentPid,
-        startIdentity: identity.startIdentity,
-        markerSource: identity.markerSource,
-        verificationCode: identity.verificationCode,
-        status,
-        signalable: false,
-        signalAttempted: false,
-        signalAttempts: 0,
-        manualCleanupRequired: status !== 'absent'
-      }
+      return createUnverifiedCleanupRecord(identity, status)
     })
   )
   const statusAfterCleanup = Object.fromEntries(

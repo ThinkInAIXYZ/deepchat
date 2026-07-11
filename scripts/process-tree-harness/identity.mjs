@@ -18,16 +18,23 @@ export function parseWindowsProcessOutput(stdout) {
   const parsed = JSON.parse(stdout.trim() || '[]')
   return (Array.isArray(parsed) ? parsed : [parsed])
     .filter((entry) => Number.isInteger(entry?.pid))
-    .map((entry) =>
-      typeof entry.commandLine === 'string' && entry.commandLine.length > 0
-        ? entry
-        : {
-            ...entry,
-            commandLine: null,
-            visibility: 'unknown',
-            visibilityError: 'COMMAND_LINE_UNAVAILABLE'
-          }
-    )
+    .map((entry) => {
+      const commandLineAvailable =
+        typeof entry.commandLine === 'string' && entry.commandLine.trim().length > 0
+      const startIdentityAvailable =
+        typeof entry.startIdentity === 'string' && entry.startIdentity.trim().length > 0
+      if (commandLineAvailable && startIdentityAvailable) return entry
+      return {
+        ...entry,
+        commandLine: commandLineAvailable ? entry.commandLine : null,
+        startIdentity: startIdentityAvailable ? entry.startIdentity : null,
+        visibility: 'unknown',
+        visibilityError: startIdentityAvailable
+          ? 'COMMAND_LINE_UNAVAILABLE'
+          : 'START_IDENTITY_UNAVAILABLE',
+        signalable: false
+      }
+    })
 }
 
 async function queryWindowsProcesses() {
@@ -148,8 +155,13 @@ export async function censusMarkedProcesses(marker) {
   return filterMarkedProcesses(await censusProcesses(), marker)
 }
 
-export async function captureProcessIdentity(pid, marker, commandMarkerRequired = true) {
-  const identity = (await censusProcesses()).find((entry) => entry.pid === pid)
+export async function captureProcessIdentity(
+  pid,
+  marker,
+  commandMarkerRequired = true,
+  getProcesses = censusProcesses
+) {
+  const identity = (await getProcesses()).find((entry) => entry.pid === pid)
   if (!identity) {
     throw new ProcessIdentityVerificationError(`Process ${pid} exited before identity capture`)
   }
@@ -157,6 +169,22 @@ export async function captureProcessIdentity(pid, marker, commandMarkerRequired 
     throw new ProcessVisibilityUnknownError(
       `Process ${pid} command visibility is unknown (${identity.visibilityError})`,
       identity
+    )
+  }
+  if (
+    typeof identity.startIdentity !== 'string' ||
+    identity.startIdentity.trim().length === 0
+  ) {
+    const unknownIdentity = {
+      ...identity,
+      startIdentity: null,
+      visibility: 'unknown',
+      visibilityError: 'START_IDENTITY_UNAVAILABLE',
+      signalable: false
+    }
+    throw new ProcessVisibilityUnknownError(
+      `Process ${pid} start identity is unavailable`,
+      unknownIdentity
     )
   }
   if (commandMarkerRequired && !identity.commandLine.includes(marker)) {

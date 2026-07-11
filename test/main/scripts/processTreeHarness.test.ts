@@ -20,6 +20,7 @@ import {
 import {
   captureReadyIdentities,
   cleanupCapturedIdentities,
+  createUnverifiedCleanupRecord,
   evaluateCleanupOutcome,
   evaluateHarnessContract,
   redactArtifactPaths,
@@ -205,6 +206,102 @@ describe.sequential('process tree harness ownership', () => {
         unverifiedCleanup: []
       })
     ).toEqual({ manualCleanupRequired: true, allMarkedGone: false })
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['whitespace', '   '],
+    ['non-string', 12345]
+  ])(
+    'rejects a Windows %s start identity in both the parser and identity capture',
+    async (_label, startIdentity) => {
+      const marker = 'deepchat-ptg-windows-start-identity'
+      const rawEntry = {
+        pid: 777,
+        parentPid: 100,
+        commandLine: `fixture ${marker}`,
+        ...(startIdentity === undefined ? {} : { startIdentity })
+      }
+      const [parsed] = parseWindowsProcessOutput(JSON.stringify(rawEntry))
+
+      expect(parsed).toMatchObject({
+        pid: 777,
+        startIdentity: null,
+        visibility: 'unknown',
+        visibilityError: 'START_IDENTITY_UNAVAILABLE',
+        signalable: false
+      })
+      await expect(
+        captureProcessIdentity(777, marker, true, async () => [rawEntry])
+      ).rejects.toMatchObject({
+        code: 'PROCESS_VISIBILITY_UNKNOWN',
+        processEntry: {
+          pid: 777,
+          startIdentity: null,
+          visibility: 'unknown',
+          visibilityError: 'START_IDENTITY_UNAVAILABLE',
+          signalable: false
+        }
+      })
+    }
+  )
+
+  it('keeps an unavailable start identity manual, contract-failing, and unsignalled', async () => {
+    const marker = 'deepchat-ptg-missing-start'
+    const entry = {
+      pid: 778,
+      parentPid: 100,
+      commandLine: `fixture ${marker}`,
+      startIdentity: ''
+    }
+    const captureFailure = await captureReadyIdentities(
+        [{ type: 'process-ready', role: 'owner', pid: entry.pid }],
+        marker,
+        true,
+        (pid, capturedMarker, commandMarkerRequired) =>
+          captureProcessIdentity(pid, capturedMarker, commandMarkerRequired, async () => [entry])
+      ).catch((error) => error)
+    const [unverified] = captureFailure.captureResult.unverified
+    const signal = vi.fn()
+
+    expect(unverified).toMatchObject({
+      pid: 778,
+      role: 'owner',
+      signalable: false,
+      verificationCode: 'PROCESS_VISIBILITY_UNKNOWN'
+    })
+    await expect(
+      cleanupCapturedIdentities([], [unverified], [unverified], signal)
+    ).resolves.toEqual([])
+    expect(signal).not.toHaveBeenCalled()
+    const cleanupRecord = createUnverifiedCleanupRecord(unverified, 'unknown')
+    expect(cleanupRecord).toMatchObject({
+      signalable: false,
+      signalAttempted: false,
+      signalAttempts: 0,
+      manualCleanupRequired: true
+    })
+    expect(
+      evaluateCleanupOutcome({
+        postCleanup: null,
+        statusAfterCleanup: { owner: 'unknown' },
+        visibilityErrors: [{ error: 'START_IDENTITY_UNAVAILABLE' }],
+        unverifiedCleanup: [cleanupRecord]
+      })
+    ).toEqual({ manualCleanupRequired: true, allMarkedGone: false })
+    expect(
+      evaluateHarnessContract({
+        mode: 'owner-loss',
+        error: 'Process start identity is unavailable',
+        statusByRole: { owner: 'unknown' },
+        ownerExit: { code: 17, signal: null },
+        utilitySettlements: [],
+        before: null,
+        preExit: [],
+        postObservation: null
+      }).contractSatisfied
+    ).toBe(false)
   })
 
   it('cleans a survivor only while marker, PID, and start identity still match', async () => {
