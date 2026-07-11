@@ -993,7 +993,8 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 
 - focused main/renderer/API/schema suites after independent-review fixes: `388 passed` (`248` renderer/route
   coverage plus `140` Presenter/consumer coverage);
-- full repository suite after independent-review fixes: `4635 passed`, `5` known baseline failures,
+- terminal request-fence revalidation: `51` session-store tests and `250` broader focused tests passed;
+- full repository suite after terminal request-fence revalidation: `4636 passed`, `5` known baseline failures,
   `135 skipped`;
 - the five failures remain the three `SpotlightOverlay` Pinia-fixture failures, the existing converted-steer
   context assertion, and the debug mock missing-plan assertion;

@@ -1500,6 +1500,55 @@ describe('sessionStore streaming cleanup', () => {
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
   })
 
+  it('ignores a stale activation rejection after a newer selection completes', async () => {
+    const { store, pageRouter, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({ id: 'session-a', agentId: 'deepchat' }),
+      createSession({ id: 'session-b', agentId: 'dimcode' })
+    ]
+    let rejectSessionA: (reason?: unknown) => void = () => undefined
+    sessionClient.activate
+      .mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectSessionA = reject
+        })
+      )
+      .mockResolvedValueOnce({ activated: true })
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: createSession({
+        id: 'session-b',
+        agentId: 'dimcode',
+        providerId: 'acp',
+        modelId: 'dimcode'
+      }),
+      resolution: {
+        availability: 'available',
+        session: createSession({
+          id: 'session-b',
+          agentId: 'dimcode',
+          providerId: 'acp',
+          modelId: 'dimcode'
+        })
+      }
+    })
+
+    const staleSelection = store.selectSession('session-a')
+    await Promise.resolve()
+    await store.selectSession('session-b')
+    const completedSummary = { ...store.activeSession.value }
+    const completedAvailability = { ...store.activeSessionAvailability.value }
+
+    rejectSessionA(new Error('late activation failure'))
+    await staleSelection
+
+    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.error.value).toBeNull()
+    expect(store.activeSession.value).toEqual(completedSummary)
+    expect(store.activeSessionAvailability.value).toEqual(completedAvailability)
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
+    expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
+  })
+
   it('updates the local session status immediately from the session status event', async () => {
     const { store, emitSessionStatusChange } = await setupStore()
     store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]

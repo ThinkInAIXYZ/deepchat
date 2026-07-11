@@ -826,6 +826,9 @@ export const useSessionStore = defineStore('session', () => {
       }
       pageRouter.goToChat(sessionId)
     } catch (selectError) {
+      if (activationNavigationRequestId !== requestId) {
+        return
+      }
       error.value = `Failed to select session: ${selectError}`
     }
   }
