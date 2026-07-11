@@ -222,99 +222,96 @@ describe('memory retrieval eval harness (hybrid RRF)', () => {
   })
 })
 
-describeIfSqlite(
-  `memory retrieval eval harness (SQLite keyword index)${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
-  () => {
-    it('recalls CJK, path, command, and error-text fixtures through real SQLite search', () => {
-      const db = new DatabaseCtor(':memory:')
-      try {
-        const table = new AgentMemoryTableCtor(db)
-        table.createTable()
-        const fixtures = [
-          {
-            id: 'm-cn',
-            content: '用户偏好简洁中文回答，少铺垫。'
-          },
-          {
-            id: 'm-redis',
-            content: 'Debugged Redis TTL drift in the session cache.'
-          },
-          {
-            id: 'm-path',
-            content: 'Deployment command lives at /usr/local/bin/deploy --flag.'
-          },
-          {
-            id: 'm-error',
-            content: 'Port failure showed EADDRINUSE on localhost:5173.'
-          }
-        ]
-        for (const fixture of fixtures) {
-          table.insert({
-            id: fixture.id,
-            agentId: 'deepchat',
-            kind: 'semantic',
-            content: fixture.content,
-            status: 'embedded'
-          })
+describeIfSqlite('memory retrieval eval harness (SQLite keyword index)', () => {
+  it('recalls CJK, path, command, and error-text fixtures through real SQLite search', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const fixtures = [
+        {
+          id: 'm-cn',
+          content: '用户偏好简洁中文回答，少铺垫。'
+        },
+        {
+          id: 'm-redis',
+          content: 'Debugged Redis TTL drift in the session cache.'
+        },
+        {
+          id: 'm-path',
+          content: 'Deployment command lives at /usr/local/bin/deploy --flag.'
+        },
+        {
+          id: 'm-error',
+          content: 'Port failure showed EADDRINUSE on localhost:5173.'
         }
+      ]
+      for (const fixture of fixtures) {
         table.insert({
-          id: 'm-other',
-          agentId: 'other-agent',
+          id: fixture.id,
+          agentId: 'deepchat',
           kind: 'semantic',
-          content: 'Redis TTL belongs to a different agent.',
+          content: fixture.content,
           status: 'embedded'
         })
-
-        const cases = [
-          { query: '简洁', expected: 'm-cn' },
-          { query: 'Redis TTL', expected: 'm-redis' },
-          { query: '/usr/local/bin/deploy', expected: 'm-path' },
-          { query: 'EADDRINUSE', expected: 'm-error' }
-        ]
-
-        for (const testCase of cases) {
-          const ids = table.search('deepchat', testCase.query, 5).map((row) => row.id)
-          expect(ids[0]).toBe(testCase.expected)
-        }
-        expect(table.search('deepchat', 'different agent', 5)).toHaveLength(0)
-      } finally {
-        db.close()
       }
-    })
+      table.insert({
+        id: 'm-other',
+        agentId: 'other-agent',
+        kind: 'semantic',
+        content: 'Redis TTL belongs to a different agent.',
+        status: 'embedded'
+      })
 
-    it('keeps hybrid RRF at least as strong as real SQLite keyword retrieval', () => {
-      const db = new DatabaseCtor(':memory:')
-      try {
-        const table = new AgentMemoryTableCtor(db)
-        table.createTable()
-        for (const row of FIXTURE) {
-          table.insert({
-            id: row.id,
-            agentId: row.agent_id,
-            kind: row.kind,
-            content: row.content,
-            importance: row.importance,
-            status: 'embedded'
-          })
-        }
+      const cases = [
+        { query: '简洁', expected: 'm-cn' },
+        { query: 'Redis TTL', expected: 'm-redis' },
+        { query: '/usr/local/bin/deploy', expected: 'm-path' },
+        { query: 'EADDRINUSE', expected: 'm-error' }
+      ]
 
-        const rankedFromSqlite = (query: string, mode: 'hybrid' | 'fts') => {
-          const keyword = table.search('a', query, FUSE_OPTS.topK)
-          const vec = mode === 'hybrid' ? vecCandidates(query) : []
-          return fuse(keyword, vec, FUSE_OPTS).map((item) => item.id)
-        }
-        const mrr = (mode: 'hybrid' | 'fts') =>
-          CASES.reduce(
-            (sum, testCase) =>
-              sum + reciprocalRank(rankedFromSqlite(testCase.query, mode), testCase.expected),
-            0
-          ) / CASES.length
-
-        expect(mrr('hybrid')).toBeGreaterThanOrEqual(mrr('fts'))
-        expect(rankedFromSqlite('session store', 'hybrid')[0]).toBe('m-redis')
-      } finally {
-        db.close()
+      for (const testCase of cases) {
+        const ids = table.search('deepchat', testCase.query, 5).map((row) => row.id)
+        expect(ids[0]).toBe(testCase.expected)
       }
-    })
-  }
-)
+      expect(table.search('deepchat', 'different agent', 5)).toHaveLength(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('keeps hybrid RRF at least as strong as real SQLite keyword retrieval', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      for (const row of FIXTURE) {
+        table.insert({
+          id: row.id,
+          agentId: row.agent_id,
+          kind: row.kind,
+          content: row.content,
+          importance: row.importance,
+          status: 'embedded'
+        })
+      }
+
+      const rankedFromSqlite = (query: string, mode: 'hybrid' | 'fts') => {
+        const keyword = table.search('a', query, FUSE_OPTS.topK)
+        const vec = mode === 'hybrid' ? vecCandidates(query) : []
+        return fuse(keyword, vec, FUSE_OPTS).map((item) => item.id)
+      }
+      const mrr = (mode: 'hybrid' | 'fts') =>
+        CASES.reduce(
+          (sum, testCase) =>
+            sum + reciprocalRank(rankedFromSqlite(testCase.query, mode), testCase.expected),
+          0
+        ) / CASES.length
+
+      expect(mrr('hybrid')).toBeGreaterThanOrEqual(mrr('fts'))
+      expect(rankedFromSqlite('session store', 'hybrid')[0]).toBe('m-redis')
+    } finally {
+      db.close()
+    }
+  })
+})

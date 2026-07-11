@@ -1629,6 +1629,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
 
   it('drops a partial FTS build and fails open to one bounded LIKE query', () => {
     const db = new DatabaseCtor(':memory:')
+    vi.stubEnv('DEEPCHAT_REQUIRE_NATIVE_SQLITE', '0')
     try {
       const originalExec = db.exec.bind(db)
       vi.spyOn(db, 'exec').mockImplementation((sql: string) => {
@@ -1646,6 +1647,28 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(likeSpy).toHaveBeenCalledTimes(1)
       expect(ftsActive(db)).toBe(false)
     } finally {
+      vi.unstubAllEnvs()
+      db.close()
+    }
+  })
+
+  it('fails hard on an FTS build failure during strict native validation', () => {
+    const db = new DatabaseCtor(':memory:')
+    vi.stubEnv('DEEPCHAT_REQUIRE_NATIVE_SQLITE', '1')
+    try {
+      const originalExec = db.exec.bind(db)
+      vi.spyOn(db, 'exec').mockImplementation((sql: string) => {
+        if (sql.includes('CREATE VIRTUAL TABLE IF NOT EXISTS agent_memory_fts')) {
+          throw new Error('simulated FTS build failure')
+        }
+        return originalExec(sql)
+      })
+      const table = new AgentMemoryTableCtor(db)
+
+      expect(() => table.createTable()).toThrow('simulated FTS build failure')
+      expect(ftsActive(db)).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
       db.close()
     }
   })
