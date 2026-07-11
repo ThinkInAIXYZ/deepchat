@@ -80,6 +80,7 @@ CREATE INDEX sample_value_idx ON sample(value);`
     presenter.cronJobsTable = emptyTable
     presenter.cronJobRunsTable = emptyTable
     presenter.cronJobDeliveriesTable = emptyTable
+    presenter.sessionCreateOperationsTable = emptyTable
 
     presenter.migrate()
 
