@@ -1385,6 +1385,91 @@ describe('sessionStore create operation intent', () => {
     expect(store.createOperationHistory.value[0]?.dismissedAt).toBe(10)
     expect(sessionClient.activate).not.toHaveBeenCalled()
   })
+
+  it('removes old succeeded identities when an authoritative reset page is empty', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listCreateOperations
+      .mockResolvedValueOnce({ items: [createOperation()], hasMore: false, nextCursor: null })
+      .mockResolvedValueOnce({ items: [], hasMore: false, nextCursor: null })
+
+    await store.loadCreateOperationHistory()
+    expect(store.createOperationHistory.value).toHaveLength(1)
+
+    await store.loadCreateOperationHistory()
+
+    expect(store.createOperationHistory.value).toEqual([])
+  })
+
+  it('removes a checked identity when the service no longer has it', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listCreateOperations.mockResolvedValueOnce({
+      items: [createOperation()],
+      hasMore: false,
+      nextCursor: null
+    })
+    sessionClient.getCreateOperation.mockResolvedValueOnce({ operation: null, session: null })
+
+    await store.loadCreateOperationHistory()
+    await store.checkCreateOperation(CREATE_OPERATION_ID)
+
+    expect(store.createOperationHistory.value).toEqual([])
+  })
+
+  it('preserves an operation updated while an authoritative reset is in flight', async () => {
+    const { store, sessionClient } = await setupStore()
+    const initial = createOperation({ state: 'pending', stage: 'runtime_ready' })
+    const updated = createOperation({ state: 'unknown', stage: 'runtime_ready', updatedAt: 2 })
+    let resolveReset: (value: {
+      items: Array<ReturnType<typeof createOperation>>
+      hasMore: boolean
+      nextCursor: null
+    }) => void = () => undefined
+    sessionClient.listCreateOperations
+      .mockResolvedValueOnce({ items: [initial], hasMore: false, nextCursor: null })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveReset = resolve
+        })
+      )
+    sessionClient.getCreateOperation.mockResolvedValueOnce({ operation: updated, session: null })
+
+    await store.loadCreateOperationHistory()
+    const resetting = store.loadCreateOperationHistory()
+    await vi.waitFor(() => expect(sessionClient.listCreateOperations).toHaveBeenCalledTimes(2))
+    await store.checkCreateOperation(CREATE_OPERATION_ID)
+    resolveReset({ items: [], hasMore: false, nextCursor: null })
+    await resetting
+
+    expect(store.createOperationHistory.value).toEqual([updated])
+  })
+
+  it('merges next pages with stable sorting and operation-id deduplication', async () => {
+    const { store, sessionClient } = await setupStore()
+    const first = createOperation({ createdAt: 10, updatedAt: 10 })
+    const updatedFirst = createOperation({ state: 'failed', createdAt: 10, updatedAt: 11 })
+    const second = createOperation({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: 'session-2',
+      createdAt: 20,
+      updatedAt: 20
+    })
+    sessionClient.listCreateOperations
+      .mockResolvedValueOnce({
+        items: [first],
+        hasMore: true,
+        nextCursor: { createdAt: 10, operationId: CREATE_OPERATION_ID }
+      })
+      .mockResolvedValueOnce({
+        items: [updatedFirst, second],
+        hasMore: false,
+        nextCursor: null
+      })
+
+    await store.loadCreateOperationHistory()
+    await store.loadNextCreateOperationHistoryPage()
+
+    expect(store.createOperationHistory.value).toEqual([second, updatedFirst])
+  })
 })
 
 describe('sessionStore streaming cleanup', () => {

@@ -329,6 +329,7 @@ export const useSessionStore = defineStore('session', () => {
   let createOperationHistoryRequestId = 0
   let sessionFetchPromise: Promise<void> | null = null
   let createOperationHistoryFetchPromise: Promise<void> | null = null
+  let createOperationHistoryResetMutations: Set<string> | null = null
   let localActivationRequest: { requestId: number; sessionId: string } | null = null
 
   const sessions = ref<UISession[]>([])
@@ -403,7 +404,17 @@ export const useSessionStore = defineStore('session', () => {
     currentCreateIntent.value?.token === token && createIntentVersion === token
 
   const upsertCreateOperations = (operations: CreateSessionOperationSummary[]): void => {
+    for (const operation of operations) {
+      createOperationHistoryResetMutations?.add(operation.operationId)
+    }
     createOperationHistory.value = mergeCreateOperations(createOperationHistory.value, operations)
+  }
+
+  const removeCreateOperation = (operationId: string): void => {
+    createOperationHistoryResetMutations?.add(operationId)
+    createOperationHistory.value = createOperationHistory.value.filter(
+      (operation) => operation.operationId !== operationId
+    )
   }
 
   const setCurrentCreateIntent = (
@@ -1072,6 +1083,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const result = await sessionClient.getCreateOperation(operationId)
       if (result.operation) upsertCreateOperations([result.operation])
+      else removeCreateOperation(operationId)
       if (result.session) {
         upsertSessions([mapToUISession(result.session)])
       } else if (result.operation) {
@@ -1101,6 +1113,8 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     const requestId = ++createOperationHistoryRequestId
+    const resetMutations = reset ? new Set<string>() : null
+    if (resetMutations) createOperationHistoryResetMutations = resetMutations
     if (reset) createOperationHistoryLoading.value = true
     else createOperationHistoryLoadingMore.value = true
     createOperationHistoryError.value = null
@@ -1110,15 +1124,36 @@ export const useSessionStore = defineStore('session', () => {
         cursor: reset ? null : createOperationHistoryNextCursor.value
       })
       if (requestId !== createOperationHistoryRequestId) return
-      createOperationHistory.value = mergeCreateOperations(
-        createOperationHistory.value,
-        result.items
-      )
+      if (resetMutations) {
+        const currentById = new Map(
+          createOperationHistory.value.map((operation) => [operation.operationId, operation])
+        )
+        const authoritativeItems = new Map(
+          result.items.map((operation) => [operation.operationId, operation])
+        )
+        for (const operationId of resetMutations) {
+          const current = currentById.get(operationId)
+          if (current) authoritativeItems.set(operationId, current)
+          else authoritativeItems.delete(operationId)
+        }
+        createOperationHistory.value = mergeCreateOperations(
+          [],
+          Array.from(authoritativeItems.values())
+        )
+      } else {
+        createOperationHistory.value = mergeCreateOperations(
+          createOperationHistory.value,
+          result.items
+        )
+      }
       createOperationHistoryHasMore.value = result.hasMore
       createOperationHistoryNextCursor.value = result.nextCursor
     } catch {
       createOperationHistoryError.value = 'Failed to load session creation history'
     } finally {
+      if (createOperationHistoryResetMutations === resetMutations) {
+        createOperationHistoryResetMutations = null
+      }
       if (requestId === createOperationHistoryRequestId) {
         if (reset) createOperationHistoryLoading.value = false
         else createOperationHistoryLoadingMore.value = false
