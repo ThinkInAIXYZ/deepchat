@@ -21,6 +21,7 @@ function createMockSqlitePresenter() {
       updateStatus: vi.fn(),
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
+      hasBySession: vi.fn().mockReturnValue(false),
       getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
       getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
@@ -415,6 +416,76 @@ describe('DeepChatMessageStore', () => {
         think: false,
         activeSkills: ['algorithmic-art']
       })
+    })
+
+    it('treats empty bulk buckets as authoritative while keeping legacy header fallbacks', () => {
+      const assistantContent = JSON.stringify([
+        { type: 'content', content: 'legacy answer', status: 'success', timestamp: 1000 }
+      ])
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow(),
+        createMessageRow({
+          id: 'm2',
+          order_seq: 2,
+          role: 'assistant',
+          content: assistantContent
+        })
+      ])
+      sqlitePresenter.deepchatUserMessagesTable.listByMessageIds.mockReturnValue([
+        {
+          message_id: 'm1',
+          text: 'normalized text',
+          search_enabled: 0,
+          think_enabled: 0
+        }
+      ])
+
+      const messages = store.getMessages('s1')
+
+      expect(JSON.parse(messages[0].content)).toEqual({
+        text: 'normalized text',
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      })
+      expect(messages[1].content).toBe(assistantContent)
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.listByMessageIds).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.listByMessageId).not.toHaveBeenCalled()
+    })
+
+    it('keeps the single-row fallback for legacy user content', () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([createMessageRow()])
+      sqlitePresenter.deepchatUserMessagesTable.get.mockReturnValue({
+        message_id: 'm1',
+        text: 'legacy text',
+        search_enabled: 1,
+        think_enabled: 0
+      })
+
+      const [message] = store.getMessages('s1')
+
+      expect(JSON.parse(message.content)).toMatchObject({
+        text: 'legacy text',
+        files: [],
+        links: [],
+        search: true,
+        think: false
+      })
+      expect(sqlitePresenter.deepchatUserMessagesTable.get).toHaveBeenCalledWith('m1')
+    })
+  })
+
+  describe('hasMessages', () => {
+    it('uses the table existence query without loading message rows', () => {
+      sqlitePresenter.deepchatMessagesTable.hasBySession.mockReturnValue(true)
+
+      expect(store.hasMessages('s1')).toBe(true)
+      expect(sqlitePresenter.deepchatMessagesTable.hasBySession).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.deepchatMessagesTable.getBySession).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.getIdsBySession).not.toHaveBeenCalled()
     })
   })
 

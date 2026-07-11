@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatMessagesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
+import { Database, nativeSqliteDescribeIf } from '../../nativeSqliteHarness'
+
+const DatabaseCtor = Database!
+const describeIfNativeSqlite = nativeSqliteDescribeIf()
 
 function createMessageRow(orderSeq: number) {
   return {
@@ -73,5 +77,47 @@ describe('DeepChatMessagesTable', () => {
     expect(page).toHaveLength(501)
     expect(page[0]?.order_seq).toBe(502)
     expect(page[500]?.order_seq).toBe(2)
+  })
+})
+
+describeIfNativeSqlite('DeepChatMessagesTable existence query', () => {
+  function createTable() {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatMessagesTable(db)
+    table.createTable()
+    return { db, table }
+  }
+
+  it('distinguishes empty and non-empty sessions', () => {
+    const { db, table } = createTable()
+    try {
+      expect(table.hasBySession('s1')).toBe(false)
+      table.insert({
+        id: 'm1',
+        sessionId: 's1',
+        orderSeq: 1,
+        role: 'user',
+        content: '{}',
+        status: 'sent'
+      })
+      expect(table.hasBySession('s1')).toBe(true)
+      expect(table.hasBySession('s2')).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('uses the existing session index', () => {
+    const { db } = createTable()
+    try {
+      const plan = db
+        .prepare('EXPLAIN QUERY PLAN SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1')
+        .all('s1') as Array<{ detail: string }>
+
+      expect(plan.some((row) => /idx_deepchat_messages_session/i.test(row.detail))).toBe(true)
+      expect(plan.some((row) => /\bSCAN deepchat_messages\b/i.test(row.detail))).toBe(false)
+    } finally {
+      db.close()
+    }
   })
 })

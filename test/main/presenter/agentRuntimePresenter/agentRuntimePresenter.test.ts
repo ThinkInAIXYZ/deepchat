@@ -233,6 +233,7 @@ function createMockSqlitePresenter() {
     incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
     getBySession: vi.fn().mockReturnValue([]),
+    hasBySession: vi.fn().mockReturnValue(false),
     getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
     listPageBySession: vi.fn().mockReturnValue([]),
     getByStatus: vi.fn().mockReturnValue([]),
@@ -4704,10 +4705,14 @@ describe('AgentRuntimePresenter', () => {
     })
   })
 
-  describe('getMessages / getMessageIds / getMessage', () => {
+  describe('getMessages / hasMessages / getMessageIds / getMessage', () => {
     it('delegates to messageStore', async () => {
       const messages = await agent.getMessages('s1')
       expect(messages).toEqual([])
+
+      sqlitePresenter.deepchatMessagesTable.hasBySession.mockReturnValue(true)
+      await expect(agent.hasMessages('s1')).resolves.toBe(true)
+      expect(sqlitePresenter.deepchatMessagesTable.hasBySession).toHaveBeenCalledWith('s1')
 
       const ids = await agent.getMessageIds('s1')
       expect(ids).toEqual([])
