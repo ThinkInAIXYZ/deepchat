@@ -2939,6 +2939,7 @@
       "embeddingBacklog": "嵌入積壓",
       "vectorResources": "已開啟向量儲存庫",
       "providerPressure": "供應商壓力",
+      "providerPressureSummary": "速率限制 {rateLimited} · 容量拒絕 {capacityRejected} · 逾時 {deadline} · 已中止 {aborted} · 延遲完成 {lateSettled}",
       "resourceHighWater": "程序峰值：{stores} 個儲存庫，{leases} 個租約",
       "archiveCandidatesTitle": "封存候選",
       "archiveCandidatesDescription": "目前符合自動封存條件的記憶。",

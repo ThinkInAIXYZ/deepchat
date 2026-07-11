@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Tunggakan pembenaman",
       "vectorResources": "Storan vektor terbuka",
       "providerPressure": "Tekanan penyedia",
+      "providerPressureSummary": "Had kadar {rateLimited} · Kapasiti {capacityRejected} · Tamat tempoh {deadline} · Dibatalkan {aborted} · Selesai lewat {lateSettled}",
       "resourceHighWater": "Puncak proses: {stores} storan, {leases} pajakan",
       "archiveCandidatesTitle": "Calon arkib",
       "archiveCandidatesDescription": "Baris yang kini layak untuk pengarkiban automatik.",

@@ -83,6 +83,51 @@ describe('MemoryDiagnosticsCollector', () => {
     expect(collector.snapshot('agent-64').agent.retrieval.recall.latencyMs.total.samples).toBe(1)
   })
 
+  it.each([Number.NaN, 0, -1, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'uses the default bounds for invalid capacity %s',
+    (capacity) => {
+      const agentCollector = new MemoryDiagnosticsCollector({ maxAgents: capacity })
+      for (let index = 0; index < 65; index += 1) {
+        agentCollector.recordRecall(`agent-${index}`, recallSample(index + 1))
+      }
+      expect(
+        agentCollector.snapshot('agent-0').agent.retrieval.recall.latencyMs.total.samples
+      ).toBe(0)
+
+      const sampleCollector = new MemoryDiagnosticsCollector({ sampleCapacity: capacity })
+      for (let value = 1; value <= 257; value += 1) {
+        sampleCollector.recordRecall('agent', recallSample(value))
+      }
+      expect(sampleCollector.snapshot('agent').agent.retrieval.recall.latencyMs.total.samples).toBe(
+        256
+      )
+    }
+  )
+
+  it('floors positive fractional capacities before enforcing their bounds', () => {
+    const collector = new MemoryDiagnosticsCollector({ maxAgents: 2.9, sampleCapacity: 2.9 })
+    collector.recordRecall('a', recallSample(1))
+    collector.recordRecall('b', recallSample(2))
+    collector.recordRecall('c', recallSample(3))
+
+    expect(collector.snapshot('a').agent.retrieval.recall.latencyMs.total.samples).toBe(0)
+    expect(collector.snapshot('c').agent.retrieval.recall.latencyMs.total).toEqual({
+      samples: 1,
+      p50: 3,
+      p95: 3,
+      max: 3
+    })
+
+    collector.recordRecall('c', recallSample(4))
+    collector.recordRecall('c', recallSample(5))
+    expect(collector.snapshot('c').agent.retrieval.recall.latencyMs.total).toEqual({
+      samples: 2,
+      p50: 4,
+      p95: 5,
+      max: 5
+    })
+  })
+
   it('expires, cleans, and disposes state deterministically', () => {
     let now = 0
     const collector = new MemoryDiagnosticsCollector({ now: () => now, agentTtlMs: 10 })

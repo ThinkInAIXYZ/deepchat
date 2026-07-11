@@ -1,6 +1,7 @@
 import { vi } from 'vitest'
 
 import { MemoryPresenter as BaseMemoryPresenter } from '@/presenter/memoryPresenter'
+import type { ConflictService } from '@/presenter/memoryPresenter/services/conflictService'
 import type { AgentMemoryRow, MemoryPresenterDeps } from '@/presenter/memoryPresenter/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
@@ -53,14 +54,7 @@ type MemoryPresenterRuntimeTestSeams = {
       embedding: { providerId: string; modelId: string }
     ): boolean
   }
-  conflict: {
-    repairConflictIntegrity(agentId: string): {
-      repairedTargets: number
-      archivedChallengers: number
-      clearedTargets: number
-      clearedLinks: number
-    }
-  }
+  conflict: Pick<ConflictService, 'repairConflictIntegrity' | 'runChallengeResolutionPass'>
 }
 
 export function memoryRuntimeForTests(presenter: MemoryPresenter) {

@@ -2625,11 +2625,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private observeMemoryExtractionQueue(): void {
-    let oldestQueuedAt: number | null = null
-    for (const entry of this.memoryExtractionQueue.values()) {
-      oldestQueuedAt =
-        oldestQueuedAt === null ? entry.queuedAt : Math.min(oldestQueuedAt, entry.queuedAt)
-    }
+    const oldestQueuedAt = this.memoryExtractionQueue.values().next().value?.queuedAt ?? null
     this.memoryPort?.observeExtractionQueue?.(this.memoryExtractionQueue.size, oldestQueuedAt)
   }
 

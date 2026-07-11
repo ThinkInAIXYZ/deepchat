@@ -21,6 +21,12 @@ const DEFAULT_MAX_AGENTS = 64
 const DEFAULT_SAMPLE_CAPACITY = 256
 const DEFAULT_AGENT_TTL_MS = 24 * 60 * 60 * 1000
 
+function normalizePositiveInteger(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback
+  const normalized = Math.floor(value)
+  return normalized > 0 ? normalized : fallback
+}
+
 class BoundedNumberRing {
   private readonly values: number[]
   private nextIndex = 0
@@ -129,6 +135,8 @@ export type MemoryMaintenanceDiagnosticSample = {
 
 export class MemoryDiagnosticsCollector {
   private readonly agents = new Map<string, AgentDiagnosticsState>()
+  private readonly maxAgents: number
+  private readonly sampleCapacity: number
   private process = createEmptyMemoryRuntimeDiagnostics().process
   private oldestExtractionQueuedAt: number | null = null
 
@@ -139,7 +147,10 @@ export class MemoryDiagnosticsCollector {
       sampleCapacity?: number
       agentTtlMs?: number
     } = {}
-  ) {}
+  ) {
+    this.maxAgents = normalizePositiveInteger(options.maxAgents, DEFAULT_MAX_AGENTS)
+    this.sampleCapacity = normalizePositiveInteger(options.sampleCapacity, DEFAULT_SAMPLE_CAPACITY)
+  }
 
   recordRecall(agentId: string, sample: MemoryRecallDiagnosticSample): void {
     this.safely(() => {
@@ -351,16 +362,18 @@ export class MemoryDiagnosticsCollector {
       this.agents.set(agentId, existing)
       return existing
     }
-    if (this.agents.size >= (this.options.maxAgents ?? DEFAULT_MAX_AGENTS)) this.sweepExpired()
-    while (this.agents.size >= (this.options.maxAgents ?? DEFAULT_MAX_AGENTS)) {
+    if (this.agents.size >= this.maxAgents) this.sweepExpired()
+    while (this.agents.size >= this.maxAgents) {
       const oldestAgentId = this.agents.keys().next().value as string | undefined
       if (!oldestAgentId) break
       this.agents.delete(oldestAgentId)
     }
-    const sampleCapacity = this.options.sampleCapacity ?? DEFAULT_SAMPLE_CAPACITY
     const ringRecord = () =>
       Object.fromEntries(
-        MEMORY_RECALL_LATENCY_STAGES.map((stage) => [stage, new BoundedNumberRing(sampleCapacity)])
+        MEMORY_RECALL_LATENCY_STAGES.map((stage) => [
+          stage,
+          new BoundedNumberRing(this.sampleCapacity)
+        ])
       ) as Record<MemoryRecallLatencyStage, BoundedNumberRing>
     const retrievalState = (): RetrievalDiagnosticsState => ({
       recallLatency: ringRecord(),
@@ -387,15 +400,15 @@ export class MemoryDiagnosticsCollector {
         casRetries: 0
       },
       embedding: {
-        batchSize: new BoundedNumberRing(sampleCapacity),
-        drainDurationMs: new BoundedNumberRing(sampleCapacity),
+        batchSize: new BoundedNumberRing(this.sampleCapacity),
+        drainDurationMs: new BoundedNumberRing(this.sampleCapacity),
         succeeded: 0,
         failed: 0,
         ftsOnly: 0
       },
       maintenance: {
-        cheapDurationMs: new BoundedNumberRing(sampleCapacity),
-        heavyDurationMs: new BoundedNumberRing(sampleCapacity),
+        cheapDurationMs: new BoundedNumberRing(this.sampleCapacity),
+        heavyDurationMs: new BoundedNumberRing(this.sampleCapacity),
         completed: 0,
         skipped: 0,
         failed: 0,

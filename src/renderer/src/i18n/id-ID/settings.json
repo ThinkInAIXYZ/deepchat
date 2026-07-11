@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Tumpukan embedding",
       "vectorResources": "Penyimpanan vektor terbuka",
       "providerPressure": "Tekanan penyedia",
+      "providerPressureSummary": "Batas laju {rateLimited} · Kapasitas {capacityRejected} · Tenggat {deadline} · Dibatalkan {aborted} · Selesai terlambat {lateSettled}",
       "resourceHighWater": "Puncak proses: {stores} penyimpanan, {leases} sewa",
       "archiveCandidatesTitle": "Kandidat arsip",
       "archiveCandidatesDescription": "Baris yang saat ini memenuhi syarat untuk pengarsipan otomatis.",

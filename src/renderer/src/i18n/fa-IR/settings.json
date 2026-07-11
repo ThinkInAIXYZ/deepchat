@@ -2939,6 +2939,7 @@
       "embeddingBacklog": "انباشت تعبیه‌سازی",
       "vectorResources": "مخازن برداری باز",
       "providerPressure": "فشار ارائه‌دهنده",
+      "providerPressureSummary": "محدودیت نرخ {rateLimited} · ظرفیت {capacityRejected} · پایان مهلت {deadline} · لغوشده {aborted} · تکمیل دیرهنگام {lateSettled}",
       "resourceHighWater": "بیشینه فرایند: {stores} مخزن، {leases} اجاره",
       "archiveCandidatesTitle": "نامزدهای بایگانی",
       "archiveCandidatesDescription": "ردیف‌هایی که اکنون برای بایگانی خودکار واجد شرایط هستند.",

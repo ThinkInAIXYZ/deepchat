@@ -2939,6 +2939,7 @@
       "embeddingBacklog": "Задержка эмбеддингов",
       "vectorResources": "Открытые векторные хранилища",
       "providerPressure": "Нагрузка на провайдера",
+      "providerPressureSummary": "Ограничение частоты {rateLimited} · Ёмкость {capacityRejected} · Истечение срока {deadline} · Отменено {aborted} · Позднее завершение {lateSettled}",
       "resourceHighWater": "Пик процесса: хранилищ — {stores}, аренд — {leases}",
       "archiveCandidatesTitle": "Кандидаты на архивирование",
       "archiveCandidatesDescription": "Записи, которые сейчас подходят для автоматического архивирования.",

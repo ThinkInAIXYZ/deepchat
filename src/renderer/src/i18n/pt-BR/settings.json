@@ -2939,6 +2939,7 @@
       "embeddingBacklog": "Acúmulo de embeddings",
       "vectorResources": "Armazenamentos vetoriais abertos",
       "providerPressure": "Pressão do provedor",
+      "providerPressureSummary": "Limite de taxa {rateLimited} · Capacidade {capacityRejected} · Prazo excedido {deadline} · Abortadas {aborted} · Conclusão tardia {lateSettled}",
       "resourceHighWater": "Pico do processo: {stores} armazenamentos, {leases} concessões",
       "archiveCandidatesTitle": "Candidatas a arquivamento",
       "archiveCandidatesDescription": "Linhas atualmente elegíveis para arquivamento automático.",

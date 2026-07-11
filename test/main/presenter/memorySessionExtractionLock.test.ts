@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 // Mirrors AgentRuntimePresenter.enqueueSessionExtraction's serialization contract.
-function makeLock() {
+function makeLock(now: () => number = Date.now) {
   const chains = new Map<string, Promise<void>>()
   const epochs = new Map<string, number>()
   const queue = new Map<number, { sessionId: string; queuedAt: number }>()
   const observations: Array<{ depth: number; oldestQueuedAt: number | null }> = []
   let nextQueueId = 0
   const observe = () => {
-    const queuedAt = [...queue.values()].map((entry) => entry.queuedAt)
     observations.push({
       depth: queue.size,
-      oldestQueuedAt: queuedAt.length > 0 ? Math.min(...queuedAt) : null
+      oldestQueuedAt: queue.values().next().value?.queuedAt ?? null
     })
   }
   function ensureEpoch(sessionId: string): number {
@@ -23,7 +22,7 @@ function makeLock() {
   }
   function enqueue(sessionId: string, task: (epoch: number) => Promise<void>): void {
     const queueId = ++nextQueueId
-    queue.set(queueId, { sessionId, queuedAt: Date.now() })
+    queue.set(queueId, { sessionId, queuedAt: now() })
     observe()
     const prev = chains.get(sessionId) ?? Promise.resolve()
     const runTask = async () => {
@@ -125,6 +124,24 @@ describe('per-session extraction lock (C2, AC-2.3/2.4)', () => {
     expect(observations.at(-1)).toEqual({ depth: 0, oldestQueuedAt: null })
     expect(JSON.stringify(observations)).not.toContain('prompt')
     blocked.resolve()
+    await tick()
+  })
+
+  it('reports the next oldest queue entry after deleting the first one', async () => {
+    const queuedAt = [100, 200]
+    const { enqueue, destroy, observations } = makeLock(() => queuedAt.shift()!)
+    const first = deferred()
+    const second = deferred()
+
+    enqueue('s1', async () => first.promise)
+    enqueue('s2', async () => second.promise)
+    expect(observations.at(-1)).toEqual({ depth: 2, oldestQueuedAt: 100 })
+
+    destroy('s1')
+    expect(observations.at(-1)).toEqual({ depth: 1, oldestQueuedAt: 200 })
+
+    first.resolve()
+    second.resolve()
     await tick()
   })
 

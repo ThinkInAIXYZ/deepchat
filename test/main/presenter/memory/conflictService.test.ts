@@ -8,12 +8,11 @@ import {
   decisionCalls,
   embeddingConfig,
   makeLLMPresenter,
+  memoryRuntimeForTests,
   routedLLM,
   seedConflicted,
   seedEmbedded
 } from './serviceTestSupport'
-
-import { memoryRuntimeForTests } from './serviceTestSupport'
 
 describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
   it('does not admit a second decision partition after destructive clear', async () => {

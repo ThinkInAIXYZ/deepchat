@@ -2939,6 +2939,7 @@
       "embeddingBacklog": "Efterslæb af embeddings",
       "vectorResources": "Åbne vektorlagre",
       "providerPressure": "Udbyderbelastning",
+      "providerPressureSummary": "Hastighedsgrænse {rateLimited} · Kapacitet {capacityRejected} · Deadline {deadline} · Afbrudt {aborted} · Sen afslutning {lateSettled}",
       "resourceHighWater": "Maksimum for processen: {stores} lagre, {leases} lejemål",
       "archiveCandidatesTitle": "Arkivkandidater",
       "archiveCandidatesDescription": "Rækker, der aktuelt kan arkiveres automatisk.",

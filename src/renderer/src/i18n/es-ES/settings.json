@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Acumulación de embeddings",
       "vectorResources": "Almacenes vectoriales abiertos",
       "providerPressure": "Presión del proveedor",
+      "providerPressureSummary": "Límite de tasa {rateLimited} · Capacidad {capacityRejected} · Plazo {deadline} · Abortadas {aborted} · Finalización tardía {lateSettled}",
       "resourceHighWater": "Máximo del proceso: {stores} almacenes, {leases} concesiones",
       "archiveCandidatesTitle": "Candidatas a archivar",
       "archiveCandidatesDescription": "Filas que actualmente cumplen los requisitos para archivado automático.",

@@ -2939,6 +2939,7 @@
       "embeddingBacklog": "צבר הטמעות",
       "vectorResources": "מאגרי וקטורים פתוחים",
       "providerPressure": "עומס ספק",
+      "providerPressureSummary": "הגבלת קצב {rateLimited} · קיבולת {capacityRejected} · פקיעת מועד {deadline} · בוטלו {aborted} · הסתיימו באיחור {lateSettled}",
       "resourceHighWater": "שיא התהליך: {stores} מאגרים, {leases} חכירות",
       "archiveCandidatesTitle": "מועמדים לארכיון",
       "archiveCandidatesDescription": "שורות שכרגע מתאימות להעברה אוטומטית לארכיון.",

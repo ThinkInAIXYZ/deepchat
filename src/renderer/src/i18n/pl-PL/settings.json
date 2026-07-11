@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Zaległości osadzania",
       "vectorResources": "Otwarte magazyny wektorowe",
       "providerPressure": "Obciążenie dostawcy",
+      "providerPressureSummary": "Limit szybkości {rateLimited} · Pojemność {capacityRejected} · Przekroczony termin {deadline} · Przerwane {aborted} · Późne zakończenie {lateSettled}",
       "resourceHighWater": "Szczyt procesu: {stores} magazynów, {leases} dzierżaw",
       "archiveCandidatesTitle": "Kandydaci do archiwizacji",
       "archiveCandidatesDescription": "Wpisy obecnie kwalifikujące się do automatycznej archiwizacji.",

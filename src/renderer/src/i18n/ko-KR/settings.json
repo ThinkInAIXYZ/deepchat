@@ -2939,6 +2939,7 @@
       "embeddingBacklog": "임베딩 적체",
       "vectorResources": "열린 벡터 저장소",
       "providerPressure": "제공자 부하",
+      "providerPressureSummary": "속도 제한 {rateLimited} · 용량 부족 {capacityRejected} · 기한 초과 {deadline} · 중단 {aborted} · 지연 완료 {lateSettled}",
       "resourceHighWater": "프로세스 최고치: 저장소 {stores}개, 임대 {leases}개",
       "archiveCandidatesTitle": "보관 후보",
       "archiveCandidatesDescription": "현재 자동 보관 조건을 충족하는 행입니다.",

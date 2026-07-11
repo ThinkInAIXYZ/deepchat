@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Embedding-Rückstand",
       "vectorResources": "Geöffnete Vektorspeicher",
       "providerPressure": "Anbieterlast",
+      "providerPressureSummary": "Ratenlimit {rateLimited} · Kapazität {capacityRejected} · Zeitlimit {deadline} · Abgebrochen {aborted} · Spät abgeschlossen {lateSettled}",
       "resourceHighWater": "Prozesshöchststand: {stores} Speicher, {leases} Leases",
       "archiveCandidatesTitle": "Archivkandidaten",
       "archiveCandidatesDescription": "Einträge, die derzeit automatisch archiviert werden können.",

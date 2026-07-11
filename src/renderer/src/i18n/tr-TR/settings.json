@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Gömme birikimi",
       "vectorResources": "Açık vektör depoları",
       "providerPressure": "Sağlayıcı yükü",
+      "providerPressureSummary": "Hız sınırı {rateLimited} · Kapasite {capacityRejected} · Zaman aşımı {deadline} · İptal {aborted} · Geç tamamlanma {lateSettled}",
       "resourceHighWater": "Süreç tepe noktası: {stores} depo, {leases} kiralama",
       "archiveCandidatesTitle": "Arşiv adayları",
       "archiveCandidatesDescription": "Şu anda otomatik arşivlemeye uygun satırlar.",

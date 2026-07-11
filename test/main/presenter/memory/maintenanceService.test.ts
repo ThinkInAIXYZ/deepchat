@@ -12,15 +12,17 @@ import {
 } from '../fakes/memoryFakes'
 import {
   DAY,
+  MemoryPresenter,
   decisionCalls,
+  embeddingDimensions,
   embeddingConfig,
+  flushMicrotasks,
   makeLLMPresenter,
   makeRow,
+  memoryRuntimeForTests,
   routedLLM,
   seedEmbedded
 } from './serviceTestSupport'
-
-import { MemoryPresenter, embeddingDimensions, flushMicrotasks } from './serviceTestSupport'
 
 describe('MemoryPresenter archiving (T-B3)', () => {
   function makeArchivePresenter() {
@@ -253,14 +255,15 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
     const { presenter, store } = makeLLMPresenter(generateText)
     await seedEmbedded(presenter, 'user likes bounded maintenance')
     const queryByMemoryId = vi.spyOn(store, 'queryByMemoryId')
-    vi.spyOn((presenter as any).conflict, 'runChallengeResolutionPass').mockImplementation(
-      async (_agentId: string, _model: unknown, budget: MaintenanceBudget) => {
-        for (let index = 0; index < 4; index += 1) {
-          expect(budget.reserve('challenge', 6_000)).toBe(true)
-        }
-        return { touched: false, calls: 4, failures: 0 }
+    vi.spyOn(
+      memoryRuntimeForTests(presenter).conflictService,
+      'runChallengeResolutionPass'
+    ).mockImplementation(async (_agentId, _model, budget: MaintenanceBudget) => {
+      for (let index = 0; index < 4; index += 1) {
+        expect(budget.reserve('challenge', 6_000)).toBe(true)
       }
-    )
+      return { touched: false, calls: 4, failures: 0 }
+    })
 
     await presenter.runConsolidationPass('a', 1_000 * DAY)
 

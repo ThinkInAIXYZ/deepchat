@@ -2943,6 +2943,7 @@
       "embeddingBacklog": "嵌入积压",
       "vectorResources": "已打开向量库",
       "providerPressure": "Provider 压力",
+      "providerPressureSummary": "速率限制 {rateLimited} · 容量拒绝 {capacityRejected} · 超时 {deadline} · 已中止 {aborted} · 延迟完成 {lateSettled}",
       "resourceHighWater": "进程峰值：{stores} 个向量库，{leases} 个租约",
       "archiveCandidatesTitle": "归档候选",
       "archiveCandidatesDescription": "当前符合自动归档条件的记忆。",

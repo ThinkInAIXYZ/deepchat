@@ -362,7 +362,13 @@ const providerEventSummary = computed(() => {
   if (!admission) return '—'
   const decisions = admission.admissionDecisions
   const race = admission.raceEvents
-  return `RL ${decisions.rateLimited} · CAP ${decisions.capacityRejected} · D ${race.deadline} · A ${race.aborted} · L ${race.lateSettled}`
+  return t('settings.memory.redesign.providerPressureSummary', {
+    rateLimited: decisions.rateLimited,
+    capacityRejected: decisions.capacityRejected,
+    deadline: race.deadline,
+    aborted: race.aborted,
+    lateSettled: race.lateSettled
+  })
 })
 
 const MetricTile = defineComponent({

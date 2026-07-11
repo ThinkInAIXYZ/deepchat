@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Tồn đọng nhúng",
       "vectorResources": "Kho vector đang mở",
       "providerPressure": "Tải nhà cung cấp",
+      "providerPressureSummary": "Giới hạn tốc độ {rateLimited} · Dung lượng {capacityRejected} · Quá hạn {deadline} · Đã hủy {aborted} · Hoàn tất muộn {lateSettled}",
       "resourceHighWater": "Đỉnh tiến trình: {stores} kho, {leases} lượt thuê",
       "archiveCandidatesTitle": "Ứng viên lưu trữ",
       "archiveCandidatesDescription": "Các hàng hiện đủ điều kiện để lưu trữ tự động.",

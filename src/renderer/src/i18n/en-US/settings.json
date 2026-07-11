@@ -2944,6 +2944,7 @@
       "embeddingBacklog": "Embedding backlog",
       "vectorResources": "Open vector stores",
       "providerPressure": "Provider pressure",
+      "providerPressureSummary": "Rate limit {rateLimited} · Capacity {capacityRejected} · Deadline {deadline} · Aborted {aborted} · Late settle {lateSettled}",
       "resourceHighWater": "Process high-water: {stores} stores, {leases} leases",
       "archiveCandidatesTitle": "Archive candidates",
       "archiveCandidatesDescription": "Rows currently eligible for automated archival.",

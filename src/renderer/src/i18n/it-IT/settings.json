@@ -2930,6 +2930,7 @@
       "embeddingBacklog": "Arretrato degli embedding",
       "vectorResources": "Archivi vettoriali aperti",
       "providerPressure": "Pressione del provider",
+      "providerPressureSummary": "Limite di frequenza {rateLimited} · Capacità {capacityRejected} · Scadenza {deadline} · Interrotte {aborted} · Completamento tardivo {lateSettled}",
       "resourceHighWater": "Picco del processo: {stores} archivi, {leases} lease",
       "archiveCandidatesTitle": "Candidate all’archiviazione",
       "archiveCandidatesDescription": "Righe attualmente idonee all’archiviazione automatica.",
