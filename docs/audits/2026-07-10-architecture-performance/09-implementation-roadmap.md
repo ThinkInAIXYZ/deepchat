@@ -23,7 +23,7 @@
 
 | 阶段 | 大白话 | 用户能得到什么 | 开发者能得到什么 | 为什么现在做 |
 | --- | --- | --- | --- | --- |
-| 0. 恢复可验证基线 | 先确保依赖、typecheck 和基线测试可靠 | 不把环境故障当产品回归 | 后续每个 PR 都有可比对的绿色基线 | 当前本地安装未解析已声明的 `cron-parser`，完整 typecheck 不能作为门槛 |
+| 0. 恢复可验证基线 | 先确保依赖、typecheck 和基线测试可靠 | 不把环境故障当产品回归 | 后续每个交付切片都有可比对的基线 | 当前本地安装未解析已声明的 `cron-parser`，完整 typecheck 不能作为门槛 |
 | 1. 先修错语义 | 先处理“超时了但任务还在跑”、“暂时失败被当成不存在”等问题 | 更少错误解绑、重复执行和旧 prompt | 错误、取消、retry 的 contract 变得可测 | 这些是已证明的正确性问题，不需要等 profiler |
 | 2. 修确定性热点 | 先减少重复读全部历史、全表扫描和无效 fallback | 长对话、历史搜索、启动更稳定 | SQL 次数和 query plan 有明确上限 | 调用链和 SQL 已闭环，收益比大重构更直接 |
 | 3. 测完再改复杂性能路径 | 对 streaming、FFF、存储放大先记录真实数据 | 避免为了“优化”带来丢流、搜索失效或数据丢失 | 只在证据超预算时承担 delta/migration 复杂度 | 这些热点有静态风险，但还没有真实负载数据 |
@@ -56,16 +56,22 @@
 | `pendingInputCoordinator/store` 增加 inline item offset 保留 | 未改变 consumed steer retention 和 claimed-state index；也不是 A-10 的 startup workload coordinator | P-11/A-10 任务保留，避免把两个 coordinator 混为一个 owner |
 | `ChatPage`/message window 等 renderer UX 性能优化 | 可能降低部分 renderer commit/scroll 成本，但 main `echo` 全量 snapshot、全窗口 fan-out 和 DB full replace 未改 | P-04 不直接实施 delta；`STR-001` 必须用最新 main 重建 baseline，不沿用旧 renderer 数据 |
 | Agent plan block 从 message block 重构为独立 plan state | 属于另一个已有 architecture contract，不是本轮 AgentRuntime owner 拆分 | 不把它加进审计整改，避免扩大范围 |
-| `package.json` 仍声明 `cron-parser`，当前本地 install 仍无法解析 | 这是验证环境前置，不是审计 finding | 开工前先同步 pnpm install 并记录 baseline；若同步后仍失败，再单独建 issue，不塞进任一整改 PR |
+| `package.json` 仍声明 `cron-parser`，当前本地 install 仍无法解析 | 这是验证环境前置，不是审计 finding | 开工前先同步 pnpm install 并记录 baseline；若同步后仍失败，再单独建 issue，不塞进任一整改切片 |
 
 ## 实施台账
 
-所有修复从独立分支以 PR 合入 `docs/audit-remediation-plan`。本表是交付状态、自动验证和
-无法完全自动验证范围的唯一台账；后续 PR 必须在同一切片内更新对应行。
+历史交付保留原 PR 链接作为证据；从 `SCH-003` 起，修复继续使用独立本地分支、独立 commit 和独立验证，
+然后直接本地合入 `docs/audit-remediation-plan`，不再为每个切片创建 GitHub PR。本表是交付状态、自动验证和
+无法完全自动验证范围的唯一台账；后续本地合并必须更新对应行。
 
-| Task | 状态 | PR / merge | 自动验证证据 | 未完全自动覆盖的范围 |
+验证策略也同步收紧：正确性优先使用反例驱动的 targeted tests、类型检查和 architecture/static guards；full
+suite 只在一个 atomic integration unit 末尾最多运行一次作为外围回归探测，不在每次 blocker 修复后重复。
+E2E 只用于必须经过真实 Electron/process/packaged 边界才能回答的问题；其余真实服务、慢请求、视觉和跨平台
+缺口如实进入 manual gap，不用大量模拟 E2E 制造“覆盖率很高”的错觉。
+
+| Task | 状态 | 交付 / merge | 自动验证证据 | 未完全自动覆盖的范围 |
 | --- | --- | --- | --- | --- |
-| `BASE-001` | 已完成 | 无代码变更 | 同步 pnpm 依赖后 typecheck/lint 通过；基线全量测试为 4,463 passed / 5 failed | 5 个基线失败另立切片，不让不相关 PR 顺手修复 |
+| `BASE-001` | 已完成 | 无代码变更 | 同步 pnpm 依赖后 typecheck/lint 通过；基线全量测试为 4,463 passed / 5 failed | 5 个基线失败另立切片，不让不相关交付顺手修复 |
 | `CRD-001` | 已合入 | [#1921](https://github.com/ThinkInAIXYZ/deepchat/pull/1921) / `8b6506f8` | focused 5/5、typecheck、format、i18n、lint 通过；合入后全量 4,465 passed / 5 failed，失败集与基线完全一致 | 不响应 `AbortSignal` 且永不 settle 的底层任务仍会占用 lane；提前释放会破坏并发上限，强制终止属于任务 owner |
 | `ARC-001` | 已合入 | [#1923](https://github.com/ThinkInAIXYZ/deepchat/pull/1923) / `bcd5daff` | focused 21/21、typecheck、format、i18n、lint 通过；合入后全量 4,479 passed / 5 failed，失败集与基线完全一致 | 静态 literal/regex guard 不覆盖 computed import、CommonJS `require()` 和间接 helper；指标下降后需人工同步收紧 baseline，baseline 变更本身仍依赖 review |
 | `FTL-001` | 已合入 | [#1925](https://github.com/ThinkInAIXYZ/deepchat/pull/1925) / `1591737c` | 文档门禁全部通过；独立 real Electron 40.10.5 harness 证明 framework 会让 monitor/default-exit 方案继续存活，并验证最终 `prependListener` + `process.exit(1)` 机制 | `FTL-002` 必须固化 real Electron harness；macOS/Windows/Linux child tree 与 fatal-write SQLite 重启完整性无法由单主机测试完整覆盖，按 PR 描述作为 blocking smoke |
@@ -85,7 +91,8 @@
 | `SCH-002A` | 已合入 | [#1940](https://github.com/ThinkInAIXYZ/deepchat/pull/1940) / `d8d2ca6b` | final combined focused 137/137 + 1 个 Linux-native harness skip；typecheck、format、i18n、lint、architecture/process guards、diff check 通过；仓库外 merge-commit worktree 全量 4,715 passed / 5 failed / 140 skipped，失败集与基线一致；独立复核闭合 factory 内 abort+sync throw、late settlement drain、overall deadline/no-overlap、输入校验，以及 direct/alias/destructure/routes 外 legacy guard 绕过 | 本 PR 只交付 `OperationRunner` core 和迁移边界，不迁 production consumer 语义，也不声称性能收益；当前 19 个 legacy timeout + 2 个 retry 被精确冻结；owner-aware cancellation、provider/session consumer 迁移与 domain 行为验证仍属于 `SCH-002B` |
 | `SCH-002B` | 已合入 | [#1941](https://github.com/ThinkInAIXYZ/deepchat/pull/1941) / `0199f709` | final independent focused 438/438，blocker-specific Chat/guard 46/46；typecheck、format、i18n、lint、architecture/process guards、diff check 通过；仓库外 merge-commit worktree 全量 4,734 passed / 5 failed / 140 skipped，失败集与基线一致；独立复核闭合 session `2×25ms` settled-only retry/binding、Chat preflight stop fence 与 owner-started truth、provider 60s/no-uniform-bound truth、namespace/type/factory alias guard | legacy 已收窄为 `SessionService.createSession` 与 `ProviderService.testConnection` 两项，retry surface/caller 为零；create unknown outcome 仍待 `SCH-003A/B` 原子切换；provider probe 的 route 5s 与 model 60s 都只是 observation，真实 owner cancellation 仍待 `PRV-CAN-001`；不声称吞吐性能收益 |
 | `PRV-CAN-001` | 已合入，待真实服务/UI smoke | [#1942](https://github.com/ThinkInAIXYZ/deepchat/pull/1942) / `e95fcaa2` | final independent focused 340/340 + `runCancellable` adversarial；typecheck、format、i18n、lint、architecture/process guards、diff check 通过；仓库外 merge-commit worktree focused 541/541、全量 4,773 passed / 5 failed / 140 skipped，失败集与基线一致；独立复核 60-provider inventory、60s cancel 后 physical settlement、AWS/Groq/GitHub/Codex abort-no-fallback、ACP/media/Voice model/Fireworks pre-effect unsupported 与 Electron-safe code | 未用真实 provider 账户/quota 做 AWS、key-status、GitHub Copilot、OpenAI Codex、Voice.ai、Ollama 网络 smoke，未墙钟等待真实 60s deadline，未在设置 UI 检查 unsupported 文案；底层若忽略 signal，caller 会按 contract 继续等待真实 settle；legacy timeout 现只剩 `SessionService.createSession`，由 atomic `SCH-003A/B` 删除 |
-| `FTL-002` | 阻断中 | 本地 WIP `994af870`，未 push/PR | fatal helper/entry/config focused 11/11；`PTG-M2A` 已把 macOS healthy/owner-loss/callback 固化为可复验 artifact，真实结果仍为 `[utility exited, shell alive, grandchild alive]` | 剩余 blocking dependency 为 Windows/Linux 原生与三平台 packaged pre/post matrix、完整 owner/helper fixtures、containment 选型和实现；SQLitePresenter schema/version 与 fatal-write 重启完整性也未完成；不得把 orphan 写成 expected 结果 |
+| `SCH-003A/B` | 已本地合入，待真实 Electron/UI smoke | local merge `7d74f42f` | backend final focused `220 passed`、Electron ABI143 native SQLite `6 passed`；renderer/API final `126 passed`，history cache blocker repair 后 `4 + 67 passed`；typecheck、format、i18n、lint、architecture guard、diff check 通过。唯一一次 atomic full probe 为 `4811 passed / 25 failed / 146 skipped`：4 项是既有 debug/Spotlight 基线，21 项是旧测试夹具未登记新 table 或仍要求 create 自动激活；仅改 3 个测试文件后 migration `1/1`、usage `5/5`、integration `15/16`，唯一失败恢复为既有 long-steer 基线，production code 未再变化，因此未重复 full/E2E | create 已改为 content-free durable journal、unknown/reconcile、unbound backend 与 renderer current/stale 1/0 activation，消除 5 秒后假失败/重复创建语义；仍需真实 Electron restart recovery、真实 DeepChat/ACP 超 5 秒慢创建、真实 event timing，以及 recovery UI 键盘/窄窗口/light/dark/视觉检查；完成前 A-04 不标 closed |
+| `FTL-002` | 阻断中 | 本地 WIP `994af870`，未 push/merge | fatal helper/entry/config focused 11/11；`PTG-M2A` 已把 macOS healthy/owner-loss/callback 固化为可复验 artifact，真实结果仍为 `[utility exited, shell alive, grandchild alive]` | 剩余 blocking dependency 为 Windows/Linux 原生与三平台 packaged pre/post matrix、完整 owner/helper fixtures、containment 选型和实现；SQLitePresenter schema/version 与 fatal-write 重启完整性也未完成；不得把 orphan 写成 expected 结果 |
 
 ## 先反驳一种错误排法
 
@@ -97,7 +104,7 @@
 1. **优先级优先**：P0 语义/可靠性错误先于性能与结构清理。
 2. **依赖优先于难度**：measurement、owner decision、contract 和 migration 设计必须先于实现。
 3. **同优先级内从低难度开始**：先交付可快速降低风险的切片，再进入跨模块改造。
-4. **行为修复与结构提取分开**：不得在同一个 PR 同时改变语义并拆 God object。
+4. **行为修复与结构提取分开**：不得在同一个交付切片同时改变语义并拆 God object。
 5. **性能结论以数据为门槛**：P-04、P-10、P-12 没有测量结果前不得直接实施高风险方案。
 
 ## 评估口径
@@ -116,8 +123,8 @@
 | 等级 | 相对范围 | 约束 |
 | --- | --- | --- |
 | XS | 半天内，局部删除或文档同步 | 仍需 focused test/静态检查 |
-| S | 1–2 个开发日，1–3 个紧密相关文件 | 单 PR、可直接回滚 |
-| M | 3–5 个开发日，跨少量模块或含 migration/test fixture | 一般单 PR；复杂 bug 先写 issue spec |
+| S | 1–2 个开发日，1–3 个紧密相关文件 | 单切片、可直接回滚 |
+| M | 3–5 个开发日，跨少量模块或含 migration/test fixture | 一般单切片；复杂 bug 先写 issue spec |
 | L | 1–2 周，一个跨 contract/process/database 的内聚目标 | 进入 ready 前证明无法再独立拆分，否则继续拆 |
 | XL | 超过 2 周或涉及核心状态所有权 | 不得直接开工，必须继续拆分 |
 
@@ -133,17 +140,17 @@
 | 用户体验 | 明确的 loading/unavailable/unknown-outcome 状态；不丢草稿、绑定和已完成结果 | “多 catch 一下更稳” |
 | 性能 | 调用次数、SQL query plan、处理 rows/bytes、main-thread duration、IPC fan-out | 没有 fixture/profiler 的毫秒或百分比 |
 | 存储 | 不同 payload 的物理 pages/bytes、migration time、写放大和备份影响 | 只看表数量就说“存了五遍” |
-| 可维护性 | owner 和 contract 单一、严格类型检查可运行、root 不再增长、单 domain PR 影响面收窄 | 只报 LOC 下降 |
+| 可维护性 | owner 和 contract 单一、严格类型检查可运行、root 不再增长、单 domain 切片影响面收窄 | 只报 LOC 下降 |
 | 安全/故障处理 | fatal 不被吞、required capability 不 fail-open、workspace scope/revoke 可解释 | 为了“不报错”返回 `full_access`/`null`/`[]` |
 
 ### 实施前置（BASE-001）
 
-这一步不修审计问题，但没有它就无法证明后续 PR 没有回归：
+这一步不修审计问题，但没有它就无法证明后续交付切片没有回归：
 
 1. 按当前 `package.json` 同步 pnpm 依赖，先确认 `cron-parser` 可解析。
 2. 运行 `pnpm run typecheck`、`pnpm run lint`、`pnpm test`，记录最新 main 的通过项和已知失败。
 3. 若依赖同步后 typecheck 仍失败，单独立 issue/spec；不允许后续任务把环境失败当成自己的
-   baseline，也不在业务 PR 里顺手改依赖。
+   baseline，也不在业务切片里顺手改依赖。
 4. 固定性能 fixture 的机器、SQLite 版本、数据量和重复次数；不跨机器直接比毫秒。
 
 `BASE-001` 的退出条件是“有可重复的基线”，不是“所有历史问题全绿”。
@@ -225,7 +232,7 @@ A-02 的唯一任务真源仍是
 | T3 `generationControlService` | M | `SCH-*` cancellation owner 已稳定 |
 | T4 `pendingInputCoordinator` | L | `SES-*` 与 pending/steer contract 已稳定 |
 | T5 message/tape façade delegation | L | `HIS-*`、`TAP-*` 完成，避免提取后立即二次改 contract |
-| T6 `turnRunner` | XL，开工前继续按 turn phase 拆分 | T2–T5 完成；不得一个 PR 搬完整 agent loop |
+| T6 `turnRunner` | XL，开工前继续按 turn phase 拆分 | T2–T5 完成；不得一个切片搬完整 agent loop |
 | T7 façade `<1000` lines | L | T2–T6 完成；只做 wiring/delegation 收口 |
 
 建议现在先加“主文件不得新增新责任”的 review/guard 规则，但不要在 P0 和 hot-path 行为仍变化时并行搬动同一代码。
@@ -254,7 +261,7 @@ A-02 的唯一任务真源仍是
 | 18 | `EVT-002` | A-08 | L | `EVT-001` | 仅当 durable/replay requirement 不能由 query 满足时，引入 injected `WindowEventPort`/buffer，替换 ambient sink |
 
 `CAP-002` 的 ownership map 需要为 Tape、memory、Cron、session、system 等 capability group 各生成一个后续
-`CAP-PORT-<group>` 任务；每个任务只拆一个 port group，不创建“把 34 个方法一次拆完”的总括 PR。
+`CAP-PORT-<group>` 任务；每个任务只拆一个 port group，不创建“把 34 个方法一次拆完”的总括切片。
 
 ### 需要外部确认后才能做的清理
 
@@ -271,7 +278,7 @@ A-02 的唯一任务真源仍是
 | 2 | `WIN-001` | A-13 | S | 确认 `null` 无独立语义后，unbind/window-destroyed 时删除历史 webContents key | create/destroy/rebind 循环后 map 不增长 |
 | 3 | `PERM-001` | Ponytail #12 | S | 将三份 `normalizePermissionMode` 收敛到一个 shared domain helper | main/renderer normalization contract 一致 |
 
-这些任务不应抢占 P0/P1 review 带宽。适合在对应文件被高优先级任务触达时顺手独立提交，而不是开“misc cleanup”大 PR。
+这些任务不应抢占 P0/P1 review 带宽。适合在对应文件被高优先级任务触达时顺手独立提交，而不是开“misc cleanup”大切片。
 
 ## 推荐实施波次
 
@@ -403,15 +410,15 @@ Wave 5  Product/owner decisions and cleanup
 
 | 变更类型 | 实施规则 | 回滚方式 | 最大风险 |
 | --- | --- | --- | --- |
-| 纯内部语义（cache/coordinator/fatal） | 先加失败测试，一个 task 一个 PR，不同时搬文件 | 直接 revert 该 task commit/PR | 新语义与某个未记录 caller 的隐式假设冲突 |
+| 纯内部语义（cache/coordinator/fatal） | 先加失败测试，一个 task 一个本地合并单元，不同时搬文件 | 直接 revert 该 task merge/commit | 新语义与某个未记录 caller 的隐式假设冲突 |
 | Route/event/schema contract | 先加新字段/状态和兼容映射，迁移 main/renderer，最后才删旧 route | 回滚实现但保留向后兼容 schema；不在同一发布删旧字段 | 新旧 renderer/app 跨版本调用不兼容 |
 | SQLite index/migration | expand-first：先增 index/metadata，旧 reader 仍可运行；数据删除/压缩另立任务 | 回滚代码时不回滚已安全创建的兼容 index/metadata；后续 migration 再清理 | 大库 migration 锁住 main process，或 index 写放大超过读收益 |
 | Tape/retention | 先写 watermark 并验证可重建；删 payload/TTL 前先完成审计需求决策 | 保留 legacy full-scan repair path 一个支持窗口，但不让它默认走热路径 | watermark 错误导致漏 backfill，或过早删除可回放事实 |
 | Streaming transport | 先 measurement，再 targeted snapshot/upsert；只有前者不足才设计 revisioned delta | 保留周期性全量收敛通道，直到 delta 的丢包/乱序测试稳定 | 丢包、乱序、跨窗口 fan-out 让 renderer 与 main 状态分叉 |
 | 安全/权限 | required capability 缺失时 fail closed；workspace scope 改动需明确 UI state 和 revoke 时机 | 优先回滚调用链，不回滚为默认 `full_access` | 为了兼容重新引入 fail-open，或 revoke race 中断正在使用的 workspace |
-| 纯结构提取 | 行为测试先锁定，只搬一个 domain/service，不同时改 contract | revert 整个提取 PR，不在新旧两套 owner 之间打补丁 | 新 service 只是代理壳，状态 owner 仍留在 God object，形成又一层假抽象 |
+| 纯结构提取 | 行为测试先锁定，只搬一个 domain/service，不同时改 contract | revert 整个提取 merge unit，不在新旧两套 owner 之间打补丁 | 新 service 只是代理壳，状态 owner 仍留在 God object，形成又一层假抽象 |
 
-默认不为每个修复新增 feature flag。只有无法通过单 PR/revert 安全回滚的跨版本 migration 才考虑
+默认不为每个修复新增 feature flag。只有无法通过单一 merge unit/revert 安全回滚的跨版本 migration 才考虑
 临时 runtime gate，并必须在同一 SDD 写清删除条件和后续 task。
 
 ## 每个实施切片的统一交付门槛
@@ -419,12 +426,15 @@ Wave 5  Product/owner decisions and cleanup
 1. 先有 focused failure/timeout/cancel test，不只覆盖 happy path。
 2. 跨 route/service/Presenter contract 或 migration 的任务先完成对应 SDD，且无 `[NEEDS CLARIFICATION]`。
 3. 实现与 verify 使用不同 agent/reviewer；blocking finding 修完后重新验证。
-4. 运行任务专项测试，以及 `pnpm run typecheck`。
+4. 运行任务专项反例测试，以及 `pnpm run typecheck`；生产代码准确性由 contract 反例、类型和静态边界共同
+   证明，不以 E2E 数量代替。
 5. 完成功能切片后运行 `pnpm run format`、`pnpm run i18n`、`pnpm run lint`。
-6. main hot path 运行 `pnpm run test:main`；renderer event/list 变化运行 `pnpm run test:renderer`。
+6. main hot path 运行对应 main focused files；renderer event/list 变化运行对应 renderer focused files。只有
+   atomic integration 末尾最多做一次 full probe；修复 probe 暴露的问题后，若 production code 未再变化，
+   用失败文件定向复验，不重复 full/E2E。
 7. SQLite 变更必须包含已有 DB migration fixture、query plan 和规模数据。
 8. UI 行为变化必须给 BEFORE/AFTER ASCII layout；当前路线图本身不改 UI。
-9. 每个 PR 只交付一个 task ID；不得创建总括性的 `architecture cleanup` PR。
+9. 每个本地 merge unit 只交付一个 task ID；不得创建总括性的 `architecture cleanup` 合并。
 10. measurement task 必须保存机器/数据量/重复次数/原始结果，并明确 go/no-go；“有点慢”不解锁后续复杂方案。
-11. 需产品/owner 决策的 task 在文档中记录最终结论和被否决方案；不把决策留在 PR 评论或聊天里。
+11. 需产品/owner 决策的 task 在文档中记录最终结论和被否决方案；不把决策留在聊天或临时 review 记录里。
 12. 任务合并后回填本文件的 task 状态/验证链接；若实际证据否定原 finding，标记“证据否定”而不为了完成路线图强行改代码。
