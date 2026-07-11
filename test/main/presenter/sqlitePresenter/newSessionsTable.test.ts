@@ -4,8 +4,19 @@ const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() =>
 const tableModule = sqliteModule
   ? await import('@/presenter/sqlitePresenter/tables/newSessions').catch(() => null)
   : null
+const activeSkillsTableModule = sqliteModule
+  ? await import('@/presenter/sqlitePresenter/tables/newSessionActiveSkills').catch(() => null)
+  : null
+const disabledToolsTableModule = sqliteModule
+  ? await import('@/presenter/sqlitePresenter/tables/newSessionDisabledAgentTools').catch(
+      () => null
+    )
+  : null
 const Database = sqliteModule?.default
 const NewSessionsTable = tableModule?.NewSessionsTable
+const NewSessionActiveSkillsTable = activeSkillsTableModule?.NewSessionActiveSkillsTable
+const NewSessionDisabledAgentToolsTable =
+  disabledToolsTableModule?.NewSessionDisabledAgentToolsTable
 let sqliteAvailable = false
 if (Database) {
   try {
@@ -18,7 +29,24 @@ if (Database) {
 }
 const DatabaseCtor = Database!
 const NewSessionsTableCtor = NewSessionsTable!
-const describeIfSqlite = sqliteAvailable && NewSessionsTable ? describe : describe.skip
+const NewSessionActiveSkillsTableCtor = NewSessionActiveSkillsTable!
+const NewSessionDisabledAgentToolsTableCtor = NewSessionDisabledAgentToolsTable!
+const requireNativeSqlite = process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1'
+const sqliteHarnessAvailable =
+  sqliteAvailable &&
+  NewSessionsTable &&
+  NewSessionActiveSkillsTable &&
+  NewSessionDisabledAgentToolsTable
+const describeIfSqlite = sqliteHarnessAvailable
+  ? describe
+  : requireNativeSqlite
+    ? (name: string, _suite: () => void) =>
+        describe(name, () => {
+          it('requires native SQLite support', () => {
+            throw new Error('Native SQLite NewSessionsTable harness is unavailable')
+          })
+        })
+    : describe.skip
 
 describeIfSqlite('NewSessionsTable', () => {
   let db: InstanceType<typeof DatabaseCtor> | null
@@ -26,6 +54,8 @@ describeIfSqlite('NewSessionsTable', () => {
 
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
+    new NewSessionActiveSkillsTableCtor(db).createTable()
+    new NewSessionDisabledAgentToolsTableCtor(db).createTable()
     table = new NewSessionsTableCtor(db)
     table.createTable()
   })
@@ -79,17 +109,48 @@ describeIfSqlite('NewSessionsTable', () => {
     })
   })
 
-  it('strictly reads persisted active skill pins without hiding corrupt legacy JSON', () => {
-    table.create('session-valid', 'agent', 'Valid', null, { activeSkills: ['review'] })
-    expect(table.getPersistedActiveSkillPins('session-valid')).toEqual(['review'])
+  it('prefers normalized active skill rows over corrupt legacy JSON', () => {
+    table.create('session-normalized', 'agent', 'Normalized', null, {
+      activeSkills: ['review']
+    })
+    db!
+      .prepare('UPDATE new_sessions SET active_skills = ? WHERE id = ?')
+      .run('{not-json', 'session-normalized')
+
+    expect(table.getPersistedActiveSkillPins('session-normalized')).toEqual(['review'])
+  })
+
+  it('reads valid legacy active skill JSON when normalized rows are absent', () => {
+    table.create('session-legacy', 'agent', 'Legacy', null)
+    db!
+      .prepare('UPDATE new_sessions SET active_skills = ? WHERE id = ?')
+      .run('["review","debug"]', 'session-legacy')
+
+    expect(table.getPersistedActiveSkillPins('session-legacy')).toEqual(['review', 'debug'])
+  })
+
+  it('returns no persisted pins for fresh, missing, and empty sessions', () => {
+    table.create('session-fresh', 'agent', 'Fresh', null)
+    table.create('session-empty', 'agent', 'Empty', null)
+    db!.prepare('UPDATE new_sessions SET active_skills = ? WHERE id = ?').run('', 'session-empty')
+
+    expect(table.getPersistedActiveSkillPins('session-fresh')).toEqual([])
     expect(table.getPersistedActiveSkillPins('session-missing')).toEqual([])
+    expect(table.getPersistedActiveSkillPins('session-empty')).toEqual([])
+  })
+
+  it('rejects non-array and corrupt legacy active skill JSON with typed errors', () => {
+    table.create('session-non-array', 'agent', 'Non-array', null)
+    db!
+      .prepare('UPDATE new_sessions SET active_skills = ? WHERE id = ?')
+      .run('{"skill":"review"}', 'session-non-array')
 
     table.create('session-corrupt', 'agent', 'Corrupt', null)
     db!
       .prepare('UPDATE new_sessions SET active_skills = ? WHERE id = ?')
       .run('{not-json', 'session-corrupt')
 
+    expect(() => table.getPersistedActiveSkillPins('session-non-array')).toThrow(TypeError)
     expect(() => table.getPersistedActiveSkillPins('session-corrupt')).toThrow(SyntaxError)
-    expect(table.getActiveSkills('session-corrupt')).toEqual([])
   })
 })
