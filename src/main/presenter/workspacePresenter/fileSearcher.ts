@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { ConcurrencyLimiter } from './concurrencyLimiter'
+import { AsyncSemaphore } from '../../lib/asyncSemaphore'
 import { minimatch } from 'minimatch'
 import { FffSearchService } from '@/lib/agentRuntime/fffSearchService'
 
@@ -42,7 +42,7 @@ const DEFAULT_EXCLUDES = [
   'coverage'
 ]
 
-const statLimiter = new ConcurrencyLimiter(10)
+const statLimiter = new AsyncSemaphore(10)
 const mtimeCache = new Map<string, { mtimeMs: number; cachedAt: number }>()
 const fffFailureWarnings = new Map<string, number>()
 const fffSearchService = new FffSearchService({ scanTimeoutMs: FFF_UI_SCAN_TIMEOUT_MS })

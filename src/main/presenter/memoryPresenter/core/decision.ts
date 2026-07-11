@@ -1,4 +1,6 @@
 import type { NormalizedMemoryCandidate } from '../types'
+import { truncateUnicodeCodePoints } from '@shared/lib/unicodeText'
+import { extractJsonContainer } from './jsonExtraction'
 
 export type MemoryDecisionKind = 'ADD' | 'UPDATE' | 'SUPERSEDE' | 'NOOP' | 'CHALLENGE'
 
@@ -79,7 +81,7 @@ export function parseDecision(raw: string, neighborCount: number): MemoryDecisio
 }
 
 export function parseDecisionResult(raw: string, neighborCount: number): MemoryDecisionParseResult {
-  const jsonText = extractJsonObject(raw)
+  const jsonText = extractJsonContainer(raw, 'object')
   if (!jsonText) return { decision: ADD_DECISION, valid: false }
 
   let parsed: unknown
@@ -117,15 +119,5 @@ function toIndex(value: unknown): number | null {
 }
 
 function truncate(content: string): string {
-  return content.length > MAX_NEIGHBOR_CHARS ? content.slice(0, MAX_NEIGHBOR_CHARS) : content
-}
-
-function extractJsonObject(raw: string): string | null {
-  if (!raw) return null
-  const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  const body = fenceMatch ? fenceMatch[1] : raw
-  const start = body.indexOf('{')
-  const end = body.lastIndexOf('}')
-  if (start === -1 || end === -1 || end <= start) return null
-  return body.slice(start, end + 1)
+  return truncateUnicodeCodePoints(content, MAX_NEIGHBOR_CHARS)
 }

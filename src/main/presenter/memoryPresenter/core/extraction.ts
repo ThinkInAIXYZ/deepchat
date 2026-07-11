@@ -1,5 +1,6 @@
 import type { MemoryCandidate } from '../types'
 import { AGENT_MEMORY_CATEGORIES, isAgentMemoryCategory } from '@shared/types/agent-memory'
+import { extractJsonContainer } from './jsonExtraction'
 
 const MAX_CANDIDATES = 8
 
@@ -66,7 +67,7 @@ export type MemoryCandidateParseResult =
 // top-level model output is reported so callers can retry instead of advancing durable cursors.
 export function parseMemoryCandidates(raw: string): MemoryCandidateParseResult {
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, reason: 'empty-response' }
-  const jsonText = extractJsonArray(raw)
+  const jsonText = extractJsonContainer(raw, 'array')
   if (!jsonText) return { ok: false, reason: 'missing-json-array' }
 
   let parsed: unknown
@@ -101,15 +102,6 @@ function parseImportance(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
   const num = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(num) ? num : undefined
-}
-
-function extractJsonArray(raw: string): string | null {
-  const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  const body = fenceMatch ? fenceMatch[1] : raw
-  const start = body.indexOf('[')
-  const end = body.lastIndexOf(']')
-  if (start === -1 || end === -1 || end <= start) return null
-  return body.slice(start, end + 1)
 }
 
 const SELF_MODEL_MAX_CHARS = 1500
@@ -157,7 +149,7 @@ export function buildReflectionInsightsPrompt(memories: string[]): string {
 // and the count is capped so a verbose model can never write an unbounded reflection burst.
 export function parseReflectionInsights(raw: string): string[] {
   if (!raw) return []
-  const jsonText = extractJsonArray(raw)
+  const jsonText = extractJsonContainer(raw, 'array')
   if (!jsonText) return []
   let parsed: unknown
   try {
