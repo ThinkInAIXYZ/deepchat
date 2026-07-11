@@ -7,6 +7,7 @@ import type {
   ChatMessagePageResult,
   CreateSessionInput,
   CreateDetachedSessionInput,
+  SessionRecord,
   SessionWithState,
   ChatMessageRecord,
   MessageTraceRecord,
@@ -58,6 +59,54 @@ export interface HistorySearchMessageHit {
 
 export type HistorySearchHit = HistorySearchSessionHit | HistorySearchMessageHit
 
+export interface SessionResolutionListFilters {
+  agentId?: string
+  projectDir?: string
+  includeSubagents?: boolean
+  parentSessionId?: string
+}
+
+export type SessionResolutionStage =
+  | 'record_read'
+  | 'agent_lookup'
+  | 'runtime_resolution'
+  | 'state_read'
+
+export type SessionResolutionResult =
+  | {
+      availability: 'available'
+      session: SessionWithState
+    }
+  | {
+      availability: 'unavailable'
+      sessionId: string
+      record: SessionRecord
+      reason: 'agent_unknown'
+    }
+  | {
+      availability: 'transient_error'
+      sessionId: string
+      record: SessionRecord | null
+      error: {
+        code: 'SESSION_RESOLUTION_FAILED'
+        stage: SessionResolutionStage
+        retryable: true
+        cause: unknown
+      }
+    }
+  | {
+      availability: 'missing'
+      sessionId: string
+    }
+
+export type ActiveSessionResolution =
+  | { binding: 'none' }
+  | {
+      binding: 'bound'
+      sessionId: string
+      resolution: SessionResolutionResult
+    }
+
 export interface IAgentSessionPresenter {
   createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
@@ -98,12 +147,10 @@ export interface IAgentSessionPresenter {
     targetMessageId: string,
     newTitle?: string
   ): Promise<SessionWithState>
-  getSessionList(filters?: {
-    agentId?: string
-    projectDir?: string
-    includeSubagents?: boolean
-    parentSessionId?: string
-  }): Promise<SessionWithState[]>
+  resolveSession(sessionId: string): Promise<SessionResolutionResult>
+  resolveSessionList(filters?: SessionResolutionListFilters): Promise<SessionResolutionResult[]>
+  resolveActiveSession(webContentsId: number): Promise<ActiveSessionResolution>
+  getSessionList(filters?: SessionResolutionListFilters): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
   listMessagesPage(

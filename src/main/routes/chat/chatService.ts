@@ -7,6 +7,7 @@ import type {
   SessionRepository
 } from '../hotPathPorts'
 import type { Scheduler } from '../scheduler'
+import { requireAvailableSession } from '@/presenter/agentSessionPresenter/sessionResolution'
 
 const CHAT_LOOKUP_TIMEOUT_MS = 5_000
 const CHAT_SEND_TIMEOUT_MS = 30 * 60 * 1_000
@@ -43,15 +44,12 @@ export class ChatService {
     this.activeControllers.set(sessionId, controller)
 
     try {
-      const session = await this.deps.scheduler.timeout({
-        task: this.deps.sessionRepository.get(sessionId),
+      const resolution = await this.deps.scheduler.timeout({
+        task: this.deps.sessionRepository.resolve(sessionId),
         ms: CHAT_LOOKUP_TIMEOUT_MS,
         reason: `chat.sendMessage:${sessionId}:session`
       })
-
-      if (!session) {
-        throw new Error(`Session not found: ${sessionId}`)
-      }
+      const session = requireAvailableSession('chat.sendMessage', resolution)
 
       const agentType = await this.deps.scheduler.timeout({
         task: this.deps.providerCatalogPort.getAgentType(session.agentId),
@@ -108,15 +106,12 @@ export class ChatService {
     sessionId: string,
     content: string | SendMessageInput
   ): Promise<{ accepted: true }> {
-    const session = await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.get(sessionId),
+    const resolution = await this.deps.scheduler.timeout({
+      task: this.deps.sessionRepository.resolve(sessionId),
       ms: CHAT_LOOKUP_TIMEOUT_MS,
       reason: `chat.steerActiveTurn:${sessionId}:session`
     })
-
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
+    requireAvailableSession('chat.steerActiveTurn', resolution)
 
     await this.deps.scheduler.timeout({
       task: this.deps.providerExecutionPort.steerActiveTurn(sessionId, content),

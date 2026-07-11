@@ -102,10 +102,14 @@ export type {
 // New agent architecture types
 export type {
   IAgentSessionPresenter,
+  ActiveSessionResolution,
   HistorySearchHit,
   HistorySearchMessageHit,
   HistorySearchOptions,
-  HistorySearchSessionHit
+  HistorySearchSessionHit,
+  SessionResolutionListFilters,
+  SessionResolutionResult,
+  SessionResolutionStage
 } from './agent-session.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {

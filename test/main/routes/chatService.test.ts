@@ -1,6 +1,11 @@
 import { ChatService } from '@/routes/chat/chatService'
 
 describe('ChatService', () => {
+  const availableSession = <T extends Record<string, unknown>>(session: T) => ({
+    availability: 'available' as const,
+    session
+  })
+
   const createScheduler = () => ({
     sleep: vi.fn(),
     timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task),
@@ -10,10 +15,12 @@ describe('ChatService', () => {
   it('sends messages through the scheduler after resolving the session owner', async () => {
     const scheduler = createScheduler()
     const sessionRepository = {
-      get: vi.fn().mockResolvedValue({
-        id: 'session-1',
-        agentId: 'deepchat'
-      })
+      resolve: vi.fn().mockResolvedValue(
+        availableSession({
+          id: 'session-1',
+          agentId: 'deepchat'
+        })
+      )
     }
     const messageRepository = {
       listBySession: vi.fn(),
@@ -52,20 +59,76 @@ describe('ChatService', () => {
       messageId: null
     })
 
-    expect(sessionRepository.get).toHaveBeenCalledWith('session-1')
+    expect(sessionRepository.resolve).toHaveBeenCalledWith('session-1')
     expect(providerCatalogPort.getAgentType).toHaveBeenCalledWith('deepchat')
     expect(providerExecutionPort.sendMessage).toHaveBeenCalledWith('session-1', 'hello')
     expect(messageRepository.listBySession).not.toHaveBeenCalled()
     expect(scheduler.timeout).toHaveBeenCalledTimes(3)
   })
 
+  it.each([
+    {
+      availability: 'missing' as const,
+      sessionId: 'session-1'
+    },
+    {
+      availability: 'unavailable' as const,
+      sessionId: 'session-1',
+      record: { id: 'session-1', agentId: 'removed-agent' },
+      reason: 'agent_unknown' as const
+    },
+    {
+      availability: 'transient_error' as const,
+      sessionId: 'session-1',
+      record: null,
+      error: {
+        code: 'SESSION_RESOLUTION_FAILED' as const,
+        stage: 'record_read' as const,
+        retryable: true as const,
+        cause: new Error('temporary read failure')
+      }
+    }
+  ])('does not start a send for $availability resolution', async (resolution) => {
+    const providerExecutionPort = {
+      sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn(),
+      cancelGeneration: vi.fn(),
+      respondToolInteraction: vi.fn()
+    }
+    const service = new ChatService({
+      sessionRepository: {
+        resolve: vi.fn().mockResolvedValue(resolution)
+      } as any,
+      messageRepository: {
+        listBySession: vi.fn(),
+        get: vi.fn()
+      } as any,
+      providerExecutionPort,
+      providerCatalogPort: {
+        getAgentType: vi.fn()
+      } as any,
+      sessionPermissionPort: {
+        clearSessionPermissions: vi.fn()
+      },
+      scheduler: createScheduler() as any
+    })
+
+    await expect(service.sendMessage('session-1', 'hello')).rejects.toMatchObject({
+      name: 'SessionResolutionError',
+      availability: resolution.availability
+    })
+    expect(providerExecutionPort.sendMessage).not.toHaveBeenCalled()
+  })
+
   it('steers the active turn without claiming the normal send lock', async () => {
     const scheduler = createScheduler()
     const sessionRepository = {
-      get: vi.fn().mockResolvedValue({
-        id: 'session-1',
-        agentId: 'deepchat'
-      })
+      resolve: vi.fn().mockResolvedValue(
+        availableSession({
+          id: 'session-1',
+          agentId: 'deepchat'
+        })
+      )
     }
     const providerExecutionPort = {
       sendMessage: vi.fn(),
@@ -94,7 +157,7 @@ describe('ChatService', () => {
       accepted: true
     })
 
-    expect(sessionRepository.get).toHaveBeenCalledWith('session-1')
+    expect(sessionRepository.resolve).toHaveBeenCalledWith('session-1')
     expect(providerExecutionPort.steerActiveTurn).toHaveBeenCalledWith('session-1', 'refine this')
     expect(scheduler.timeout).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -106,7 +169,7 @@ describe('ChatService', () => {
   it('resolves stopStream by request id and clears permissions before cancelling', async () => {
     const scheduler = createScheduler()
     const sessionRepository = {
-      get: vi.fn()
+      resolve: vi.fn()
     }
     const messageRepository = {
       listBySession: vi.fn(),
@@ -148,7 +211,7 @@ describe('ChatService', () => {
   it('attempts both stopStream cleanups even if clearing permissions fails', async () => {
     const scheduler = createScheduler()
     const sessionRepository = {
-      get: vi.fn()
+      resolve: vi.fn()
     }
     const messageRepository = {
       listBySession: vi.fn(),
@@ -200,7 +263,7 @@ describe('ChatService', () => {
 
     const service = new ChatService({
       sessionRepository: {
-        get: vi.fn()
+        resolve: vi.fn()
       } as any,
       messageRepository: {
         listBySession: vi.fn(),
@@ -254,10 +317,12 @@ describe('ChatService', () => {
     const timeoutError = new Error('timed out')
     timeoutError.name = 'TimeoutError'
     const sessionRepository = {
-      get: vi.fn().mockResolvedValue({
-        id: 'session-1',
-        agentId: 'deepchat'
-      })
+      resolve: vi.fn().mockResolvedValue(
+        availableSession({
+          id: 'session-1',
+          agentId: 'deepchat'
+        })
+      )
     }
     const messageRepository = {
       listBySession: vi.fn().mockResolvedValue([]),
@@ -335,11 +400,17 @@ describe('ChatService', () => {
       ),
       retry: vi.fn()
     }
-    let resolveSession!: (value: { id: string; agentId: string }) => void
+    let resolveSession!: (value: {
+      availability: 'available'
+      session: { id: string; agentId: string }
+    }) => void
     const sessionRepository = {
-      get: vi.fn().mockImplementation(
+      resolve: vi.fn().mockImplementation(
         async () =>
-          await new Promise<{ id: string; agentId: string }>((resolve) => {
+          await new Promise<{
+            availability: 'available'
+            session: { id: string; agentId: string }
+          }>((resolve) => {
             resolveSession = resolve
           })
       )
@@ -377,10 +448,12 @@ describe('ChatService', () => {
       stopped: true
     })
 
-    resolveSession({
-      id: 'session-1',
-      agentId: 'deepchat'
-    })
+    resolveSession(
+      availableSession({
+        id: 'session-1',
+        agentId: 'deepchat'
+      })
+    )
 
     await expect(pendingSend).rejects.toMatchObject({
       name: 'AbortError'
@@ -392,10 +465,12 @@ describe('ChatService', () => {
   it('rejects a new send while another stream is still active for the session', async () => {
     const scheduler = createScheduler()
     const sessionRepository = {
-      get: vi.fn().mockResolvedValue({
-        id: 'session-1',
-        agentId: 'deepchat'
-      })
+      resolve: vi.fn().mockResolvedValue(
+        availableSession({
+          id: 'session-1',
+          agentId: 'deepchat'
+        })
+      )
     }
     const messageRepository = {
       listBySession: vi.fn(),

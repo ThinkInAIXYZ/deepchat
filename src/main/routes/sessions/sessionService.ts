@@ -4,11 +4,29 @@ import type {
   MessagePageCursor,
   SessionWithState
 } from '@shared/types/agent-interface'
+import type { ActiveSessionResolution, SessionResolutionResult } from '@shared/presenter'
+import {
+  getAvailableSession,
+  reportTerminalSessionResolution
+} from '@/presenter/agentSessionPresenter/sessionResolution'
 import type { MessageRepository, SessionListFilters, SessionRepository } from '../hotPathPorts'
 import type { Scheduler } from '../scheduler'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
 const DEFAULT_RESTORE_MESSAGE_LIMIT = 100
+
+class RetryableSessionReadError extends Error {
+  constructor(
+    readonly resolution: Extract<SessionResolutionResult, { availability: 'transient_error' }>
+  ) {
+    super('Session resolution read is retryable')
+    this.name = 'RetryableSessionReadError'
+  }
+}
+
+class NonRetryableSessionReadFailure {
+  constructor(readonly error: unknown) {}
+}
 
 export type SessionRouteContext = {
   webContentsId: number
@@ -44,20 +62,14 @@ export class SessionService {
     } & ChatMessagePageResult
   > {
     const effectiveLimit = limit ?? DEFAULT_RESTORE_MESSAGE_LIMIT
-    const session = await this.deps.scheduler.retry({
-      task: async () =>
-        await this.deps.scheduler.timeout({
-          task: this.deps.sessionRepository.get(sessionId),
-          ms: SESSION_OPERATION_TIMEOUT_MS,
-          reason: `sessions.restore:${sessionId}:session`
-        }),
-      maxAttempts: 2,
-      initialDelayMs: 25,
-      backoff: 1,
-      reason: `sessions.restore:${sessionId}`
-    })
+    const { resolution, attemptCount } = await this.resolveSessionWithRetry(
+      sessionId,
+      `sessions.restore:${sessionId}`
+    )
+    const session = getAvailableSession(resolution)
 
     if (!session) {
+      reportTerminalSessionResolution('sessions.restore', resolution, attemptCount)
       return {
         session: null,
         messages: [],
@@ -95,11 +107,22 @@ export class SessionService {
   }
 
   async listSessions(filters?: SessionListFilters) {
-    return await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.list(filters),
+    const resolutions = await this.deps.scheduler.timeout({
+      task: this.deps.sessionRepository.resolveList(filters),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.list'
     })
+
+    const sessions: SessionWithState[] = []
+    for (const resolution of resolutions) {
+      const session = getAvailableSession(resolution)
+      if (session) {
+        sessions.push(session)
+      } else {
+        reportTerminalSessionResolution('sessions.list', resolution)
+      }
+    }
+    return sessions
   }
 
   async activateSession(context: SessionRouteContext, sessionId: string): Promise<void> {
@@ -119,10 +142,101 @@ export class SessionService {
   }
 
   async getActiveSession(context: SessionRouteContext): Promise<SessionWithState | null> {
-    return await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.getActive(context.webContentsId),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
-      reason: 'sessions.getActive'
-    })
+    let attemptCount = 0
+    let active: ActiveSessionResolution
+
+    try {
+      const read = await this.deps.scheduler.retry<
+        ActiveSessionResolution | NonRetryableSessionReadFailure
+      >({
+        task: async () => {
+          attemptCount += 1
+          let result: ActiveSessionResolution
+          try {
+            result = await this.deps.scheduler.timeout({
+              task: this.deps.sessionRepository.resolveActive(context.webContentsId),
+              ms: SESSION_OPERATION_TIMEOUT_MS,
+              reason: 'sessions.getActive'
+            })
+          } catch (error) {
+            return new NonRetryableSessionReadFailure(error)
+          }
+          if (result.binding === 'bound' && result.resolution.availability === 'transient_error') {
+            throw new RetryableSessionReadError(result.resolution)
+          }
+          return result
+        },
+        maxAttempts: 2,
+        initialDelayMs: 25,
+        backoff: 1,
+        reason: 'sessions.getActive'
+      })
+      if (read instanceof NonRetryableSessionReadFailure) {
+        throw read.error
+      }
+      active = read
+    } catch (error) {
+      if (!(error instanceof RetryableSessionReadError)) {
+        throw error
+      }
+      active = {
+        binding: 'bound',
+        sessionId: error.resolution.sessionId,
+        resolution: error.resolution
+      }
+    }
+
+    if (active.binding === 'none') {
+      return null
+    }
+
+    const session = getAvailableSession(active.resolution)
+    if (!session) {
+      reportTerminalSessionResolution('sessions.getActive', active.resolution, attemptCount)
+    }
+    return session
+  }
+
+  private async resolveSessionWithRetry(
+    sessionId: string,
+    reason: string
+  ): Promise<{ resolution: SessionResolutionResult; attemptCount: number }> {
+    let attemptCount = 0
+    try {
+      const read = await this.deps.scheduler.retry<
+        SessionResolutionResult | NonRetryableSessionReadFailure
+      >({
+        task: async () => {
+          attemptCount += 1
+          let result: SessionResolutionResult
+          try {
+            result = await this.deps.scheduler.timeout({
+              task: this.deps.sessionRepository.resolve(sessionId),
+              ms: SESSION_OPERATION_TIMEOUT_MS,
+              reason: `${reason}:session`
+            })
+          } catch (error) {
+            return new NonRetryableSessionReadFailure(error)
+          }
+          if (result.availability === 'transient_error') {
+            throw new RetryableSessionReadError(result)
+          }
+          return result
+        },
+        maxAttempts: 2,
+        initialDelayMs: 25,
+        backoff: 1,
+        reason
+      })
+      if (read instanceof NonRetryableSessionReadFailure) {
+        throw read.error
+      }
+      return { resolution: read, attemptCount }
+    } catch (error) {
+      if (!(error instanceof RetryableSessionReadError)) {
+        throw error
+      }
+      return { resolution: error.resolution, attemptCount }
+    }
   }
 }

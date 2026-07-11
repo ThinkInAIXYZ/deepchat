@@ -47,6 +47,11 @@ import {
 } from './remoteBlockRenderer'
 import { RemoteBindingStore } from './remoteBindingStore'
 import { collectPendingInteraction } from './remoteInteraction'
+import {
+  getAvailableSession,
+  reportTerminalSessionResolution,
+  requireAvailableSession
+} from '../../agentSessionPresenter/sessionResolution'
 
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
@@ -484,13 +489,14 @@ export class RemoteConversationRunner {
       return null
     }
 
-    const session = await this.deps.agentSessionPresenter.getSession(binding.sessionId)
-    if (!session) {
+    const resolution = await this.deps.agentSessionPresenter.resolveSession(binding.sessionId)
+    if (resolution.availability === 'missing') {
+      reportTerminalSessionResolution('remote.getCurrentSession', resolution)
       this.bindingStore.clearBinding(endpointKey)
       return null
     }
 
-    return session
+    return requireAvailableSession('remote.getCurrentSession', resolution)
   }
 
   async ensureBoundSession(
@@ -516,9 +522,18 @@ export class RemoteConversationRunner {
 
   async listSessions(endpointKey: string): Promise<SessionWithState[]> {
     const agentId = await this.resolveSessionListAgentId(endpointKey)
-    const sessions = await this.deps.agentSessionPresenter.getSessionList({
+    const resolutions = await this.deps.agentSessionPresenter.resolveSessionList({
       agentId
     })
+    const sessions: SessionWithState[] = []
+    for (const resolution of resolutions) {
+      const session = getAvailableSession(resolution)
+      if (session) {
+        sessions.push(session)
+      } else {
+        reportTerminalSessionResolution('remote.listSessions', resolution)
+      }
+    }
     const sorted = [...sessions]
       .sort((left, right) => right.updatedAt - left.updatedAt)
       .slice(0, TELEGRAM_RECENT_SESSION_LIMIT)
@@ -544,10 +559,12 @@ export class RemoteConversationRunner {
       throw new Error('Session index is out of range.')
     }
 
-    const session = await this.deps.agentSessionPresenter.getSession(sessionId)
-    if (!session) {
+    const resolution = await this.deps.agentSessionPresenter.resolveSession(sessionId)
+    if (resolution.availability === 'missing') {
+      reportTerminalSessionResolution('remote.useSessionByIndex', resolution)
       throw new Error('Selected session no longer exists.')
     }
+    const session = requireAvailableSession('remote.useSessionByIndex', resolution)
 
     if (bindingMeta) {
       this.bindingStore.setBinding(endpointKey, session.id, bindingMeta)
@@ -1091,8 +1108,9 @@ export class RemoteConversationRunner {
       ignoreMessageId: string | null
     }
   ): Promise<RemoteConversationSnapshot> {
-    const session = await this.deps.agentSessionPresenter.getSession(sessionId)
-    if (!session) {
+    const resolution = await this.deps.agentSessionPresenter.resolveSession(sessionId)
+    if (resolution.availability === 'missing') {
+      reportTerminalSessionResolution('remote.getConversationSnapshot', resolution)
       this.bindingStore.clearBinding(endpointKey)
       return {
         messageId: null,
@@ -1108,6 +1126,7 @@ export class RemoteConversationRunner {
         pendingInteraction: null
       }
     }
+    const session = requireAvailableSession('remote.getConversationSnapshot', resolution)
 
     const activeGeneration = this.deps.agentRuntimePresenter.getActiveGeneration(sessionId)
     const trackedMessage = await this.resolveTrackedAssistantMessage(

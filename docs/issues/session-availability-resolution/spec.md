@@ -454,9 +454,18 @@ The migration inventory is fixed before implementation:
 | floating-button full list | intentionally remains on available-only `getSessionList` until that secondary renderer has an availability UI; it is the sole production list-adapter allowlist entry |
 | tests and third-party Presenter mocks | legacy methods remain type-compatible; new contract tests target `resolve*` directly |
 
-`SES-002` must grep direct calls and bound references before commit. After migration, the allowlist names every
-remaining production legacy-adapter call site; an unexplained `getSession*` call is a failing test, not an implicit
-compatibility decision.
+`SES-002` uses a TypeScript AST/type/provenance guard rather than a text grep. It follows direct property access,
+local aliases, local assignment chains, variable/parameter/assignment object destructuring (including local
+object-rest bindings) and bound method references rooted in the repository-owned `IAgentSessionPresenter` type,
+including `Pick`, `Partial`, constrained type parameters and local type aliases. The real
+`Presenter.agentSessionPresenter` property is covered through
+that type source, not by trusting the property name. Positive and negative fixtures prove these forms are
+distinguished from unrelated `any` values and classes that happen to expose the same nested property or method
+names. This is intentionally not full JavaScript dataflow: computed assignments, re-exports and values that have
+already been erased to `any` remain outside the guard. After migration, the allowlist names the owning method and
+adapter exactly; the floating button's
+`loadSessions#getSessionList` boundary is the sole production entry. An unexplained legacy reference is a failing
+test, not an implicit compatibility decision.
 
 ### `getActive`
 
@@ -621,18 +630,22 @@ accepted the result as terminal:
 
 Each terminal non-available lookup records one structured diagnostic:
 
+- stable operation name
 - `sessionId`
-- `agentId` when a record exists
 - `availability`
 - `stage`
 - stable error `code`
+- stable `retryable` flag
 - attempt count when retry ran
-- original `cause` through the existing logger object path for transient errors only
 
-Unavailable/missing diagnostics infer their stable stage (`agent_lookup` / `record_read`) and have no fabricated
-cause. List isolation must avoid duplicate warnings from both classifier and adapter. One failed row produces one
-terminal diagnostic per list request, not one per layer or retry attempt. Tests spy on the shared helper/logger to
-prove a transient-first/success-second retry emits no terminal error and an exhausted retry emits exactly one.
+The original `cause` exists only in the in-memory classified result so typed owners can decide whether a settled
+read is retryable. It is discarded at the terminal logging boundary. No raw `Error`, message, stack, configured
+Agent identity, absolute path, SQL text, command, environment data or provider secret is passed to
+`electron-log`. Unavailable/missing diagnostics infer their stable stage (`agent_lookup` / `record_read`) without
+fabricating a cause. List isolation must avoid duplicate warnings from both classifier and adapter. One failed row
+produces one terminal diagnostic per list request, not one per layer or retry attempt. Tests spy on the shared
+helper/logger to prove a transient-first/success-second retry emits no terminal error, an exhausted retry emits
+exactly one, and injected secret/path text is absent from every logger argument.
 
 ### Renderer payload
 
@@ -722,8 +735,9 @@ all four public states are testable without production fault injection.
 - [ ] `getSessionList()` remains available-only for the allowlisted floating button, while
       `resolveSessionList()` returns unknown/transient rows in original order.
 - [ ] Terminal diagnostic spy proves transient-first/success-second logs none and exhausted transient logs once.
-- [ ] Source/type guard proves the unsafe fake-null cast is absent and no unallowlisted production call site uses
-      legacy `getSession*`.
+- [ ] AST/type/provenance guard fixtures prove direct, aliased, destructured and bound legacy references fail
+      closed, unrelated same-name methods remain allowed, the unsafe fake-null cast is absent, and floating
+      `loadSessions#getSessionList` is the only production allowlist entry.
 
 ### `SES-003`
 
@@ -890,13 +904,13 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 
 ### Implementation (`SES-002`)
 
-- [ ] Add failing main tests from this spec.
-- [ ] Implement Presenter-port four-state `resolve*` APIs plus typed legacy adapters.
-- [ ] Migrate the fixed consumer inventory, enforce the legacy allowlist and preserve list isolation.
-- [ ] Remove unsafe cast and preserve the built-in registry fast path.
-- [ ] Fix window and remote binding decisions without adding a deletion reverse index.
-- [ ] Activate bounded transient read retry.
-- [ ] Enforce terminal-only diagnostics, keep legacy route shapes and run repository validation.
+- [x] Add failing main tests from this spec.
+- [x] Implement Presenter-port four-state `resolve*` APIs plus typed legacy adapters.
+- [x] Migrate the fixed consumer inventory, enforce the legacy allowlist and preserve list isolation.
+- [x] Remove unsafe cast and preserve the built-in registry fast path.
+- [x] Fix window and remote binding decisions without adding a deletion reverse index.
+- [x] Activate bounded transient read retry.
+- [x] Enforce terminal-only diagnostics, keep legacy route shapes and run repository validation.
 
 ### Renderer contract (`SES-003`)
 

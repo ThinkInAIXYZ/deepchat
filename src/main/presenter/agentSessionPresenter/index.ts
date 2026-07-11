@@ -48,6 +48,7 @@ import type {
 } from '@shared/types/tape-replay'
 import type {
   AcpConfigState,
+  ActiveSessionResolution,
   IConfigPresenter,
   HistorySearchHit,
   HistorySearchOptions,
@@ -55,6 +56,8 @@ import type {
   HistorySearchMessageHit,
   ILlmProviderPresenter,
   ISkillPresenter,
+  SessionResolutionListFilters,
+  SessionResolutionResult,
   CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -88,6 +91,7 @@ import {
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
 import type { ProviderSessionPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
+import { getAvailableSession, reportTerminalSessionResolution } from './sessionResolution'
 
 type SearchableSessionRow = {
   id: string
@@ -638,7 +642,7 @@ export class AgentSessionPresenter {
           throw new Error(`Subagent session not found after creation: ${sessionId}`)
         }
 
-        const session = (await this.buildSessionWithState(record)) as SessionWithState
+        const session = await this.buildSessionWithState(record)
         this.emitSessionListUpdated({
           sessionIds: [session.id],
           reason: 'created'
@@ -1057,23 +1061,33 @@ export class AgentSessionPresenter {
     }
   }
 
-  async getSessionList(filters?: {
-    agentId?: string
-    projectDir?: string
-    includeSubagents?: boolean
-    parentSessionId?: string
-  }): Promise<SessionWithState[]> {
+  async resolveSessionList(
+    filters?: SessionResolutionListFilters
+  ): Promise<SessionResolutionResult[]> {
     const records = this.sessionManager.list(filters)
-    const enriched: SessionWithState[] = []
+    const resolutions: SessionResolutionResult[] = []
 
     for (const record of records) {
-      const session = await this.tryBuildSessionWithState(record, 'list')
+      resolutions.push(await this.resolveSessionRecord(record, 'list'))
+    }
+
+    return resolutions
+  }
+
+  async getSessionList(filters?: SessionResolutionListFilters): Promise<SessionWithState[]> {
+    const resolutions = await this.resolveSessionList(filters)
+    const sessions: SessionWithState[] = []
+
+    for (const resolution of resolutions) {
+      const session = getAvailableSession(resolution)
       if (session) {
-        enriched.push(session)
+        sessions.push(session)
+      } else {
+        reportTerminalSessionResolution('legacy.getSessionList', resolution)
       }
     }
 
-    return enriched
+    return sessions
   }
 
   async getLightweightSessionList(options?: {
@@ -1118,10 +1132,28 @@ export class AgentSessionPresenter {
     )
   }
 
+  async resolveSession(sessionId: string): Promise<SessionResolutionResult> {
+    let record: SessionRecord | null
+    try {
+      record = this.sessionManager.get(sessionId)
+    } catch (cause) {
+      return this.buildTransientResolution(sessionId, null, 'record_read', cause)
+    }
+
+    if (!record) {
+      return { availability: 'missing', sessionId }
+    }
+
+    return await this.resolveSessionRecord(record)
+  }
+
   async getSession(sessionId: string): Promise<SessionWithState | null> {
-    const record = this.sessionManager.get(sessionId)
-    if (!record) return null
-    return await this.tryBuildSessionWithState(record)
+    const resolution = await this.resolveSession(sessionId)
+    const session = getAvailableSession(resolution)
+    if (!session) {
+      reportTerminalSessionResolution('legacy.getSession', resolution)
+    }
+    return session
   }
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
@@ -1886,12 +1918,32 @@ export class AgentSessionPresenter {
     })
   }
 
-  async getActiveSession(webContentsId: number): Promise<SessionWithState | null> {
+  async resolveActiveSession(webContentsId: number): Promise<ActiveSessionResolution> {
     const sessionId = this.sessionManager.getActiveSessionId(webContentsId)
-    if (!sessionId) return null
-    const session = await this.getSession(sessionId)
-    if (!session) {
+    if (!sessionId) {
+      return { binding: 'none' }
+    }
+
+    const resolution = await this.resolveSession(sessionId)
+    if (
+      resolution.availability === 'missing' &&
+      this.sessionManager.getActiveSessionId(webContentsId) === sessionId
+    ) {
       this.sessionManager.unbindWindow(webContentsId)
+    }
+
+    return { binding: 'bound', sessionId, resolution }
+  }
+
+  async getActiveSession(webContentsId: number): Promise<SessionWithState | null> {
+    const active = await this.resolveActiveSession(webContentsId)
+    if (active.binding === 'none') {
+      return null
+    }
+
+    const session = getAvailableSession(active.resolution)
+    if (!session) {
+      reportTerminalSessionResolution('legacy.getActiveSession', active.resolution)
     }
     return session
   }
@@ -2324,12 +2376,7 @@ export class AgentSessionPresenter {
       sessionIds: [sessionId],
       reason: 'updated'
     })
-    const sessionWithState = await this.tryBuildSessionWithState(updated)
-    if (!sessionWithState) {
-      throw new Error(`Failed to build session state for sessionId: ${sessionId}`)
-    }
-
-    return sessionWithState
+    return await this.buildSessionWithState(updated)
   }
 
   async setSessionModel(
@@ -2410,11 +2457,7 @@ export class AgentSessionPresenter {
       sessionIds: [sessionId],
       reason: 'updated'
     })
-    const sessionWithState = await this.tryBuildSessionWithState(updated)
-    if (!sessionWithState) {
-      throw new Error(`Failed to build session state after project update: ${sessionId}`)
-    }
-    return sessionWithState
+    return await this.buildSessionWithState(updated)
   }
 
   async getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
@@ -2665,18 +2708,76 @@ export class AgentSessionPresenter {
     return true
   }
 
-  private async tryBuildSessionWithState(
+  private async resolveSessionRecord(
     record: SessionRecord,
     mode: 'full' | 'list' = 'full'
-  ): Promise<SessionWithState> {
+  ): Promise<SessionResolutionResult> {
+    const resolvedAgentId = resolveAcpAgentAlias(record.agentId)
+    let agent: IAgentImplementation
+
     try {
-      return await this.buildSessionWithState(record, mode)
-    } catch (error) {
-      console.warn(
-        `[AgentSessionPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
-        error
-      )
-      return null as unknown as SessionWithState
+      if (this.agentRegistry.has(resolvedAgentId)) {
+        agent = this.agentRegistry.resolve(resolvedAgentId)
+      } else {
+        let agentType: 'deepchat' | 'acp' | null
+        try {
+          agentType = await this.getAgentType(resolvedAgentId)
+        } catch (cause) {
+          return this.buildTransientResolution(record.id, record, 'agent_lookup', cause)
+        }
+
+        if (agentType !== 'deepchat' && agentType !== 'acp') {
+          return {
+            availability: 'unavailable',
+            sessionId: record.id,
+            record,
+            reason: 'agent_unknown'
+          }
+        }
+
+        agent = this.agentRegistry.resolve('deepchat')
+      }
+    } catch (cause) {
+      return this.buildTransientResolution(record.id, record, 'runtime_resolution', cause)
+    }
+
+    try {
+      const state =
+        mode === 'list' && agent.getSessionListState
+          ? await agent.getSessionListState(record.id)
+          : await agent.getSessionState(record.id)
+      const status = state?.status ?? 'idle'
+      this.sessionStatusSnapshots.set(record.id, status)
+      return {
+        availability: 'available',
+        session: {
+          ...record,
+          status,
+          providerId: state?.providerId ?? '',
+          modelId: state?.modelId ?? ''
+        }
+      }
+    } catch (cause) {
+      return this.buildTransientResolution(record.id, record, 'state_read', cause)
+    }
+  }
+
+  private buildTransientResolution(
+    sessionId: string,
+    record: SessionRecord | null,
+    stage: 'record_read' | 'agent_lookup' | 'runtime_resolution' | 'state_read',
+    cause: unknown
+  ): SessionResolutionResult {
+    return {
+      availability: 'transient_error',
+      sessionId,
+      record,
+      error: {
+        code: 'SESSION_RESOLUTION_FAILED',
+        stage,
+        retryable: true,
+        cause
+      }
     }
   }
 
@@ -2965,10 +3066,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found after transfer: ${sessionId}`)
     }
 
-    const sessionWithState = await this.tryBuildSessionWithState(updated)
-    if (!sessionWithState) {
-      throw new Error(`Failed to build session state after transfer: ${sessionId}`)
-    }
+    const sessionWithState = await this.buildSessionWithState(updated)
 
     if (previousAcpBacked) {
       try {

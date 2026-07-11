@@ -470,6 +470,26 @@ function createRuntime() {
       providerId: 'openai',
       modelId: 'gpt-5.4'
     }),
+    resolveSession: vi.fn().mockResolvedValue({
+      availability: 'available',
+      session: {
+        id: 'session-1',
+        agentId: 'deepchat',
+        title: 'Restored',
+        projectDir: '/workspace',
+        isPinned: false,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentEnabled: false,
+        subagentMeta: null,
+        createdAt: 1,
+        updatedAt: 2,
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-5.4'
+      }
+    }),
     getMessages: vi.fn().mockResolvedValue([
       {
         id: 'message-1',
@@ -485,7 +505,9 @@ function createRuntime() {
       }
     ]),
     getSessionList: vi.fn().mockResolvedValue([]),
+    resolveSessionList: vi.fn().mockResolvedValue([]),
     getActiveSession: vi.fn().mockResolvedValue(null),
+    resolveActiveSession: vi.fn().mockResolvedValue({ binding: 'none' }),
     activateSession: vi.fn().mockResolvedValue(undefined),
     deactivateSession: vi.fn().mockResolvedValue(undefined),
     getSessionGenerationSettings: vi.fn().mockResolvedValue({
@@ -3915,23 +3937,32 @@ describe('dispatchDeepchatRoute', () => {
 
   it('activates, deactivates, and reads the active session through typed routes', async () => {
     const { runtime, agentSessionPresenter } = createRuntime()
-    ;(agentSessionPresenter.getActiveSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      id: 'session-1',
-      agentId: 'deepchat',
-      title: 'Restored',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-5.4'
-    })
+    ;(agentSessionPresenter.resolveActiveSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      {
+        binding: 'bound',
+        sessionId: 'session-1',
+        resolution: {
+          availability: 'available',
+          session: {
+            id: 'session-1',
+            agentId: 'deepchat',
+            title: 'Restored',
+            projectDir: '/workspace',
+            isPinned: false,
+            isDraft: false,
+            sessionKind: 'regular',
+            parentSessionId: null,
+            subagentEnabled: false,
+            subagentMeta: null,
+            createdAt: 1,
+            updatedAt: 2,
+            status: 'idle',
+            providerId: 'openai',
+            modelId: 'gpt-5.4'
+          }
+        }
+      }
+    )
 
     const activateResult = await dispatchDeepchatRoute(
       runtime,
@@ -3967,7 +3998,7 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
     expect(agentSessionPresenter.deactivateSession).toHaveBeenCalledWith(88)
-    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(88)
+    expect(agentSessionPresenter.resolveActiveSession).toHaveBeenCalledWith(88)
     expect(activateResult).toEqual({ activated: true })
     expect(deactivateResult).toEqual({ deactivated: true })
     expect(activeResult).toEqual({

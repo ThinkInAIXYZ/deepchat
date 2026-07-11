@@ -1635,8 +1635,7 @@ describe('AgentSessionPresenter', () => {
       expect(sessions[0].modelId).toBe('gpt-4')
     })
 
-    it('skips sessions whose agent implementation cannot be resolved', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    it('classifies an unknown agent without hiding later healthy sessions', async () => {
       sqlitePresenter.newSessionsTable.list.mockReturnValue([
         {
           id: 'missing-agent',
@@ -1658,19 +1657,24 @@ describe('AgentSessionPresenter', () => {
         }
       ])
 
-      const sessions = await presenter.getSessionList()
+      const resolutions = await presenter.resolveSessionList()
 
-      expect(sessions).toHaveLength(1)
-      expect(sessions[0].id).toBe('s1')
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=missing-agent agent=disabled-agent:',
-        expect.any(Error)
-      )
-      warnSpy.mockRestore()
+      expect(resolutions).toHaveLength(2)
+      expect(resolutions[0]).toMatchObject({
+        availability: 'unavailable',
+        sessionId: 'missing-agent',
+        reason: 'agent_unknown'
+      })
+      expect(resolutions[1]).toMatchObject({
+        availability: 'available',
+        session: { id: 's1' }
+      })
+      await expect(presenter.getSessionList()).resolves.toEqual([
+        expect.objectContaining({ id: 's1' })
+      ])
     })
 
-    it('skips sessions whose state loading fails', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    it('isolates transient state reads without retrying list rows', async () => {
       sqlitePresenter.newSessionsTable.list.mockReturnValue([
         {
           id: 'broken-state',
@@ -1703,15 +1707,57 @@ describe('AgentSessionPresenter', () => {
         }
       })
 
-      const sessions = await presenter.getSessionList()
+      const resolutions = await presenter.resolveSessionList()
 
-      expect(sessions).toHaveLength(1)
-      expect(sessions[0].id).toBe('healthy-state')
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=broken-state agent=deepchat:',
-        expect.any(Error)
-      )
-      warnSpy.mockRestore()
+      expect(resolutions[0]).toMatchObject({
+        availability: 'transient_error',
+        sessionId: 'broken-state',
+        error: { stage: 'state_read', retryable: true }
+      })
+      expect(resolutions[1]).toMatchObject({
+        availability: 'available',
+        session: { id: 'healthy-state' }
+      })
+      expect(deepChatAgent.getSessionListState).toHaveBeenCalledTimes(2)
+    })
+
+    it('rejects the whole classified list when the record query fails', async () => {
+      const listError = new Error('list query failed')
+      sqlitePresenter.newSessionsTable.list.mockImplementation(() => {
+        throw listError
+      })
+
+      await expect(presenter.resolveSessionList()).rejects.toBe(listError)
+      expect(deepChatAgent.getSessionListState).not.toHaveBeenCalled()
+    })
+
+    it('keeps the lightweight list record-only for unknown agents', async () => {
+      sqlitePresenter.newSessionsTable.listPage.mockReturnValue({
+        rows: [
+          {
+            id: 'unknown-agent-session',
+            agent_id: 'removed-agent',
+            title: 'Historical session',
+            project_dir: null,
+            is_pinned: 0,
+            is_draft: 0,
+            session_kind: 'regular',
+            parent_session_id: null,
+            subagent_enabled: 0,
+            subagent_meta_json: null,
+            created_at: 1000,
+            updated_at: 2000
+          }
+        ],
+        hasMore: false
+      })
+
+      await expect(presenter.getLightweightSessionList()).resolves.toMatchObject({
+        items: [{ id: 'unknown-agent-session', agentId: 'removed-agent', status: 'idle' }]
+      })
+      expect(configPresenter.getAgentType).not.toHaveBeenCalled()
+      expect(deepChatAgent.getSessionState).not.toHaveBeenCalled()
+      expect(deepChatAgent.getSessionListState).not.toHaveBeenCalled()
     })
   })
 
@@ -1737,8 +1783,7 @@ describe('AgentSessionPresenter', () => {
       expect(await presenter.getSession('unknown')).toBeNull()
     })
 
-    it('returns null when session agent is unavailable', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    it('classifies unknown agents and keeps the legacy adapter nullable', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-disabled',
         agent_id: 'disabled-agent',
@@ -1749,12 +1794,123 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      expect(await presenter.getSession('s-disabled')).toBeNull()
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
-        expect.any(Error)
-      )
-      warnSpy.mockRestore()
+      await expect(presenter.resolveSession('s-disabled')).resolves.toMatchObject({
+        availability: 'unavailable',
+        sessionId: 's-disabled',
+        reason: 'agent_unknown'
+      })
+      await expect(presenter.getSession('s-disabled')).resolves.toBeNull()
+    })
+
+    it('classifies catalog and state read failures without matching error text', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-custom',
+        agent_id: 'custom-agent',
+        title: 'Custom',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      configPresenter.getAgentType.mockRejectedValueOnce(new Error('Agent not found'))
+
+      await expect(presenter.resolveSession('s-custom')).resolves.toMatchObject({
+        availability: 'transient_error',
+        error: { stage: 'agent_lookup' }
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Built in',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      deepChatAgent.getSessionState.mockRejectedValueOnce(new Error('unavailable'))
+      await expect(presenter.resolveSession('s1')).resolves.toMatchObject({
+        availability: 'transient_error',
+        error: { stage: 'state_read' }
+      })
+    })
+
+    it('keeps the built-in fast path catalog-free and accepts a null runtime state', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Built in',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      configPresenter.getAgentType.mockRejectedValue(new Error('catalog unavailable'))
+      deepChatAgent.getSessionState.mockResolvedValue(null)
+
+      await expect(presenter.resolveSession('s1')).resolves.toMatchObject({
+        availability: 'available',
+        session: {
+          id: 's1',
+          status: 'idle',
+          providerId: '',
+          modelId: ''
+        }
+      })
+      expect(configPresenter.getAgentType).not.toHaveBeenCalled()
+    })
+
+    it('normalizes ACP aliases and resolves known disabled agent identities', async () => {
+      const row = {
+        id: 's-custom',
+        agent_id: 'kimi-cli',
+        title: 'Legacy ACP',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(row)
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'kimi') return 'acp'
+        return agentId === 'disabled-but-known' ? 'deepchat' : null
+      })
+
+      await expect(presenter.resolveSession('s-custom')).resolves.toMatchObject({
+        availability: 'available',
+        session: { id: 's-custom' }
+      })
+      expect(configPresenter.getAgentType).toHaveBeenCalledWith('kimi')
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        ...row,
+        id: 's-disabled',
+        agent_id: 'disabled-but-known'
+      })
+      await expect(presenter.resolveSession('s-disabled')).resolves.toMatchObject({
+        availability: 'available',
+        session: { id: 's-disabled', agentId: 'disabled-but-known' }
+      })
+    })
+
+    it('classifies registry implementation failures as transient runtime resolution', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Built in',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      vi.spyOn((presenter as any).agentRegistry, 'resolve').mockImplementation(() => {
+        throw new Error('registry invariant failed')
+      })
+
+      await expect(presenter.resolveSession('s1')).resolves.toMatchObject({
+        availability: 'transient_error',
+        error: { stage: 'runtime_resolution' }
+      })
     })
   })
 
@@ -2085,7 +2241,7 @@ describe('AgentSessionPresenter', () => {
   })
 
   describe('setSessionSubagentEnabled', () => {
-    it('throws when the updated session state cannot be rebuilt', async () => {
+    it('propagates the runtime read error when the updated session state cannot be rebuilt', async () => {
       const row = {
         id: 's1',
         agent_id: 'deepchat',
@@ -2109,7 +2265,7 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.getSessionState.mockRejectedValueOnce(new Error('state unavailable'))
 
       await expect(presenter.setSessionSubagentEnabled('s1', true)).rejects.toThrow(
-        'Failed to build session state for sessionId: s1'
+        'state unavailable'
       )
 
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
@@ -2963,11 +3119,9 @@ describe('AgentSessionPresenter', () => {
       expect(session!.id).toBe('s1')
     })
 
-    it('returns null and clears binding when bound session becomes unavailable', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
+    it('retains binding when the bound session agent is unavailable', async () => {
       await presenter.activateSession(1, 's-disabled')
-      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-disabled',
         agent_id: 'disabled-agent',
         title: 'Disabled',
@@ -2978,22 +3132,62 @@ describe('AgentSessionPresenter', () => {
       })
 
       await expect(presenter.getActiveSession(1)).resolves.toBeNull()
+      expect(presenter.getActiveSessionId(1)).toBe('s-disabled')
+      await expect(presenter.resolveActiveSession(1)).resolves.toMatchObject({
+        binding: 'bound',
+        sessionId: 's-disabled',
+        resolution: { availability: 'unavailable' }
+      })
+    })
 
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({
-        id: 's-disabled',
+    it('retains binding on transient reads and clears it only on a record miss', async () => {
+      await presenter.activateSession(1, 's1')
+      sqlitePresenter.newSessionsTable.get.mockImplementation(() => {
+        throw new Error('SQLITE_BUSY')
+      })
+
+      await expect(presenter.resolveActiveSession(1)).resolves.toMatchObject({
+        binding: 'bound',
+        resolution: {
+          availability: 'transient_error',
+          error: { stage: 'record_read' }
+        }
+      })
+      expect(presenter.getActiveSessionId(1)).toBe('s1')
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
+      await expect(presenter.resolveActiveSession(1)).resolves.toMatchObject({
+        binding: 'bound',
+        resolution: { availability: 'missing' }
+      })
+      expect(presenter.getActiveSessionId(1)).toBeNull()
+    })
+
+    it('converges a deleted binding on the next missing lookup without deactivation event', async () => {
+      const record = {
+        id: 's1',
         agent_id: 'deepchat',
-        title: 'Recovered',
+        title: 'Deleted',
         project_dir: null,
         is_pinned: 0,
         created_at: 1000,
         updated_at: 2000
+      }
+      await presenter.activateSession(1, 's1')
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(record)
+      await presenter.deleteSession('s1')
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
+      vi.mocked(publishDeepchatEvent).mockClear()
+
+      await expect(presenter.resolveActiveSession(1)).resolves.toMatchObject({
+        binding: 'bound',
+        resolution: { availability: 'missing', sessionId: 's1' }
       })
-      await expect(presenter.getActiveSession(1)).resolves.toBeNull()
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
-        expect.any(Error)
+      expect(presenter.getActiveSessionId(1)).toBeNull()
+      expect(publishDeepchatEvent).not.toHaveBeenCalledWith(
+        'sessions.updated',
+        expect.objectContaining({ reason: 'deactivated' })
       )
-      warnSpy.mockRestore()
     })
   })
 })

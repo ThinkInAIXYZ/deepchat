@@ -8,9 +8,14 @@ const eventBusMocks = vi.hoisted(() => ({
 
 const presenterMocks = vi.hoisted(() => ({
   agentSessionPresenter: {
-    getSession: vi.fn()
+    resolveSession: vi.fn()
   }
 }))
+
+const available = (session: Record<string, unknown>) => ({
+  availability: 'available' as const,
+  session
+})
 
 vi.mock('@/eventbus', () => ({
   eventBus: eventBusMocks
@@ -182,19 +187,21 @@ describe('ToolManager', () => {
     configPresenter.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
     configPresenter.getAgentMcpSelections.mockResolvedValue([])
 
-    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue({
-      id: 'session-1',
-      agentId: 'agent-1',
-      title: 'New Chat',
-      projectDir: '/workspace/acp',
-      isPinned: false,
-      isDraft: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: 'idle',
-      providerId: 'acp',
-      modelId: 'agent-1'
-    })
+    presenterMocks.agentSessionPresenter.resolveSession.mockResolvedValue(
+      available({
+        id: 'session-1',
+        agentId: 'agent-1',
+        title: 'New Chat',
+        projectDir: '/workspace/acp',
+        isPinned: false,
+        isDraft: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'agent-1'
+      })
+    )
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -320,7 +327,10 @@ describe('ToolManager', () => {
   it('skips ACP session resolution when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue(null)
+    presenterMocks.agentSessionPresenter.resolveSession.mockResolvedValue({
+      availability: 'missing',
+      sessionId: 'conv-1'
+    })
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -341,7 +351,7 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.agentSessionPresenter.getSession).not.toHaveBeenCalled()
+    expect(presenterMocks.agentSessionPresenter.resolveSession).not.toHaveBeenCalled()
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
     expect(
       warnSpy.mock.calls.some((call) =>
@@ -354,19 +364,21 @@ describe('ToolManager', () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
 
-    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue({
-      id: 'session-2',
-      agentId: 'deepchat',
-      title: 'Normal Chat',
-      projectDir: null,
-      isPinned: false,
-      isDraft: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-4'
-    })
+    presenterMocks.agentSessionPresenter.resolveSession.mockResolvedValue(
+      available({
+        id: 'session-2',
+        agentId: 'deepchat',
+        title: 'Normal Chat',
+        projectDir: null,
+        isPinned: false,
+        isDraft: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+    )
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -446,7 +458,10 @@ describe('ToolManager', () => {
   it('treats missing provider hint as a fallback to new session resolution', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue(null)
+    presenterMocks.agentSessionPresenter.resolveSession.mockResolvedValue({
+      availability: 'missing',
+      sessionId: 'conv-fallback'
+    })
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -466,7 +481,9 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.agentSessionPresenter.getSession).toHaveBeenCalledWith('conv-fallback')
+    expect(presenterMocks.agentSessionPresenter.resolveSession).toHaveBeenCalledWith(
+      'conv-fallback'
+    )
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })
