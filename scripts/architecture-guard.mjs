@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import ts from 'typescript'
 
 const ROOT = process.cwd()
 const SOURCE_EXTENSIONS = new Set([
@@ -144,6 +145,33 @@ const INLINE_IPC_CHANNEL_PATTERN =
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
   /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
 const TYPED_ROUTE_CASE_PATTERN = /\bcase\s+[A-Za-z_$][\w$]*Route\.name\s*:/g
+const OPERATION_RUNNER_PATH = path.join(ROOT, 'src/main/routes/operationRunner.ts')
+const RETIRED_ROUTE_SCHEDULER_PATH = path.join(ROOT, 'src/main/routes/scheduler.ts')
+const OPERATION_RUNNER_ALLOWED_METHODS = new Set([
+  'sleep',
+  'observeIdempotent',
+  'retryIdempotent',
+  'timeout',
+  'retry'
+])
+const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map([
+  ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#restoreSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#listMessagesPage#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#listSessions#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#activateSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#deactivateSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#getActiveSession#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#getActiveSession#retry', 1],
+  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#timeout', 1],
+  ['src/main/routes/sessions/sessionService.ts#resolveSessionWithRetry#retry', 1],
+  ['src/main/routes/chat/chatService.ts#sendMessage#timeout', 3],
+  ['src/main/routes/chat/chatService.ts#steerActiveTurn#timeout', 2],
+  ['src/main/routes/chat/chatService.ts#stopStream#timeout', 2],
+  ['src/main/routes/chat/chatService.ts#respondToolInteraction#timeout', 1],
+  ['src/main/routes/providers/providerService.ts#listModels#timeout', 2],
+  ['src/main/routes/providers/providerService.ts#testConnection#timeout', 1]
+])
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
@@ -217,6 +245,276 @@ function countPhysicalLines(source) {
 
   const lineCount = source.split(/\r\n|\r|\n/).length
   return /(?:\r\n|\r|\n)$/.test(source) ? lineCount - 1 : lineCount
+}
+
+function enclosingCallableName(node) {
+  let current = node.parent
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isConstructorDeclaration(current)) return 'constructor'
+    if (
+      ts.isMethodDeclaration(current) ||
+      ts.isGetAccessorDeclaration(current) ||
+      ts.isSetAccessorDeclaration(current) ||
+      ts.isFunctionDeclaration(current)
+    ) {
+      return current.name?.getText(current.getSourceFile()) ?? '<anonymous>'
+    }
+    if (
+      (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) &&
+      ts.isVariableDeclaration(current.parent)
+    ) {
+      return current.parent.name.getText(current.getSourceFile())
+    }
+    current = current.parent
+  }
+  return '<module>'
+}
+
+function importedOperationRunnerSymbols(sourceFile) {
+  const typeNames = new Set()
+  const factoryNames = new Set()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+      continue
+    }
+    if (!/(?:^|\/)operationRunner$/.test(statement.moduleSpecifier.text)) continue
+    const bindings = statement.importClause?.namedBindings
+    if (!bindings || !ts.isNamedImports(bindings)) continue
+
+    for (const element of bindings.elements) {
+      const importedName = element.propertyName?.text ?? element.name.text
+      if (importedName === 'OperationRunner') typeNames.add(element.name.text)
+      if (importedName === 'createNodeOperationRunner') factoryNames.add(element.name.text)
+    }
+  }
+  return { typeNames, factoryNames }
+}
+
+function typeReferencesOperationRunner(typeNode, typeNames) {
+  if (!typeNode) return false
+  let found = false
+  const visit = (node) => {
+    if (
+      ts.isTypeReferenceNode(node) &&
+      ts.isIdentifier(node.typeName) &&
+      typeNames.has(node.typeName.text)
+    ) {
+      found = true
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(typeNode)
+  return found
+}
+
+function propertyNameText(name) {
+  if (!name) return null
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+    return name.text
+  }
+  return null
+}
+
+function collectOperationRunnerLegacyCalls(sourceFile) {
+  const { typeNames, factoryNames } = importedOperationRunnerSymbols(sourceFile)
+  if (typeNames.size === 0 && factoryNames.size === 0) return []
+
+  const runnerBindings = new Set()
+  const runnerProperties = new Set()
+  const runnerFactories = new Set(factoryNames)
+  const legacyCallables = new Map()
+  const variableDeclarations = []
+
+  const collectTypedSymbols = (node) => {
+    if (
+      (ts.isParameter(node) ||
+        ts.isPropertyDeclaration(node) ||
+        ts.isPropertySignature(node) ||
+        ts.isVariableDeclaration(node)) &&
+      typeReferencesOperationRunner(node.type, typeNames)
+    ) {
+      if (ts.isIdentifier(node.name)) {
+        runnerBindings.add(node.name.text)
+        if (
+          ts.isPropertyDeclaration(node) ||
+          ts.isPropertySignature(node) ||
+          (ts.isParameter(node) && node.modifiers?.length)
+        ) {
+          runnerProperties.add(node.name.text)
+        }
+      }
+    }
+    if (
+      (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) &&
+      typeReferencesOperationRunner(node.type, typeNames) &&
+      node.name
+    ) {
+      runnerFactories.add(node.name.getText(sourceFile))
+    }
+    if (ts.isVariableDeclaration(node)) variableDeclarations.push(node)
+    ts.forEachChild(node, collectTypedSymbols)
+  }
+  collectTypedSymbols(sourceFile)
+
+  const isRunnerExpression = (rawExpression) => {
+    const expression = ts.skipParentheses(rawExpression)
+    if (ts.isIdentifier(expression)) return runnerBindings.has(expression.text)
+    if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) {
+      return (
+        typeReferencesOperationRunner(expression.type, typeNames) ||
+        isRunnerExpression(expression.expression)
+      )
+    }
+    if (ts.isCallExpression(expression) && ts.isIdentifier(expression.expression)) {
+      return runnerFactories.has(expression.expression.text)
+    }
+    if (ts.isPropertyAccessExpression(expression)) {
+      return runnerProperties.has(expression.name.text)
+    }
+    if (ts.isElementAccessExpression(expression)) {
+      const name = expression.argumentExpression
+      return ts.isStringLiteral(name) && runnerProperties.has(name.text)
+    }
+    return false
+  }
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const declaration of variableDeclarations) {
+      if (!declaration.initializer) continue
+      if (ts.isIdentifier(declaration.name)) {
+        if (isRunnerExpression(declaration.initializer) && !runnerBindings.has(declaration.name.text)) {
+          runnerBindings.add(declaration.name.text)
+          changed = true
+        }
+        const initializer = ts.skipParentheses(declaration.initializer)
+        if (
+          ts.isIdentifier(initializer) &&
+          legacyCallables.has(initializer.text) &&
+          !legacyCallables.has(declaration.name.text)
+        ) {
+          legacyCallables.set(declaration.name.text, legacyCallables.get(initializer.text))
+          changed = true
+        }
+        if (
+          ts.isPropertyAccessExpression(initializer) &&
+          isRunnerExpression(initializer.expression) &&
+          (initializer.name.text === 'timeout' || initializer.name.text === 'retry') &&
+          !legacyCallables.has(declaration.name.text)
+        ) {
+          legacyCallables.set(declaration.name.text, initializer.name.text)
+          changed = true
+        }
+        if (
+          ts.isElementAccessExpression(initializer) &&
+          isRunnerExpression(initializer.expression) &&
+          ts.isStringLiteral(initializer.argumentExpression) &&
+          (initializer.argumentExpression.text === 'timeout' ||
+            initializer.argumentExpression.text === 'retry') &&
+          !legacyCallables.has(declaration.name.text)
+        ) {
+          legacyCallables.set(declaration.name.text, initializer.argumentExpression.text)
+          changed = true
+        }
+        continue
+      }
+      if (!ts.isObjectBindingPattern(declaration.name) || !isRunnerExpression(declaration.initializer)) {
+        continue
+      }
+      for (const element of declaration.name.elements) {
+        if (!ts.isIdentifier(element.name)) continue
+        const api = propertyNameText(element.propertyName ?? element.name)
+        if ((api === 'timeout' || api === 'retry') && !legacyCallables.has(element.name.text)) {
+          legacyCallables.set(element.name.text, api)
+          changed = true
+        }
+      }
+    }
+  }
+
+  const calls = []
+  const visitCalls = (node) => {
+    if (ts.isCallExpression(node)) {
+      const expression = ts.skipParentheses(node.expression)
+      let api = null
+      if (ts.isIdentifier(expression)) {
+        api = legacyCallables.get(expression.text) ?? null
+      } else if (ts.isPropertyAccessExpression(expression)) {
+        if (isRunnerExpression(expression.expression)) api = expression.name.text
+      } else if (ts.isElementAccessExpression(expression)) {
+        const name = expression.argumentExpression
+        if (isRunnerExpression(expression.expression) && ts.isStringLiteral(name)) api = name.text
+      }
+      if (api === 'timeout' || api === 'retry') {
+        calls.push({ api, owner: enclosingCallableName(node) })
+      }
+    }
+    ts.forEachChild(node, visitCalls)
+  }
+  visitCalls(sourceFile)
+  return calls
+}
+
+async function checkOperationRunnerContract(fileSet, violations) {
+  if (await pathExists(RETIRED_ROUTE_SCHEDULER_PATH)) {
+    violations.push('[operation-runner-retired-scheduler] src/main/routes/scheduler.ts must remain deleted')
+  }
+
+  const runnerSource = await fs.readFile(OPERATION_RUNNER_PATH, 'utf8')
+  const interfaceBody = runnerSource.match(
+    /export interface OperationRunner \{([\s\S]*?)^\}/m
+  )?.[1]
+  const actualMethods = new Set()
+  const methodPattern = /^  ([A-Za-z_$][\w$]*)\s*(?:<[^>]+>)?\s*\(/gm
+  let methodMatch
+  while (interfaceBody && (methodMatch = methodPattern.exec(interfaceBody)) !== null) {
+    actualMethods.add(methodMatch[1])
+  }
+  const unexpectedMethods = [...actualMethods].filter(
+    (method) => !OPERATION_RUNNER_ALLOWED_METHODS.has(method)
+  )
+  const missingMethods = [...OPERATION_RUNNER_ALLOWED_METHODS].filter(
+    (method) => !actualMethods.has(method)
+  )
+  if (unexpectedMethods.length > 0 || missingMethods.length > 0) {
+    violations.push(
+      `[operation-runner-surface] expected ${[...OPERATION_RUNNER_ALLOWED_METHODS].join(', ')}, found ${[...actualMethods].join(', ')}`
+    )
+  }
+
+  for (const filePath of fileSet) {
+    if (!isUnder(filePath, MAIN_SOURCE_ROOT)) continue
+    const source = await fs.readFile(filePath, 'utf8')
+    if (/\brunCancellable\b/.test(source)) {
+      violations.push(`[operation-runner-unused-cancellable] ${relativePath(filePath)}`)
+    }
+  }
+
+  const actualLegacyCalls = new Map()
+  for (const filePath of fileSet) {
+    if (!isUnder(filePath, MAIN_SOURCE_ROOT) || path.extname(filePath) === '.vue') continue
+    const source = await fs.readFile(filePath, 'utf8')
+    const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true)
+    for (const { api, owner } of collectOperationRunnerLegacyCalls(sourceFile)) {
+      const key = `${relativePath(filePath)}#${owner}#${api}`
+      actualLegacyCalls.set(key, (actualLegacyCalls.get(key) ?? 0) + 1)
+    }
+  }
+
+  const allLegacyKeys = new Set([
+    ...LEGACY_OPERATION_RUNNER_ALLOWLIST.keys(),
+    ...actualLegacyCalls.keys()
+  ])
+  for (const key of allLegacyKeys) {
+    const expected = LEGACY_OPERATION_RUNNER_ALLOWLIST.get(key) ?? 0
+    const actual = actualLegacyCalls.get(key) ?? 0
+    if (actual !== expected) {
+      violations.push(`[operation-runner-legacy-call] ${key} expected ${expected}, found ${actual}`)
+    }
+  }
 }
 
 function extractModuleSpecifierOccurrences(source) {
@@ -768,6 +1066,7 @@ async function main() {
   }
 
   await checkArchitectureGrowth(fileSet, violations)
+  await checkOperationRunnerContract(fileSet, violations)
 
   const hotPathEdges = await collectHotPathDirectEdges()
   if (hotPathEdges.length > HOT_PATH_EDGE_BASELINE) {

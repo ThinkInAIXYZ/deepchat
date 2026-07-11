@@ -411,7 +411,7 @@ import {
   startGuidedOnboarding
 } from './onboarding/onboardingRouteSupport'
 import { dispatchProviderRoute } from './providers/providerRouteHandler'
-import { createNodeScheduler } from './scheduler'
+import { createNodeOperationRunner } from './operationRunner'
 import { ProviderImportService } from './providers/providerImportService'
 import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
@@ -752,7 +752,7 @@ export function createMainKernelRouteRuntime(deps: {
   memoryPresenter: MemoryPresenter
   cronJobs: CronJobsService
 }): MainKernelRouteRuntime {
-  const scheduler = createNodeScheduler()
+  const scheduler = createNodeOperationRunner()
   const hotPathPorts = createPresenterHotPathPorts({
     agentSessionPresenter: deps.agentSessionPresenter as IAgentSessionPresenter & {
       clearSessionPermissions: (sessionId: string) => void | Promise<void>

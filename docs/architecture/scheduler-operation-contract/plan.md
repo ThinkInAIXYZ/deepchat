@@ -120,7 +120,10 @@ signal owner consumer，所以本片不实现 `runCancellable()`。
    - `maxConcurrentAttempts` 永远为 1；
    - classifier 不按 error message substring。
 4. 实现 abortable `sleep()`，并按全局规则验证所有数值。
-5. 暂留 deprecated legacy `timeout(task: Promise)` adapter，供 consumer 分片迁移；新代码禁止使用。
+5. 暂留 deprecated legacy `timeout(task: Promise)` 与 `retry(task)` adapter，供 consumer 分片迁移；
+   `SES-002` 合入后 `restore/getActive` 仍各有一处旧 retry，必须等 `SCH-002B` 与 observation 一起迁移，
+   本片不能偷渡 consumer 行为变化。architecture guard 以文件、所属方法、API 和调用数精确冻结全部旧调用，
+   新代码禁止使用。
 6. 不导出、不测试 `runCancellable()`。future owner-specific slice 必须同时提交真实 signal propagation 与
    settlement proof，不能先放一个 unused port method。
 
@@ -158,7 +161,7 @@ pnpm run lint:architecture
 pnpm run lint
 ```
 
-本片可单独 revert；legacy adapter 仍保留旧 production 行为。
+本片可单独 revert；legacy adapters 仍保留旧 production 行为。
 
 ## Slice SCH-002B：安全 consumer 迁移
 

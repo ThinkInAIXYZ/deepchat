@@ -6,7 +6,7 @@ import type {
   SessionPermissionPort,
   SessionRepository
 } from '../hotPathPorts'
-import type { Scheduler } from '../scheduler'
+import type { OperationRunner } from '../operationRunner'
 import { requireAvailableSession } from '@/presenter/agentSessionPresenter/sessionResolution'
 
 const CHAT_LOOKUP_TIMEOUT_MS = 5_000
@@ -24,7 +24,7 @@ export class ChatService {
       providerExecutionPort: ProviderExecutionPort
       providerCatalogPort: ProviderCatalogPort
       sessionPermissionPort: SessionPermissionPort
-      scheduler: Scheduler
+      scheduler: OperationRunner
     }
   ) {}
 

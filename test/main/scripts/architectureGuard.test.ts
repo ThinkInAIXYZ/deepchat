@@ -29,6 +29,14 @@ const AGENT_EDGE_FIXTURE_PATH = path.join(
   ROOT,
   'src/shared/__architecture_guard_agent_edge_fixture__.ts'
 )
+const OPERATION_RUNNER_FIXTURE_PATH = path.join(
+  ROOT,
+  'src/main/routes/__architecture_guard_operation_runner_fixture__.ts'
+)
+const MAIN_OPERATION_RUNNER_FIXTURE_PATH = path.join(
+  ROOT,
+  'src/main/__architecture_guard_operation_runner_fixture__.ts'
+)
 const TRACKED_GROWTH_BASELINE_PATH = path.join(
   ROOT,
   'docs/architecture/baselines/architecture-growth.json'
@@ -39,7 +47,9 @@ const FIXTURE_PATHS = [
   MEMORY_INFRA_FIXTURE_PATH,
   MEMORY_SERVICE_FIXTURE_PATH,
   MEMORY_ROOT_FIXTURE_PATH,
-  AGENT_EDGE_FIXTURE_PATH
+  AGENT_EDGE_FIXTURE_PATH,
+  OPERATION_RUNNER_FIXTURE_PATH,
+  MAIN_OPERATION_RUNNER_FIXTURE_PATH
 ]
 const TEMP_DIRS: string[] = []
 const MAIN_COMPOSITION_METRICS = [
@@ -112,6 +122,97 @@ describe.sequential('architecture guard', () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('Architecture guard passed.')
+  })
+
+  it('fails when a renamed route field makes a direct legacy operation runner call', async () => {
+    await writeFixture(
+      OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import type { OperationRunner as Runner } from './operationRunner'
+
+        export class Fixture {
+          constructor(private readonly runner: Runner) {}
+
+          async load() {
+            return await this.runner.timeout({ task: Promise.resolve(), ms: 1, reason: 'new' })
+          }
+        }
+      `
+    )
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[operation-runner-legacy-call]')
+    expect(result.stderr).toContain('__architecture_guard_operation_runner_fixture__.ts#load#timeout')
+  })
+
+  it('fails when an aliased operation runner makes a legacy call', async () => {
+    await writeFixture(
+      OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import type { OperationRunner } from './operationRunner'
+
+        export class Fixture {
+          constructor(private readonly runner: OperationRunner) {}
+
+          async load() {
+            const aliasedRunner = this.runner
+            const retry = aliasedRunner.retry
+            return await retry({
+              task: () => Promise.resolve(),
+              maxAttempts: 1,
+              initialDelayMs: 0,
+              backoff: 1,
+              reason: 'new'
+            })
+          }
+        }
+      `
+    )
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[operation-runner-legacy-call]')
+    expect(result.stderr).toContain('__architecture_guard_operation_runner_fixture__.ts#load#retry')
+  })
+
+  it('fails for a destructured legacy operation runner call outside routes', async () => {
+    await writeFixture(
+      MAIN_OPERATION_RUNNER_FIXTURE_PATH,
+      `
+        import type { OperationRunner } from './routes/operationRunner'
+
+        export class Fixture {
+          constructor(private readonly runner: OperationRunner) {}
+
+          async load() {
+            const { timeout: wait } = this.runner
+            return await wait({ task: Promise.resolve(), ms: 1, reason: 'new' })
+          }
+        }
+      `
+    )
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[operation-runner-legacy-call]')
+    expect(result.stderr).toContain('src/main/__architecture_guard_operation_runner_fixture__.ts#load#timeout')
+  })
+
+  it('fails when a route prebuilds the unused cancellable operation abstraction', async () => {
+    await writeFixture(
+      OPERATION_RUNNER_FIXTURE_PATH,
+      `export const runCancellable = () => Promise.resolve()`
+    )
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[operation-runner-unused-cancellable]')
+    expect(result.stderr).toContain('__architecture_guard_operation_runner_fixture__.ts')
   })
 
   it('allows metrics to fall below a stale baseline', async () => {
