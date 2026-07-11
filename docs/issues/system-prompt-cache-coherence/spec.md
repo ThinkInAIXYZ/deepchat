@@ -743,12 +743,17 @@ git diff --check
 
 2026-07-11 automated evidence：
 
-- source snapshot、runtime orchestration、SkillPresenter、SkillTools 和 AgentToolManager focused suite：
-  `428 passed / 2 skipped`；其中 raw persisted-pin regression 覆盖 imported legacy empty pin、typed
-  read failure、process/manual compaction/resume 三条 production entry 和 failed-pair cache exclusion；
+- source snapshot、runtime orchestration、SkillPresenter、SkillTools 和 AgentToolManager non-native
+  focused suite：`348 passed`；普通 Node ABI 另有 5 个 native SQLite cases skipped；
+- Electron 40 ABI 下 raw persisted-pin target 为 `5 passed`，`test:main:native-sqlite` 等价的四文件
+  suite 为 `120 passed`；覆盖 normalized rows 优先、legacy JSON、fresh/missing/empty、non-array、
+  corrupt JSON，以及 process/manual compaction/resume 三条 production entry 和 failed-pair cache
+  exclusion。`DEEPCHAT_REQUIRE_NATIVE_SQLITE=1` 在 native harness 不可用时会显式失败，不会 skip；
 - `pnpm run typecheck`、`pnpm run format`、`pnpm run i18n`、`pnpm run lint`、
   `git diff --check`：通过；
-- full suite：`4629 passed / 5 failed / 136 skipped`。5 个失败与合入前 baseline 相同：
+- full suite：`4629 passed / 5 failed / 139 skipped`。相对原 135 skips 的净增 4 来自同一
+  `newSessionsTable` native fixture 从 1 例扩为 5 例；新增 5 例已全部由上述 Electron ABI suite
+  实际执行。5 个失败与合入前 baseline 相同：
   `SpotlightOverlay.test.ts` 3 个、`agentSessionPresenter/integration.test.ts` 1 个、
   `createMockChatSession.test.ts` 1 个。
 
