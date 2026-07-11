@@ -294,10 +294,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     useAgentStore: () => agentStore
   }))
   const clearStreamingState = vi.fn()
+  const clearMessages = vi.fn()
   const setCurrentSessionId = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => ({
       clearStreamingState,
+      clear: clearMessages,
       loadMessages: vi.fn(),
       setCurrentSessionId
     })
@@ -334,6 +336,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     settings,
     configClient,
     clearStreamingState,
+    clearMessages,
     setCurrentSessionId,
     sessionClient,
     chatClient,
@@ -345,6 +348,134 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     emitSessionStatusChange
   }
 }
+
+describe('sessionStore public availability', () => {
+  it('keeps availability separate from generation status for all non-missing states', async () => {
+    const { store, clearMessages, pageRouter } = await setupStore()
+    store.sessions.value = [createSession()]
+    store.activeSessionId.value = 'session-1'
+
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-1',
+      session: createSession({ status: 'idle' }),
+      resolution: {
+        availability: 'available',
+        session: createSession({ status: 'idle' })
+      }
+    })
+    expect(store.activeSessionAvailability.value?.availability).toBe('available')
+    expect(store.activeSession.value?.status).toBe('none')
+
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-1',
+      session: null,
+      resolution: {
+        availability: 'unavailable',
+        sessionId: 'session-1',
+        record: createSession(),
+        reason: 'agent_unknown'
+      }
+    })
+    expect(store.activeSessionAvailability.value?.availability).toBe('unavailable')
+    expect(store.activeSessionId.value).toBe('session-1')
+
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-1',
+      session: null,
+      resolution: {
+        availability: 'transient_error',
+        sessionId: 'session-1',
+        record: null,
+        error: {
+          code: 'SESSION_RESOLUTION_FAILED',
+          stage: 'state_read',
+          retryable: true
+        }
+      }
+    })
+    expect(store.activeSessionAvailability.value?.availability).toBe('transient_error')
+    expect(store.activeSessionId.value).toBe('session-1')
+    expect(clearMessages).not.toHaveBeenCalled()
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('treats route rejection and a legacy null payload as local transient state', async () => {
+    const { store, clearMessages, pageRouter } = await setupStore()
+    store.sessions.value = [createSession()]
+    store.activeSessionId.value = 'session-1'
+
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-1',
+      session: null,
+      rendererTransient: true
+    })
+    expect(store.activeSessionAvailability.value).toEqual({
+      availability: 'transient_error',
+      sessionId: 'session-1',
+      source: 'renderer'
+    })
+
+    store.applySessionRestoreOutcome({ sessionId: 'session-1', session: null })
+    expect(store.activeSessionAvailability.value?.source).toBe('legacy')
+    expect(store.activeSessionId.value).toBe('session-1')
+    expect(clearMessages).not.toHaveBeenCalled()
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('clears local active state and navigates only for authoritative missing', async () => {
+    const { store, clearMessages, pageRouter } = await setupStore()
+    store.sessions.value = [createSession()]
+    store.activeSessionId.value = 'session-1'
+
+    store.applySessionRestoreOutcome({
+      sessionId: 'session-1',
+      session: null,
+      resolution: { availability: 'missing', sessionId: 'session-1' }
+    })
+
+    expect(store.activeSessionId.value).toBeNull()
+    expect(store.availabilityBySessionId.value['session-1']).toMatchObject({
+      availability: 'missing',
+      source: 'main'
+    })
+    expect(store.missingSessionNoticeSequence.value).toBe(1)
+    expect(clearMessages).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps selected identity and cached state when getActive rejects without a resolution', async () => {
+    const { store, sessionClient, pageRouter, clearMessages } = await setupStore()
+    store.sessions.value = [createSession()]
+    sessionClient.getActive.mockRejectedValueOnce(new Error('transport failed'))
+
+    await store.selectSession('session-1')
+
+    expect(store.activeSessionId.value).toBe('session-1')
+    expect(store.activeSessionAvailability.value).toEqual({
+      availability: 'transient_error',
+      sessionId: 'session-1',
+      source: 'renderer'
+    })
+    expect(clearMessages).not.toHaveBeenCalled()
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('converges a selected bound missing response without navigating back to chat', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    store.sessions.value = [createSession()]
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: null,
+      resolution: { availability: 'missing', sessionId: 'session-1' }
+    })
+
+    await store.selectSession('session-1')
+
+    expect(store.activeSessionId.value).toBeNull()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+  })
+})
 
 describe('sessionStore.getFilteredGroups', () => {
   it('hides draft sessions from grouped sidebar lists', async () => {

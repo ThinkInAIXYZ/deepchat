@@ -485,5 +485,14 @@
       "amendRetryable": "Chỉnh sửa thất bại. Ký ức ban đầu đã được khôi phục, hãy thử lại.",
       "amendRestoreFailed": "Chỉnh sửa thất bại và không thể khôi phục ký ức ban đầu."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent không khả dụng",
+    "unavailableDescription": "Cuộc trò chuyện này vẫn được lưu, nhưng không thể xác định Agent của nó.",
+    "transientTitle": "Sự cố tạm thời",
+    "transientDescription": "Không thể làm mới phiên. Các tin nhắn đã lưu trong bộ nhớ đệm không bị thay đổi.",
+    "missingTitle": "Phiên không còn tồn tại",
+    "missingDescription": "Phiên đã bị xóa và một cuộc trò chuyện mới đã được mở.",
+    "retry": "Thử lại"
   }
 }

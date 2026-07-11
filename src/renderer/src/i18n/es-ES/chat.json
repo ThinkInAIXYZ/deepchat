@@ -485,5 +485,14 @@
       "amendRetryable": "No se pudo guardar el cambio. Se restauró la memoria original; inténtalo de nuevo.",
       "amendRestoreFailed": "No se pudo guardar el cambio y tampoco se pudo restaurar la memoria original."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent no disponible",
+    "unavailableDescription": "Esta conversación sigue guardada, pero no se puede resolver su Agent.",
+    "transientTitle": "Problema temporal",
+    "transientDescription": "No se pudo actualizar la sesión. Los mensajes en caché no se han modificado.",
+    "missingTitle": "La sesión ya no existe",
+    "missingDescription": "La sesión se eliminó y se abrió una conversación nueva.",
+    "retry": "Reintentar"
   }
 }

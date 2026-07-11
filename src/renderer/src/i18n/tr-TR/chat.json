@@ -485,5 +485,14 @@
       "amendRetryable": "Düzenleme başarısız oldu. Özgün bellek geri yüklendi; tekrar deneyin.",
       "amendRestoreFailed": "Düzenleme başarısız oldu ve özgün bellek geri yüklenemedi."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent kullanılamıyor",
+    "unavailableDescription": "Bu konuşma hâlâ kayıtlı, ancak kullandığı Agent çözümlenemiyor.",
+    "transientTitle": "Geçici sorun",
+    "transientDescription": "Oturum yenilenemedi. Önbellekteki mesajlar değiştirilmedi.",
+    "missingTitle": "Oturum artık mevcut değil",
+    "missingDescription": "Oturum kaldırıldı ve yeni bir konuşma açıldı.",
+    "retry": "Yeniden dene"
   }
 }

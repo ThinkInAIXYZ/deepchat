@@ -2901,8 +2901,8 @@ export async function dispatchDeepchatRoute(
 
     case sessionsListRoute.name: {
       const input = sessionsListRoute.input.parse(rawInput)
-      const sessions = await runtime.sessionService.listSessions(input)
-      return sessionsListRoute.output.parse({ sessions })
+      const result = await runtime.sessionService.listSessions(input)
+      return sessionsListRoute.output.parse(result)
     }
 
     case sessionsListLightweightRoute.name: {
@@ -2935,8 +2935,8 @@ export async function dispatchDeepchatRoute(
 
     case sessionsGetActiveRoute.name: {
       sessionsGetActiveRoute.input.parse(rawInput)
-      const session = await runtime.sessionService.getActiveSession(context)
-      return sessionsGetActiveRoute.output.parse({ session })
+      const result = await runtime.sessionService.getActiveSession(context)
+      return sessionsGetActiveRoute.output.parse(result)
     }
 
     case sessionsEnsureAcpDraftRoute.name: {

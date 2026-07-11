@@ -72,6 +72,11 @@ const setup = async (options: SetupOptions = {}) => {
       ...options.activeSessionPatch
     },
     activeSessionId: 's1',
+    activeSessionAvailability: null as null | {
+      availability: 'available' | 'unavailable' | 'transient_error' | 'missing'
+      sessionId: string
+      source: 'main' | 'legacy' | 'renderer'
+    },
     sessions: options.sessions ?? [
       {
         id: 's1',
@@ -84,7 +89,8 @@ const setup = async (options: SetupOptions = {}) => {
     ],
     sendMessage: vi.fn().mockResolvedValue(undefined),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
-    selectSession: vi.fn().mockResolvedValue(undefined)
+    selectSession: vi.fn().mockResolvedValue(undefined),
+    applySessionRestoreOutcome: vi.fn()
   })
 
   const messageStore = reactive({
@@ -101,6 +107,7 @@ const setup = async (options: SetupOptions = {}) => {
     isStreaming: options.isStreaming ?? false,
     streamingBlocks: options.streamingBlocks ?? [],
     currentStreamMessageId: options.currentStreamMessageId ?? null,
+    messageCacheSessionId: 's1',
     streamRevision: 0,
     lastPersistedRevision: 0,
     hasMoreHistory: false,
@@ -283,6 +290,15 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
+  }))
+  vi.doMock('@shadcn/components/ui/button', () => ({
+    Button: clickStub('Button')
+  }))
+  vi.doMock('@iconify/vue', () => ({
+    Icon: defineComponent({
+      name: 'Icon',
+      template: '<span aria-hidden="true" />'
+    })
   }))
   vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
     AlertDialog: defineComponent({
@@ -633,6 +649,48 @@ async function expectSessionRestoreSettleStopsAfter(
 }
 
 describe('ChatPage', () => {
+  it.each([
+    ['unavailable', 'chat.sessionAvailability.unavailableTitle'],
+    ['transient_error', 'chat.sessionAvailability.transientTitle']
+  ] as const)(
+    'renders an accessible %s panel and disables mutation controls',
+    async (availability, titleKey) => {
+      const { wrapper, sessionStore } = await setup()
+      sessionStore.activeSessionAvailability = {
+        availability,
+        sessionId: 's1',
+        source: availability === 'transient_error' ? 'renderer' : 'main'
+      }
+      await flushPromises()
+
+      const panel = wrapper.get('[data-testid="session-availability-panel"]')
+      expect(panel.attributes('role')).toBe('status')
+      expect(panel.attributes('aria-live')).toBe('polite')
+      expect(panel.text()).toContain(titleKey)
+      expect(wrapper.getComponent({ name: 'ChatInputBox' }).props('submitDisabled')).toBe(true)
+      expect(wrapper.getComponent({ name: 'ChatInputToolbar' }).props('sendDisabled')).toBe(true)
+    }
+  )
+
+  it('retries restore for the same session from the availability panel', async () => {
+    const { wrapper, sessionStore, messageStore } = await setup()
+    sessionStore.activeSessionAvailability = {
+      availability: 'transient_error',
+      sessionId: 's1',
+      source: 'renderer'
+    }
+    messageStore.loadMessages.mockClear()
+    await flushPromises()
+
+    const retry = wrapper.get('[data-testid="session-availability-retry"]')
+    expect(retry.element.tagName).toBe('BUTTON')
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
+    expect(sessionStore.selectSession).not.toHaveBeenCalled()
+  })
+
   it('bounds mounted message rows for long loaded histories', async () => {
     const messages = Array.from({ length: 300 }, (_, index) => ({
       ...buildAssistantMessage([
@@ -864,7 +922,7 @@ describe('ChatPage', () => {
       deferStartupTasks: true
     })
 
-    expect(messageStore.clear).toHaveBeenCalledTimes(1)
+    expect(messageStore.clear).not.toHaveBeenCalled()
     expect(pendingInputStore.clear).toHaveBeenCalledTimes(1)
     expect(messageStore.loadMessages).not.toHaveBeenCalled()
     expect(pendingInputStore.loadPendingInputs).not.toHaveBeenCalled()

@@ -611,6 +611,60 @@ AFTER: unavailable
 All visible strings use existing vue-i18n structure. The first renderer increment does not add an Agent repair,
 reinstall, migration or auto-move wizard.
 
+### `SES-003` implemented ownership and state flow
+
+实现保持现有 owner，没有为了这四个状态再建一个全局 store：
+
+```text
+main SessionService
+  ├─ owns bounded read retry
+  ├─ maps internal cause-bearing result -> sanitized public result
+  └─ keeps legacy session/sessions fields
+          |
+          v
+typed route schema -> SessionClient -> messageStore
+                                      ├─ owns message window/cache replacement
+                                      └─ keeps the old cache when invoke rejects
+                                                |
+                                                v
+                                         sessionStore
+                                         ├─ owns availabilityBySessionId
+                                         ├─ keeps UISessionStatus separate
+                                         └─ owns missing navigation convergence
+                                                |
+                                                v
+                                           ChatPage
+                                           ├─ renders one active-state panel
+                                           ├─ disables mutation controls
+                                           └─ Retry restores the same sessionId
+
+floating renderer
+  └─ stays on the named available-only legacy list adapter; no new UI or IPC path
+```
+
+实际状态转移如下；虚线表示兼容或 transport 路径，不伪造 main classification：
+
+```text
+available ------------------------------> normal chat + send enabled
+    ^                                              |
+    | Retry succeeds                               | later refresh
+    |                                              v
+unavailable <---------------------------- authoritative agent_unknown
+    | keep active id/sidebar/cache; Retry same id; send disabled
+    |
+transient_error <------------------------ exhausted classified read
+    ^
+    | route rejection / legacy null ..... renderer-local transient
+    | keep active id/sidebar/cache; no stage is invented
+    |
+missing <-------------------------------- authoritative record miss
+    └─ clear local active/message ownership -> New Thread -> localized notice
+```
+
+Renderer 性能边界也保持不变：sidebar 仍只调用 `listLightweight`，不会逐行做 runtime hydration；
+新增响应式状态只是一份按 session id 索引的小记录和一个 active computed，ChatPage 只在异常状态挂载一个
+panel，没有给 message row 或 sidebar row 增加 watcher/component。
+
 ## Error visibility and privacy
 
 ### Main diagnostics
@@ -914,12 +968,24 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 
 ### Renderer contract (`SES-003`)
 
-- [ ] Add failing schema/compatibility/store tests.
-- [ ] Add sanitized additive route fields.
-- [ ] Implement renderer availability state and minimal UI.
-- [ ] Preserve cached data/binding on public or renderer-local transient error.
-- [ ] Add i18n, normal packaged smoke and optional non-release fixture-artifact coverage.
-- [ ] Run repository validation and compare full-suite failures with branch baseline.
+- [x] Add schema/compatibility/store tests.
+- [x] Add sanitized additive route fields.
+- [x] Implement renderer availability state and minimal UI.
+- [x] Preserve cached data/binding on public or renderer-local transient error.
+- [x] Add i18n keys for every maintained locale.
+- [ ] Run the normal release-equivalent packaged smoke; the optional non-release fault fixture artifact was not
+      implemented in this slice.
+- [x] Run repository validation and compare full-suite failures with branch baseline.
+
+`SES-003` implementation validation on 2026-07-11:
+
+- focused main/renderer/API/schema suite: `244 passed`;
+- full repository suite: `4630 passed`, `5` known baseline failures, `135 skipped`;
+- the five failures remain the three `SpotlightOverlay` Pinia-fixture failures, the existing converted-steer
+  context assertion, and the debug mock missing-plan assertion;
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck` and `git diff --check` passed;
+- packaged unknown/transient injection remains unverified because this slice intentionally did not add a
+  production fault flag or a separate fixture artifact.
 
 ## Validation for this decision PR
 

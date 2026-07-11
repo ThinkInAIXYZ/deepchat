@@ -4001,10 +4001,16 @@ describe('dispatchDeepchatRoute', () => {
     expect(agentSessionPresenter.resolveActiveSession).toHaveBeenCalledWith(88)
     expect(activateResult).toEqual({ activated: true })
     expect(deactivateResult).toEqual({ deactivated: true })
-    expect(activeResult).toEqual({
+    expect(activeResult).toMatchObject({
       session: expect.objectContaining({
         id: 'session-1'
-      })
+      }),
+      resolution: {
+        availability: 'available',
+        session: expect.objectContaining({
+          id: 'session-1'
+        })
+      }
     })
   })
 

@@ -41,7 +41,8 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { createStartupClient } from '@api/StartupClient'
 import ChatSidePanel from '@/components/sidepanel/ChatSidePanel.vue'
 import NewThreadPage from '@/pages/NewThreadPage.vue'
@@ -55,6 +56,7 @@ import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 import { markStartupInteractive, scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { useToast } from '@/components/use-toast'
 
 const pageRouter = usePageRouterStore()
 const sessionStore = useSessionStore()
@@ -62,6 +64,8 @@ const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
+const { t } = useI18n()
+const { toast } = useToast()
 let startupWorkloadStore: ReturnType<typeof useStartupWorkloadStore> | null = null
 
 try {
@@ -71,6 +75,20 @@ try {
 }
 const isReady = ref(false)
 let cancelDeferredHydration: (() => void) | null = null
+
+watch(
+  () => sessionStore.missingSessionNoticeSequence,
+  (sequence, previousSequence) => {
+    if (sequence <= previousSequence) {
+      return
+    }
+    toast({
+      title: t('chat.sessionAvailability.missingTitle'),
+      description: t('chat.sessionAvailability.missingDescription'),
+      variant: 'destructive'
+    })
+  }
+)
 
 const initializeRouteFromFallbackState = async () => {
   if (sessionStore.error) {

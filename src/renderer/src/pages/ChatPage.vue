@@ -77,12 +77,55 @@
 
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div
-        v-if="!isReadOnlySession"
+        v-if="!isReadOnlySession || sessionAvailabilityIssue"
         class="chat-capture-hide sticky bottom-0 w-full px-6 pb-3 pt-3"
         style="z-index: var(--dc-z-sticky)"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
-          <div class="relative w-full">
+          <div
+            v-if="sessionAvailabilityIssue"
+            data-testid="session-availability-panel"
+            role="status"
+            aria-live="polite"
+            class="mb-2 flex w-full max-w-4xl items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-sm"
+          >
+            <Icon
+              :icon="
+                sessionAvailabilityIssue.availability === 'unavailable'
+                  ? 'lucide:bot-off'
+                  : 'lucide:circle-alert'
+              "
+              class="size-5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium">
+                {{
+                  sessionAvailabilityIssue.availability === 'unavailable'
+                    ? t('chat.sessionAvailability.unavailableTitle')
+                    : t('chat.sessionAvailability.transientTitle')
+                }}
+              </p>
+              <p class="text-xs text-muted-foreground">
+                {{
+                  sessionAvailabilityIssue.availability === 'unavailable'
+                    ? t('chat.sessionAvailability.unavailableDescription')
+                    : t('chat.sessionAvailability.transientDescription')
+                }}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="session-availability-retry"
+              @click="retrySessionRestore"
+            >
+              <Icon icon="lucide:refresh-cw" class="mr-1.5 size-4" aria-hidden="true" />
+              {{ t('chat.sessionAvailability.retry') }}
+            </Button>
+          </div>
+          <div v-if="!isReadOnlySession" class="relative w-full">
             <PendingInputLane
               :steer-items="pendingInputStore.steerItems"
               :queue-items="pendingInputStore.queueItems"
@@ -225,6 +268,8 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
+import { Button } from '@shadcn/components/ui/button'
+import { Icon } from '@iconify/vue'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -315,6 +360,17 @@ const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming
 )
+const sessionAvailabilityIssue = computed(() => {
+  const availability = sessionStore.activeSessionAvailability
+  if (!availability || availability.sessionId !== props.sessionId) {
+    return null
+  }
+  return availability.availability === 'unavailable' ||
+    availability.availability === 'transient_error'
+    ? availability
+    : null
+})
+const isSessionRuntimeAvailable = computed(() => sessionAvailabilityIssue.value === null)
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const INITIAL_MESSAGE_RESTORE_COUNT = 40
 const MESSAGE_WINDOWING_THRESHOLD = 160
@@ -344,14 +400,18 @@ const applyRestoredSessionSummary = (session: unknown) => {
 }
 
 async function loadMessagesForSession(sessionId: string, count?: number) {
-  const restoredSession = await messageStore.loadMessages(sessionId, count)
-  return restoredSession
+  const outcome = await messageStore.loadMessages(sessionId, count)
+  if (!outcome) {
+    return null
+  }
+  sessionStore.applySessionRestoreOutcome(outcome)
+  return outcome.session
 }
 
 async function restoreSessionMessages(id: string, requestId: number) {
   console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
-  const [restoredSession] = await Promise.all([
-    loadMessagesForSession(id, INITIAL_MESSAGE_RESTORE_COUNT),
+  const [outcome] = await Promise.all([
+    messageStore.loadMessages(id, INITIAL_MESSAGE_RESTORE_COUNT),
     pendingInputStore.loadPendingInputs(id)
   ])
 
@@ -359,7 +419,10 @@ async function restoreSessionMessages(id: string, requestId: number) {
     return
   }
 
-  applyRestoredSessionSummary(restoredSession)
+  if (outcome) {
+    sessionStore.applySessionRestoreOutcome(outcome)
+    applyRestoredSessionSummary(outcome.session)
+  }
 
   await nextTick()
   if (spotlightStore.pendingMessageJump?.sessionId === id) {
@@ -368,6 +431,12 @@ async function restoreSessionMessages(id: string, requestId: number) {
     return
   }
   settleSessionRestoreScrollToBottom(requestId, id)
+}
+
+async function retrySessionRestore() {
+  const sessionId = props.sessionId
+  const requestId = ++sessionRestoreRequestId
+  await restoreSessionMessages(sessionId, requestId)
 }
 
 // --- Auto-scroll ---
@@ -1150,7 +1219,9 @@ watch(
     cancelSessionRestoreTask = null
     cancelSessionRestoreScrollSettle()
     clearMessageWindowMeasurements()
-    messageStore.clear()
+    if (messageStore.messageCacheSessionId !== id) {
+      messageStore.clear()
+    }
     pendingInputStore.clear()
     if (id) {
       const requestId = sessionRestoreRequestId
@@ -2263,6 +2334,7 @@ const hasAttachments = computed(() => attachedFiles.value.length > 0)
 const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
 const isQueueSubmitDisabled = computed(
   () =>
+    !isSessionRuntimeAvailable.value ||
     isAcpWorkdirMissing.value ||
     !hasDraftInput.value ||
     Boolean(activePendingInteraction.value) ||
@@ -2271,6 +2343,7 @@ const isQueueSubmitDisabled = computed(
 )
 const isInputSubmitDisabled = computed(
   () =>
+    !isSessionRuntimeAvailable.value ||
     isAcpWorkdirMissing.value ||
     Boolean(activePendingInteraction.value) ||
     isHandlingInteraction.value ||
@@ -2279,6 +2352,7 @@ const isInputSubmitDisabled = computed(
 )
 const disableQueueSteerAction = computed(
   () =>
+    !isSessionRuntimeAvailable.value ||
     !isGenerating.value ||
     isAcpWorkdirMissing.value ||
     Boolean(activePendingInteraction.value) ||
@@ -2385,6 +2459,7 @@ async function sendMessageWithOutgoingTurnFeedback(
 
 async function onSubmit() {
   if (isReadOnlySession.value) return
+  if (!isSessionRuntimeAvailable.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
@@ -2416,6 +2491,7 @@ async function onSubmit() {
 
 async function onCommandSubmit(command: string) {
   if (isReadOnlySession.value) return
+  if (!isSessionRuntimeAvailable.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = command.trim()
@@ -2475,6 +2551,7 @@ async function handleManualCompactionCommand(text: string): Promise<boolean> {
 
 async function onQueueSubmit() {
   if (isReadOnlySession.value) return
+  if (!isSessionRuntimeAvailable.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
@@ -2491,6 +2568,7 @@ async function onQueueSubmit() {
 
 async function onSteer() {
   if (isReadOnlySession.value) return
+  if (!isSessionRuntimeAvailable.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()

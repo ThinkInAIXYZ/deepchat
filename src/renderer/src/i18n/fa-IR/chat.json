@@ -485,5 +485,14 @@
       "amendRetryable": "ویرایش ناموفق بود. حافظه اصلی بازیابی شد؛ دوباره تلاش کنید.",
       "amendRestoreFailed": "ویرایش ناموفق بود و حافظه اصلی هم بازیابی نشد."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent در دسترس نیست",
+    "unavailableDescription": "این گفتگو همچنان ذخیره شده است، اما Agent آن قابل شناسایی نیست.",
+    "transientTitle": "مشکل موقت",
+    "transientDescription": "این نشست به‌روزرسانی نشد. پیام‌های ذخیره‌شده در حافظه پنهان بدون تغییر باقی مانده‌اند.",
+    "missingTitle": "نشست دیگر وجود ندارد",
+    "missingDescription": "نشست حذف شد و یک گفتگوی جدید باز شده است.",
+    "retry": "تلاش دوباره"
   }
 }

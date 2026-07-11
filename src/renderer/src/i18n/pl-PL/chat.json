@@ -485,5 +485,14 @@
       "amendRetryable": "Edycja się nie powiodła. Oryginalna pamięć została przywrócona, spróbuj ponownie.",
       "amendRestoreFailed": "Edycja się nie powiodła i nie udało się przywrócić oryginalnej pamięci."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent jest niedostępny",
+    "unavailableDescription": "Ta rozmowa jest nadal zapisana, ale nie można rozpoznać jej Agenta.",
+    "transientTitle": "Tymczasowy problem",
+    "transientDescription": "Nie udało się odświeżyć sesji. Wiadomości w pamięci podręcznej pozostały bez zmian.",
+    "missingTitle": "Sesja już nie istnieje",
+    "missingDescription": "Sesja została usunięta i otwarto nową rozmowę.",
+    "retry": "Spróbuj ponownie"
   }
 }

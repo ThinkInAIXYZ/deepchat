@@ -37,6 +37,7 @@ const setup = async (options: SetupOptions = {}) => {
     error: options.sessionError ?? null,
     newConversationTargetAgentId: options.newConversationTargetAgentId ?? 'deepchat',
     hasLoadedInitialPage: false,
+    missingSessionNoticeSequence: 0,
     applyBootstrapShell: vi.fn().mockResolvedValue(undefined),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
@@ -60,6 +61,7 @@ const setup = async (options: SetupOptions = {}) => {
   const ollamaStore = {
     initialize: vi.fn().mockResolvedValue(undefined)
   }
+  const toast = vi.fn()
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouter
@@ -125,6 +127,9 @@ const setup = async (options: SetupOptions = {}) => {
       t: (key: string) => key
     })
   }))
+  vi.doMock('@/components/use-toast', () => ({
+    useToast: () => ({ toast })
+  }))
   vi.doMock('@iconify/vue', () => ({
     Icon: defineComponent({
       name: 'Icon',
@@ -187,6 +192,7 @@ const setup = async (options: SetupOptions = {}) => {
     ollamaStore,
     projectStore,
     sessionStore,
+    toast,
     markStartupInteractive
   }
 }
@@ -306,5 +312,22 @@ describe('ChatTabView startup and routing', () => {
 
     expect(wrapper.find('[data-testid="chat-page"]').text()).toContain('session-42')
     expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
+  })
+
+  it('shows a localized notification when missing convergence opens a new thread', async () => {
+    const { sessionStore, toast } = await setup({
+      currentRoute: 'chat',
+      chatSessionId: 'session-42',
+      selectedAgentId: 'deepchat'
+    })
+
+    sessionStore.missingSessionNoticeSequence += 1
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.sessionAvailability.missingTitle',
+      description: 'chat.sessionAvailability.missingDescription',
+      variant: 'destructive'
+    })
   })
 })

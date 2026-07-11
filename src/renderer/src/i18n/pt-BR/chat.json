@@ -485,5 +485,14 @@
       "amendRetryable": "A edição falhou. A memória original foi restaurada; tente novamente.",
       "amendRestoreFailed": "A edição falhou e a memória original não pôde ser restaurada."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent indisponível",
+    "unavailableDescription": "Esta conversa continua salva, mas não foi possível identificar seu Agent.",
+    "transientTitle": "Problema temporário",
+    "transientDescription": "Não foi possível atualizar a sessão. As mensagens em cache não foram alteradas.",
+    "missingTitle": "A sessão não existe mais",
+    "missingDescription": "A sessão foi removida e uma nova conversa foi aberta.",
+    "retry": "Tentar novamente"
   }
 }

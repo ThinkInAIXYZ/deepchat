@@ -16,6 +16,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { useStreamStateStore } from './stream'
 import { bindMessageStoreIpc } from './messageIpc'
+import type { PublicSessionResolution } from '@shared/contracts/routes'
 
 const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
 const PARSED_MESSAGE_CACHE_MAX_SIZE = 1024
@@ -35,6 +36,13 @@ type ParsedMessageCacheEntry = {
   parsedMetadata?: MessageMetadata
 }
 
+export type MessageRestoreOutcome = {
+  sessionId: string
+  session: SessionWithState | null
+  resolution?: PublicSessionResolution
+  rendererTransient?: true
+}
+
 // --- Store ---
 
 export const useMessageStore = defineStore('message', () => {
@@ -50,6 +58,7 @@ export const useMessageStore = defineStore('message', () => {
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
   const lastPersistedRevision = ref(0)
   const currentSessionId = ref<string | null>(null)
+  const messageCacheSessionId = ref<string | null>(null)
   const nextCursor = ref<MessagePageCursor | null>(null)
   const hasMoreHistory = ref(false)
   const isLoadingHistory = ref(false)
@@ -132,6 +141,9 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   function upsertMessageRecord(record: ChatMessageRecord): void {
+    if (messageIds.value.length === 0) {
+      messageCacheSessionId.value = record.sessionId
+    }
     const cachedRecord = messageCache.value.get(record.id)
     const hasMessageId = cachedRecord !== undefined
 
@@ -482,6 +494,7 @@ export const useMessageStore = defineStore('message', () => {
 
     return {
       session: restored.session,
+      resolution: restored.resolution,
       messages,
       nextCursor: nextCursorValue,
       hasMore: hasMoreValue
@@ -491,7 +504,7 @@ export const useMessageStore = defineStore('message', () => {
   async function loadMessages(
     sessionId: string,
     desiredCountOverride?: number
-  ): Promise<SessionWithState | null> {
+  ): Promise<MessageRestoreOutcome | null> {
     const desiredCount =
       desiredCountOverride ??
       (currentSessionId.value === sessionId ? Math.max(messageIds.value.length, 100) : 100)
@@ -509,6 +522,17 @@ export const useMessageStore = defineStore('message', () => {
         return null
       }
 
+      if (
+        (restored.resolution && restored.resolution.availability !== 'available') ||
+        (!restored.resolution && !restored.session)
+      ) {
+        return {
+          sessionId,
+          session: restored.session,
+          resolution: restored.resolution
+        }
+      }
+
       const nextMessageCache = new Map<string, ChatMessageRecord>()
       const nextMessageIds: string[] = []
       for (const msg of result) {
@@ -520,13 +544,25 @@ export const useMessageStore = defineStore('message', () => {
       hydratingStreamMessageIds.clear()
       messageCache.value = nextMessageCache
       messageIds.value = nextMessageIds
+      messageCacheSessionId.value = sessionId
       nextCursor.value = restored.nextCursor
       hasMoreHistory.value = restored.hasMore
       lastPersistedRevision.value += 1
-      return restored.session
+      return {
+        sessionId,
+        session: restored.session,
+        resolution: restored.resolution
+      }
     } catch (e) {
       console.error('Failed to load messages:', e)
-      return null
+      if (!isCurrentLoadRequest(requestId, sessionId)) {
+        return null
+      }
+      return {
+        sessionId,
+        session: null,
+        rendererTransient: true
+      }
     }
   }
 
@@ -617,6 +653,9 @@ export const useMessageStore = defineStore('message', () => {
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
+    if (messageIds.value.length === 0) {
+      messageCacheSessionId.value = sessionId
+    }
     messageCache.value.set(id, record)
     messageIds.value.push(id)
     return id
@@ -640,6 +679,7 @@ export const useMessageStore = defineStore('message', () => {
     isLoadingHistory.value = false
     parsedMessageCache.clear()
     hydratingStreamMessageIds.clear()
+    messageCacheSessionId.value = null
     clearStreamingState()
   }
 
@@ -725,6 +765,7 @@ export const useMessageStore = defineStore('message', () => {
     isStreaming,
     streamingBlocks,
     currentStreamMessageId,
+    messageCacheSessionId,
     streamRevision,
     lastPersistedRevision,
     nextCursor,

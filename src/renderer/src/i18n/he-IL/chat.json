@@ -485,5 +485,14 @@
       "amendRetryable": "העריכה נכשלה. הזיכרון המקורי שוחזר, אפשר לנסות שוב.",
       "amendRestoreFailed": "העריכה נכשלה, ולא ניתן היה לשחזר את הזיכרון המקורי."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "ה-Agent אינו זמין",
+    "unavailableDescription": "השיחה עדיין שמורה, אך לא ניתן לזהות את ה-Agent שלה.",
+    "transientTitle": "בעיה זמנית",
+    "transientDescription": "לא ניתן לרענן את ההפעלה. ההודעות שנשמרו במטמון לא השתנו.",
+    "missingTitle": "ההפעלה כבר אינה קיימת",
+    "missingDescription": "ההפעלה הוסרה ונפתחה שיחה חדשה.",
+    "retry": "ניסיון חוזר"
   }
 }

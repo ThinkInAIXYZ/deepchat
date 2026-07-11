@@ -485,5 +485,14 @@
       "amendRetryable": "Suntingan gagal. Memori asal telah dipulihkan, sila cuba lagi.",
       "amendRestoreFailed": "Suntingan gagal dan memori asal tidak dapat dipulihkan."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent tidak tersedia",
+    "unavailableDescription": "Perbualan ini masih disimpan, tetapi Agentnya tidak dapat dikenal pasti.",
+    "transientTitle": "Masalah sementara",
+    "transientDescription": "Sesi ini tidak dapat dimuat semula. Mesej dalam cache tidak berubah.",
+    "missingTitle": "Sesi tidak lagi wujud",
+    "missingDescription": "Sesi telah dialih keluar dan perbualan baharu kini dibuka.",
+    "retry": "Cuba lagi"
   }
 }

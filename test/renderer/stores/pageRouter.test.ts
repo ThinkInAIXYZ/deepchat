@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const setupStore = async (options?: { activeAgentSession?: { id: string } | null }) => {
+const setupStore = async (options?: {
+  activeAgentSession?: { id: string } | null
+  resolution?: Record<string, unknown> | null
+}) => {
   vi.resetModules()
   const sessionClient = {
     getActive: vi.fn().mockResolvedValue({
-      session: options?.activeAgentSession ?? null
+      session: options?.activeAgentSession ?? null,
+      resolution: options?.resolution
     })
   }
 
@@ -73,6 +77,37 @@ describe('pageRouter.initialize', () => {
     await store.initialize()
 
     expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
+    expect(store.route.value).toEqual({ name: 'newThread' })
+  })
+
+  it.each(['unavailable', 'transient_error'] as const)(
+    'keeps the bound route for a public %s result',
+    async (availability) => {
+      const { store } = await setupStore({
+        activeAgentSession: null,
+        resolution: {
+          availability,
+          sessionId: 'bound-session'
+        }
+      })
+
+      await store.initialize()
+
+      expect(store.route.value).toEqual({ name: 'chat', sessionId: 'bound-session' })
+    }
+  )
+
+  it('opens a new thread for authoritative bound missing', async () => {
+    const { store } = await setupStore({
+      activeAgentSession: null,
+      resolution: {
+        availability: 'missing',
+        sessionId: 'deleted-session'
+      }
+    })
+
+    await store.initialize()
+
     expect(store.route.value).toEqual({ name: 'newThread' })
   })
 

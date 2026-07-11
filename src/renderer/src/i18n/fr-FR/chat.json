@@ -485,5 +485,14 @@
       "amendRetryable": "La modification a échoué. Le souvenir initial a été restauré ; réessayez.",
       "amendRestoreFailed": "La modification a échoué et le souvenir initial n’a pas pu être restauré."
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent indisponible",
+    "unavailableDescription": "Cette conversation est toujours enregistrée, mais son Agent ne peut pas être résolu.",
+    "transientTitle": "Problème temporaire",
+    "transientDescription": "La session n’a pas pu être actualisée. Vos messages en cache sont inchangés.",
+    "missingTitle": "La session n’existe plus",
+    "missingDescription": "La session a été supprimée et une nouvelle conversation est maintenant ouverte.",
+    "retry": "Réessayer"
   }
 }

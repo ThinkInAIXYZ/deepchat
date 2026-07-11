@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
   const promise = new Promise<T>((innerResolve, innerReject) => {
     resolve = innerResolve
-    void innerReject
+    reject = innerReject
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 function buildUserMessage(id: string, sessionId: string, orderSeq: number, text: string) {
@@ -270,6 +271,25 @@ describe('messageStore', () => {
 
     expect(store.messages.value).toHaveLength(1)
     expect(store.messages.value[0]?.id).toBe('m2')
+  })
+
+  it('ignores a stale route rejection after another session owns the cache', async () => {
+    const { store, sessionClient } = await setupStore()
+    const firstLoad = createDeferred<any>()
+    sessionClient.restore.mockReturnValueOnce(firstLoad.promise).mockResolvedValueOnce({
+      session: { id: 's2' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('m2', 's2', 1, 'new session')]
+    })
+
+    const stalePromise = store.loadMessages('s1')
+    await store.loadMessages('s2')
+    firstLoad.reject(new Error('late failure'))
+
+    await expect(stalePromise).resolves.toBeNull()
+    expect(store.messageCacheSessionId.value).toBe('s2')
+    expect(store.messages.value.map((message: { id: string }) => message.id)).toEqual(['m2'])
   })
 
   it('increments lastPersistedRevision for same-length persisted reloads', async () => {
@@ -864,5 +884,71 @@ describe('messageStore', () => {
 
     const updatedBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
     expect(updatedBlocks[0]).not.toBe(firstBlocks[0])
+  })
+
+  it('preserves cached messages and returns renderer-local transient state on route rejection', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('m1', 's1', 1, 'cached')]
+    })
+    await store.loadMessages('s1')
+    const cachedMessage = store.messages.value[0]
+
+    sessionClient.restore.mockRejectedValueOnce(new Error('ipc disconnected'))
+    const outcome = await store.loadMessages('s1')
+
+    expect(outcome).toEqual({
+      sessionId: 's1',
+      session: null,
+      rendererTransient: true
+    })
+    expect(store.messages.value).toEqual([cachedMessage])
+  })
+
+  it('passes additive public resolution through to the session store boundary', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('m1', 's1', 1, 'cached')]
+    })
+    await store.loadMessages('s1')
+    const cachedMessage = store.messages.value[0]
+    sessionClient.restore.mockResolvedValueOnce({
+      session: null,
+      resolution: {
+        availability: 'unavailable',
+        sessionId: 's1',
+        record: {
+          id: 's1',
+          agentId: 'removed-agent',
+          title: 'Saved',
+          projectDir: '/workspace',
+          isPinned: false,
+          sessionKind: 'regular',
+          subagentEnabled: false,
+          createdAt: 1,
+          updatedAt: 2
+        },
+        reason: 'agent_unknown'
+      },
+      nextCursor: null,
+      hasMore: false,
+      messages: []
+    })
+
+    await expect(store.loadMessages('s1')).resolves.toMatchObject({
+      sessionId: 's1',
+      session: null,
+      resolution: {
+        availability: 'unavailable',
+        sessionId: 's1'
+      }
+    })
+    expect(store.messages.value).toEqual([cachedMessage])
   })
 })

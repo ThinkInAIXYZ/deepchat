@@ -485,5 +485,14 @@
       "amendRetryable": "編集に失敗しました。元のメモリは復元されたので、もう一度お試しください。",
       "amendRestoreFailed": "編集に失敗し、元のメモリも復元できませんでした。"
     }
+  },
+  "sessionAvailability": {
+    "unavailableTitle": "Agent を利用できません",
+    "unavailableDescription": "この会話は保存されていますが、使用していた Agent を解決できません。",
+    "transientTitle": "一時的な問題",
+    "transientDescription": "セッションを更新できませんでした。キャッシュ済みのメッセージは変更されていません。",
+    "missingTitle": "セッションは存在しません",
+    "missingDescription": "セッションが削除されたため、新しい会話を開きました。",
+    "retry": "再試行"
   }
 }
