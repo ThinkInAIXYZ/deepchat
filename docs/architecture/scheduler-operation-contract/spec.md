@@ -296,10 +296,10 @@ interface OperationRunner {
 这是 contract 方向，不要求实现照抄属性排列。必须保留的语义是 task factory、overall deadline、
 sequential attempt 和 explicit `shouldRetry`。
 
-当前生产 consumer 中，没有一处同时满足“真实 owner 接收 signal”和“abort 后可观察 physical settlement”。
-因此 `SCH-002A` 不实现 `runCancellable()`，也不把 unused method 放进 port。未来只有真实 consumer 与 owner
-一起证明 cancellation/settlement 后，才建立 owner-specific slice；下面 D4 是该 slice 的验收规则，不是
-本轮待实现接口。
+`SCH-002A` 实施时没有一处 production consumer 同时满足“真实 owner 接收 signal”和“abort 后可观察
+physical settlement”，所以当时没有建立 unused `runCancellable()`。`PRV-CAN-001` 已逐 provider 补齐
+HTTP/SDK/auth signal propagation，并让 unsupported path 在副作用前 settle；provider probe 因此成为首个符合
+D4 的真实 consumer，最窄 `runCancellable()` surface 与 consumer、settlement tests 同 slice 引入。
 
 ### D3. `observeIdempotent` 明确只是 observation deadline
 
@@ -321,13 +321,14 @@ contract：
 1. task 必须是 `(signal) => Promise<T>`，不能传 already-started Promise；
 2. deadline 或外部 abort 会 abort runner 创建/组合的 signal；
 3. runner 在 task Promise settle 前不启动任何 replacement/retry；
-4. deadline 导致的 abort 只有在 attempt settle 后才映射为 `TimeoutError`；
+4. deadline 导致的 abort 只有在 attempt settle 后才映射为 `CancellableDeadlineError`；
 5. 外部 abort 只有在 attempt settle 后才映射为 `AbortError`；
 6. task 若忽略 signal 并永不 settle，runner 也不会伪造“已取消”。这是 owner contract violation，不能用
    第二个 race 掩盖；此类 operation 应重新分类为 non-cancellable。
 
-`TimeoutError` 在新 contract 中因此具有更强含义：cancellation request 已发出，且本 attempt 已 settle。
-它仍不自动授权 retry；retry 还要单独证明 idempotency 或 no-effect failure。
+`CancellableDeadlineError` 在新 contract 中因此具有更强含义：cancellation request 已发出，且本 attempt
+已 settle。provider route 把它转换为 Electron-safe `code: 'deadline_exceeded'`，不会把 custom Error field
+当作 IPC contract。它仍不自动授权 retry；provider probe 本 slice 明确不 retry。
 
 该决策现在只冻结语义。`SCH-002A` 不实现、导出或测试 `runCancellable()`；首次真实 consumer 必须在
 owner-specific follow-up slice 中同时补 signal propagation、settlement proof 和 focused tests，不能只在

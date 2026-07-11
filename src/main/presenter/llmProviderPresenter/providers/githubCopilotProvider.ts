@@ -7,9 +7,10 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   MCPToolDefinition,
-  IConfigPresenter
+  IConfigPresenter,
+  ProviderConnectionCheckResult
 } from '@shared/presenter'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT, type ProviderCheckOptions } from '../baseProvider'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
   getGlobalGitHubCopilotDeviceFlow,
@@ -85,8 +86,11 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     // 优先使用设备流获取 token
     if (this.deviceFlow) {
       try {
-        return await this.deviceFlow.getCopilotToken()
+        return await this.deviceFlow.getCopilotToken(signal)
       } catch (error) {
+        if (signal?.aborted) {
+          throw error
+        }
         console.warn(
           '[GitHub Copilot] Device flow failed, falling back to provider API key:',
           error
@@ -592,11 +596,12 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     messages: ChatMessage[],
     modelId: string,
     temperature?: number,
-    _maxTokens?: number
+    _maxTokens?: number,
+    options?: { signal?: AbortSignal }
   ): Promise<LLMResponse> {
     if (!modelId) throw new Error('Model ID is required')
     const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
-    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig, options?.signal)
     try {
       const token = await this.getCopilotToken(signal)
       const formattedMessages = this.formatMessages(messages)
@@ -745,10 +750,23 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     )
   }
 
-  async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+  async check(options: ProviderCheckOptions = {}): Promise<ProviderConnectionCheckResult> {
     try {
+      if (options.modelId) {
+        const response = await this.completions(
+          [{ role: 'user', content: 'hi' }],
+          options.modelId,
+          0.1,
+          10,
+          { signal: options.signal }
+        )
+        return response.content || response.content === '' || response.reasoning_content
+          ? { isOk: true, errorMsg: null }
+          : { isOk: false, errorMsg: 'Model response is invalid' }
+      }
+
       // Device flow may be active without apiKey; proceed to token retrieval
-      await this.getCopilotToken()
+      await this.getCopilotToken(options.signal)
       return { isOk: true, errorMsg: null }
     } catch (error) {
       let errorMsg = error instanceof Error ? error.message : 'Unknown error'

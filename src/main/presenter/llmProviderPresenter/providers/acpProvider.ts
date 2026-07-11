@@ -1,7 +1,12 @@
 import logger from '@shared/logger'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import {
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderCheckOptions,
+  unsupportedProviderCheck
+} from '../baseProvider'
 import type {
   AcpConfigState,
   ChatMessage,
@@ -305,7 +310,13 @@ export class AcpProvider extends BaseLLMProvider {
     await this.sessionManager.clearSession(conversationId)
   }
 
-  public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+  public async check(options: ProviderCheckOptions = {}) {
+    if (options.modelId) {
+      return unsupportedProviderCheck(
+        'Connection testing is not supported for ACP agents because probe cancellation cannot be settled safely'
+      )
+    }
+
     const enabled = await this.configPresenter.getAcpEnabled()
     if (!enabled) {
       return {

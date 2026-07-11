@@ -1,4 +1,5 @@
 import {
+  CancellableDeadlineError,
   ObservationDeadlineError,
   OperationRunnerValidationError,
   createNodeOperationRunner
@@ -163,6 +164,172 @@ describe('createNodeOperationRunner', () => {
     expect(task).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it('aborts cancellable work at the deadline and waits for physical settlement', async () => {
+    const runner = createNodeOperationRunner()
+    const task = deferred<string>()
+    let ownerSignal: AbortSignal | undefined
+    let settled = false
+    const running = runner.runCancellable({
+      task: (signal) => {
+        ownerSignal = signal
+        return task.promise
+      },
+      deadlineMs: 10,
+      reason: 'provider-probe'
+    })
+    void running.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+
+    await vi.advanceTimersByTimeAsync(10)
+
+    expect(ownerSignal?.aborted).toBe(true)
+    expect(settled).toBe(false)
+
+    task.resolve('late owner result')
+    await expect(running).rejects.toEqual(new CancellableDeadlineError('provider-probe', 10))
+    expect(settled).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('waits for physical settlement after external cancellation', async () => {
+    const runner = createNodeOperationRunner()
+    const controller = new AbortController()
+    const task = deferred<string>()
+    let ownerSignal: AbortSignal | undefined
+    let settled = false
+    const running = runner.runCancellable({
+      task: (signal) => {
+        ownerSignal = signal
+        return task.promise
+      },
+      deadlineMs: 100,
+      reason: 'cancel-provider-probe',
+      signal: controller.signal
+    })
+    void running.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+
+    controller.abort()
+    await Promise.resolve()
+
+    expect(ownerSignal?.aborted).toBe(true)
+    expect(settled).toBe(false)
+
+    task.reject(new Error('owner observed abort'))
+    await expect(running).rejects.toMatchObject({ name: 'AbortError' })
+    expect(settled).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('cleans cancellable timer and external abort listener after success', async () => {
+    const runner = createNodeOperationRunner()
+    const controller = new AbortController()
+    const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+
+    await expect(
+      runner.runCancellable({
+        task: async () => 'ok',
+        deadlineMs: 100,
+        reason: 'successful-cancellable',
+        signal: controller.signal
+      })
+    ).resolves.toBe('ok')
+
+    expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('cleans cancellable resources after a synchronous task failure', async () => {
+    const runner = createNodeOperationRunner()
+    const controller = new AbortController()
+    const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+    const expected = new Error('sync provider failure')
+
+    await expect(
+      runner.runCancellable({
+        task: () => {
+          throw expected
+        },
+        deadlineMs: 100,
+        reason: 'sync-cancellable',
+        signal: controller.signal
+      })
+    ).rejects.toBe(expected)
+
+    expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('maps an abort requested during the task factory only after its result settles', async () => {
+    const runner = createNodeOperationRunner()
+    const controller = new AbortController()
+    const task = vi.fn(async () => {
+      controller.abort()
+      return 'owner settled'
+    })
+
+    await expect(
+      runner.runCancellable({
+        task,
+        deadlineMs: 100,
+        reason: 'abort-during-factory',
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(task).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not start cancellable work for an immediate or pre-aborted deadline', async () => {
+    const runner = createNodeOperationRunner()
+    const task = vi.fn().mockResolvedValue('unused')
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      runner.runCancellable({ task, deadlineMs: 0, reason: 'immediate-cancellable' })
+    ).rejects.toMatchObject({ name: 'CancellableDeadlineError' })
+    await expect(
+      runner.runCancellable({
+        task,
+        deadlineMs: 10,
+        reason: 'pre-aborted-cancellable',
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(task).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5, 2_147_483_648])(
+    'rejects invalid cancellable deadline %s before starting work',
+    async (deadlineMs) => {
+      const runner = createNodeOperationRunner()
+      const task = vi.fn().mockResolvedValue('unused')
+
+      await expect(
+        runner.runCancellable({ task, deadlineMs, reason: 'invalid-cancellable' })
+      ).rejects.toBeInstanceOf(OperationRunnerValidationError)
+
+      expect(task).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
 
   it('waits for a rejected attempt to settle before starting the next attempt', async () => {
     const runner = createNodeOperationRunner()
@@ -441,6 +608,7 @@ describe('createNodeOperationRunner', () => {
     expect(Object.keys(runner).sort()).toEqual([
       'observeIdempotent',
       'retryIdempotent',
+      'runCancellable',
       'sleep',
       'timeout'
     ])

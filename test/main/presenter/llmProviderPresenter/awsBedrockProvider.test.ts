@@ -177,4 +177,34 @@ describe('AiSdkProvider aws-bedrock', () => {
     expect(mockBedrockSend).toHaveBeenCalledTimes(1)
     expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
+
+  it('propagates owner cancellation to Bedrock and does not report fallback success', async () => {
+    const controller = new AbortController()
+    mockBedrockSend.mockImplementation(
+      (_command: unknown, options?: { abortSignal?: AbortSignal }) =>
+        new Promise((_, reject) => {
+          options?.abortSignal?.addEventListener(
+            'abort',
+            () => reject(options.abortSignal?.reason),
+            { once: true }
+          )
+        })
+    )
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+    const fallback = vi.spyOn(provider as any, 'mapConfigDbModels')
+
+    const checking = provider.check({ signal: controller.signal })
+    controller.abort(new Error('owner cancelled'))
+
+    await expect(checking).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'owner cancelled'
+    })
+    expect(mockBedrockSend).toHaveBeenCalledWith(expect.anything(), {
+      abortSignal: controller.signal
+    })
+    expect(mockBedrockSend).toHaveBeenCalledOnce()
+    expect(fallback).not.toHaveBeenCalled()
+  })
 })

@@ -18,6 +18,32 @@ import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
 const CODEX_5_6_RESOURCE_MODEL_IDS = ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra']
 
 describe('OpenAI Codex provider registration', () => {
+  it('pins the production provider capability inventory', () => {
+    const resolved = DEFAULT_PROVIDERS.map((provider) => ({
+      id: provider.id,
+      definition: resolveAiSdkProviderDefinition(provider)
+    }))
+    const aiSdkDefinitions = resolved.filter((entry) => entry.definition)
+    const unresolvedIds = resolved
+      .filter((entry) => !entry.definition)
+      .map((entry) => entry.id)
+      .sort()
+    const strategyCounts = aiSdkDefinitions.reduce<Record<string, number>>((counts, entry) => {
+      const strategy = entry.definition!.checkStrategy
+      counts[strategy] = (counts[strategy] ?? 0) + 1
+      return counts
+    }, {})
+
+    expect(DEFAULT_PROVIDERS).toHaveLength(60)
+    expect(aiSdkDefinitions).toHaveLength(55)
+    expect(strategyCounts).toEqual({
+      'fetch-models': 30,
+      'generate-text': 17,
+      'key-status': 8
+    })
+    expect(unresolvedIds).toEqual(['acp', 'fireworks', 'github-copilot', 'ollama', 'voiceai'])
+  })
+
   it('keeps OpenAI Codex separate from the OpenAI API-key provider', () => {
     const openai = DEFAULT_PROVIDERS.find((provider) => provider.id === 'openai')
     const codex = DEFAULT_PROVIDERS.find((provider) => provider.id === 'openai-codex')

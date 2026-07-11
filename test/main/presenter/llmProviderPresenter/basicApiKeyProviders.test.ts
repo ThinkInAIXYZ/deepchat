@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../../src/main/presenter/llmProviderPresenter/providerRegistry'
+import { ApiEndpointType } from '../../../../src/shared/model'
 
 const { mockGetProvider, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
   mockGetProvider: vi.fn(),
@@ -135,6 +136,117 @@ describe('basic API-key provider registrations', () => {
         checkModelId
       })
     }
+  })
+
+  it.each([
+    ['image', 'gpt-image-1', ApiEndpointType.Image],
+    ['video', 'video-model', ApiEndpointType.Video],
+    ['TTS', 'tts-model', ApiEndpointType.AudioSpeech]
+  ])('rejects %s model probes before starting generation', async (_label, modelId, apiEndpoint) => {
+    const configPresenter = createConfigPresenter()
+    vi.mocked(configPresenter.getModelConfig).mockReturnValue({ apiEndpoint } as any)
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'openai',
+        name: 'OpenAI',
+        apiType: 'openai',
+        baseUrl: 'https://api.openai.com/v1'
+      }),
+      configPresenter
+    )
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check({ modelId })).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'Connection testing is not supported for non-chat generation models',
+      code: 'unsupported'
+    })
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('propagates the owner signal from generate-text checks into the AI SDK runtime', async () => {
+    const controller = new AbortController()
+    const provider = new AiSdkProvider(createProvider({ id: 'nvidia' }), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check({ signal: controller.signal })).resolves.toEqual({
+      isOk: true,
+      errorMsg: null
+    })
+    expect(mockRunAiSdkGenerateText).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.any(Array),
+      'microsoft/phi-4-mini-instruct',
+      expect.any(Object),
+      0.2,
+      16,
+      controller.signal
+    )
+  })
+
+  it.each([
+    '302ai',
+    'cherryin',
+    'deepseek',
+    'modelscope',
+    'openrouter',
+    'ppio',
+    'siliconcloud',
+    'tokenflux'
+  ])('propagates owner cancellation through the %s key-status strategy', async (providerId) => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_, reject) => {
+        const signal = init?.signal as AbortSignal | undefined
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: providerId,
+        apiType: 'openai-completions',
+        baseUrl: 'https://provider.example/v1'
+      }),
+      createConfigPresenter()
+    )
+    ;(provider as any).isInitialized = true
+
+    const checking = provider.check({ signal: controller.signal })
+    controller.abort(new Error('owner cancelled'))
+
+    await expect(checking).resolves.toEqual({ isOk: false, errorMsg: 'owner cancelled' })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const requestSignal = fetchMock.mock.calls[0][1]?.signal as AbortSignal
+    expect(requestSignal.aborted).toBe(true)
+  })
+
+  it('propagates owner cancellation through HTTP model discovery without fallback', async () => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_, reject) => {
+        const signal = init?.signal as AbortSignal | undefined
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'openai',
+        apiType: 'openai',
+        baseUrl: 'https://api.openai.com/v1'
+      }),
+      createConfigPresenter()
+    )
+
+    const checking = provider.check({ signal: controller.signal })
+    controller.abort(new Error('owner cancelled'))
+
+    await expect(checking).resolves.toEqual({ isOk: false, errorMsg: 'owner cancelled' })
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('resolves OpenCode Go through its mixed-route provider definition', () => {

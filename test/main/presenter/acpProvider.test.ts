@@ -69,6 +69,25 @@ describe('AcpProvider runDebugAction error handling', () => {
     ]
   })
 
+  it('rejects model probes before reading config or starting an ACP turn', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.configPresenter = {
+      getAcpEnabled: vi.fn(),
+      getAcpAgents: vi.fn()
+    }
+    provider.collectFromStream = vi.fn()
+
+    await expect(provider.check({ modelId: 'codex' })).resolves.toEqual({
+      isOk: false,
+      errorMsg:
+        'Connection testing is not supported for ACP agents because probe cancellation cannot be settled safely',
+      code: 'unsupported'
+    })
+    expect(provider.configPresenter.getAcpEnabled).not.toHaveBeenCalled()
+    expect(provider.configPresenter.getAcpAgents).not.toHaveBeenCalled()
+    expect(provider.collectFromStream).not.toHaveBeenCalled()
+  })
+
   it('returns error result when process manager is shutting down', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
     provider.configPresenter = {

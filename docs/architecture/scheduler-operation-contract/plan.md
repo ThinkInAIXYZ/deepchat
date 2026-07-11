@@ -277,6 +277,34 @@ route 无法单方面取消 provider SDK request。只有 provider owner 能决�
 5. 所有 adapter 完成后才删除 route 5 秒 legacy wrapper；仍不 automatic retry，因为 probe 可能消耗 quota。
 6. 如果此时出现真实 `runCancellable` consumer，再在这个 slice 提出最窄 API；settlement tests 与 consumer 同 PR。
 
+### 已核验的 production capability inventory
+
+`DEFAULT_PROVIDERS` 共有 60 项。按 `ProviderInstanceManager.createProviderInstance()` 与
+`resolveAiSdkProviderDefinition()` 的真实分派结果分类如下：
+
+| Family | 数量 | no-model probe | model probe | PRV-CAN-001 处置 |
+| --- | ---: | --- | --- | --- |
+| AiSdk `fetch-models` | 30 | local catalog、HTTP model list 或 AWS SDK | AI SDK chat | HTTP/AWS 贯穿 owner signal；connection probe 禁止 error fallback；media model typed unsupported |
+| AiSdk `generate-text` | 17 | AI SDK small text request | AI SDK chat | 组合 model timeout 与 owner signal；OpenAI Codex auth refresh 同步接收 owner signal |
+| AiSdk `key-status` | 8 | raw fetch 或 provider HTTP helper | AI SDK chat | raw fetch/helper 贯穿 owner signal |
+| Ollama | 1 | `/api/tags` HTTP | AI SDK OpenAI-compatible chat | 两条均贯穿 owner signal |
+| GitHub Copilot | 1 | device/API token fetch | token fetch + completion fetch | signal 贯穿 device flow；abort 后禁止 API-key fallback |
+| Voice.ai | 1 | voice-list HTTP | 真实 TTS，有成本/副作用 | 只支持 no-model；model 在任何 fetch 前 typed unsupported |
+| ACP | 1 | local config/agent inventory | process/session prompt，无 probe-owned settle | 只支持 no-model；model 在 process/session effect 前 typed unsupported |
+| Fireworks | 1 | 没有 runtime resolver | 没有 runtime resolver | 不猜 OpenAI-compatible mapping；instance 创建前 typed unsupported |
+
+AiSdk registry 本身有 50 个 direct ID（24 `fetch-models`、17 `generate-text`、9 `key-status`）；
+DEFAULT provider 经过 id/apiType fallback 后才得到上表的有效 `30/17/8`，两组数字不能混用。AWS SDK 的
+`client.send(command, { abortSignal })` 是真实能力，不归类为 unsupported。OpenAI-derived model-list 的旧
+fallback 只保留给普通 refresh；connection probe 遇到普通错误直接失败，owner abort 更不能启动 fallback。
+
+typed result 保留历史 `isOk/errorMsg`，并增加可选稳定 `code`：`unsupported`、`cancelled`、
+`deadline_exceeded`。这样旧 renderer 继续显示 `errorMsg`，Electron boundary 又不依赖 custom Error field。
+
+本 slice 出现了第一个可证明的 cancellable consumer，因此增加唯一的 `runCancellable()`：runner 创建 signal，
+deadline/外部 cancel 时 abort owner，随后继续等待同一 task physical settle；settle 前 caller 保持 pending，
+没有 replacement 或 retry。它不接受 already-started Promise，也没有第二个 `Promise.race`。
+
 ### 收益与 gate
 
 - UI timeout 后不再有 provider request 在后台继续；

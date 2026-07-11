@@ -152,6 +152,121 @@ describe('OpenAI Codex auth', () => {
     expect(store.load()?.refreshToken).toBe('new-refresh-token')
   })
 
+  it('propagates owner cancellation into an access-token refresh request', async () => {
+    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'cancelled-refresh.json'))
+    store.save({
+      accessToken: 'expired-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() - 1000,
+      updatedAt: Date.now()
+    })
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_, reject) => {
+        const signal = init?.signal as AbortSignal | undefined
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const auth = new OpenAICodexAuth(store)
+    const controller = new AbortController()
+
+    const refreshing = auth.getBackendAuth(controller.signal)
+    controller.abort(new Error('owner cancelled'))
+
+    await expect(refreshing).rejects.toThrow('owner cancelled')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect((fetchMock.mock.calls[0][1]?.signal as AbortSignal).aborted).toBe(true)
+  })
+
+  it('closes the abort race between the precheck and listener registration', async () => {
+    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'abort-race.json'))
+    store.save({
+      accessToken: 'expired-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() - 1000,
+      updatedAt: Date.now()
+    })
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_, reject) => {
+        const signal = init?.signal as AbortSignal | undefined
+        if (signal?.aborted) {
+          reject(signal.reason)
+          return
+        }
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const auth = new OpenAICodexAuth(store)
+    const controller = new AbortController()
+    const originalAddEventListener = controller.signal.addEventListener.bind(controller.signal)
+    vi.spyOn(controller.signal, 'addEventListener').mockImplementation((...args) => {
+      controller.abort(new Error('registration race cancelled'))
+      return originalAddEventListener(...args)
+    })
+
+    await expect(auth.getBackendAuth(controller.signal)).rejects.toThrow(
+      'registration race cancelled'
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('does not abort a shared token refresh while another waiter still needs it', async () => {
+    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'shared-refresh.json'))
+    store.save({
+      accessToken: 'expired-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() - 1000,
+      updatedAt: Date.now()
+    })
+    let resolveFetch!: (response: Response) => void
+    let refreshSignal: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) => {
+        refreshSignal = init?.signal as AbortSignal | undefined
+        return new Promise<Response>((resolve) => {
+          resolveFetch = resolve
+        })
+      })
+    )
+    const auth = new OpenAICodexAuth(store)
+    const controller = new AbortController()
+
+    const cancelledWaiter = auth.getBackendAuth(controller.signal)
+    const activeWaiter = auth.getBackendAuth()
+    let cancelledSettled = false
+    void cancelledWaiter.then(
+      () => {
+        cancelledSettled = true
+      },
+      () => {
+        cancelledSettled = true
+      }
+    )
+    controller.abort(new Error('first waiter cancelled'))
+    await Promise.resolve()
+
+    expect(refreshSignal?.aborted).toBe(false)
+    expect(cancelledSettled).toBe(false)
+    resolveFetch(
+      new Response(
+        JSON.stringify({
+          access_token: 'shared-token',
+          refresh_token: 'shared-refresh-token',
+          expires_in: 3600
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    await expect(cancelledWaiter).rejects.toThrow('first waiter cancelled')
+    await expect(activeWaiter).resolves.toMatchObject({ accessToken: 'shared-token' })
+  })
+
   it('opens browser login externally and completes from a pasted callback URL', async () => {
     const store = new OpenAICodexCredentialStore(path.join(tempDir, 'browser.json'))
     const fetchMock = vi.fn().mockResolvedValue(

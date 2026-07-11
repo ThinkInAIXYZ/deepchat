@@ -3827,7 +3827,9 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
-    expect(llmProviderPresenter.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
+    expect(llmProviderPresenter.check).toHaveBeenCalledWith('openai', 'gpt-5.4', {
+      signal: expect.any(AbortSignal)
+    })
     expect(llmProviderPresenter.getKeyStatus).toHaveBeenCalledWith('openai')
     expect(llmProviderPresenter.getProviderRateLimitStatus).toHaveBeenCalledWith('openai')
     expect(llmProviderPresenter.updateProviderRateLimit).toHaveBeenCalledWith('openai', true, 2)

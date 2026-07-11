@@ -6,11 +6,16 @@ import {
   MODEL_META,
   LLMCoreStreamEvent,
   MCPToolDefinition,
-  ModelConfig
+  ModelConfig,
+  ProviderConnectionCheckResult
 } from '@shared/presenter'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
-import { BaseLLMProvider } from '../baseProvider'
+import {
+  BaseLLMProvider,
+  type ProviderCheckOptions,
+  unsupportedProviderCheck
+} from '../baseProvider'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 
@@ -75,13 +80,19 @@ export class VoiceAIProvider extends BaseLLMProvider {
     this.proxyUrl = undefined
   }
 
-  public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+  public async check(options: ProviderCheckOptions = {}): Promise<ProviderConnectionCheckResult> {
+    if (options.modelId) {
+      return unsupportedProviderCheck(
+        'Connection testing is not supported for Voice.ai models because it would generate billable audio'
+      )
+    }
+
     if (!this.provider.apiKey) {
       return { isOk: false, errorMsg: 'API key is required' }
     }
 
     try {
-      await this.listVoices()
+      await this.listVoices(options.signal)
       return { isOk: true, errorMsg: null }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
@@ -399,9 +410,10 @@ export class VoiceAIProvider extends BaseLLMProvider {
     return null
   }
 
-  private async listVoices(): Promise<VoiceStatusResponse[]> {
+  private async listVoices(signal?: AbortSignal): Promise<VoiceStatusResponse[]> {
     const response = await fetch(this.buildUrl('/api/v1/tts/voices'), {
       method: 'GET',
+      signal,
       headers: this.getAuthHeaders(),
       ...this.getFetchOptions()
     })

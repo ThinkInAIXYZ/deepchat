@@ -334,71 +334,48 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(result.isOk).toBe(true)
     }, 10000)
 
-    it('keeps the model-specific connection check as a 60-second observation', async () => {
-      vi.useFakeTimers()
-      const completion = deferred<{ content: string }>()
-      const provider = {
-        completions: vi.fn().mockReturnValue(completion.promise),
-        check: vi.fn()
-      }
-      vi.spyOn(llmProviderPresenter, 'getProviderInstance').mockReturnValue(provider as any)
+    it('returns typed unsupported for Fireworks before trying to create a runtime adapter', async () => {
+      const getProviderInstance = vi.spyOn(llmProviderPresenter, 'getProviderInstance')
 
-      try {
-        let settled = false
-        const checking = llmProviderPresenter.check('mock-openai-api', 'mock-model')
-        void checking.finally(() => {
-          settled = true
-        })
-
-        await vi.advanceTimersByTimeAsync(59_999)
-        expect(settled).toBe(false)
-        expect(provider.completions).toHaveBeenCalledWith(
-          [{ role: 'user', content: 'hi' }],
-          'mock-model',
-          0.1,
-          10
-        )
-
-        await vi.advanceTimersByTimeAsync(1)
-        await expect(checking).resolves.toEqual({
-          isOk: false,
-          errorMsg: 'Model response is invalid'
-        })
-
-        completion.resolve({ content: 'late owner response' })
-        await Promise.resolve()
-        expect(provider.completions).toHaveBeenCalledOnce()
-      } finally {
-        vi.useRealTimers()
-      }
+      await expect(llmProviderPresenter.check('fireworks')).resolves.toEqual({
+        isOk: false,
+        errorMsg:
+          'Connection testing is unavailable because the Fireworks provider has no runtime adapter',
+        code: 'unsupported'
+      })
+      expect(getProviderInstance).not.toHaveBeenCalled()
     })
 
-    it('keeps the provider-native connection check without a uniform route deadline', async () => {
-      vi.useFakeTimers()
-      const nativeCheck = deferred<{ isOk: boolean; errorMsg: string | null }>()
+    it('delegates model connection checks and owner cancellation to the provider', async () => {
+      const controller = new AbortController()
       const provider = {
-        completions: vi.fn(),
-        check: vi.fn().mockReturnValue(nativeCheck.promise)
+        check: vi.fn().mockResolvedValue({ isOk: true, errorMsg: null })
       }
       vi.spyOn(llmProviderPresenter, 'getProviderInstance').mockReturnValue(provider as any)
 
-      try {
-        let settled = false
-        const checking = llmProviderPresenter.check('mock-openai-api')
-        void checking.finally(() => {
-          settled = true
+      await expect(
+        llmProviderPresenter.check('mock-openai-api', 'mock-model', {
+          signal: controller.signal
         })
+      ).resolves.toEqual({ isOk: true, errorMsg: null })
 
-        expect(vi.getTimerCount()).toBe(0)
-        await vi.advanceTimersByTimeAsync(600_000)
-        expect(settled).toBe(false)
-        expect(provider.check).toHaveBeenCalledOnce()
+      expect(provider.check).toHaveBeenCalledWith({
+        modelId: 'mock-model',
+        signal: controller.signal
+      })
+    })
 
-        nativeCheck.resolve({ isOk: true, errorMsg: null })
-        await expect(checking).resolves.toEqual({ isOk: true, errorMsg: null })
-      } finally {
-        vi.useRealTimers()
+    it('delegates provider-native checks through the same owner contract', async () => {
+      const provider = {
+        check: vi.fn().mockResolvedValue({ isOk: true, errorMsg: null })
       }
+      vi.spyOn(llmProviderPresenter, 'getProviderInstance').mockReturnValue(provider as any)
+
+      await expect(llmProviderPresenter.check('mock-openai-api')).resolves.toEqual({
+        isOk: true,
+        errorMsg: null
+      })
+      expect(provider.check).toHaveBeenCalledWith({ modelId: undefined, signal: undefined })
     })
   })
 

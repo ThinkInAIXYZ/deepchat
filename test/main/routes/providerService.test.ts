@@ -1,10 +1,15 @@
 import { ProviderService } from '@/routes/providers/providerService'
+import { CancellableDeadlineError } from '@/routes/operationRunner'
 
 describe('ProviderService', () => {
   const createScheduler = () => ({
     sleep: vi.fn(),
     observeIdempotent: vi.fn(),
     retryIdempotent: vi.fn(),
+    runCancellable: vi.fn(
+      async <T>({ task }: { task: (signal: AbortSignal) => Promise<T> }) =>
+        await task(new AbortController().signal)
+    ),
     timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task)
   })
 
@@ -93,8 +98,64 @@ describe('ProviderService', () => {
       errorMsg: null
     })
 
-    expect(providerExecutionPort.testConnection).toHaveBeenCalledWith('openai', 'gpt-5.4')
-    expect(scheduler.timeout).toHaveBeenCalledTimes(1)
+    expect(providerExecutionPort.testConnection).toHaveBeenCalledWith('openai', 'gpt-5.4', {
+      signal: expect.any(AbortSignal)
+    })
+    expect(scheduler.runCancellable).toHaveBeenCalledWith({
+      task: expect.any(Function),
+      deadlineMs: 60_000,
+      reason: 'providers.testConnection:openai'
+    })
+    expect(scheduler.timeout).not.toHaveBeenCalled()
     expect(scheduler.retryIdempotent).not.toHaveBeenCalled()
+  })
+
+  it('maps a settled cancellation deadline to the stable route result', async () => {
+    const scheduler = createScheduler()
+    scheduler.runCancellable.mockRejectedValueOnce(
+      new CancellableDeadlineError('providers.testConnection:openai', 60_000)
+    )
+    const service = new ProviderService({
+      providerCatalogPort: {
+        getProviderModels: vi.fn(() => []),
+        getCustomModels: vi.fn(() => [])
+      } as any,
+      providerExecutionPort: {
+        testConnection: vi.fn()
+      },
+      scheduler
+    })
+
+    await expect(service.testConnection({ providerId: 'openai' })).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'Provider connection test timed out after 60000ms',
+      code: 'deadline_exceeded'
+    })
+    expect(scheduler.retryIdempotent).not.toHaveBeenCalled()
+    expect(scheduler.timeout).not.toHaveBeenCalled()
+  })
+
+  it('keeps ordinary provider failures distinct from cancellation and does not retry', async () => {
+    const scheduler = createScheduler()
+    const service = new ProviderService({
+      providerCatalogPort: {
+        getProviderModels: vi.fn(() => []),
+        getCustomModels: vi.fn(() => [])
+      } as any,
+      providerExecutionPort: {
+        testConnection: vi.fn().mockResolvedValue({
+          isOk: false,
+          errorMsg: 'network unavailable'
+        })
+      },
+      scheduler
+    })
+
+    await expect(service.testConnection({ providerId: 'openai' })).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'network unavailable'
+    })
+    expect(scheduler.retryIdempotent).not.toHaveBeenCalled()
+    expect(scheduler.timeout).not.toHaveBeenCalled()
   })
 })

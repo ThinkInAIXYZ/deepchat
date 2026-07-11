@@ -78,7 +78,7 @@ export class GitHubCopilotDeviceFlow {
    * 获取 Copilot API token
    * 使用OAuth token交换Copilot API token
    */
-  public async getCopilotToken(): Promise<string> {
+  public async getCopilotToken(signal?: AbortSignal): Promise<string> {
     if (!this.oauthToken) {
       throw new Error('No OAuth token available')
     }
@@ -89,6 +89,7 @@ export class GitHubCopilotDeviceFlow {
     try {
       const response = await fetch(tokenUrl, {
         method: 'GET',
+        signal,
         headers: {
           Authorization: `Bearer ${this.oauthToken}`,
           Accept: 'application/json',

@@ -216,7 +216,7 @@ export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
 
     const dispatcher = getDispatcher()
     const auth = getGlobalOpenAICodexAuth()
-    const backendAuth = await auth.getBackendAuth()
+    const backendAuth = await auth.getBackendAuth(init?.signal ?? undefined)
     const nextInit: FetchInitWithDispatcher = {
       ...init,
       body: normalizeOpenAICodexRequestBody(init?.body),
@@ -232,7 +232,10 @@ export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
       return normalizeOpenAICodexErrorResponse(response)
     }
 
-    const refreshedAuth = await auth.forceRefreshBackendAuth()
+    if (init?.signal?.aborted) {
+      throw init.signal.reason
+    }
+    const refreshedAuth = await auth.forceRefreshBackendAuth(init?.signal ?? undefined)
     response = await fetch(url, {
       ...nextInit,
       headers: applyCodexHeaders(init?.headers, defaultHeaders, refreshedAuth)

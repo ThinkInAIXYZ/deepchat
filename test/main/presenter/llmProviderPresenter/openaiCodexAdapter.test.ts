@@ -177,7 +177,32 @@ describe('OpenAI Codex adapter', () => {
 
     expect(await response.text()).toBe(streamBody)
     expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBe(controller.signal)
+    expect(authState.getBackendAuth).toHaveBeenCalledWith(controller.signal)
     expect(authState.forceRefreshBackendAuth).not.toHaveBeenCalled()
+  })
+
+  it('does not start a 401 refresh after owner cancellation', async () => {
+    const controller = new AbortController()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => {
+        controller.abort(new Error('owner cancelled'))
+        return new Response('unauthorized', { status: 401 })
+      })
+    )
+    authState.getBackendAuth.mockResolvedValueOnce({ accessToken: 'expired-token' })
+
+    const { createOpenAICodexFetch } =
+      await import('../../../../src/main/presenter/llmProviderPresenter/openaiCodexAdapter')
+    const fetcher = createOpenAICodexFetch({})
+
+    await expect(
+      fetcher('https://chatgpt.com/backend-api/codex/responses', {
+        signal: controller.signal
+      })
+    ).rejects.toThrow('owner cancelled')
+    expect(authState.forceRefreshBackendAuth).not.toHaveBeenCalled()
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce()
   })
 
   it('normalizes Codex entitlement errors to a stable permission error', async () => {
