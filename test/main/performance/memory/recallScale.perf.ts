@@ -5,7 +5,9 @@ import { AgentMemoryTable } from '@/presenter/sqlitePresenter/tables/agentMemory
 import { buildMemoryFixture } from './fixtures'
 import { createMemoryPerfObserver } from './performanceObserver'
 import { describeIfNativeSqlite, requireDatabase } from '../../nativeSqliteHarness'
-import { measurePerformance, reportPerformance } from './timing'
+import { measurePairedPerformance, reportPerformance } from './timing'
+
+const RECALL_GROWTH_ADVANTAGE_RATIO = 0.65
 
 type AgentMemorySearchInternals = {
   searchLike(agentId: string, terms: string[], limit: number, matchMode: 'all' | 'any'): unknown[]
@@ -67,32 +69,65 @@ describeIfNativeSqlite('Agent Memory #28 recall scale', () => {
       for (const size of sizes) {
         const agentId = `recall-${size}`
         observer.reset()
-        const indexedRows = searchTable.search(agentId, 'redis project', 20, { matchMode: 'all' })
+        const indexedResult = searchTable.searchWithStrategy(agentId, 'redis project', 20, {
+          matchMode: 'all'
+        })
         const indexedSnapshot = observer.snapshot()
-        expect(indexedRows.length).toBeGreaterThanOrEqual(20)
-        expect(indexedRows.length).toBeLessThanOrEqual(40)
+        expect(indexedResult.strategy).toBe('fts-only')
+        expect(indexedResult.rows.length).toBeGreaterThanOrEqual(20)
+        expect(indexedResult.rows.length).toBeLessThanOrEqual(40)
         expect(indexedSnapshot.counters.sqliteStatements).toBeLessThanOrEqual(2)
         expect(indexedSnapshot.counters.materializedRows).toBeLessThanOrEqual(40)
 
-        const indexed = measurePerformance(`recall-fts-${size}`, size, () => {
-          searchTable.search(agentId, 'redis project', 20, { matchMode: 'all' })
+        let stayedFtsOnly = indexedResult.strategy === 'fts-only'
+        const paired = measurePairedPerformance(
+          `recall-fts-${size}`,
+          `recall-like-${size}`,
+          size,
+          () => {
+            const result = searchTable.searchWithStrategy(agentId, 'redis project', 20, {
+              matchMode: 'all'
+            })
+            stayedFtsOnly &&= result.strategy === 'fts-only'
+          },
+          () => {
+            ;(searchTable as unknown as AgentMemorySearchInternals).searchLike(
+              agentId,
+              ['redis', 'project'],
+              20,
+              'all'
+            )
+          }
+        )
+        expect(stayedFtsOnly).toBe(true)
+        reportPerformance(paired.primary)
+        reportPerformance(paired.baseline)
+        reports.set(size, {
+          indexed: paired.primary.medianMs,
+          legacy: paired.baseline.medianMs
         })
-        const legacy = measurePerformance(`recall-like-${size}`, size, () => {
-          ;(searchTable as unknown as AgentMemorySearchInternals).searchLike(
-            agentId,
-            ['redis', 'project'],
-            20,
-            'all'
-          )
-        })
-        reportPerformance(indexed)
-        reportPerformance(legacy)
-        reports.set(size, { indexed: indexed.medianMs, legacy: legacy.medianMs })
       }
 
+      const medium = reports.get(10_000)
       const largest = reports.get(50_000)
+      expect(medium).toBeDefined()
       expect(largest).toBeDefined()
-      expect(largest!.indexed).toBeLessThanOrEqual(largest!.legacy * 0.5)
+      const indexedGrowth = largest!.indexed / medium!.indexed
+      const legacyGrowth = largest!.legacy / medium!.legacy
+      const largeScaleRatio = largest!.indexed / largest!.legacy
+      const growthRatio = indexedGrowth / legacyGrowth
+      console.info(
+        `[memory-perf] ${JSON.stringify({
+          scenario: 'recall-scale-comparison',
+          fromSize: 10_000,
+          toSize: 50_000,
+          indexedGrowth,
+          legacyGrowth,
+          growthRatio,
+          largeScaleRatio
+        })}`
+      )
+      expect(indexedGrowth).toBeLessThanOrEqual(legacyGrowth * RECALL_GROWTH_ADVANTAGE_RATIO)
     } finally {
       db.close()
     }

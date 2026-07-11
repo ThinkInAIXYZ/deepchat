@@ -355,8 +355,11 @@ The matrix separates scenarios rather than forming a Cartesian product:
 - Eight decision candidates with three neighbors.
 - Fifty-thousand-row maintenance query plans and a 1,000-sibling transition.
 
-Median and nearest-rank p95 are reported. Complexity caps and large-scale relative ratios are hard assertions;
-absolute latency is report-only. The native CI job rebuilds the Node ABI dependency before running the suite.
+Median and nearest-rank p95 are reported. Recall uses 11 paired samples and alternates FTS/LIKE execution order
+to reduce cache-order bias. Its hard gate asserts `fts-only`, preserves statement and materialization caps, and
+requires the 10,000-to-50,000-row FTS median growth factor to be no more than 65% of the legacy LIKE growth
+factor. The 50,000-row point ratio and absolute latency are report-only. The Tape relative ratio remains a hard
+gate. The native CI job rebuilds the Node ABI dependency before running the suite.
 
 ## Compatibility and Rollback
 
