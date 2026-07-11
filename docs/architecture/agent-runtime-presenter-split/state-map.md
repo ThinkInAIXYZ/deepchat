@@ -1,5 +1,10 @@
 # AgentRuntimePresenter Split — State Map
 
+> Status: **historical audit for a superseded proposal**. Do not implement the shared runtime-state
+> recommendation below. The current ownership model is defined by
+> [Agent System Layered Runtime](../agent-system-layered-runtime/README.md), with per-session
+> `DeepChatAgentInstance` state and per-turn `LoopRun` state.
+
 This resolves the first open question in `spec.md`: shared mutable state should be explicit. The
 split should use one small shared runtime-state object for cross-cutting turn execution state
 instead of letting every extracted service own its own copies.

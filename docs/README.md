@@ -20,6 +20,16 @@ Renderer
 `src/renderer/api/legacy/**` 已经退休。业务模块的新能力应从 `renderer/api/*Client` 和
 shared contracts 进入；少数仍需要 raw IPC 的能力只能封装在明确 allowlist 的 preload/API 边界内。
 
+## 当前架构目标
+
+| 文档 | 状态 | 用途 |
+| --- | --- | --- |
+| [architecture/agent-system-layered-runtime/](./architecture/agent-system-layered-runtime/) | 设计完成，尚未实施 | Agent control plane、ACP 独立 runtime、DeepChat instance/loop/Tape/Memory 的分层改造总入口 |
+
+该目标以当前代码为 BEFORE 基线，不代表代码已经完成迁移。阅读当前实现仍以“当前必读”中的文档
+为准；实施顺序和不可回归合同以该目标的 `plan.md`、`tasks.md` 与
+`migration-and-validation.md` 为准。
+
 ## 当前必读
 
 | 文档 | 用途 |
@@ -53,6 +63,7 @@ docs/
 ├── FLOWS.md
 ├── architecture/
 │   ├── agent-system.md
+│   ├── agent-system-layered-runtime/
 │   ├── event-system.md
 │   ├── session-management.md
 │   ├── tool-system.md

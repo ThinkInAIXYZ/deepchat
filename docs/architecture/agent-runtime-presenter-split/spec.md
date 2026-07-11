@@ -1,7 +1,9 @@
 # AgentRuntimePresenter Split — Spec
 
-> Status: **proposal only** — no code change in this goal. Implementation is a separate effort
-> that must resolve the open questions below first.
+> Status: **superseded; do not implement**. This snapshot is retained only as historical input.
+> The current target is [Agent System Layered Runtime](../agent-system-layered-runtime/README.md),
+> which covers AgentManager, ACP separation, per-session instances, LoopEngine, Tape and Memory
+> compatibility. Its `spec.md`, `plan.md` and `tasks.md` replace this proposal.
 
 ## Problem
 

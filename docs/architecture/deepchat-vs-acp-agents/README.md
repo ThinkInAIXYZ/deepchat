@@ -2,6 +2,11 @@
 
 Status: reviewed on 2026-07-06.
 
+> This folder documents the current implementation. The approved, not-yet-implemented separation
+> target is [Agent System Layered Runtime](../agent-system-layered-runtime/README.md), where
+> `kind=acp` sessions no longer enter the DeepChat loop. The existing
+> `kind=deepchat + providerId=acp` compatibility path remains provider-based.
+
 This note compares the live DeepChat agent runtime with the ACP provider path. It keeps only
 findings backed by current code. Earlier draft items that assumed non-existent multi-writer or
 rollback behavior were removed.

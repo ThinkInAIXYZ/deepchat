@@ -1,6 +1,8 @@
 # AgentRuntimePresenter Split — Plan
 
-> Proposal only. Each step below is one PR against `dev`.
+> Status: **superseded; do not execute this plan**. Use
+> [Agent System Layered Runtime plan](../agent-system-layered-runtime/plan.md). The sequence below is
+> retained only to explain the earlier façade-extraction proposal.
 
 ## Sequencing (risk-ascending)
 

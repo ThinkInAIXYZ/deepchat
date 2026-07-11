@@ -1,7 +1,8 @@
 # AgentRuntimePresenter Split — Tasks
 
-> Proposal only — implementation not started. T1 resolved the spec's state-ownership question
-> before code moves begin.
+> Status: **superseded; do not continue these tasks**. Active task IDs are maintained in
+> [Agent System Layered Runtime tasks](../agent-system-layered-runtime/tasks.md). Checked items below
+> only describe work completed for the historical proposal.
 
 - [x] T1: State-ownership audit → `state-map.md` (resolves shared-state question)
 - [ ] T2: Extract `sessionSettingsService` (+ unit tests)

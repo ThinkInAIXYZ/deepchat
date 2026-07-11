@@ -1,5 +1,10 @@
 # Agent 系统架构详解
 
+> 本文描述当前实现。已完成设计、尚未实施的目标架构见
+> [Agent System Layered Runtime](./agent-system-layered-runtime/README.md)。目标设计会用显式
+> `AgentManager`、独立 ACP backend、per-session `DeepChatAgentInstance` 和 DeepChat-only
+> `LoopEngine` 取代当前混合边界；在代码迁移完成前，不要把目标结构当作当前事实。
+
 本文档描述 retirement 后仍然有效的 agent system。旧 `AgentPresenter` 细节不再作为仓库内
 长期文档保留；需要对照时用 `git log` / `git show` 查看历史提交。
 
@@ -45,7 +50,9 @@ flowchart TD
 主原则：
 
 - renderer 只面向 `agentSessionPresenter`
-- `agentSessionPresenter` 只做 session orchestration，不执行聊天 loop
+- `agentSessionPresenter` 当前是大而宽的 façade：除 session orchestration 外，还承担 DeepChat/ACP
+  dispatch、draft/subagent/transfer、title/import/search/export/dashboard 等 application logic；聊天
+  provider/tool loop 本身仍在 `agentRuntimePresenter`
 - `agentRuntimePresenter` 独占聊天 runtime
 
 ## 模块布局
