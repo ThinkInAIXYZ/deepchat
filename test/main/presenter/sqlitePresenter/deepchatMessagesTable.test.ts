@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatMessagesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
+import { DeepChatMessageTracesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessageTraces'
 import { Database, nativeSqliteDescribeIf } from '../../nativeSqliteHarness'
 
 const DatabaseCtor = Database!
@@ -80,7 +81,7 @@ describe('DeepChatMessagesTable', () => {
   })
 })
 
-describeIfNativeSqlite('DeepChatMessagesTable existence query', () => {
+describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
   function createTable() {
     const db = new DatabaseCtor(':memory:')
     const table = new DeepChatMessagesTable(db)
@@ -107,15 +108,92 @@ describeIfNativeSqlite('DeepChatMessagesTable existence query', () => {
     }
   })
 
+  it('loads ordered runtime history without the trace table', () => {
+    const { db, table } = createTable()
+    try {
+      table.insert({
+        id: 'm2',
+        sessionId: 's1',
+        orderSeq: 2,
+        role: 'assistant',
+        content: '[]',
+        status: 'sent'
+      })
+      table.insert({
+        id: 'other',
+        sessionId: 's2',
+        orderSeq: 1,
+        role: 'user',
+        content: '{}',
+        status: 'sent'
+      })
+      table.insert({
+        id: 'm1',
+        sessionId: 's1',
+        orderSeq: 1,
+        role: 'user',
+        content: '{}',
+        status: 'sent'
+      })
+
+      const rows = table.getBySession('s1')
+
+      expect(rows.map((row) => row.id)).toEqual(['m1', 'm2'])
+      expect(rows.every((row) => row.trace_count === undefined)).toBe(true)
+      expect(table.get('m1')?.trace_count).toBeUndefined()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('keeps trace counts on the UI pagination projection', () => {
+    const { db, table } = createTable()
+    try {
+      const traces = new DeepChatMessageTracesTable(db)
+      traces.createTable()
+      table.insert({
+        id: 'm1',
+        sessionId: 's1',
+        orderSeq: 1,
+        role: 'assistant',
+        content: '[]',
+        status: 'sent'
+      })
+      for (let requestSeq = 1; requestSeq <= 2; requestSeq += 1) {
+        traces.insert({
+          id: `t${requestSeq}`,
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq,
+          endpoint: 'https://api.openai.test/v1/responses',
+          headersJson: '{}',
+          bodyJson: '{}',
+          truncated: false
+        })
+      }
+
+      expect(table.listPageBySession('s1', { limit: 100 })[0]?.trace_count).toBe(2)
+    } finally {
+      db.close()
+    }
+  })
+
   it('uses the existing session index', () => {
     const { db } = createTable()
     try {
       const plan = db
-        .prepare('EXPLAIN QUERY PLAN SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1')
+        .prepare(
+          'EXPLAIN QUERY PLAN SELECT * FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq'
+        )
         .all('s1') as Array<{ detail: string }>
 
       expect(plan.some((row) => /idx_deepchat_messages_session/i.test(row.detail))).toBe(true)
       expect(plan.some((row) => /\bSCAN deepchat_messages\b/i.test(row.detail))).toBe(false)
+      expect(plan.some((row) => /deepchat_message_traces|materialize/i.test(row.detail))).toBe(
+        false
+      )
     } finally {
       db.close()
     }
