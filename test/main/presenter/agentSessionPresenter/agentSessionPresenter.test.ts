@@ -246,7 +246,6 @@ function createMockSqlitePresenter() {
     },
     sessionCreateOperationsTable: {
       markPendingUnknown: vi.fn(() => 0),
-      recoverAfterRestart: vi.fn(() => ({ succeeded: 0, unknown: 0 })),
       get: vi.fn((operationId: string | number) => operationRows.get(operationId) ?? null),
       findUnresolvedByFingerprint: vi.fn(
         (fingerprint: string) =>
@@ -287,14 +286,6 @@ function createMockSqlitePresenter() {
       setSucceededCode: vi.fn((operationId: string | number, code: string | null, now: number) => {
         Object.assign(operationRows.get(operationId), {
           error_code: code,
-          updated_at: now
-        })
-      }),
-      reconcileUnknownSucceeded: vi.fn((operationId: string | number, now: number) => {
-        Object.assign(operationRows.get(operationId), {
-          state: 'succeeded',
-          stage: 'completed',
-          error_code: null,
           updated_at: now
         })
       }),
@@ -494,7 +485,65 @@ describe('AgentSessionPresenter', () => {
       expect(sqlitePresenter.sessionCreateOperationsTable.create).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps an omitted-default command stable when configured defaults change during retry', async () => {
+      let acceptInput!: (value: any) => void
+      deepChatAgent.queuePendingInput.mockReturnValue(
+        new Promise((resolve) => {
+          acceptInput = resolve
+        })
+      )
+      const operationId = '00000000-0000-4000-8000-000000000001'
+      const first = presenter.createSession(
+        { agentId: 'deepchat', message: 'Stable command' },
+        operationId
+      )
+      await vi.waitFor(() => expect(deepChatAgent.queuePendingInput).toHaveBeenCalledOnce())
+
+      configPresenter.getDefaultModel.mockReturnValue({
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet'
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        permissionMode: 'default',
+        disabledAgentTools: ['exec'],
+        subagentEnabled: true,
+        systemPrompt: 'Changed default'
+      })
+      const retry = presenter.createSession(
+        { agentId: 'deepchat', message: 'Stable command' },
+        operationId
+      )
+
+      acceptInput({ id: 'queued-1' })
+      await expect(Promise.all([first, retry])).resolves.toHaveLength(2)
+      expect(sqlitePresenter.sessionCreateOperationsTable.create).toHaveBeenCalledTimes(1)
+      expect(deepChatAgent.initSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('writes the journal before resolving dynamic create defaults', async () => {
+      let resolveConfig!: (value: Record<string, unknown>) => void
+      configPresenter.resolveDeepChatAgentConfig.mockReturnValue(
+        new Promise((resolve) => {
+          resolveConfig = resolve
+        })
+      )
+
+      const creating = presenter.createSession(
+        { agentId: 'deepchat', message: 'Wait for defaults' },
+        '00000000-0000-4000-8000-000000000001'
+      )
+
+      await vi.waitFor(() =>
+        expect(sqlitePresenter.sessionCreateOperationsTable.create).toHaveBeenCalledOnce()
+      )
+      expect(sqlitePresenter.newSessionsTable.create).not.toHaveBeenCalled()
+
+      resolveConfig({})
+      await expect(creating).resolves.toMatchObject({ id: 'mock-session-id' })
+    })
+
     it('treats omitted and explicit-null project directories as different input', async () => {
+      configPresenter.getDefaultProjectPath.mockReturnValue('/default-project')
       const operationId = '00000000-0000-4000-8000-000000000001'
       await presenter.createSession({ agentId: 'deepchat', message: '' }, operationId)
 
@@ -505,6 +554,67 @@ describe('AgentSessionPresenter', () => {
         code: 'CREATE_OPERATION_CONFLICT'
       })
       expect(deepChatAgent.initSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('dedupes new ids by normalized effects for default paths and ACP ignored fields', async () => {
+      let acceptInput!: (value: any) => void
+      deepChatAgent.queuePendingInput.mockReturnValue(
+        new Promise((resolve) => {
+          acceptInput = resolve
+        })
+      )
+      configPresenter.getDefaultProjectPath.mockReturnValue('/default-project')
+      const first = presenter.createSession(
+        { agentId: 'deepchat', message: 'same effect' },
+        '00000000-0000-4000-8000-000000000001'
+      )
+      await vi.waitFor(() => expect(deepChatAgent.queuePendingInput).toHaveBeenCalledOnce())
+
+      await expect(
+        presenter.createSession(
+          { agentId: 'deepchat', message: 'same effect', projectDir: '   ' },
+          '00000000-0000-4000-8000-000000000002'
+        )
+      ).rejects.toMatchObject({ code: 'CREATE_OPERATION_EXISTS' })
+      acceptInput({ id: 'queued-1' })
+      await first
+
+      vi.clearAllMocks()
+      deepChatAgent.queuePendingInput.mockReturnValue(
+        new Promise((resolve) => {
+          acceptInput = resolve
+        })
+      )
+      const acpFirst = presenter.createSession(
+        {
+          agentId: 'acp-coder',
+          message: 'ACP same effect',
+          projectDir: '/workspace',
+          providerId: 'acp',
+          modelId: 'acp-coder',
+          disabledAgentTools: ['exec'],
+          subagentEnabled: true
+        },
+        '00000000-0000-4000-8000-000000000003'
+      )
+      await vi.waitFor(() => expect(deepChatAgent.queuePendingInput).toHaveBeenCalledOnce())
+
+      await expect(
+        presenter.createSession(
+          {
+            agentId: 'acp-coder',
+            message: 'ACP same effect',
+            projectDir: '/workspace',
+            providerId: 'acp',
+            modelId: 'acp-coder',
+            disabledAgentTools: ['different-tool'],
+            subagentEnabled: false
+          },
+          '00000000-0000-4000-8000-000000000004'
+        )
+      ).rejects.toMatchObject({ code: 'CREATE_OPERATION_EXISTS' })
+      acceptInput({ id: 'queued-2' })
+      await acpFirst
     })
 
     it('blocks a new id for the same dismissed unresolved fingerprint', async () => {
@@ -629,6 +739,32 @@ describe('AgentSessionPresenter', () => {
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.sessionCreateOperationsTable.settle).toHaveBeenLastCalledWith(
         '00000000-0000-4000-8000-000000000001',
+        expect.objectContaining({ state: 'failed', errorCode: 'CREATE_SESSION_FAILED' })
+      )
+    })
+
+    it('cleans a preallocated record id when record creation inserts and then throws', async () => {
+      let recordExists = false
+      sqlitePresenter.newSessionsTable.create.mockImplementationOnce(() => {
+        recordExists = true
+        throw new Error('post-insert projection failure')
+      })
+      sqlitePresenter.newSessionsTable.delete.mockImplementationOnce(() => {
+        recordExists = false
+      })
+
+      await expect(
+        presenter.createSession(
+          { agentId: 'deepchat', message: '' },
+          '00000000-0000-4000-8000-000000000005'
+        )
+      ).resolves.toBeNull()
+
+      expect(recordExists).toBe(false)
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
+      expect(deepChatAgent.destroySession).not.toHaveBeenCalled()
+      expect(sqlitePresenter.sessionCreateOperationsTable.settle).toHaveBeenLastCalledWith(
+        '00000000-0000-4000-8000-000000000005',
         expect.objectContaining({ state: 'failed', errorCode: 'CREATE_SESSION_FAILED' })
       )
     })
@@ -934,13 +1070,15 @@ describe('AgentSessionPresenter', () => {
       )
     })
 
-    it('records a failed operation when no provider/model is available', async () => {
+    it('journals a missing provider/model failure before any session side effect', async () => {
       configPresenter.getDefaultModel.mockReturnValue(null)
 
       await expect(
         presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
       ).resolves.toBeNull()
-      expect(sqlitePresenter.sessionCreateOperationsTable.settle).toHaveBeenCalledWith(
+      expect(sqlitePresenter.sessionCreateOperationsTable.create).toHaveBeenCalledOnce()
+      expect(sqlitePresenter.newSessionsTable.create).not.toHaveBeenCalled()
+      expect(sqlitePresenter.sessionCreateOperationsTable.settle).toHaveBeenLastCalledWith(
         1,
         expect.objectContaining({ state: 'failed', errorCode: 'CREATE_SESSION_FAILED' })
       )
@@ -1287,7 +1425,7 @@ describe('AgentSessionPresenter', () => {
       })
     }
 
-    it('reconciles unknown only when durable input stage and SES availability agree', async () => {
+    it('keeps input-accepted unknown after a partial-cleanup crash even when the session remains', async () => {
       createOperationRow()
       sqlitePresenter.sessionCreateOperationsTable.updateStage(operationId, 'input_accepted', 2)
       sqlitePresenter.sessionCreateOperationsTable.settle(operationId, {
@@ -1298,37 +1436,14 @@ describe('AgentSessionPresenter', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(persistedSessionRow())
 
       await expect(presenter.getCreateOperation(operationId)).resolves.toMatchObject({
-        operation: { state: 'succeeded', stage: 'completed', code: null },
-        session: { id: sessionId }
-      })
-      expect(
-        sqlitePresenter.sessionCreateOperationsTable.reconcileUnknownSucceeded
-      ).toHaveBeenCalledWith(operationId, expect.any(Number))
-      expect(deepChatAgent.queuePendingInput).not.toHaveBeenCalled()
-      expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
-
-      const secondId = '00000000-0000-4000-8000-000000000002'
-      sqlitePresenter.sessionCreateOperationsTable.create({
-        operationId: secondId,
-        sessionId,
-        inputFingerprint: 'second',
-        now: 3
-      })
-      sqlitePresenter.sessionCreateOperationsTable.updateStage(secondId, 'input_accepted', 4)
-      sqlitePresenter.sessionCreateOperationsTable.settle(secondId, {
-        state: 'unknown',
-        errorCode: 'CREATE_OPERATION_RESTARTED',
-        now: 5
-      })
-      deepChatAgent.getSessionState.mockRejectedValueOnce(new Error('temporary state read'))
-
-      await expect(presenter.getCreateOperation(secondId)).resolves.toMatchObject({
-        operation: { state: 'unknown', stage: 'input_accepted' },
+        operation: {
+          state: 'unknown',
+          stage: 'input_accepted',
+          code: 'CREATE_OPERATION_RESTARTED'
+        },
         session: null
       })
-      expect(
-        sqlitePresenter.sessionCreateOperationsTable.reconcileUnknownSucceeded
-      ).not.toHaveBeenCalledWith(secondId, expect.anything())
+      expect(deepChatAgent.getSessionState).not.toHaveBeenCalled()
       expect(deepChatAgent.queuePendingInput).not.toHaveBeenCalled()
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
     })
@@ -1347,9 +1462,6 @@ describe('AgentSessionPresenter', () => {
         session: null
       })
       expect(deepChatAgent.getSessionState).not.toHaveBeenCalled()
-      expect(
-        sqlitePresenter.sessionCreateOperationsTable.reconcileUnknownSucceeded
-      ).not.toHaveBeenCalled()
       expect(deepChatAgent.queuePendingInput).not.toHaveBeenCalled()
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
     })

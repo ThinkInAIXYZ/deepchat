@@ -482,6 +482,16 @@ function createRuntime() {
         modelId: 'gpt-5.4'
       }
     }),
+    getCreateOperationSnapshot: vi.fn().mockReturnValue({
+      operationId: '00000000-0000-4000-8000-000000000001',
+      sessionId: 'session-1',
+      state: 'pending',
+      stage: 'runtime_ready',
+      code: null,
+      dismissedAt: null,
+      createdAt: 1,
+      updatedAt: 2
+    }),
     listCreateOperations: vi.fn().mockReturnValue({
       items: [],
       nextCursor: null,

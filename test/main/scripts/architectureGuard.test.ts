@@ -43,6 +43,8 @@ const TRACKED_GROWTH_BASELINE_PATH = path.join(
 )
 const ARCHITECTURE_GUARD_PATH = path.join(ROOT, 'scripts/architecture-guard.mjs')
 const OPERATION_RUNNER_PATH = path.join(ROOT, 'src/main/routes/operationRunner.ts')
+const CONFIG_PRESENTER_PATH = path.join(ROOT, 'src/main/presenter/configPresenter/index.ts')
+const AGENT_REPOSITORY_PATH = path.join(ROOT, 'src/main/presenter/agentRepository/index.ts')
 const FIXTURE_PATHS = [
   FIXTURE_PATH,
   MEMORY_CORE_FIXTURE_PATH,
@@ -164,6 +166,27 @@ describe.sequential('architecture guard', () => {
 
     const result = runArchitectureGuard()
     expect(result.status).toBe(0)
+  })
+
+  it('keeps the pre-journal agent type lookup local and finite', async () => {
+    const [configSource, repositorySource] = await Promise.all([
+      readFile(CONFIG_PRESENTER_PATH, 'utf8'),
+      readFile(AGENT_REPOSITORY_PATH, 'utf8')
+    ])
+    const configBody = configSource.match(
+      /async getAgentType\(agentId: string\): Promise<AgentType \| null> \{([\s\S]*?)\n  \}/
+    )?.[1]
+    const repositoryBody = repositorySource.match(
+      /getAgentType\(agentId: string\): 'deepchat' \| 'acp' \| null \{([\s\S]*?)\n  \}/
+    )?.[1]
+
+    expect(configBody?.trim()).toBe(
+      'return this.getAgentRepositoryOrThrow().getAgentType(agentId)'
+    )
+    expect(repositoryBody).toContain('this.sqlitePresenter.agentsTable.get(agentId)')
+    expect(`${configBody}\n${repositoryBody}`).not.toMatch(
+      /\b(?:await|fetch|request|ipc|https?)\b/
+    )
   })
 
   it('fails when agent-interface duplicates the session create operation DTO', async () => {

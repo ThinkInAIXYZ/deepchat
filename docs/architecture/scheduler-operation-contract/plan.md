@@ -384,21 +384,23 @@ message 分类。unexpected error 仍作为 generic IPC rejection。
 
 ### Backend 实施步骤
 
-1. schema validation 后 canonicalize input、计算 DB-only fingerprint、预分配 session id。
-   Canonicalization 复用实际 create normalization：active skills 与 disabled tools 的等价写法必须同 hash，
-   `projectDir` omitted/default 与 explicit null 必须不同 hash。
+1. schema validation 后先用 production 本地 SQLite lookup 解析 agent type，再计算稳定的 DB-only command
+   fingerprint 并预分配 session id。显式字段复用实际同步 normalization；省略的动态默认项使用 source marker，
+   不把当次解析出的 provider/model/permission/generation/default tools/subagent 写进 hash。`projectDir`
+   omitted/blank 使用同一 default marker，explicit null 单独编码；ACP 忽略的 tools/subagent 使用 ignored marker。
 2. 副作用前登记 operation：same id/same fingerprint single-flight；different fingerprint 返回 `conflict`
    variant；新 id 若命中同 fingerprint `pending/unknown`（含 dismissed），返回 `existing` variant；两者都带
    old checkable identity/state且零 mutation。
-3. 按 durable boundary 更新 `record_created`、`runtime_ready`、
+3. journal 登记后才解析 agent/global defaults 和 runtime effective config；随后按 durable boundary 更新 `record_created`、`runtime_ready`、
    `input_not_required/input_accepted`、`completed`。
 4. initial-input stage 只 await 当前 production `queuePendingInput()` durable record；删除 unreachable
    `processMessage` fallback，绝不 await whole generation。
 5. 保留 `5_000ms` 作为 create 首次 observation deadline；到点返回 `pending`，不 abort、不写 failed。
 6. owner failure 收集所有 compensation outcome：全部 settle success 才 `failed`，任一不确定为 `unknown`。
-7. restart/reconcile：durable input stage + readable/available session 才收敛 succeeded；其余 incomplete pending
-   转 unknown，不 replay payload。succeeded + authoritative missing 删除 orphan row；transient/unavailable 保留
-   succeeded identity 并返回 stable unavailable code，不误降级 unknown。
+7. restart/reconcile：所有 persisted pending 转 unknown，不 replay payload。现有 journal 没有 input record id，
+   unknown 即使带 durable-looking stage 和 readable session 也不能排除 partial-cleanup crash，因此不得自动提升。
+   succeeded + authoritative missing 删除 orphan row；transient/unavailable 保留 succeeded identity 并返回 stable
+   unavailable code，不误降级 unknown。
 8. history 按 immutable `(createdAt DESC, operationId ASC)` cursor 翻页，返回所有保留 row；state/update/dismiss
    不改变分页位置，dismissed 只由 UI 折叠。
 9. create backend 不接收/使用 `webContentsId`，不 bind window。terminal success 后只发一次不带 active fields 的
@@ -411,14 +413,15 @@ message 分类。unexpected error 仍作为 generic IPC rejection。
 | --- | --- |
 | fast/no-input create | succeeded，stage completed |
 | input queue deferred | 未 accepted 前不 completed；不等待 generation terminal |
-| deferred record/runtime | deadline 返回 pending，late success 可 query |
+| deferred dynamic config/record/runtime | journal 已存在；deadline 用同步 snapshot 返回 pending，不等待 reconcile；late success 可 query |
 | duplicate pending/succeeded | create/runtime/input count = 1 |
 | same id/different input | conflict，旧 state 不变 |
+| same id/defaults changed | 省略字段仍是同一 command fingerprint，不 conflict、不重复执行 |
 | new id/same unresolved fingerprint | 返回 existing id；含 dismissed row；create/runtime/input count = 0 |
 | cleanup all success | failed，record 不残留 |
 | one cleanup unknown | unknown，不自动 retry |
 | restart incomplete | pending -> unknown，不 replay payload |
-| restart/reconcile proof | durable input stage + available -> succeeded；早期 stage/不可用证据保持 unknown |
+| restart/unknown counterexample | 所有 pending -> unknown；input stage + 残留 session row 仍保持 unknown |
 | succeeded lookup | available 可重建；missing 删除 orphan；transient/unavailable 保留 succeeded + stable code |
 | invalid operation id | missing/empty/whitespace/non-UUID/overlength 全部 pre-effect reject |
 | create output union | operation/existing/conflict 都经 Zod parse；renderer 所需 id/state/code 只来自 output |

@@ -35,6 +35,7 @@ export interface SessionRepository {
     operation: CreateSessionOperationSummary | null
     session: SessionWithState | null
   }>
+  getCreateOperationSnapshot(operationId: string): CreateSessionOperationSummary | null
   listCreateOperations(input: {
     limit: number
     cursor?: { createdAt: number; operationId: string } | null
@@ -96,6 +97,7 @@ export function createPresenterHotPathPorts(deps: {
     IAgentSessionPresenter,
     | 'createSession'
     | 'getCreateOperation'
+    | 'getCreateOperationSnapshot'
     | 'listCreateOperations'
     | 'dismissCreateOperation'
     | 'resolveSession'
@@ -129,6 +131,8 @@ export function createPresenterHotPathPorts(deps: {
         await deps.agentSessionPresenter.createSession(input, operationId),
       getCreateOperation: async (operationId) =>
         await deps.agentSessionPresenter.getCreateOperation(operationId),
+      getCreateOperationSnapshot: (operationId) =>
+        deps.agentSessionPresenter.getCreateOperationSnapshot(operationId),
       listCreateOperations: (input) => deps.agentSessionPresenter.listCreateOperations(input),
       dismissCreateOperation: (operationId) =>
         deps.agentSessionPresenter.dismissCreateOperation(operationId),

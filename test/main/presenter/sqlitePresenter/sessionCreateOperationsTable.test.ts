@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule
@@ -89,6 +92,51 @@ describeIfSqlite('SessionCreateOperationsTable', () => {
     )
   })
 
+  it('active initialization adds the journal to an existing current-version database', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'deepchat-session-create-'))
+    const dbPath = path.join(tempDir, 'existing.db')
+    let presenter: { close(): void; getDatabase(): InstanceType<typeof DatabaseCtor> } | null = null
+    try {
+      const { SQLitePresenter } = await import('@/presenter/sqlitePresenter')
+      const seedPresenter = new SQLitePresenter(dbPath)
+      const seedDb = seedPresenter.getDatabase()
+      const recordedVersion = seedDb
+        .prepare('SELECT MAX(version) AS version FROM schema_versions')
+        .get() as { version: number }
+      seedDb.exec('DROP TABLE session_create_operations')
+      seedPresenter.close()
+
+      presenter = new SQLitePresenter(dbPath)
+      const activeDb = presenter.getDatabase()
+      const objects = activeDb
+        .prepare(
+          `SELECT name FROM sqlite_master
+           WHERE name IN (
+             'session_create_operations',
+             'idx_session_create_operations_fingerprint_state',
+             'idx_session_create_operations_history'
+           )
+           ORDER BY name`
+        )
+        .all() as Array<{ name: string }>
+      const version = activeDb
+        .prepare('SELECT MAX(version) AS version FROM schema_versions')
+        .get() as {
+        version: number
+      }
+
+      expect(objects.map((row) => row.name)).toEqual([
+        'idx_session_create_operations_fingerprint_state',
+        'idx_session_create_operations_history',
+        'session_create_operations'
+      ])
+      expect(version.version).toBe(recordedVersion.version)
+    } finally {
+      presenter?.close()
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   it('keeps dismissed unresolved rows visible to fingerprint dedupe and history', () => {
     const operationId = '00000000-0000-4000-8000-000000000001'
     insert(operationId, 'same', 10)
@@ -117,13 +165,17 @@ describeIfSqlite('SessionCreateOperationsTable', () => {
     table.updateStage(recoverableId, 'input_accepted', 12)
     db!.prepare('INSERT INTO new_sessions (id) VALUES (?)').run(recoverable.session_id)
 
-    expect(table.recoverAfterRestart(20)).toEqual({ succeeded: 1, unknown: 1 })
+    expect(table.markPendingUnknown(20)).toBe(2)
     expect(table.get(pendingId)).toMatchObject({
       state: 'unknown',
       stage: 'accepted',
       error_code: 'CREATE_OPERATION_RESTARTED'
     })
-    expect(table.get(recoverableId)).toMatchObject({ state: 'succeeded', stage: 'completed' })
+    expect(table.get(recoverableId)).toMatchObject({
+      state: 'unknown',
+      stage: 'input_accepted',
+      error_code: 'CREATE_OPERATION_RESTARTED'
+    })
   })
 
   it('paginates same-millisecond rows without gaps when mutable fields change', () => {

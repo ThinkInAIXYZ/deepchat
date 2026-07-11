@@ -145,24 +145,6 @@ export class SessionCreateOperationsTable extends BaseTable {
       .run(now).changes
   }
 
-  recoverAfterRestart(now: number): { succeeded: number; unknown: number } {
-    const succeeded = this.db
-      .prepare(
-        `UPDATE session_create_operations
-         SET state = 'succeeded', stage = 'completed', error_code = NULL, updated_at = ?
-         WHERE state = 'pending'
-           AND stage IN ('input_not_required', 'input_accepted')
-           AND EXISTS (
-             SELECT 1 FROM new_sessions WHERE new_sessions.id = session_create_operations.session_id
-           )`
-      )
-      .run(now).changes
-    return {
-      succeeded,
-      unknown: this.markPendingUnknown(now)
-    }
-  }
-
   setSucceededCode(
     operationId: string,
     errorCode: CreateSessionOperationCode | null,
@@ -175,16 +157,6 @@ export class SessionCreateOperationsTable extends BaseTable {
          WHERE operation_id = ? AND state = 'succeeded'`
       )
       .run(errorCode, now, operationId)
-  }
-
-  reconcileUnknownSucceeded(operationId: string, now: number): void {
-    this.db
-      .prepare(
-        `UPDATE session_create_operations
-         SET state = 'succeeded', stage = 'completed', error_code = NULL, updated_at = ?
-         WHERE operation_id = ? AND state = 'unknown'`
-      )
-      .run(now, operationId)
   }
 
   dismiss(operationId: string, now: number): SessionCreateOperationRow | null {

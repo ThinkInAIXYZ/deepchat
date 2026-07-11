@@ -132,6 +132,19 @@ type AgentTransferTargetContext = {
   subagentEnabled: boolean
 }
 
+type PreparedCreateSession = {
+  agentId: string
+  agentType: 'deepchat' | 'acp' | null
+  normalizedInput: SendMessageInput
+  projectDir: string | null
+  disabledAgentTools: string[]
+  subagentEnabled: boolean
+  providerId: string
+  modelId: string
+  permissionMode: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+}
+
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
@@ -324,7 +337,7 @@ export class AgentSessionPresenter {
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       agentRuntimeAgent
     )
-    this.sqlitePresenter.sessionCreateOperationsTable.recoverAfterRestart(Date.now())
+    this.sqlitePresenter.sessionCreateOperationsTable.markPendingUnknown(Date.now())
   }
 
   // ---- IPC-facing methods ----
@@ -334,8 +347,10 @@ export class AgentSessionPresenter {
     operationId: string
   ): Promise<SessionWithState | null> {
     const table = this.sqlitePresenter.sessionCreateOperationsTable
+    const agentId = input.agentId || 'deepchat'
+    const agentType = await this.getAgentType(agentId)
     const inputFingerprint = fingerprintCreateSessionInput(
-      this.buildCreateSessionFingerprintInput(input)
+      this.buildCreateSessionCommandFingerprint(input, agentType)
     )
     const existing = table.get(operationId)
     if (existing) {
@@ -362,7 +377,13 @@ export class AgentSessionPresenter {
       inputFingerprint,
       now: Date.now()
     })
-    const flight = this.executeCreateSessionOperation(input, operationId, sessionId).finally(() => {
+    const flight = this.executeCreateSessionOperation(
+      input,
+      agentId,
+      agentType,
+      operationId,
+      sessionId
+    ).finally(() => {
       if (this.createSessionFlights.get(operationId) === flight) {
         this.createSessionFlights.delete(operationId)
       }
@@ -382,19 +403,6 @@ export class AgentSessionPresenter {
     }
 
     let session: SessionWithState | null = null
-    if (
-      row.state === 'unknown' &&
-      (row.stage === 'input_not_required' ||
-        row.stage === 'input_accepted' ||
-        row.stage === 'completed')
-    ) {
-      const resolution = await this.resolveSession(row.session_id)
-      if (resolution.availability === 'available') {
-        table.reconcileUnknownSucceeded(operationId, Date.now())
-        row = table.get(operationId) as typeof row
-        session = resolution.session
-      }
-    }
     if (row.state === 'succeeded') {
       const resolution = session
         ? ({ availability: 'available', session } as const)
@@ -445,77 +453,40 @@ export class AgentSessionPresenter {
     return row ? toCreateOperationSummary(row) : null
   }
 
+  getCreateOperationSnapshot(operationId: string): CreateSessionOperationSummary | null {
+    const row = this.sqlitePresenter.sessionCreateOperationsTable.get(operationId)
+    return row ? toCreateOperationSummary(row) : null
+  }
+
   private async executeCreateSessionOperation(
     input: CreateSessionInput,
+    agentId: string,
+    agentType: 'deepchat' | 'acp' | null,
     operationId: string,
     sessionId: string
   ): Promise<SessionWithState | null> {
-    const agentId = input.agentId || 'deepchat'
     logger.info(`[AgentSessionPresenter] createSession operation=${operationId} agent=${agentId}`)
     const table = this.sqlitePresenter.sessionCreateOperationsTable
+    let prepared: PreparedCreateSession | null = null
     let agent: IAgentImplementation | null = null
-    let providerId = ''
-    let recordCreated = false
+    let runtimeInitializationStarted = false
     let inputAccepted = false
     let terminalSettlementUncertain = false
     try {
-      const normalizedInput = this.normalizeCreateSessionInput(input)
-      const agentType = await this.getAgentType(agentId)
-      const deepChatAgentConfig =
-        agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
-      const projectDir = this.resolveCreateSessionProjectDir(
-        input.projectDir,
-        deepChatAgentConfig?.defaultProjectPath
-      )
-      const disabledAgentTools =
-        agentType === 'deepchat'
-          ? this.normalizeDisabledAgentTools(
-              input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
-            )
-          : []
-      const subagentEnabled = this.resolveSessionSubagentEnabled(
-        agentType,
-        input.subagentEnabled,
-        deepChatAgentConfig?.subagentEnabled
-      )
+      prepared = await this.prepareCreateSession(input, agentId, agentType)
       agent = await this.resolveAgentImplementation(agentId)
       const queuePendingInput = agent.queuePendingInput
       if (typeof queuePendingInput !== 'function') {
         throw new Error('Session create agent does not provide durable pending input acceptance')
       }
 
-      const defaultModel = this.configPresenter.getDefaultModel()
-      providerId =
-        input.providerId ??
-        deepChatAgentConfig?.defaultModelPreset?.providerId ??
-        defaultModel?.providerId ??
-        ''
-      const modelId =
-        input.modelId ??
-        deepChatAgentConfig?.defaultModelPreset?.modelId ??
-        defaultModel?.modelId ??
-        ''
-      const permissionMode =
-        input.permissionMode !== undefined
-          ? normalizePermissionMode(input.permissionMode)
-          : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
-      const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
-        deepChatAgentConfig,
-        input.generationSettings
-      )
-      if (!providerId || !modelId) {
-        throw new Error('No provider or model configured')
-      }
-      this.assertAcpSessionHasWorkdir(providerId, projectDir)
-
-      const title = normalizedInput.text.slice(0, 50) || 'New Chat'
-      this.sessionManager.create(agentId, title, projectDir, {
+      const title = prepared.normalizedInput.text.slice(0, 50) || 'New Chat'
+      this.sessionManager.create(agentId, title, prepared.projectDir, {
         id: sessionId,
         isDraft: false,
-        disabledAgentTools,
-        subagentEnabled
+        disabledAgentTools: prepared.disabledAgentTools,
+        subagentEnabled: prepared.subagentEnabled
       })
-      recordCreated = true
       this.updateCreateOperationStage(operationId, 'record_created')
 
       const initConfig: {
@@ -527,14 +498,15 @@ export class AgentSessionPresenter {
         generationSettings?: Partial<SessionGenerationSettings>
       } = {
         agentId,
-        providerId,
-        modelId,
-        projectDir,
-        permissionMode
+        providerId: prepared.providerId,
+        modelId: prepared.modelId,
+        projectDir: prepared.projectDir,
+        permissionMode: prepared.permissionMode
       }
-      if (generationSettings) {
-        initConfig.generationSettings = generationSettings
+      if (prepared.generationSettings) {
+        initConfig.generationSettings = prepared.generationSettings
       }
+      runtimeInitializationStarted = true
       await this.initializeSessionRuntime(agent, sessionId, initConfig)
       this.updateCreateOperationStage(operationId, 'runtime_ready')
 
@@ -543,32 +515,28 @@ export class AgentSessionPresenter {
         id: sessionId,
         agentId,
         title,
-        projectDir,
+        projectDir: prepared.projectDir,
         isPinned: false,
         isDraft: false,
         sessionKind: 'regular',
         parentSessionId: null,
-        subagentEnabled,
+        subagentEnabled: prepared.subagentEnabled,
         subagentMeta: null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         status: state?.status ?? 'idle',
-        providerId: state?.providerId ?? providerId,
-        modelId: state?.modelId ?? modelId
+        providerId: state?.providerId ?? prepared.providerId,
+        modelId: state?.modelId ?? prepared.modelId
       }
 
       const hasInitialTurn =
-        normalizedInput.text.trim().length > 0 || (normalizedInput.files?.length ?? 0) > 0
+        prepared.normalizedInput.text.trim().length > 0 ||
+        (prepared.normalizedInput.files?.length ?? 0) > 0
       if (hasInitialTurn) {
-        await queuePendingInput.call(
-          agent,
-          sessionId,
-          this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
-          {
-            source: 'send',
-            projectDir
-          }
-        )
+        await queuePendingInput.call(agent, sessionId, prepared.normalizedInput, {
+          source: 'send',
+          projectDir: prepared.projectDir
+        })
         inputAccepted = true
         this.updateCreateOperationStage(operationId, 'input_accepted')
       } else {
@@ -589,15 +557,18 @@ export class AgentSessionPresenter {
         logger.warn('[AgentSessionPresenter] created session notification failed', { sessionId })
       }
       if (hasInitialTurn) {
-        void this.generateSessionTitle(sessionId, title, providerId, modelId)
+        void this.generateSessionTitle(sessionId, title, prepared.providerId, prepared.modelId)
       }
       return sessionResult
     } catch {
       const cleanupSucceeded = await this.cleanupCreateSessionOperationFailure({
         agent,
         sessionId,
-        providerId,
-        recordCreated,
+        providerId: prepared?.providerId ?? input.providerId ?? '',
+        projectDir:
+          prepared?.projectDir ??
+          (input.projectDir === null ? null : input.projectDir?.trim() || null),
+        runtimeInitializationStarted,
         uncertainEffect: inputAccepted || terminalSettlementUncertain
       })
       table.settle(operationId, {
@@ -3482,16 +3453,13 @@ export class AgentSessionPresenter {
     agent: IAgentImplementation | null
     sessionId: string
     providerId: string
-    recordCreated: boolean
+    projectDir: string | null
+    runtimeInitializationStarted: boolean
     uncertainEffect: boolean
   }): Promise<boolean> {
-    if (!input.recordCreated) {
-      return true
-    }
-
     const cleanups: Promise<unknown>[] = []
     let providerCleanupObservable = true
-    if (input.providerId === 'acp') {
+    if (input.runtimeInitializationStarted && input.providerId === 'acp') {
       providerCleanupObservable = false
       cleanups.push(
         Promise.resolve().then(async () => {
@@ -3500,14 +3468,14 @@ export class AgentSessionPresenter {
         })
       )
     }
-    if (input.agent) {
+    if (input.runtimeInitializationStarted && input.agent) {
       cleanups.push(
         Promise.resolve().then(async () => await input.agent!.destroySession(input.sessionId))
       )
     }
     cleanups.push(
       Promise.resolve().then(() => {
-        this.sessionManager.delete(input.sessionId)
+        this.sessionManager.cleanupPartialCreate(input.sessionId, input.projectDir)
       })
     )
 
@@ -4436,29 +4404,100 @@ export class AgentSessionPresenter {
     )
   }
 
-  private buildCreateSessionFingerprintInput(input: CreateSessionInput): unknown {
-    const {
-      message: _message,
-      files: _files,
-      inlineItems: _inlineItems,
-      activeSkills: _activeSkills,
-      disabledAgentTools: _disabledAgentTools,
-      projectDir: _projectDir,
-      ...configuration
-    } = input
+  private buildCreateSessionCommandFingerprint(
+    input: CreateSessionInput,
+    agentType: 'deepchat' | 'acp' | null
+  ): unknown {
+    const defaultSource = { source: 'default' }
+    const agentDefaultSource = { source: 'agent_default' }
+    const ignoredSource = { source: 'ignored' }
+    const projectDir =
+      input.projectDir === null
+        ? null
+        : input.projectDir?.trim()
+          ? input.projectDir.trim()
+          : defaultSource
+
     return {
-      ...configuration,
-      initialInput: this.normalizeCreateSessionInput(input),
+      agentId: input.agentId || 'deepchat',
+      normalizedInput: this.normalizeCreateSessionInput(input),
+      projectDir,
+      providerId: input.providerId === undefined ? defaultSource : input.providerId,
+      modelId: input.modelId === undefined ? defaultSource : input.modelId,
+      permissionMode:
+        input.permissionMode === undefined
+          ? defaultSource
+          : normalizePermissionMode(input.permissionMode),
+      generationSettings:
+        input.generationSettings === undefined ? defaultSource : input.generationSettings,
       disabledAgentTools:
-        input.disabledAgentTools !== undefined
-          ? this.normalizeDisabledAgentTools(input.disabledAgentTools)
-          : { source: 'agent-default' },
-      projectDir:
-        input.projectDir !== undefined
-          ? input.projectDir === null
-            ? null
-            : input.projectDir?.trim()
-          : { source: 'default' }
+        agentType === 'acp'
+          ? ignoredSource
+          : input.disabledAgentTools === undefined
+            ? agentDefaultSource
+            : this.normalizeDisabledAgentTools(input.disabledAgentTools),
+      subagentEnabled:
+        agentType === 'acp'
+          ? ignoredSource
+          : input.subagentEnabled === undefined
+            ? agentDefaultSource
+            : input.subagentEnabled
+    }
+  }
+
+  private async prepareCreateSession(
+    input: CreateSessionInput,
+    agentId: string,
+    agentType: 'deepchat' | 'acp' | null
+  ): Promise<PreparedCreateSession> {
+    const deepChatAgentConfig =
+      agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
+    const projectDir = this.resolveCreateSessionProjectDir(
+      input.projectDir,
+      deepChatAgentConfig?.defaultProjectPath
+    )
+    const defaultModel = this.configPresenter.getDefaultModel()
+    const providerId =
+      input.providerId ??
+      deepChatAgentConfig?.defaultModelPreset?.providerId ??
+      defaultModel?.providerId ??
+      ''
+    const modelId =
+      input.modelId ??
+      deepChatAgentConfig?.defaultModelPreset?.modelId ??
+      defaultModel?.modelId ??
+      ''
+    if (!providerId || !modelId) {
+      throw new Error('No provider or model configured')
+    }
+    this.assertAcpSessionHasWorkdir(providerId, projectDir)
+
+    return {
+      agentId,
+      agentType,
+      normalizedInput: this.normalizeCreateSessionInput(input),
+      projectDir,
+      disabledAgentTools:
+        agentType === 'deepchat'
+          ? this.normalizeDisabledAgentTools(
+              input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
+            )
+          : [],
+      subagentEnabled: this.resolveSessionSubagentEnabled(
+        agentType,
+        input.subagentEnabled,
+        deepChatAgentConfig?.subagentEnabled
+      ),
+      providerId,
+      modelId,
+      permissionMode:
+        input.permissionMode !== undefined
+          ? normalizePermissionMode(input.permissionMode)
+          : normalizePermissionMode(deepChatAgentConfig?.permissionMode),
+      generationSettings: this.mergeDeepChatDefaultGenerationSettings(
+        deepChatAgentConfig,
+        input.generationSettings
+      )
     }
   }
 

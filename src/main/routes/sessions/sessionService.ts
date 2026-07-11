@@ -97,6 +97,18 @@ export class SessionService {
         if (timer) clearTimeout(timer)
       }
 
+      if (!observed.settled) {
+        const operation = this.deps.sessionRepository.getCreateOperationSnapshot(operationId)
+        if (!operation) {
+          throw new Error('Session create operation journal entry is missing')
+        }
+        return {
+          kind: 'operation',
+          operation,
+          session: null
+        }
+      }
+
       const result = await this.deps.sessionRepository.getCreateOperation(operationId)
       if (!result.operation) {
         throw new Error('Session create operation journal entry is missing')
@@ -104,7 +116,7 @@ export class SessionService {
       return {
         kind: 'operation',
         operation: result.operation,
-        session: observed.settled ? observed.session : result.session
+        session: observed.session
       }
     } catch (error) {
       if (error instanceof ExistingCreateOperationError) {

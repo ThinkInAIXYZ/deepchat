@@ -81,6 +81,7 @@ const createMessageRepository = () => ({
 const createSessionRepository = () => ({
   create: vi.fn(),
   getCreateOperation: vi.fn(),
+  getCreateOperationSnapshot: vi.fn(),
   listCreateOperations: vi.fn(),
   dismissCreateOperation: vi.fn(),
   resolve: vi.fn(),
@@ -141,10 +142,12 @@ describe('SessionService', () => {
     const sessionRepository = createSessionRepository()
     const create = deferred<Record<string, unknown> | null>()
     sessionRepository.create.mockReturnValue(create.promise)
-    sessionRepository.getCreateOperation.mockResolvedValue({
-      operation: { ...operation, state: 'pending', stage: 'runtime_ready' },
-      session: null
+    sessionRepository.getCreateOperationSnapshot.mockReturnValue({
+      ...operation,
+      state: 'pending',
+      stage: 'runtime_ready'
     })
+    sessionRepository.getCreateOperation.mockReturnValue(new Promise(() => undefined))
     const service = new SessionService({
       sessionRepository: sessionRepository as any,
       messageRepository: createMessageRepository() as any,
@@ -154,13 +157,15 @@ describe('SessionService', () => {
     try {
       const creating = service.createSession({ operationId, agentId: 'deepchat', message: 'slow' })
       await vi.advanceTimersByTimeAsync(4_999)
-      expect(sessionRepository.getCreateOperation).not.toHaveBeenCalled()
+      expect(sessionRepository.getCreateOperationSnapshot).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(1)
       await expect(creating).resolves.toMatchObject({
         kind: 'operation',
         operation: { state: 'pending', stage: 'runtime_ready' },
         session: null
       })
+      expect(sessionRepository.getCreateOperation).not.toHaveBeenCalled()
+      expect(sessionRepository.getCreateOperationSnapshot).toHaveBeenCalledOnce()
 
       create.resolve({ id: 'session-1' })
       await Promise.resolve()

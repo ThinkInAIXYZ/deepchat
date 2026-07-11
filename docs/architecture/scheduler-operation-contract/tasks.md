@@ -116,6 +116,10 @@ PRV-CAN-001 development 验证记录：
 - [x] 实现 domain-specific `session_create_operations` additive table。
 - [x] journal 只存 identity/fingerprint/stage/content-free error/timestamps，不存 raw payload。
 - [x] operation 开始前登记 identity 并预分配 session id。
+- [x] fingerprint 分离稳定 command 与 dynamic runtime defaults：default/ignored markers、blank project 等价、null
+  独立；同 id 在设置变化后仍不 conflict。
+- [x] production agent-type pre-journal lookup 固定为本地 SQLite truth；其余 dynamic config preparation 全部在
+  journal 后执行。
 - [x] 同 id/same fingerprint 返回 operation；same id/different fingerprint 返回 conflict + old checkable identity。
 - [x] 新 id + same fingerprint pending/unknown（含 dismissed）返回 existing + old checkable identity且零副作用。
 - [x] internal typed error 由 route adapter按 class/stable code 映射，禁止按 message 分类。
@@ -124,10 +128,13 @@ PRV-CAN-001 development 验证记录：
 - [x] await 现有 `queuePendingInput()` record；删除 unreachable `processMessage` fallback；不新增 accepted-start API。
 - [x] observation deadline 返回 pending，不 abort/不 throw false TimeoutError。
 - [x] create 首次 observation 固定 `5_000ms`。
+- [x] deadline 只读同步 content-free journal snapshot，不等待异步 reconcile。
 - [x] create port/backend 移除 `webContentsId`/`bindWindow`；record/runtime/queue/late success 全程保留原 binding。
 - [x] terminal success 只发一次 non-activation `created` list notification，不带 active fields，不作为 journal stage。
 - [x] compensation 全部 settle success 才 failed；任一不确定为 unknown。
-- [x] restart succeeded 可重建；incomplete pending -> unknown；不 replay payload。
+- [x] record create 即使 insert 后抛错也按预分配 id 做权威 cleanup，并等待所有 compensation settlement。
+- [x] restart succeeded 可重建；所有 incomplete pending -> unknown；unknown 不按 stage + 残留 session row 自动
+  提升；不 replay payload。
 - [x] history 只返回 content-free identity/status/cursor，不返回内容/配置/fingerprint。
 - [x] succeeded 随 session delete；failed/unknown 保留 reconcile/dedupe evidence，不加 speculative TTL worker。
 - [x] 覆盖 validation/fingerprint/dismiss/cursor/unbound/created-event/queue/cleanup/restart/privacy tests。
@@ -136,12 +143,15 @@ PRV-CAN-001 development 验证记录：
 
 SCH-003A development 验证记录：
 
-- main/renderer focused：contracts、SessionService、dispatcher、AgentSessionPresenter、schema metadata、architecture
+- 原始 main/renderer focused：contracts、SessionService、dispatcher、AgentSessionPresenter、schema metadata、architecture
   guard、真实 `createBridge` serialization 共 `256 passed`；operation/existing/conflict、UUID pre-effect、5 秒
   pending、single-flight、normalized fingerprint、dismissed dedupe、binding/event、compensation uncertainty、restart/
   unknown reconciliation、content-free history 均有覆盖。
-- Electron 40 ABI143 native SQLite focused：`5 passed`，覆盖 additive schema/索引、dismiss visibility、restart
-  disposition、same-millisecond cursor 与 succeeded-only delete。
+- blocker fix focused：AgentSessionPresenter、SessionService、dispatcher、architecture guard 共 `218 passed`，覆盖
+  stable command fingerprint、journal-before-dynamic-prepare、deadline snapshot、partial-record cleanup、conservative
+  restart/unknown counterexample 与 production local agent-type lookup。
+- Electron 40 ABI143 native SQLite focused：`6 passed`，覆盖 existing current-version DB active initialization、
+  additive schema/索引、dismiss visibility、restart disposition、same-millisecond cursor 与 succeeded-only delete。
 - `typecheck:node`、`format:check`、`i18n`、`lint`、`git diff --check` 通过。完整 web typecheck 在旧 renderer
   `result.session` 读取新 discriminated union 处保留唯一预期 003B 编译失败；这是 A/B atomic cutover gate，003A
   不用类型断言掩盖、不单独 merge。

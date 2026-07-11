@@ -454,9 +454,15 @@ waitForGenerationSettlement(runId: string): Promise<GenerationTerminalState>
   terminal，不阻止用户创建内容相同的新 session。
 - fingerprint 只用于冲突检测，和 session 数据保存在同一 SQLite/SQLCipher database；不得另建
   plaintext sidecar。日志不得记录 message、file path、fingerprint 或 payload。
-- fingerprint canonicalization 必须与 create 的同步 normalization 一致：`activeSkills` trim/dedupe、
-  `disabledAgentTools` trim/map/dedupe/sort 后等价输入得到同一 fingerprint；`projectDir` omitted 表示使用
-  default，和显式 `null` 表示禁用 default 不是同一输入，必须得到不同 fingerprint。
+- fingerprint 表示稳定的 create command，不固化执行时解析出的动态默认配置。显式字段按 create 的同步
+  normalization 计算：`activeSkills` trim/dedupe，DeepChat 的 `disabledAgentTools` trim/map/dedupe/sort；省略的
+  provider/model/permission/generation/DeepChat tools/subagent 使用稳定 source marker。`projectDir` omitted 或全空白
+  都使用同一个 default marker，显式 `null` 表示禁用 default，必须得到不同 fingerprint。ACP 不消费
+  `disabledAgentTools/subagentEnabled`，这两个字段使用固定 ignored marker，不能制造伪冲突。
+- agent type lookup 是 fingerprint 前唯一的异步外观步骤；production 实现只是同步 SQLite repository lookup 的
+  Promise wrapper，不允许引入网络、IPC 或远程等待。agent config、global/agent default 等 runtime preparation 必须
+  在 journal 登记后解析，因此设置变化不会让同一 transport retry conflict，解析迟滞也能在 5 秒后返回 journal
+  snapshot。
 
 operation id 是 transport identity，fingerprint 是 restart 后丢失 id 时的 duplicate guard，二者不能互相
 替代。`unknown` 必须先 reconcile：权威 session/runtime/queue 证据能收敛才改成 `succeeded/failed`；仍无法
@@ -502,7 +508,7 @@ error message 写进 journal/output。
 | attempt 已 reject，且 runtime/provider/record compensation 全部完成 | `failed` |
 | cleanup 任一步失败、process 在 incomplete stage 重启、无法证明 initial input 是否 accepted | `unknown` |
 | process 重启后 journal `succeeded` 且 session record 可读 | 重建 result，仍为 `succeeded` |
-| process 重启后 journal incomplete | 保守转 `unknown`；不自动重放 payload |
+| process 重启后 journal incomplete | 所有 `pending` 保守转 `unknown`；不自动重放 payload，也不按 stage/session row 猜成功 |
 
 当前 `cleanupFailedSessionInitialization()` 会吞掉 cleanup error 后删除 record。实施时必须让 operation owner
 拿到每个 compensation 结果；否则它没有资格写 `failed`。这不要求把 raw error 暴露 renderer，只记录稳定
@@ -609,11 +615,10 @@ sessions.listCreateOperations({ cursor?, limit?: 1..50 = 20 })
   同一复合 key，state/updatedAt/dismiss 变化不会让 row 在翻页间移动，也不能漏掉同毫秒记录；UI recovery 默认
   关注 `pending/unknown`，但 dismissed/history 仍可翻页查回；
 - route 不返回 prompt、files、title、agent/provider/model、fingerprint、error detail 或任何 input payload；
-- app restart 把 persisted incomplete `pending` 保守转为 `unknown`，不重放 payload；
-- restart 时，只有 stage 已是 `input_accepted`/`input_not_required` 且 session record 仍存在，才可直接收敛
-  `succeeded/completed`；其余 incomplete `pending` 转 `unknown`。查询 `unknown` 时也只有上述 durable stage
-  （或 `completed`）与 SES classified `available` 同时成立才收敛 succeeded；较早 stage、`missing`、
-  `unavailable`、`transient_error` 都不得 replay payload 或猜测成功；
+- app restart 把所有 persisted `pending` 保守转为 `unknown`，保留原 stage 作为诊断信息，但不重放 payload；
+- 当前 content-free journal 没有 pending-input record id 或其他可排除“partial cleanup 后 session row 残留”的
+  强证据，因此 `input_accepted/input_not_required/completed` stage 加可读 session row 也不能把 `unknown` 自动提升
+  为 `succeeded`。`unknown` 保持 unknown，直到未来引入单独设计且可验证的权威证据；
 - 查询 persisted `succeeded` 时，SES `available` 可重建 session；authoritative `missing` 删除 orphan
   succeeded row 并返回双 null；`unavailable/transient_error` 保留 succeeded identity，返回
   `session: null` + `CREATE_OPERATION_SESSION_UNAVAILABLE` 供以后重查，不降级 unknown；

@@ -114,6 +114,7 @@ export interface IAgentSessionPresenter {
     operation: CreateSessionOperationSummary | null
     session: SessionWithState | null
   }>
+  getCreateOperationSnapshot(operationId: string): CreateSessionOperationSummary | null
   listCreateOperations(input: {
     limit: number
     cursor?: { createdAt: number; operationId: string } | null

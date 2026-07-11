@@ -201,6 +201,42 @@ export class NewSessionManager {
     }
   }
 
+  cleanupPartialCreate(id: string, projectDir: string | null): void {
+    const errors: unknown[] = []
+    const affectedPaths = new Set<string>(projectDir ? [projectDir] : [])
+    try {
+      for (const path of this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)) {
+        affectedPaths.add(path)
+      }
+    } catch (error) {
+      errors.push(error)
+    }
+
+    const cleanupSteps = [
+      () => this.sqlitePresenter.deepchatSessionMetadataTable?.delete(id),
+      () => this.sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession(id),
+      () => this.sqlitePresenter.newSessionsTable.delete(id)
+    ]
+    for (const cleanup of cleanupSteps) {
+      try {
+        cleanup()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    for (const path of affectedPaths) {
+      try {
+        this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new AggregateError(errors, 'Partial session create cleanup failed')
+    }
+  }
+
   getDisabledAgentTools(id: string): string[] {
     return this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(id)
   }
