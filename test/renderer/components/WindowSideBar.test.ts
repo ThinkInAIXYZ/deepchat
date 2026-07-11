@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createPinia } from 'pinia'
 import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 type SetupOptions = {
   groupMode?: 'time' | 'project'
@@ -270,11 +273,36 @@ const setup = async (options: SetupOptions = {}) => {
   }
   const remoteControlClient = {
     listRemoteChannels: vi.fn(async () => [
-      { id: 'telegram', implemented: true },
-      { id: 'feishu', implemented: true },
-      { id: 'qqbot', implemented: true },
-      { id: 'discord', implemented: true },
-      { id: 'weixin-ilink', implemented: true }
+      {
+        id: 'telegram' as const,
+        titleKey: 'settings.remote.telegram.title',
+        descriptionKey: 'settings.remote.telegram.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'feishu' as const,
+        titleKey: 'settings.remote.feishu.title',
+        descriptionKey: 'settings.remote.feishu.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'qqbot' as const,
+        titleKey: 'settings.remote.qqbot.title',
+        descriptionKey: 'settings.remote.qqbot.description',
+        supportsCronDelivery: false
+      },
+      {
+        id: 'discord' as const,
+        titleKey: 'settings.remote.discord.title',
+        descriptionKey: 'settings.remote.discord.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'weixin-ilink' as const,
+        titleKey: 'settings.remote.weixinIlink.title',
+        descriptionKey: 'settings.remote.weixinIlink.description',
+        supportsCronDelivery: true
+      }
     ]),
     getChannelStatus: vi.fn(
       async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') =>
@@ -459,6 +487,7 @@ const setup = async (options: SetupOptions = {}) => {
   const wrapper = trackMountedWrapper(
     mount(WindowSideBar, {
       global: {
+        plugins: [createPinia()],
         stubs: {
           TooltipProvider: passthrough,
           Tooltip: passthrough,
@@ -1833,6 +1862,41 @@ describe('WindowSideBar agent switch', () => {
     )
 
     disabledSetup.wrapper.unmount()
+  })
+
+  it('keeps the previous remote display when a refresh fails', async () => {
+    const { wrapper, remoteControlClient, router } = await setup({
+      remoteStatus: {
+        enabled: true,
+        state: 'running'
+      }
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    remoteControlClient.listRemoteChannels.mockResolvedValueOnce([
+      {
+        id: 'qqbot',
+        titleKey: 'settings.remote.qqbot.title',
+        descriptionKey: 'settings.remote.qqbot.description',
+        supportsCronDelivery: false
+      }
+    ])
+    remoteControlClient.getChannelStatus.mockRejectedValueOnce(new Error('IPC unavailable'))
+
+    await expect((wrapper.vm as any).refreshRemoteControlStatus()).resolves.toBe(false)
+    await wrapper.find('[data-testid="remote-control-button"]').trigger('click')
+
+    expect(router.push).toHaveBeenLastCalledWith({
+      name: 'plugins-detail',
+      params: { pluginId: 'remote:telegram' }
+    })
+    expect(warn).toHaveBeenCalledWith(
+      '[WindowSideBar] Failed to refresh remote control status:',
+      expect.any(Error)
+    )
+
+    warn.mockRestore()
+    wrapper.unmount()
   })
 
   it('routes to the first enabled remote plugin when remote button is clicked', async () => {

@@ -96,10 +96,6 @@ const mergeDeepChatConfig = (
     systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
     permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
     disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
-    enabledPluginIds: mergeNullableStringList(
-      baseConfig.enabledPluginIds,
-      overrideConfig.enabledPluginIds
-    ),
     enabledSkillNames: mergeNullableStringList(
       baseConfig.enabledSkillNames,
       overrideConfig.enabledSkillNames

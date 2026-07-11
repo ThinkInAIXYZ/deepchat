@@ -12,8 +12,7 @@ export class SkillTools {
   async handleSkillList(
     conversationId?: string,
     allowedSkillNames?: string[] | null,
-    activeSkillNames?: string[],
-    allowedPluginIds?: string[] | null
+    activeSkillNames?: string[]
   ): Promise<{
     skills: SkillListItem[]
     pinnedCount: number
@@ -23,16 +22,9 @@ export class SkillTools {
     const allowedSkillSet = Array.isArray(allowedSkillNames)
       ? new Set(allowedSkillNames.map((skillName) => skillName.trim()).filter(Boolean))
       : undefined
-    const allowedPluginSet = Array.isArray(allowedPluginIds)
-      ? new Set(allowedPluginIds.map((pluginId) => pluginId.trim()).filter(Boolean))
-      : undefined
-    const allSkills = (await this.skillPresenter.getMetadataList()).filter((skill) => {
-      if (allowedSkillSet && !allowedSkillSet.has(skill.name)) {
-        return false
-      }
-      const ownerPluginId = skill.ownerPluginId?.trim()
-      return !ownerPluginId || !allowedPluginSet || allowedPluginSet.has(ownerPluginId)
-    })
+    const allSkills = (await this.skillPresenter.getMetadataList()).filter(
+      (skill) => !allowedSkillSet || allowedSkillSet.has(skill.name)
+    )
     const listedSkillNames = new Set(allSkills.map((skill) => skill.name))
     const pinnedSkills = conversationId
       ? (await this.skillPresenter.getActiveSkills(conversationId)).filter((skillName) =>
@@ -66,8 +58,7 @@ export class SkillTools {
   async handleSkillView(
     conversationId: string | undefined,
     input: { name: string; file_path?: string },
-    allowedSkillNames?: string[] | null,
-    allowedPluginIds?: string[] | null
+    allowedSkillNames?: string[] | null
   ): Promise<SkillViewResult> {
     const requestedSkillName = input.name.trim()
     const allowedSkillSet = Array.isArray(allowedSkillNames)
@@ -78,23 +69,6 @@ export class SkillTools {
         success: false,
         name: requestedSkillName,
         error: `Skill '${requestedSkillName}' is not enabled for this agent`
-      }
-    }
-
-    if (Array.isArray(allowedPluginIds)) {
-      const allowedPluginSet = new Set(
-        allowedPluginIds.map((pluginId) => pluginId.trim()).filter(Boolean)
-      )
-      const metadata = (await this.skillPresenter.getMetadataList()).find(
-        (skill) => skill.name === requestedSkillName
-      )
-      const ownerPluginId = metadata?.ownerPluginId?.trim()
-      if (ownerPluginId && !allowedPluginSet.has(ownerPluginId)) {
-        return {
-          success: false,
-          name: requestedSkillName,
-          error: `Skill '${requestedSkillName}' is not enabled for this agent`
-        }
       }
     }
 

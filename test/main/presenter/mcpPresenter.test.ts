@@ -387,7 +387,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     expect(tools.map((tool) => tool.function.name)).toEqual(['plugin_tool'])
   })
 
-  it('gates source plugin tools by plugin policy before server policy', async () => {
+  it('keeps source plugin tools available outside normal server policy', async () => {
     const configPresenter = createConfigPresenter(true, false, {
       plugin: { enabled: true, source: 'plugin', sourceId: 'plugin-a' }
     })
@@ -407,17 +407,9 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
     }
 
-    const blockedTools = await presenter.getAllToolDefinitions({
-      enabledServerIds: ['plugin'],
-      enabledPluginIds: []
-    })
-    const allowedTools = await presenter.getAllToolDefinitions({
-      enabledServerIds: [],
-      enabledPluginIds: ['plugin-a']
-    })
+    const tools = await presenter.getAllToolDefinitions({ enabledServerIds: [] })
 
-    expect(blockedTools).toEqual([])
-    expect(allowedTools.map((tool) => tool.function.name)).toEqual(['plugin_tool'])
+    expect(tools.map((tool) => tool.function.name)).toEqual(['plugin_tool'])
   })
 
   it('rejects when the runtime transition fails after persisting config', async () => {

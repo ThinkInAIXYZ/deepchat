@@ -31,7 +31,6 @@ import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 type McpToolAccessContext = {
   enabledTools?: string[]
   enabledServerIds?: string[]
-  enabledPluginIds?: string[]
   agentId?: string
   conversationId?: string
 }
@@ -55,7 +54,6 @@ const normalizeToolAccessContext = (
   return {
     enabledTools: normalizeStringList(input?.enabledTools),
     enabledServerIds: normalizeStringList(input?.enabledServerIds),
-    enabledPluginIds: normalizeStringList(input?.enabledPluginIds),
     agentId: input?.agentId?.trim() || undefined,
     conversationId: input?.conversationId?.trim() || undefined
   }
@@ -158,11 +156,8 @@ export class McpPresenter implements IMCPPresenter {
     serverConfig: MCPServerConfig | undefined,
     context: McpToolAccessContext
   ): boolean {
-    const ownerPluginId =
-      serverConfig?.ownerPluginId?.trim() ||
-      (serverConfig?.source === 'plugin' ? serverConfig.sourceId?.trim() : undefined)
-    if (ownerPluginId) {
-      return !context.enabledPluginIds || context.enabledPluginIds.includes(ownerPluginId)
+    if (this.isPluginOwnedServerConfig(serverConfig)) {
+      return true
     }
 
     return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
@@ -772,7 +767,7 @@ export class McpPresenter implements IMCPPresenter {
 
   async callTool(
     request: MCPToolCall,
-    options?: { agentId?: string; enabledServerIds?: string[]; enabledPluginIds?: string[] }
+    options?: { agentId?: string; enabledServerIds?: string[] }
   ): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request, options)
     const imagePreviews = await extractToolCallImagePreviews({
@@ -837,7 +832,7 @@ export class McpPresenter implements IMCPPresenter {
    */
   async preCheckToolPermission(
     request: MCPToolCall,
-    options?: { agentId?: string; enabledServerIds?: string[]; enabledPluginIds?: string[] }
+    options?: { agentId?: string; enabledServerIds?: string[] }
   ): Promise<{
     needsPermission: true
     toolName: string

@@ -161,6 +161,22 @@ describe('SkillTools', () => {
       expect(result.activeCount).toBe(0)
       expect(result.skills.map((skill) => skill.name)).toEqual(['code-review', 'git-commit'])
     })
+
+    it('keeps plugin-owned skills available through the skill policy', async () => {
+      ;(mockSkillPresenter.getMetadataList as Mock).mockResolvedValue([
+        {
+          name: 'plugin-skill',
+          description: 'Plugin skill',
+          path: '/plugins/fixture/SKILL.md',
+          skillRoot: '/plugins/fixture',
+          ownerPluginId: 'com.deepchat.plugins.fixture'
+        }
+      ])
+
+      const result = await skillTools.handleSkillList('conv-123', ['plugin-skill'])
+
+      expect(result.skills.map((skill) => skill.name)).toEqual(['plugin-skill'])
+    })
   })
 
   describe('handleSkillView', () => {

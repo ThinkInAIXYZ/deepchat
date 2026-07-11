@@ -2866,10 +2866,9 @@ describe('AgentRuntimePresenter', () => {
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
     })
 
-    it('ignores historical agent MCP server allowlists for session tool discovery', async () => {
+    it('omits historical MCP and plugin policies from session tool discovery', async () => {
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
         enabledMcpServerIds: [],
-        enabledPluginIds: ['plugin-a'],
         enabledSkillNames: ['skill-a']
       })
 
@@ -2878,7 +2877,7 @@ describe('AgentRuntimePresenter', () => {
 
       const toolContext = toolPresenter.getAllToolDefinitions.mock.calls[0][0]
       expect(toolContext).not.toHaveProperty('enabledMcpServerIds')
-      expect(toolContext.enabledPluginIds).toEqual(['plugin-a'])
+      expect(toolContext).not.toHaveProperty('enabledPluginIds')
     })
 
     it('invalidates cached prompt after system prompt update', async () => {

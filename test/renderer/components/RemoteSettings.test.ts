@@ -288,11 +288,36 @@ const setup = async (options: SetupOptions = {}) => {
 
   const remoteControlPresenter = {
     listRemoteChannels: vi.fn(async () => [
-      { id: 'telegram', implemented: true },
-      { id: 'feishu', implemented: true },
-      { id: 'qqbot', implemented: true },
-      { id: 'discord', implemented: true },
-      { id: 'weixin-ilink', implemented: true }
+      {
+        id: 'telegram' as const,
+        titleKey: 'settings.remote.telegram.title',
+        descriptionKey: 'settings.remote.telegram.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'feishu' as const,
+        titleKey: 'settings.remote.feishu.title',
+        descriptionKey: 'settings.remote.feishu.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'qqbot' as const,
+        titleKey: 'settings.remote.qqbot.title',
+        descriptionKey: 'settings.remote.qqbot.description',
+        supportsCronDelivery: false
+      },
+      {
+        id: 'discord' as const,
+        titleKey: 'settings.remote.discord.title',
+        descriptionKey: 'settings.remote.discord.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'weixin-ilink' as const,
+        titleKey: 'settings.remote.weixinIlink.title',
+        descriptionKey: 'settings.remote.weixinIlink.description',
+        supportsCronDelivery: true
+      }
     ]),
     getChannelSettings: vi.fn(
       async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') => {

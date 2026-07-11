@@ -96,6 +96,33 @@ const REMOTE_DELIVERY_CHANNELS: readonly RemoteChannel[] = [
   'discord',
   'weixin-ilink'
 ]
+const REMOTE_CHANNEL_CATALOG = [
+  {
+    id: 'telegram',
+    titleKey: 'settings.remote.telegram.title',
+    descriptionKey: 'settings.remote.telegram.description'
+  },
+  {
+    id: 'feishu',
+    titleKey: 'settings.remote.feishu.title',
+    descriptionKey: 'settings.remote.feishu.description'
+  },
+  {
+    id: 'qqbot',
+    titleKey: 'settings.remote.qqbot.title',
+    descriptionKey: 'settings.remote.qqbot.description'
+  },
+  {
+    id: 'discord',
+    titleKey: 'settings.remote.discord.title',
+    descriptionKey: 'settings.remote.discord.description'
+  },
+  {
+    id: 'weixin-ilink',
+    titleKey: 'settings.remote.weixinIlink.title',
+    descriptionKey: 'settings.remote.weixinIlink.description'
+  }
+] satisfies readonly Omit<RemoteChannelDescriptor, 'supportsCronDelivery'>[]
 
 type CronJobRemoteDeliveryInput = {
   job: CronJob
@@ -305,53 +332,10 @@ export class RemoteControlPresenter {
   }
 
   async listRemoteChannels(): Promise<RemoteChannelDescriptor[]> {
-    return [
-      {
-        id: 'telegram',
-        type: 'builtin',
-        implemented: true,
-        titleKey: 'settings.remote.telegram.title',
-        descriptionKey: 'settings.remote.telegram.description',
-        supportsPairing: true,
-        supportsNotifications: false
-      },
-      {
-        id: 'feishu',
-        type: 'builtin',
-        implemented: true,
-        titleKey: 'settings.remote.feishu.title',
-        descriptionKey: 'settings.remote.feishu.description',
-        supportsPairing: true,
-        supportsNotifications: false
-      },
-      {
-        id: 'qqbot',
-        type: 'builtin',
-        implemented: true,
-        titleKey: 'settings.remote.qqbot.title',
-        descriptionKey: 'settings.remote.qqbot.description',
-        supportsPairing: true,
-        supportsNotifications: false
-      },
-      {
-        id: 'discord',
-        type: 'builtin',
-        implemented: true,
-        titleKey: 'settings.remote.discord.title',
-        descriptionKey: 'settings.remote.discord.description',
-        supportsPairing: true,
-        supportsNotifications: false
-      },
-      {
-        id: 'weixin-ilink',
-        type: 'builtin',
-        implemented: true,
-        titleKey: 'settings.remote.weixinIlink.title',
-        descriptionKey: 'settings.remote.weixinIlink.description',
-        supportsPairing: false,
-        supportsNotifications: false
-      }
-    ]
+    return REMOTE_CHANNEL_CATALOG.map((channel) => ({
+      ...channel,
+      supportsCronDelivery: REMOTE_DELIVERY_CHANNELS.includes(channel.id)
+    }))
   }
 
   async getChannelSettings<T extends RemoteChannel>(channel: T): Promise<ChannelSettingsMap[T]> {

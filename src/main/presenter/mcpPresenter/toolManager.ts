@@ -24,7 +24,6 @@ const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 type McpToolAccessContext = {
   enabledTools?: string[]
   enabledServerIds?: string[]
-  enabledPluginIds?: string[]
   agentId?: string
   conversationId?: string
 }
@@ -45,7 +44,6 @@ const normalizeToolAccessContext = (
   return {
     enabledTools: normalizeStringList(input?.enabledTools),
     enabledServerIds: normalizeStringList(input?.enabledServerIds),
-    enabledPluginIds: normalizeStringList(input?.enabledPluginIds),
     agentId: input?.agentId?.trim() || undefined,
     conversationId: input?.conversationId?.trim() || undefined
   }
@@ -274,7 +272,7 @@ export class ToolManager {
     toolDefinitions: MCPToolDefinition[],
     context: McpToolAccessContext
   ): MCPToolDefinition[] {
-    if (!context.enabledTools && !context.enabledServerIds && !context.enabledPluginIds) {
+    if (!context.enabledTools && !context.enabledServerIds) {
       return toolDefinitions
     }
 
@@ -306,11 +304,8 @@ export class ToolManager {
     serverConfig: MCPServerConfig,
     context: McpToolAccessContext
   ): boolean {
-    const ownerPluginId =
-      serverConfig.ownerPluginId?.trim() ||
-      (serverConfig.source === 'plugin' ? serverConfig.sourceId?.trim() : undefined)
-    if (ownerPluginId) {
-      return !context.enabledPluginIds || context.enabledPluginIds.includes(ownerPluginId)
+    if (serverConfig.ownerPluginId?.trim() || serverConfig.source === 'plugin') {
+      return true
     }
     return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
   }
@@ -465,7 +460,7 @@ export class ToolManager {
    */
   async preCheckToolPermission(
     toolCall: MCPToolCall,
-    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds' | 'enabledPluginIds'>
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
   ): Promise<{
     needsPermission: true
     toolName: string
@@ -508,7 +503,6 @@ export class ToolManager {
     const accessContext = normalizeToolAccessContext({
       agentId: access?.agentId,
       enabledServerIds: access?.enabledServerIds,
-      enabledPluginIds: access?.enabledPluginIds,
       conversationId: toolCall.conversationId
     })
     if (
@@ -548,7 +542,7 @@ export class ToolManager {
 
   async callTool(
     toolCall: MCPToolCall,
-    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds' | 'enabledPluginIds'>
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
   ): Promise<MCPToolResponse> {
     try {
       const finalName = toolCall.function.name
@@ -589,7 +583,6 @@ export class ToolManager {
       const accessContext = normalizeToolAccessContext({
         agentId: access?.agentId,
         enabledServerIds: access?.enabledServerIds,
-        enabledPluginIds: access?.enabledPluginIds,
         conversationId: toolCall.conversationId
       })
       const hintedProviderId = toolCall.providerId?.trim()

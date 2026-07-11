@@ -451,7 +451,7 @@ describe('AgentRepository', () => {
     ).toBe(2000)
   })
 
-  it('inherits extension policies from builtin and lets custom agents override with empty arrays', () => {
+  it('inherits skill and MCP policies while ignoring historical plugin policies', () => {
     const now = Date.now()
     const makeRow = (id: string, source: string, config: object) => ({
       id,
@@ -493,16 +493,19 @@ describe('AgentRepository', () => {
       }
     } as never)
 
-    expect(repository.resolveDeepChatAgentConfig('inheriting-agent')).toMatchObject({
-      enabledPluginIds: ['plugin-a'],
+    const inheritedConfig = repository.resolveDeepChatAgentConfig('inheriting-agent')
+    const overriddenConfig = repository.resolveDeepChatAgentConfig('overriding-agent')
+
+    expect(inheritedConfig).toMatchObject({
       enabledSkillNames: ['skill-a'],
       enabledMcpServerIds: ['server-a']
     })
-    expect(repository.resolveDeepChatAgentConfig('overriding-agent')).toMatchObject({
-      enabledPluginIds: [],
+    expect(overriddenConfig).toMatchObject({
       enabledSkillNames: ['skill-b'],
       enabledMcpServerIds: []
     })
+    expect(inheritedConfig).not.toHaveProperty('enabledPluginIds')
+    expect(overriddenConfig).not.toHaveProperty('enabledPluginIds')
   })
 
   it('clears registry ACP installation state without deleting the row', () => {

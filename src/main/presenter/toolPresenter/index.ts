@@ -59,7 +59,6 @@ export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
     enabledMcpServerIds?: string[]
-    enabledPluginIds?: string[]
     agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
@@ -82,7 +81,6 @@ export interface IToolPresenter {
       enabledSkillNames?: string[] | null
       agentId?: string
       enabledMcpServerIds?: string[]
-      enabledPluginIds?: string[] | null
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
@@ -144,7 +142,6 @@ const allowsExternalFileAccess = (mode?: PermissionMode): boolean =>
 type StoredMcpAccessContext = {
   agentId?: string
   enabledMcpServerIds?: string[]
-  enabledPluginIds?: string[]
 }
 
 /**
@@ -184,7 +181,6 @@ export class ToolPresenter implements IToolPresenter {
   async getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
     enabledMcpServerIds?: string[]
-    enabledPluginIds?: string[]
     agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
@@ -205,8 +201,7 @@ export class ToolPresenter implements IToolPresenter {
     const agentWorkspacePath = context.agentWorkspacePath || null
     this.rememberConversationMcpAccessContext(context.conversationId, {
       agentId: context.agentId,
-      enabledMcpServerIds: context.enabledMcpServerIds,
-      enabledPluginIds: context.enabledPluginIds
+      enabledMcpServerIds: context.enabledMcpServerIds
     })
 
     // 1. Get MCP tools
@@ -215,7 +210,6 @@ export class ToolPresenter implements IToolPresenter {
         await this.options.mcpPresenter.getAllToolDefinitions({
           enabledTools: context.enabledMcpTools,
           enabledServerIds: context.enabledMcpServerIds,
-          enabledPluginIds: context.enabledPluginIds,
           agentId: context.agentId,
           conversationId: context.conversationId
         })
@@ -306,7 +300,6 @@ export class ToolPresenter implements IToolPresenter {
       enabledSkillNames?: string[] | null
       agentId?: string
       enabledMcpServerIds?: string[]
-      enabledPluginIds?: string[] | null
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
@@ -349,8 +342,7 @@ export class ToolPresenter implements IToolPresenter {
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode),
           activeSkillNames: options?.activeSkillNames,
-          enabledSkillNames: options?.enabledSkillNames,
-          enabledPluginIds: options?.enabledPluginIds
+          enabledSkillNames: options?.enabledSkillNames
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
@@ -386,8 +378,7 @@ export class ToolPresenter implements IToolPresenter {
     const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
     return await this.options.mcpPresenter.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
-      enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
-      enabledPluginIds: options?.enabledPluginIds ?? storedAccess?.enabledPluginIds
+      enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds
     })
   }
 
@@ -454,8 +445,7 @@ export class ToolPresenter implements IToolPresenter {
       const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
       return await this.options.mcpPresenter.preCheckToolPermission(request, {
         agentId: storedAccess?.agentId,
-        enabledServerIds: storedAccess?.enabledMcpServerIds,
-        enabledPluginIds: storedAccess?.enabledPluginIds
+        enabledServerIds: storedAccess?.enabledMcpServerIds
       })
     }
 
@@ -481,8 +471,7 @@ export class ToolPresenter implements IToolPresenter {
 
     this.conversationMcpAccessContexts.set(normalizedConversationId, {
       agentId: context.agentId?.trim() || undefined,
-      enabledMcpServerIds: normalizeOptionalToolNames(context.enabledMcpServerIds),
-      enabledPluginIds: normalizeOptionalToolNames(context.enabledPluginIds)
+      enabledMcpServerIds: normalizeOptionalToolNames(context.enabledMcpServerIds)
     })
   }
 

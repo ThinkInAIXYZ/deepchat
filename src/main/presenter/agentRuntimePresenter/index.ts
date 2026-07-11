@@ -220,7 +220,6 @@ type ResumeBudgetToolCall = {
 }
 
 type AgentExtensionPolicy = {
-  enabledPluginIds?: string[] | null
   enabledSkillNames?: string[] | null
 }
 
@@ -4121,8 +4120,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
           getEnabledSkillNames: () =>
             this.normalizeNullablePolicyList(streamExtensionPolicy.enabledSkillNames),
-          getEnabledPluginIds: () =>
-            this.normalizeNullablePolicyList(streamExtensionPolicy.enabledPluginIds),
           activateSkill: async (skillName) => {
             const policy = await this.resolveAgentExtensionPolicy(sessionId)
             if (this.filterSkillNamesByPolicy([skillName], policy).length === 0) {
@@ -4925,10 +4922,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       extensionPolicy.enabledSkillNames === null || extensionPolicy.enabledSkillNames === undefined
         ? null
         : new Set(this.normalizeSkillNames(extensionPolicy.enabledSkillNames))
-    const allowedPluginIdSet =
-      extensionPolicy.enabledPluginIds === null || extensionPolicy.enabledPluginIds === undefined
-        ? null
-        : new Set(this.normalizeSkillNames(extensionPolicy.enabledPluginIds))
 
     if (skillsEnabled && skillPresenter) {
       if (skillPresenter.getMetadataList) {
@@ -4937,12 +4930,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           const metadataList = await skillPresenter.getMetadataList()
           for (const metadata of metadataList) {
             const skillName = metadata?.name?.trim()
-            const ownerPluginId = metadata?.ownerPluginId?.trim()
-            if (
-              skillName &&
-              (!allowedSkillNameSet || allowedSkillNameSet.has(skillName)) &&
-              (!ownerPluginId || !allowedPluginIdSet || allowedPluginIdSet.has(ownerPluginId))
-            ) {
+            if (skillName && (!allowedSkillNameSet || allowedSkillNameSet.has(skillName))) {
               availableSkills.push({
                 name: skillName,
                 description: metadata.description?.trim() || '',
@@ -6783,7 +6771,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const result = await this.toolPresenter.callTool(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
         enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
-        enabledPluginIds: extensionPolicy.enabledPluginIds ?? undefined,
         onProgress: (update) => {
           if (
             update.kind !== 'subagent_orchestrator' ||
@@ -6936,7 +6923,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       const tools = await this.toolPresenter.getAllToolDefinitions({
         agentId,
-        enabledPluginIds: policy.enabledPluginIds ?? undefined,
         disabledAgentTools: this.getDisabledAgentTools(sessionId),
         chatMode: 'agent',
         conversationId: sessionId,
@@ -6987,7 +6973,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
           left.localeCompare(right)
         ),
-        enabledPluginIds: this.normalizeNullablePolicyList(policy.enabledPluginIds),
         enabledSkillNames: this.normalizeNullablePolicyList(policy.enabledSkillNames),
         skillsEnabled,
         activeSkillNames
@@ -7024,7 +7009,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     try {
       const config = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
       return {
-        enabledPluginIds: config.enabledPluginIds,
         enabledSkillNames: config.enabledSkillNames
       }
     } catch (error) {

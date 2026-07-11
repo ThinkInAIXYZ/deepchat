@@ -24,8 +24,7 @@ test('remote settings read-only routes match visible channel tabs @smoke', async
     const listed = (await window.deepchat.invoke('remoteControl.listChannels', {})) as {
       channels?: Array<{
         id?: unknown
-        implemented?: unknown
-        supportsPairing?: unknown
+        supportsCronDelivery?: unknown
       }>
     }
 
@@ -62,8 +61,7 @@ test('remote settings read-only routes match visible channel tabs @smoke', async
     return {
       channels: listed.channels?.map((channel) => ({
         id: channel.id,
-        implemented: channel.implemented,
-        supportsPairing: channel.supportsPairing
+        supportsCronDelivery: channel.supportsCronDelivery
       })),
       perChannel
     }
@@ -71,8 +69,7 @@ test('remote settings read-only routes match visible channel tabs @smoke', async
 
   expect(routeSnapshot.channels?.map((channel) => channel.id)).toEqual([...expectedChannels])
   for (const channel of routeSnapshot.channels ?? []) {
-    expect(channel.implemented).toBe(true)
-    expect(typeof channel.supportsPairing).toBe('boolean')
+    expect(channel.supportsCronDelivery).toBe(channel.id !== 'qqbot')
   }
 
   for (const snapshot of routeSnapshot.perChannel) {
