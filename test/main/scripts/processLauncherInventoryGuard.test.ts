@@ -108,6 +108,46 @@ describe.sequential('process launcher inventory guard', () => {
     expect(result.stdout).toContain('(6 classified sites)')
   })
 
+  it('classifies default imports and their named-default equivalents', async () => {
+    const fixturePath = 'src/main/default-imports.ts'
+    const fixture = await createFixture(
+      {
+        [fixturePath]: `
+          import childDefault from 'node:child_process'
+          import { default as childNamedDefault } from 'child_process'
+          import crossSpawnDefault from 'cross-spawn'
+          import { default as crossSpawnNamedDefault } from 'cross-spawn'
+          import ptyDefault from 'node-pty'
+          import { default as ptyNamedDefault } from 'node-pty'
+
+          childDefault.spawn('node')
+          childNamedDefault.spawn('node')
+          crossSpawnDefault('node')
+          crossSpawnNamedDefault('node')
+          crossSpawnDefault.sync('node')
+          crossSpawnNamedDefault.sync('node')
+          ptyDefault.spawn('node')
+          ptyNamedDefault.spawn('node')
+        `
+      },
+      [
+        entry(fixturePath, 'child_process.spawn', 1, 'deepchat-runtime'),
+        entry(fixturePath, 'child_process.spawn', 2, 'deepchat-runtime'),
+        entry(fixturePath, 'cross-spawn.spawn', 1, 'deepchat-runtime'),
+        entry(fixturePath, 'cross-spawn.spawn', 2, 'deepchat-runtime'),
+        entry(fixturePath, 'cross-spawn.sync'),
+        entry(fixturePath, 'cross-spawn.sync', 2),
+        entry(fixturePath, 'node-pty.spawn', 1, 'deepchat-runtime'),
+        entry(fixturePath, 'node-pty.spawn', 2, 'deepchat-runtime')
+      ]
+    )
+
+    const result = runGuard(fixture)
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('(8 classified sites)')
+  })
+
   it('classifies promisified and local wrapper launchers', async () => {
     const fixturePath = 'src/main/wrapped.ts'
     const fixture = await createFixture(
@@ -255,6 +295,11 @@ describe.sequential('process launcher inventory guard', () => {
         const child = localRequire('node:child_process')
         child.spawn('node')
       `
+    },
+    {
+      label: 'unrelated call with a watched module string',
+      marker: 'opaque module loader for electron',
+      source: `report('electron')`
     },
     {
       label: 'Electron shell static element access',

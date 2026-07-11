@@ -132,7 +132,6 @@ function extractBindings(sourceUnits) {
     const clause = node.importClause
     if (!clause || clause.isTypeOnly) return
 
-    const defaultImport = clause.name?.text ?? null
     const namespace = clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)
       ? clause.namedBindings.name.text
       : null
@@ -144,6 +143,10 @@ function extractBindings(sourceUnits) {
             local: entry.name.text
           }))
       : []
+    const defaultImports = [
+      ...(clause.name ? [clause.name.text] : []),
+      ...named.filter(({ imported }) => imported === 'default').map(({ local }) => local)
+    ]
 
     if (module === 'child_process' || module === 'node:child_process') {
       for (const { imported, local } of named) {
@@ -152,11 +155,11 @@ function extractBindings(sourceUnits) {
         }
       }
       if (namespace) namespaceBindings.set(namespace, 'child_process')
-      if (defaultImport) {
+      for (const defaultImport of defaultImports) {
         namespaceBindings.set(defaultImport, 'child_process')
       }
     } else if (module === 'cross-spawn') {
-      if (defaultImport) {
+      for (const defaultImport of defaultImports) {
         addFunctionBinding(functionBindings, defaultImport, 'cross-spawn.spawn')
         namespaceBindings.set(defaultImport, 'cross-spawn-default')
       }
@@ -169,9 +172,11 @@ function extractBindings(sourceUnits) {
         if (imported === 'spawn') addFunctionBinding(functionBindings, local, 'node-pty.spawn')
       }
       if (namespace) namespaceBindings.set(namespace, 'node-pty')
-      if (defaultImport) namespaceBindings.set(defaultImport, 'node-pty')
+      for (const defaultImport of defaultImports) {
+        namespaceBindings.set(defaultImport, 'node-pty')
+      }
     } else if (module === 'electron') {
-      if (defaultImport || namespace || named.some(({ imported }) => imported === 'default')) {
+      if (defaultImports.length > 0 || namespace) {
         addUnsupported(unit, node, module, 'default/namespace import')
         return
       }
@@ -180,7 +185,7 @@ function extractBindings(sourceUnits) {
         if (imported === 'utilityProcess') electronUtilityBindings.add(local)
       }
     } else if (module === '@modelcontextprotocol/sdk/client/stdio.js') {
-      if (defaultImport || namespace || named.some(({ imported }) => imported === 'default')) {
+      if (defaultImports.length > 0 || namespace) {
         addUnsupported(unit, node, module, 'default/namespace import')
         return
       }
