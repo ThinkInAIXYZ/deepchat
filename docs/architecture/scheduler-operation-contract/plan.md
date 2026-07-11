@@ -33,21 +33,21 @@ current durable queue inventory + SES-003
                          |
                          v
 SCH-003A backend commit -> SCH-003B renderer/integration commit
-             \____________ atomic production PR ____________/
+             \_________ atomic local merge unit ____________/
                               |
                               v
                     legacy timeout consumer = 0
 ```
 
 `SCH-003A` 与 `SCH-003B` 是为了 review 清楚而拆的 development slices，不是两个可分别发布的版本。
-`SCH-003B depends on SCH-003A + SES-003`；最终只能以一个 atomic production PR merge。
+`SCH-003B depends on SCH-003A + SES-003`；最终只能作为一个 atomic local merge unit 合入工作分支。
 
 ## 依赖、冲突与 merge 顺序
 
 | 依赖/并行工作 | 处理方式 | 不满足时怎么办 |
 | --- | --- | --- |
 | `SES-002` session 四态与 binding 语义 | `SCH-002B` rebase 到它之后；restore/getActive 只消费 typed result | 不复制一套 null/error-string adapter，session migration 暂停 |
-| `SES-003` route/renderer compatibility | `SCH-003B` 显式依赖并复用它的 schema/client 结构 | 003A 可写成未合入 commit，但 003 atomic PR 不 merge |
+| `SES-003` route/renderer compatibility | `SCH-003B` 显式依赖并复用它的 schema/client 结构 | 003A 可写成未合入 commit，但 003 atomic unit 不 merge |
 | initial-input acceptance | deepchat/acp 当前都 resolve 到 `agentRuntimeAgent.queuePendingInput()`；003A 直接 await durable record | static guard 若发现无 queue production owner，先停 003 并另写 owner spec |
 | provider cancellation | `PRV-CAN-001` 与 003 可并行，owner 能力完成后再删 route 5 秒 wrapper | SCH 不假称 owner timeout，保留精确 legacy exception |
 | `CHAT-001/002` generation owner | SCH 只处理 route observation 与 acceptance，不发明 generation settlement | cancel request semantics 保持不变 |
@@ -60,10 +60,10 @@ SES-002
   -> SCH-002B
   -> PRV-CAN-001 (can be parallel with the next prerequisites)
   -> SES-003
-  -> SCH-003A + SCH-003B atomic PR
+  -> SCH-003A + SCH-003B atomic local merge
 ```
 
-如果 `PRV-CAN-001` 较慢，003 atomic PR 可以先完成；但 A-04 仍保持 open，architecture guard 中只剩
+如果 `PRV-CAN-001` 较慢，003 atomic unit 可以先完成；但 A-04 仍保持 open，architecture guard 中只剩
 `providers.testConnection` 一项遗留 consumer，直到 provider owner slice 合入。
 
 ## 全局实施规则
@@ -92,8 +92,9 @@ session operation 的 input/output/status schema 只写在
 
 - develop 与 final verify 使用不同 agent；
 - blocking finding 回原 branch 修复，再从头 verify；
-- focused test 证明本 slice 的 contract，full suite 证明没有外围回归；
-- PR body 记录 before/after truth、影响、收益、manual gap、回滚；
+- adversarial targeted test 证明本 slice 的 contract，typecheck/静态 guard 证明边界；full suite 只在 atomic
+  integration 末尾运行一次作为外围回归探测，不在每次修复后重复，更不默认增加 E2E；
+- scope、before/after truth、影响、收益、manual gap、回滚统一写入审计实施台账，不依赖 PR body；
 - 不用“调用了 abort”“等了更久”“测试 happy path 通过”替代 physical settlement 证据。
 
 ## Slice SCH-002A：OperationRunner core
@@ -337,8 +338,9 @@ acceptance/rollback，再修改 guard；不能在 SCH-003 内替未来 owner 猜
 - 继续旧 5 秒 timeout 会保留 unknown-outcome；
 - 提前返回 null 会破坏旧 renderer。
 
-三种都不稳定。所以 003A 只作为 backend review commit；003B 集成 renderer 和全部 caller，二者通过后才创建
-一个 production PR。无 operation id 由 required Zod schema 在副作用前 generic reject，不是等待策略。
+三种都不稳定。所以 003A 只作为 backend review commit；003B 集成 renderer 和全部 caller，二者通过后才作为
+一个 atomic local merge unit 合入。无 operation id 由 required Zod schema 在副作用前 generic reject，
+不是等待策略。
 
 ## Development slice SCH-003A：Session create operation backend
 
@@ -443,14 +445,14 @@ id/state/code，并断言 renderer 没有读取 negative-control Error 上消失
 
 - 独立 backend verifier 可以审核 DB truth、single-flight、compensation 和 data hygiene；
 - commit 不得单独 merge/base deploy；
-- rollback 以整个 003 atomic PR 为单位，不能承诺旧 renderer 能消费 003A output。
+- rollback 以整个 003 atomic merge unit 为单位，不能承诺旧 renderer 能消费 003A output。
 
 ## Integration slice SCH-003B：Renderer、restart recovery 与 cutover
 
 ### 显式依赖
 
-`SCH-003B depends on SCH-003A + SES-003`。它在集成 branch 上包含 003A backend commit，完成后只提交一个
-atomic production PR。
+`SCH-003B depends on SCH-003A + SES-003`。它在集成 branch 上包含 003A backend commit，完成后只作为一个
+atomic local merge unit 合入。
 
 ### Renderer 实施步骤
 
@@ -472,7 +474,7 @@ atomic production PR。
    - 不把 recovery item 关联当前 draft，不自动 activate/navigate；
    - dismiss 只折叠到 history，不影响 main duplicate/retry guard。
 8. i18n 增加 pending/unknown/history/dismiss/existing-operation/error copy，不暴露 internal error/fingerprint。
-9. 同一 atomic PR 更新所有 production caller；guard 证明 missing operation id caller = 0。
+9. 同一 atomic merge unit 更新所有 production caller；guard 证明 missing operation id caller = 0。
 10. 删除 create legacy timeout。若 `PRV-CAN-001` 已完成则删除整个 adapter；否则 adapter 只剩精确 provider
    项。
 
@@ -541,11 +543,11 @@ Restart recovery
 | Binding/导航 | create 不 bind；current intent 显式 activate | stale late success 不抢当前 main binding/页面 |
 | 数据 | 每个 create intent 一条 content-free journal | dedupe/reconcile 有 durable truth |
 | Privacy | recovery 不显示内容，journal 不复制 payload | restart 能找 id，但不扩大敏感数据副本 |
-| Compatibility | backend/renderer 必须同 PR | 没有无限 wait 或旧 5 秒半成品窗口 |
+| Compatibility | backend/renderer 必须同一 atomic merge unit | 没有无限 wait 或旧 5 秒半成品窗口 |
 
 ### Atomic rollback
 
-1. 以整个 003 PR 回滚 backend + renderer/client；不能只回滚 renderer 并声称 backend 兼容。
+1. 以整个 003 merge unit 回滚 backend + renderer/client；不能只回滚 renderer 并声称 backend 兼容。
 2. additive journal table 可保留，旧代码忽略；不做 destructive down migration。
 3. 不删除已经创建的 session；operation row 不是 session source of truth。
 4. 回滚前先停止新 create traffic（桌面版本即关闭/重启升级窗口），避免新旧 schema consumer 并存。
@@ -560,10 +562,13 @@ pnpm run format
 pnpm run format:check
 pnpm run i18n
 pnpm run lint
+# atomic integration 末尾最多运行一次 full probe；普通修复不重复 full/E2E
 pnpm test
 ```
 
-每个 slice 还要跑本节列出的 focused tests。full suite 与已记录 baseline 对比，新增失败必须为零。
+每个 slice 必须跑本节列出的 targeted tests。atomic full probe 若发现新增失败，先按代码真相归因并在对应
+测试文件定向修复/复验；生产代码未再变化时不重复 full/E2E。无法由自动测试证明的真实 Electron、慢服务和
+视觉场景进入 manual gap，不用大量模拟 E2E 冒充证据。
 
 ### Review 必查
 
@@ -599,6 +604,7 @@ pnpm test
 9. 003A/B atomic cutover 完成，missing/malformed id caller count = 0；
 10. operation/existing/conflict 通过 IPC-equivalent serialization boundary；renderer 零 Error-field 分支；
 11. cancelGeneration exactly-once settlement 回归通过；
-12. renderer stale/unknown/draft/manual smoke 与 full suite 无新增失败。
+12. renderer stale/unknown/draft 的 targeted integration 通过；一次 atomic full probe 暴露的新增失败已归因并
+    定向修复；真实 Electron/manual smoke 完成。
 
 只完成 runner rename、只调大 timeout、只合 backend 或只做 UI，都不能关闭 finding。

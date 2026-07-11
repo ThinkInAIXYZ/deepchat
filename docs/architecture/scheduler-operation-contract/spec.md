@@ -43,7 +43,7 @@ operation。若 operation 是 session create、发送输入或工具交互，界
 2. retry 永远不与同一次调用中尚未 settle 的 attempt 重叠；
 3. 不可取消 mutation 不再伪装成确定失败；
 4. 有意的异步 settlement 设计继续保留，不因“看起来反常”被误改；
-5. 改造按小 PR 交付，避免一次重写 session、chat、provider 和 runtime。
+5. 改造按小的独立交付切片实施，避免一次重写 session、chat、provider 和 runtime。
 
 ## 目标
 
@@ -535,9 +535,9 @@ queue Promise；它 resolve 是“输入已 durable accepted”的证据，不�
 保留 `sessions.create` 名称，但不发布一个“backend 已改、renderer 仍旧”的中间版本：
 
 - `SCH-003A` 是 non-mergeable backend development slice；`SCH-003B` 显式依赖 `SCH-003A + SES-003`；二者
-  可以分 commit、分 develop/verify，但必须在同一个 atomic production PR/cutover 中合入；
+  可以分 commit、分 develop/verify，但必须在同一个 atomic local merge/cutover 中合入；
 - route schema 在 cutover 中新增 operation envelope；新路径允许 `session: null` + `pending/unknown`；
-- 同一个 PR 把全部 production caller 改为传 `operationId`，静态 guard 要求缺失 caller 为 `0`；
+- 同一个 merge unit 把全部 production caller 改为传 `operationId`，静态 guard 要求缺失 caller 为 `0`；
 - route schema 直接要求 UUID/length-valid `operationId`；missing/malformed 都是 generic validation rejection，
   在任何副作用前结束，renderer 不按错误类型分支；
 - 不提供“无 id 就一直等”的 adapter，也不伪造可独立合入的 003A compatibility；

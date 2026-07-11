@@ -138,7 +138,7 @@ PRV-CAN-001 development 验证记录：
 - [x] history 只返回 content-free identity/status/cursor，不返回内容/配置/fingerprint。
 - [x] succeeded 随 session delete；failed/unknown 保留 reconcile/dedupe evidence，不加 speculative TTL worker。
 - [x] 覆盖 validation/fingerprint/dismiss/cursor/unbound/created-event/queue/cleanup/restart/privacy tests。
-- [ ] 独立 backend verifier 审查 DB truth/stage/acceptance/no-duplicate/binding/privacy。
+- [x] 独立 backend verifier 审查 DB truth/stage/acceptance/no-duplicate/binding/privacy。
 - [x] 明确此 commit 不创建独立 production PR、不单独 merge。
 
 SCH-003A development 验证记录：
@@ -176,8 +176,8 @@ SCH-003A development 验证记录：
 - [x] current activate failure 不 navigate/onboarding、不改 previous binding，created session 仍可从 list 选择。
 - [x] 删除 create 5s legacy timeout；provider 未完成时 adapter 只剩精确 provider一项。
 - [x] 003A + 003B 只作为一个 atomic production merge unit，不发布 backend-only version。
-- [ ] 独立 integration verifier 审查 navigation、draft、poll cleanup、restart、legacy finite semantics。
-- [ ] 跑 renderer/main focused tests、typecheck、format、i18n、lint、full tests。
+- [x] 独立 integration verifier 审查 navigation、draft、poll cleanup、restart、legacy finite semantics。
+- [x] 跑 renderer/main targeted tests、typecheck、format、i18n、lint，并只做一次 atomic full probe。
 - [ ] 完成 DeepChat/ACP/slow/stale/unknown/restart/data-hygiene manual smoke。
 
 SCH-003B development 验证记录：
@@ -186,24 +186,36 @@ SCH-003B development 验证记录：
   `113 passed`；另一次含 App/component/architecture guard 的扩展 focused 共 `184 passed`。
 - architecture guard 单测 `35 passed`，覆盖 renderer operation id 静态约束及其 negative mutations。
 - `typecheck`、`format`、`i18n`、`lint`、`git diff --check` 通过。
-- full tests、独立 verifier 与 manual smoke 留给 integration/final verify，不在 developer 阶段冒充完成。
+- 独立 backend final verify：focused `220 passed`；Electron ABI143 native SQLite `6 passed`；确认 journal
+  truth、content-free history、restart unknown、unbound create、durable queue acceptance 与 compensation
+  uncertainty 均符合 contract。
+- 独立 renderer/integration final verify：renderer/API focused `126 passed`；history cache blocker repair 后 B1
+  targeted `4 passed`、session store `67 passed`；`typecheck`、`format:check`、`git diff --check` 通过。
+- atomic full probe 只运行一次：`4811 passed / 25 failed / 146 skipped`。其中 4 项是 debug mock 与
+  Spotlight Pinia 既有基线；21 项是新增 table 后旧测试夹具未登记 table/仍断言 create 自动激活，未发现
+  production failure。仅修改对应 3 个测试文件后，migration `1/1`、usage dashboard `5/5`、session
+  integration `15/16` 通过；唯一失败恢复为既有 long-steer rebudget 基线。因为修复后 production code 未再
+  变化，按“定向证明优先”策略不重复 full/E2E。
+- manual gap 保留：真实 Electron restart recovery、真实 DeepChat/ACP 超过 5 秒的慢创建、真实 event timing，
+  以及 recovery UI 的键盘、窄窗口、light/dark 和视觉检查。
 
-## 每个 PR 的 blocking gate
+## 每个本地合并切片的 blocking gate
 
-- [ ] develop 与 final verify 不是同一 agent。
-- [ ] blocking finding 修复后重新完整 verify。
-- [ ] 没有新增 `[NEEDS CLARIFICATION]` 或第三方 retry/operation dependency。
-- [ ] 没有把 signal delivery/observation deadline 误写成 physical cancellation/operation failure。
-- [ ] 没有 retry overlap 或 same-operation duplicate attempt。
-- [ ] restore/getActive 的 `2 attempts/25ms` 与 binding retention 没有退化。
-- [ ] provider truth 没有被概括成不存在的 owner timeout。
-- [ ] 没有改变 request-only `cancelGeneration()` 的 exactly-once settlement owner。
-- [ ] initial input 只 await 当前 durable queue，不等待 whole generation、不保留 speculative fallback。
-- [ ] restart history content-free、cursor-complete、dismissed recoverable、explicit selection，不关联当前 draft。
-- [ ] session operation DTO 没有逃出 sessions route schema owner。
-- [ ] Electron IPC renderer 分支不依赖 Error prototype/custom code/id/state/message substring。
-- [ ] operation id missing/empty/malformed/overlength finite pre-effect reject；003A/B 未拆成独立 production merge。
-- [ ] create backend 不 bind；current/stale activate exactly 1/0；previous/null binding retained。
-- [ ] same fingerprint pending/unknown（含 dismissed）无法绕过 retry-before-reconcile guard。
-- [ ] journal 除 DB-only fingerprint 外不含 raw prompt/file/payload；log 不含 fingerprint/raw payload。
-- [ ] full suite 新增失败数为 0；PR body 有 scope、影响、收益、manual gap、rollback。
+- [x] develop 与 final verify 不是同一 agent。
+- [x] blocking finding 修复后重新做对应 contract 的完整 targeted verify。
+- [x] 没有新增 `[NEEDS CLARIFICATION]` 或第三方 retry/operation dependency。
+- [x] 没有把 signal delivery/observation deadline 误写成 physical cancellation/operation failure。
+- [x] 没有 retry overlap 或 same-operation duplicate attempt。
+- [x] restore/getActive 的 `2 attempts/25ms` 与 binding retention 没有退化。
+- [x] provider truth 没有被概括成不存在的 owner timeout。
+- [x] 没有改变 request-only `cancelGeneration()` 的 exactly-once settlement owner。
+- [x] initial input 只 await 当前 durable queue，不等待 whole generation、不保留 speculative fallback。
+- [x] restart history content-free、cursor-complete、dismissed recoverable、explicit selection，不关联当前 draft。
+- [x] session operation DTO 没有逃出 sessions route schema owner。
+- [x] Electron IPC renderer 分支不依赖 Error prototype/custom code/id/state/message substring。
+- [x] operation id missing/empty/malformed/overlength finite pre-effect reject；003A/B 未拆成独立 production merge。
+- [x] create backend 不 bind；current/stale activate exactly 1/0；previous/null binding retained。
+- [x] same fingerprint pending/unknown（含 dismissed）无法绕过 retry-before-reconcile guard。
+- [x] journal 除 DB-only fingerprint 外不含 raw prompt/file/payload；log 不含 fingerprint/raw payload。
+- [x] 一次 full probe 暴露的新增失败已用对应测试修复并定向复验；scope、影响、收益、manual gap、rollback
+  统一回填审计实施台账，不依赖 PR body。
