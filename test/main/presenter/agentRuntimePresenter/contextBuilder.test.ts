@@ -17,7 +17,10 @@ vi.mock('tokenx', () => ({
 
 function createMockMessageStore(messages: any[] = []) {
   return {
-    getMessages: vi.fn().mockReturnValue(messages)
+    getMessages: vi.fn(() => {
+      throw new Error('rich history must not be used for runtime context')
+    }),
+    getRuntimeMessages: vi.fn().mockReturnValue(messages)
   } as any
 }
 
@@ -729,10 +732,11 @@ describe('buildContext', () => {
     ])
   })
 
-  it('calls getMessages with correct sessionId', () => {
+  it('calls getRuntimeMessages with correct sessionId', () => {
     const store = createMockMessageStore([])
     buildContext('my-session', 'Hello', '', 10000, 4096, store)
-    expect(store.getMessages).toHaveBeenCalledWith('my-session')
+    expect(store.getRuntimeMessages).toHaveBeenCalledWith('my-session')
+    expect(store.getMessages).not.toHaveBeenCalled()
   })
 
   it('starts history from summary cursor', () => {

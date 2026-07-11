@@ -93,11 +93,12 @@ describe('DeepChatMessagesTable', () => {
   })
 })
 
-describeIfSqlite('DeepChatMessagesTable existence query', () => {
+describeIfSqlite('DeepChatMessagesTable queries', () => {
   function createTable() {
     const db = new DatabaseCtor(':memory:')
     const table = new DeepChatMessagesTable(db)
     table.createTable()
+    db.exec('CREATE TABLE deepchat_message_traces (message_id TEXT NOT NULL)')
     return { db, table }
   }
 
@@ -133,6 +134,43 @@ describeIfSqlite('DeepChatMessagesTable existence query', () => {
       /SEARCH deepchat_messages USING COVERING INDEX idx_deepchat_messages_session/i
     )
     expect(plan).not.toMatch(/\bSCAN deepchat_messages\b/i)
+
+    db.close()
+  })
+
+  it('keeps runtime history trace-free while rich history returns the real count', () => {
+    const { db, table } = createTable()
+    table.insert({
+      id: 'm1',
+      sessionId: 's1',
+      orderSeq: 1,
+      role: 'user',
+      content: '{}',
+      status: 'sent'
+    })
+    db.prepare('INSERT INTO deepchat_message_traces (message_id) VALUES (?)').run('m1')
+    db.prepare('INSERT INTO deepchat_message_traces (message_id) VALUES (?)').run('m1')
+
+    expect(table.getBySessionForRuntime('s1')).toMatchObject([{ id: 'm1', trace_count: 0 }])
+    expect(table.getBySession('s1')).toMatchObject([{ id: 'm1', trace_count: 2 }])
+
+    const runtimePlan = (
+      db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT m.*, 0 AS trace_count
+           FROM deepchat_messages m
+           WHERE m.session_id = ?
+           ORDER BY m.order_seq`
+        )
+        .all('s1') as Array<{ detail: string }>
+    )
+      .map((row) => row.detail)
+      .join('\n')
+
+    expect(runtimePlan).not.toMatch(/deepchat_message_traces/i)
+    expect(runtimePlan).not.toMatch(/MATERIALIZE t/i)
+    expect(runtimePlan).toMatch(/idx_deepchat_messages_session/i)
 
     db.close()
   })

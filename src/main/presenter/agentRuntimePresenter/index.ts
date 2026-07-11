@@ -7385,7 +7385,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private hasPendingInteractions(sessionId: string): boolean {
-    const messages = this.messageStore.getMessages(sessionId)
+    const messages = this.messageStore.getRuntimeMessages(sessionId)
     for (const message of messages) {
       if (message.role !== 'assistant') continue
       const blocks = this.parseAssistantBlocks(message.content)
@@ -7398,7 +7398,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private isAwaitingToolQuestionFollowUp(sessionId: string): boolean {
-    const messages = this.messageStore.getMessages(sessionId)
+    const messages = this.messageStore.getRuntimeMessages(sessionId)
     let latestUserOrderSeq = 0
 
     for (const message of messages) {

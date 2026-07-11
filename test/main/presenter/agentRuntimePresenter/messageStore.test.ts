@@ -21,6 +21,7 @@ function createMockSqlitePresenter() {
       updateStatus: vi.fn(),
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
+      getBySessionForRuntime: vi.fn().mockReturnValue([]),
       hasBySession: vi.fn().mockReturnValue(false),
       getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
@@ -574,6 +575,37 @@ describe('DeepChatMessageStore', () => {
           content: 'structured answer',
           status: 'success'
         })
+      ])
+    })
+  })
+
+  describe('getRuntimeMessages', () => {
+    it('uses the runtime header projection and the shared structured materializer', () => {
+      sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mockReturnValue([
+        createMessageRow({ trace_count: 0 })
+      ])
+      sqlitePresenter.deepchatUserMessagesTable.listByMessageIds.mockReturnValue([
+        {
+          message_id: 'm1',
+          text: 'runtime text',
+          search_enabled: 0,
+          think_enabled: 0
+        }
+      ])
+
+      const [message] = store.getRuntimeMessages('s1')
+
+      expect(message.traceCount).toBe(0)
+      expect(JSON.parse(message.content)).toMatchObject({ text: 'runtime text' })
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).toHaveBeenCalledWith(
+        's1'
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.getBySession).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatUserMessagesTable.listByMessageIds).toHaveBeenCalledWith([
+        'm1'
+      ])
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.listByMessageIds).toHaveBeenCalledWith([
+        'm1'
       ])
     })
   })

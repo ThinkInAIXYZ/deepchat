@@ -249,6 +249,11 @@ function createMockSqlitePresenter() {
     incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
     getBySession: vi.fn().mockReturnValue([]),
+    getBySessionForRuntime: vi.fn((sessionId: string) =>
+      deepchatMessagesTable
+        .getBySession(sessionId)
+        .map((row: Record<string, unknown>) => ({ ...row, trace_count: 0 }))
+    ),
     hasBySession: vi.fn().mockReturnValue(false),
     getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
     listPageBySession: vi.fn().mockReturnValue([]),
@@ -1970,7 +1975,7 @@ describe('AgentRuntimePresenter', () => {
     it('compacts old turns into summary before building prompt', async () => {
       const longUser = 'U'.repeat(2400)
       const longAssistant = 'A'.repeat(2400)
-      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+      sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mockReturnValue([
         {
           id: 'u1',
           session_id: 's1',
@@ -4596,6 +4601,8 @@ describe('AgentRuntimePresenter', () => {
     it('delegates to messageStore', async () => {
       const messages = await agent.getMessages('s1')
       expect(messages).toEqual([])
+      expect(sqlitePresenter.deepchatMessagesTable.getBySession).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).not.toHaveBeenCalled()
 
       sqlitePresenter.deepchatMessagesTable.hasBySession.mockReturnValue(true)
       await expect(agent.hasMessages('s1')).resolves.toBe(true)
@@ -4607,6 +4614,39 @@ describe('AgentRuntimePresenter', () => {
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(undefined)
       const msg = await agent.getMessage('nonexistent')
       expect(msg).toBeNull()
+    })
+
+    it('uses runtime history for pending interaction predicates', () => {
+      sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime.mockReturnValue([
+        {
+          id: 'a1',
+          session_id: 's1',
+          order_seq: 1,
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'question_request',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+              extra: { needsUserAction: true }
+            }
+          ]),
+          status: 'pending',
+          is_context_edge: 0,
+          metadata: '{}',
+          trace_count: 0,
+          created_at: 1,
+          updated_at: 1
+        }
+      ])
+
+      expect((agent as any).hasPendingInteractions('s1')).toBe(true)
+      expect(sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime).toHaveBeenCalledWith(
+        's1'
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.getBySession).not.toHaveBeenCalled()
     })
   })
 

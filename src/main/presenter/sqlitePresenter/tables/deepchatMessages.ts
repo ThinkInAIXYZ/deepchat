@@ -158,6 +158,19 @@ export class DeepChatMessagesTable extends BaseTable {
       .all(sessionId) as DeepChatMessageRow[]
   }
 
+  getBySessionForRuntime(sessionId: string): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        `SELECT
+           m.*,
+           0 AS trace_count
+         FROM deepchat_messages m
+         WHERE m.session_id = ?
+         ORDER BY m.order_seq`
+      )
+      .all(sessionId) as DeepChatMessageRow[]
+  }
+
   hasBySession(sessionId: string): boolean {
     return Boolean(
       this.db.prepare('SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1').get(sessionId)

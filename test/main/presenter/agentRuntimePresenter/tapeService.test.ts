@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
 import { buildContext } from '@/presenter/agentRuntimePresenter/contextBuilder'
+import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
 import { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeService'
 import { createTapeViewManifest } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 import {
@@ -279,7 +280,10 @@ describe('DeepChatTapeService', () => {
       })
     ]
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue(records)
+      getMessages: vi.fn(() => {
+        throw new Error('rich history must not be used for tape backfill')
+      }),
+      getRuntimeMessages: vi.fn().mockReturnValue(records)
     }
     const service = new DeepChatTapeService({
       deepchatTapeEntriesTable: table,
@@ -295,6 +299,28 @@ describe('DeepChatTapeService', () => {
     expect(entries.filter((entry) => entry.kind === 'tool_call')).toHaveLength(1)
     expect(entries.filter((entry) => entry.kind === 'tool_result')).toHaveLength(1)
     expect(entries.filter((entry) => entry.name === 'migration/backfill')).toHaveLength(1)
+    expect(messageStore.getMessages).not.toHaveBeenCalled()
+    expect(
+      entries
+        .filter((entry) => entry.kind === 'message')
+        .map((entry) => JSON.parse(entry.payload_json).record.traceCount)
+    ).toEqual([0, 0])
+  })
+
+  it('keeps legacy nonzero tape trace counts readable', () => {
+    const { table, entries } = createTapeTableMock()
+    table.append({
+      sessionId: 's1',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'legacy', seq: 0 },
+      payload: { record: createRecord({ id: 'legacy', traceCount: 7 }) },
+      meta: { source: 'backfill', orderSeq: 1, role: 'user' }
+    })
+
+    expect(buildEffectiveTapeView(entries).messageRecords).toMatchObject([
+      { id: 'legacy', traceCount: 7 }
+    ])
   })
 
   it('reports info, search, and handoff within one session scope', () => {
@@ -304,7 +330,7 @@ describe('DeepChatTapeService', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
+      getRuntimeMessages: vi.fn().mockReturnValue([
         createRecord({ id: 'u1' }),
         createRecord({
           id: 'a1',
@@ -1941,7 +1967,7 @@ describe('DeepChatTapeService', () => {
       })
     ]
     const legacyMessageStore = {
-      getMessages: vi.fn().mockReturnValue(records)
+      getRuntimeMessages: vi.fn().mockReturnValue(records)
     }
     const service = new DeepChatTapeService({
       deepchatTapeEntriesTable: table,
@@ -1958,7 +1984,7 @@ describe('DeepChatTapeService', () => {
     )
     const tapeReady = service.ensureSessionTapeReady('s1', legacyMessageStore as any)
     const tapeOnlyStore = {
-      getMessages: vi.fn(() => {
+      getRuntimeMessages: vi.fn(() => {
         throw new Error('buildContext must use provided tape history records')
       })
     }
@@ -1976,7 +2002,7 @@ describe('DeepChatTapeService', () => {
     )
 
     expect(tapeContext).toEqual(legacyContext)
-    expect(tapeOnlyStore.getMessages).not.toHaveBeenCalled()
+    expect(tapeOnlyStore.getRuntimeMessages).not.toHaveBeenCalled()
   })
 
   it('enriches handoff anchors without requiring a summary field', () => {
@@ -1986,7 +2012,7 @@ describe('DeepChatTapeService', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
+      getRuntimeMessages: vi.fn().mockReturnValue([
         createRecord({ id: 'u1', orderSeq: 1 }),
         createRecord({
           id: 'a1',
@@ -2025,7 +2051,7 @@ describe('DeepChatTapeService', () => {
   it('migrates legacy session summary into a tape anchor during backfill', () => {
     const { table, entries } = createTapeTableMock()
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
+      getRuntimeMessages: vi.fn().mockReturnValue([
         createRecord({ id: 'u1', orderSeq: 1 }),
         createRecord({
           id: 'a1',
@@ -2069,7 +2095,7 @@ describe('DeepChatTapeService', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
 
     service.ensureSessionTapeReady('s1', messageStore as any)
@@ -2350,7 +2376,7 @@ describe('DeepChatTapeService', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
@@ -2403,7 +2429,7 @@ describe('DeepChatTapeService', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
@@ -2453,7 +2479,7 @@ describe('DeepChatTapeService', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
@@ -2591,7 +2617,7 @@ describe('DeepChatTapeService', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table)
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
 
     service.ensureSessionTapeReady('s1', messageStore as any)
@@ -2664,7 +2690,7 @@ describe('DeepChatTapeService', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table, [createTraceRow()])
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
 
     service.ensureSessionTapeReady('s1', messageStore as any)
@@ -2750,7 +2776,7 @@ describe('DeepChatTapeService', () => {
       })
     ])
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
 
     service.ensureSessionTapeReady('s1', messageStore as any)
@@ -2839,7 +2865,7 @@ describe('DeepChatTapeService', () => {
       })
     ])
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+      getRuntimeMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
     }
 
     service.ensureSessionTapeReady('s1', messageStore as any)
@@ -2938,7 +2964,7 @@ describe('DeepChatTapeService', () => {
       }
     ]
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
+      getRuntimeMessages: vi.fn().mockReturnValue([
         createRecord({
           id: 'a1',
           orderSeq: 1,
@@ -2989,7 +3015,7 @@ describe('DeepChatTapeService', () => {
       }
     ]
     const messageStore = {
-      getMessages: vi
+      getRuntimeMessages: vi
         .fn()
         .mockReturnValueOnce([
           createRecord({
@@ -3136,7 +3162,7 @@ describe('DeepChatTapeService', () => {
     const { table, entries } = createTapeTableMock()
     const original = createRecord({ id: 'u1', orderSeq: 1 })
     const messageStore = {
-      getMessages: vi.fn().mockReturnValue([original])
+      getRuntimeMessages: vi.fn().mockReturnValue([original])
     }
     const service = new DeepChatTapeService({
       deepchatTapeEntriesTable: table,

@@ -286,6 +286,11 @@ export class DeepChatMessageStore {
     return this.toRecords(rows)
   }
 
+  getRuntimeMessages(sessionId: string): ChatMessageRecord[] {
+    const rows = this.sqlitePresenter.deepchatMessagesTable.getBySessionForRuntime(sessionId)
+    return this.toRecords(rows)
+  }
+
   hasMessages(sessionId: string): boolean {
     return this.sqlitePresenter.deepchatMessagesTable.hasBySession(sessionId)
   }

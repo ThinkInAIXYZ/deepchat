@@ -871,7 +871,7 @@ export class DeepChatTapeService {
   ): TapeBackfillResult {
     const table = this.table
     const historyRecords = messageStore
-      .getMessages(sessionId)
+      .getRuntimeMessages(sessionId)
       .sort((left, right) => left.orderSeq - right.orderSeq)
     const maxOrderSeq = historyRecords.reduce(
       (currentMax, record) => Math.max(currentMax, record.orderSeq),

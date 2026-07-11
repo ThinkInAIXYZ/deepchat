@@ -159,7 +159,7 @@ function createService(options?: {
   } as any
 
   const messageStore = {
-    getMessages: vi.fn().mockReturnValue([])
+    getRuntimeMessages: vi.fn().mockReturnValue([])
   } as any
 
   const llmProviderPresenter = {
@@ -212,7 +212,7 @@ describe('CompactionService', () => {
   it('preserves attachment metadata without replaying file bodies in user summary blocks', async () => {
     const { service, messageStore } = createService()
 
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'Review the attachment', [
         {
           name: 'spec.md',
@@ -261,7 +261,7 @@ describe('CompactionService', () => {
         autoCompactionEnabled: false
       }
     })
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(120)),
       makeAssistantRecord(2, 'B'.repeat(120)),
       makeUserRecord(3, 'C'.repeat(120)),
@@ -291,7 +291,7 @@ describe('CompactionService', () => {
         autoCompactionEnabled: false
       }
     })
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(80)),
       makeAssistantRecord(2, 'B'.repeat(80)),
       makeUserRecord(3, 'C'.repeat(80)),
@@ -319,7 +319,7 @@ describe('CompactionService', () => {
     const { service, messageStore, sessionConfig } = createService()
     sessionConfig.autoCompactionTriggerThreshold = 95
     sessionConfig.autoCompactionRetainRecentPairs = 1
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'short one'),
       makeAssistantRecord(2, 'short reply'),
       makeUserRecord(3, 'short two'),
@@ -360,7 +360,7 @@ describe('CompactionService', () => {
         autoCompactionRetainRecentPairs: 2
       }
     })
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(80)),
       makeAssistantRecord(2, 'B'.repeat(80)),
       makeUserRecord(3, 'C'.repeat(80)),
@@ -385,7 +385,7 @@ describe('CompactionService', () => {
 
   it('triggers compaction at the configured threshold before hard overflow', async () => {
     const { service, messageStore, sessionConfig } = createService()
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(100)),
       makeAssistantRecord(2, 'B'.repeat(100)),
       makeUserRecord(3, 'C'.repeat(100)),
@@ -430,7 +430,7 @@ describe('CompactionService', () => {
         autoCompactionRetainRecentPairs: 1
       }
     })
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(100)),
       makeAssistantRecord(2, 'B'.repeat(100)),
       makeUserRecord(3, 'C'.repeat(100)),
@@ -458,7 +458,7 @@ describe('CompactionService', () => {
 
   it('passes preserveInterleavedReasoning through to buildHistoryTurns', async () => {
     const { service, messageStore } = createService()
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'turn one'),
       makeAssistantWithReasoningAndToolRecord(2, 'tool finished', 'R'.repeat(420), 'tool result'),
       makeUserRecord(3, 'turn two'),
@@ -516,7 +516,7 @@ describe('CompactionService', () => {
         autoCompactionRetainRecentPairs: 1
       }
     })
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'first turn '.repeat(20)),
       makeAssistantErrorRecord(2, 'provider failed'),
       makeUserRecord(3, 'failed user', [], 'error'),
@@ -550,7 +550,7 @@ describe('CompactionService', () => {
         autoCompactionRetainRecentPairs: 1
       }
     })
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'first turn '.repeat(20)),
       makeAssistantRecord(2, 'partial answer', 'error'),
       makeUserRecord(3, 'second turn '.repeat(20)),
@@ -576,7 +576,7 @@ describe('CompactionService', () => {
 
   it('passes assistant error records into forced context-pressure compaction', async () => {
     const { service, messageStore } = createService()
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'first turn '.repeat(20)),
       makeAssistantErrorRecord(2, 'provider failed'),
       makeUserRecord(3, 'second turn '.repeat(20)),
@@ -602,7 +602,7 @@ describe('CompactionService', () => {
 
   it('marks forced context-pressure recovery as auto handoff context overflow', async () => {
     const { service, messageStore } = createService()
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'first turn '.repeat(20)),
       makeAssistantRecord(2, 'first reply '.repeat(20)),
       makeUserRecord(3, 'second turn '.repeat(20)),
@@ -632,7 +632,7 @@ describe('CompactionService', () => {
         autoCompactionRetainRecentPairs: 1
       }
     })
-    messageStore.getMessages.mockReturnValue([
+    messageStore.getRuntimeMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(100)),
       makeAssistantRecord(2, 'B'.repeat(100)),
       makeUserRecord(3, 'C'.repeat(100)),

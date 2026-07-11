@@ -42,6 +42,11 @@ DeepChat already has the main Tape primitives.
 The first implementation step uses this baseline as the single runtime path. `DeepChatTapeService`
 remains the Tape service boundary.
 
+Tape lazy message backfill uses the runtime history projection and records `traceCount = 0`.
+`traceCount` inside a Tape message payload is compatibility metadata, not the authoritative trace
+source: old nonzero values remain readable, while Trace UI and replay trace payloads continue to use
+`deepchat_message_traces`. No old Tape entry is rewritten for this projection boundary.
+
 ## Retained Specs
 
 The retained Tape specs are:

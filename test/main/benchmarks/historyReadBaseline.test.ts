@@ -41,9 +41,16 @@ type HistoryTable =
   | 'deepchat_user_message_links'
   | 'deepchat_assistant_blocks'
 
-type SqlObservation = { table: HistoryTable; rowCount: number; durationMs: number }
+type HistoryProjection = 'rich' | 'runtime'
+type SqlObservation = {
+  table: HistoryTable
+  projection: HistoryProjection
+  rowCount: number
+  durationMs: number
+}
 type HistoryObservation = {
   sessionId: string
+  projection: HistoryProjection
   headerRows: number
   structuredRows: {
     user: number
@@ -61,6 +68,10 @@ type Sample = {
   sampleIndex: number
   fixtureMessageCountBefore: number
   getMessagesCallCount: number
+  richGetMessagesCallCount: number
+  runtimeGetMessagesCallCount: number
+  richHeaderCallCount: number
+  runtimeHeaderCallCount: number
   headerRows: number
   structuredRows: number
   structuredRowsByType: {
@@ -282,13 +293,8 @@ function getHeaderQueryPlan(sqlitePresenter: any) {
     .getDatabase()
     .prepare(
       `EXPLAIN QUERY PLAN
-       SELECT m.*, COALESCE(t.trace_count, 0) AS trace_count
+       SELECT m.*, 0 AS trace_count
        FROM deepchat_messages m
-       LEFT JOIN (
-         SELECT message_id, COUNT(*) AS trace_count
-         FROM deepchat_message_traces
-         GROUP BY message_id
-       ) t ON t.message_id = m.id
        WHERE m.session_id = ?
        ORDER BY m.order_seq`
     )
@@ -307,36 +313,53 @@ function installHistoryInstrumentation(args: {
 }) {
   let activeSample: ActiveSample | undefined
   let historyReadDepth = 0
+  let activeProjection: HistoryProjection | undefined
   const spies: Array<{ mockRestore: () => void }> = []
-  const tableCalls: Array<[HistoryTable, any, string]> = [
-    ['deepchat_messages', args.sqlitePresenter.deepchatMessagesTable, 'getBySession'],
-    ['deepchat_user_messages', args.sqlitePresenter.deepchatUserMessagesTable, 'listByMessageIds'],
+  const tableCalls: Array<[HistoryTable, any, string, HistoryProjection | undefined]> = [
+    ['deepchat_messages', args.sqlitePresenter.deepchatMessagesTable, 'getBySession', 'rich'],
+    [
+      'deepchat_messages',
+      args.sqlitePresenter.deepchatMessagesTable,
+      'getBySessionForRuntime',
+      'runtime'
+    ],
+    [
+      'deepchat_user_messages',
+      args.sqlitePresenter.deepchatUserMessagesTable,
+      'listByMessageIds',
+      undefined
+    ],
     [
       'deepchat_user_message_files',
       args.sqlitePresenter.deepchatUserMessageFilesTable,
-      'listByMessageIds'
+      'listByMessageIds',
+      undefined
     ],
     [
       'deepchat_user_message_links',
       args.sqlitePresenter.deepchatUserMessageLinksTable,
-      'listByMessageIds'
+      'listByMessageIds',
+      undefined
     ],
     [
       'deepchat_assistant_blocks',
       args.sqlitePresenter.deepchatAssistantBlocksTable,
-      'listByMessageIds'
+      'listByMessageIds',
+      undefined
     ]
   ]
 
-  for (const [tableName, table, methodName] of tableCalls) {
+  for (const [tableName, table, methodName, tableProjection] of tableCalls) {
     const original = table[methodName].bind(table)
     spies.push(
       vi.spyOn(table, methodName).mockImplementation((...methodArgs: unknown[]) => {
         const startedAt = performance.now()
         const rows = original(...methodArgs)
-        if (activeSample && !activeSample.frozen && historyReadDepth > 0) {
+        const projection = tableProjection ?? activeProjection
+        if (activeSample && !activeSample.frozen && historyReadDepth > 0 && projection) {
           activeSample.sql.push({
             table: tableName,
+            projection,
             rowCount: rows.length,
             durationMs: performance.now() - startedAt
           })
@@ -347,57 +370,68 @@ function installHistoryInstrumentation(args: {
   }
 
   const prototype = args.messageStoreClass.prototype
-  const originalGetMessages = prototype.getMessages
-  spies.push(
-    vi.spyOn(prototype, 'getMessages').mockImplementation(function (sessionId: string) {
-      if (!activeSample || activeSample.frozen || activeSample.sessionId !== sessionId) {
-        return originalGetMessages.call(this, sessionId)
-      }
-      const sample = activeSample
-      const sqlStartIndex = sample.sql.length
-      const startedAt = performance.now()
-      historyReadDepth += 1
-      try {
-        const records = originalGetMessages.call(this, sessionId)
-        const sql = sample.sql.slice(sqlStartIndex)
-        const historySqlDurationMs = sql.reduce(
-          (total, observation) => total + observation.durationMs,
-          0
-        )
-        const rowCount = (table: HistoryTable) =>
-          sql
-            .filter((observation) => observation.table === table)
-            .reduce((total, observation) => total + observation.rowCount, 0)
-        const user = rowCount('deepchat_user_messages')
-        const file = rowCount('deepchat_user_message_files')
-        const link = rowCount('deepchat_user_message_links')
-        const assistantBlock = rowCount('deepchat_assistant_blocks')
-        const observation: HistoryObservation = {
-          sessionId,
-          headerRows: rowCount('deepchat_messages'),
-          structuredRows: {
-            user,
-            file,
-            link,
-            assistantBlock,
-            total: user + file + link + assistantBlock
-          },
-          historySqlStatementCount: sql.length,
-          historySqlDurationMs,
-          materializationDurationMs: Math.max(
-            0,
-            performance.now() - startedAt - historySqlDurationMs
-          ),
-          sql
+  const installStoreMethod = (
+    methodName: 'getMessages' | 'getRuntimeMessages',
+    projection: HistoryProjection
+  ) => {
+    const original = prototype[methodName]
+    spies.push(
+      vi.spyOn(prototype, methodName).mockImplementation(function (sessionId: string) {
+        if (!activeSample || activeSample.frozen || activeSample.sessionId !== sessionId) {
+          return original.call(this, sessionId)
         }
-        args.collector(observation)
-        sample.history.push(observation)
-        return records
-      } finally {
-        historyReadDepth -= 1
-      }
-    })
-  )
+        const sample = activeSample
+        const sqlStartIndex = sample.sql.length
+        const startedAt = performance.now()
+        const previousProjection = activeProjection
+        activeProjection = projection
+        historyReadDepth += 1
+        try {
+          const records = original.call(this, sessionId)
+          const sql = sample.sql.slice(sqlStartIndex)
+          const historySqlDurationMs = sql.reduce(
+            (total, observation) => total + observation.durationMs,
+            0
+          )
+          const rowCount = (table: HistoryTable) =>
+            sql
+              .filter((observation) => observation.table === table)
+              .reduce((total, observation) => total + observation.rowCount, 0)
+          const user = rowCount('deepchat_user_messages')
+          const file = rowCount('deepchat_user_message_files')
+          const link = rowCount('deepchat_user_message_links')
+          const assistantBlock = rowCount('deepchat_assistant_blocks')
+          const observation: HistoryObservation = {
+            sessionId,
+            projection,
+            headerRows: rowCount('deepchat_messages'),
+            structuredRows: {
+              user,
+              file,
+              link,
+              assistantBlock,
+              total: user + file + link + assistantBlock
+            },
+            historySqlStatementCount: sql.length,
+            historySqlDurationMs,
+            materializationDurationMs: Math.max(
+              0,
+              performance.now() - startedAt - historySqlDurationMs
+            ),
+            sql
+          }
+          args.collector(observation)
+          sample.history.push(observation)
+          return records
+        } finally {
+          historyReadDepth -= 1
+          activeProjection = previousProjection
+        }
+      })
+    )
+  }
+  installStoreMethod('getMessages', 'rich')
+  installStoreMethod('getRuntimeMessages', 'runtime')
 
   return {
     activate(sessionId: string) {
@@ -434,6 +468,20 @@ function sumHistory(events: HistoryObservation[], sampleIndex: number, fixtureCo
     sampleIndex,
     fixtureMessageCountBefore: fixtureCount,
     getMessagesCallCount: events.length,
+    richGetMessagesCallCount: events.filter((event) => event.projection === 'rich').length,
+    runtimeGetMessagesCallCount: events.filter((event) => event.projection === 'runtime').length,
+    richHeaderCallCount: events
+      .flatMap((event) => event.sql)
+      .filter(
+        (observation) =>
+          observation.table === 'deepchat_messages' && observation.projection === 'rich'
+      ).length,
+    runtimeHeaderCallCount: events
+      .flatMap((event) => event.sql)
+      .filter(
+        (observation) =>
+          observation.table === 'deepchat_messages' && observation.projection === 'runtime'
+      ).length,
     headerRows: events.reduce((sum, event) => sum + event.headerRows, 0),
     structuredRows: events.reduce((sum, event) => sum + event.structuredRows.total, 0),
     structuredRowsByType,
@@ -505,8 +553,10 @@ describeBenchmark('HIS-001 real SQLite history read baseline', () => {
         const store = new DeepChatMessageStore(contractDb)
         instrumentation.activate('target-10-0-0')
         expect(store.getMessages('target-10-0-0')).toHaveLength(10)
+        expect(store.getRuntimeMessages('target-10-0-0')).toHaveLength(10)
         expect(exact).toEqual([
           expect.objectContaining({
+            projection: 'rich',
             headerRows: 10,
             structuredRows: {
               user: 5,
@@ -515,13 +565,40 @@ describeBenchmark('HIS-001 real SQLite history read baseline', () => {
               assistantBlock: 5,
               total: 10
             },
-            historySqlStatementCount: 5
+            historySqlStatementCount: 5,
+            sql: [
+              expect.objectContaining({ table: 'deepchat_messages', projection: 'rich' }),
+              expect.objectContaining({ projection: 'rich' }),
+              expect.objectContaining({ projection: 'rich' }),
+              expect.objectContaining({ projection: 'rich' }),
+              expect.objectContaining({ projection: 'rich' })
+            ]
+          }),
+          expect.objectContaining({
+            projection: 'runtime',
+            headerRows: 10,
+            structuredRows: {
+              user: 5,
+              file: 0,
+              link: 0,
+              assistantBlock: 5,
+              total: 10
+            },
+            historySqlStatementCount: 5,
+            sql: [
+              expect.objectContaining({ table: 'deepchat_messages', projection: 'runtime' }),
+              expect.objectContaining({ projection: 'runtime' }),
+              expect.objectContaining({ projection: 'runtime' }),
+              expect.objectContaining({ projection: 'runtime' }),
+              expect.objectContaining({ projection: 'runtime' })
+            ]
           })
         ])
         expect(instrumentation.freeze()).toBe(true)
         expect(instrumentation.freeze()).toBe(false)
         instrumentation.restore()
         expect(vi.isMockFunction(DeepChatMessageStore.prototype.getMessages)).toBe(false)
+        expect(vi.isMockFunction(DeepChatMessageStore.prototype.getRuntimeMessages)).toBe(false)
 
         const collectorError = installHistoryInstrumentation({
           messageStoreClass: DeepChatMessageStore,
@@ -531,7 +608,7 @@ describeBenchmark('HIS-001 real SQLite history read baseline', () => {
           }
         })
         collectorError.activate('target-10-0-0')
-        expect(() => store.getMessages('target-10-0-0')).toThrow('collector failed')
+        expect(() => store.getRuntimeMessages('target-10-0-0')).toThrow('collector failed')
         collectorError.restore()
       } finally {
         contractDb.close()
@@ -621,6 +698,18 @@ describeBenchmark('HIS-001 real SQLite history read baseline', () => {
 
             instrumentation.restore()
             expect(samples).toHaveLength(MEASURED_REPEATS)
+            if (quickCheck) {
+              expect(samples).toEqual([
+                expect.objectContaining({
+                  getMessagesCallCount: 7,
+                  richGetMessagesCallCount: 0,
+                  runtimeGetMessagesCallCount: 7,
+                  richHeaderCallCount: 0,
+                  runtimeHeaderCallCount: 7,
+                  historySqlStatementCount: 35
+                })
+              ])
+            }
             expect(localProvider.provider.coreStream).toHaveBeenCalledTimes(
               WARMUPS + MEASURED_REPEATS
             )

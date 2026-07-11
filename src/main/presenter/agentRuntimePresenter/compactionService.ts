@@ -342,7 +342,7 @@ export class CompactionService {
     }
 
     const historyRecords = (
-      params.historyRecords ?? this.messageStore.getMessages(params.sessionId)
+      params.historyRecords ?? this.messageStore.getRuntimeMessages(params.sessionId)
     )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
@@ -386,7 +386,9 @@ export class CompactionService {
       return null
     }
 
-    const allMessages = (params.historyRecords ?? this.messageStore.getMessages(params.sessionId))
+    const allMessages = (
+      params.historyRecords ?? this.messageStore.getRuntimeMessages(params.sessionId)
+    )
       .filter((record) => !isCompactionRecord(record))
       .sort((a, b) => a.orderSeq - b.orderSeq)
     const target = allMessages.find((record) => record.id === params.messageId)
@@ -438,7 +440,7 @@ export class CompactionService {
     }
 
     const historyRecords = (
-      params.historyRecords ?? this.messageStore.getMessages(params.sessionId)
+      params.historyRecords ?? this.messageStore.getRuntimeMessages(params.sessionId)
     )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
@@ -472,7 +474,7 @@ export class CompactionService {
     throwIfAbortRequested(params.signal)
 
     const historyRecords = (
-      params.historyRecords ?? this.messageStore.getMessages(params.sessionId)
+      params.historyRecords ?? this.messageStore.getRuntimeMessages(params.sessionId)
     )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)

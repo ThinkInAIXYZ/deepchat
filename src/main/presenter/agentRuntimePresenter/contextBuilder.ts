@@ -1117,7 +1117,7 @@ export function buildContextWithMetadata(
   options: ContextBuildOptions = {}
 ): ContextBuildResult {
   const supportsAudioInput = options.supportsAudioInput === true
-  const candidateRecords = options.historyRecords ?? messageStore.getMessages(sessionId)
+  const candidateRecords = options.historyRecords ?? messageStore.getRuntimeMessages(sessionId)
   const contextCandidateRecords = candidateRecords.filter(isContextHistoryRecord)
   const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
   const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor)
@@ -1265,7 +1265,7 @@ export function buildResumeContextWithMetadata(
   options: ContextBuildOptions = {}
 ): ContextBuildResult {
   const supportsAudioInput = options.supportsAudioInput === true
-  const allMessages = options.historyRecords ?? messageStore.getMessages(sessionId)
+  const allMessages = options.historyRecords ?? messageStore.getRuntimeMessages(sessionId)
   const targetMessage = allMessages.find((message) => message.id === assistantMessageId)
   const targetOrderSeq = targetMessage?.orderSeq
   const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
