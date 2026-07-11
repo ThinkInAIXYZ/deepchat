@@ -1,12 +1,14 @@
 import { FileMetaData } from './presenter'
-import type { ToolCallImagePreview } from './types/core/mcp'
+import type { PromptListEntry, ResourceListEntry, ToolCallImagePreview } from './types/core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
+
+export type MessageRole = 'user' | 'assistant' | 'system' | 'function' | 'agent'
 
 export type Message = {
   id: string
 
   content: UserMessageContent | AssistantMessageBlock[]
-  role: MESSAGE_ROLE
+  role: MessageRole
   timestamp: number
   avatar: string
   name: string
@@ -78,8 +80,8 @@ export type UserMessageInlineItem =
 export type UserMessageContent = {
   continue?: boolean
   files: MessageFile[]
-  resources?: ResourceListEntryWithClient[]
-  prompts?: PromptWithClient[]
+  resources?: ResourceListEntry[]
+  prompts?: PromptListEntry[]
   links: string[]
   think: boolean
   search: boolean

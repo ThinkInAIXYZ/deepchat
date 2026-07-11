@@ -2197,6 +2197,21 @@ describe('DeepChatTapeService', () => {
     ])
   })
 
+  it('does not publish legacy agent/function roles as tape view entry roles', () => {
+    const { table } = createTapeTableMock()
+    const sourceMaps = createTapeService(table).getViewManifestSourceMaps('s1')
+
+    const refs = buildRequestRefs(
+      [
+        { role: 'agent', content: 'legacy agent context' },
+        { role: 'function', content: 'legacy function result' }
+      ],
+      sourceMaps
+    )
+
+    expect(refs.map((ref) => ref.role)).toEqual([null, null])
+  })
+
   it('scopes tool source maps to the in-flight message so reused tool ids do not collide', () => {
     const { table } = createTapeTableMock()
     const blocks = (response: string) =>

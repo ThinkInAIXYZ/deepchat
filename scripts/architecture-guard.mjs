@@ -760,7 +760,7 @@ async function loadArchitectureGrowthBaseline() {
 }
 
 function isSharedToMainImplementationSpecifier(specifier, importer) {
-  if (specifier === '@/presenter' || specifier.startsWith('@/presenter/')) {
+  if (specifier === '@' || specifier.startsWith('@/')) {
     return true
   }
 

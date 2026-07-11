@@ -169,7 +169,7 @@
                     :disabled="!store.hasEligibleModel"
                   >
                     <ModelIcon
-                      v-if="store.selectedModel"
+                      v-if="store.selectedModel && store.selectedProviderId"
                       :model-id="store.selectedProviderId"
                       :is-dark="true"
                       custom-class="w-4 h-4"

@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { MessageFile } from './chat'
+import type { WebContentsView } from 'electron'
+import type { MessageFile, SearchEngineTemplate } from '../../chat'
 import { ShowResponse } from 'ollama'
-import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
+import type { ShortcutKeySetting } from '../../shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import { ApiEndpointType, ModelType } from '@shared/model'
@@ -12,7 +13,7 @@ import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-d
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import type { AcpConfigState } from './llmprovider.presenter'
-import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
+import { ProviderChange, ProviderBatchUpdate } from '../../provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
 import type { ISessionPresenter } from './session.presenter'
@@ -34,6 +35,12 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '../agent-interface'
+import type { MESSAGE } from './thread.presenter'
+import type { LifecyclePhase } from '../../lifecycle'
+import type { McpFileItem, PromptListEntry, ResourceListEntry } from '../core/mcp'
+import type { ImportMode } from '../sync'
+
+export type { McpFileItem as FileItem, PromptListEntry, ResourceListEntry } from '../core/mcp'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -73,17 +80,6 @@ export interface Resource {
   text?: string
   blob?: string
 }
-export interface FileItem {
-  id: string
-  name: string
-  type: string
-  size: number
-  path: string
-  description?: string
-  content?: string
-  createdAt: number
-}
-
 export interface Prompt {
   id: string
   name: string
@@ -94,7 +90,7 @@ export interface Prompt {
     description: string
     required: boolean
   }>
-  files?: FileItem[] // Associated files
+  files?: McpFileItem[] // Associated files
   messages?: Array<{ role: string; content: { text: string } }> // Added based on getPrompt example
   enabled?: boolean // Whether enabled
   source?: 'local' | 'imported' | 'builtin' // Source type
@@ -109,20 +105,6 @@ export interface SystemPrompt {
   isDefault?: boolean
   createdAt?: number
   updatedAt?: number
-}
-export interface PromptListEntry {
-  name: string
-  description?: string
-  arguments?: {
-    name: string
-    description?: string
-    required: boolean
-  }[]
-  files?: FileItem[] // Associated files
-  client: {
-    name: string
-    icon: string
-  }
 }
 // Interface for tool call results
 export interface ToolCallResult {
@@ -144,15 +126,6 @@ export interface Tool {
     destructiveHint?: boolean // default true
     idempotentHint?: boolean // default false
     openWorldHint?: boolean // default true
-  }
-}
-
-export interface ResourceListEntry {
-  uri: string
-  name?: string
-  client: {
-    name: string
-    icon: string
   }
 }
 
@@ -251,7 +224,7 @@ export interface ITabPresenter {
   closeTab(tabId: number): Promise<boolean>
   closeTabs(windowId: number): Promise<void>
   switchTab(tabId: number): Promise<boolean>
-  getTab(tabId: number): Promise<BrowserView | undefined>
+  getTab(tabId: number): Promise<WebContentsView | undefined>
   detachTab(tabId: number): Promise<boolean>
   attachTab(tabId: number, targetWindowId: number, index?: number): Promise<boolean>
   moveTab(tabId: number, targetWindowId: number, index?: number): Promise<boolean>
@@ -1738,10 +1711,10 @@ export interface MCPToolResponse {
   }
 }
 
-export type McpSamplingMessage = import('../../core/mcp').McpSamplingMessage
-export type McpSamplingRequestPayload = import('../../core/mcp').McpSamplingRequestPayload
-export type McpSamplingDecision = import('../../core/mcp').McpSamplingDecision
-export type McpSamplingModelPreferences = import('../../core/mcp').McpSamplingModelPreferences
+export type McpSamplingMessage = import('../core/mcp').McpSamplingMessage
+export type McpSamplingRequestPayload = import('../core/mcp').McpSamplingRequestPayload
+export type McpSamplingDecision = import('../core/mcp').McpSamplingDecision
+export type McpSamplingModelPreferences = import('../core/mcp').McpSamplingModelPreferences
 
 /** Content item type */
 export type MCPContentItem = MCPTextContent | MCPImageContent | MCPResourceContent
@@ -2006,17 +1979,17 @@ export interface SyncBackupInfo {
 }
 
 // Standardized events returned from LLM Provider's coreStream
-export type LLMCoreStreamEvent = import('../../core/llm-events').LLMCoreStreamEvent
+export type LLMCoreStreamEvent = import('../core/llm-events').LLMCoreStreamEvent
 
 // Define ChatMessage interface for unified message format
-export type ChatMessage = import('../../core/llm-events').ChatMessage
+export type ChatMessage = import('../core/llm-events').ChatMessage
 
-export type ChatMessageContent = import('../../core/llm-events').ChatMessageContent
+export type ChatMessageContent = import('../core/llm-events').ChatMessageContent
 
-export type LLMAgentEventData = import('../../core/agent-events').LLMAgentEventData
-export type LLMAgentEvent = import('../../core/agent-events').LLMAgentEvent
+export type LLMAgentEventData = import('../core/agent-events').LLMAgentEventData
+export type LLMAgentEvent = import('../core/agent-events').LLMAgentEvent
 
-export { ShortcutKey, ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
+export { ShortcutKey, ShortcutKeySetting } from '../../shortcutKeySettings'
 
 export interface DefaultModelSetting {
   id: string
@@ -2520,7 +2493,7 @@ export interface LifecycleHook {
  * Internal lifecycle state tracking
  */
 export interface LifecycleState {
-  currentPhase: LifecyclePhase
+  currentPhase: LifecyclePhase | null
   completedPhases: Set<LifecyclePhase>
   startTime: number
   phaseStartTimes: Map<LifecyclePhase, number>

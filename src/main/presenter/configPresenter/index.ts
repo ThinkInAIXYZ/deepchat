@@ -51,7 +51,7 @@ import { CONFIG_EVENTS, MCP_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
-import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
+import { defaultShortcutKey, ShortcutKeySetting } from '@shared/shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
@@ -3527,4 +3527,4 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 }
 
-export { defaultShortcutKey } from './shortcutKeySettings'
+export { defaultShortcutKey } from '@shared/shortcutKeySettings'

@@ -2,8 +2,6 @@ export const CommandKey = 'CommandOrControl'
 
 const ShiftKey = 'Shift'
 
-// Register tab number shortcut keys (1-8) -> Fixed CommandKey+1 ~ CommandKey+8 to switch tabs
-// Below are regular shortcut key definitions
 export const rendererShortcutKey = {
   NewConversation: `${CommandKey}+N`,
   QuickSearch: `${CommandKey}+P`,
@@ -19,7 +17,6 @@ export const rendererShortcutKey = {
   DeleteConversation: `${CommandKey}+D`
 }
 
-// System-level shortcut keys
 export const systemShortcutKey = {
   ShowHideWindow: `${CommandKey}+O`,
   Quit: `${CommandKey}+Q`
@@ -32,4 +29,4 @@ export const defaultShortcutKey = {
 
 export type ShortcutKey = keyof typeof defaultShortcutKey
 
-export type ShortcutKeySetting = Record<ShortcutKey, string>
+export type ShortcutKeySetting = Record<string, string>

@@ -281,7 +281,7 @@ export function addContextMessages(
                 id: toolCallId,
                 type: 'function',
                 function: {
-                  name: block.tool_call.name,
+                  name: block.tool_call.name ?? '',
                   arguments: block.tool_call.params || ''
                 },
                 ...(providerOptions ? { provider_options: providerOptions } : {})

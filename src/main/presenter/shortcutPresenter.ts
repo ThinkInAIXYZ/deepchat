@@ -10,7 +10,7 @@ import {
 import { presenter } from '.'
 import { SHORTCUT_EVENTS, TRAY_EVENTS } from '../events'
 import { eventBus } from '../eventbus'
-import { defaultShortcutKey, ShortcutKeySetting } from './configPresenter/shortcutKeySettings'
+import { defaultShortcutKey, ShortcutKeySetting } from '@shared/shortcutKeySettings'
 import { IConfigPresenter, IShortcutPresenter } from '@shared/presenter'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'

@@ -6,9 +6,9 @@
     "routeTypedCaseCount": 352,
     "routeConcretePresenterImportCount": 12,
     "routeConcreteSqliteTableImportCount": 3,
-    "presenterCompatibilityCoreLoc": 2592
+    "presenterCompatibilityCoreLoc": 2565
   },
   "agentEdge": {
-    "sharedToMainImplementationImportCount": 2
+    "sharedToMainImplementationImportCount": 0
   }
 }

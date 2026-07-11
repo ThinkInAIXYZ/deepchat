@@ -1,4 +1,4 @@
-import { AssistantMessageBlock, Message } from '../../chat'
+import { AssistantMessageBlock, Message, type SearchEngineTemplate } from '../../chat'
 import type { ReasoningEffort, Verbosity } from '../model-db'
 import type { SearchResult } from '../core/search'
 
@@ -84,7 +84,7 @@ export interface MESSAGE {
   is_context_edge?: boolean
 }
 
-export type { SearchResult }
+export type { SearchEngineTemplate, SearchResult }
 
 export interface IThreadPresenter {
   // Basic conversation operations

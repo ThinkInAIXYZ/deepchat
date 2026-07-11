@@ -120,7 +120,7 @@ describe.sequential('architecture guard', () => {
     const baseline = await readTrackedGrowthBaseline()
 
     expect(Object.values(baseline.mainComposition).every((value) => value > 0)).toBe(true)
-    expect(baseline.agentEdge.sharedToMainImplementationImportCount).toBeGreaterThan(0)
+    expect(baseline.agentEdge.sharedToMainImplementationImportCount).toBe(0)
 
     const result = runArchitectureGuard()
 
@@ -504,6 +504,7 @@ describe.sequential('architecture guard', () => {
 
   it.each([
     ['main presenter alias', '@/presenter/configPresenter/shortcutKeySettings'],
+    ['main root alias outside presenter', '@/eventbus'],
     ['explicit main specifier', 'src/main/presenter/configPresenter'],
     ['relative main path', '../main/presenter/configPresenter'],
     [

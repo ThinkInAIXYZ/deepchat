@@ -1,4 +1,4 @@
-export type ChatMessageRole = 'system' | 'user' | 'assistant' | 'tool'
+export type ChatMessageRole = 'system' | 'user' | 'assistant' | 'tool' | 'agent' | 'function'
 
 export type ChatMessageProviderOptions = Record<string, Record<string, unknown>>
 

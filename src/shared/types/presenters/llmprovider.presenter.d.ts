@@ -1,7 +1,6 @@
 import { ShowResponse } from 'ollama'
 import type { ChatMessage } from '../core/chat-message'
-import { ModelType } from '../core/model'
-import type { NewApiEndpointType } from '@shared/model'
+import { ModelType, type NewApiEndpointType } from '@shared/model'
 import type { ImageGenerationOptions } from '../../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../../videoGenerationSettings'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './acp.presenter'

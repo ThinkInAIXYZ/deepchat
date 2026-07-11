@@ -1073,7 +1073,9 @@ export class RemoteConversationRunner {
           metadata: {
             ...preparedFile.metadata,
             fileName: displayFileName,
-            fileSize: size
+            fileSize: size,
+            fileCreated: preparedFile.metadata?.fileCreated?.toISOString(),
+            fileModified: preparedFile.metadata?.fileModified?.toISOString()
           }
         }
       }

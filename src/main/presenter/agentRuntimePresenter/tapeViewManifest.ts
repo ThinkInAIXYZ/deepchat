@@ -333,7 +333,13 @@ export function buildRequestRefs(
       entryId: null,
       messageId: null,
       orderSeq: null,
-      role: message.role,
+      role:
+        message.role === 'system' ||
+        message.role === 'user' ||
+        message.role === 'assistant' ||
+        message.role === 'tool'
+          ? message.role
+          : null,
       source: 'synthetic',
       reason:
         message.role === 'system'

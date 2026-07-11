@@ -12,6 +12,41 @@ export type McpServerStatusPhase = 'startup' | 'manual' | 'retry' | 'shutdown'
 
 export type McpServerStatusReason = 'soft-timeout' | 'hard-timeout' | 'connect-error' | 'shutdown'
 
+export interface McpFileItem {
+  id: string
+  name: string
+  type: string
+  size: number
+  path: string
+  description?: string
+  content?: string
+  createdAt: number
+}
+
+export interface PromptListEntry {
+  name: string
+  description?: string
+  arguments?: Array<{
+    name: string
+    description?: string
+    required: boolean
+  }>
+  files?: McpFileItem[]
+  client: {
+    name: string
+    icon: string
+  }
+}
+
+export interface ResourceListEntry {
+  uri: string
+  name?: string
+  client: {
+    name: string
+    icon: string
+  }
+}
+
 export interface McpServerStatusChangedPayload {
   serverName: string
   name?: string

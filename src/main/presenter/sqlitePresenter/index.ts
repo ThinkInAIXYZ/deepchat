@@ -54,6 +54,7 @@ import { openSQLiteDatabase } from './databaseConnection'
 import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
 
 export { openSQLiteDatabase } from './databaseConnection'
+export { ImportMode } from '@shared/types/sync'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
@@ -196,14 +197,6 @@ function shouldIgnoreMigrationStatementError(statement: string, error: unknown):
   }
 
   return false
-}
-
-/**
- * 导入模式枚举
- */
-export enum ImportMode {
-  INCREMENT = 'increment', // 增量导入
-  OVERWRITE = 'overwrite' // 覆盖导入
 }
 
 export class SQLitePresenter implements ISQLitePresenter {

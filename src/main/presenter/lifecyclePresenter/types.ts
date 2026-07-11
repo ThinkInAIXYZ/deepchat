@@ -9,7 +9,7 @@ import { LifecyclePhase } from '@shared/lifecycle'
  * Base interface for all lifecycle events
  */
 export interface BaseLifecycleEvent {
-  phase: LifecyclePhase
+  phase: LifecyclePhase | null
 }
 
 /**

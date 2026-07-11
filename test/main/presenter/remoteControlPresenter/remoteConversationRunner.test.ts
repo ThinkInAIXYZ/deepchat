@@ -216,7 +216,13 @@ describe('RemoteConversationRunner', () => {
       name: 'note.txt',
       path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
       mimeType: 'text/plain',
-      content: 'hello file'
+      content: 'hello file',
+      metadata: {
+        fileName: 'note.txt',
+        fileSize: 10,
+        fileCreated: new Date('2026-07-10T01:02:03.000Z'),
+        fileModified: new Date('2026-07-10T04:05:06.000Z')
+      }
     }
     const session = createSession({
       id: 'session-bound',
@@ -286,7 +292,9 @@ describe('RemoteConversationRunner', () => {
           size: 10,
           metadata: expect.objectContaining({
             fileName: 'note.txt',
-            fileSize: 10
+            fileSize: 10,
+            fileCreated: '2026-07-10T01:02:03.000Z',
+            fileModified: '2026-07-10T04:05:06.000Z'
           })
         })
       ]
