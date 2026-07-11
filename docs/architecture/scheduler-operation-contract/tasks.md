@@ -50,7 +50,7 @@
 - [x] verifier repair：禁止 production namespace import 绕过 OperationRunner provenance guard，并补 alias 负测。
 - [x] production legacy retry caller 归零后删除 `retry()` interface/factory adapter/input。
 - [x] 保持 AgentRuntime exactly-once cancel/stale-run tests 全绿。
-- [ ] 独立 verify agent 对每个 consumer 重做 capability 分类。
+- [x] 独立 verify agent 对每个 consumer 重做 capability 分类。
 - [x] 跑 focused/full tests、typecheck、format、i18n、lint。
 
 SCH-002B development 验证记录：
@@ -61,6 +61,8 @@ SCH-002B development 验证记录：
 - single-worker full：`472` files，`4726 passed / 5 failed / 140 skipped`；在未修改的基线
   `fe126bf3` 上重跑失败文件得到完全相同的 `5` 个失败，新增失败数为 `0`。基线失败属于
   long-steer rebudget、debug mock plan block 与 Spotlight Pinia setup，不在 SCH-002B scope。
+- final independent focused：`9` files，`438 passed`；额外 adversarial `46 passed`，闭合并发 steer
+  preflight stop fence、stale cleanup/new fence 和 operation-runner namespace/type/alias guard 绕过。
 - verifier repair focused：Chat stop/steer fence 与 architecture adversarial guard 共 `46 passed`；namespace
   factory/type/destructure、factory/property alias、local type alias、routes 外与 renamed owner 均有负测。
   repair 后 `typecheck`、`format`、`i18n`、`lint` 全部通过；combined full 留给 final verifier/merge gate。
