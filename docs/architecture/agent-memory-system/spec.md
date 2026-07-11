@@ -54,6 +54,10 @@ These hold across every module and are the system's core invariants.
 12. **Destructive generations are separate from read epochs.** Ordinary semantic mutations advance the
     per-agent read epoch; clear, agent deletion, and dispose invalidate a destructive operation generation
     and abort stale provider continuations before they can write rows, cursors, audits, events, or vectors.
+13. **Scale is contractually bounded.** Recall chooses either indexed FTS or one LIKE fallback; extraction
+    batches candidate recall/decisions; embedding persists in bulk; maintenance has row/call/token/concurrency
+    budgets; startup, vector-store residency, management pages, content, and operational audit history all
+    have explicit caps.
 
 ---
 
@@ -119,11 +123,14 @@ flowchart TD
 | Services | `memoryPresenter/services/conflictService.ts` | Conflict aggregate guard, listing/resolution, integrity repair, and maintenance scheduling through narrow ports |
 | Services | `memoryPresenter/services/managementService.ts` | List/get/lifecycle/health/delete/clear/status delegation and management-facing row projection |
 | Infra | `memoryPresenter/infra/providerGateway.ts` | Agent-aware RateLimit admission, purpose deadlines, destructive abort, and bounded unsettled provider work |
-| Infra | `memoryPresenter/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: scoped generation leases, identity/readiness, recoverable reset, and parallel close/drain orchestration |
+| Infra | `memoryPresenter/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: scoped generation leases, readiness certificates, recoverable reset, lease-safe LRU/TTL eviction, and parallel close/drain orchestration |
+| Infra | `memoryPresenter/infra/asyncSemaphore.ts` | Fair process-wide admission for heavy per-agent maintenance |
 | Infra | `memoryPresenter/infra/embeddingPipeline.ts` | Pending embedding drain, reindex/backfill, embedding/vector warmups, dimension cooldowns, and `isReindexing` |
 | Infra | `memoryPresenter/infra/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
 | Core | `memoryPresenter/core/candidates.ts` | Pure memory candidate normalization |
 | Core | `memoryPresenter/core/decision.ts` | The Mem0-style decision ring prompt + tolerant parser (`ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE`) |
+| Core | `memoryPresenter/core/batchDecision.ts` | Pure 4-candidate/12k-token decision partitioner and indexed batch-result parser |
+| Core | `memoryPresenter/core/maintenanceBudget.ts` | Shared per-pass call/token accounting with fixed challenge/merge/reflection/persona quotas |
 | Core | `memoryPresenter/core/extraction.ts` | Triage + extraction prompts and parsers; reflection/persona prompts; persona small-step (Levenshtein) guard |
 | Core | `memoryPresenter/core/injectionPort.ts` | `sanitizeForInjection` + the token-budgeted Context Assembler + the injection manifest |
 | Core | `memoryPresenter/core/lifecycle.ts` | Lifecycle diagnostics and archive/freshness thresholds |
@@ -133,6 +140,7 @@ flowchart TD
 | Storage | `sqlitePresenter/tables/agentMemory.ts` | `agent_memory` table + `agent_memory_fts` FTS5 + keyword search |
 | Storage | `sqlitePresenter/tables/agentMemoryAudit.ts` | `agent_memory_audit` content-free maintenance ledger |
 | Storage | `sqlitePresenter/tables/deepchatTapeSearchProjection.ts` | `deepchat_tape_search_projection` (+ meta + FTS) evidence projection |
+| Storage | `sqlitePresenter/tables/deepchatMemoryIngestionProjection.ts` | Versioned effective-message range projection used only by memory extraction |
 | Runtime seam | `agentRuntimePresenter/index.ts` | `appendMemoryInjection`, `enqueueSessionExtraction`, span builder, cursor, memory anchors |
 | Runtime | `agentRuntimePresenter/tapeService.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
 | Tools | `toolPresenter/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
@@ -156,7 +164,7 @@ entrypoints/contracts and may not import `services`, `infra`, or the facade entr
 
 ## 5. Data model and storage responsibilities
 
-Memory is split across five stores. Each has one job; none is authoritative for more than its job.
+Memory is split across six stores. Each has one job; none is authoritative for more than its job.
 
 | Store | Holds | Rebuildable? |
 | --- | --- | --- |
@@ -164,6 +172,7 @@ Memory is split across five stores. Each has one job; none is authoritative for 
 | SQLite `agent_memory_fts` | Keyword recall (BM25), external-content mirror of `agent_memory` | Yes — rebuilt idempotently; degrades to `LIKE` |
 | SQLite `agent_memory_audit` | Maintenance/user provenance ledger (ids/action/model; `scheduler`/`user` actors + optional `session_id`; drives the cooldown) | No — but content-free |
 | SQLite `deepchat_tape_search_projection` | Searchable evidence projection of the effective tape (summary + refs + FTS) | Yes — rebuilt from raw tape entries |
+| SQLite `deepchat_memory_ingestion_projection` | Effective final messages keyed by session/message with order, lineage entry, and tool-use bit for bounded extraction ranges | Yes — rebuilt from raw tape entries |
 | DuckDB sidecar (one `.duckdb` per agent) | `memory_vector` (HNSW/cosine) + `embedding_meta` (provider/model/dim identity) | Yes — re-embedded from `agent_memory` |
 
 The raw tape (`deepchat_tape_entries`) remains the ultimate evidence source of truth and also stores the
@@ -282,11 +291,11 @@ Compaction-triggered extraction keeps its old behavior.
 ```mermaid
 flowchart TD
   T["turn / resume done or compaction"] --> EQ["enqueueSessionExtraction<br/>(per-session serial chain, epoch-guarded)"]
-  EQ --> CUR["read cursor + buildEffectiveTapeView window (from,to]<br/>build message-aligned chunks + exact lineage"]
+  EQ --> CUR["read cursor + validate/rebuild ingestion projection<br/>range-read effective messages (from,to]"]
   CUR --> TRI{"triage gate<br/>(cheap KEEP/SKIP, fail-open)"}
   TRI -- SKIP --> ADV0["advance cursor, no write"]
   TRI -- KEEP --> EX["extraction → JSON candidates (≤8)"]
-  EX --> CW["coordinateWrite per candidate"]
+  EX --> CW["stable dedupe + batched neighbor recall/decisions"]
   CW --> DUP{provenance hit?}
   DUP -- hit --> REV["handleProvenanceHit<br/>(restore / suppress / decision)"]
   DUP -- miss --> NB["retrieveForDecision top-10 neighbors<br/>(keyword any + no inline prune)"]
@@ -301,7 +310,7 @@ flowchart TD
   SUP --> PEND
   REV --> PEND
   PEND --> ADV["cursor advances MAX + memory/extract anchor (when created>0)"]
-  PEND --> EMB["background per-agent embedding queue<br/>(batched · fair · transactional)"]
+  PEND --> EMB["single per-agent embedding drain<br/>(50 rows · bulk DuckDB/SQLite)"]
   EMB --> DUCK["DuckDB memory_vector + status=embedded"]
 ```
 
@@ -322,6 +331,13 @@ reported as a discriminated `MemoryCandidateParseResult` (`{ ok: false, reason }
 degraded to `[]`, so the caller can retry the span instead of consuming it; a successful parse returns
 `{ ok: true, candidates }` (an empty array is a valid success).
 
+Before recall or another provider call, normalized candidates are stably deduplicated by
+`(kind, provenance-v2-normalized content)` and automatic content is capped at **2,000 characters**. An
+oversized item becomes a content-free `candidate-too-large` audit outcome rather than being truncated.
+Candidate neighbor retrieval performs one bounded keyword query per item, one batch query-embedding call,
+one vector lease for all vector queries, and one authoritative `listByIds`; each item keeps at most three
+neighbors.
+
 **Candidate normalization.** Every write entry point (`coordinateWrite`, `directAddMemory`, and
 `writeMemoriesSync`) normalizes candidates before provenance-key generation or storage. A valid category
 takes precedence over legacy `kind`: `task_outcome` becomes `episodic`, all other valid categories become
@@ -338,19 +354,23 @@ and persona run on the scheduler with no active chat session, so the active chat
 unavailable to them. The cost saving comes from the triage gate avoiding the larger extraction call, plus the
 *option* to point extraction at a cheaper model.
 
-**Decision ring (`coordinateWrite`).** Each candidate:
+**Decision ring (`coordinateWrite`).** Candidates are applied serially in original order, but model work is
+batched: at most four candidates per prompt, three 400-character neighbor excerpts each, 12,000 estimated
+input tokens, and two initial decision calls. The partitioner drops lowest-priority excerpts before using a
+safe initial `ADD` budget fallback; it never truncates candidate content or opens a third initial batch.
+Each candidate then follows this state machine:
 
 1. Trim; empty → no-op. Teardown guard → no-op.
 2. Compute the provenance key and check for an existing row. A pure scheduler-archived row is restored to
    `pending_embedding`; a user/runtime-forgotten row is suppressed; an archived superseded conflict loser is
    suppressed; an active duplicate returns `noop(duplicate)`. A non-archived superseded row does not revive
    by provenance alone when a model path is available — its live chain head is fed into the decision ring.
-3. Otherwise retrieve up to **10** decision neighbors through `retrieveForDecision`, which uses the
-   agent-facing keyword query in `any` mode and disables inline vector pruning. This keeps FTS-only agents
-   capable of semantic write decisions without requiring vectors. On the first attempt, a decision-model
-   failure or invalid target index still degrades to `ADD`; a revision/liveness conflict instead performs one
-   complete fresh provenance/recall/prompt attempt. During that retry only an explicit valid `ADD` may insert;
-   another conflict, provider failure, or parse failure returns `noop(concurrent-update)`.
+3. Otherwise use its three-item batch-retrieved neighbor set. This keeps FTS-only agents capable of semantic
+   write decisions without requiring vectors. On the first attempt, a missing/invalid result or provider
+   failure degrades only that candidate to `ADD`. Revision/liveness conflicts are collected in original
+   order; only the first four receive one fresh provenance/recall pass and one shared retry decision call,
+   reusing their first query embeddings. During retry only an explicit valid `ADD` may insert; another
+   conflict, provider failure, missing result, or parse failure returns `noop(concurrent-update)`.
 4. Apply: `ADD` inserts with the candidate category. `UPDATE` uses one conditional SQL statement plus the
    confidence update in one transaction, atomically checking agent/id/revision/liveness/conflict while
    replacing content/category/provenance, resetting embedding metadata, and incrementing
@@ -367,14 +387,19 @@ The write outcome is a discriminated union `MemoryWriteOutcome` (`created` / `up
 tool and the user-facing `memory.add` route (when an extraction model is configured; otherwise the user-add
 path is a pure dedupe-add).
 
-**Two-phase persistence.** Phase 1 is a synchronous SQLite insert as `pending_embedding`. Phase 2 is an
-asynchronous, per-agent, fair, batched embedding drain: `listPendingEmbedding` filters by `agent_id` in SQL
-(no cross-agent starvation), one batched `getEmbeddings` call, and a single transactional upsert into DuckDB
-under the per-agent lock. A transient embedding-service failure re-marks rows `pending_embedding`;
-a dimension mismatch or vector-store write failure after a successful embed marks the row `error`. The drain
-does not leave `error` rows permanently stranded: when no normal pending work exists and the cooldown has
-elapsed, it requeues up to the bounded retry batch and tries again. A manual per-agent reindex resets
-embedding state and rebuilds from SQLite.
+**Two-phase persistence.** Phase 1 is a synchronous SQLite insert as `pending_embedding`. Phase 2 is one
+per-agent `{dirty,running}` drain loop over at most 50 rows: one batched `getEmbeddings`, one authoritative
+`listByIds`, one DuckDB transaction containing a bulk delete and multi-values insert, and at most one
+revision-aware SQLite success update plus one error update. Content/config/clear races therefore cannot mark
+an old vector ready. A whole-provider failure leaves rows pending without per-row no-op writes; malformed
+individual vectors enter the error batch. Cooldown-bounded retry and manual per-agent reindex remain available.
+
+The effective-message ingestion projection is maintained at the lowest Tape append boundary, so every
+message/tool/anchor/event append advances or invalidates the session watermark. Reads compare projection
+version and session max entry ID; a mismatch rebuilds transactionally through the single
+`buildEffectiveTapeView` implementation. Rebuild failure uses that full view for the current extraction and
+does not falsely advance the cursor. The steady path materializes only the requested `(orderSeq, messageId)`
+range while preserving the final message entry ID as lineage.
 
 **Cursor.** `memory_cursor_order_seq` (on `deepchat_sessions`) is written `SET = MAX(existing, floor(x), 0)`,
 so a late/stale extraction can never roll it back. It advances only when `extractAndStore` returns `ok: true`
@@ -392,19 +417,23 @@ and trims to `topK`. `searchMemories()` is the only caller allowed to pass a sea
 retrieval `topK` and still record access only for recall/injection hits.
 
 - **Keyword path.** `agent_memory_fts` (FTS5, BM25-ranked) with the tokenizer chosen at runtime — `trigram`
-  for CJK/substring matching, else `unicode61`. The query is tokenized on whitespace; each term is quoted
-  independently (so user text can never inject an FTS5 operator) and the terms are joined with `AND`, so a
-  multi-word query matches rows containing **all** terms in any order rather than only an exact phrase (a
-  single-term query is unchanged). `LIKE` runs the same per-term `AND` and is unioned in, so the result is
-  never a subset of the legacy `LIKE` behavior; if FTS5 is unavailable the path is pure `LIKE`. Persona,
-  working, archived, conflicted, and superseded rows are excluded. The FTS index records its tokenizer and
-  version in `agent_memory_fts_meta`; if the runtime tokenizer choice changes (e.g. content starts containing
-  CJK), the index is dropped and rebuilt so a stale tokenizer can never silently degrade keyword recall.
+  for CJK/substring matching, else `unicode61`. Query terms are selected deterministically by kind
+  (code/path → CJK → ASCII), Unicode code-point length, and original position, with a cap of eight. When the
+  tokenizer is trigram and every selected term is at least three code points, the path runs BM25 and one
+  importance/recency supplement using the exact same MATCH. Otherwise it runs exactly one bounded per-agent
+  LIKE query. FTS and LIKE never run together, and no corpus-frequency stats/cache is consulted. FTS v3
+  contains only recallable rows. Authoritative writes mark the derived generation dirty, then maintain the
+  mirror inside a nested savepoint; failure rolls back only the savepoint and forces one bounded LIKE until
+  filtered rebuild. Persona, working, archived, conflicted, and superseded rows remain outside the index.
 - **Vector path.** Only when an embedding model is configured. The query is embedded, DuckDB returns nearest
   neighbors by cosine distance, distances are converted to similarity and filtered by `similarityThreshold`,
   and the same row-class exclusions as the keyword path (persona, working, archived, conflicted, superseded)
-  are applied to the matches. If any embedded row's identity is stale (model/dim/fingerprint mismatch), the
-  turn answers **FTS-only** and a non-destructive background re-embed is queued — rows are never deleted.
+  are applied to the matches. A readiness certificate binds agent, provider/model, dimension, config
+  generation, and logical-store
+  generation. A missing certificate makes that turn **FTS-only** and schedules non-destructive warmup; ordinary
+  recall never performs a stale-existence scan. SQLite authoritative revalidation additionally requires vector
+  rows to remain `embedded` with the current fingerprint/dimension, so edited pending rows cannot surface via
+  old sidecar vectors. Rows are never deleted merely because readiness is absent.
   Query embeddings are tracked per `agentId::embeddingFingerprint` group and then by full normalized query:
   identical concurrent queries share one provider call, two distinct fresh queries may run concurrently, and
   a third distinct query degrades that turn to FTS-only. The 800 ms soft timeout and 30 s stale replacement
@@ -447,9 +476,9 @@ Important memories stretch their half-life, so they survive longer before becomi
 and forgetting are deliberately two different scores: a memory can rank low for recall yet still be retained.
 `category` is not a second scoring axis: it is ignored by retrieval, decay, RRF, and rerank logic. Its only
 ranking/retention effect is indirect, through the deterministic importance floor applied at write time.
-Decay refresh uses the same formula whether computed in SQL or in the JavaScript fallback. When SQLite's
-math functions are available, the maintenance pass updates `decay_score` in one statement and does not touch
-`last_consolidated_at`; otherwise it falls back to the same calculation inside one repository transaction.
+Archive eligibility uses the same half-life formula but converts the threshold into an age boundary inside
+the bounded archive query. Ordinary maintenance therefore does not rewrite materialized decay scores across
+the full Agent corpus.
 
 ---
 
@@ -461,9 +490,9 @@ Memory schedules its **own** maintenance — it does not rely on the repo-wide s
 flowchart TD
   TM["event-driven arms:<br/>60s after start one-shot batch<br/>5min idle debounce after each write<br/>config-change arm on enable / model-available"] --> CP["runConsolidationPass(agent)"]
   CP --> CD{"6h LLM cooldown<br/>seeded from agent_memory_audit"}
-  CD -- within --> CHEAP["cheap maintenance only:<br/>decay refresh + archiveStale + working sync"]
-  CD -- past --> LLMJOB["mergeNearDuplicates + runChallengeResolutionPass<br/>+ maybeReflect(kind=reflection)<br/>+ maybeEvolvePersona(draft, default-off)"]
-  LLMJOB --> POST["refreshDecayScores + archiveStale + working sync"]
+  CD -- within --> CHEAP["cheap bounded maintenance:<br/>archive ≤256 + repair + audit prune ≤500"]
+  CD -- past --> LLMJOB["global semaphore ≤2<br/>challenge → merge → reflection → persona<br/>shared 8-call / 24k-token budget"]
+  LLMJOB --> POST["bounded archive + working flush"]
   POST --> AUD["agent_memory_audit<br/>(provenance-only) + status=completed"]
   AUD --> EV["memory.updated → UI refresh<br/>(post-audit emit gated on touched;<br/>archiveStale emits its own when archived&gt;0)"]
 ```
@@ -484,13 +513,20 @@ value is absent, so the cooldown survives restarts. Within the cooldown only che
 no audit row). A missing-model pass is recorded `skipped` and does **not** advance the cooldown (it retries
 next trigger).
 
+**Heavy maintenance budget.** At most two Agents execute heavy maintenance concurrently through a fair
+process-wide semaphore; the complete same-Agent pass remains singleflight. Each admitted pass runs
+challenge → merge → reflection → persona under one shared budget of **8 calls / 24k estimated input tokens**,
+with non-borrowable per-step call quotas **4 / 2 / 1 / 1**. Reservation happens before gateway admission, so
+provider failures cannot create an unbounded retry loop. Cheap repair/archive/audit cleanup does not occupy a
+heavy slot.
+
 **`mergeNearDuplicates` (budgeted).** Scans only active `embedded` non-persona/non-working rows that match
 the current embedding fingerprint/dimension. It uses the row's stored DuckDB vector via
 `queryByMemoryId()` rather than re-embedding row content through the provider; the store method reads the
 source vector by id and reuses the existing parameterized vector query path, then filters the source id out
 of the results. The pass advances an in-memory `{ createdAt, id }` compound cursor so large same-timestamp
-windows are not skipped. Each pass is bounded by
-**64 stored-vector neighbor scans**, **8 LLM calls**, and **24k input tokens** (remainder deferred). For each
+windows are not skipped. Each pass is bounded by **64 stored-vector neighbor scans** and its two-call share
+of the pass budget (remainder deferred). For each
 row it picks the first current, live neighbor with similarity ≥ **0.85** and runs the same decision prompt;
 only `UPDATE`/`SUPERSEDE` may fold the pair. The pass snapshots both revisions before the LLM await and applies
 the survivor content/embedding reset plus the retired row's supersede transition in one transaction guarded
@@ -500,8 +536,10 @@ third owner causes a safe skip plus consolidation stamp instead of a stale three
 confidence only ever rise.
 
 **Non-destructive archival (`archiveStale`).** A row is soft-deleted only when **all** of: `decayScore <
-0.05`, `access_count == 0`, age `> 90 days`, still active, and not an unresolved conflict participant.
-Anchors, persona, and working rows are exempt. A challenged target remains lifecycle-active and recallable;
+0.05`, age `> 90 days`, still active, and not an unresolved conflict participant. Access count remains a
+diagnostic but is not an eligibility veto. One set-based pass archives at most **256** rows; decay eligibility
+is expressed from the access/creation age rather than requiring an Agent-wide score refresh. Anchors, persona,
+and working rows are exempt. A challenged target remains lifecycle-active and recallable;
 `conflict_state` protects it from archive and generic single-row mutation until aggregate resolution/repair.
 `restoreMemory` reverses it for normal memories. There is no hard delete on this path. Maintenance also runs
 a cheap repair that normalizes any legacy persona/working row back to `status='fts_only'` while preserving
@@ -511,9 +549,10 @@ by both current embedding fingerprint and current ready dimension before applyin
 row lifecycle plus dim/model before vector delete, and clears SQLite refs only if the row is still prunable
 with the same dim/model after deletion. Old-fingerprint or old-dimension refs remain as traceable metadata
 residue; maintenance does not cold-open those sidecars or let them occupy the current cleanup batch.
-Consolidation timestamps are stamped with one SQL update over the same active non-internal row class. Working
-memory refresh reads only the top ordered candidates it can use, and status counts are computed with a single
-aggregate query rather than loading all rows.
+Only rows actually inspected by bounded maintenance are stamped. Reflection/persona consume one aggregate
+plus indexed top-N query instead of loading the full Agent corpus. Working-memory mutations use a 100 ms
+trailing debounce; injection synchronously flushes a dirty blob between the initial and final read-epoch
+gates. Status counts remain a single aggregate query.
 
 ---
 
@@ -597,12 +636,16 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   carrying a per-agent store generation. Close/reset/delete/dispose stop new admission and drain active
   leases before touching the native store. A failed reset marks `requiresReset`; later leases retry reset
   under the per-agent lock and fail open to FTS for that request if recovery still fails. Permanent retire and
-  dispose remain closed. Persona operations use a separate per-agent lock.
+  dispose remain closed. Persona operations use a separate per-agent lock. Open stores have a soft cap of
+  **8** and an idle TTL of **15 minutes**; a 60-second unref sweep and post-release convergence evict only
+  lease-free LRU entries. All-busy stores may temporarily exceed the cap without violating lease safety.
 - **Vector identity gate.** On opening an existing sidecar, `embedding_meta` (provider/model/dim) is compared
   against the current request. A mismatch or a legacy sidecar with no identity → the store is marked unusable
   and recall serves FTS only, with an explicit warning. A model/dimension switch closes the old instance and
   recreates the file. The dimension is baked into the DuckDB column type, so a dimension change requires a
   full file reset (`destroyFile` + recreate), not an in-place migration.
+- **Warmup bounds.** Startup prewarms only the eight most recently active Agents. Embedding connection warmup
+  is deduplicated by provider/model for the process lifetime; a failure is retried only after five minutes.
 - **Transactional vector upsert.** `upsert` wraps delete-then-insert in `BEGIN/COMMIT` with `ROLLBACK` on
   error, so there is no "deleted-but-not-inserted" hole.
 - **Archive / forget / restore lifecycle.** Agent-facing `forgetMemory` is a soft archive: it marks normal
@@ -678,7 +721,7 @@ inspect `result.ok`, not `isError`. Hard infra failures throw.
 
 ### 15.2 IPC routes (`memory.*`)
 
-`memory.list`, `memory.getStatus`, `memory.search`, `memory.add`, `memory.delete`, `memory.clear`,
+`memory.page`, deprecated `memory.list`, `memory.getStatus`, `memory.search`, `memory.add`, `memory.delete`, `memory.clear`,
 `memory.restore`, `memory.getSourceSpan`, `memory.listConflicts`, `memory.resolveConflict`,
 `memory.listPersonaVersions`, `memory.rollbackPersona`, `memory.listPersonaDrafts`,
 `memory.approvePersonaDraft`, `memory.rejectPersonaDraft`, `memory.setPersonaAnchor`,
@@ -687,6 +730,10 @@ inspect `result.ok`, not `isError`. Hard infra failures throw.
 - `memory.search` is read-only: it uses a search-only depth override (default 50, route max 100) so the
   Memory Manager can return more than the agent's recall `topK`, excludes persona/working rows at the SQL
   search layer before applying result limits, and it does not bump `access_count`.
+- `memory.page` is the management list contract. It uses `(created_at DESC, id DESC)` keyset pagination,
+  defaults/caps at 100 rows, and returns an opaque base64url v1 cursor only when another page exists. Invalid
+  cursors are route errors, never implicit first-page requests. `memory.list` remains wire-compatible for one
+  deprecation window and has no production renderer caller.
 - `memory.add` accepts optional `category`, runs the decision ring, and writes a `memory/add` user audit row.
 - `memory.reindex` is a fire-and-forget per-agent rebuild entry for managed, memory-enabled DeepChat agents.
   It returns `{ started }`, where `started=false` means the guard rejected the request or a reindex was already
@@ -709,6 +756,14 @@ Background maintenance and writes record `memory/maintenance_llm`, `memory/refle
 (`scheduler`, `user`, or `runtime`), an optional `session_id`, a terminal
 `status` (`completed`/`skipped`/`failed`), and `inputRefs`/`outputRefs` that contain only ids, action
 strings, counts, ratios, and booleans. No raw memory text or persona content is ever stored.
+Operational event types (`memory/maintenance_llm`, `memory/reflect`, `memory/repair`,
+`memory/conflict_repair`, `memory/extract`) are retained to the newest 10,000 rows per Agent and pruned at
+most 500 per cheap pass. User lifecycle events, every `persona/*` event, unknown types, and malformed/legacy
+causal rows are permanent and never selected by this cleanup.
+
+Manual/user-authored content is capped at **12,000 characters** and automatic/model-merged memory at
+**2,000 characters**, at both route/tool and domain boundaries. Existing oversized rows remain readable and
+recallable; the limit applies only when submitting new content.
 
 ---
 
@@ -724,7 +779,9 @@ Memory is a first-class, top-level settings section, configured strictly per-age
   constants exactly (topK 6 / rrfK 60 / threshold 0.2 / budget 1200; ranges topK 1–100, rrfK 1–1000, budget
   64–8000).
 - **Manage tab** reuses `MemoryManagerPanel` (Memories / Persona / Activity) and is the only surface that
-  uses `MemoryClient`. Memory rows show a category badge and the Memories list has a local category filter;
+  uses `MemoryClient`. The Memories view loads keyset pages of at most 100 rows, appends with ID dedupe, and
+  resets to page one on Agent/event generation changes; its category/text filters intentionally cover only
+  loaded rows. Memory rows show a category badge and the Memories list has a local category filter;
   `NULL` / missing categories are displayed and filtered as `uncategorized`. The manual add form exposes
   `kind` and importance but not category.
 - **Inheritance.** Per-agent config inherits the builtin `deepchat` root then applies its own overrides
@@ -742,9 +799,10 @@ every table's latest version). The current global maximum is **41**.
 | Table | Change | Migration |
 | --- | --- | --- |
 | `agent_memory` | v32 backfills `embedding_model` + `source_entry_ids`; v33 adds `confidence` + `last_consolidated_at` + `conflict_state`; v34 adds `persona_state`; v35 adds `conflict_with`; v37 adds nullable `category`; v41 adds `decision_revision INTEGER NOT NULL DEFAULT 1`. `getCreateTableSQL` is authoritative (new DB == migrated old DB), and startup catalog repair coexists with migration validation. The conflict-target lookup index is reconciled idempotently for existing DBs without consuming v42. **Purely additive.** | Yes (`getMigrationSQL`) |
-| `agent_memory_fts` | FTS5 external-content virtual table + `ai`/`ad`/`au` triggers; tokenizer probed at runtime | No — built idempotently |
+| `agent_memory_fts` | FTS5 v3 external-content virtual table containing recallable rows only; deterministic Agent scope token and savepoint-isolated explicit mirror maintenance; tokenizer probed at runtime | No — built idempotently |
 | `agent_memory_audit` | New table at v36: maintenance/user provenance ledger (`scheduler`/`user` actors + optional `session_id`), ids/metadata only | Yes (whole table) |
 | `deepchat_tape_search_projection` (+ meta + FTS meta) | Searchable projection of the effective tape + FTS5 (content `PROJECTION_VERSION=2`) | No — version-exempt, rebuilt idempotently from raw tape |
+| `deepchat_memory_ingestion_projection` (+ meta) | Effective final-message range projection for extraction (`PROJECTION_VERSION=1`) | No — version-exempt, rebuilt idempotently from raw tape |
 | `deepchat_sessions` | `memory_cursor_order_seq` now written monotonically (`MAX(...)`) | — |
 | DuckDB (per agent) | `memory_vector` (HNSW/cosine, `M=16`, `ef_construction=200`) + `embedding_meta` (identity; mismatch → fail-closed to FTS) | No — built at runtime |
 
@@ -764,14 +822,14 @@ enable memory (top-level Memory page / agent toggle)
 → <context-data kind="memory"> appended; persist memory/view_assembled manifest anchor
 → model replies
 → turn/resume/compaction → enqueueSessionExtraction (per-session serial, epoch-guarded)
-→ cursor + effective-view window + message-aligned CJK-aware chunks + exact source_entry_ids lineage
+→ cursor + validated/rebuilt ingestion projection range + message-aligned CJK-aware chunks + exact lineage
 → fallback admission (visible text + tool/backstop/substantive text) or compaction
-→ same complete chunk through triage → extraction raw category candidates → normalization → decision ring
-  (ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE, with revision CAS and one bounded fresh retry)
+→ same complete chunk through triage → extraction → stable dedupe/2k cap → batched neighbor recall/decision
+  (≤4 candidates/call, ≤3 neighbors, ≤2 initial calls, revision CAS + one ≤4-candidate retry)
 → SQLite pending_embedding → cursor advances MAX + memory/extract anchor
-→ background per-agent embedding (batched · fair · transactional) → DuckDB
-→ [offline] self-scheduled sleep-time pass (6h cooldown): merge + conflict adjudication
-   + reflect(kind=reflection) + persona draft (default-off) + decay refresh + archiveStale + working sync
+→ background single per-agent embedding drain (50 rows · bulk DuckDB/SQLite) → DuckDB
+→ [offline] self-scheduled sleep-time pass (6h cooldown, global concurrency 2): challenge → merge
+   → reflection → persona under shared 8-call/24k budget + bounded archive/repair/audit/working upkeep
 → agent_memory_audit (provenance-only) + memory.updated event
 ```
 
@@ -795,11 +853,14 @@ Coverage mirrors source under `test/main/**` (and `test/renderer/**` for UI), pi
 - Lineage DTO + source span; tape projection FTS/BM25 + `tape_context`; atomic agent-deletion cleanup.
 - Settings surface (override clear / inheritance / clamp; category badge/filter); retrieval eval (hit@3 / MRR /
   nDCG).
+- The independent `test:main:memory-perf` suite covers 1k/10k/50k recall, 10k/100k Tape, 100 shared-model
+  Agents, a 101-row embedding drain in 50-row chunks, and eight decision candidates. CI hard-gates statement/materialization/
+  provider/resource caps and same-process relative medians; median/p95 absolute wall-clock values are reports.
 
 The independent `memory-native-validation` CI job installs the Node 24 ABI artifact through the native dependency's
 own install lifecycle, runs an open/read/write/reopen/close smoke, and sets
 `DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`. Missing bindings, FTS initialization, fresh schema, v37/v38/v40→v41
-migration, reopen, or migration validation fail rather than skip. The focused Native suite runs only in this
+migration, reopen, migration validation, or the memory performance suite fail rather than skip. The focused Native suite runs only in this
 disposable CI dependency tree; local development keeps the Electron ABI binding installed.
 
 ---
@@ -846,8 +907,8 @@ disposable CI dependency tree; local development keeps the Electron ABI binding 
 | `FTS_SIMILARITY_BASELINE` | 0.3 | keyword-only hit similarity |
 | `FORGET_HALF_LIFE_MS` | 30d (× `1 + importance`) | `decayScore` |
 | `CATEGORY_IMPORTANCE_FLOOR` | user_preference 0.5 · project_fact 0.6 · task_outcome 0.55 · heuristic 0.5 · anti_pattern 0.6 | write-time category floor |
-| archive thresholds | decay < 0.05 · access = 0 · age > 90d | `archiveStale` |
-| `DECISION_NEIGHBOR_TOP_S` | 10 | neighbors fed to the decision model |
+| archive thresholds / batch | decay < 0.05 · age > 90d / 256 | `archiveStale` |
+| decision batches | 4 candidates · 3 neighbors · 12k tokens · 2 initial calls · ≤4 retries in one call | extraction decision work |
 | `MAX_CANDIDATES` | 8 | extraction candidates per chunk |
 | extraction chunk | ~4000 estimated tokens / 12000 Unicode code points / 4 chunks per queue task | message-aligned input shared by triage and extraction |
 | `MEMORY_FALLBACK_MIN_DELTA` | 6 | min orderSeq delta before fallback extraction |
@@ -855,12 +916,16 @@ disposable CI dependency tree; local development keeps the Electron ABI binding 
 | `CONSOLIDATION_IDLE_MS` | 5min | idle debounce after a write |
 | `MAINTENANCE_START_DELAY_MS` / `STARTUP_ARM_STAGGER_MS` | 60s / 5s | one-shot startup batch arm for active enabled agents |
 | `CONSOLIDATION_COOLDOWN_MS` | 6h | LLM-backed pass cooldown (restart-durable) |
-| `CONSOLIDATION_MAX_LLM_CALLS` / tokens | 8 / 24000 | `mergeNearDuplicates` budget |
+| maintenance calls / tokens / concurrency | 8 / 24000 / 2 Agents | shared pass budget; step quotas challenge 4 · merge 2 · reflection 1 · persona 1 |
 | `CONSOLIDATION_MERGE_SIMILARITY` | 0.85 | near-duplicate merge threshold |
 | `CONSOLIDATION_MAX_NEIGHBOR_SCANS` | 64 | stored-vector neighbor scans per consolidation pass |
 | `VECTOR_PRUNE_BATCH_LIMIT` | 256 | prunable archived/superseded/internal-kind vector refs per maintenance pass |
 | `ERROR_RETRY_COOLDOWN_MS` / batch | 10min / 50 | bounded automatic retry for rows stuck in embedding `error` |
 | `ORPHAN_RECONCILE_BATCH` | 512 | keyset page size for warm vector orphan reconciliation |
+| vector stores / idle TTL / sweep | soft cap 8 / 15min / 60s | lease-safe LRU convergence |
+| startup prewarm / embedding warm retry | 8 Agents / 5min | provider:model success is process-lifetime deduplicated |
+| management page / audit prune | 100 rows / keep 10000, delete 500 | bounded management and operational history |
+| memory content | manual 12000 chars / automatic 2000 chars | submission-time limits; existing rows unchanged |
 | `RECALL_QUERY_EMBEDDING_TIMEOUT_MS` / stale / max concurrent | 800ms / 30s / 2 | foreground query-embedding soft timeout and per-agent+model cap |
 | provider deadlines | query 800ms · dimension 15s · embedding 30s · text 60s | RateLimit admission included in the absolute deadline |
 | unsettled provider cap | 2 per agent/provider/model/purpose · 64 global | released only when the underlying promise settles |
