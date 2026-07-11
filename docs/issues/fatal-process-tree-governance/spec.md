@@ -1,6 +1,8 @@
 # Fatal Process Tree Governance
 
-Status: `PTG-001` specification complete; implementation not started. This issue is a blocking
+Status: `PTG-001` specification complete; `PTG-H0` direct-child helper limits merged in PR #1932
+(`4889309b`); `PTG-M1` static launcher inventory guard implemented. Runtime parent-loss fixtures,
+descendant containment, and the native matrix are not implemented. This issue remains a blocking
 dependency for `FTL-002`.
 
 Runtime owners: every main-process domain that launches an OS process, plus utility hosts that
@@ -104,23 +106,21 @@ does not control individually.
 
 ### Helper launchers that still need disposition
 
-Short expected duration is not a containment guarantee. Three helpers have no finite healthy-path
-limit today. The smallest executable decision is to keep them inside PTG and deliver a first,
-separately reviewed `PTG-H0` slice before the parent-loss mechanism work; a parallel issue/spec would
-add another owner without reducing scope. `PTG-H0` adds a 30-second workspace Git limit, a 10-second
-device-query limit, and a five-second skill command-probe limit. These are conservative initial
-ceilings: workspace operations get the largest budget, while local system and availability probes
-align with adjacent five/ten-second probes. A timeout must settle the caller once and must not be
-presented as successful output. Existing public failure semantics remain authoritative: Workspace
-Git APIs converge to `null`, device queries reject, and `hasCommand()` resolves `false` for normal
-absence or a timeout whose direct child has closed. Timeout containment uses only the owned
-`ChildProcess` handle and `child.kill('SIGKILL')`; it must never signal a cached raw PID. If the owner
-kill returns `false` or throws, the probe still waits up to the one-second reap grace for `close`.
-`close` resolves ordinary timeout failure as `false`; no confirmed `close` rejects
-`CommandProbeContainmentError`. The exception path reports only that containment is unconfirmed and
-must not claim the child was reaped.
-Process-tree containment remains a later PTG slice because a finite caller result alone does not
-prove that descendants stopped.
+Short expected duration is not a containment guarantee. `PTG-H0` was delivered separately in PR
+#1932 (`4889309b`) before the parent-loss mechanism work. Current source applies a 30-second
+workspace Git limit, a 10-second device-query limit, and a five-second skill command-probe limit
+plus a one-second reap grace. These are conservative initial ceilings: workspace operations get the
+largest budget, while local system and availability probes align with adjacent five/ten-second
+probes. A timeout settles the caller once and is not presented as successful output. Existing public
+failure semantics remain authoritative: Workspace Git APIs converge to `null`, device queries
+reject, and `hasCommand()` resolves `false` for normal absence or a timeout whose direct child has
+closed. Timeout containment uses only the owned `ChildProcess` handle and
+`child.kill('SIGKILL')`; it never signals a cached raw PID. If the owner kill returns `false` or
+throws, the probe still waits up to the one-second reap grace for `close`. `close` resolves ordinary
+timeout failure as `false`; no confirmed `close` rejects `CommandProbeContainmentError`. The
+exception path reports only that containment is unconfirmed and does not claim the child was reaped.
+`PTG-H0` proves bounded direct-child handling only. Process-tree containment remains a later PTG
+slice because a finite caller result does not prove that descendants stopped.
 
 For every row, implementation must also add a marked parent-loss case, route it through a proven
 governed launcher, or record why a JavaScript fatal cannot overlap that synchronous call.
@@ -132,10 +132,10 @@ governed launcher, or record why a JavaScript fatal cannot overlap that synchron
 | [`acpInitHelper.ts`](../../../src/main/presenter/configPresenter/acpInitHelper.ts) | Bounded: dependency and `which`/`where` probes use five seconds | Marked representative probe or governed helper path |
 | [`pluginPresenter/index.ts`](../../../src/main/presenter/pluginPresenter/index.ts) | Bounded: runtime version and permission probes use five/ten seconds | Marked representative probe; plugin runtime may itself create descendants |
 | [`skillPresenter/index.ts`](../../../src/main/presenter/skillPresenter/index.ts) | Bounded: `git clone` uses the download timeout | Marked Git child/descendant probe |
-| [`workspacePresenter/index.ts`](../../../src/main/presenter/workspacePresenter/index.ts) | **Unbounded:** Git status/diff helpers have no local timeout | `PTG-H0`: add and test a 30-second limit; then add marked Git parent-loss coverage |
+| [`workspacePresenter/index.ts`](../../../src/main/presenter/workspacePresenter/index.ts) | Bounded: Git status/diff helpers use a 30-second timeout with `SIGKILL` | `PTG-H0` delivered; marked Git parent-loss and descendant coverage remain |
 | [`ollamaProvider.ts`](../../../src/main/presenter/llmProviderPresenter/providers/ollamaProvider.ts) | Bounded: local `ollama list` uses a timeout | Marked CLI probe |
-| [`devicePresenter/index.ts`](../../../src/main/presenter/devicePresenter/index.ts) | **Unbounded:** `wmic` and `df` queries have no timeout | `PTG-H0`: add and test a 10-second limit; then add marked helper coverage |
-| [`skillExecutionService.ts`](../../../src/main/presenter/skillPresenter/skillExecutionService.ts) | Mixed: foreground execution is bounded; `hasCommand()` is **unbounded** | `PTG-H0`: add and test a five-second `hasCommand` limit; foreground remains in the runtime matrix |
+| [`devicePresenter/index.ts`](../../../src/main/presenter/devicePresenter/index.ts) | Bounded: `wmic` and `df` queries use a 10-second timeout with `SIGKILL` | `PTG-H0` delivered; marked parent-loss and descendant coverage remain |
+| [`skillExecutionService.ts`](../../../src/main/presenter/skillPresenter/skillExecutionService.ts) | Bounded: foreground execution has its existing timeout; `hasCommand()` uses five seconds plus a one-second reap grace | `PTG-H0` delivered for the probe's direct child; foreground and descendant behavior remain in the runtime matrix |
 
 ### Explicit exclusions and unresolved edges
 
@@ -170,6 +170,57 @@ The concrete Electron shell call inventory is:
 Static search cannot prove that a native addon or third-party library never launches a child. The
 test harness must record a process-tree census before and after activating each surface; any new
 unclassified child becomes an inventory failure rather than being ignored.
+
+### Static inventory gate (`PTG-M1`)
+
+[`process-launcher-inventory-guard.mjs`](../../../scripts/process-launcher-inventory-guard.mjs)
+scans `src/` during `pnpm run lint:process-launchers`. The tracked
+[`process-launcher-inventory.json`](../../../scripts/process-launcher-inventory.json) records each
+repository path, launcher API, same-file API ordinal, owner, and category. This is more specific than
+a repository-wide count, but the ordinal is not a semantic call-site identity.
+
+The guard recognizes `child_process`/`node:child_process`, `cross-spawn`, `node-pty`, Electron
+`utilityProcess.fork`, MCP SDK `StdioClientTransport`, `shell.openExternal`, and `shell.openPath`.
+Named import aliases, named Electron imports, dynamic Electron destructuring, and the existing
+one-step `promisify(exec|execFile)` wrappers are covered. Default imports and equivalent
+`import { default as local }` bindings use the actual module shapes: `child_process` and `node-pty`
+defaults are namespaces, while the `cross-spawn` default is callable and also exposes `sync`. A new
+detected site is unclassified;
+file, launcher API, or same-file API count drift fails lint until a reviewer assigns an explicit
+owner and category. CommonJS launcher imports, non-Electron dynamic launcher imports, Electron
+default/namespace imports, runtime launcher re-exports, opaque module-loader calls, and other
+explicitly detected unsupported binding forms fail closed instead of disappearing from the
+inventory. Type-only imports and re-exports do not create runtime launcher capability and are
+ignored.
+
+The categories distinguish DeepChat runtime trees, utility hosts, bounded helpers, termination
+helpers, synchronous exclusions, Electron/system openers, and the intentionally user-owned terminal
+surface. Category assignment is evidence metadata, not proof that a process is bounded or contained.
+
+Module bindings and direct call sites are read with the repository's existing TypeScript compiler
+AST; this adds no parser dependency and handles legal JavaScript trivia consistently. It is still
+not a call-graph analyzer. Residuals are explicit:
+
+- static string element access is classified like property access; dynamic computed access and
+  launcher aliases are not followed and fail closed as unsupported binding use;
+- direct calls/construction, the covered one-step `promisify` form, type-only/`instanceof` checks,
+  and the existing out-of-scope `shell.showItemInFolder` call are allowed. Passing, assigning,
+  re-exporting, or invoking a launcher through `call`/`apply`/`bind` fails closed;
+- launchers hidden behind factories or third-party/native code are not followed;
+- syntax that refers to a watched module through a statically known but unsupported import form
+  fails closed and requires a focused scanner fixture or an explicit supported binding;
+- the conservative module-loader check rejects any call whose first argument is a watched module
+  string, even an unrelated call such as `report('electron')`. Authors must avoid that form or add a
+  reviewed scanner fixture; `PTG-M1` does not track loader symbols to remove this false positive;
+- same-file sites use API ordinal order rather than a semantic call-site name. Reordering calls to
+  the same API, or replacing one with different semantics while keeping the same file/API/count, is
+  not detected by this guard and still requires code review.
+
+Dynamic computed access and opaque aliasing are therefore rejected for these launcher APIs unless
+the guard and fixtures are extended in the same change. Code review and the later runtime process
+census remain required for native and dependency-hidden launchers. `PTG-M1` changes no runtime
+behavior, does not execute the native matrix, selects no containment mechanism, and does not unlock
+`FTL-002`.
 
 ## Required contract
 
@@ -222,7 +273,7 @@ Each required row runs in real Electron with a disposable profile and unique mar
 | Cron scheduler utility | `U` gone; DB/heartbeat resources released ≤5s | Same | Same | reconcile, run-now, idle stop, restart, shutdown |
 | Helper launcher group | Every activated marked child/descendant gone ≤5s | Same | Same | all helpers have finite limits; timeout settles once as failure; the three `PTG-H0` ceilings are 30s/10s/5s |
 
-`PTG-H0` is accepted before mechanism work only when:
+`PTG-H0` was accepted in PR #1932 against these direct-child criteria:
 
 - a hung workspace Git child is terminated within 30 seconds plus a bounded test grace period, and
   the public Workspace API resolves to its existing `null` failure sentinel;
@@ -252,11 +303,11 @@ close the issue.
 - [ ] Reproduce the exploratory macOS utility callback observation in a reusable PTG fixture, retain
       the result, and run the same probe on Windows and Linux.
 - [x] Complete the baseline source launcher inventory and explicit exclusions.
-- [ ] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
+- [x] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
       `node-pty`, Electron `utilityProcess.fork`, MCP SDK `StdioClientTransport`,
       `shell.openExternal`, and `shell.openPath`, and fails when a new direct or wrapped launcher is
       unclassified.
-- [ ] Deliver `PTG-H0`: add the 30-second workspace Git, 10-second device query, and five-second
+- [x] Deliver `PTG-H0`: add the 30-second workspace Git, 10-second device query, and five-second
       `SkillExecutionService.hasCommand` healthy-path limits with deterministic timeout tests.
 - [ ] Build a mechanism-neutral real Electron marked-tree harness independent of the `FTL-002`
       fatal helper; trigger forced main exit directly.

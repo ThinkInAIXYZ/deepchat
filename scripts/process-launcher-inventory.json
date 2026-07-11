@@ -1,0 +1,439 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "src/main/lib/agentRuntime/backgroundExecSessionManager.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 1,
+      "owner": "background-exec",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/lib/agentRuntime/backgroundExecSessionManager.ts",
+      "launcher": "electron.utilityProcess.fork",
+      "occurrence": 1,
+      "owner": "background-exec",
+      "category": "utility-host"
+    },
+    {
+      "path": "src/main/lib/agentRuntime/processTree.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 1,
+      "owner": "process-tree-termination",
+      "category": "termination-helper"
+    },
+    {
+      "path": "src/main/lib/agentRuntime/processTree.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 2,
+      "owner": "process-tree-termination",
+      "category": "termination-helper"
+    },
+    {
+      "path": "src/main/lib/agentRuntime/rtkRuntimeService.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 1,
+      "owner": "rtk-runtime",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/lib/agentRuntime/shellEnvHelper.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 1,
+      "owner": "shell-environment",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/lib/externalUrl.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 1,
+      "owner": "external-url",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/lib/fileWatcher/watcherHostClient.ts",
+      "launcher": "electron.utilityProcess.fork",
+      "occurrence": 1,
+      "owner": "file-watcher",
+      "category": "utility-host"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 1,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 2,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 3,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 4,
+      "owner": "terminal-helper-probe",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 5,
+      "owner": "terminal-helper-probe",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 6,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 7,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 8,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 9,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 10,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/lib/terminalHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 11,
+      "owner": "terminal-helper",
+      "category": "user-owned-external"
+    },
+    {
+      "path": "src/main/presenter/configPresenter/acpInitHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 1,
+      "owner": "acp-init",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/configPresenter/acpInitHelper.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 2,
+      "owner": "acp-init",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/configPresenter/acpInitHelper.ts",
+      "launcher": "node-pty.spawn",
+      "occurrence": 1,
+      "owner": "acp-install-terminal",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/presenter/configPresenter/acpLaunchSpecService.ts",
+      "launcher": "child_process.execFileSync",
+      "occurrence": 1,
+      "owner": "acp-launch-spec",
+      "category": "synchronous-exclusion"
+    },
+    {
+      "path": "src/main/presenter/configPresenter/acpLaunchSpecService.ts",
+      "launcher": "child_process.execFileSync",
+      "occurrence": 2,
+      "owner": "acp-launch-spec",
+      "category": "synchronous-exclusion"
+    },
+    {
+      "path": "src/main/presenter/configPresenter/acpLaunchSpecService.ts",
+      "launcher": "child_process.execFileSync",
+      "occurrence": 3,
+      "owner": "acp-launch-spec",
+      "category": "synchronous-exclusion"
+    },
+    {
+      "path": "src/main/presenter/configPresenter/index.ts",
+      "launcher": "electron.shell.openPath",
+      "occurrence": 1,
+      "owner": "config",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/cronJobs/schedulerProcessManager.ts",
+      "launcher": "electron.utilityProcess.fork",
+      "occurrence": 1,
+      "owner": "cron-scheduler",
+      "category": "utility-host"
+    },
+    {
+      "path": "src/main/presenter/devicePresenter/index.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 1,
+      "owner": "device-query",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/devicePresenter/index.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 2,
+      "owner": "device-query",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/githubCopilotDeviceFlow.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 1,
+      "owner": "github-copilot-device-flow",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/githubCopilotDeviceFlow.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 2,
+      "owner": "github-copilot-device-flow",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/githubCopilotDeviceFlow.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 1,
+      "owner": "github-copilot-device-flow",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/githubCopilotDeviceFlow.ts",
+      "launcher": "child_process.exec",
+      "occurrence": 2,
+      "owner": "github-copilot-device-flow",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/githubCopilotDeviceFlow.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 3,
+      "owner": "github-copilot-device-flow",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/hooksNotifications/index.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 1,
+      "owner": "hook-command",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/presenter/llmProviderPresenter/acp/acpProcessManager.ts",
+      "launcher": "cross-spawn.spawn",
+      "occurrence": 1,
+      "owner": "acp-agent",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/presenter/llmProviderPresenter/acp/acpProcessManager.ts",
+      "launcher": "cross-spawn.spawn",
+      "occurrence": 2,
+      "owner": "acp-agent",
+      "category": "termination-helper"
+    },
+    {
+      "path": "src/main/presenter/llmProviderPresenter/acp/acpProcessManager.ts",
+      "launcher": "cross-spawn.spawn",
+      "occurrence": 3,
+      "owner": "acp-agent",
+      "category": "termination-helper"
+    },
+    {
+      "path": "src/main/presenter/llmProviderPresenter/acp/acpTerminalManager.ts",
+      "launcher": "node-pty.spawn",
+      "occurrence": 1,
+      "owner": "acp-protocol-terminal",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/presenter/llmProviderPresenter/providers/ollamaProvider.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 1,
+      "owner": "ollama-provider",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/mcpPresenter/mcpClient.ts",
+      "launcher": "mcp.StdioClientTransport",
+      "occurrence": 1,
+      "owner": "mcp-stdio",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/presenter/mcpPresenter/mcpOAuthProvider.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 1,
+      "owner": "mcp-oauth",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/openaiCodexAuth/index.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 1,
+      "owner": "openai-codex-auth",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/pluginPresenter/index.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 1,
+      "owner": "plugin",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/pluginPresenter/index.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 1,
+      "owner": "plugin-runtime-probe",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/pluginPresenter/index.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 2,
+      "owner": "plugin-runtime-probe",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/pluginPresenter/index.ts",
+      "launcher": "electron.shell.openPath",
+      "occurrence": 1,
+      "owner": "plugin",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/pluginPresenter/index.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 2,
+      "owner": "plugin",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/projectPresenter/index.ts",
+      "launcher": "electron.shell.openPath",
+      "occurrence": 1,
+      "owner": "project",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/skillPresenter/index.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 1,
+      "owner": "skill-install",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/skillPresenter/index.ts",
+      "launcher": "electron.shell.openPath",
+      "occurrence": 1,
+      "owner": "skill",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/skillPresenter/skillExecutionService.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 1,
+      "owner": "skill-execution",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/presenter/skillPresenter/skillExecutionService.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 2,
+      "owner": "skill-command-probe",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/syncPresenter/index.ts",
+      "launcher": "electron.shell.openPath",
+      "occurrence": 1,
+      "owner": "sync",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/toolPresenter/agentTools/agentBashHandler.ts",
+      "launcher": "child_process.spawn",
+      "occurrence": 1,
+      "owner": "agent-bash-fallback",
+      "category": "deepchat-runtime"
+    },
+    {
+      "path": "src/main/presenter/upgradePresenter/index.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 1,
+      "owner": "upgrade",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/upgradePresenter/index.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 2,
+      "owner": "upgrade",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/windowPresenter/index.ts",
+      "launcher": "electron.shell.openPath",
+      "occurrence": 1,
+      "owner": "window",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/workspacePresenter/index.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 1,
+      "owner": "workspace-git",
+      "category": "helper"
+    },
+    {
+      "path": "src/main/presenter/workspacePresenter/index.ts",
+      "launcher": "electron.shell.openPath",
+      "occurrence": 1,
+      "owner": "workspace",
+      "category": "external-opener"
+    },
+    {
+      "path": "src/main/presenter/workspacePresenter/index.ts",
+      "launcher": "child_process.execFile",
+      "occurrence": 2,
+      "owner": "workspace-git",
+      "category": "helper"
+    },
+    {
+      "path": "src/preload/index.ts",
+      "launcher": "electron.shell.openExternal",
+      "occurrence": 1,
+      "owner": "preload-external-url",
+      "category": "external-opener"
+    }
+  ]
+}
