@@ -7,6 +7,7 @@ import {
   WORKING_BLOB_TOKEN_LIMIT,
   WORKING_CANDIDATE_PAGE_LIMIT,
   WORKING_CANDIDATE_SCAN_LIMIT,
+  WORKING_REFRESH_DEBOUNCE_MS,
   WORKING_PROVENANCE_SEED
 } from '../runtimeConstants'
 import { isUniqueConstraintError, type MemoryRuntimeContext } from '../context'
@@ -22,6 +23,7 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
   constructor(private readonly ctx: MemoryRuntimeContext) {}
 
   readWorkingMemory(agentId: string): string | null {
+    this.flushWorkingMemoryIfDirty(agentId)
     const row = this.resolveWorkingRow(agentId)
     const content = row?.content?.trim()
     return content ? content : null
@@ -77,14 +79,17 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
 
   syncWorkingMemoryAfterMutation(agentId: string): void {
     this.markWorkingMemoryDirty(agentId)
-    this.flushWorkingMemoryIfDirty(agentId)
   }
 
   markWorkingMemoryDirty(agentId: string): void {
     this.workingMemoryDirty.add(agentId)
+    this.scheduleDirtyRefresh(agentId)
   }
 
   flushWorkingMemoryIfDirty(agentId: string): void {
+    const timer = this.workingRefreshTimers.get(agentId)
+    if (timer) clearTimeout(timer)
+    this.workingRefreshTimers.delete(agentId)
     if (!this.workingMemoryDirty.delete(agentId)) return
     try {
       if (this.ctx.canReadAgentMemory(agentId)) this.refreshWorkingMemory(agentId)
@@ -97,20 +102,29 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
 
   scheduleWorkingRefresh(agentId: string): void {
     if (!this.ctx.canReadAgentMemory(agentId)) return
-    if (this.workingRefreshInFlight.has(agentId)) return
-    this.workingRefreshInFlight.add(agentId)
+    this.workingMemoryDirty.add(agentId)
+    this.scheduleDirtyRefresh(agentId)
+  }
+
+  private scheduleDirtyRefresh(agentId: string): void {
+    const existing = this.workingRefreshTimers.get(agentId)
+    if (existing) clearTimeout(existing)
     const timer = setTimeout(() => {
+      this.workingRefreshTimers.delete(agentId)
+      if (this.workingRefreshInFlight.has(agentId)) {
+        this.scheduleDirtyRefresh(agentId)
+        return
+      }
+      this.workingRefreshInFlight.add(agentId)
       try {
-        if (this.ctx.canReadAgentMemory(agentId)) {
-          this.refreshWorkingMemory(agentId)
-        }
+        this.flushWorkingMemoryIfDirty(agentId)
       } catch (error) {
         logger.warn(`[Memory] working refresh skipped: ${String(error)}`)
       } finally {
         this.workingRefreshInFlight.delete(agentId)
-        this.workingRefreshTimers.delete(agentId)
       }
-    }, 0)
+    }, WORKING_REFRESH_DEBOUNCE_MS)
+    if (typeof timer.unref === 'function') timer.unref()
     this.workingRefreshTimers.set(agentId, timer)
   }
 

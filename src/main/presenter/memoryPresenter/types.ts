@@ -51,6 +51,13 @@ export interface FailedEmbeddingUpdate {
   expectedRevision: number
 }
 
+export interface MemoryCognitiveMaintenanceInput {
+  eligibleCount: number
+  importanceAfterWatermark: number
+  maxCreatedAt: number
+  topRows: AgentMemoryRow[]
+}
+
 // SQLite repository port. AgentMemoryTable satisfies it structurally; the abstraction lets
 // the presenter's scoring/dedup/staging logic be unit-tested without the native module.
 export interface MemoryRepositoryPort {
@@ -60,6 +67,14 @@ export interface MemoryRepositoryPort {
   rekeyProvenance(agentId: string, id: string, expectedKey: string, nextKey: string): boolean
   listByAgent(agentId: string, options?: AgentMemoryListOptions): AgentMemoryRow[]
   listByIds(agentId: string, ids: string[]): AgentMemoryRow[]
+  getCognitiveMaintenanceInput(
+    agentId: string,
+    options: {
+      kinds: AgentMemoryKind[]
+      watermark: number
+      limit: number
+    }
+  ): MemoryCognitiveMaintenanceInput
   getActivePersona(agentId: string): AgentMemoryRow | undefined
   getDraftPersona(agentId: string): AgentMemoryRow | undefined
   setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void
@@ -127,8 +142,6 @@ export interface MemoryRepositoryPort {
   recordAccess(id: string, accessedAt?: number): void
   recordAccessBatch(ids: string[], accessedAt?: number): void
   updateDecayScore(id: string, decayScore: number | null, consolidatedAt?: number | null): void
-  refreshDecayScoresForAgent(agentId: string, now: number, halfLifeMs: number): void
-  stampConsolidationForAgent(agentId: string, at: number): void
   updateContent(
     id: string,
     content: string,
@@ -169,13 +182,24 @@ export interface MemoryRepositoryPort {
   hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): boolean
   countStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): number
   archive(id: string, at?: number): void
-  listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[]
+  archiveEligibleBatch(
+    agentId: string,
+    options: {
+      now: number
+      createdBefore: number
+      minimumBaseAgeMs: number
+      limit: number
+    }
+  ): string[]
+  countArchiveEligible(
+    agentId: string,
+    options: { now: number; createdBefore: number; minimumBaseAgeMs: number }
+  ): number
   listArchiveCandidateLifecycleRows(
     agentId: string,
     before: number,
     limit: number
   ): AgentMemoryLifecycleRow[]
-  countArchiveCandidates(agentId: string, before: number, decayBelow: number): number
   listTopAccessed(agentId: string, limit: number): AgentMemoryRow[]
   delete(id: string): void
   clearByAgent(agentId: string): number
@@ -191,6 +215,29 @@ export interface MemoryRepositoryPort {
   countConflictPairs(agentId: string): number
   isUnresolvedConflictParticipant(agentId: string, memoryId: string): boolean
   listConflictIntegrityRows(agentId: string): AgentMemoryRow[]
+  listConflictChallengersForMaintenance(agentId: string, limit: number): AgentMemoryRow[]
+  retireConflictSiblings(
+    agentId: string,
+    targetId: string,
+    excludeChallengerId: string,
+    winnerId: string,
+    at: number
+  ): number
+  clearTargetConflictIfNoChallengers(agentId: string, targetId: string): boolean
+  repairConflictIntegrityBatch(
+    agentId: string,
+    limit: number
+  ): {
+    repairedTargets: number
+    archivedChallengers: number
+    clearedTargets: number
+    clearedLinks: number
+  }
+  listConflictSiblings(
+    agentId: string,
+    targetId: string,
+    excludeChallengerId: string
+  ): AgentMemoryRow[]
   getPersonaCounts(agentId: string): { total: number; draft: number }
   hasActiveMemory(agentId: string): boolean
   runInTransaction<T>(fn: () => T): T
@@ -200,6 +247,7 @@ export interface MemoryRepositoryPort {
     after?: AgentMemoryWorkingCandidateCursor
   ): AgentMemoryRow[]
   listAgentIdsWithMemories(): string[]
+  listRecentlyActiveAgentIds(candidateAgentIds: readonly string[], limit: number): string[]
   listConsolidationScanRows(
     agentId: string,
     options: {
@@ -437,6 +485,7 @@ export interface MemoryPresenterDeps {
   // True only for a real, existing DeepChat agent. Management surfaces use it to refuse
   // reads/writes against arbitrary or nonexistent agents; skipped when absent (e.g. tests).
   isManagedAgent?: (agentId: string) => boolean
+  listManagedMemoryAgentIds?: () => string[]
   executeWithRateLimit: (
     providerId: string,
     options: { signal: AbortSignal; purpose: string }

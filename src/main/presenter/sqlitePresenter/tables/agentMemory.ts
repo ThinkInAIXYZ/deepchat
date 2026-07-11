@@ -134,7 +134,6 @@ const AGENT_MEMORY_FTS_META_VERSION = 4
 const AGENT_MEMORY_FTS_RECOVERY_COOLDOWN_MS = 30_000
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
-type MathFunctionCapability = { available: boolean }
 type SearchMatchMode = 'all' | 'any'
 type FtsMirrorRow = AgentMemoryRow & { rowid: number }
 export interface AgentMemorySearchResult {
@@ -173,16 +172,47 @@ const AGENT_MEMORY_BASE_INDEX_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_memory_provenance
     ON agent_memory(agent_id, provenance_key)
     WHERE provenance_key IS NOT NULL;
+  DROP INDEX IF EXISTS idx_agent_memory_cognitive_top;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_cognitive_top_v2
+    ON agent_memory(agent_id, importance DESC, created_at DESC, id DESC)
+    WHERE superseded_by IS NULL
+      AND status NOT IN ('archived', 'conflicted')
+      AND kind IN ('episodic', 'semantic', 'reflection');
   CREATE INDEX IF NOT EXISTS idx_agent_memory_recall_importance_v4
     ON agent_memory(agent_id, importance DESC, created_at DESC, id ASC)
     WHERE superseded_by IS NULL
       AND status NOT IN ('archived', 'conflicted')
       AND kind NOT IN ('persona', 'working');
+  DROP INDEX IF EXISTS idx_agent_memory_recent_activity;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_recent_activity_v2
+    ON agent_memory(agent_id, COALESCE(last_accessed, created_at) DESC)
+    WHERE status != 'archived';
+`
+
+const AGENT_MEMORY_MAINTENANCE_INDEX_SQL = `
+  DROP INDEX IF EXISTS idx_agent_memory_archive_eligible;
+  DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_archive_eligible_v2
+    ON agent_memory(agent_id, COALESCE(last_accessed, created_at), created_at, id)
+    WHERE superseded_by IS NULL
+      AND conflict_state IS NULL
+      AND is_anchor = 0
+      AND kind NOT IN ('persona', 'working')
+      AND status NOT IN ('archived', 'conflicted');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_fairness_v2
+    ON agent_memory(agent_id, COALESCE(last_consolidated_at, 0), created_at, id)
+    WHERE status = 'conflicted' AND superseded_by IS NULL;
 `
 
 const AGENT_MEMORY_CONFLICT_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_target
     ON agent_memory(agent_id, conflict_with, status, superseded_by);
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_link_anomaly_v2
+    ON agent_memory(agent_id, status, conflict_with, id)
+    WHERE conflict_with IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_state_anomaly_v2
+    ON agent_memory(agent_id, conflict_state, id)
+    WHERE conflict_state IS NOT NULL;
 `
 
 function tokenizeSearchQuery(query: string): string[] {
@@ -207,13 +237,6 @@ function readAggregateNumber(value: unknown): number {
 
 function readAggregateNullableNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function calculateDecayScoreForRow(row: AgentMemoryRow, now: number, halfLifeMs: number): number {
-  const anchor = row.last_accessed ?? row.created_at
-  const age = Math.max(0, now - anchor)
-  const importance = Math.min(1, Math.max(0, row.importance))
-  return Math.pow(0.5, age / (halfLifeMs * (1 + importance)))
 }
 
 function sqlLiteral(value: string): string {
@@ -251,17 +274,16 @@ function readAggregateRecord<const Keys extends readonly string[]>(
 }
 
 export class AgentMemoryTable extends BaseTable {
-  private ftsCapability: FtsCapability | undefined
-  private mathFunctionCapability: MathFunctionCapability | undefined
-  private ftsReady = false
-
-  private ftsRecoveryAfter = 0
   constructor(
     db: Database.Database,
     private readonly perfObserver?: MemoryPerfObserver
   ) {
     super(db, 'agent_memory')
   }
+
+  private ftsCapability: FtsCapability | undefined
+  private ftsReady = false
+  private ftsRecoveryAfter = 0
 
   getCreateTableSQL(): string {
     return `
@@ -294,6 +316,7 @@ export class AgentMemoryTable extends BaseTable {
         decision_revision INTEGER NOT NULL DEFAULT 1
       );
       ${AGENT_MEMORY_BASE_INDEX_SQL}
+      ${AGENT_MEMORY_MAINTENANCE_INDEX_SQL}
       ${AGENT_MEMORY_CONFLICT_INDEX_SQL}
     `
   }
@@ -309,6 +332,12 @@ export class AgentMemoryTable extends BaseTable {
       const columns = this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
         name: string
       }>
+      if (
+        columns.some((column) => column.name === 'conflict_state') &&
+        columns.some((column) => column.name === 'last_consolidated_at')
+      ) {
+        this.db.exec(AGENT_MEMORY_MAINTENANCE_INDEX_SQL)
+      }
       if (columns.some((column) => column.name === 'conflict_with')) {
         this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
       }
@@ -323,6 +352,9 @@ export class AgentMemoryTable extends BaseTable {
     if (!columns.some((column) => column.name === 'decision_revision')) {
       throw new Error('[Memory] agent_memory schema migration is incomplete: decision_revision')
     }
+    this.db.exec(AGENT_MEMORY_BASE_INDEX_SQL)
+    this.db.exec(AGENT_MEMORY_MAINTENANCE_INDEX_SQL)
+    this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
   }
 
   getMigrationSQL(version: number): string | null {
@@ -386,19 +418,6 @@ export class AgentMemoryTable extends BaseTable {
     else if (probe('unicode61')) this.ftsCapability = { available: true, tokenizer: 'unicode61' }
     else this.ftsCapability = { available: false, tokenizer: 'unicode61' }
     return this.ftsCapability
-  }
-
-  private detectMathFunctionCapability(): MathFunctionCapability {
-    if (this.mathFunctionCapability) return this.mathFunctionCapability
-    try {
-      const row = this.db.prepare('SELECT pow(2.0, 2.0) AS value').get() as
-        | { value: number }
-        | undefined
-      this.mathFunctionCapability = { available: row?.value === 4 }
-    } catch {
-      this.mathFunctionCapability = { available: false }
-    }
-    return this.mathFunctionCapability
   }
 
   private ftsTableExists(): boolean {
@@ -787,6 +806,61 @@ export class AgentMemoryTable extends BaseTable {
     return this.db
       .prepare(`SELECT * FROM agent_memory WHERE agent_id = ? AND id IN (${placeholders})`)
       .all(agentId, ...uniqueIds) as AgentMemoryRow[]
+  }
+
+  getCognitiveMaintenanceInput(
+    agentId: string,
+    options: { kinds: AgentMemoryKind[]; watermark: number; limit: number }
+  ): {
+    eligibleCount: number
+    importanceAfterWatermark: number
+    maxCreatedAt: number
+    topRows: AgentMemoryRow[]
+  } {
+    const kinds = [...new Set(options.kinds)]
+    const limit = Math.max(0, Math.floor(options.limit))
+    if (!kinds.length || limit === 0) {
+      return { eligibleCount: 0, importanceAfterWatermark: 0, maxCreatedAt: 0, topRows: [] }
+    }
+    const placeholders = kinds.map(() => '?').join(', ')
+    const predicate = `agent_id = ?
+      AND superseded_by IS NULL
+      AND status NOT IN ('archived', 'conflicted')
+      AND kind IN ('episodic', 'semantic', 'reflection')
+      AND kind IN (${placeholders})`
+    const aggregate = this.db
+      .prepare(
+        `SELECT COUNT(*) AS eligibleCount,
+                COALESCE(SUM(CASE
+                  WHEN created_at > ? THEN min(1.0, max(0.0, importance))
+                  ELSE 0
+                END), 0) AS importanceAfterWatermark,
+                COALESCE(MAX(created_at), 0) AS maxCreatedAt
+         FROM agent_memory
+         WHERE ${predicate}`
+      )
+      .get(options.watermark, agentId, ...kinds) as
+      | {
+          eligibleCount: number
+          importanceAfterWatermark: number
+          maxCreatedAt: number
+        }
+      | undefined
+    const topRows = this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v2
+         WHERE ${predicate}
+         ORDER BY importance DESC, created_at DESC, id DESC
+         LIMIT ?`
+      )
+      .all(agentId, ...kinds, limit) as AgentMemoryRow[]
+    return {
+      eligibleCount: aggregate?.eligibleCount ?? 0,
+      importanceAfterWatermark: aggregate?.importanceAfterWatermark ?? 0,
+      maxCreatedAt: aggregate?.maxCreatedAt ?? 0,
+      topRows
+    }
   }
 
   listByAgent(agentId: string, options: AgentMemoryListOptions = {}): AgentMemoryRow[] {
@@ -1429,48 +1503,6 @@ export class AgentMemoryTable extends BaseTable {
       .run(decayScore, consolidatedAt, id)
   }
 
-  refreshDecayScoresForAgent(agentId: string, now: number, halfLifeMs: number): void {
-    if (this.detectMathFunctionCapability().available) {
-      this.db
-        .prepare(
-          `UPDATE agent_memory
-           SET decay_score = pow(
-             0.5,
-             max(0, ? - COALESCE(last_accessed, created_at)) /
-               (? * (1 + min(1.0, max(0.0, importance))))
-           )
-           WHERE agent_id = ?
-             AND kind != 'persona'
-             AND kind != 'working'
-             AND superseded_by IS NULL
-             AND status NOT IN ('archived', 'conflicted')`
-        )
-        .run(now, halfLifeMs, agentId)
-      return
-    }
-
-    const rows = this.listByAgent(agentId).filter((row) => row.kind !== 'persona')
-    this.runInTransaction(() => {
-      for (const row of rows) {
-        this.updateDecayScore(row.id, calculateDecayScoreForRow(row, now, halfLifeMs), null)
-      }
-    })
-  }
-
-  stampConsolidationForAgent(agentId: string, at: number): void {
-    this.db
-      .prepare(
-        `UPDATE agent_memory
-         SET last_consolidated_at = ?
-         WHERE agent_id = ?
-           AND kind != 'persona'
-           AND kind != 'working'
-           AND superseded_by IS NULL
-           AND status NOT IN ('archived', 'conflicted')`
-      )
-      .run(at, agentId)
-  }
-
   // Refreshes a row's content in place (UPDATE/merge decision), keeping its provenance_key in sync
   // with the new content so the idempotent dedup short-circuit keeps matching. last_accessed is
   // re-anchored too so a rewritten row's forgetting clock resets — a just-merged current-truth row
@@ -1775,25 +1807,89 @@ export class AgentMemoryTable extends BaseTable {
     )
   }
 
-  // SQL-expressible subset of the archive conditions: active, never accessed, aged out, decayed,
-  // and exempt rows (anchors / persona) excluded. The caller may still defensively recheck.
-  listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[] {
-    return this.db
+  archiveEligibleBatch(
+    agentId: string,
+    options: {
+      now: number
+      createdBefore: number
+      minimumBaseAgeMs: number
+      limit: number
+    }
+  ): string[] {
+    const limit = Math.max(0, Math.floor(options.limit))
+    if (limit === 0) return []
+    let rows: Array<{ id: string }> = []
+    this.runRecallMutation(
+      () => {
+        rows = this.db
+          .prepare(
+            `WITH eligible AS (
+           SELECT id
+           FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v2
+           WHERE agent_id = ?
+             AND superseded_by IS NULL
+             AND conflict_state IS NULL
+             AND status NOT IN ('archived', 'conflicted')
+             AND is_anchor = 0
+             AND kind NOT IN ('persona', 'working')
+             AND created_at < ?
+             AND COALESCE(last_accessed, created_at) < ? - ?
+             AND (? - COALESCE(last_accessed, created_at)) >
+               ? * (1 + min(1.0, max(0.0, importance)))
+           ORDER BY COALESCE(last_accessed, created_at) ASC, created_at ASC, id ASC
+           LIMIT ?
+         )
+         UPDATE agent_memory
+         SET status = 'archived', decision_revision = decision_revision + 1
+         WHERE id IN (SELECT id FROM eligible)
+         RETURNING id`
+          )
+          .all(
+            agentId,
+            options.createdBefore,
+            options.now,
+            options.minimumBaseAgeMs,
+            options.now,
+            options.minimumBaseAgeMs,
+            limit
+          ) as Array<{ id: string }>
+        return rows
+      },
+      () => {
+        for (const row of rows) this.deleteFtsMirrorRow(this.getFtsMirrorRow(row.id), true)
+      }
+    )
+    return rows.map((row) => row.id)
+  }
+
+  countArchiveEligible(
+    agentId: string,
+    options: { now: number; createdBefore: number; minimumBaseAgeMs: number }
+  ): number {
+    const row = this.db
       .prepare(
-        `SELECT * FROM agent_memory
+        `SELECT COUNT(*) AS count
+         FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v2
          WHERE agent_id = ?
            AND superseded_by IS NULL
            AND conflict_state IS NULL
-           AND status != 'archived'
-           AND status != 'conflicted'
+           AND status NOT IN ('archived', 'conflicted')
            AND is_anchor = 0
            AND kind NOT IN ('persona', 'working')
-           AND access_count = 0
            AND created_at < ?
-           AND decay_score IS NOT NULL
-           AND decay_score < ?`
+           AND COALESCE(last_accessed, created_at) < ? - ?
+           AND (? - COALESCE(last_accessed, created_at)) >
+             ? * (1 + min(1.0, max(0.0, importance)))`
       )
-      .all(agentId, before, decayBelow) as AgentMemoryRow[]
+      .get(
+        agentId,
+        options.createdBefore,
+        options.now,
+        options.minimumBaseAgeMs,
+        options.now,
+        options.minimumBaseAgeMs
+      ) as { count: number } | undefined
+    return row?.count ?? 0
   }
 
   listArchiveCandidateLifecycleRows(
@@ -1825,33 +1921,11 @@ export class AgentMemoryTable extends BaseTable {
            AND status NOT IN ('archived', 'conflicted')
            AND is_anchor = 0
            AND kind NOT IN ('persona', 'working')
-           AND access_count = 0
            AND created_at < ?
          ORDER BY COALESCE(last_accessed, created_at) ASC, created_at ASC, id ASC
          LIMIT ?`
       )
       .all(agentId, before, cappedLimit) as AgentMemoryLifecycleRow[]
-  }
-
-  countArchiveCandidates(agentId: string, before: number, decayBelow: number): number {
-    const row = this.db
-      .prepare(
-        `SELECT COUNT(*) AS count
-         FROM agent_memory
-         WHERE agent_id = ?
-           AND superseded_by IS NULL
-           AND conflict_state IS NULL
-           AND status != 'archived'
-           AND status != 'conflicted'
-           AND is_anchor = 0
-           AND kind NOT IN ('persona', 'working')
-           AND access_count = 0
-           AND created_at < ?
-           AND decay_score IS NOT NULL
-           AND decay_score < ?`
-      )
-      .get(agentId, before, decayBelow) as { count: number } | undefined
-    return row?.count ?? 0
   }
 
   listTopAccessed(agentId: string, limit: number): AgentMemoryRow[] {
@@ -1995,6 +2069,266 @@ export class AgentMemoryTable extends BaseTable {
       .all(agentId) as AgentMemoryRow[]
   }
 
+  listConflictChallengersForMaintenance(agentId: string, limit: number): AgentMemoryRow[] {
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0) return []
+    return this.db
+      .prepare(
+        `SELECT challenger.*
+         FROM agent_memory challenger INDEXED BY idx_agent_memory_conflict_fairness_v2
+         WHERE challenger.agent_id = ?
+           AND challenger.status = 'conflicted'
+           AND challenger.superseded_by IS NULL
+           AND EXISTS (
+             SELECT 1
+             FROM agent_memory target
+             WHERE target.id = challenger.conflict_with
+               AND target.agent_id = challenger.agent_id
+               AND target.conflict_state = 'challenged'
+               AND target.superseded_by IS NULL
+           )
+         ORDER BY COALESCE(challenger.last_consolidated_at, 0) ASC,
+                  challenger.created_at ASC,
+                  challenger.id ASC
+         LIMIT ?`
+      )
+      .all(agentId, cappedLimit) as AgentMemoryRow[]
+  }
+
+  listConflictSiblings(
+    agentId: string,
+    targetId: string,
+    excludeChallengerId: string
+  ): AgentMemoryRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND conflict_with = ?
+           AND status = 'conflicted'
+           AND superseded_by IS NULL
+           AND id != ?
+         ORDER BY created_at ASC, id ASC`
+      )
+      .all(agentId, targetId, excludeChallengerId) as AgentMemoryRow[]
+  }
+
+  retireConflictSiblings(
+    agentId: string,
+    targetId: string,
+    excludeChallengerId: string,
+    winnerId: string,
+    _at: number
+  ): number {
+    return this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET conflict_with = NULL,
+             superseded_by = ?,
+             status = 'archived',
+             decision_revision = decision_revision + 1
+         WHERE agent_id = ?
+           AND conflict_with = ?
+           AND status = 'conflicted'
+           AND superseded_by IS NULL
+           AND id != ?`
+      )
+      .run(winnerId, agentId, targetId, excludeChallengerId).changes
+  }
+
+  clearTargetConflictIfNoChallengers(agentId: string, targetId: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory AS target
+         SET conflict_state = NULL, decision_revision = decision_revision + 1
+         WHERE target.agent_id = ?
+           AND target.id = ?
+           AND target.conflict_state = 'challenged'
+           AND NOT EXISTS (
+             SELECT 1
+             FROM agent_memory challenger
+             WHERE challenger.agent_id = target.agent_id
+               AND challenger.conflict_with = target.id
+               AND challenger.status = 'conflicted'
+               AND challenger.superseded_by IS NULL
+           )`
+      )
+      .run(agentId, targetId)
+    return result.changes === 1
+  }
+
+  repairConflictIntegrityBatch(
+    agentId: string,
+    limit: number
+  ): {
+    repairedTargets: number
+    archivedChallengers: number
+    clearedTargets: number
+    clearedLinks: number
+  } {
+    const cappedLimit = Math.max(0, Math.min(256, Math.floor(limit)))
+    const empty = {
+      repairedTargets: 0,
+      archivedChallengers: 0,
+      clearedTargets: 0,
+      clearedLinks: 0
+    }
+    if (cappedLimit === 0) return empty
+    const perClassLimit = Math.ceil(cappedLimit / 4)
+
+    return this.db.transaction(() => {
+      this.db.exec(
+        `CREATE TEMP TABLE IF NOT EXISTS memory_conflict_repair_batch (
+           id TEXT PRIMARY KEY
+         ) WITHOUT ROWID`
+      )
+      this.db.exec('DELETE FROM memory_conflict_repair_batch')
+      this.db
+        .prepare(
+          `INSERT INTO memory_conflict_repair_batch (id)
+           SELECT id FROM (
+             SELECT id FROM (
+               SELECT id
+               FROM agent_memory INDEXED BY idx_agent_memory_conflict_link_anomaly_v2
+               WHERE agent_id = ? AND status != 'conflicted' AND conflict_with IS NOT NULL
+               LIMIT ?
+             )
+             UNION ALL
+             SELECT id FROM (
+               SELECT challenger.id
+               FROM agent_memory challenger
+               WHERE challenger.agent_id = ? AND challenger.status = 'conflicted'
+                 AND (
+                   challenger.superseded_by IS NOT NULL
+                   OR challenger.conflict_with IS NULL
+                   OR challenger.conflict_with = challenger.id
+                   OR NOT EXISTS (
+                     SELECT 1 FROM agent_memory target
+                     WHERE target.id = challenger.conflict_with
+                       AND target.agent_id = challenger.agent_id
+                       AND target.status NOT IN ('archived', 'conflicted')
+                       AND target.superseded_by IS NULL
+                   )
+                 )
+               LIMIT ?
+             )
+             UNION ALL
+             SELECT id FROM (
+               SELECT target.id
+               FROM agent_memory target
+               WHERE target.agent_id = ? AND target.conflict_state IS NOT 'challenged'
+                 AND EXISTS (
+                   SELECT 1 FROM agent_memory challenger
+                   WHERE challenger.agent_id = target.agent_id
+                     AND challenger.conflict_with = target.id
+                     AND challenger.status = 'conflicted'
+                     AND challenger.superseded_by IS NULL
+                 )
+               LIMIT ?
+             )
+             UNION ALL
+             SELECT id FROM (
+               SELECT target.id
+               FROM agent_memory target INDEXED BY idx_agent_memory_conflict_state_anomaly_v2
+               WHERE target.agent_id = ? AND target.conflict_state = 'challenged'
+                 AND NOT EXISTS (
+                   SELECT 1 FROM agent_memory challenger
+                   WHERE challenger.agent_id = target.agent_id
+                     AND challenger.conflict_with = target.id
+                     AND challenger.status = 'conflicted'
+                     AND challenger.superseded_by IS NULL
+                 )
+               LIMIT ?
+             )
+           )
+           LIMIT ?`
+        )
+        .run(
+          agentId,
+          perClassLimit,
+          agentId,
+          perClassLimit,
+          agentId,
+          perClassLimit,
+          agentId,
+          perClassLimit,
+          cappedLimit
+        )
+
+      const clearedLinks = this.db
+        .prepare(
+          `UPDATE agent_memory
+           SET conflict_with = NULL, decision_revision = decision_revision + 1
+           WHERE id IN (SELECT id FROM memory_conflict_repair_batch)
+             AND agent_id = ?
+             AND status != 'conflicted'
+             AND conflict_with IS NOT NULL`
+        )
+        .run(agentId).changes
+      const archivedChallengers = this.db
+        .prepare(
+          `UPDATE agent_memory AS challenger
+           SET conflict_with = NULL,
+               status = 'archived',
+               decision_revision = decision_revision + 1
+           WHERE challenger.id IN (SELECT id FROM memory_conflict_repair_batch)
+             AND challenger.agent_id = ?
+             AND challenger.status = 'conflicted'
+             AND (
+               challenger.superseded_by IS NOT NULL
+               OR challenger.conflict_with IS NULL
+               OR challenger.conflict_with = challenger.id
+               OR NOT EXISTS (
+                 SELECT 1
+                 FROM agent_memory target
+                 WHERE target.id = challenger.conflict_with
+                   AND target.agent_id = challenger.agent_id
+                   AND target.status NOT IN ('archived', 'conflicted')
+                   AND target.superseded_by IS NULL
+               )
+             )`
+        )
+        .run(agentId).changes
+      const repairedTargets = this.db
+        .prepare(
+          `UPDATE agent_memory AS target
+           SET conflict_state = 'challenged', decision_revision = decision_revision + 1
+           WHERE target.agent_id = ?
+             AND target.id IN (SELECT id FROM memory_conflict_repair_batch)
+             AND target.conflict_state IS NOT 'challenged'
+             AND EXISTS (
+               SELECT 1
+               FROM agent_memory challenger
+               WHERE challenger.agent_id = target.agent_id
+                 AND challenger.conflict_with = target.id
+                 AND challenger.status = 'conflicted'
+                 AND challenger.superseded_by IS NULL
+             )`
+        )
+        .run(agentId).changes
+      const clearedTargets = this.db
+        .prepare(
+          `UPDATE agent_memory AS target
+           SET conflict_state = NULL, decision_revision = decision_revision + 1
+           WHERE target.id IN (SELECT id FROM memory_conflict_repair_batch)
+             AND target.agent_id = ?
+             AND target.conflict_state = 'challenged'
+             AND NOT EXISTS (
+               SELECT 1
+               FROM agent_memory challenger
+               WHERE challenger.agent_id = target.agent_id
+                 AND challenger.conflict_with = target.id
+                 AND challenger.status = 'conflicted'
+                 AND challenger.superseded_by IS NULL
+             )`
+        )
+        .run(agentId).changes
+
+      return { repairedTargets, archivedChallengers, clearedTargets, clearedLinks }
+    })()
+  }
+
   getPersonaCounts(agentId: string): { total: number; draft: number } {
     const row = this.db
       .prepare(
@@ -2082,6 +2416,34 @@ export class AgentMemoryTable extends BaseTable {
          WHERE status != 'archived'`
       )
       .all() as Array<{ agent_id: string }>
+    return rows.map((row) => row.agent_id)
+  }
+
+  listRecentlyActiveAgentIds(candidateAgentIds: readonly string[], limit: number): string[] {
+    const candidates = [...new Set(candidateAgentIds.filter((agentId) => agentId.length > 0))]
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0 || candidates.length === 0) return []
+    const values = candidates.map(() => '(?)').join(', ')
+    const rows = this.db
+      .prepare(
+        `WITH candidates(agent_id) AS (VALUES ${values}), activity AS (
+           SELECT candidates.agent_id,
+                  (
+                    SELECT COALESCE(memory.last_accessed, memory.created_at)
+                    FROM agent_memory memory INDEXED BY idx_agent_memory_recent_activity_v2
+                    WHERE memory.agent_id = candidates.agent_id AND memory.status != 'archived'
+                    ORDER BY COALESCE(memory.last_accessed, memory.created_at) DESC
+                    LIMIT 1
+                  ) AS activity_at
+           FROM candidates
+         )
+         SELECT agent_id
+         FROM activity
+         WHERE activity_at IS NOT NULL
+         ORDER BY activity_at DESC, agent_id ASC
+         LIMIT ?`
+      )
+      .all(...candidates, cappedLimit) as Array<{ agent_id: string }>
     return rows.map((row) => row.agent_id)
   }
 

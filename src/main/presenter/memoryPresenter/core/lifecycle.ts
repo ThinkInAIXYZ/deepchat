@@ -47,8 +47,7 @@ export function deriveLifecycle(
   const oldEnough = row.created_at < now - archiveAgeMs
   const decayedEnough = forget.decayScore < archiveDecayThreshold
   const neverAccessed = row.access_count === 0
-  const eligible =
-    !exempt && active && row.conflict_state == null && oldEnough && decayedEnough && neverAccessed
+  const eligible = !exempt && active && row.conflict_state == null && oldEnough && decayedEnough
   const decayTier = deriveDecayTier(forget.decayScore, eligible, archiveDecayThreshold)
 
   return {
@@ -74,7 +73,6 @@ export function deriveLifecycle(
         archiveDecayThreshold,
         oldEnough,
         decayedEnough,
-        neverAccessed,
         decayScore: forget.decayScore
       })
     }
@@ -140,7 +138,7 @@ function deriveForget(
     decayScore: score,
     materializedDecay: row.decay_score,
     materializedStale:
-      row.decay_score === null || Math.abs(row.decay_score - score) > MATERIALIZED_DECAY_EPSILON
+      row.decay_score !== null && Math.abs(row.decay_score - score) > MATERIALIZED_DECAY_EPSILON
   }
 }
 
@@ -161,7 +159,6 @@ function deriveArchiveGaps(input: {
   archiveDecayThreshold: number
   oldEnough: boolean
   decayedEnough: boolean
-  neverAccessed: boolean
   decayScore: number
 }): MemoryLifecycle['archiveEligibility']['gaps'] {
   const gaps: MemoryLifecycle['archiveEligibility']['gaps'] = {}
@@ -173,9 +170,6 @@ function deriveArchiveGaps(input: {
   if (!input.decayedEnough) {
     const decayAboveThresholdBy = Math.max(0, input.decayScore - input.archiveDecayThreshold)
     if (decayAboveThresholdBy > 0) gaps.decayAboveThresholdBy = decayAboveThresholdBy
-  }
-  if (!input.neverAccessed) {
-    gaps.accessCount = input.row.access_count
   }
   return gaps
 }

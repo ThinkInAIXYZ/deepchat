@@ -402,6 +402,38 @@ describe('working-memory L1 (T5)', () => {
     expect(working[0].content).toContain('fact two')
   })
 
+  it('debounces mutation refreshes and lets a read synchronously flush dirty state', async () => {
+    vi.useFakeTimers()
+    try {
+      const { presenter, repo } = makePresenter(enabledConfig)
+      const listCandidates = vi.spyOn(repo, 'listWorkingCandidates')
+      for (let index = 0; index < 20; index += 1) {
+        await presenter.rememberMemory(
+          { kind: 'semantic', content: `debounced fact ${index}` },
+          { agentId: 'deepchat' }
+        )
+      }
+
+      expect(listCandidates).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(99)
+      expect(listCandidates).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(listCandidates).toHaveBeenCalledTimes(1)
+
+      await presenter.rememberMemory(
+        { kind: 'semantic', content: 'read flush fact' },
+        { agentId: 'deepchat' }
+      )
+      expect(listCandidates).toHaveBeenCalledTimes(1)
+      expect((await presenter.buildInjection('deepchat', ''))?.working).toContain('read flush fact')
+      expect(listCandidates).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(100)
+      expect(listCandidates).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('refreshes the working blob after soft forget and restore', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     repo.insert({
@@ -459,7 +491,7 @@ describe('working-memory L1 (T5)', () => {
       content: 'archive me from working memory',
       importance: 0.9,
       status: 'embedded',
-      createdAt: now - 200 * DAY
+      createdAt: now - 300 * DAY
     })
     repo.updateDecayScore('s1', 0.01)
     presenter.refreshWorkingMemory('deepchat')
@@ -548,6 +580,9 @@ describe('working-memory L1 (T5)', () => {
 
     config = { memoryEnabled: false }
     expect(await presenter.forgetMemory('a', 's1')).toBe(true)
+    await waitForMemoryCondition(
+      () => ![...repo.rows.values()].some((row) => row.kind === 'working')
+    )
     expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(false)
 
     config = { memoryEnabled: true }
@@ -795,7 +830,7 @@ describe('working-memory L1 (T5)', () => {
     expect(repo.getById('working-v1')).toBeUndefined()
   })
 
-  it('refreshes the working blob on the offline consolidation pass', async () => {
+  it('does not dirty working memory during a no-change consolidation pass', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const now = 1_000_000_000_000
     // Recent relative to `now` so the same pass does not archive it before the blob build.
@@ -808,7 +843,7 @@ describe('working-memory L1 (T5)', () => {
       createdAt: now
     })
     await presenter.runConsolidationPass('deepchat', now)
-    expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(true)
+    expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(false)
   })
 
   it('schedules an async refresh on a cold-start miss and serves the blob next open', async () => {
@@ -3849,6 +3884,7 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
     await waitForMemoryCondition(() =>
       repo.listByAgent('a').some((row) => row.content === 'first durable fact')
     )
+    await presenter.buildInjection('a', '')
     expect([...repo.rows.values()].find((row) => row.kind === 'working')?.content).toContain(
       'first durable fact'
     )
@@ -4394,13 +4430,14 @@ describe('MemoryPresenter agentId safety guards', () => {
 describe('MemoryPresenter health read model', () => {
   it('assembles health from read-only repository and audit stats', () => {
     const { presenter, repo, auditRepo } = makePresenter(enabledConfig)
+    const now = Date.now()
     repo.insert({
       id: 'current',
       agentId: 'a',
       kind: 'semantic',
       category: 'project_fact',
       content: 'repo uses pnpm',
-      createdAt: 2000
+      createdAt: now - DAY
     })
     repo.updateStatus('current', 'embedded', {
       embeddingId: 'current',
@@ -4412,7 +4449,7 @@ describe('MemoryPresenter health read model', () => {
       agentId: 'a',
       kind: 'semantic',
       content: 'legacy vector',
-      createdAt: 1000
+      createdAt: now - 2 * DAY
     })
     repo.updateStatus('legacy', 'embedded', {
       embeddingId: 'legacy',
@@ -4425,10 +4462,10 @@ describe('MemoryPresenter health read model', () => {
       kind: 'semantic',
       category: 'heuristic',
       content: 'old unused',
-      createdAt: 0
+      createdAt: now - 400 * DAY
     })
     repo.updateDecayScore('archive', 0.01)
-    repo.recordAccess('current', 3000)
+    repo.recordAccess('current', now)
     auditRepo.insert({
       id: 'audit-1',
       agentId: 'a',
@@ -6131,24 +6168,25 @@ describe('MemoryPresenter archiving (T-B3)', () => {
     return makeLLMPresenter(routedLLM({}))
   }
 
-  it('archives only when all four conditions hold; exempts and partial cases survive', () => {
+  it('archives by current age and importance while honoring lifecycle exemptions', () => {
     const { presenter, repo } = makeArchivePresenter()
     const now = 1_000 * DAY
     const old = now - 200 * DAY
     const make = (id: string, over: Partial<AgentMemoryRow>) =>
       repo.rows.set(id, makeRow(id, { agent_id: 'a', created_at: old, ...over }))
 
-    make('stale', { decay_score: 0.01 })
+    make('stale', { decay_score: 0.01, created_at: now - 300 * DAY })
     make('accessed', { decay_score: 0.01, access_count: 2 })
     make('recent', { decay_score: 0.01, created_at: now })
-    make('lively', { decay_score: 0.5 })
+    make('lively', { decay_score: 0.01, importance: 1 })
     make('anchored', { decay_score: 0.01, is_anchor: 1 })
     make('persona', { decay_score: 0.01, kind: 'persona' })
 
     const archived = presenter.archiveStale('a', now)
-    expect(archived).toBe(1)
+    expect(archived).toBe(2)
     expect(repo.getById('stale')?.status).toBe('archived')
-    for (const id of ['accessed', 'recent', 'lively', 'anchored', 'persona']) {
+    expect(repo.getById('accessed')?.status).toBe('archived')
+    for (const id of ['recent', 'lively', 'anchored', 'persona']) {
       expect(repo.getById(id)?.status).not.toBe('archived')
     }
   })
@@ -6477,7 +6515,69 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
     generateText.mockClear()
     await presenter.runConsolidationPass('a', 1_000 * DAY)
     // Every iteration finds a mergeable neighbor, so the pass consumes the full budget exactly once.
-    expect(decisionCalls(generateText)).toBe(8)
+    expect(decisionCalls(generateText)).toBe(2)
+  })
+
+  it('limits heavy maintenance to two agents while a third waits fairly', async () => {
+    const repo = new FakeRepository()
+    let active = 0
+    let maxActive = 0
+    let started = 0
+    let release!: () => void
+    let resolveFirstPair!: () => void
+    const firstPairStarted = new Promise<void>((resolve) => {
+      resolveFirstPair = resolve
+    })
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
+      if (!prompt.includes('durable, high-level insights')) return '[]'
+      active += 1
+      started += 1
+      maxActive = Math.max(maxActive, active)
+      if (started === 2) resolveFirstPair()
+      await gate
+      active -= 1
+      return '[]'
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => ({
+        memoryEnabled: true,
+        memoryExtractionModel: { providerId: 'p', modelId: 'm' }
+      }),
+      getEmbeddings: async () => [],
+      generateText,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    try {
+      for (const agentId of ['a', 'b', 'c']) {
+        presenter.writeMemoriesSync(
+          Array.from({ length: 6 }, (_, index) => ({
+            kind: 'semantic' as const,
+            content: `${agentId} fact ${index}`,
+            importance: 0.9
+          })),
+          { agentId }
+        )
+      }
+
+      const passes = ['a', 'b', 'c'].map((agentId) =>
+        presenter.runConsolidationPass(agentId, 1_000 * DAY)
+      )
+      await firstPairStarted
+      expect(started).toBe(2)
+      expect(maxActive).toBe(2)
+
+      release()
+      await Promise.all(passes)
+      expect(started).toBe(3)
+      expect(maxActive).toBe(2)
+    } finally {
+      await presenter.dispose()
+    }
   })
 
   it('records failed maintenance and throttles heavy passes when every LLM call fails', async () => {
@@ -6570,6 +6670,28 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
     expect(repo.listByAgent('a')).toHaveLength(2)
     expect(repo.getById(id1)?.superseded_by).toBeNull()
     expect(repo.getById(id2)?.superseded_by).toBeNull()
+  })
+
+  it('does not apply an oversized model-generated maintenance merge', async () => {
+    const generateText = routedLLM({
+      decision: JSON.stringify({
+        decision: 'UPDATE',
+        targetIndex: 0,
+        mergedContent: 'x'.repeat(2_001)
+      })
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const firstId = await seedEmbedded(presenter, 'user likes redis a')
+    const secondId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(firstId)!.created_at = now - 2_000
+    repo.rows.get(secondId)!.created_at = now - 1_000
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById(firstId)?.superseded_by).toBeNull()
+    expect(repo.getById(secondId)?.superseded_by).toBeNull()
+    expect(repo.listByAgent('a')).toHaveLength(2)
   })
 
   it('a pass re-run after the cooldown does not merge an already-merged pair again (T-B5)', async () => {
@@ -7868,7 +7990,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(repo.getLastConsolidatedAt('a')).toBeNull()
 
     await first.runConsolidationPass('a', now)
-    expect(repo.getLastConsolidatedAt('a')).toBe(now)
+    expect(repo.getLastConsolidatedAt('a')).toBeNull()
     expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBe(now)
 
     // Restart: a fresh presenter has an empty in-memory cooldown map and must read the audit anchor.

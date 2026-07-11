@@ -130,14 +130,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
       warmVectorStore: (agentId, embedding) => this.embedding.warmVectorStore(agentId, embedding),
       warmEmbeddingConnection: (agentId, embedding) =>
         this.embedding.warmEmbeddingConnection(agentId, embedding),
-      maybeReflect: (agentId, model) =>
-        this.reflection.runMaintenanceReflectionPass(agentId, model),
-      maybeEvolvePersona: (agentId, model) =>
-        this.persona.runMaintenancePersonaPass(agentId, model),
-      runChallengeResolutionPass: (agentId, model) =>
-        this.conflict.runChallengeResolutionPass(agentId, model),
+      maybeReflect: (agentId, model, budget) =>
+        this.reflection.runMaintenanceReflectionPass(agentId, model, undefined, budget),
+      maybeEvolvePersona: (agentId, model, budget) =>
+        this.persona.runMaintenancePersonaPass(agentId, model, undefined, budget),
+      runChallengeResolutionPass: (agentId, model, budget) =>
+        this.conflict.runChallengeResolutionPass(agentId, model, budget),
       repairConflictIntegrity: (agentId) => {
-        this.conflict.repairConflictIntegrity(agentId)
+        const result = this.conflict.repairConflictIntegrity(agentId)
+        return Object.values(result).some((count) => count > 0)
       },
       runConsolidationPass: (agentId) => this.runConsolidationPass(agentId)
     })
@@ -155,7 +156,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
           pinnedIdsByCandidate
         ),
       markWorkingMemoryDirty: (agentId) => this.workingMemory.markWorkingMemoryDirty(agentId),
-      flushWorkingMemoryIfDirty: (agentId) => this.workingMemory.flushWorkingMemoryIfDirty(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
       scheduleConsolidation: (agentId) => this.maintenance.scheduleConsolidation(agentId)
     })

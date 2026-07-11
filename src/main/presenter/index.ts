@@ -583,6 +583,13 @@ export class Presenter implements IPresenter {
       },
       // Management memory APIs only read/write real DeepChat agents.
       isManagedAgent: (agentId) => agentRepository.getDeepChatAgentConfig(agentId) !== null,
+      listManagedMemoryAgentIds: () =>
+        agentRepository
+          .listAgents({ agentType: 'deepchat', enabled: true })
+          .map((agent) => agent.id)
+          .filter(
+            (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
+          ),
       executeWithRateLimit: (providerId, options) =>
         this.llmproviderPresenter.executeWithRateLimit(providerId, { signal: options.signal }),
       getEmbeddings: (providerId, modelId, texts) =>

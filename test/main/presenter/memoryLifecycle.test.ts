@@ -88,7 +88,7 @@ describe('deriveLifecycle', () => {
     expect(lifecycle.forget.materializedStale).toBe(false)
   })
 
-  it('marks missing or divergent materialized decay as stale diagnostics', () => {
+  it('treats missing materialized decay as absent and divergent legacy snapshots as stale', () => {
     const missing = deriveLifecycle(makeRow({ decay_score: null }), NOW)
     const divergent = deriveLifecycle(
       makeRow({
@@ -99,7 +99,7 @@ describe('deriveLifecycle', () => {
     )
 
     expect(missing.forget.materializedDecay).toBeNull()
-    expect(missing.forget.materializedStale).toBe(true)
+    expect(missing.forget.materializedStale).toBe(false)
     expect(divergent.forget.decayScore).toBeLessThan(0.05)
     expect(divergent.forget.materializedDecay).toBe(0.9)
     expect(divergent.forget.materializedStale).toBe(true)
@@ -127,12 +127,15 @@ describe('deriveLifecycle', () => {
       deriveLifecycle(makeRow({ created_at: NOW - 90 * DAY_MS, access_count: 1 }), NOW).decayTier
     ).toBe('aging')
 
-    const stale = deriveLifecycle(makeRow({ created_at: NOW - 220 * DAY_MS, access_count: 1 }), NOW)
+    const stale = deriveLifecycle(
+      makeRow({ created_at: NOW - 220 * DAY_MS, access_count: 1, is_anchor: 1 }),
+      NOW
+    )
     expect(stale.decayTier).toBe('stale')
     expect(stale.archiveEligibility.eligible).toBe(false)
 
     const archiveCandidate = deriveLifecycle(
-      makeRow({ created_at: NOW - 220 * DAY_MS, access_count: 0 }),
+      makeRow({ created_at: NOW - 220 * DAY_MS, access_count: 1 }),
       NOW
     )
     expect(archiveCandidate.decayTier).toBe('archive_candidate')
@@ -169,7 +172,7 @@ describe('deriveLifecycle', () => {
     expect(lifecycle.archiveEligibility.eligible).toBe(false)
     expect(lifecycle.archiveEligibility.gaps.daysUntilOldEnough).toBeGreaterThan(70)
     expect(lifecycle.archiveEligibility.gaps.decayAboveThresholdBy).toBeGreaterThan(0)
-    expect(lifecycle.archiveEligibility.gaps.accessCount).toBe(3)
+    expect(lifecycle.archiveEligibility.neverAccessed).toBe(false)
   })
 })
 
@@ -288,10 +291,10 @@ describe('MemoryPresenter.getLifecycle', () => {
       )
       expect(preview.previewLimit).toBe(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT)
       expect(preview.scanLimit).toBe(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT)
-      expect(preview.scanned).toBe(3)
+      expect(preview.scanned).toBe(4)
       expect(preview.previewTruncated).toBe(false)
       expect(preview.scanTruncated).toBe(false)
-      expect(ids).toEqual(['eligible-null', 'eligible-stale-materialized'])
+      expect(ids).toEqual(['accessed', 'eligible-null', 'eligible-stale-materialized'])
       expect(lifecycles.every((lifecycle) => lifecycle.archiveEligibility.eligible)).toBe(true)
       expect(lifecycles[0].forget.decayScore).toBeLessThanOrEqual(lifecycles[1].forget.decayScore)
       expect(
@@ -418,7 +421,7 @@ describe('MemoryPresenter.getLifecycle', () => {
     expect(accessed.decayTier).toBe('stale')
   })
 
-  it('keeps archive eligibility equivalent to the four real archive conditions', () => {
+  it('keeps archive eligibility independent from lifetime access count', () => {
     for (const oldEnough of [false, true]) {
       for (const decayedEnough of [false, true]) {
         for (const neverAccessed of [false, true]) {
@@ -434,7 +437,7 @@ describe('MemoryPresenter.getLifecycle', () => {
             })
 
             const lifecycle = deriveLifecycle(row, NOW)
-            const expected = oldEnough && decayedEnough && neverAccessed && active
+            const expected = oldEnough && decayedEnough && active
 
             expect(lifecycle.archiveEligibility.oldEnough).toBe(oldEnough)
             expect(lifecycle.archiveEligibility.decayedEnough).toBe(decayedEnough)
@@ -520,7 +523,7 @@ describe('MemoryPresenter.getLifecycle', () => {
       .map((row) => row.id)
       .sort()
 
-    expect(expectedArchived).toEqual(['eligible'])
+    expect(expectedArchived).toEqual(['accessed', 'eligible'])
     expect(presenter.archiveStale('a', NOW)).toBe(expectedArchived.length)
     expect(
       [...repo.rows.values()]

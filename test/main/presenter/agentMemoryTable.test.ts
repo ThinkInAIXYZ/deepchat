@@ -64,8 +64,19 @@ describeIfSqlite('AgentMemoryTable', () => {
         status: 'conflicted',
         conflictWith: 'target'
       })
+      table.insert({
+        id: 'sibling',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'sibling',
+        status: 'conflicted',
+        conflictWith: 'target'
+      })
 
       expect(table.isUnresolvedConflictParticipant('a', 'target')).toBe(true)
+      expect(table.listConflictSiblings('a', 'target', 'challenger').map((row) => row.id)).toEqual([
+        'sibling'
+      ])
       const plan = db
         .prepare(
           `EXPLAIN QUERY PLAN
@@ -86,6 +97,235 @@ describeIfSqlite('AgentMemoryTable', () => {
       db.close()
     }
   }, 15_000)
+
+  it('keeps conflict sibling transitions and bounded repairs set-based at 1k scale', () => {
+    const statements: string[] = []
+    const db = new DatabaseCtor(':memory:', {
+      verbose: (statement: string) => statements.push(statement)
+    })
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const insert = db.prepare(
+        `INSERT INTO agent_memory (
+           id, agent_id, kind, content, status, superseded_by, created_at,
+           conflict_state, conflict_with
+         ) VALUES (?, ?, 'semantic', ?, ?, NULL, ?, ?, ?)`
+      )
+      db.transaction(() => {
+        insert.run('target', 'a', 'target', 'embedded', 1, 'challenged', null)
+        insert.run('winner', 'a', 'winner', 'conflicted', 2, null, 'target')
+        for (let index = 0; index < 1_000; index += 1) {
+          insert.run(`sibling-${index}`, 'a', 'sibling', 'conflicted', index + 3, null, 'target')
+        }
+        for (let index = 0; index < 300; index += 1) {
+          insert.run(
+            `repair-${index}`,
+            'repair',
+            'invalid link',
+            'embedded',
+            index,
+            null,
+            'missing-target'
+          )
+        }
+      })()
+
+      statements.length = 0
+      expect(table.retireConflictSiblings('a', 'target', 'winner', 'winner', 10)).toBe(1_000)
+      expect(statements).toHaveLength(1)
+      expect(
+        db
+          .prepare(
+            `SELECT COUNT(*) AS count
+             FROM agent_memory
+             WHERE agent_id = 'a' AND status = 'archived' AND superseded_by = 'winner'`
+          )
+          .get()
+      ).toEqual({ count: 1_000 })
+
+      statements.length = 0
+      expect(table.repairConflictIntegrityBatch('repair', 256)).toEqual({
+        repairedTargets: 0,
+        archivedChallengers: 0,
+        clearedTargets: 0,
+        clearedLinks: 64
+      })
+      expect(statements.length).toBeLessThanOrEqual(9)
+      expect(table.listConflictIntegrityRows('repair')).toHaveLength(236)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('uses bounded maintenance indexes for archive, cognitive top-N, and conflict fairness', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const insert = db.prepare(
+        `INSERT INTO agent_memory (
+           id, agent_id, kind, content, status, is_anchor, created_at, importance
+         ) VALUES (?, 'a', ?, 'fixture', ?, 0, ?, 0.5)`
+      )
+      db.transaction(() => {
+        for (let index = 0; index < 2_000; index += 1) {
+          insert.run(`excluded-${index}`, 'persona', 'archived', index)
+        }
+        for (let index = 0; index < 20; index += 1) {
+          insert.run(`eligible-${index}`, 'semantic', 'embedded', index)
+        }
+        insert.run('target', 'semantic', 'embedded', 100)
+        db.prepare(
+          "UPDATE agent_memory SET conflict_state = 'challenged' WHERE id = 'target'"
+        ).run()
+        for (let index = 0; index < 4; index += 1) {
+          insert.run(`challenger-${index}`, 'semantic', 'conflicted', 200 + index)
+          db.prepare('UPDATE agent_memory SET conflict_with = ? WHERE id = ?').run(
+            'target',
+            `challenger-${index}`
+          )
+        }
+      })()
+      db.exec('ANALYZE')
+      const archivePlan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT id
+           FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v2
+           WHERE agent_id = ?
+             AND superseded_by IS NULL
+             AND conflict_state IS NULL
+             AND status NOT IN ('archived', 'conflicted')
+             AND is_anchor = 0
+             AND kind NOT IN ('persona', 'working')
+             AND created_at < ?
+             AND COALESCE(last_accessed, created_at) < ? - ?
+             AND (? - COALESCE(last_accessed, created_at)) >
+               ? * (1 + min(1.0, max(0.0, importance)))
+           ORDER BY COALESCE(last_accessed, created_at) ASC, created_at ASC, id ASC
+           LIMIT ?`
+        )
+        .all('a', 1000, 2000, 100, 2000, 100, 256) as Array<{ detail: string }>
+      expect(
+        archivePlan.some((row) => row.detail.includes('idx_agent_memory_archive_eligible_v2')),
+        JSON.stringify(archivePlan)
+      ).toBe(true)
+      expect(archivePlan.some((row) => row.detail.includes('<expr><?'))).toBe(true)
+      expect(archivePlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(false)
+
+      const cognitivePlan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT *
+           FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v2
+           WHERE agent_id = ?
+             AND superseded_by IS NULL
+             AND status NOT IN ('archived', 'conflicted')
+             AND kind IN ('episodic', 'semantic', 'reflection')
+             AND kind IN ('episodic', 'semantic')
+           ORDER BY importance DESC, created_at DESC, id DESC
+           LIMIT ?`
+        )
+        .all('a', 50) as Array<{ detail: string }>
+      expect(
+        cognitivePlan.some((row) => row.detail.includes('idx_agent_memory_cognitive_top_v2'))
+      ).toBe(true)
+      expect(cognitivePlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(
+        false
+      )
+
+      const conflictPlan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT challenger.*
+           FROM agent_memory challenger INDEXED BY idx_agent_memory_conflict_fairness_v2
+           WHERE challenger.agent_id = ?
+             AND challenger.status = 'conflicted'
+             AND challenger.superseded_by IS NULL
+             AND EXISTS (
+               SELECT 1
+               FROM agent_memory target
+               WHERE target.id = challenger.conflict_with
+                 AND target.agent_id = challenger.agent_id
+                 AND target.conflict_state = 'challenged'
+                 AND target.superseded_by IS NULL
+             )
+           ORDER BY COALESCE(challenger.last_consolidated_at, 0) ASC,
+                    challenger.created_at ASC,
+                    challenger.id ASC
+           LIMIT ?`
+        )
+        .all('a', 4) as Array<{ detail: string }>
+      expect(
+        conflictPlan.some((row) => row.detail.includes('idx_agent_memory_conflict_fairness_v2'))
+      ).toBe(true)
+      expect(conflictPlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(
+        false
+      )
+    } finally {
+      db.close()
+    }
+  })
+
+  it('archives at most 256 eligible rows per current-decay batch', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      db.transaction(() => {
+        for (let index = 0; index < 300; index += 1) {
+          table.insert({
+            id: `old-${index.toString().padStart(3, '0')}`,
+            agentId: 'a',
+            kind: 'semantic',
+            content: `old memory ${index}`,
+            importance: 0.5,
+            status: 'embedded',
+            createdAt: index
+          })
+        }
+        table.insert({
+          id: 'recent',
+          agentId: 'a',
+          kind: 'semantic',
+          content: 'recent',
+          status: 'embedded',
+          createdAt: 9_900
+        })
+        table.insert({
+          id: 'anchor',
+          agentId: 'a',
+          kind: 'semantic',
+          content: 'anchor',
+          status: 'embedded',
+          isAnchor: true,
+          createdAt: 0
+        })
+      })()
+
+      const first = table.archiveEligibleBatch('a', {
+        now: 10_000,
+        createdBefore: 5_000,
+        minimumBaseAgeMs: 100,
+        limit: 256
+      })
+      const second = table.archiveEligibleBatch('a', {
+        now: 10_000,
+        createdBefore: 5_000,
+        minimumBaseAgeMs: 100,
+        limit: 256
+      })
+
+      expect(first).toHaveLength(256)
+      expect(second).toHaveLength(44)
+      expect(new Set([...first, ...second]).size).toBe(300)
+      expect(table.getById('recent')?.status).toBe('embedded')
+      expect(table.getById('anchor')?.status).toBe('embedded')
+    } finally {
+      db.close()
+    }
+  })
 
   it('bulk embedding persistence rejects stale revisions and batches malformed errors', () => {
     const db = new DatabaseCtor(':memory:')
@@ -1030,8 +1270,12 @@ describeIfSqlite('AgentMemoryTable', () => {
       table.updateDecayScore('eligible-stored', 0.9)
 
       const rows = table.listArchiveCandidateLifecycleRows('a', 5000, 10)
-      expect(rows.map((row) => row.id).sort()).toEqual(['eligible-null', 'eligible-stored'])
-      expect(rows.every((row) => row.access_count === 0)).toBe(true)
+      expect(rows.map((row) => row.id).sort()).toEqual([
+        'accessed',
+        'eligible-null',
+        'eligible-stored'
+      ])
+      expect(rows.find((row) => row.id === 'accessed')?.access_count).toBe(1)
       expect(rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'content'))).toBe(true)
       expect(rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'embedding_id'))).toBe(
         true
@@ -1873,6 +2117,11 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
       // Reproduce a database created before the consolidation columns existed.
+      db.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness')
+      db.exec('DROP INDEX IF EXISTS idx_agent_memory_archive_eligible')
+      db.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness_v2')
+      db.exec('DROP INDEX IF EXISTS idx_agent_memory_archive_eligible_v2')
+      db.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_state_anomaly_v2')
       db.exec('ALTER TABLE agent_memory DROP COLUMN confidence')
       db.exec('ALTER TABLE agent_memory DROP COLUMN last_consolidated_at')
       db.exec('ALTER TABLE agent_memory DROP COLUMN conflict_state')
@@ -1892,6 +2141,14 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(columns).toContain('confidence')
       expect(columns).toContain('last_consolidated_at')
       expect(columns).toContain('conflict_state')
+      table.assertCurrentSchema()
+      expect(
+        db
+          .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_agent_memory_archive_eligible_v2'"
+          )
+          .get()
+      ).toBeDefined()
       // Legacy row survives the migration with neutral defaults.
       expect(table.getById('legacy')?.confidence).toBe(null)
     } finally {
@@ -2147,8 +2404,6 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         'target',
         'challenger'
       ])
-      expect(table.listArchiveCandidates('a', 100, 0.05)).toEqual([])
-      expect(table.countArchiveCandidates('a', 100, 0.05)).toBe(0)
       expect(table.listArchiveCandidateLifecycleRows('a', 100, 10)).toEqual([])
     } finally {
       db.close()
@@ -2572,43 +2827,6 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         failed: 0,
         recentFailures: []
       })
-    } finally {
-      db.close()
-    }
-  })
-
-  it('listArchiveCandidates pre-filters by age, decay, and exemptions', () => {
-    const db = new DatabaseCtor(':memory:')
-    try {
-      const table = new AgentMemoryTableCtor(db)
-      table.createTable()
-      const old = 1000
-      table.insert({ id: 'stale', agentId: 'a', kind: 'semantic', content: 's', createdAt: old })
-      table.insert({
-        id: 'accessed',
-        agentId: 'a',
-        kind: 'semantic',
-        content: 'used',
-        createdAt: old
-      })
-      table.insert({ id: 'fresh', agentId: 'a', kind: 'semantic', content: 'f', createdAt: 9000 })
-      table.insert({
-        id: 'anchored',
-        agentId: 'a',
-        kind: 'semantic',
-        content: 'an',
-        createdAt: old,
-        isAnchor: true
-      })
-      table.updateDecayScore('stale', 0.01)
-      table.updateDecayScore('accessed', 0.01)
-      table.recordAccess('accessed', 7000)
-      table.updateDecayScore('fresh', 0.01)
-      table.updateDecayScore('anchored', 0.01)
-
-      const candidates = table.listArchiveCandidates('a', 5000, 0.05)
-      expect(candidates.map((r) => r.id).sort()).toEqual(['stale'])
-      expect(table.countArchiveCandidates('a', 5000, 0.05)).toBe(1)
     } finally {
       db.close()
     }

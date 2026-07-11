@@ -2,6 +2,7 @@ import logger from '@shared/logger'
 import { nanoid } from 'nanoid'
 
 import {
+  MAINTENANCE_MAX_INPUT_TOKENS,
   MIN_MEMORIES_FOR_REFLECTION,
   REFLECTION_IMPORTANCE,
   REFLECTION_IMPORTANCE_THRESHOLD,
@@ -9,6 +10,9 @@ import {
 } from '../runtimeConstants'
 import { buildMemoryProvenanceKey } from '../core/scoring'
 import { buildReflectionInsightsPrompt, parseReflectionInsights } from '../core/extraction'
+import { estimateTokens } from '../core/injectionPort'
+import { selectMaintenanceRowsWithinTokenBudget } from '../core/maintenanceBudget'
+import { MaintenanceBudget } from '../core/maintenanceBudget'
 import type { MemoryMaintenanceReflectionResult, MemoryReflectionResult } from '../types'
 import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 
@@ -26,15 +30,17 @@ export class ReflectionService {
   async maybeReflect(
     agentId: string,
     model: MemoryModelRef,
-    sourceSession?: string | null
+    sourceSession?: string | null,
+    budget: MaintenanceBudget = new MaintenanceBudget()
   ): Promise<MemoryReflectionResult | null> {
-    return (await this.runMaintenanceReflectionPass(agentId, model, sourceSession)).result
+    return (await this.runMaintenanceReflectionPass(agentId, model, sourceSession, budget)).result
   }
 
   async runMaintenanceReflectionPass(
     agentId: string,
     model: MemoryModelRef,
-    sourceSession?: string | null
+    sourceSession?: string | null,
+    budget: MaintenanceBudget = new MaintenanceBudget()
   ): Promise<MemoryMaintenanceReflectionResult> {
     let calls = 0
     let failures = 0
@@ -46,11 +52,6 @@ export class ReflectionService {
     if (!this.ctx.canWriteAgentMemory(agentId)) return finish(null)
     const operationFence = this.ctx.captureOperationFence(agentId)
     try {
-      const units = this.ctx.deps.repository.listByAgent(agentId, {
-        kinds: ['episodic', 'semantic']
-      })
-      if (units.length < MIN_MEMORIES_FOR_REFLECTION) return finish(null)
-
       const lastReflection = this.ctx.deps.repository.listByAgent(agentId, {
         kinds: ['reflection'],
         limit: 1
@@ -59,17 +60,29 @@ export class ReflectionService {
         lastReflection?.created_at ?? 0,
         this.reflectionAttemptWatermark.get(agentId) ?? 0
       )
-      const recentImportance = units
-        .filter((unit) => unit.created_at > watermark)
-        .reduce((sum, unit) => sum + Math.min(1, Math.max(0, unit.importance)), 0)
-      if (recentImportance < REFLECTION_IMPORTANCE_THRESHOLD) return finish(null)
-      const maxUnitCreatedAt = units.reduce((max, unit) => Math.max(max, unit.created_at), 0)
-
-      const top = units
-        .slice()
-        .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
-        .slice(0, REFLECTION_MEMORY_LIMIT)
+      const cognitive = this.ctx.deps.repository.getCognitiveMaintenanceInput(agentId, {
+        kinds: ['episodic', 'semantic'],
+        watermark,
+        limit: REFLECTION_MEMORY_LIMIT
+      })
+      if (cognitive.eligibleCount < MIN_MEMORIES_FOR_REFLECTION) return finish(null)
+      if (cognitive.importanceAfterWatermark < REFLECTION_IMPORTANCE_THRESHOLD) {
+        return finish(null)
+      }
+      const maxUnitCreatedAt = cognitive.maxCreatedAt
+      const availableTokens = Math.max(
+        0,
+        MAINTENANCE_MAX_INPUT_TOKENS - budget.snapshot().inputTokens - 256
+      )
+      const top = selectMaintenanceRowsWithinTokenBudget(
+        cognitive.topRows,
+        availableTokens,
+        (row) => estimateTokens(row.content)
+      )
+      if (top.length < MIN_MEMORIES_FOR_REFLECTION) return finish(null)
       const reflectionModel = this.ctx.resolveExtractionModel(agentId, model)
+      const prompt = buildReflectionInsightsPrompt(top.map((row) => row.content))
+      if (!budget.reserve('reflection', estimateTokens(prompt))) return finish(null)
       let raw = ''
       try {
         calls += 1
@@ -77,7 +90,7 @@ export class ReflectionService {
           agentId,
           reflectionModel.providerId,
           reflectionModel.modelId,
-          buildReflectionInsightsPrompt(top.map((row) => row.content)),
+          prompt,
           'maintenance'
         )
       } catch (error) {
@@ -86,11 +99,12 @@ export class ReflectionService {
       }
       if (!this.ctx.canContinueOperation(operationFence)) return finish(null)
       const insights = parseReflectionInsights(raw)
-      const reflectionIds: string[] = []
-      for (const insight of insights) {
-        const id = this.insertReflection(agentId, insight, sourceSession ?? null)
-        if (id) reflectionIds.push(id)
-      }
+      const reflectionIds = this.ctx.deps.repository.runInTransaction(() =>
+        insights.flatMap((insight) => {
+          const id = this.insertReflection(agentId, insight, sourceSession ?? null)
+          return id ? [id] : []
+        })
+      )
       if (!reflectionIds.length) {
         this.reflectionAttemptWatermark.set(agentId, maxUnitCreatedAt)
         return finish(null)

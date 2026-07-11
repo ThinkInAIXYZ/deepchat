@@ -215,7 +215,6 @@ export class WriteCoordinator {
         pinnedIdsByCandidate?: readonly (readonly string[] | undefined)[]
       ) => Promise<MemoryDecisionNeighborSet[]>
       markWorkingMemoryDirty: (agentId: string) => void
-      flushWorkingMemoryIfDirty: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
       scheduleConsolidation: (agentId: string) => void
     }
@@ -802,11 +801,6 @@ export class WriteCoordinator {
     input: MemoryExtractionInput,
     outcomes: MemoryWriteOutcome[]
   ): void {
-    try {
-      this.ports.flushWorkingMemoryIfDirty(input.agentId)
-    } catch (error) {
-      logger.warn(`[Memory] working memory finalization failed: ${String(error)}`)
-    }
     const chipCreatedIds = chipCreatedIdsFromOutcomes(outcomes)
     const updateContext: MemoryUpdateContext = {}
     if (input.sourceSession) updateContext.sessionId = input.sourceSession
@@ -1193,7 +1187,6 @@ export class WriteCoordinator {
     if (outcomeTouched(outcome)) {
       this.ctx.markDomainMutationCommitted(options.agentId)
       this.ports.markWorkingMemoryDirty(options.agentId)
-      this.ports.flushWorkingMemoryIfDirty(options.agentId)
       this.ctx.emitChanged(options.agentId, 'extract')
       if (outcome.action !== 'challenged') {
         void this.ports.triggerEmbedding(options.agentId).catch((error) => {

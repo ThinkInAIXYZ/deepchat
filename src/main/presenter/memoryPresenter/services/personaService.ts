@@ -2,6 +2,7 @@ import logger from '@shared/logger'
 import { nanoid } from 'nanoid'
 
 import {
+  MAINTENANCE_MAX_INPUT_TOKENS,
   MIN_MEMORIES_FOR_PERSONA,
   PERSONA_EVOLUTION_IMPORTANCE_THRESHOLD,
   PERSONA_MEMORY_LIMIT
@@ -12,6 +13,9 @@ import {
   sanitizeSelfModel,
   PERSONA_MAX_CHANGE_RATIO
 } from '../core/extraction'
+import { estimateTokens } from '../core/injectionPort'
+import { selectMaintenanceRowsWithinTokenBudget } from '../core/maintenanceBudget'
+import { MaintenanceBudget } from '../core/maintenanceBudget'
 import type {
   AgentMemoryRow,
   MemoryMaintenancePersonaResult,
@@ -61,15 +65,17 @@ export class PersonaService {
   async maybeEvolvePersona(
     agentId: string,
     model: MemoryModelRef,
-    sourceSession?: string | null
+    sourceSession?: string | null,
+    budget: MaintenanceBudget = new MaintenanceBudget()
   ): Promise<MemoryPersonaDraftResult | null> {
-    return (await this.runMaintenancePersonaPass(agentId, model, sourceSession)).result
+    return (await this.runMaintenancePersonaPass(agentId, model, sourceSession, budget)).result
   }
 
   async runMaintenancePersonaPass(
     agentId: string,
     model: MemoryModelRef,
-    sourceSession?: string | null
+    sourceSession?: string | null,
+    budget: MaintenanceBudget = new MaintenanceBudget()
   ): Promise<MemoryMaintenancePersonaResult> {
     let calls = 0
     let failures = 0
@@ -91,28 +97,41 @@ export class PersonaService {
         }
         if (this.ctx.deps.repository.getDraftPersona(agentId)) return finish(null)
 
-        const units = this.ctx.deps.repository.listByAgent(agentId, {
-          kinds: ['semantic', 'reflection', 'episodic']
-        })
-        if (units.length < MIN_MEMORIES_FOR_PERSONA) return finish(null)
-
         const previous = this.ctx.deps.repository.getActivePersona(agentId)
         const watermark = Math.max(
           previous?.created_at ?? 0,
           this.personaAttemptWatermark.get(agentId) ?? 0
         )
-        const recentImportance = units
-          .filter((unit) => unit.created_at > watermark)
-          .reduce((sum, unit) => sum + Math.min(1, Math.max(0, unit.importance)), 0)
-        if (recentImportance < PERSONA_EVOLUTION_IMPORTANCE_THRESHOLD) return finish(null)
-        const maxUnitCreatedAt = units.reduce((max, unit) => Math.max(max, unit.created_at), 0)
-
-        const top = units
-          .slice()
-          .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
-          .slice(0, PERSONA_MEMORY_LIMIT)
+        const cognitive = this.ctx.deps.repository.getCognitiveMaintenanceInput(agentId, {
+          kinds: ['semantic', 'reflection', 'episodic'],
+          watermark,
+          limit: PERSONA_MEMORY_LIMIT
+        })
+        if (cognitive.eligibleCount < MIN_MEMORIES_FOR_PERSONA) return finish(null)
+        if (cognitive.importanceAfterWatermark < PERSONA_EVOLUTION_IMPORTANCE_THRESHOLD) {
+          return finish(null)
+        }
+        const maxUnitCreatedAt = cognitive.maxCreatedAt
+        const availableTokens = Math.max(
+          0,
+          MAINTENANCE_MAX_INPUT_TOKENS -
+            budget.snapshot().inputTokens -
+            estimateTokens(previous?.content ?? '') -
+            384
+        )
+        const top = selectMaintenanceRowsWithinTokenBudget(
+          cognitive.topRows,
+          availableTokens,
+          (row) => estimateTokens(row.content)
+        )
+        if (top.length < MIN_MEMORIES_FOR_PERSONA) return finish(null)
         const personaModel = this.ctx.resolveExtractionModel(agentId, model)
         const operationFence = this.ctx.captureOperationFence(agentId)
+        const prompt = buildReflectionPrompt(
+          previous?.content ?? null,
+          top.map((row) => row.content)
+        )
+        if (!budget.reserve('persona', estimateTokens(prompt))) return finish(null)
         let raw = ''
         try {
           calls += 1
@@ -120,10 +139,7 @@ export class PersonaService {
             agentId,
             personaModel.providerId,
             personaModel.modelId,
-            buildReflectionPrompt(
-              previous?.content ?? null,
-              top.map((row) => row.content)
-            ),
+            prompt,
             'maintenance'
           )
         } catch (error) {

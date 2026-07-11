@@ -108,7 +108,10 @@ describeIfNative('Memory native SQLite migration', () => {
 
         const legacy = new DatabaseCtor(databasePath)
         legacy.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_target')
-        if (version === 34) legacy.exec('ALTER TABLE agent_memory DROP COLUMN conflict_with')
+        if (version === 34) {
+          legacy.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_link_anomaly_v2')
+          legacy.exec('ALTER TABLE agent_memory DROP COLUMN conflict_with')
+        }
         legacy.exec('ALTER TABLE agent_memory DROP COLUMN decision_revision')
         legacy.exec('DELETE FROM schema_versions')
         legacy

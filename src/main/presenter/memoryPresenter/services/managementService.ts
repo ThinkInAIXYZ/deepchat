@@ -20,6 +20,7 @@ import {
   MEMORY_HEALTH_TOP_ACCESSED_LIMIT
 } from '../runtimeConstants'
 import type { AgentMemoryRow, MemoryStatus, NormalizedMemoryCandidate } from '../types'
+import { FORGET_HALF_LIFE_MS } from '../types'
 import { embeddingFingerprint, type MemoryRuntimeContext } from '../context'
 import { MemoryRowMutations, type ManualEditFieldFlags } from './rowMutations'
 
@@ -307,6 +308,9 @@ export class ManagementService {
       .map(toHealthTopAccessedItem)
       .filter((item): item is MemoryHealthDto['access']['topAccessed'][number] => item !== null)
 
+    const now = Date.now()
+    const minimumBaseAgeMs =
+      FORGET_HALF_LIFE_MS * (Math.log(ARCHIVE_DECAY_THRESHOLD) / Math.log(0.5))
     return {
       totalRows: stats.totalRows,
       byKind: stats.byKind,
@@ -319,11 +323,11 @@ export class ManagementService {
         stale
       },
       lifecycle: {
-        archiveCandidates: this.ctx.deps.repository.countArchiveCandidates(
-          agentId,
-          Date.now() - ARCHIVE_AGE_MS,
-          ARCHIVE_DECAY_THRESHOLD
-        ),
+        archiveCandidates: this.ctx.deps.repository.countArchiveEligible(agentId, {
+          now,
+          createdBefore: now - ARCHIVE_AGE_MS,
+          minimumBaseAgeMs
+        }),
         archived: stats.byStatus.archived
       },
       conflicts: {

@@ -643,6 +643,11 @@ function makeFakeRepo() {
       return row
     },
     getById: (id: string) => rows.get(id),
+    listByIds: (agentId: string, ids: string[]) =>
+      ids.flatMap((id) => {
+        const row = rows.get(id)
+        return row?.agent_id === agentId ? [row] : []
+      }),
     getByProvenanceKey: (agentId: string, key: string) =>
       [...rows.values()].find((r) => r.agent_id === agentId && r.provenance_key === key),
     listByAgent: (agentId: string, opts?: any) => {
@@ -655,6 +660,39 @@ function makeFakeRepo() {
       if (opts?.limit) result = result.slice(0, opts.limit)
       return result
     },
+    getCognitiveMaintenanceInput: (
+      agentId: string,
+      options: { kinds: string[]; watermark: number; limit: number }
+    ) => {
+      const eligible = [...rows.values()].filter(
+        (row) =>
+          row.agent_id === agentId &&
+          options.kinds.includes(row.kind) &&
+          row.status !== 'archived' &&
+          row.status !== 'conflicted' &&
+          !row.superseded_by
+      )
+      const afterWatermark = eligible.filter((row) => row.created_at > options.watermark)
+      return {
+        eligibleCount: eligible.length,
+        importanceAfterWatermark: afterWatermark.reduce(
+          (sum, row) => sum + Number(row.importance ?? 0),
+          0
+        ),
+        maxCreatedAt: afterWatermark.reduce(
+          (max, row) => Math.max(max, Number(row.created_at ?? 0)),
+          options.watermark
+        ),
+        topRows: eligible
+          .sort(
+            (left, right) =>
+              right.importance - left.importance ||
+              right.created_at - left.created_at ||
+              right.id.localeCompare(left.id)
+          )
+          .slice(0, options.limit)
+      }
+    },
     getActivePersona: () => undefined,
     listPersonaVersions: () => [],
     search: () => [],
@@ -662,24 +700,6 @@ function makeFakeRepo() {
       [...rows.values()]
         .filter((r) => r.status === 'pending_embedding' && (!agentId || r.agent_id === agentId))
         .slice(0, limit),
-    updatePendingEmbeddingStatus: (
-      agentId: string,
-      id: string,
-      status: string,
-      embedding?: {
-        embeddingId?: string | null
-        embeddingDim?: number | null
-        embeddingModel?: string | null
-      }
-    ) => {
-      const r = rows.get(id)
-      if (!r || r.agent_id !== agentId || r.status !== 'pending_embedding') return false
-      r.status = status
-      r.embedding_id = embedding?.embeddingId ?? null
-      r.embedding_dim = embedding?.embeddingDim ?? null
-      r.embedding_model = embedding?.embeddingModel ?? null
-      return true
-    },
     updateStatus: (id: string, status: string) => {
       const r = rows.get(id)
       if (r) r.status = status
@@ -784,9 +804,7 @@ function makeFakeRepo() {
       const r = rows.get(id)
       if (r) r.status = 'archived'
     },
-    listArchiveCandidates: () => [],
     listArchiveCandidateLifecycleRows: () => [],
-    countArchiveCandidates: () => 0,
     listTopAccessed: () => [],
     delete: (id: string) => rows.delete(id),
     clearByAgent: (agentId: string) => {
@@ -855,8 +873,6 @@ function makeFakeRepo() {
         )
         .slice(0, Math.max(0, Math.floor(limit))),
     listConsolidationScanRows: () => [],
-    refreshDecayScoresForAgent: () => {},
-    stampConsolidationForAgent: () => {},
     repairInternalKindStatuses: () => 0,
     listPrunableVectorRefs: () => [],
     filterPrunableVectorRefs: () => [],
