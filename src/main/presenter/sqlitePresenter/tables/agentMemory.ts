@@ -3,13 +3,23 @@ import { BaseTable } from './baseTable'
 import {
   AGENT_MEMORY_CATEGORIES,
   AGENT_MEMORY_HEALTH_KIND_KEYS,
-  AGENT_MEMORY_HEALTH_STATUS_KEYS,
-  type AgentMemoryCategory,
-  type AgentMemoryHealthCategory
+  AGENT_MEMORY_HEALTH_STATUS_KEYS
 } from '@shared/types/agent-memory'
 import { serializeAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { MEMORY_PAGE_MAX_LIMIT } from '@shared/contracts/routes/memory.routes'
-import type { MemoryPerfObserver } from '../../memoryPresenter/ports'
+import type { MemoryPerfObserver, MemoryRepositoryPort } from '../../memoryPresenter/ports'
+import type {
+  AgentMemoryHealthStats,
+  AgentMemoryInsertInput,
+  AgentMemoryConflictState,
+  AgentMemoryKind,
+  AgentMemoryLifecycleRow,
+  AgentMemoryListOptions,
+  AgentMemoryPersonaState,
+  AgentMemoryRow,
+  AgentMemoryStatus,
+  AgentMemoryWorkingCandidateCursor
+} from '../../memoryPresenter/domain/types'
 import {
   AGENT_MEMORY_FTS_POLICY_VERSION,
   agentFtsScope,
@@ -21,108 +31,6 @@ import {
 // 'working' is an internal session-open injection cache (a single blob row per agent); it is never
 // recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a
 // reserved future layer with no read/write path yet.
-export type AgentMemoryKind = (typeof AGENT_MEMORY_HEALTH_KIND_KEYS)[number]
-
-export type AgentMemoryStatus = (typeof AGENT_MEMORY_HEALTH_STATUS_KEYS)[number]
-
-export type AgentMemoryConflictState = 'challenged'
-
-// Persona lifecycle, only meaningful for kind='persona' (NULL for every other kind). A new self-model
-// lands as 'draft' and is never injected until the user approves it ('active'). Legacy persona rows
-// predate this column (NULL) and are read as active only while not superseded.
-export type AgentMemoryPersonaState = 'draft' | 'active' | 'superseded' | 'rejected'
-
-export interface AgentMemoryRow {
-  id: string
-  agent_id: string
-  user_scope: string | null
-  kind: AgentMemoryKind
-  category: string | null
-  content: string
-  importance: number
-  status: AgentMemoryStatus
-  embedding_id: string | null
-  embedding_dim: number | null
-  embedding_model: string | null
-  source_session: string | null
-  provenance_key: string | null
-  is_anchor: number
-  superseded_by: string | null
-  created_at: number
-  last_accessed: number | null
-  access_count: number
-  decay_score: number | null
-  source_entry_ids: string | null
-  confidence: number | null
-  last_consolidated_at: number | null
-  conflict_state: string | null
-  conflict_with: string | null
-  persona_state: string | null
-  decision_revision: number
-}
-
-export interface AgentMemoryWorkingCandidateCursor {
-  importance: number
-  accessCount: number
-  createdAt: number
-  id: string
-}
-
-export type AgentMemoryLifecycleRow = Pick<
-  AgentMemoryRow,
-  | 'id'
-  | 'agent_id'
-  | 'kind'
-  | 'importance'
-  | 'status'
-  | 'is_anchor'
-  | 'superseded_by'
-  | 'created_at'
-  | 'last_accessed'
-  | 'access_count'
-  | 'decay_score'
-  | 'confidence'
-  | 'conflict_state'
->
-
-export interface AgentMemoryInsertInput {
-  id: string
-  agentId: string
-  kind: AgentMemoryKind
-  category?: AgentMemoryCategory | null
-  content: string
-  importance?: number
-  status?: AgentMemoryStatus
-  userScope?: string | null
-  sourceSession?: string | null
-  provenanceKey?: string | null
-  isAnchor?: boolean
-  createdAt?: number
-  sourceEntryIds?: number[] | null
-  conflictWith?: string | null
-  personaState?: AgentMemoryPersonaState | null
-}
-
-export interface AgentMemoryListOptions {
-  kinds?: AgentMemoryKind[]
-  statuses?: AgentMemoryStatus[]
-  includeSuperseded?: boolean
-  includeArchived?: boolean
-  limit?: number
-}
-
-export interface AgentMemoryHealthStats {
-  totalRows: number
-  byKind: Record<AgentMemoryKind, number>
-  byCategory: Record<AgentMemoryHealthCategory, number>
-  byStatus: Record<AgentMemoryStatus, number>
-  neverAccessed: number
-  importanceAvg: number | null
-  importanceMedian: number | null
-  confidenceAvg: number | null
-  conflicted: number
-  challenged: number
-}
 
 // Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
 // embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns; v34 adds the
@@ -280,7 +188,7 @@ function readAggregateRecord<const Keys extends readonly string[]>(
   ) as Record<Keys[number], number>
 }
 
-export class AgentMemoryTable extends BaseTable {
+export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort {
   constructor(
     db: Database.Database,
     private readonly perfObserver?: MemoryPerfObserver

@@ -17,7 +17,7 @@ import {
   type FuseOptions,
   type MemoryRecallItem
 } from '../types'
-import type { AgentMemoryKind } from '../../sqlitePresenter/tables/agentMemory'
+import type { AgentMemoryKind } from '../domain/types'
 import type { DeepChatAgentMemoryRetrieval } from '@shared/types/agent-interface'
 import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 

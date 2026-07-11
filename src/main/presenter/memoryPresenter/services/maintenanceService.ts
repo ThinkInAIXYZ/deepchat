@@ -34,7 +34,6 @@ import {
   VECTOR_PRUNE_BATCH_LIMIT
 } from '../runtimeConstants'
 import {
-  isSafeAgentId,
   type AgentMemoryRow,
   type ConsolidationScanCursor,
   FORGET_HALF_LIFE_MS,
@@ -42,7 +41,7 @@ import {
   type MemoryMaintenanceReflectionResult,
   type MemoryMaintenanceStepResult
 } from '../types'
-import type { MemoryRowMutations } from './rowMutations'
+import { isSafeAgentId } from '@shared/types/agent-memory'
 import {
   embeddingFingerprint,
   isUniqueConstraintError,
@@ -50,10 +49,23 @@ import {
   type MemoryOperationFence,
   type MemoryRuntimeContext
 } from '../context'
+import type {
+  MemoryAgentPolicyPort,
+  MemoryAuditMaintenancePort,
+  MemoryAuditReadPort,
+  MemoryEmbeddingRepositoryPort,
+  MemoryLifecycleRepositoryPort,
+  MemoryMaintenanceRowMutationPort,
+  MemoryMutationRepositoryPort,
+  MemoryReadRepositoryPort,
+  MemoryTextGenerationPort,
+  MemoryTransactionPort
+} from '../ports'
 
 class MaintenanceRevisionConflictError extends Error {}
 
 export class MaintenanceService {
+  private readonly ctx: MemoryRuntimeContext
   private readonly consolidationTimers = new Map<string, NodeJS.Timeout>()
   private readonly consolidationTimerDueAt = new Map<string, number>()
   private readonly lastConsolidationAt = new Map<string, number>()
@@ -68,9 +80,18 @@ export class MaintenanceService {
   private maintenanceStarted = false
 
   constructor(
-    private readonly ctx: MemoryRuntimeContext,
-    private readonly rows: MemoryRowMutations,
     private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort &
+        MemoryMutationRepositoryPort &
+        MemoryEmbeddingRepositoryPort &
+        MemoryLifecycleRepositoryPort &
+        MemoryTransactionPort
+      policy: MemoryAgentPolicyPort
+      textGeneration: MemoryTextGenerationPort
+      auditReader?: MemoryAuditReadPort
+      auditMaintenance?: MemoryAuditMaintenancePort
+      rows: MemoryMaintenanceRowMutationPort
       queryNeighborsByMemoryId: (
         agentId: string,
         embedding: MemoryModelRef,
@@ -107,7 +128,9 @@ export class MaintenanceService {
       repairConflictIntegrity: (agentId: string) => boolean
       runConsolidationPass: (agentId: string) => Promise<void>
     }
-  ) {}
+  ) {
+    this.ctx = ports.ctx
+  }
 
   startBackgroundMaintenance(): void {
     if (this.ctx.isDisposed || this.maintenanceStarted) return
@@ -156,7 +179,7 @@ export class MaintenanceService {
 
   private armCurrentActiveAgents(): void {
     try {
-      this.armActiveAgentsStaggered(this.ctx.deps.repository.listAgentIdsWithMemories())
+      this.armActiveAgentsStaggered(this.ports.repository.listAgentIdsWithMemories())
     } catch (error) {
       logger.warn(`[Memory] maintenance arm skipped: ${String(error)}`)
     }
@@ -166,10 +189,10 @@ export class MaintenanceService {
     if (this.ctx.isDisposed) return
     try {
       const candidates = (
-        this.ctx.deps.listManagedMemoryAgentIds?.() ??
-        this.ctx.deps.repository.listAgentIdsWithMemories()
+        this.ports.policy.listManagedMemoryAgentIds?.() ??
+        this.ports.repository.listAgentIdsWithMemories()
       ).filter((agentId) => this.shouldArmMaintenance(agentId))
-      const agentIds = this.ctx.deps.repository.listRecentlyActiveAgentIds(
+      const agentIds = this.ports.repository.listRecentlyActiveAgentIds(
         candidates,
         STARTUP_PREWARM_AGENT_LIMIT
       )
@@ -200,7 +223,7 @@ export class MaintenanceService {
         if (this.prewarmTimers.get(agentId) === timer) this.prewarmTimers.delete(agentId)
         if (this.ctx.isDisposed || !this.ctx.canReadAgentMemory(agentId)) return
         this.ports.repairConflictIntegrity(agentId)
-        const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+        const embedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
         if (!embedding?.providerId || !embedding?.modelId) return
         const currentEmbedding = {
           providerId: embedding.providerId,
@@ -228,7 +251,7 @@ export class MaintenanceService {
     delayMs: number = CONSOLIDATION_IDLE_MS
   ): void {
     if (this.ctx.isDisposed || !this.shouldArmMaintenance(agentId)) return
-    if (!this.ctx.deps.repository.hasActiveMemory(agentId)) return
+    if (!this.ports.repository.hasActiveMemory(agentId)) return
     this.scheduleConsolidation(agentId, delayMs, { preserveEarlier: true })
   }
 
@@ -288,10 +311,7 @@ export class MaintenanceService {
     let last = this.lastConsolidationAt.get(agentId)
     if (last === undefined) {
       last =
-        this.ctx.deps.auditRepository?.getLatestCompletedEventAt(
-          agentId,
-          'memory/maintenance_llm'
-        ) ?? 0
+        this.ports.auditReader?.getLatestCompletedEventAt(agentId, 'memory/maintenance_llm') ?? 0
       this.lastConsolidationAt.set(agentId, last)
     }
     if (now - last < CONSOLIDATION_COOLDOWN_MS) {
@@ -430,24 +450,24 @@ export class MaintenanceService {
   ): Promise<MemoryMaintenanceStepResult> {
     const result: MemoryMaintenanceStepResult = { touched: false, calls: 0, failures: 0 }
     try {
-      const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      const embedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
       if (!embedding?.providerId || !embedding?.modelId) return result
       const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
       const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-      const dimensions = this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
+      const dimensions = this.ports.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
       if (dimensions === null) return result
       await this.ports.warmVectorStore(agentId, currentEmbedding)
       if (!this.ctx.canContinueOperation(operationFence)) return result
 
       const cursor = this.consolidationScanCursor.get(agentId)
-      let scanRows = this.ctx.deps.repository.listConsolidationScanRows(agentId, {
+      let scanRows = this.ports.repository.listConsolidationScanRows(agentId, {
         embeddingDim: dimensions,
         embeddingModel: fingerprint,
         after: cursor,
         limit: CONSOLIDATION_MAX_NEIGHBOR_SCANS + 1
       })
       if (cursor && scanRows.length === 0) {
-        scanRows = this.ctx.deps.repository.listConsolidationScanRows(agentId, {
+        scanRows = this.ports.repository.listConsolidationScanRows(agentId, {
           embeddingDim: dimensions,
           embeddingModel: fingerprint,
           limit: CONSOLIDATION_MAX_NEIGHBOR_SCANS + 1
@@ -467,7 +487,7 @@ export class MaintenanceService {
         if (budget.snapshot().inputTokens >= MAINTENANCE_MAX_INPUT_TOKENS) break
         lastScanned = row
         if (merged.has(row.id)) continue
-        const source = this.ctx.deps.repository.getById(row.id)
+        const source = this.ports.repository.getById(row.id)
         if (!this.isCurrentEmbeddedConsolidationRow(agentId, source, dimensions, fingerprint))
           continue
 
@@ -488,7 +508,7 @@ export class MaintenanceService {
         for (const match of matches) {
           if (match.memoryId === source.id || merged.has(match.memoryId)) continue
           if (distanceToSimilarity(match.distance) < CONSOLIDATION_MERGE_SIMILARITY) continue
-          const neighborRow = this.ctx.deps.repository.getById(match.memoryId)
+          const neighborRow = this.ports.repository.getById(match.memoryId)
           if (
             !this.isCurrentEmbeddedConsolidationRow(agentId, neighborRow, dimensions, fingerprint)
           )
@@ -517,7 +537,7 @@ export class MaintenanceService {
         result.calls += 1
         let decision: MemoryDecision = ADD_DECISION
         try {
-          const raw = await this.ctx.provider.generateText(
+          const raw = await this.ports.textGeneration.generateText(
             agentId,
             model.providerId,
             model.modelId,
@@ -558,7 +578,7 @@ export class MaintenanceService {
             result.touched = true
           }
         }
-        this.ctx.deps.repository.setLastConsolidatedAt(source.id, now)
+        this.ports.repository.setLastConsolidatedAt(source.id, now)
       }
       const windowFullyScanned =
         !!lastScanned &&
@@ -588,10 +608,10 @@ export class MaintenanceService {
     mergedContent: string,
     now: number
   ): boolean {
-    const owner = this.ctx.resolveProvenance(agentId, primary.kind, mergedContent)
+    const owner = this.ports.rows.resolveProvenance(agentId, primary.kind, mergedContent)
     if (owner && owner.id !== primary.id && owner.id !== secondary.id) {
-      this.ctx.deps.repository.setLastConsolidatedAt(primary.id, now)
-      this.ctx.deps.repository.setLastConsolidatedAt(secondary.id, now)
+      this.ports.repository.setLastConsolidatedAt(primary.id, now)
+      this.ports.repository.setLastConsolidatedAt(secondary.id, now)
       return false
     }
 
@@ -605,8 +625,8 @@ export class MaintenanceService {
     const provenanceKey = buildMemoryProvenanceKey(agentId, survivor.kind, mergedContent)
 
     try {
-      this.ctx.deps.repository.runInTransaction(() => {
-        const contentApplied = this.ctx.deps.repository.updateDecisionContentIfRevision({
+      this.ports.repository.runInTransaction(() => {
+        const contentApplied = this.ports.repository.updateDecisionContentIfRevision({
           agentId,
           id: survivor.id,
           expectedRevision: survivor.decision_revision,
@@ -617,7 +637,7 @@ export class MaintenanceService {
         })
         if (!contentApplied) throw new MaintenanceRevisionConflictError()
         if (
-          !this.ctx.deps.repository.markSupersededIfRevision(
+          !this.ports.repository.markSupersededIfRevision(
             agentId,
             retired.id,
             retired.decision_revision,
@@ -626,8 +646,8 @@ export class MaintenanceService {
         ) {
           throw new MaintenanceRevisionConflictError()
         }
-        this.rows.bumpConfidence(survivor.id)
-        this.ctx.deps.repository.setImportance(survivor.id, retired.importance)
+        this.ports.rows.bumpConfidence(survivor.id)
+        this.ports.repository.setImportance(survivor.id, retired.importance)
       })
     } catch (error) {
       if (error instanceof MaintenanceRevisionConflictError || isUniqueConstraintError(error)) {
@@ -661,7 +681,7 @@ export class MaintenanceService {
   private getLatestMaintenanceFailureAt(agentId: string): number | null {
     const localFailureAt = this.lastConsolidationFailureAt.get(agentId)
     if (localFailureAt !== undefined) return localFailureAt
-    const persisted = this.ctx.deps.auditRepository?.listByAgent(agentId, {
+    const persisted = this.ports.auditReader?.listByAgent(agentId, {
       eventType: 'memory/maintenance_llm',
       status: 'failed',
       limit: 1
@@ -704,12 +724,12 @@ export class MaintenanceService {
 
   private async runCheapMaintenance(agentId: string, now: number, archive: boolean): Promise<void> {
     let workingDirty = this.ports.repairConflictIntegrity(agentId)
-    this.ctx.deps.auditRepository?.pruneOperationalEvents(agentId)
+    this.ports.auditMaintenance?.pruneOperationalEvents(agentId)
     if (archive) {
       this.archiveStale(agentId, now)
       await this.pruneDeadVectors(agentId)
     }
-    const repaired = this.ctx.deps.repository.repairInternalKindStatuses(agentId)
+    const repaired = this.ports.repository.repairInternalKindStatuses(agentId)
     if (repaired > 0) {
       workingDirty = true
       this.ctx.writeAudit(agentId, {
@@ -723,13 +743,13 @@ export class MaintenanceService {
   }
 
   private async pruneDeadVectors(agentId: string): Promise<void> {
-    const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const embedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
     if (!embedding?.providerId || !embedding?.modelId) return
     const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
     const dimensions = this.ports.getReadyCertificateDimension(agentId, currentEmbedding)
     if (dimensions === null) return
     const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-    const refs = this.ctx.deps.repository.listPrunableVectorRefs(agentId, {
+    const refs = this.ports.repository.listPrunableVectorRefs(agentId, {
       limit: VECTOR_PRUNE_BATCH_LIMIT,
       embeddingModel: fingerprint,
       embeddingDim: dimensions
@@ -743,19 +763,14 @@ export class MaintenanceService {
       refs.map((ref) => ref.id)
     )
     if (deletedIds.length && this.ctx.canWriteAgentMemory(agentId)) {
-      this.ctx.deps.repository.clearPrunableEmbeddingRefs(
-        agentId,
-        deletedIds,
-        dimensions,
-        fingerprint
-      )
+      this.ports.repository.clearPrunableEmbeddingRefs(agentId, deletedIds, dimensions, fingerprint)
     }
   }
 
   archiveStale(agentId: string, now: number = Date.now()): number {
     const minimumBaseAgeMs =
       FORGET_HALF_LIFE_MS * (Math.log(ARCHIVE_DECAY_THRESHOLD) / Math.log(0.5))
-    const archivedIds = this.ctx.deps.repository.archiveEligibleBatch(agentId, {
+    const archivedIds = this.ports.repository.archiveEligibleBatch(agentId, {
       now,
       createdBefore: now - ARCHIVE_AGE_MS,
       minimumBaseAgeMs,

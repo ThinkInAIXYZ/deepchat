@@ -9,7 +9,8 @@ import {
   resolveInjectionTokenBudget,
   sanitizeForInjection,
   type MemoryInjectionPayload,
-  type MemoryInjectionPort
+  type MemoryInjectionPort,
+  type MemoryInjectionResult
 } from '@/presenter/memoryPresenter/core/injectionPort'
 
 async function appendMemoryInjection(
@@ -44,7 +45,18 @@ function makePort(
     isEnabled: () => enabled,
     buildInjection: async () => {
       if (throwOnBuild) throw new Error('boom')
-      return payload
+      if (!payload) return null
+      const result: MemoryInjectionResult = {
+        payload,
+        manifest: {
+          policyVersion: 1,
+          selected: [],
+          dropped: [],
+          tokenBudget: DEFAULT_INJECTION_TOKEN_BUDGET,
+          estimatedTokens: 0
+        }
+      }
+      return result
     }
   }
 }
@@ -83,6 +95,33 @@ describe('appendMemoryInjection contract', () => {
     expect(selfModelIdx).toBeGreaterThan(summaryIdx)
     expect(memoriesIdx).toBeGreaterThan(selfModelIdx)
     expect(result).toContain('user likes redis')
+  })
+})
+
+describe('memory injection input compatibility', () => {
+  it('normalizes legacy payload, duplicated result, and canonical result identically', () => {
+    const payload: MemoryInjectionPayload = {
+      selfModel: 'concise',
+      working: 'active task',
+      memories: [{ id: 's1', kind: 'semantic', content: 'user prefers redis' }]
+    }
+    const manifest: MemoryInjectionResult['manifest'] = {
+      policyVersion: 1,
+      selected: [{ id: 's1', kind: 'semantic' }],
+      dropped: [],
+      tokenBudget: DEFAULT_INJECTION_TOKEN_BUDGET,
+      estimatedTokens: 10
+    }
+    const canonical: MemoryInjectionResult = { payload, manifest }
+    const duplicated = { ...payload, payload, manifest }
+
+    const expectedSection = buildMemorySection(payload)
+    expect(buildMemorySection(canonical)).toBe(expectedSection)
+    expect(buildMemorySection(duplicated)).toBe(expectedSection)
+    expect(appendMemorySection('BASE', canonical)).toBe(appendMemorySection('BASE', payload))
+    expect(appendMemorySectionWithManifest('BASE', duplicated)).toEqual(
+      appendMemorySectionWithManifest('BASE', canonical)
+    )
   })
 })
 

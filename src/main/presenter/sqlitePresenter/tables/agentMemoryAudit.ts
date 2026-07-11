@@ -1,63 +1,13 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
-
-export type AgentMemoryAuditActorType = 'scheduler' | 'user' | 'runtime'
-export type AgentMemoryAuditStatus = 'completed' | 'skipped' | 'failed'
-
-export interface AgentMemoryAuditRow {
-  id: string
-  agent_id: string
-  event_type: string
-  actor_type: AgentMemoryAuditActorType
-  session_id: string | null
-  memory_ref_id: string | null
-  input_refs_json: string
-  output_refs_json: string
-  model_provider_id: string | null
-  model_id: string | null
-  status: AgentMemoryAuditStatus
-  reason: string | null
-  created_at: number
-}
-
-export interface AgentMemoryAuditInsertInput {
-  id: string
-  agentId: string
-  eventType: string
-  actorType: AgentMemoryAuditActorType
-  sessionId?: string | null
-  inputRefs?: Record<string, unknown>
-  outputRefs?: Record<string, unknown>
-  modelProviderId?: string | null
-  modelId?: string | null
-  status: AgentMemoryAuditStatus
-  reason?: string | null
-  createdAt?: number
-}
-
-export interface AgentMemoryAuditListOptions {
-  eventType?: string
-  actorType?: AgentMemoryAuditActorType
-  sessionId?: string
-  status?: AgentMemoryAuditStatus
-  startCreatedAt?: number
-  endCreatedAt?: number
-  limit?: number
-}
-
-export interface AgentMemoryHealthRecentFailureRow {
-  eventType: string
-  status: Extract<AgentMemoryAuditStatus, 'failed' | 'skipped'>
-  reason: string | null
-  createdAt: number
-}
-
-export interface AgentMemoryHealthAuditStats {
-  completed: number
-  skipped: number
-  failed: number
-  recentFailures: AgentMemoryHealthRecentFailureRow[]
-}
+import type { MemoryAuditRepositoryPort } from '../../memoryPresenter/ports'
+import type {
+  AgentMemoryAuditActorType,
+  AgentMemoryAuditInsertInput,
+  AgentMemoryAuditRow,
+  AgentMemoryHealthAuditStats,
+  MemoryAuditListOptions
+} from '../../memoryPresenter/domain/audit'
 
 export const AGENT_MEMORY_OPERATIONAL_AUDIT_EVENT_TYPES = [
   'memory/maintenance_llm',
@@ -147,7 +97,7 @@ function metadataReferencesMemoryId(metadataJson: string, memoryId: string): boo
   }
 }
 
-export class AgentMemoryAuditTable extends BaseTable {
+export class AgentMemoryAuditTable extends BaseTable implements MemoryAuditRepositoryPort {
   constructor(db: Database.Database) {
     super(db, 'agent_memory_audit')
   }
@@ -257,7 +207,7 @@ export class AgentMemoryAuditTable extends BaseTable {
 
   listByAgent(
     agentId: string,
-    optionsOrLimit: number | AgentMemoryAuditListOptions = 100
+    optionsOrLimit: number | MemoryAuditListOptions = 100
   ): AgentMemoryAuditRow[] {
     const options = typeof optionsOrLimit === 'number' ? { limit: optionsOrLimit } : optionsOrLimit
     const whereClauses = ['agent_id = ?']

@@ -1,15 +1,10 @@
 import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
 
-import type { MemoryPresenterDeps } from '../types'
-
-export type MemoryProviderPurpose =
-  | 'query-embedding'
-  | 'dimension'
-  | 'embedding-batch'
-  | 'embedding-warm'
-  | 'extraction'
-  | 'decision'
-  | 'maintenance'
+import type {
+  MemoryProviderGatewayDeps,
+  MemoryProviderGatewayPort,
+  MemoryProviderPurpose
+} from '../ports'
 
 const DEADLINE_MS: Record<MemoryProviderPurpose, number> = {
   'query-embedding': 800,
@@ -30,14 +25,14 @@ function createAbortError(message: string): Error {
   return error
 }
 
-export class MemoryProviderGateway {
+export class MemoryProviderGateway implements MemoryProviderGatewayPort {
   private readonly activeControllersByAgent = new Map<string, Set<AbortController>>()
   private readonly generationByAgent = new Map<string, number>()
   private readonly unsettledByKey = new Map<string, number>()
   private unsettledTotal = 0
   private stopped = false
 
-  constructor(private readonly deps: MemoryPresenterDeps) {}
+  constructor(private readonly deps: MemoryProviderGatewayDeps) {}
 
   abortAll(): void {
     this.stopped = true

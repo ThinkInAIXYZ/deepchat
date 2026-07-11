@@ -2,7 +2,13 @@ import logger from '@shared/logger'
 
 import type { IMemoryVectorStore, MemoryVectorMatch } from '../types'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
-import type { VectorStoreRetrievalPort } from '../ports'
+import type {
+  MemoryAgentPolicyPort,
+  MemoryEmbeddingRepositoryPort,
+  MemoryPerfObserver,
+  MemoryVectorStoreFactoryPort,
+  VectorStoreRetrievalPort
+} from '../ports'
 import {
   VECTOR_STORE_IDLE_TTL_MS,
   VECTOR_STORE_SOFT_CAP,
@@ -72,6 +78,7 @@ function embeddingFromFingerprint(fingerprint: string | null | undefined): Memor
 }
 
 export class VectorStoreManager implements VectorStoreRetrievalPort {
+  private readonly ctx: MemoryRuntimeContext
   private readonly vectorStores = new Map<string, Promise<IMemoryVectorStore>>()
   private readonly vectorStoreIdentities = new Map<string, string>()
   private readonly vectorStoreReady = new Map<string, VectorReadyCertificate>()
@@ -85,10 +92,20 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   private resourceConvergenceRequested = false
   private stopped = false
 
-  constructor(private readonly ctx: MemoryRuntimeContext) {}
+  constructor(
+    private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryEmbeddingRepositoryPort
+      policy: MemoryAgentPolicyPort
+      vectorStoreFactory: MemoryVectorStoreFactoryPort
+      perfObserver?: MemoryPerfObserver
+    }
+  ) {
+    this.ctx = ports.ctx
+  }
 
   private observeResources(): void {
-    const observer = this.ctx.deps.perfObserver
+    const observer = this.ports.perfObserver
     if (!observer) return
     observer.observe('openStores', this.vectorStores.size)
     observer.observe(
@@ -107,7 +124,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   private resolveCurrentEmbedding(agentId: string): MemoryModelRef | null {
-    const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const embedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
     return embedding?.providerId && embedding?.modelId
       ? { providerId: embedding.providerId, modelId: embedding.modelId }
       : null
@@ -401,7 +418,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           )
         }
         if (state.requiresReset) {
-          await this.ctx.deps.resetVectorStore(agentId)
+          await this.ports.vectorStoreFactory.resetVectorStore(agentId)
           state.requiresReset = false
         }
         return locked.open(embedding, dimensions)
@@ -598,7 +615,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     if (cached) {
       throw new Error('[Memory] vector store identity transition must drain existing leases first')
     }
-    const pending = this.ctx.deps
+    const pending = this.ports.vectorStoreFactory
       .createVectorStore(agentId, embedding, dimensions)
       .catch((error) => {
         this.vectorStores.delete(agentId)
@@ -608,7 +625,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       })
     this.vectorStores.set(agentId, pending)
     this.vectorStoreIdentities.set(agentId, identity)
-    this.ctx.deps.perfObserver?.observe('cacheEntries', this.vectorStores.size)
+    this.ports.perfObserver?.observe('cacheEntries', this.vectorStores.size)
     void pending.then(
       () => this.observeResources(),
       () => undefined
@@ -645,7 +662,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         await locked.close({ clearCertificate: reset || permanent })
         if (reset) {
           try {
-            await this.ctx.deps.resetVectorStore(agentId)
+            await this.ports.vectorStoreFactory.resetVectorStore(agentId)
             state.requiresReset = false
           } catch (error) {
             state.requiresReset = true
@@ -678,7 +695,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         ? Math.floor(options.embeddingDim)
         : null
     if (!resolvedEmbedding) {
-      const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      const embedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
       if (!embedding?.providerId || !embedding?.modelId) return 'skipped'
       resolvedEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
     }
@@ -689,7 +706,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       )
       targetDimensions =
         this.getReadyCertificateDimension(agentId, resolvedEmbedding) ??
-        this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
+        this.ports.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
       if (targetDimensions === null) return 'skipped'
     }
     try {
@@ -736,7 +753,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           return []
         }
         const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-        const prunableIds = this.ctx.deps.repository.filterPrunableVectorRefs(
+        const prunableIds = this.ports.repository.filterPrunableVectorRefs(
           agentId,
           memoryIds,
           dimensions,

@@ -16,6 +16,8 @@ export const MemoryUpdateReasonSchema = z.enum([
   'reindex'
 ])
 
+export type MemoryUpdateReason = z.infer<typeof MemoryUpdateReasonSchema>
+
 /**
  * Lightweight memory update notification; payload never includes memory content.
  * memoryId is content-free id-only context for targeted reconciliation.

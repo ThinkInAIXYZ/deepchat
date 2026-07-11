@@ -27,7 +27,6 @@ import {
   DECISION_RETRY_MAX_CANDIDATES,
   MEMORY_CREATED_IDS_EVENT_LIMIT
 } from '../runtimeConstants'
-import type { MemoryRowMutations } from './rowMutations'
 import type {
   AgentMemoryRow,
   MemoryCandidate,
@@ -46,6 +45,15 @@ import {
   type MemoryOperationFence,
   type MemoryRuntimeContext
 } from '../context'
+import type {
+  MemoryAgentPolicyPort,
+  MemoryEmbeddingRepositoryPort,
+  MemoryMutationRepositoryPort,
+  MemoryReadRepositoryPort,
+  MemoryTextGenerationPort,
+  MemoryTransactionPort,
+  MemoryWriteMutationPort
+} from '../ports'
 
 function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
   switch (outcome.action) {
@@ -199,10 +207,18 @@ function recallItemFromRow(row: AgentMemoryRow): MemoryRecallItem {
 }
 
 export class WriteCoordinator {
+  private readonly ctx: MemoryRuntimeContext
+
   constructor(
-    private readonly ctx: MemoryRuntimeContext,
-    private readonly rows: MemoryRowMutations,
     private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort &
+        MemoryMutationRepositoryPort &
+        MemoryEmbeddingRepositoryPort &
+        MemoryTransactionPort
+      policy: MemoryAgentPolicyPort
+      textGeneration: MemoryTextGenerationPort
+      rows: MemoryWriteMutationPort
       retrieveForDecision: (
         agentId: string,
         query: string,
@@ -219,7 +235,9 @@ export class WriteCoordinator {
       triggerEmbedding: (agentId: string) => Promise<void>
       scheduleConsolidation: (agentId: string) => void
     }
-  ) {}
+  ) {
+    this.ctx = ports.ctx
+  }
 
   writeMemoriesSync(candidates: MemoryCandidate[], options: WriteMemoriesOptions): string[] {
     if (!candidates.length) return []
@@ -229,16 +247,16 @@ export class WriteCoordinator {
       if (!normalized) continue
       const content = normalized.content
       const provenanceKey = buildMemoryProvenanceKey(options.agentId, normalized.kind, content)
-      const duplicate = this.ctx.resolveProvenance(options.agentId, normalized.kind, content)
+      const duplicate = this.ports.rows.resolveProvenance(options.agentId, normalized.kind, content)
       if (duplicate) {
-        const hit = this.rows.handleProvenanceHit(options.agentId, duplicate)
+        const hit = this.ports.rows.handleProvenanceHit(options.agentId, duplicate)
         if (hit.action === 'absorbed') {
           this.absorbArchivedProvenanceOwner(duplicate)
           created.push(duplicate.id)
         }
         continue
       }
-      const id = this.rows.insertMemory(
+      const id = this.ports.rows.insertMemory(
         options.agentId,
         normalized,
         content,
@@ -264,7 +282,7 @@ export class WriteCoordinator {
     try {
       let shouldExtract = true
       try {
-        const triage = await this.ctx.provider.generateText(
+        const triage = await this.ports.textGeneration.generateText(
           input.agentId,
           model.providerId,
           model.modelId,
@@ -278,7 +296,7 @@ export class WriteCoordinator {
       if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
       if (!shouldExtract) return { ok: true, createdIds: [] }
 
-      const response = await this.ctx.provider.generateText(
+      const response = await this.ports.textGeneration.generateText(
         input.agentId,
         model.providerId,
         model.modelId,
@@ -409,10 +427,10 @@ export class WriteCoordinator {
   ): PrepareCoordinateCandidateResult {
     const content = indexed.candidate.content
     const provenanceKey = buildMemoryProvenanceKey(agentId, indexed.candidate.kind, content)
-    const duplicate = this.ctx.resolveProvenance(agentId, indexed.candidate.kind, content)
+    const duplicate = this.ports.rows.resolveProvenance(agentId, indexed.candidate.kind, content)
     let decisionHeadId: string | null = null
     if (duplicate) {
-      const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
+      const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate, {
         allowDecisionForSuperseded: true
       })
       if (hit.action === 'absorbed') {
@@ -429,7 +447,7 @@ export class WriteCoordinator {
           outcome: { action: 'noop', reason: hit.reason, id: duplicate.id }
         }
       }
-      const head = this.rows.supersedeHead(agentId, duplicate)
+      const head = this.ports.rows.supersedeHead(agentId, duplicate)
       if (isLiveDecisionTarget(agentId, head)) decisionHeadId = head.id
     }
     return {
@@ -461,14 +479,14 @@ export class WriteCoordinator {
     allowInsert: boolean
   ): MemoryWriteOutcome {
     let outcome: MemoryWriteOutcome = { action: 'noop', reason: 'concurrent-update' }
-    this.ctx.deps.repository.runInTransaction(() => {
-      const owner = this.ctx.resolveProvenance(agentId, candidate.kind, candidate.content)
+    this.ports.repository.runInTransaction(() => {
+      const owner = this.ports.rows.resolveProvenance(agentId, candidate.kind, candidate.content)
       if (owner) {
-        const hit = this.rows.handleProvenanceHit(agentId, owner, {
+        const hit = this.ports.rows.handleProvenanceHit(agentId, owner, {
           allowDecisionForSuperseded: true
         })
         if (hit.action === 'absorbed') {
-          outcome = this.ctx.deps.repository.activateForEmbeddingIfRevision(
+          outcome = this.ports.repository.activateForEmbeddingIfRevision(
             agentId,
             owner.id,
             owner.decision_revision
@@ -486,7 +504,7 @@ export class WriteCoordinator {
       }
       if (!allowInsert) return
       const provenanceKey = buildMemoryProvenanceKey(agentId, candidate.kind, candidate.content)
-      const id = this.rows.insertMemory(
+      const id = this.ports.rows.insertMemory(
         agentId,
         candidate,
         candidate.content,
@@ -589,7 +607,7 @@ export class WriteCoordinator {
     for (const partition of partitions) {
       if (!this.ctx.canContinueOperation(operationFence)) break
       try {
-        const raw = await this.ctx.provider.generateText(
+        const raw = await this.ports.textGeneration.generateText(
           agentId,
           model.providerId,
           model.modelId,
@@ -698,7 +716,7 @@ export class WriteCoordinator {
         reason: 'concurrent-update'
       })
     }
-    const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const currentEmbedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
     const retryEligible = retrySlice.filter((candidate) => {
       const snapshot = candidate.queryVector
       const valid =
@@ -859,10 +877,10 @@ export class WriteCoordinator {
     }
 
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
-    const duplicate = this.ctx.resolveProvenance(agentId, normalized.kind, content)
+    const duplicate = this.ports.rows.resolveProvenance(agentId, normalized.kind, content)
     let decisionHead: AgentMemoryRow | null = null
     if (duplicate) {
-      const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
+      const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate, {
         allowDecisionForSuperseded: true
       })
       if (hit.action === 'absorbed') {
@@ -870,7 +888,7 @@ export class WriteCoordinator {
         return { action: 'updated', id: duplicate.id }
       }
       if (hit.action === 'noop') return { action: 'noop', reason: hit.reason, id: duplicate.id }
-      const head = this.rows.supersedeHead(agentId, duplicate)
+      const head = this.ports.rows.supersedeHead(agentId, duplicate)
       if (isLiveDecisionTarget(agentId, head)) decisionHead = head
     }
 
@@ -879,7 +897,7 @@ export class WriteCoordinator {
       const hits = await this.ports.retrieveForDecision(agentId, content, now)
       neighbors = hits.slice(0, DECISION_NEIGHBOR_TOP_S)
       const currentDecisionHead = decisionHead
-        ? this.ctx.deps.repository.getById(decisionHead.id)
+        ? this.ports.repository.getById(decisionHead.id)
         : undefined
       if (
         isLiveDecisionTarget(agentId, currentDecisionHead) &&
@@ -901,7 +919,7 @@ export class WriteCoordinator {
 
     let decision: MemoryDecision = ADD_DECISION
     try {
-      const raw = await this.ctx.provider.generateText(
+      const raw = await this.ports.textGeneration.generateText(
         agentId,
         model.providerId,
         model.modelId,
@@ -959,11 +977,11 @@ export class WriteCoordinator {
         return { action: 'noop', reason: 'decision-noop', id: target?.id }
       case 'UPDATE':
         if (target) {
-          const targetRow = this.ctx.deps.repository.getById(target.id)
+          const targetRow = this.ports.repository.getById(target.id)
           if (isLiveDecisionTarget(agentId, targetRow)) {
             const merged = decision.mergedContent ?? content
             const mergedKey = buildMemoryProvenanceKey(agentId, targetRow.kind, merged)
-            const owner = this.ctx.resolveProvenance(agentId, targetRow.kind, merged)
+            const owner = this.ports.rows.resolveProvenance(agentId, targetRow.kind, merged)
             if (owner && owner.id !== targetRow.id) {
               const folded = this.foldDecisionTargetIntoOwner(
                 agentId,
@@ -980,8 +998,8 @@ export class WriteCoordinator {
                 ? (targetRow.category ?? normalized.category ?? null)
                 : undefined
             try {
-              this.ctx.deps.repository.runInTransaction(() => {
-                const applied = this.ctx.deps.repository.updateDecisionContentIfRevision({
+              this.ports.repository.runInTransaction(() => {
+                const applied = this.ports.repository.updateDecisionContentIfRevision({
                   agentId,
                   id: targetRow.id,
                   expectedRevision: target.decisionRevision,
@@ -991,7 +1009,7 @@ export class WriteCoordinator {
                   category: nextCategory
                 })
                 if (!applied) throw new DecisionRevisionConflictError()
-                this.rows.bumpConfidence(targetRow.id)
+                this.ports.rows.bumpConfidence(targetRow.id)
               })
             } catch (error) {
               if (error instanceof DecisionRevisionConflictError) return { action: 'retry' }
@@ -1004,11 +1022,11 @@ export class WriteCoordinator {
         break
       case 'SUPERSEDE':
         if (target) {
-          const targetRow = this.ctx.deps.repository.getById(target.id)
+          const targetRow = this.ports.repository.getById(target.id)
           if (!isLiveDecisionTarget(agentId, targetRow)) return { action: 'retry' }
           const merged = decision.mergedContent ?? content
           const mergedKey = buildMemoryProvenanceKey(agentId, normalized.kind, merged)
-          const collisionOwner = this.ctx.resolveProvenance(agentId, normalized.kind, merged)
+          const collisionOwner = this.ports.rows.resolveProvenance(agentId, normalized.kind, merged)
           if (collisionOwner && collisionOwner.id !== target.id) {
             return this.foldDecisionTargetIntoOwner(
               agentId,
@@ -1020,11 +1038,11 @@ export class WriteCoordinator {
           }
           let newId: string | null = null
           try {
-            this.ctx.deps.repository.runInTransaction(() => {
-              newId = this.rows.insertMemory(agentId, normalized, merged, mergedKey, options)
+            this.ports.repository.runInTransaction(() => {
+              newId = this.ports.rows.insertMemory(agentId, normalized, merged, mergedKey, options)
               if (!newId) throw new DecisionInsertCollisionError()
               if (
-                !this.ctx.deps.repository.markSupersededIfRevision(
+                !this.ports.repository.markSupersededIfRevision(
                   agentId,
                   target.id,
                   target.decisionRevision,
@@ -1036,7 +1054,7 @@ export class WriteCoordinator {
             })
           } catch (error) {
             if (error instanceof DecisionInsertCollisionError) {
-              const owner = this.ctx.resolveProvenance(agentId, normalized.kind, merged)
+              const owner = this.ports.rows.resolveProvenance(agentId, normalized.kind, merged)
               return owner && owner.id !== target.id
                 ? this.foldDecisionTargetIntoOwner(agentId, target, owner, now, normalized.category)
                 : { action: 'retry' }
@@ -1052,7 +1070,11 @@ export class WriteCoordinator {
         break
       case 'CHALLENGE':
         if (target) {
-          const collisionOwner = this.ctx.resolveProvenance(agentId, normalized.kind, content)
+          const collisionOwner = this.ports.rows.resolveProvenance(
+            agentId,
+            normalized.kind,
+            content
+          )
           if (collisionOwner && collisionOwner.id !== target.id) {
             return this.foldDecisionTargetIntoOwner(
               agentId,
@@ -1064,8 +1086,8 @@ export class WriteCoordinator {
           }
           let challengerId: string | null = null
           try {
-            this.ctx.deps.repository.runInTransaction(() => {
-              challengerId = this.rows.insertConflictedMemory(
+            this.ports.repository.runInTransaction(() => {
+              challengerId = this.ports.rows.insertConflictedMemory(
                 agentId,
                 normalized,
                 content,
@@ -1075,7 +1097,7 @@ export class WriteCoordinator {
               )
               if (!challengerId) throw new DecisionInsertCollisionError()
               if (
-                !this.ctx.deps.repository.markConflictIfRevision(
+                !this.ports.repository.markConflictIfRevision(
                   agentId,
                   target.id,
                   target.decisionRevision,
@@ -1087,7 +1109,7 @@ export class WriteCoordinator {
             })
           } catch (error) {
             if (error instanceof DecisionInsertCollisionError) {
-              const owner = this.ctx.resolveProvenance(agentId, normalized.kind, content)
+              const owner = this.ports.rows.resolveProvenance(agentId, normalized.kind, content)
               return owner && owner.id !== target.id
                 ? this.foldDecisionTargetIntoOwner(agentId, target, owner, now, normalized.category)
                 : { action: 'retry' }
@@ -1112,7 +1134,7 @@ export class WriteCoordinator {
     now: number,
     category: AgentMemoryRow['category']
   ): CoordinateWriteResult {
-    const hit = this.rows.handleProvenanceHit(agentId, owner, {
+    const hit = this.ports.rows.handleProvenanceHit(agentId, owner, {
       allowDecisionForSuperseded: true
     })
     if (hit.action === 'noop' && hit.reason !== 'duplicate') {
@@ -1120,11 +1142,11 @@ export class WriteCoordinator {
     }
 
     try {
-      this.ctx.deps.repository.runInTransaction(() => {
+      this.ports.repository.runInTransaction(() => {
         const ownerHead =
-          hit.action === 'continue' ? this.rows.supersedeHead(agentId, owner) : undefined
+          hit.action === 'continue' ? this.ports.rows.supersedeHead(agentId, owner) : undefined
         if (
-          !this.ctx.deps.repository.markSupersededIfRevision(
+          !this.ports.repository.markSupersededIfRevision(
             agentId,
             target.id,
             target.decisionRevision,
@@ -1134,14 +1156,14 @@ export class WriteCoordinator {
           throw new DecisionRevisionConflictError()
         }
         if (hit.action === 'absorbed') {
-          this.ctx.deps.repository.activateForEmbedding(owner.id)
+          this.ports.repository.activateForEmbedding(owner.id)
         }
         if (hit.action === 'continue') {
           if (ownerHead?.id === target.id) {
-            this.ctx.deps.repository.markSuperseded(owner.id, null)
-            this.ctx.deps.repository.activateForEmbedding(owner.id)
+            this.ports.repository.markSuperseded(owner.id, null)
+            this.ports.repository.activateForEmbedding(owner.id)
           } else {
-            this.rows.reviveSupersededAfterDecision(agentId, owner)
+            this.ports.rows.reviveSupersededAfterDecision(agentId, owner)
           }
         }
         if (
@@ -1149,7 +1171,7 @@ export class WriteCoordinator {
           owner.category === null &&
           category !== null
         ) {
-          this.ctx.deps.repository.updateContent(
+          this.ports.repository.updateContent(
             owner.id,
             owner.content,
             owner.provenance_key,
@@ -1208,9 +1230,9 @@ export class WriteCoordinator {
     if (!normalized) return { action: 'noop', reason: 'empty' }
     const content = normalized.content
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
-    const duplicate = this.ctx.resolveProvenance(agentId, normalized.kind, content)
+    const duplicate = this.ports.rows.resolveProvenance(agentId, normalized.kind, content)
     if (duplicate) {
-      const hit = this.rows.handleProvenanceHit(agentId, duplicate)
+      const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate)
       if (hit.action === 'absorbed') {
         this.absorbArchivedProvenanceOwner(duplicate)
         return { action: 'updated', id: duplicate.id }
@@ -1218,13 +1240,13 @@ export class WriteCoordinator {
       const reason = hit.action === 'noop' ? hit.reason : 'duplicate'
       return { action: 'noop', reason, id: duplicate.id }
     }
-    const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
+    const id = this.ports.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
   }
 
   private absorbArchivedProvenanceOwner(existing: AgentMemoryRow): void {
-    this.ctx.deps.repository.runInTransaction(() => {
-      this.ctx.deps.repository.activateForEmbedding(existing.id)
+    this.ports.repository.runInTransaction(() => {
+      this.ports.repository.activateForEmbedding(existing.id)
     })
   }
 
@@ -1235,13 +1257,13 @@ export class WriteCoordinator {
     category: AgentMemoryRow['category'],
     foldTargetId?: string
   ): MemoryWriteOutcome {
-    this.ctx.deps.repository.runInTransaction(() => {
+    this.ports.repository.runInTransaction(() => {
       if (existing.status === 'archived' && existing.superseded_by === null) {
-        this.ctx.deps.repository.activateForEmbedding(existing.id)
+        this.ports.repository.activateForEmbedding(existing.id)
       }
-      this.rows.reviveSupersededAfterDecision(agentId, existing)
+      this.ports.rows.reviveSupersededAfterDecision(agentId, existing)
       if (existing.category === null && category !== null) {
-        this.ctx.deps.repository.updateContent(
+        this.ports.repository.updateContent(
           existing.id,
           existing.content,
           existing.provenance_key,
@@ -1250,7 +1272,7 @@ export class WriteCoordinator {
         )
       }
       if (foldTargetId && foldTargetId !== existing.id) {
-        this.ctx.deps.repository.markSuperseded(foldTargetId, existing.id)
+        this.ports.repository.markSuperseded(foldTargetId, existing.id)
       }
     })
 
@@ -1278,7 +1300,7 @@ export class WriteCoordinator {
       content: input.content,
       importance: input.importance
     }
-    const configured = this.ctx.deps.resolveAgentConfig(agentId)?.memoryExtractionModel
+    const configured = this.ports.policy.resolveAgentConfig(agentId)?.memoryExtractionModel
     const model =
       configured?.providerId && configured?.modelId
         ? { providerId: configured.providerId, modelId: configured.modelId }

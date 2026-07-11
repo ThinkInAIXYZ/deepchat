@@ -1,7 +1,11 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import {
+  AGENT_MEMORY_AUDIT_ACTOR_TYPES,
+  AGENT_MEMORY_AUDIT_FAILURE_STATUSES,
+  AGENT_MEMORY_AUDIT_STATUSES,
   AGENT_MEMORY_CATEGORIES,
+  AGENT_MEMORY_AGENT_ID_PATTERN,
   AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
   AGENT_MEMORY_HEALTH_CATEGORY_KEYS,
   AGENT_MEMORY_HEALTH_KIND_KEYS,
@@ -17,7 +21,7 @@ const ManualMemoryContentSchema = z
   })
 
 /** URL-safe agent ids, matching the main-process memory storage guard. */
-const AgentIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/, 'invalid agentId')
+const AgentIdSchema = z.string().regex(AGENT_MEMORY_AGENT_ID_PATTERN, 'invalid agentId')
 
 export const MemoryItemSchema = z.object({
   id: z.string(),
@@ -113,7 +117,7 @@ export const MemoryHealthTopItemSchema = z.object({
 
 export const MemoryHealthRecentFailureSchema = z.object({
   eventType: z.string(),
-  status: z.enum(['failed', 'skipped']),
+  status: z.enum(AGENT_MEMORY_AUDIT_FAILURE_STATUSES),
   reason: z.string().nullable(),
   createdAt: z.number()
 })
@@ -312,13 +316,13 @@ export const MemoryAuditEventSchema = z.object({
   id: z.string(),
   agentId: z.string(),
   eventType: z.string(),
-  actorType: z.enum(['scheduler', 'user', 'runtime']),
+  actorType: z.enum(AGENT_MEMORY_AUDIT_ACTOR_TYPES),
   sessionId: z.string().nullable(),
   inputRefs: JsonRecordSchema,
   outputRefs: JsonRecordSchema,
   modelProviderId: z.string().nullable(),
   modelId: z.string().nullable(),
-  status: z.enum(['completed', 'skipped', 'failed']),
+  status: z.enum(AGENT_MEMORY_AUDIT_STATUSES),
   reason: z.string().nullable(),
   createdAt: z.number()
 })
@@ -515,9 +519,9 @@ export const memoryListAuditEventsRoute = defineRouteContract({
   input: z.object({
     agentId: AgentIdSchema,
     eventType: z.string().optional(),
-    actorType: z.enum(['scheduler', 'user', 'runtime']).optional(),
+    actorType: z.enum(AGENT_MEMORY_AUDIT_ACTOR_TYPES).optional(),
     sessionId: z.string().optional(),
-    status: z.enum(['completed', 'skipped', 'failed']).optional(),
+    status: z.enum(AGENT_MEMORY_AUDIT_STATUSES).optional(),
     startCreatedAt: z.number().optional(),
     endCreatedAt: z.number().optional(),
     limit: z.number().int().positive().max(500).optional()

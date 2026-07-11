@@ -33,9 +33,20 @@ import type {
   MemoryStatus,
   NormalizedMemoryCandidate
 } from '../types'
+import type { ManualEditFieldFlags } from '../domain/types'
 import { FORGET_HALF_LIFE_MS } from '../types'
 import { embeddingFingerprint, type MemoryRuntimeContext } from '../context'
-import { MemoryRowMutations, type ManualEditFieldFlags } from './rowMutations'
+import type {
+  MemoryAgentPolicyPort,
+  MemoryAuditReadPort,
+  MemoryEmbeddingRepositoryPort,
+  MemoryHealthRepositoryPort,
+  MemoryLifecycleRepositoryPort,
+  MemoryManualEditPort,
+  MemoryMutationRepositoryPort,
+  MemoryReadRepositoryPort,
+  MemoryTransactionPort
+} from '../ports'
 
 function toHealthTopAccessedItem(
   row: AgentMemoryRow
@@ -103,10 +114,20 @@ function mapContentSuppressedReason(reason: string): 'conflict' | 'duplicate' | 
 type DeleteVectorResult = 'deleted' | 'skipped' | 'unusable'
 
 export class ManagementService {
+  private readonly ctx: MemoryRuntimeContext
+
   constructor(
-    private readonly ctx: MemoryRuntimeContext,
-    private readonly rows: MemoryRowMutations,
     private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort &
+        MemoryMutationRepositoryPort &
+        MemoryEmbeddingRepositoryPort &
+        MemoryLifecycleRepositoryPort &
+        MemoryHealthRepositoryPort &
+        MemoryTransactionPort
+      policy: MemoryAgentPolicyPort
+      auditReader?: MemoryAuditReadPort
+      rows: MemoryManualEditPort
       deleteVectorsForDeletedMemory: (
         agentId: string,
         memoryIds: string[],
@@ -119,18 +140,20 @@ export class ManagementService {
       triggerEmbedding: (agentId: string) => Promise<void>
       clearConsolidationCooldown: (agentId: string) => void
     }
-  ) {}
+  ) {
+    this.ctx = ports.ctx
+  }
 
   restoreMemory(agentId: string, memoryId: string): boolean {
     if (this.ctx.isDisposed) return false
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
-    const row = this.ctx.deps.repository.getById(memoryId)
+    const row = this.ports.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId || row.status !== 'archived') return false
-    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
-    this.ctx.deps.repository.runInTransaction(() => {
-      this.ctx.deps.repository.activateForEmbedding(memoryId)
+    this.ports.repository.runInTransaction(() => {
+      this.ports.repository.activateForEmbedding(memoryId)
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/restore',
         actorType: 'user',
@@ -152,15 +175,15 @@ export class ManagementService {
     if (this.ctx.isDisposed) return false
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return false
-    const row = this.ctx.deps.repository.getById(memoryId)
+    const row = this.ports.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
-    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
     this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.status === 'archived'
-    this.ctx.deps.repository.runInTransaction(() => {
+    this.ports.repository.runInTransaction(() => {
       if (!alreadyArchived) {
-        this.ctx.deps.repository.archive(row.id, Date.now())
+        this.ports.repository.archive(row.id, Date.now())
       }
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/forget',
@@ -183,15 +206,15 @@ export class ManagementService {
     if (this.ctx.isDisposed) return false
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return false
-    const row = this.ctx.deps.repository.getById(memoryId)
+    const row = this.ports.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
-    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
     this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.status === 'archived'
-    this.ctx.deps.repository.runInTransaction(() => {
+    this.ports.repository.runInTransaction(() => {
       if (!alreadyArchived) {
-        this.ctx.deps.repository.archive(row.id, Date.now())
+        this.ports.repository.archive(row.id, Date.now())
       }
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/archive',
@@ -214,7 +237,7 @@ export class ManagementService {
   listMemories(agentId: string): AgentMemoryRow[] {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return []
-    return this.ctx.deps.repository
+    return this.ports.repository
       .listByAgent(agentId, { includeArchived: true })
       .filter((row) => !isInternalMemoryKind(row))
   }
@@ -229,7 +252,7 @@ export class ManagementService {
     const normalizedLimit = Number.isFinite(limit)
       ? Math.min(MEMORY_PAGE_MAX_LIMIT, Math.max(1, Math.floor(limit)))
       : MEMORY_PAGE_DEFAULT_LIMIT
-    const rows = this.ctx.deps.repository.listManagementPage(agentId, cursor, normalizedLimit + 1)
+    const rows = this.ports.repository.listManagementPage(agentId, cursor, normalizedLimit + 1)
     const pageRows = rows.slice(0, normalizedLimit)
     const lastRow = pageRows.at(-1)
     return {
@@ -245,7 +268,7 @@ export class ManagementService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return []
     const orderedIds = [...new Set(memoryIds.filter((id) => id.length > 0))]
-    const rows = this.ctx.deps.repository.listByIds(agentId, orderedIds)
+    const rows = this.ports.repository.listByIds(agentId, orderedIds)
     const rowsById = new Map(rows.map((row) => [row.id, row]))
     return orderedIds.map((id) => rowsById.get(id)).filter((row): row is AgentMemoryRow => !!row)
   }
@@ -254,7 +277,7 @@ export class ManagementService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return []
     const orderedIds = [...new Set(memoryIds.filter((id) => id.length > 0))]
-    const rows = this.ctx.deps.repository.listManagementVisibleByIds(agentId, orderedIds)
+    const rows = this.ports.repository.listManagementVisibleByIds(agentId, orderedIds)
     const rowsById = new Map(rows.map((row) => [row.id, row]))
     return orderedIds.map((id) => rowsById.get(id)).filter((row): row is AgentMemoryRow => !!row)
   }
@@ -263,7 +286,7 @@ export class ManagementService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return null
 
-    const row = this.ctx.deps.repository.getById(memoryId)
+    const row = this.ports.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId || row.kind === 'working') return null
     const context = this.createLifecycleDerivationContext(agentId)
     return deriveLifecycle(row, context.now, context.options)
@@ -283,7 +306,7 @@ export class ManagementService {
     }
 
     const context = this.createLifecycleDerivationContext(agentId)
-    const rows = this.ctx.deps.repository.listArchiveCandidateLifecycleRows(
+    const rows = this.ports.repository.listArchiveCandidateLifecycleRows(
       agentId,
       context.now - ARCHIVE_AGE_MS,
       MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT + 1
@@ -315,7 +338,7 @@ export class ManagementService {
     now: number
     options: DeriveLifecycleOptions
   } {
-    const config = this.ctx.deps.resolveAgentConfig(agentId)
+    const config = this.ports.policy.resolveAgentConfig(agentId)
     return {
       now: Date.now(),
       options: {
@@ -332,23 +355,23 @@ export class ManagementService {
       return createEmptyMemoryHealth(MEMORY_HEALTH_AUDIT_SCAN_LIMIT)
     }
 
-    const stats = this.ctx.deps.repository.getHealthStats(agentId)
-    const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const stats = this.ports.repository.getHealthStats(agentId)
+    const embedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
     let stale = 0
     if (embedding?.providerId && embedding.modelId) {
       const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-      const currentDim = this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
+      const currentDim = this.ports.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
       if (currentDim !== null) {
-        stale = this.ctx.deps.repository.countStaleEmbeddings(agentId, currentDim, fingerprint)
+        stale = this.ports.repository.countStaleEmbeddings(agentId, currentDim, fingerprint)
       }
     }
 
-    const auditStats = this.ctx.deps.auditRepository?.getHealthAuditStats(
+    const auditStats = this.ports.auditReader?.getHealthAuditStats(
       agentId,
       MEMORY_HEALTH_AUDIT_SCAN_LIMIT,
       MEMORY_HEALTH_RECENT_FAILURES_LIMIT
     )
-    const topAccessed = this.ctx.deps.repository
+    const topAccessed = this.ports.repository
       .listTopAccessed(agentId, MEMORY_HEALTH_TOP_ACCESSED_LIMIT)
       .map(toHealthTopAccessedItem)
       .filter((item): item is MemoryHealthDto['access']['topAccessed'][number] => item !== null)
@@ -368,7 +391,7 @@ export class ManagementService {
         stale
       },
       lifecycle: {
-        archiveCandidates: this.ctx.deps.repository.countArchiveEligible(agentId, {
+        archiveCandidates: this.ports.repository.countArchiveEligible(agentId, {
           now,
           createdBefore: now - ARCHIVE_AGE_MS,
           minimumBaseAgeMs
@@ -410,10 +433,10 @@ export class ManagementService {
     if (this.ctx.isDisposed) return { action: 'noop' }
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.canWriteAgentMemory(agentId)) return { action: 'noop' }
-    const row = this.ctx.deps.repository.getById(memoryId)
+    const row = this.ports.repository.getById(memoryId)
     if (
       row?.agent_id === agentId &&
-      this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)
+      this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)
     ) {
       return { action: 'noop', reason: 'conflict' }
     }
@@ -460,8 +483,8 @@ export class ManagementService {
       return { action: 'noop', memoryId: row.id }
     }
 
-    this.ctx.deps.repository.runInTransaction(() => {
-      this.ctx.deps.repository.updateUserMetadata(row.id, nextMetadata)
+    this.ports.repository.runInTransaction(() => {
+      this.ports.repository.updateUserMetadata(row.id, nextMetadata)
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/manual_edit',
         actorType: 'user',
@@ -504,8 +527,8 @@ export class ManagementService {
 
     // Wrapped in one transaction so the row mutation and its audit event commit atomically, same as
     // the metadata-only path below — a suppressed/noop outcome writes neither.
-    const result = this.ctx.deps.repository.runInTransaction((): MemoryUpdateResult => {
-      const update = this.rows.applyManualContentEdit(
+    const result = this.ports.repository.runInTransaction((): MemoryUpdateResult => {
+      const update = this.ports.rows.applyManualContentEdit(
         agentId,
         row,
         candidate,
@@ -558,11 +581,11 @@ export class ManagementService {
     if (this.ctx.isDisposed) return false
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return false
-    const row = this.ctx.deps.repository.getById(memoryId)
+    const row = this.ports.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
-    if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     this.ctx.invalidateAgentOperations(agentId)
-    this.ctx.deps.repository.delete(memoryId)
+    this.ports.repository.delete(memoryId)
     this.ctx.markDomainMutationCommitted(agentId)
     if (row.kind !== 'working') {
       this.ports.syncWorkingMemoryAfterMutation(agentId)
@@ -586,7 +609,7 @@ export class ManagementService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return 0
     this.ctx.invalidateAgentOperations(agentId)
-    const removed = this.ctx.deps.repository.clearByAgent(agentId)
+    const removed = this.ports.repository.clearByAgent(agentId)
     if (removed > 0) {
       this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
@@ -597,7 +620,7 @@ export class ManagementService {
       )
     })
     if (removed > 0) this.ctx.emitChanged(agentId, 'clear')
-    if (removed > 0 && this.ctx.deps.repository.countByAgent(agentId) === 0) {
+    if (removed > 0 && this.ports.repository.countByAgent(agentId) === 0) {
       this.ports.clearConsolidationCooldown(agentId)
     }
     return removed
@@ -617,15 +640,15 @@ export class ManagementService {
         personaVersionCount: 0
       }
     }
-    const counts = this.ctx.deps.repository.countStatusView(agentId)
-    const personaCounts = this.ctx.deps.repository.getPersonaCounts(agentId)
+    const counts = this.ports.repository.countStatusView(agentId)
+    const personaCounts = this.ports.repository.getPersonaCounts(agentId)
     return {
       total: counts.total,
       pendingEmbedding: counts.pendingEmbedding,
-      hasPersona: this.ctx.deps.repository.getActivePersona(agentId) !== undefined,
+      hasPersona: this.ports.repository.getActivePersona(agentId) !== undefined,
       activeMemoryCount: counts.activeMemoryCount,
       archivedMemoryCount: counts.archivedMemoryCount,
-      conflictCount: this.ctx.deps.repository.countConflictPairs(agentId),
+      conflictCount: this.ports.repository.countConflictPairs(agentId),
       personaDraftCount: personaCounts.draft,
       personaVersionCount: personaCounts.total,
       reindexing: this.ports.isReindexing(agentId)

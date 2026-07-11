@@ -7,7 +7,8 @@ import {
   type MemoryInjectionResult,
   type MemoryRuntimePort
 } from './injection'
-import { isSafeAgentId, type AgentMemoryRow } from './types'
+import { isSafeAgentId } from '@shared/types/agent-memory'
+import type { AgentMemoryRow } from './types'
 import type {
   MemoryCandidate,
   MemoryConflictPair,
@@ -48,6 +49,12 @@ import { MaintenanceService } from './services/maintenanceService'
 import { WriteCoordinator } from './services/writeCoordinator'
 import { ManagementService } from './services/managementService'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
+import type {
+  MemoryAgentPolicyPort,
+  MemoryPerfObserver,
+  MemoryRepositoryPort,
+  MemoryVectorStoreFactoryPort
+} from './ports'
 
 export { appendMemorySection, appendMemorySectionWithManifest, buildMemorySection, isSafeAgentId }
 export type {
@@ -57,7 +64,37 @@ export type {
   MemoryRuntimePort
 }
 
+function materializedRowCount(value: unknown): number {
+  if (Array.isArray(value)) return value.length
+  if (!value || typeof value !== 'object') return 0
+  const record = value as Record<string, unknown>
+  if (Array.isArray(record.rows)) return record.rows.length
+  if (Array.isArray(record.topRows)) return record.topRows.length
+  return 0
+}
+
+function observeRepository(
+  repository: MemoryRepositoryPort,
+  observer?: MemoryPerfObserver
+): MemoryRepositoryPort {
+  if (!observer) return repository
+  return new Proxy(repository, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver)
+      if (typeof value !== 'function') return value
+      return (...args: unknown[]) => {
+        observer.increment('repositoryCalls')
+        const result = Reflect.apply(value, target, args)
+        observer.increment('materializedRows', materializedRowCount(result))
+        return result
+      }
+    }
+  })
+}
+
 export class MemoryPresenter implements MemoryRuntimePort {
+  private readonly repository: MemoryRepositoryPort
+  private readonly policy: MemoryAgentPolicyPort
   private readonly runtime: MemoryRuntimeContext
   private readonly rows: MemoryRowMutations
   private readonly vectorStore: VectorStoreManager
@@ -72,16 +109,63 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly management: ManagementService
 
   constructor(deps: MemoryPresenterDeps) {
-    this.runtime = new MemoryRuntimeContext(deps, undefined, new MemoryProviderGateway(deps))
-    this.rows = new MemoryRowMutations(this.runtime)
-    this.vectorStore = new VectorStoreManager(this.runtime)
-    this.embedding = new EmbeddingPipeline(this.runtime, this.vectorStore, this.rows, {
+    this.repository = observeRepository(deps.repository, deps.perfObserver)
+    this.policy = {
+      resolveAgentConfig: deps.resolveAgentConfig,
+      resolveAgentDefaultModel: deps.resolveAgentDefaultModel,
+      isManagedAgent: deps.isManagedAgent,
+      listManagedMemoryAgentIds: deps.listManagedMemoryAgentIds
+    }
+    const repository = this.repository
+    const policy = this.policy
+    const providerGateway = new MemoryProviderGateway({
+      executeWithRateLimit: deps.executeWithRateLimit,
+      getEmbeddings: deps.getEmbeddings,
+      getDimensions: deps.getDimensions,
+      generateText: deps.generateText,
+      perfObserver: deps.perfObserver
+    })
+    const vectorStoreFactory: MemoryVectorStoreFactoryPort = {
+      createVectorStore: deps.createVectorStore,
+      resetVectorStore: deps.resetVectorStore
+    }
+
+    this.runtime = new MemoryRuntimeContext({
+      policy,
+      auditWriter: deps.auditRepository,
+      changeSink: { onMemoryChanged: deps.onMemoryChanged },
+      providerControl: providerGateway
+    })
+    this.rows = new MemoryRowMutations({
+      repository,
+      auditReader: deps.auditRepository
+    })
+    this.vectorStore = new VectorStoreManager({
+      ctx: this.runtime,
+      repository,
+      policy,
+      vectorStoreFactory,
+      perfObserver: deps.perfObserver
+    })
+    this.embedding = new EmbeddingPipeline({
+      ctx: this.runtime,
+      repository,
+      policy,
+      embeddingGateway: providerGateway,
+      vectorStore: this.vectorStore,
+      rows: this.rows,
       reindexEmbeddings: (agentId, force) => this.reindexEmbeddings(agentId, force),
       backfillEmbeddings: (agentId) => this.backfillEmbeddings(agentId)
     })
-    this.workingMemory = new WorkingMemoryService(this.runtime)
+    this.workingMemory = new WorkingMemoryService({ ctx: this.runtime, repository })
 
-    this.retrieval = new RetrievalService(this.runtime, this.vectorStore, this.workingMemory, {
+    this.retrieval = new RetrievalService({
+      ctx: this.runtime,
+      repository,
+      policy,
+      embeddingGateway: providerGateway,
+      vectorStore: this.vectorStore,
+      workingMemory: this.workingMemory,
       warmVectorStore: (agentId, embedding, options) =>
         this.embedding.warmVectorStore(agentId, embedding, options),
       warmEmbeddingConnection: (agentId, embedding) =>
@@ -97,24 +181,42 @@ export class MemoryPresenter implements MemoryRuntimePort {
           memoryIds
         )
     })
-    this.reflection = new ReflectionService(this.runtime, {
+    this.reflection = new ReflectionService({
+      ctx: this.runtime,
+      repository,
+      textGeneration: providerGateway,
+      provenance: this.rows,
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId)
     })
-    this.persona = new PersonaService(this.runtime)
+    this.persona = new PersonaService({
+      ctx: this.runtime,
+      repository,
+      textGeneration: providerGateway
+    })
 
     // Late-bound to break the ConflictService <-> MaintenanceService workflow cycle. Constructors
     // must not call this port before the assignment below completes.
     let maintenanceService!: MaintenanceService
-    this.conflict = new ConflictService(this.runtime, {
+    this.conflict = new ConflictService({
+      ctx: this.runtime,
+      repository,
+      textGeneration: providerGateway,
       scheduleConsolidation: (agentId) => maintenanceService.scheduleConsolidation(agentId),
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId)
     })
 
-    maintenanceService = new MaintenanceService(this.runtime, this.rows, {
+    maintenanceService = new MaintenanceService({
+      ctx: this.runtime,
+      repository,
+      policy,
+      textGeneration: providerGateway,
+      auditReader: deps.auditRepository,
+      auditMaintenance: deps.auditRepository,
+      rows: this.rows,
       queryNeighborsByMemoryId: (agentId, embedding, dimensions, memoryId, topK) =>
         this.vectorStore.queryNeighborsByMemoryId(agentId, embedding, dimensions, memoryId, topK),
       getReadyCertificateDimension: (agentId, embedding) =>
@@ -146,7 +248,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
     })
     this.maintenance = maintenanceService
 
-    this.writeCoordinator = new WriteCoordinator(this.runtime, this.rows, {
+    this.writeCoordinator = new WriteCoordinator({
+      ctx: this.runtime,
+      repository,
+      policy,
+      textGeneration: providerGateway,
+      rows: this.rows,
       retrieveForDecision: (agentId, query, now) =>
         this.retrieval.retrieveForDecision(agentId, query, now),
       retrieveForDecisions: (agentId, candidates, now, queryVectors, pinnedIdsByCandidate) =>
@@ -162,7 +269,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
       scheduleConsolidation: (agentId) => this.maintenance.scheduleConsolidation(agentId)
     })
 
-    this.management = new ManagementService(this.runtime, this.rows, {
+    this.management = new ManagementService({
+      ctx: this.runtime,
+      repository,
+      policy,
+      auditReader: deps.auditRepository,
+      rows: this.rows,
       deleteVectorsForDeletedMemory: (agentId, memoryIds, embedding) =>
         this.vectorStore.deleteVectorsForMemoryIdsOpening(agentId, memoryIds, {
           embeddingModel: embedding.embeddingModel,
@@ -223,7 +335,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   onAgentMemoryMaintenanceConfigChanged(agentId: string, delayMs?: number): void {
-    const embedding = this.runtime.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const embedding = this.policy.resolveAgentConfig(agentId)?.memoryEmbedding
     const identityChanged = this.vectorStore.noteEmbeddingConfig(
       agentId,
       embedding?.providerId && embedding?.modelId
@@ -235,8 +347,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   onBuiltinDeepChatMemoryMaintenanceConfigChanged(): void {
-    const embedding =
-      this.runtime.deps.resolveAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID)?.memoryEmbedding
+    const embedding = this.policy.resolveAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID)?.memoryEmbedding
     const identityChanged = this.vectorStore.noteEmbeddingConfig(
       BUILTIN_DEEPCHAT_AGENT_ID,
       embedding?.providerId && embedding?.modelId
@@ -345,9 +456,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (!this.runtime.canReadAgentMemory(agentId)) return
     const uniqueIds = [...new Set(memoryIds.map((id) => id.trim()).filter(Boolean))]
     if (!uniqueIds.length) return
-    const ownedIds = this.runtime.deps.repository.listByIds(agentId, uniqueIds).map((row) => row.id)
+    const ownedIds = this.repository.listByIds(agentId, uniqueIds).map((row) => row.id)
     if (!ownedIds.length) return
-    this.runtime.deps.repository.recordAccessBatch(ownedIds, accessedAt)
+    this.repository.recordAccessBatch(ownedIds, accessedAt)
   }
 
   refreshWorkingMemory(agentId: string): void {

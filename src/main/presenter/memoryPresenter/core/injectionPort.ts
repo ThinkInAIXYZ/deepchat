@@ -1,4 +1,4 @@
-import type { AgentMemoryKind } from '../../sqlitePresenter/tables/agentMemory'
+import type { AgentMemoryKind } from '../domain/types'
 import type {
   MemoryExtractionResult,
   MemoryPersonaDraftResult,
@@ -47,7 +47,7 @@ export interface MemoryInjectionManifest {
   queryHash?: string
 }
 
-export interface MemoryInjectionResult extends MemoryInjectionPayload {
+export interface MemoryInjectionResult {
   payload: MemoryInjectionPayload
   manifest: MemoryInjectionManifest
 }
@@ -91,10 +91,7 @@ export function resolveInjectionTokenBudget(value: number | null | undefined): n
 // and tests can supply a fake implementation.
 export interface MemoryInjectionPort {
   isEnabled(agentId: string): boolean
-  buildInjection(
-    agentId: string,
-    query: string
-  ): Promise<MemoryInjectionResult | MemoryInjectionPayload | null>
+  buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null>
 }
 
 // Adds extraction entry points on top of injection. Extraction is an independent cheap
@@ -172,7 +169,7 @@ function buildSection(header: string, body: string): string {
   return `${header}\n${wrapAsContextData(body)}`
 }
 
-function toPayload(
+function normalizeMemoryInjectionInput(
   input: MemoryInjectionPayload | MemoryInjectionResult | null
 ): MemoryInjectionPayload | null {
   if (!input) return null
@@ -329,7 +326,7 @@ function assembleMemorySection(payload: MemoryInjectionPayload | null): {
 export function buildMemorySection(
   payload: MemoryInjectionPayload | MemoryInjectionResult | null
 ): string {
-  return assembleMemorySection(toPayload(payload)).section
+  return assembleMemorySection(normalizeMemoryInjectionInput(payload)).section
 }
 
 // Appends the memory section to systemPrompt; returns it unchanged when payload is empty.
@@ -347,7 +344,7 @@ export function appendMemorySectionWithManifest(
   result: MemoryInjectionResult | MemoryInjectionPayload | null
 ): { prompt: string; manifest: MemoryInjectionManifest | null } {
   if (!result) return { prompt: systemPrompt, manifest: null }
-  const payload = toPayload(result)
+  const payload = normalizeMemoryInjectionInput(result)
   const assembled = assembleMemorySection(payload)
   if (!assembled.section) return { prompt: systemPrompt, manifest: null }
   const baseManifest = 'manifest' in result ? result.manifest : assembled.manifest

@@ -11,16 +11,29 @@ import {
   WORKING_PROVENANCE_SEED
 } from '../runtimeConstants'
 import { isUniqueConstraintError, type MemoryRuntimeContext } from '../context'
-import type { WorkingMemoryReadPort } from '../ports'
+import type {
+  MemoryMutationRepositoryPort,
+  MemoryReadRepositoryPort,
+  MemoryTransactionPort,
+  WorkingMemoryReadPort
+} from '../ports'
 import type { AgentMemoryWorkingCandidateCursor } from '../types'
 import type { AgentMemoryRow } from '../types'
 
 export class WorkingMemoryService implements WorkingMemoryReadPort {
+  private readonly ctx: MemoryRuntimeContext
   private readonly workingRefreshInFlight = new Set<string>()
   private readonly workingRefreshTimers = new Map<string, NodeJS.Timeout>()
   private readonly workingMemoryDirty = new Set<string>()
 
-  constructor(private readonly ctx: MemoryRuntimeContext) {}
+  constructor(
+    private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort & MemoryMutationRepositoryPort & MemoryTransactionPort
+    }
+  ) {
+    this.ctx = ports.ctx
+  }
 
   readWorkingMemory(agentId: string): string | null {
     this.flushWorkingMemoryIfDirty(agentId)
@@ -40,30 +53,30 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
   private resolveWorkingRow(agentId: string): AgentMemoryRow | undefined {
     const v2Key = this.workingMemoryKey(agentId)
     const legacyKey = this.legacyWorkingMemoryKey(agentId)
-    const v2Row = this.ctx.deps.repository.getByProvenanceKey(agentId, v2Key)
-    const legacyRow = this.ctx.deps.repository.getByProvenanceKey(agentId, legacyKey)
+    const v2Row = this.ports.repository.getByProvenanceKey(agentId, v2Key)
+    const legacyRow = this.ports.repository.getByProvenanceKey(agentId, legacyKey)
     const validLegacy = legacyRow?.agent_id === agentId && legacyRow.kind === 'working'
 
     if (v2Row) {
       if (validLegacy && legacyRow.id !== v2Row.id) {
-        this.ctx.deps.repository.delete(legacyRow.id)
+        this.ports.repository.delete(legacyRow.id)
       }
       return v2Row.kind === 'working' ? v2Row : undefined
     }
     if (!validLegacy) return undefined
 
     try {
-      const rekeyed = this.ctx.deps.repository.runInTransaction(() =>
-        this.ctx.deps.repository.rekeyProvenance(agentId, legacyRow.id, legacyKey, v2Key)
+      const rekeyed = this.ports.repository.runInTransaction(() =>
+        this.ports.repository.rekeyProvenance(agentId, legacyRow.id, legacyKey, v2Key)
       )
-      if (rekeyed) return this.ctx.deps.repository.getById(legacyRow.id) ?? legacyRow
+      if (rekeyed) return this.ports.repository.getById(legacyRow.id) ?? legacyRow
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
     }
 
-    const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, v2Key)
+    const owner = this.ports.repository.getByProvenanceKey(agentId, v2Key)
     if (owner?.kind === 'working' && owner.id !== legacyRow.id) {
-      this.ctx.deps.repository.delete(legacyRow.id)
+      this.ports.repository.delete(legacyRow.id)
       return owner
     }
     return owner?.kind === 'working' ? owner : undefined
@@ -72,7 +85,7 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
   deleteWorkingMemory(agentId: string): void {
     const existing = this.resolveWorkingRow(agentId)
     if (existing) {
-      this.ctx.deps.repository.delete(existing.id)
+      this.ports.repository.delete(existing.id)
       this.ctx.markDomainMutationCommitted(agentId)
     }
   }
@@ -135,20 +148,20 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
     const blob = this.buildWorkingBlob(agentId)
     if (!blob) {
       if (existing) {
-        this.ctx.deps.repository.delete(existing.id)
+        this.ports.repository.delete(existing.id)
         this.ctx.markDomainMutationCommitted(agentId)
       }
       return
     }
     if (existing) {
       if (existing.content === blob) return
-      this.ctx.deps.repository.updateContent(existing.id, blob, workingKey, Date.now())
+      this.ports.repository.updateContent(existing.id, blob, workingKey, Date.now())
       this.ctx.markDomainMutationCommitted(agentId)
       return
     }
     const now = Date.now()
     try {
-      this.ctx.deps.repository.insert({
+      this.ports.repository.insert({
         id: `working-${nanoid(12)}`,
         agentId,
         kind: 'working',
@@ -174,7 +187,7 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
         WORKING_CANDIDATE_PAGE_LIMIT,
         WORKING_CANDIDATE_SCAN_LIMIT - scanned
       )
-      const units = this.ctx.deps.repository.listWorkingCandidates(agentId, pageLimit, cursor)
+      const units = this.ports.repository.listWorkingCandidates(agentId, pageLimit, cursor)
       if (!units.length) break
       scanned += units.length
       for (const unit of units) {

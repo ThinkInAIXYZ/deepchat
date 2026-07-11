@@ -375,8 +375,8 @@ describe('working-memory L1 (T5)', () => {
     // Empty query at session open: no embedding/recall, but the blob is injected.
     getEmbeddings.mockClear()
     const payload = await presenter.buildInjection('deepchat', '')
-    expect(payload?.working).toContain('user prefers redis')
-    expect(payload?.memories).toHaveLength(0)
+    expect(payload?.payload.working).toContain('user prefers redis')
+    expect(payload?.payload.memories).toHaveLength(0)
     expect(getEmbeddings).not.toHaveBeenCalled()
   })
 
@@ -426,7 +426,9 @@ describe('working-memory L1 (T5)', () => {
         { agentId: 'deepchat' }
       )
       expect(listCandidates).toHaveBeenCalledTimes(1)
-      expect((await presenter.buildInjection('deepchat', ''))?.working).toContain('read flush fact')
+      expect((await presenter.buildInjection('deepchat', ''))?.payload.working).toContain(
+        'read flush fact'
+      )
       expect(listCandidates).toHaveBeenCalledTimes(2)
       await vi.advanceTimersByTimeAsync(100)
       expect(listCandidates).toHaveBeenCalledTimes(2)
@@ -446,17 +448,17 @@ describe('working-memory L1 (T5)', () => {
       status: 'embedded'
     })
     presenter.refreshWorkingMemory('deepchat')
-    expect((await presenter.buildInjection('deepchat', ''))?.working).toContain(
+    expect((await presenter.buildInjection('deepchat', ''))?.payload.working).toContain(
       'stale redis preference'
     )
 
     expect(await presenter.forgetMemory('deepchat', 's1')).toBe(true)
-    expect((await presenter.buildInjection('deepchat', ''))?.working ?? '').not.toContain(
+    expect((await presenter.buildInjection('deepchat', ''))?.payload.working ?? '').not.toContain(
       'stale redis preference'
     )
 
     expect(presenter.restoreMemory('deepchat', 's1')).toBe(true)
-    expect((await presenter.buildInjection('deepchat', ''))?.working).toContain(
+    expect((await presenter.buildInjection('deepchat', ''))?.payload.working).toContain(
       'stale redis preference'
     )
   })
@@ -472,12 +474,12 @@ describe('working-memory L1 (T5)', () => {
       status: 'embedded'
     })
     presenter.refreshWorkingMemory('deepchat')
-    expect((await presenter.buildInjection('deepchat', ''))?.working).toContain(
+    expect((await presenter.buildInjection('deepchat', ''))?.payload.working).toContain(
       'delete me from working memory'
     )
 
     expect(await presenter.deleteMemory('deepchat', 's1')).toBe(true)
-    expect((await presenter.buildInjection('deepchat', ''))?.working ?? '').not.toContain(
+    expect((await presenter.buildInjection('deepchat', ''))?.payload.working ?? '').not.toContain(
       'delete me from working memory'
     )
   })
@@ -496,12 +498,12 @@ describe('working-memory L1 (T5)', () => {
     })
     repo.updateDecayScore('s1', 0.01)
     presenter.refreshWorkingMemory('deepchat')
-    expect((await presenter.buildInjection('deepchat', ''))?.working).toContain(
+    expect((await presenter.buildInjection('deepchat', ''))?.payload.working).toContain(
       'archive me from working memory'
     )
 
     expect(presenter.archiveStale('deepchat', now)).toBe(1)
-    expect((await presenter.buildInjection('deepchat', ''))?.working ?? '').not.toContain(
+    expect((await presenter.buildInjection('deepchat', ''))?.payload.working ?? '').not.toContain(
       'archive me from working memory'
     )
   })
@@ -519,7 +521,9 @@ describe('working-memory L1 (T5)', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect((await presenter.buildInjection('a', ''))?.working).toContain('user prefers valkey')
+    expect((await presenter.buildInjection('a', ''))?.payload.working).toContain(
+      'user prefers valkey'
+    )
   })
 
   it('refreshes the working blob after remember updates an existing memory', async () => {
@@ -529,7 +533,9 @@ describe('working-memory L1 (T5)', () => {
     const { presenter } = makeLLMPresenter(generateText)
     await seedEmbedded(presenter, 'user prefers redis')
     presenter.refreshWorkingMemory('a')
-    expect((await presenter.buildInjection('a', ''))?.working).toContain('user prefers redis')
+    expect((await presenter.buildInjection('a', ''))?.payload.working).toContain(
+      'user prefers redis'
+    )
 
     const outcome = await presenter.rememberMemory(
       { kind: 'semantic', content: 'user prefers redis and postgres', importance: 0.8 },
@@ -538,7 +544,7 @@ describe('working-memory L1 (T5)', () => {
     )
 
     expect(outcome.action).toBe('updated')
-    const working = (await presenter.buildInjection('a', ''))?.working ?? ''
+    const working = (await presenter.buildInjection('a', ''))?.payload.working ?? ''
     expect(working).toContain('user prefers postgres')
     expect(working).not.toContain('user prefers redis')
   })
@@ -548,10 +554,10 @@ describe('working-memory L1 (T5)', () => {
     const targetId = await seedEmbedded(presenter, 'user likes redis')
     presenter.refreshWorkingMemory('a')
     seedConflicted(repo, 'c1', targetId, 'user dislikes redis')
-    expect((await presenter.buildInjection('a', ''))?.working).toContain('user likes redis')
+    expect((await presenter.buildInjection('a', ''))?.payload.working).toContain('user likes redis')
 
     expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toBe(true)
-    const resolvedWorking = (await presenter.buildInjection('a', ''))?.working ?? ''
+    const resolvedWorking = (await presenter.buildInjection('a', ''))?.payload.working ?? ''
     expect(repo.getById(targetId)?.status).toBe('archived')
     expect(resolvedWorking).toContain('user dislikes redis')
     expect(resolvedWorking).not.toContain('user likes redis')
@@ -587,7 +593,7 @@ describe('working-memory L1 (T5)', () => {
     expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(false)
 
     config = { memoryEnabled: true }
-    expect((await presenter.buildInjection('a', ''))?.working ?? '').not.toContain(
+    expect((await presenter.buildInjection('a', ''))?.payload.working ?? '').not.toContain(
       'disabled stale working fact'
     )
   })
@@ -655,8 +661,8 @@ describe('working-memory L1 (T5)', () => {
       importance: 0.9
     })
     const payload = await presenter.buildInjection('deepchat', 'redis')
-    expect(payload?.working).toBeFalsy()
-    expect(payload?.memories.map((item) => item.id)).toContain('s1')
+    expect(payload?.payload.working).toBeFalsy()
+    expect(payload?.payload.memories.map((item) => item.id)).toContain('s1')
   })
 
   it('fails injection closed when forget commits during an awaited vector query', async () => {
@@ -798,7 +804,7 @@ describe('working-memory L1 (T5)', () => {
 
     const injection = await presenter.buildInjection('deepchat', '')
 
-    expect(injection?.working).toContain('legacy working fact')
+    expect(injection?.payload.working).toContain('legacy working fact')
     expect(repo.getById(row.id)?.provenance_key).toBe(
       buildMemoryProvenanceKey('deepchat', 'working', WORKING_PROVENANCE_SEED)
     )
@@ -826,7 +832,7 @@ describe('working-memory L1 (T5)', () => {
 
     const injection = await presenter.buildInjection('deepchat', '')
 
-    expect(injection?.working).toContain('current working fact')
+    expect(injection?.payload.working).toContain('current working fact')
     expect(repo.getById('working-v2')).toBeDefined()
     expect(repo.getById('working-v1')).toBeUndefined()
   })
@@ -859,14 +865,14 @@ describe('working-memory L1 (T5)', () => {
     })
     // First open: no blob yet, so this turn is served by recall and a refresh is kicked off.
     const first = await presenter.buildInjection('deepchat', 'redis')
-    expect(first?.working).toBeFalsy()
-    expect(first?.memories.map((item) => item.id)).toContain('s1')
+    expect(first?.payload.working).toBeFalsy()
+    expect(first?.payload.memories.map((item) => item.id)).toContain('s1')
     await waitForMemoryCondition(() =>
       [...repo.rows.values()].some((row) => row.kind === 'working')
     )
     // Next open: the background refresh has produced the blob.
     const second = await presenter.buildInjection('deepchat', '')
-    expect(second?.working).toContain('likes redis')
+    expect(second?.payload.working).toContain('likes redis')
   })
 
   it('coalesces concurrent cold-start misses into a single refresh', async () => {
@@ -903,7 +909,7 @@ describe('working-memory L1 (T5)', () => {
       [...repo.rows.values()].some((row) => row.kind === 'working')
     )
     const served = await presenter.buildInjection('deepchat', '')
-    expect(served?.working).toContain('likes redis')
+    expect(served?.payload.working).toContain('likes redis')
   })
 })
 
@@ -1315,8 +1321,8 @@ describe('MemoryPresenter recall + injection', () => {
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
     await presenter.processPendingEmbeddings('a')
     const payload = await presenter.buildInjection('a', 'redis')
-    expect(payload?.selfModel).toBe('I answer concisely')
-    expect(payload?.memories.length).toBeGreaterThan(0)
+    expect(payload?.payload.selfModel).toBe('I answer concisely')
+    expect(payload?.payload.memories.length).toBeGreaterThan(0)
   })
 
   it('records injection access only through the runtime-selected manifest seam', async () => {
@@ -1327,7 +1333,7 @@ describe('MemoryPresenter recall + injection', () => {
     await presenter.processPendingEmbeddings('a')
 
     const payload = await presenter.buildInjection('a', 'redis')
-    expect(payload?.memories.map((memory) => memory.id)).toContain(id)
+    expect(payload?.payload.memories.map((memory) => memory.id)).toContain(id)
     expect(repo.getById(id)?.access_count).toBe(0)
 
     presenter.recordInjectionAccess('a', [id, id], 1234)
@@ -1357,7 +1363,7 @@ describe('MemoryPresenter recall + injection', () => {
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
     await presenter.processPendingEmbeddings('a')
     const payload = await presenter.buildInjection('a', 'redis')
-    expect(payload?.memories[0]?.breakdown).toBeUndefined()
+    expect(payload?.payload.memories[0]?.breakdown).toBeUndefined()
   })
 })
 
@@ -1368,7 +1374,7 @@ describe('MemoryPresenter guarded persona evolution', () => {
     expect(repo.getById(draft!)?.persona_state).toBe('draft')
     expect(repo.getActivePersona('a')).toBeUndefined()
     const payload = await presenter.buildInjection('a', 'anything')
-    expect(payload?.selfModel ?? null).toBeNull()
+    expect(payload?.payload.selfModel ?? null).toBeNull()
   })
 
   it('evolvePersona refuses unmanaged or disabled agents', () => {
@@ -1402,12 +1408,12 @@ describe('MemoryPresenter guarded persona evolution', () => {
     await presenter.approvePersonaDraft('a', v1!)
     const v2 = presenter.evolvePersona('a', 'v2', null)
     // The pending draft is not yet injected.
-    expect((await presenter.buildInjection('a', 'q'))?.selfModel).toBe('v1')
+    expect((await presenter.buildInjection('a', 'q'))?.payload.selfModel).toBe('v1')
     await presenter.approvePersonaDraft('a', v2!)
     expect(repo.getById(v1!)?.superseded_by).toBe(v2)
     expect(repo.getById(v1!)?.persona_state).toBe('superseded')
     expect(repo.getActivePersona('a')?.id).toBe(v2)
-    expect((await presenter.buildInjection('a', 'q'))?.selfModel).toBe('v2')
+    expect((await presenter.buildInjection('a', 'q'))?.payload.selfModel).toBe('v2')
   })
 
   it('reject discards the draft and leaves the active persona unchanged', async () => {
@@ -1558,7 +1564,7 @@ describe('MemoryPresenter.maybeEvolvePersona (guarded, default off)', () => {
     expect(result?.needsReview).toBe(false)
     expect(repo.getById(result!.draftId)?.persona_state).toBe('draft')
     expect(repo.getActivePersona('a')).toBeUndefined()
-    expect((await presenter.buildInjection('a', 'q'))?.selfModel ?? null).toBeNull()
+    expect((await presenter.buildInjection('a', 'q'))?.payload.selfModel ?? null).toBeNull()
   })
 
   it('does not write a draft when the agent is deleted during persona generation', async () => {
@@ -1669,7 +1675,9 @@ describe('MemoryPresenter.maybeEvolvePersona (guarded, default off)', () => {
     seedUnits(repo, 'a', 6, 3000)
     await presenter.maybeEvolvePersona('a', model)
     // The active persona text is unchanged until the new draft is explicitly approved.
-    expect((await presenter.buildInjection('a', 'q'))?.selfModel).toBe('approved self-model')
+    expect((await presenter.buildInjection('a', 'q'))?.payload.selfModel).toBe(
+      'approved self-model'
+    )
     expect(repo.getActivePersona('a')?.content).toBe('approved self-model')
   })
 })
@@ -1691,12 +1699,14 @@ describe('MemoryPresenter management', () => {
       agentId: 'a'
     })
     presenter.refreshWorkingMemory('a')
-    expect((await presenter.buildInjection('a', ''))?.working).toContain('redis working fact')
+    expect((await presenter.buildInjection('a', ''))?.payload.working).toContain(
+      'redis working fact'
+    )
 
     await presenter.clearMemories('a')
 
     expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(false)
-    expect((await presenter.buildInjection('a', ''))?.working ?? '').not.toContain(
+    expect((await presenter.buildInjection('a', ''))?.payload.working ?? '').not.toContain(
       'redis working fact'
     )
   })

@@ -1,71 +1,32 @@
 import { nanoid } from 'nanoid'
-import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
-
-import { isSafeAgentId, type MemoryPresenterDeps } from './types'
-import type { MemoryUpdateContext, MemoryUpdateReason } from './types'
 import {
-  buildLegacyMemoryProvenanceKey,
-  buildMemoryProvenanceKey,
-  normalizeForProvenanceV2
-} from './core/scoring'
-import type { AgentMemoryRow } from './types'
+  isSafeAgentId,
+  type AgentMemoryAuditActorType,
+  type AgentMemoryAuditStatus
+} from '@shared/types/agent-memory'
+import type { MemoryUpdateReason } from '@shared/contracts/events/memory.events'
 
-function materializedRowCount(value: unknown): number {
-  if (Array.isArray(value)) return value.length
-  if (!value || typeof value !== 'object') return 0
-  const record = value as Record<string, unknown>
-  if (Array.isArray(record.rows)) return record.rows.length
-  if (Array.isArray(record.topRows)) return record.topRows.length
-  return 0
-}
+import type { MemoryModelRef, MemoryUpdateContext } from './domain/types'
+import type {
+  MemoryAgentPolicyPort,
+  MemoryAuditWritePort,
+  MemoryChangeSinkPort,
+  MemoryProviderControlPort
+} from './ports'
 
-function observeRepository(deps: MemoryPresenterDeps): MemoryPresenterDeps['repository'] {
-  const observer = deps.perfObserver
-  if (!observer) return deps.repository
-  const repository = deps.repository
-  return new Proxy(repository, {
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver)
-      if (typeof value !== 'function') return value
-      return (...args: unknown[]) => {
-        observer.increment('repositoryCalls')
-        const result = Reflect.apply(value, target, args)
-        observer.increment('materializedRows', materializedRowCount(result))
-        return result
-      }
-    }
-  })
-}
-
-export type MemoryModelRef = { providerId: string; modelId: string }
+export type { MemoryModelRef } from './domain/types'
 
 export interface MemoryOperationFence {
   agentId: string
   generation: number
 }
 
-export interface MemoryProviderPort {
-  abortAll(): void
-  abortAgent(agentId: string): void
-  generateText(
-    agentId: string,
-    providerId: string,
-    modelId: string,
-    prompt: string,
-    purpose: 'extraction' | 'decision' | 'maintenance'
-  ): Promise<string>
-  getEmbeddings(
-    agentId: string,
-    providerId: string,
-    modelId: string,
-    texts: string[],
-    purpose: 'query-embedding' | 'embedding-batch' | 'embedding-warm'
-  ): Promise<number[][]>
-  getDimensions(
-    agentId: string,
-    providerId: string,
-    modelId: string
-  ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
+export interface MemoryRuntimeContextOptions {
+  policy: MemoryAgentPolicyPort
+  auditWriter?: MemoryAuditWritePort
+  changeSink?: MemoryChangeSinkPort
+  onAgentMemoryMutated?: (agentId: string) => void
+  providerControl: MemoryProviderControlPort
 }
 
 export function embeddingFingerprint(providerId: string, modelId: string): string {
@@ -79,33 +40,12 @@ export function isUniqueConstraintError(error: unknown): boolean {
   return /UNIQUE constraint failed/i.test(message)
 }
 
-function isEquivalentProvenanceOwner(
-  owner: AgentMemoryRow | undefined,
-  kind: string,
-  normalizedContent: string
-): owner is AgentMemoryRow {
-  return (
-    owner !== undefined &&
-    owner.kind === kind &&
-    normalizeForProvenanceV2(owner.content) === normalizedContent
-  )
-}
-
 export class MemoryRuntimeContext {
   private disposed = false
   private readonly readEpochByAgent = new Map<string, number>()
   private readonly operationGenerationByAgent = new Map<string, number>()
-  readonly provider: MemoryProviderPort
-  readonly deps: MemoryPresenterDeps
 
-  constructor(
-    deps: MemoryPresenterDeps,
-    private readonly onAgentMemoryMutated: ((agentId: string) => void) | undefined,
-    provider: MemoryProviderPort
-  ) {
-    this.deps = { ...deps, repository: observeRepository(deps) }
-    this.provider = provider
-  }
+  constructor(private readonly options: MemoryRuntimeContextOptions) {}
 
   get isDisposed(): boolean {
     return this.disposed
@@ -116,7 +56,7 @@ export class MemoryRuntimeContext {
   }
 
   abortProviderRequests(): void {
-    this.provider.abortAll()
+    this.options.providerControl.abortAll()
   }
 
   captureOperationFence(agentId: string): MemoryOperationFence {
@@ -144,41 +84,8 @@ export class MemoryRuntimeContext {
   invalidateAgentOperations(agentId: string): number {
     const generation = (this.operationGenerationByAgent.get(agentId) ?? 0) + 1
     this.operationGenerationByAgent.set(agentId, generation)
-    this.provider.abortAgent(agentId)
+    this.options.providerControl.abortAgent(agentId)
     return generation
-  }
-
-  resolveProvenance(agentId: string, kind: string, content: string): AgentMemoryRow | undefined {
-    const normalizedContent = normalizeForProvenanceV2(content)
-    const v2Key = buildMemoryProvenanceKey(agentId, kind, content)
-    const resolveEquivalentV2Owner = (): AgentMemoryRow | undefined => {
-      const owner = this.deps.repository.getByProvenanceKey(agentId, v2Key)
-      return isEquivalentProvenanceOwner(owner, kind, normalizedContent) ? owner : undefined
-    }
-    const v2Owner = resolveEquivalentV2Owner()
-    if (v2Owner) return v2Owner
-
-    const legacyKey = buildLegacyMemoryProvenanceKey(agentId, kind, content)
-    const legacyOwner = this.deps.repository.getByProvenanceKey(agentId, legacyKey)
-    if (
-      !legacyOwner ||
-      legacyOwner.kind !== kind ||
-      normalizeForProvenanceV2(legacyOwner.content) !== normalizedContent
-    ) {
-      return undefined
-    }
-    try {
-      let rekeyed = false
-      this.deps.repository.runInTransaction(() => {
-        rekeyed = this.deps.repository.rekeyProvenance(agentId, legacyOwner.id, legacyKey, v2Key)
-      })
-      return rekeyed
-        ? (this.deps.repository.getById(legacyOwner.id) ?? legacyOwner)
-        : resolveEquivalentV2Owner()
-    } catch (error) {
-      if (!isUniqueConstraintError(error)) throw error
-      return resolveEquivalentV2Owner()
-    }
   }
 
   captureReadEpoch(agentId: string): number {
@@ -205,12 +112,12 @@ export class MemoryRuntimeContext {
   }
 
   isEnabled(agentId: string): boolean {
-    return this.deps.resolveAgentConfig(agentId)?.memoryEnabled === true
+    return this.options.policy.resolveAgentConfig(agentId)?.memoryEnabled === true
   }
 
   isPersonaEvolutionEnabled(agentId: string): boolean {
-    const config = this.deps.resolveAgentConfig(agentId)
-    return config?.memoryEnabled === true && config?.personaEvolutionEnabled === true
+    const config = this.options.policy.resolveAgentConfig(agentId)
+    return config?.memoryEnabled === true && config.personaEvolutionEnabled === true
   }
 
   assertSafeAgentId(agentId: string): void {
@@ -220,7 +127,8 @@ export class MemoryRuntimeContext {
   }
 
   isManagedAgent(agentId: string): boolean {
-    return this.deps.isManagedAgent ? this.deps.isManagedAgent(agentId) : true
+    const isManagedAgent = this.options.policy.isManagedAgent
+    return isManagedAgent ? isManagedAgent(agentId) : true
   }
 
   canWriteAgentMemory(agentId: string): boolean {
@@ -236,7 +144,7 @@ export class MemoryRuntimeContext {
   }
 
   canUseCurrentMemoryEmbedding(agentId: string, embedding: MemoryModelRef): boolean {
-    const current = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const current = this.options.policy.resolveAgentConfig(agentId)?.memoryEmbedding
     return (
       current?.providerId === embedding.providerId &&
       current?.modelId === embedding.modelId &&
@@ -245,17 +153,17 @@ export class MemoryRuntimeContext {
   }
 
   emitChanged(agentId: string, reason: MemoryUpdateReason, context?: MemoryUpdateContext): void {
-    this.onAgentMemoryMutated?.(agentId)
-    if (context) this.deps.onMemoryChanged?.(agentId, reason, context)
-    else this.deps.onMemoryChanged?.(agentId, reason)
+    this.options.onAgentMemoryMutated?.(agentId)
+    if (context) this.options.changeSink?.onMemoryChanged?.(agentId, reason, context)
+    else this.options.changeSink?.onMemoryChanged?.(agentId, reason)
   }
 
   writeAudit(
     agentId: string,
     input: {
       eventType: string
-      actorType: 'scheduler' | 'user' | 'runtime'
-      status: 'completed' | 'skipped' | 'failed'
+      actorType: AgentMemoryAuditActorType
+      status: AgentMemoryAuditStatus
       reason?: string | null
       inputRefs?: Record<string, unknown>
       outputRefs?: Record<string, unknown>
@@ -264,8 +172,7 @@ export class MemoryRuntimeContext {
       createdAt?: number
     }
   ): void {
-    if (!this.deps.auditRepository) return
-    this.deps.auditRepository.insert({
+    this.options.auditWriter?.insert({
       id: `audit-${nanoid(12)}`,
       agentId,
       eventType: input.eventType,
@@ -282,18 +189,18 @@ export class MemoryRuntimeContext {
   }
 
   resolveExtractionModel(agentId: string, fallback: MemoryModelRef): MemoryModelRef {
-    const configured = this.deps.resolveAgentConfig(agentId)?.memoryExtractionModel
-    if (configured?.providerId && configured?.modelId) {
+    const configured = this.options.policy.resolveAgentConfig(agentId)?.memoryExtractionModel
+    if (configured?.providerId && configured.modelId) {
       return { providerId: configured.providerId, modelId: configured.modelId }
     }
     return fallback
   }
 
   resolveConsolidationModel(agentId: string): MemoryModelRef | null {
-    const configured = this.deps.resolveAgentConfig(agentId)?.memoryExtractionModel
-    if (configured?.providerId && configured?.modelId) {
+    const configured = this.options.policy.resolveAgentConfig(agentId)?.memoryExtractionModel
+    if (configured?.providerId && configured.modelId) {
       return { providerId: configured.providerId, modelId: configured.modelId }
     }
-    return this.deps.resolveAgentDefaultModel?.(agentId) ?? null
+    return this.options.policy.resolveAgentDefaultModel?.(agentId) ?? null
   }
 }

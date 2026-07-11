@@ -108,12 +108,14 @@ flowchart TD
 | Layer | File | Responsibility |
 | --- | --- | --- |
 | Kernel | `src/main/presenter/memoryPresenter/index.ts` | `MemoryPresenter` facade — public method compatibility, service wiring, narrow port binding, `dispose()` and deleted-agent cleanup orchestration |
-| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — read epochs, destructive operation generations, disposed state, validation/guard helpers, audit/events, and model resolution |
+| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — read epochs, destructive operation generations, disposed state, validation/guard helpers, private provider abort coordination, audit/events, and model resolution; it exposes no repository/provider/vector escape hatch |
 | Kernel | `memoryPresenter/runtimeConstants.ts` | Internal runtime scheduling, lifecycle, working-memory, and warmup constants |
-| Kernel | `memoryPresenter/types.ts` | Repository/vector DTOs, enum types, and the retrieval/scoring/decay tunable constants |
-| Kernel | `memoryPresenter/ports.ts` | Root-owned cross-layer ports such as `VectorStoreRetrievalPort` and `WorkingMemoryReadPort` |
+| Domain | `memoryPresenter/domain/types.ts` | Persistence-shaped memory rows plus lifecycle, recall, write, management, and maintenance domain types; no runtime or storage-concrete dependencies |
+| Domain | `memoryPresenter/domain/audit.ts` | Content-free audit rows, actors, statuses, inputs, and query result types |
+| Kernel | `memoryPresenter/types.ts` | `MemoryPresenterDeps`, tunable constants, and compatibility re-exports for existing import paths |
+| Kernel | `memoryPresenter/ports.ts` | Root-owned narrow repository, audit, policy, provider, vector, change-sink, provenance, and collaborator capabilities; composite ports are composition-only |
 | Kernel | `memoryPresenter/injection.ts` | Lightweight public sub-entry for injection helpers/types without loading the facade composition root |
-| Services | `memoryPresenter/services/rowMutations.ts` | Shared stateful row mutation leaf helpers for insert/update/supersede/conflict/provenance/confidence primitives |
+| Services | `memoryPresenter/services/rowMutations.ts` | Shared stateful row mutation implementation for insert/update/supersede/conflict/provenance/confidence primitives; consumers depend on root-owned collaborator ports, not this concrete class |
 | Services | `memoryPresenter/services/retrievalService.ts` | Hybrid recall/search/injection orchestration, keyword query, query embedding gate, soft timeout, RRF fusion, access recording |
 | Services | `memoryPresenter/services/writeCoordinator.ts` | Sync writes, extraction writes, user/tool writes, decision ring application, audit, and background trigger ports |
 | Services | `memoryPresenter/services/maintenanceService.ts` | Startup/prewarm/consolidation timers, merge/challenge/reflection/persona maintenance, decay/archive passes |
@@ -132,11 +134,11 @@ flowchart TD
 | Core | `memoryPresenter/core/batchDecision.ts` | Pure 4-candidate/12k-token decision partitioner and indexed batch-result parser |
 | Core | `memoryPresenter/core/maintenanceBudget.ts` | Shared per-pass call/token accounting with fixed challenge/merge/reflection/persona quotas |
 | Core | `memoryPresenter/core/extraction.ts` | Triage + extraction prompts and parsers; reflection/persona prompts; persona small-step (Levenshtein) guard |
-| Core | `memoryPresenter/core/injectionPort.ts` | `sanitizeForInjection` + the token-budgeted Context Assembler + the injection manifest |
+| Core | `memoryPresenter/core/injectionPort.ts` | `sanitizeForInjection`, the token-budgeted Context Assembler, the injection manifest, and the sole legacy/canonical injection input normalizer |
 | Core | `memoryPresenter/core/lifecycle.ts` | Lifecycle diagnostics and archive/freshness thresholds |
 | Core | `memoryPresenter/core/recallKeyword.ts` | Pure keyword candidate extraction and selection for recall |
 | Core | `memoryPresenter/core/scoring.ts` | Recall `retrievalScore`, `decayScore`, RRF `fuse()`, provenance keys |
-| Shared | `shared/types/agent-memory.ts` | `AgentMemoryCategory`, `AGENT_MEMORY_CATEGORIES`, and deterministic category importance floors |
+| Shared | `shared/types/agent-memory.ts` | Memory category/audit constants, deterministic importance floors, and the authoritative agent-id pattern/predicate |
 | Storage | `sqlitePresenter/tables/agentMemory.ts` | `agent_memory` table + `agent_memory_fts` FTS5 + keyword search |
 | Storage | `sqlitePresenter/tables/agentMemoryAudit.ts` | `agent_memory_audit` content-free maintenance ledger |
 | Storage | `sqlitePresenter/tables/deepchatTapeSearchProjection.ts` | `deepchat_tape_search_projection` (+ meta + FTS) evidence projection |
@@ -147,18 +149,25 @@ flowchart TD
 | Tools | `toolPresenter/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
 | Skills | `resources/skills/memory-management/SKILL.md` | Discoverable guidance for recall/remember discipline and Memory vs Skill vs Scheduled Task routing |
 | Contracts | `shared/contracts/routes/memory.routes.ts` | All `memory.*` IPC routes + DTO schemas |
-| Contracts | `shared/contracts/events/memory.events.ts` | `memory.updated` event + reason enum |
+| Contracts | `shared/contracts/events/memory.events.ts` | `memory.updated` event plus the schema-derived authoritative update-reason type |
 | Renderer | `renderer/settings/components/Memory*.vue`, `renderer/api/MemoryClient.ts` | The settings IA (page, config tab, manage tab) |
 
-Directory boundaries enforce dependency direction and are checked by `scripts/architecture-guard.mjs`:
-`core/` must not import `context`, `services`, `infra`, `runtimeConstants`, or facade entrypoints;
-`infra/` may import `core`, root `types`, `ports`, `context`, and `runtimeConstants`, but not
-`services` or facade entrypoints; `services/` may import `core` and root runtime contracts
-(`types`, `ports`, `context`, `runtimeConstants`), but not infra concrete modules. Business calls
-between services stay facade-wired through narrow function ports. `services/rowMutations.ts` is the
-only service-layer import exception because it is a shared stateful row mutation leaf. `index.ts` is
-the only composition root that may import every internal layer; all other root files are lightweight
-entrypoints/contracts and may not import `services`, `infra`, or the facade entrypoint.
+Directory boundaries enforce dependency direction and are checked by `scripts/architecture-guard.mjs`.
+`domain/` depends only on shared contracts; `core/` must not import `context`, `services`, `infra`,
+`runtimeConstants`, or facade entrypoints. `infra/` and `services/` may consume domain/core types and
+root runtime contracts (`types`, `ports`, `context`, `runtimeConstants`), but may not import each
+other's concrete implementations. Services and infra receive only their declared narrow capabilities:
+they cannot inject composition-only repository/audit/provider composites, import SQLite table concrete
+types, or recover the former `ctx.deps`/`ctx.provider` service-locator path. Business calls between
+services stay facade-wired through root-owned collaborator ports. `index.ts` is the only composition
+root that may import every internal layer; it applies the performance observer once to the complete
+repository and projects every capability from that same object. Other root files are lightweight
+entrypoints/contracts and may not import `services`, `infra`, or the facade entrypoint. The shared
+lineage codec remains the only parser/serializer for `source_entry_ids`.
+The memory guard fails closed when its TypeScript config/program cannot be created, resolves composite
+ports by symbol with file-specific allowlists, locks the runtime-context public surface and exact root
+compatibility exports, and follows local lineage JSON helper data flow. Architecture tests use an
+in-memory virtual source overlay, so parallel or interrupted runs cannot leave files under `src/`.
 
 ---
 

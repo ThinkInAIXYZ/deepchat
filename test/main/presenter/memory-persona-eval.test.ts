@@ -73,9 +73,9 @@ describe('persona evolution eval probes (US-6)', () => {
     // version — the version the user approved, never a stale or draft one.
     const sessionA = await presenter.buildInjection('a', 'first question')
     const sessionB = await presenter.buildInjection('a', 'an unrelated question much later')
-    expect(sessionA?.selfModel).toBe('I am concise, direct, and technical.')
-    expect(sessionB?.selfModel).toBe(sessionA?.selfModel)
-    expect(repo.getActivePersona('a')?.content).toBe(sessionB?.selfModel)
+    expect(sessionA?.payload.selfModel).toBe('I am concise, direct, and technical.')
+    expect(sessionB?.payload.selfModel).toBe(sessionA?.payload.selfModel)
+    expect(repo.getActivePersona('a')?.content).toBe(sessionB?.payload.selfModel)
   })
 
   it('AC-6.1 keeps preference memories recallable after the persona evolves', async () => {
@@ -92,15 +92,15 @@ describe('persona evolution eval probes (US-6)', () => {
 
     // Re-asking the preference several turns later still recalls it, alongside the evolved self-model.
     const payload = await presenter.buildInjection('a', 'redis')
-    expect(payload?.selfModel).toBe('I default to redis-backed caching advice.')
-    expect(payload?.memories.some((memory) => memory.content.includes('redis'))).toBe(true)
+    expect(payload?.payload.selfModel).toBe('I default to redis-backed caching advice.')
+    expect(payload?.payload.memories.some((memory) => memory.content.includes('redis'))).toBe(true)
   })
 
   it('AC-6.2 never drifts the active self-model across evolution rounds without approval', async () => {
     const { presenter, repo } = makeAgent(distiller('a brand new distilled self-model'))
     const baselineId = presenter.evolvePersona('a', 'the approved baseline self-model', null)
     expect(await presenter.approvePersonaDraft('a', baselineId!)).toBe(true)
-    const baseline = (await presenter.buildInjection('a', 'q'))?.selfModel
+    const baseline = (await presenter.buildInjection('a', 'q'))?.payload.selfModel
     expect(baseline).toBe('the approved baseline self-model')
 
     // Several evolution rounds, each adding fresh high-importance units; none of them approved.
@@ -108,7 +108,7 @@ describe('persona evolution eval probes (US-6)', () => {
       seedUnits(repo, 'a', 6, 3000 + round * 100)
       await presenter.maybeEvolvePersona('a', MODEL)
       // The injected self-model is byte-for-byte unchanged on every round.
-      expect((await presenter.buildInjection('a', 'q'))?.selfModel).toBe(baseline)
+      expect((await presenter.buildInjection('a', 'q'))?.payload.selfModel).toBe(baseline)
       expect(repo.getActivePersona('a')?.content).toBe(baseline)
     }
     // At most one outstanding draft accumulates; the rest are throttled before any model call.

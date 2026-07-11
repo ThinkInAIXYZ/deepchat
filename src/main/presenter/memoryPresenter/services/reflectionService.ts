@@ -16,17 +16,34 @@ import { selectMaintenanceRowsWithinTokenBudget } from '../core/maintenanceBudge
 import { MaintenanceBudget } from '../core/maintenanceBudget'
 import type { MemoryMaintenanceReflectionResult, MemoryReflectionResult } from '../types'
 import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import type {
+  MemoryLifecycleRepositoryPort,
+  MemoryMutationRepositoryPort,
+  MemoryProvenanceResolverPort,
+  MemoryReadRepositoryPort,
+  MemoryTextGenerationPort,
+  MemoryTransactionPort
+} from '../ports'
 
 export class ReflectionService {
+  private readonly ctx: MemoryRuntimeContext
   private readonly reflectionAttemptWatermark = new Map<string, number>()
 
   constructor(
-    private readonly ctx: MemoryRuntimeContext,
     private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort &
+        MemoryMutationRepositoryPort &
+        MemoryLifecycleRepositoryPort &
+        MemoryTransactionPort
+      textGeneration: MemoryTextGenerationPort
+      provenance: MemoryProvenanceResolverPort
       syncWorkingMemoryAfterMutation: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
     }
-  ) {}
+  ) {
+    this.ctx = ports.ctx
+  }
 
   async maybeReflect(
     agentId: string,
@@ -53,7 +70,7 @@ export class ReflectionService {
     if (!this.ctx.canWriteAgentMemory(agentId)) return finish(null)
     const operationFence = this.ctx.captureOperationFence(agentId)
     try {
-      const lastReflection = this.ctx.deps.repository.listByAgent(agentId, {
+      const lastReflection = this.ports.repository.listByAgent(agentId, {
         kinds: ['reflection'],
         limit: 1
       })[0]
@@ -61,7 +78,7 @@ export class ReflectionService {
         lastReflection?.created_at ?? 0,
         this.reflectionAttemptWatermark.get(agentId) ?? 0
       )
-      const cognitive = this.ctx.deps.repository.getCognitiveMaintenanceInput(agentId, {
+      const cognitive = this.ports.repository.getCognitiveMaintenanceInput(agentId, {
         kinds: ['episodic', 'semantic'],
         watermark,
         limit: REFLECTION_MEMORY_LIMIT
@@ -89,7 +106,7 @@ export class ReflectionService {
       let raw = ''
       try {
         calls += 1
-        raw = await this.ctx.provider.generateText(
+        raw = await this.ports.textGeneration.generateText(
           agentId,
           reflectionModel.providerId,
           reflectionModel.modelId,
@@ -102,7 +119,7 @@ export class ReflectionService {
       }
       if (!this.ctx.canContinueOperation(operationFence)) return finish(null)
       const insights = parseReflectionInsights(raw)
-      const reflectionIds = this.ctx.deps.repository.runInTransaction(() =>
+      const reflectionIds = this.ports.repository.runInTransaction(() =>
         insights.flatMap((insight) => {
           const id = this.insertReflection(agentId, insight, sourceSession ?? null)
           return id ? [id] : []
@@ -136,10 +153,10 @@ export class ReflectionService {
     const trimmed = content.trim()
     if (!trimmed) return null
     const provenanceKey = buildMemoryProvenanceKey(agentId, 'reflection', trimmed)
-    if (this.ctx.resolveProvenance(agentId, 'reflection', trimmed)) return null
+    if (this.ports.provenance.resolveProvenance(agentId, 'reflection', trimmed)) return null
     const id = `mem-${nanoid(12)}`
     try {
-      this.ctx.deps.repository.insert({
+      this.ports.repository.insert({
         id,
         agentId,
         kind: 'reflection',

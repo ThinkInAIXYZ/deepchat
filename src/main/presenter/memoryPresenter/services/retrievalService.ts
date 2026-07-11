@@ -34,7 +34,14 @@ import {
   type NormalizedMemoryCandidate
 } from '../types'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
-import type { VectorStoreRetrievalPort, WorkingMemoryReadPort } from '../ports'
+import type {
+  MemoryAccessRepositoryPort,
+  MemoryAgentPolicyPort,
+  MemoryEmbeddingGatewayPort,
+  MemoryReadRepositoryPort,
+  VectorStoreRetrievalPort,
+  WorkingMemoryReadPort
+} from '../ports'
 
 type SoftTimeoutResult<T> = { timedOut: true } | { timedOut: false; value: T }
 
@@ -92,13 +99,17 @@ async function withSoftTimeout<T>(
 }
 
 export class RetrievalService {
+  private readonly ctx: MemoryRuntimeContext
   private readonly queryEmbeddingInFlight = new Map<string, Map<string, QueryEmbeddingInFlight>>()
 
   constructor(
-    private readonly ctx: MemoryRuntimeContext,
-    private readonly vectorStore: VectorStoreRetrievalPort,
-    private readonly workingMemory: WorkingMemoryReadPort,
     private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort & MemoryAccessRepositoryPort
+      policy: MemoryAgentPolicyPort
+      embeddingGateway: MemoryEmbeddingGatewayPort
+      vectorStore: VectorStoreRetrievalPort
+      workingMemory: WorkingMemoryReadPort
       warmVectorStore: (
         agentId: string,
         embedding: MemoryModelRef,
@@ -115,7 +126,9 @@ export class RetrievalService {
         memoryIds: string[]
       ) => Promise<string[]>
     }
-  ) {}
+  ) {
+    this.ctx = ports.ctx
+  }
 
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
     if (!this.ctx.canReadAgentMemory(agentId)) return []
@@ -149,13 +162,13 @@ export class RetrievalService {
       return candidates.map(() => ({ neighbors: [] }))
     }
 
-    const config = this.ctx.deps.resolveAgentConfig(agentId)
+    const config = this.ports.policy.resolveAgentConfig(agentId)
     const { rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
     const candidateLimit = DECISION_NEIGHBOR_TOP_S * 2
     const keywordRows = candidates.map((candidate) => {
       const keywordQuery = this.buildAgentFacingRecallKeywordQuery(candidate.content)
       return keywordQuery
-        ? this.ctx.deps.repository.searchWithStrategy(agentId, keywordQuery, candidateLimit, {
+        ? this.ports.repository.searchWithStrategy(agentId, keywordQuery, candidateLimit, {
             matchMode: 'any'
           }).rows
         : []
@@ -184,7 +197,7 @@ export class RetrievalService {
         .filter((index) => index >= 0)
       if (missingIndexes.length) {
         try {
-          const embedded = await this.ctx.provider.getEmbeddings(
+          const embedded = await this.ports.embeddingGateway.getEmbeddings(
             agentId,
             currentEmbedding.providerId,
             currentEmbedding.modelId,
@@ -206,7 +219,7 @@ export class RetrievalService {
     )
     let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
     if (currentEmbedding && this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)) {
-      if (!this.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
+      if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
         void this.ports
           .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
           .catch((error) => {
@@ -220,7 +233,7 @@ export class RetrievalService {
           .filter((index) => index >= 0)
         if (dimensions > 0 && queryIndexes.length > 0) {
           try {
-            const matches = await this.vectorStore.queryBatch(
+            const matches = await this.ports.vectorStore.queryBatch(
               agentId,
               currentEmbedding,
               dimensions,
@@ -229,7 +242,7 @@ export class RetrievalService {
             )
             if (
               this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding) &&
-              this.vectorStore.hasReadyCertificate(agentId, currentEmbedding)
+              this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)
             ) {
               vectorContext = { embedding: currentEmbedding, dimensions }
               queryIndexes.forEach((candidateIndex, resultIndex) => {
@@ -244,7 +257,7 @@ export class RetrievalService {
           } catch (error) {
             const errorName = (error as { name?: string } | null)?.name
             if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
-              this.vectorStore.clearReady(agentId)
+              this.ports.vectorStore.clearReady(agentId)
             }
             logger.warn(`[Memory] batch vector recall degraded to FTS: ${String(error)}`)
           }
@@ -260,7 +273,7 @@ export class RetrievalService {
     vectorMatches.forEach((matches) => matches.forEach((match) => candidateIds.add(match.memoryId)))
     pinnedIdsByCandidate?.forEach((ids) => ids?.forEach((id) => candidateIds.add(id)))
     const authoritativeRows = candidateIds.size
-      ? this.ctx.deps.repository.listByIds(agentId, [...candidateIds])
+      ? this.ports.repository.listByIds(agentId, [...candidateIds])
       : []
     const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
     const vectorFingerprint = vectorContext
@@ -361,7 +374,7 @@ export class RetrievalService {
     if (existing) return existing.promise
     if (group.size >= RECALL_QUERY_EMBEDDING_MAX_CONCURRENT) return null
 
-    const promise = this.ctx.provider.getEmbeddings(
+    const promise = this.ports.embeddingGateway.getEmbeddings(
       agentId,
       embedding.providerId,
       embedding.modelId,
@@ -400,7 +413,7 @@ export class RetrievalService {
     const limited = hits.slice(0, limit)
     const results: MemorySearchHit[] = []
     for (const hit of limited) {
-      const row = this.ctx.deps.repository.getById(hit.id)
+      const row = this.ports.repository.getById(hit.id)
       if (row)
         results.push({ row, score: hit.score, sources: hit.sources, similarity: hit.similarity })
     }
@@ -421,7 +434,7 @@ export class RetrievalService {
     } = {}
   ): Promise<MemoryRecallItem[]> {
     if (!this.ctx.canReadAgentMemory(agentId)) return []
-    const config = this.ctx.deps.resolveAgentConfig(agentId)
+    const config = this.ports.policy.resolveAgentConfig(agentId)
     const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
     const normalizedQuery = query.trim()
     if (!normalizedQuery) return []
@@ -431,7 +444,7 @@ export class RetrievalService {
       options.topKOverride !== undefined ? clampRetrievalTopK(options.topKOverride) : topK
     const candidateLimit = effectiveTopK * 2
     const ftsRows = normalizedKeywordQuery
-      ? this.ctx.deps.repository
+      ? this.ports.repository
           .searchWithStrategy(agentId, normalizedKeywordQuery, candidateLimit, {
             matchMode: options.keywordMatchMode ?? 'all'
           })
@@ -443,7 +456,7 @@ export class RetrievalService {
     const embedding = config?.memoryEmbedding
     if (embedding?.providerId && embedding?.modelId) {
       const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-      if (!this.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
+      if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
         void this.ports
           .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
           .catch((error) => {
@@ -476,7 +489,7 @@ export class RetrievalService {
               const vector = vectors[0]
               if (vector?.length) {
                 if (!this.ctx.canReadAgentMemory(agentId)) return []
-                const matches = await this.vectorStore.query(
+                const matches = await this.ports.vectorStore.query(
                   agentId,
                   currentEmbedding,
                   vector.length,
@@ -485,7 +498,7 @@ export class RetrievalService {
                 )
                 if (!this.ctx.canReadAgentMemory(agentId)) return []
                 if (
-                  this.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
+                  this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
                   this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
                 ) {
                   if (!this.ctx.canReadAgentMemory(agentId)) return []
@@ -515,7 +528,7 @@ export class RetrievalService {
           if (!this.ctx.canReadAgentMemory(agentId)) return []
           const errorName = (error as { name?: string } | null)?.name
           if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
-            this.vectorStore.clearReady(agentId)
+            this.ports.vectorStore.clearReady(agentId)
           }
           logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
         }
@@ -527,7 +540,7 @@ export class RetrievalService {
       ...vecCandidates.map((candidate) => candidate.memoryId)
     ]
     const authoritativeRows = candidateIds.length
-      ? this.ctx.deps.repository.listByIds(agentId, [...new Set(candidateIds)])
+      ? this.ports.repository.listByIds(agentId, [...new Set(candidateIds)])
       : []
     const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
     const authoritativeFtsRows = ftsRows
@@ -582,7 +595,7 @@ export class RetrievalService {
       trace: options.trace
     })
     if (recordAccessHits && this.ctx.canReadAgentMemory(agentId)) {
-      this.ctx.deps.repository.recordAccessBatch(
+      this.ports.repository.recordAccessBatch(
         results.map((item) => item.id),
         now
       )
@@ -593,7 +606,7 @@ export class RetrievalService {
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
     if (!this.ctx.canReadAgentMemory(agentId)) return null
     const readEpoch = this.ctx.captureReadEpoch(agentId)
-    const config = this.ctx.deps.resolveAgentConfig(agentId)
+    const config = this.ports.policy.resolveAgentConfig(agentId)
     const recalled = query.trim()
       ? await this.retrieve(agentId, query, Date.now(), false, {
           keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
@@ -603,11 +616,11 @@ export class RetrievalService {
     if (!this.ctx.canReadAgentMemory(agentId) || !this.ctx.isReadEpochCurrent(agentId, readEpoch)) {
       return null
     }
-    this.workingMemory.flushWorkingMemoryIfDirty(agentId)
+    this.ports.workingMemory.flushWorkingMemoryIfDirty(agentId)
     const finalizedEpoch = this.ctx.captureReadEpoch(agentId)
-    const persona = this.ctx.deps.repository.getActivePersona(agentId)
-    const working = this.workingMemory.readWorkingMemory(agentId)
-    if (!working) this.workingMemory.scheduleWorkingRefresh(agentId)
+    const persona = this.ports.repository.getActivePersona(agentId)
+    const working = this.ports.workingMemory.readWorkingMemory(agentId)
+    if (!working) this.ports.workingMemory.scheduleWorkingRefresh(agentId)
     if (
       !this.ctx.canReadAgentMemory(agentId) ||
       !this.ctx.isReadEpochCurrent(agentId, finalizedEpoch)
@@ -638,7 +651,7 @@ export class RetrievalService {
       estimatedTokens: 0,
       queryHash: query.trim() ? buildMemoryProvenanceKey(agentId, 'query', query.trim()) : undefined
     }
-    return { ...payload, payload, manifest }
+    return { payload, manifest }
   }
 
   cleanupAgent(agentId: string): void {

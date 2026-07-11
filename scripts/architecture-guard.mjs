@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { analyzeMemoryArchitecture } from './lib/memory-architecture-guard.mjs'
 
 const ROOT = process.cwd()
 const SOURCE_EXTENSIONS = new Set([
@@ -36,23 +38,7 @@ const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
-const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
-const MEMORY_PRESENTER_FACADE_PATH = path.join(MEMORY_PRESENTER_ROOT, 'index.ts')
-const MEMORY_PRESENTER_CORE_ROOT = path.join(MEMORY_PRESENTER_ROOT, 'core')
-const MEMORY_PRESENTER_INFRA_ROOT = path.join(MEMORY_PRESENTER_ROOT, 'infra')
-const MEMORY_PRESENTER_SERVICES_ROOT = path.join(MEMORY_PRESENTER_ROOT, 'services')
-const MEMORY_PRESENTER_CORE_ALLOWED_ROOT_MODULES = new Set([
-  path.join(MEMORY_PRESENTER_ROOT, 'types.ts')
-])
-const MEMORY_PRESENTER_RUNTIME_ALLOWED_ROOT_MODULES = new Set([
-  path.join(MEMORY_PRESENTER_ROOT, 'context.ts'),
-  path.join(MEMORY_PRESENTER_ROOT, 'ports.ts'),
-  path.join(MEMORY_PRESENTER_ROOT, 'runtimeConstants.ts'),
-  path.join(MEMORY_PRESENTER_ROOT, 'types.ts')
-])
-const MEMORY_PRESENTER_SERVICE_LEAF_MODULES = new Set([
-  path.join(MEMORY_PRESENTER_SERVICES_ROOT, 'rowMutations.ts')
-])
+const SHARED_SOURCE_ROOT = path.join(ROOT, 'src/shared')
 const PHASE_ORDER = new Map([
   ['P0', 0],
   ['P1', 1],
@@ -302,7 +288,7 @@ function countDeprecatedMemoryClientCalls(source, filePath) {
   return count
 }
 
-async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) {
+async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT, virtualFiles = new Map()) {
   const tryFile = async (basePath) => {
     const candidates = [
       basePath,
@@ -321,6 +307,7 @@ async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) 
     ]
 
     for (const candidate of candidates) {
+      if (virtualFiles.has(path.resolve(candidate))) return candidate
       try {
         const stat = await fs.stat(candidate)
         if (stat.isFile()) {
@@ -334,6 +321,14 @@ async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) 
 
   if (specifier.startsWith('@/')) {
     return await tryFile(path.join(aliasRoot, specifier.slice(2)))
+  }
+
+  if (specifier === '@shared') {
+    return await tryFile(SHARED_SOURCE_ROOT)
+  }
+
+  if (specifier.startsWith('@shared/')) {
+    return await tryFile(path.join(SHARED_SOURCE_ROOT, specifier.slice('@shared/'.length)))
   }
 
   if (specifier.startsWith('.')) {
@@ -362,100 +357,6 @@ async function collectHotPathDirectEdges() {
   }
 
   return edges.sort()
-}
-
-function memoryPresenterLayer(filePath) {
-  if (!isUnder(filePath, MEMORY_PRESENTER_ROOT)) return null
-  if (isUnder(filePath, MEMORY_PRESENTER_CORE_ROOT)) return 'core'
-  if (isUnder(filePath, MEMORY_PRESENTER_INFRA_ROOT)) return 'infra'
-  if (isUnder(filePath, MEMORY_PRESENTER_SERVICES_ROOT)) return 'services'
-  return 'root'
-}
-
-function isAllowedMemoryPresenterCoreRootModule(filePath) {
-  return MEMORY_PRESENTER_CORE_ALLOWED_ROOT_MODULES.has(path.resolve(filePath))
-}
-
-function isAllowedMemoryPresenterRuntimeRootModule(filePath) {
-  return MEMORY_PRESENTER_RUNTIME_ALLOWED_ROOT_MODULES.has(path.resolve(filePath))
-}
-
-function isMemoryPresenterFacade(filePath) {
-  return path.resolve(filePath) === path.resolve(MEMORY_PRESENTER_FACADE_PATH)
-}
-
-async function checkMemoryPresenterLayerImports(filePath, specifiers, violations) {
-  const importerLayer = memoryPresenterLayer(filePath)
-  if (!importerLayer) return
-
-  for (const specifier of specifiers) {
-    const resolved = await resolveImport(specifier, filePath)
-    if (!resolved || !isUnder(resolved, MEMORY_PRESENTER_ROOT)) continue
-
-    const importedLayer = memoryPresenterLayer(resolved)
-    if (!importedLayer) continue
-
-    if (importerLayer === 'root') {
-      if (isMemoryPresenterFacade(filePath)) continue
-
-      const allowed =
-        importedLayer === 'core' || (importedLayer === 'root' && !isMemoryPresenterFacade(resolved))
-      if (!allowed) {
-        violations.push(
-          `[memory-presenter-layer] ${relativePath(filePath)} -> ${relativePath(resolved)}; only memoryPresenter/index.ts may import services, infra, or the facade entrypoint`
-        )
-      }
-      continue
-    }
-
-    if (importerLayer === 'core') {
-      const allowed = importedLayer === 'core' || isAllowedMemoryPresenterCoreRootModule(resolved)
-      if (!allowed) {
-        violations.push(
-          `[memory-presenter-layer] ${relativePath(filePath)} -> ${relativePath(resolved)}; core may only import core files and root contracts`
-        )
-      }
-      continue
-    }
-
-    if (importerLayer === 'infra') {
-      const allowed =
-        importedLayer === 'infra' ||
-        importedLayer === 'core' ||
-        isAllowedMemoryPresenterRuntimeRootModule(resolved)
-      if (!allowed) {
-        violations.push(
-          `[memory-presenter-layer] ${relativePath(filePath)} -> ${relativePath(resolved)}; infra must not import services or facade entrypoints`
-        )
-      }
-      continue
-    }
-
-    if (importerLayer === 'services') {
-      const sameFile = path.resolve(filePath) === path.resolve(resolved)
-      const allowedServiceLeaf = MEMORY_PRESENTER_SERVICE_LEAF_MODULES.has(path.resolve(resolved))
-      const allowedRootModule =
-        importedLayer !== 'root' || isAllowedMemoryPresenterRuntimeRootModule(resolved)
-
-      if (importedLayer === 'services' && !sameFile && !allowedServiceLeaf) {
-        violations.push(
-          `[memory-presenter-layer] ${relativePath(filePath)} -> ${relativePath(resolved)}; service-to-service imports must use facade ports, except rowMutations`
-        )
-      }
-
-      if (importedLayer === 'infra') {
-        violations.push(
-          `[memory-presenter-layer] ${relativePath(filePath)} -> ${relativePath(resolved)}; services must depend on root port contracts, not infra concrete modules`
-        )
-      }
-
-      if (!allowedRootModule) {
-        violations.push(
-          `[memory-presenter-layer] ${relativePath(filePath)} -> ${relativePath(resolved)}; services may only import root runtime contracts`
-        )
-      }
-    }
-  }
 }
 
 async function loadBridgeRegister() {
@@ -549,7 +450,10 @@ function extractModuleSpecifiers(source) {
   return [...specifiers]
 }
 
-async function main() {
+export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCompiler = {} } = {}) {
+  const normalizedVirtualFiles = new Map(
+    [...virtualFiles].map(([filePath, source]) => [path.resolve(filePath), source])
+  )
   const scanRoots = [path.join(ROOT, 'src'), path.join(ROOT, 'docs')]
   const fileSet = new Set()
 
@@ -559,7 +463,22 @@ async function main() {
     }
   }
 
+  for (const filePath of normalizedVirtualFiles.keys()) fileSet.add(filePath)
+
+  const readSource = async (filePath) =>
+    normalizedVirtualFiles.get(path.resolve(filePath)) ?? fs.readFile(filePath, 'utf8')
   const violations = []
+  violations.push(
+    ...(await analyzeMemoryArchitecture({
+      root: ROOT,
+      fileSet,
+      readSource,
+      resolveImport: (specifier, importer) =>
+        resolveImport(specifier, importer, MAIN_SOURCE_ROOT, normalizedVirtualFiles),
+      virtualFiles: normalizedVirtualFiles,
+      compiler: memoryCompiler
+    }))
+  )
 
   try {
     await loadBridgeRegister()
@@ -576,10 +495,8 @@ async function main() {
   }
 
   for (const filePath of [...fileSet].sort()) {
-    const source = await fs.readFile(filePath, 'utf8')
+    const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
-
-    await checkMemoryPresenterLayerImports(filePath, specifiers, violations)
 
     if (isUnder(filePath, MAIN_SOURCE_ROOT)) {
       const legacyListCalls = countMatches(source, LEGACY_MEMORY_PRESENTER_LIST_PATTERN)
@@ -723,18 +640,25 @@ async function main() {
     )
   }
 
-  if (violations.length > 0) {
-    console.error('Architecture guard failed.')
-    for (const violation of violations) {
-      console.error(`- ${violation}`)
-    }
-    process.exit(1)
-  }
-
-  console.log('Architecture guard passed.')
+  return violations
 }
 
-main().catch((error) => {
-  console.error('Architecture guard failed to run:', error)
-  process.exit(1)
-})
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
+
+if (isDirectRun) {
+  runArchitectureGuard()
+    .then((violations) => {
+      if (violations.length > 0) {
+        console.error('Architecture guard failed.')
+        for (const violation of violations) console.error(`- ${violation}`)
+        process.exitCode = 1
+        return
+      }
+      console.log('Architecture guard passed.')
+    })
+    .catch((error) => {
+      console.error('Architecture guard failed to run:', error)
+      process.exitCode = 1
+    })
+}

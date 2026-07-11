@@ -6,8 +6,22 @@ export const AGENT_MEMORY_CATEGORIES = [
   'anti_pattern'
 ] as const
 
+export const AGENT_MEMORY_AUDIT_ACTOR_TYPES = ['scheduler', 'user', 'runtime'] as const
+export const AGENT_MEMORY_AUDIT_STATUSES = ['completed', 'skipped', 'failed'] as const
+export const AGENT_MEMORY_AUDIT_FAILURE_STATUSES = ['failed', 'skipped'] as const
+
+export type AgentMemoryAuditActorType = (typeof AGENT_MEMORY_AUDIT_ACTOR_TYPES)[number]
+export type AgentMemoryAuditStatus = (typeof AGENT_MEMORY_AUDIT_STATUSES)[number]
+export type AgentMemoryAuditFailureStatus = (typeof AGENT_MEMORY_AUDIT_FAILURE_STATUSES)[number]
+
 export const AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS = 12_000
 export const AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS = 2_000
+
+export const AGENT_MEMORY_AGENT_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/
+
+export function isSafeAgentId(agentId: unknown): agentId is string {
+  return typeof agentId === 'string' && AGENT_MEMORY_AGENT_ID_PATTERN.test(agentId)
+}
 
 export type AgentMemoryCategory = (typeof AGENT_MEMORY_CATEGORIES)[number]
 

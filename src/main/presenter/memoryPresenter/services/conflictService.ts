@@ -19,6 +19,14 @@ import type {
   MemoryMaintenanceStepResult
 } from '../types'
 import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import type {
+  MemoryEmbeddingRepositoryPort,
+  MemoryLifecycleRepositoryPort,
+  MemoryMutationRepositoryPort,
+  MemoryReadRepositoryPort,
+  MemoryTextGenerationPort,
+  MemoryTransactionPort
+} from '../ports'
 
 interface ConflictResolutionOptions {
   mergedContent?: string | null
@@ -32,26 +40,36 @@ export interface ConflictIntegrityRepairResult {
 }
 
 export class ConflictService {
+  private readonly ctx: MemoryRuntimeContext
+
   constructor(
-    private readonly ctx: MemoryRuntimeContext,
     private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort &
+        MemoryMutationRepositoryPort &
+        MemoryEmbeddingRepositoryPort &
+        MemoryLifecycleRepositoryPort &
+        MemoryTransactionPort
+      textGeneration: MemoryTextGenerationPort
       scheduleConsolidation: (agentId: string) => void
       syncWorkingMemoryAfterMutation: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
     }
-  ) {}
+  ) {
+    this.ctx = ports.ctx
+  }
 
   listConflicts(agentId: string): MemoryConflictPair[] {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return []
-    const challengers = this.ctx.deps.repository.listByAgent(agentId, { statuses: ['conflicted'] })
+    const challengers = this.ports.repository.listByAgent(agentId, { statuses: ['conflicted'] })
     const pairs: MemoryConflictPair[] = []
     for (const challenger of challengers) {
       if (!challenger.conflict_with) {
         logger.warn(`[Memory] skipping conflict challenger without target: ${challenger.id}`)
         continue
       }
-      const target = this.ctx.deps.repository.getById(challenger.conflict_with)
+      const target = this.ports.repository.getById(challenger.conflict_with)
       if (
         !target ||
         target.agent_id !== agentId ||
@@ -67,7 +85,7 @@ export class ConflictService {
   }
 
   repairConflictIntegrity(agentId: string): ConflictIntegrityRepairResult {
-    const result = this.ctx.deps.repository.repairConflictIntegrityBatch(agentId, 256)
+    const result = this.ports.repository.repairConflictIntegrityBatch(agentId, 256)
 
     const total =
       result.repairedTargets +
@@ -103,9 +121,9 @@ export class ConflictService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return false
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
-    const challenger = this.ctx.deps.repository.getById(challengerId)
+    const challenger = this.ports.repository.getById(challengerId)
     const target = challenger?.conflict_with
-      ? this.ctx.deps.repository.getById(challenger.conflict_with)
+      ? this.ports.repository.getById(challenger.conflict_with)
       : undefined
     const pair =
       challenger?.agent_id === agentId &&
@@ -118,7 +136,7 @@ export class ConflictService {
         : undefined
     if (!pair) return false
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
-    this.ctx.deps.repository.runInTransaction(() => {
+    this.ports.repository.runInTransaction(() => {
       this.applyConflictResolution(agentId, pair, outcome, options)
     })
     this.ctx.markDomainMutationCommitted(agentId)
@@ -151,29 +169,29 @@ export class ConflictService {
     switch (outcome) {
       case 'keep_challenger':
         this.applyMergedChallengerContent(agentId, pair.challenger, options.mergedContent, now)
-        this.ctx.deps.repository.setConflictWith(pair.challenger.id, null)
-        this.ctx.deps.repository.activateForEmbedding(pair.challenger.id)
-        this.ctx.deps.repository.retireConflictSiblings(
+        this.ports.repository.setConflictWith(pair.challenger.id, null)
+        this.ports.repository.activateForEmbedding(pair.challenger.id)
+        this.ports.repository.retireConflictSiblings(
           agentId,
           pair.target.id,
           pair.challenger.id,
           pair.challenger.id,
           now
         )
-        this.ctx.deps.repository.markSuperseded(pair.target.id, pair.challenger.id)
-        this.ctx.deps.repository.markConflict(pair.target.id, null)
-        this.ctx.deps.repository.archive(pair.target.id, now)
+        this.ports.repository.markSuperseded(pair.target.id, pair.challenger.id)
+        this.ports.repository.markConflict(pair.target.id, null)
+        this.ports.repository.archive(pair.target.id, now)
         return
       case 'keep_target':
-        this.ctx.deps.repository.setConflictWith(pair.challenger.id, null)
-        this.ctx.deps.repository.markSuperseded(pair.challenger.id, pair.target.id)
-        this.ctx.deps.repository.archive(pair.challenger.id, now)
-        this.ctx.deps.repository.clearTargetConflictIfNoChallengers(agentId, pair.target.id)
+        this.ports.repository.setConflictWith(pair.challenger.id, null)
+        this.ports.repository.markSuperseded(pair.challenger.id, pair.target.id)
+        this.ports.repository.archive(pair.challenger.id, now)
+        this.ports.repository.clearTargetConflictIfNoChallengers(agentId, pair.target.id)
         return
       case 'keep_both':
-        this.ctx.deps.repository.setConflictWith(pair.challenger.id, null)
-        this.ctx.deps.repository.activateForEmbedding(pair.challenger.id)
-        this.ctx.deps.repository.clearTargetConflictIfNoChallengers(agentId, pair.target.id)
+        this.ports.repository.setConflictWith(pair.challenger.id, null)
+        this.ports.repository.activateForEmbedding(pair.challenger.id)
+        this.ports.repository.clearTargetConflictIfNoChallengers(agentId, pair.target.id)
         return
     }
   }
@@ -186,7 +204,7 @@ export class ConflictService {
   ): void {
     const content = mergedContent?.trim()
     if (!content || content === challenger.content) return
-    this.ctx.deps.repository.updateContent(
+    this.ports.repository.updateContent(
       challenger.id,
       content,
       buildMemoryProvenanceKey(agentId, challenger.kind, content),
@@ -204,8 +222,8 @@ export class ConflictService {
     let calls = 0
     let failures = 0
     const operationFence = this.ctx.captureOperationFence(agentId)
-    const challengers = this.ctx.deps.repository.listConflictChallengersForMaintenance(agentId, 4)
-    const targets = this.ctx.deps.repository.listByIds(
+    const challengers = this.ports.repository.listConflictChallengersForMaintenance(agentId, 4)
+    const targets = this.ports.repository.listByIds(
       agentId,
       challengers.flatMap((challenger) =>
         challenger.conflict_with ? [challenger.conflict_with] : []
@@ -229,20 +247,20 @@ export class ConflictService {
         importance: pair.challenger.importance
       })
       if (!promptCandidate) {
-        this.ctx.deps.repository.setLastConsolidatedAt(pair.challenger.id)
+        this.ports.repository.setLastConsolidatedAt(pair.challenger.id)
         continue
       }
       const estimatedPromptTokens =
         estimateTokens(pair.challenger.content) + estimateTokens(pair.target.content) + 256
       if (!budget.reserve('challenge', estimatedPromptTokens)) {
-        this.ctx.deps.repository.setLastConsolidatedAt(pair.challenger.id)
+        this.ports.repository.setLastConsolidatedAt(pair.challenger.id)
         continue
       }
       const prompt = buildDecisionPrompt(promptCandidate, [{ content: pair.target.content }])
       let decision: MemoryDecision = ADD_DECISION
       try {
         calls += 1
-        const raw = await this.ctx.provider.generateText(
+        const raw = await this.ports.textGeneration.generateText(
           agentId,
           model.providerId,
           model.modelId,
@@ -253,10 +271,10 @@ export class ConflictService {
       } catch (error) {
         failures += 1
         logger.warn(`[Memory] challenge decision failed: ${String(error)}`)
-        this.ctx.deps.repository.setLastConsolidatedAt(pair.challenger.id)
+        this.ports.repository.setLastConsolidatedAt(pair.challenger.id)
         continue
       }
-      this.ctx.deps.repository.setLastConsolidatedAt(pair.challenger.id)
+      this.ports.repository.setLastConsolidatedAt(pair.challenger.id)
       if (!this.ctx.canContinueOperation(operationFence)) break
       if (
         decision.mergedContent !== null &&

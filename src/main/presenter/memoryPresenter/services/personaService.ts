@@ -22,12 +22,29 @@ import type {
   MemoryPersonaDraftResult
 } from '../types'
 import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import type {
+  MemoryLifecycleRepositoryPort,
+  MemoryMutationRepositoryPort,
+  MemoryReadRepositoryPort,
+  MemoryTextGenerationPort
+} from '../ports'
 
 export class PersonaService {
+  private readonly ctx: MemoryRuntimeContext
   private readonly personaAttemptWatermark = new Map<string, number>()
   private readonly personaLocks = new Map<string, Promise<unknown>>()
 
-  constructor(private readonly ctx: MemoryRuntimeContext) {}
+  constructor(
+    private readonly ports: {
+      ctx: MemoryRuntimeContext
+      repository: MemoryReadRepositoryPort &
+        MemoryMutationRepositoryPort &
+        MemoryLifecycleRepositoryPort
+      textGeneration: MemoryTextGenerationPort
+    }
+  ) {
+    this.ctx = ports.ctx
+  }
 
   private withPersonaLock<T>(agentId: string, task: () => T | Promise<T>): Promise<T> {
     const prev = this.personaLocks.get(agentId) ?? Promise.resolve()
@@ -47,7 +64,7 @@ export class PersonaService {
     const trimmed = content.trim()
     if (!trimmed) return null
     const id = `persona-${nanoid(12)}`
-    this.ctx.deps.repository.insert({
+    this.ports.repository.insert({
       id,
       agentId,
       kind: 'persona',
@@ -95,14 +112,14 @@ export class PersonaService {
         ) {
           return finish(null)
         }
-        if (this.ctx.deps.repository.getDraftPersona(agentId)) return finish(null)
+        if (this.ports.repository.getDraftPersona(agentId)) return finish(null)
 
-        const previous = this.ctx.deps.repository.getActivePersona(agentId)
+        const previous = this.ports.repository.getActivePersona(agentId)
         const watermark = Math.max(
           previous?.created_at ?? 0,
           this.personaAttemptWatermark.get(agentId) ?? 0
         )
-        const cognitive = this.ctx.deps.repository.getCognitiveMaintenanceInput(agentId, {
+        const cognitive = this.ports.repository.getCognitiveMaintenanceInput(agentId, {
           kinds: ['semantic', 'reflection', 'episodic'],
           watermark,
           limit: PERSONA_MEMORY_LIMIT
@@ -135,7 +152,7 @@ export class PersonaService {
         let raw = ''
         try {
           calls += 1
-          raw = await this.ctx.provider.generateText(
+          raw = await this.ports.textGeneration.generateText(
             agentId,
             personaModel.providerId,
             personaModel.modelId,
@@ -176,7 +193,7 @@ export class PersonaService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     return this.withPersonaLock(agentId, () => {
       if (this.ctx.isDisposed) return false
-      const draft = this.ctx.deps.repository.getById(draftId)
+      const draft = this.ports.repository.getById(draftId)
       if (
         !draft ||
         draft.agent_id !== agentId ||
@@ -185,11 +202,11 @@ export class PersonaService {
       ) {
         return false
       }
-      const current = this.ctx.deps.repository.getActivePersona(agentId)
+      const current = this.ports.repository.getActivePersona(agentId)
       if (current && current.id !== draft.id) {
-        this.ctx.deps.repository.setPersonaState(current.id, 'superseded', draft.id)
+        this.ports.repository.setPersonaState(current.id, 'superseded', draft.id)
       }
-      this.ctx.deps.repository.setPersonaState(draft.id, 'active', null)
+      this.ports.repository.setPersonaState(draft.id, 'active', null)
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-approve')
       return true
@@ -202,7 +219,7 @@ export class PersonaService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     return this.withPersonaLock(agentId, () => {
       if (this.ctx.isDisposed) return false
-      const draft = this.ctx.deps.repository.getById(draftId)
+      const draft = this.ports.repository.getById(draftId)
       if (
         !draft ||
         draft.agent_id !== agentId ||
@@ -211,7 +228,7 @@ export class PersonaService {
       ) {
         return false
       }
-      this.ctx.deps.repository.setPersonaState(draft.id, 'rejected')
+      this.ports.repository.setPersonaState(draft.id, 'rejected')
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-reject')
       return true
@@ -224,10 +241,10 @@ export class PersonaService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     return this.withPersonaLock(agentId, () => {
       if (this.ctx.isDisposed) return false
-      const row = this.ctx.deps.repository.getById(versionId)
+      const row = this.ports.repository.getById(versionId)
       if (!row || row.agent_id !== agentId || row.kind !== 'persona') return false
       if ((row.is_anchor === 1) === anchored) return true
-      this.ctx.deps.repository.setAnchor(row.id, anchored)
+      this.ports.repository.setAnchor(row.id, anchored)
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-anchor')
       return true
@@ -237,14 +254,14 @@ export class PersonaService {
   listPersonaVersions(agentId: string): AgentMemoryRow[] {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return []
-    return this.ctx.deps.repository.listPersonaVersions(agentId)
+    return this.ports.repository.listPersonaVersions(agentId)
   }
 
   listPersonaDrafts(agentId: string): { row: AgentMemoryRow; needsReview: boolean }[] {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return []
-    const active = this.ctx.deps.repository.getActivePersona(agentId)
-    return this.ctx.deps.repository
+    const active = this.ports.repository.getActivePersona(agentId)
+    return this.ports.repository
       .listPersonaVersions(agentId)
       .filter((row) => row.persona_state === 'draft')
       .map((row) => ({
@@ -261,9 +278,9 @@ export class PersonaService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     return this.withPersonaLock(agentId, () => {
       if (this.ctx.isDisposed) return false
-      const target = this.ctx.deps.repository.getById(versionId)
+      const target = this.ports.repository.getById(versionId)
       if (!target || target.agent_id !== agentId || target.kind !== 'persona') return false
-      const current = this.ctx.deps.repository.getActivePersona(agentId)
+      const current = this.ports.repository.getActivePersona(agentId)
       if (current && current.id === versionId) return true
       const isHistorical =
         target.persona_state === 'superseded' ||
@@ -271,9 +288,9 @@ export class PersonaService {
       if (!isHistorical) return false
       if (current && current.is_anchor === 1) return false
       if (current) {
-        this.ctx.deps.repository.setPersonaState(current.id, 'superseded', versionId)
+        this.ports.repository.setPersonaState(current.id, 'superseded', versionId)
       }
-      this.ctx.deps.repository.setPersonaState(versionId, 'active', null)
+      this.ports.repository.setPersonaState(versionId, 'active', null)
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-rollback')
       return true

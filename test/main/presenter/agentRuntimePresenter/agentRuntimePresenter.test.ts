@@ -742,9 +742,6 @@ describe('AgentRuntimePresenter', () => {
         isEnabled: vi.fn(() => true),
         recordInjectionAccess: vi.fn(),
         buildInjection: vi.fn(async () => ({
-          selfModel: null,
-          working: null,
-          memories: [{ id: 'm1', kind: 'semantic', content: 'redis fact' }],
           payload: {
             selfModel: null,
             working: null,
@@ -781,12 +778,6 @@ describe('AgentRuntimePresenter', () => {
         isEnabled: vi.fn(() => true),
         recordInjectionAccess,
         buildInjection: vi.fn(async () => ({
-          selfModel: null,
-          working: null,
-          memories: [
-            { id: 'selected', kind: 'semantic', content: 'redis fact' },
-            { id: 'dropped', kind: 'semantic', content: 'x'.repeat(10_000) }
-          ],
           payload: {
             selfModel: null,
             working: null,
