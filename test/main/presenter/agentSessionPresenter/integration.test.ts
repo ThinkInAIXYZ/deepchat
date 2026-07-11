@@ -1129,7 +1129,7 @@ describe('Integration: multi-turn context', () => {
     let releaseFirstTurn: (() => void) | null = null
     const firstPrompt = 'P'.repeat(2000)
     const firstResponse = 'R'.repeat(2000)
-    const steerFileContent = 'S'.repeat(8000)
+    const steerUserText = `Steer with attachment\n${'S'.repeat(8000)}`
     const providerInstance = {
       coreStream: vi
         .fn()
@@ -1159,13 +1159,12 @@ describe('Integration: multi-turn context', () => {
     })
 
     await agentPresenter.queuePendingInput(session.id, {
-      text: 'Steer with attachment',
+      text: steerUserText,
       files: [
         {
           name: 'steer.txt',
           path: '/tmp/steer.txt',
-          mimeType: 'text/plain',
-          content: steerFileContent
+          mimeType: 'text/plain'
         } as any
       ]
     })

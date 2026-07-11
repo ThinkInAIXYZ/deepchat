@@ -10,7 +10,12 @@ import {
   AGENT_MEMORY_HEALTH_CATEGORY_KEYS,
   AGENT_MEMORY_HEALTH_KIND_KEYS,
   AGENT_MEMORY_HEALTH_STATUS_KEYS,
-  AGENT_MEMORY_HEALTH_TOP_KIND_KEYS
+  AGENT_MEMORY_HEALTH_TOP_KIND_KEYS,
+  MEMORY_MAINTENANCE_BUDGET_STEPS,
+  MEMORY_RECALL_LATENCY_STAGES,
+  MEMORY_RETRIEVAL_DEGRADATION_CAUSES,
+  MEMORY_RETRIEVAL_OUTCOMES,
+  MEMORY_RETRIEVAL_PURPOSES
 } from '../../types/agent-memory'
 import { unicodeCodePointLength } from '../../lib/unicodeText'
 
@@ -122,6 +127,99 @@ export const MemoryHealthRecentFailureSchema = z.object({
   createdAt: z.number()
 })
 
+export const MemoryDistributionSchema = z.object({
+  samples: NonnegativeCountSchema,
+  p50: z.number().nullable(),
+  p95: z.number().nullable(),
+  max: z.number().nullable()
+})
+
+const MemoryRetrievalDiagnosticsSchema = z.object({
+  latencyMs: z.object(
+    Object.fromEntries(
+      MEMORY_RECALL_LATENCY_STAGES.map((stage) => [stage, MemoryDistributionSchema])
+    ) as Record<(typeof MEMORY_RECALL_LATENCY_STAGES)[number], typeof MemoryDistributionSchema>
+  ),
+  ftsCandidates: NonnegativeCountSchema,
+  vectorCandidates: NonnegativeCountSchema,
+  selected: NonnegativeCountSchema,
+  outcomeCounts: z.object(countRecordShape(MEMORY_RETRIEVAL_OUTCOMES)),
+  degradationCounts: z.object(countRecordShape(MEMORY_RETRIEVAL_DEGRADATION_CAUSES))
+})
+
+export const MemoryRuntimeDiagnosticsSchema = z.object({
+  agent: z.object({
+    retrieval: z.object(
+      Object.fromEntries(
+        MEMORY_RETRIEVAL_PURPOSES.map((purpose) => [purpose, MemoryRetrievalDiagnosticsSchema])
+      ) as Record<
+        (typeof MEMORY_RETRIEVAL_PURPOSES)[number],
+        typeof MemoryRetrievalDiagnosticsSchema
+      >
+    ),
+    extraction: z.object({
+      chunksCompleted: NonnegativeCountSchema,
+      chunksCancelled: NonnegativeCountSchema,
+      chunksFailed: NonnegativeCountSchema,
+      llmCalls: NonnegativeCountSchema,
+      casRetries: NonnegativeCountSchema
+    }),
+    embedding: z.object({
+      batchSize: MemoryDistributionSchema,
+      drainDurationMs: MemoryDistributionSchema,
+      succeeded: NonnegativeCountSchema,
+      failed: NonnegativeCountSchema,
+      ftsOnly: NonnegativeCountSchema
+    }),
+    maintenance: z.object({
+      cheapDurationMs: MemoryDistributionSchema,
+      heavyDurationMs: MemoryDistributionSchema,
+      completed: NonnegativeCountSchema,
+      skipped: NonnegativeCountSchema,
+      failed: NonnegativeCountSchema,
+      llmCalls: NonnegativeCountSchema,
+      llmTokens: NonnegativeCountSchema,
+      budgetDeniedByStep: z.object(countRecordShape(MEMORY_MAINTENANCE_BUDGET_STEPS))
+    })
+  }),
+  process: z.object({
+    extractionQueue: z.object({
+      depth: NonnegativeCountSchema,
+      oldestQueuedAgeMs: z.number().nonnegative().nullable()
+    }),
+    embeddingBacklog: z.object({
+      pending: NonnegativeCountSchema,
+      activeAgents: NonnegativeCountSchema
+    }),
+    vector: z.object({
+      openStores: NonnegativeCountSchema,
+      openStoresHighWater: NonnegativeCountSchema,
+      activeLeases: NonnegativeCountSchema,
+      activeLeasesHighWater: NonnegativeCountSchema,
+      evictions: NonnegativeCountSchema,
+      warmupSucceeded: NonnegativeCountSchema,
+      warmupDeferred: NonnegativeCountSchema,
+      warmupFailed: NonnegativeCountSchema
+    }),
+    providerAdmission: z.object({
+      queued: NonnegativeCountSchema,
+      admissionDecisions: z.object({
+        admitted: NonnegativeCountSchema,
+        rateLimited: NonnegativeCountSchema,
+        capacityRejected: NonnegativeCountSchema
+      }),
+      raceEvents: z.object({
+        deadline: NonnegativeCountSchema,
+        aborted: NonnegativeCountSchema,
+        lateSettled: NonnegativeCountSchema
+      })
+    })
+  })
+})
+
+export type MemoryDistributionDto = z.infer<typeof MemoryDistributionSchema>
+export type MemoryRuntimeDiagnosticsDto = z.infer<typeof MemoryRuntimeDiagnosticsSchema>
+
 export const MemoryHealthSchema = z.object({
   totalRows: NonnegativeCountSchema,
   byKind: z.object(countRecordShape(AGENT_MEMORY_HEALTH_KIND_KEYS)),
@@ -156,7 +254,8 @@ export const MemoryHealthSchema = z.object({
     failed: NonnegativeCountSchema,
     scanLimit: z.number().int().positive(),
     recentFailures: z.array(MemoryHealthRecentFailureSchema)
-  })
+  }),
+  runtime: MemoryRuntimeDiagnosticsSchema
 })
 
 export type MemoryHealthDto = z.infer<typeof MemoryHealthSchema>
@@ -306,6 +405,78 @@ export function createEmptyMemoryHealth(
       failed: 0,
       scanLimit: normalizedScanLimit,
       recentFailures: []
+    },
+    runtime: createEmptyMemoryRuntimeDiagnostics()
+  }
+}
+
+export function createEmptyMemoryRuntimeDiagnostics(): MemoryRuntimeDiagnosticsDto {
+  const distribution = (): MemoryDistributionDto => ({
+    samples: 0,
+    p50: null,
+    p95: null,
+    max: null
+  })
+  return {
+    agent: {
+      retrieval: Object.fromEntries(
+        MEMORY_RETRIEVAL_PURPOSES.map((purpose) => [
+          purpose,
+          {
+            latencyMs: Object.fromEntries(
+              MEMORY_RECALL_LATENCY_STAGES.map((stage) => [stage, distribution()])
+            ),
+            ftsCandidates: 0,
+            vectorCandidates: 0,
+            selected: 0,
+            outcomeCounts: createZeroCountRecord(MEMORY_RETRIEVAL_OUTCOMES),
+            degradationCounts: createZeroCountRecord(MEMORY_RETRIEVAL_DEGRADATION_CAUSES)
+          }
+        ])
+      ) as MemoryRuntimeDiagnosticsDto['agent']['retrieval'],
+      extraction: {
+        chunksCompleted: 0,
+        chunksCancelled: 0,
+        chunksFailed: 0,
+        llmCalls: 0,
+        casRetries: 0
+      },
+      embedding: {
+        batchSize: distribution(),
+        drainDurationMs: distribution(),
+        succeeded: 0,
+        failed: 0,
+        ftsOnly: 0
+      },
+      maintenance: {
+        cheapDurationMs: distribution(),
+        heavyDurationMs: distribution(),
+        completed: 0,
+        skipped: 0,
+        failed: 0,
+        llmCalls: 0,
+        llmTokens: 0,
+        budgetDeniedByStep: createZeroCountRecord(MEMORY_MAINTENANCE_BUDGET_STEPS)
+      }
+    },
+    process: {
+      extractionQueue: { depth: 0, oldestQueuedAgeMs: null },
+      embeddingBacklog: { pending: 0, activeAgents: 0 },
+      vector: {
+        openStores: 0,
+        openStoresHighWater: 0,
+        activeLeases: 0,
+        activeLeasesHighWater: 0,
+        evictions: 0,
+        warmupSucceeded: 0,
+        warmupDeferred: 0,
+        warmupFailed: 0
+      },
+      providerAdmission: {
+        queued: 0,
+        admissionDecisions: { admitted: 0, rateLimited: 0, capacityRejected: 0 },
+        raceEvents: { deadline: 0, aborted: 0, lateSettled: 0 }
+      }
     }
   }
 }

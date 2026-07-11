@@ -156,13 +156,11 @@
 - [x] No memory, audit, or DuckDB schema/migration change is present.
 - [x] No public presenter, IPC, tool, renderer, or provider behavior change is present.
 
-### F3. Remaining Validation Blockers
+### F3. Final Validation Closure
 
-- [ ] The complete main-process test suite passes. Two independently reproducible failures outside
-  this architecture change remain: converted-steer rebudgeting and a debug mock missing a `plan`
-  block.
-- [ ] Native SQLite memory suites execute successfully. The installed native module currently targets
-  a different Node ABI than the active mise runtime; the dependency was not rebuilt or reinstalled.
+- [x] The complete main-process test suite passes after correcting the converted-steer fixture and
+  adding the required debug mock `plan` block.
+- [x] Native SQLite memory suites passed in PR #1943's `memory-native-validation` check. The local
+  Electron ABI dependency was intentionally not rebuilt or reinstalled.
 
-The architecture implementation is complete, but the SDD remains validation-blocked until both
-remaining gates succeed.
+The architecture implementation and validation gates are complete.

@@ -1,0 +1,2112 @@
+{
+  "version": 1,
+  "vectorProfile": {
+    "id": "deterministic-lexicon-v1",
+    "dimensions": 128,
+    "normalized": true
+  },
+  "corpus": [
+    {
+      "id": "exact-01-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 1 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-01-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 1 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-01-secondary-relevant",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Project Atlas retention policy 1 is enabled.",
+      "importance": 0.7
+    },
+    {
+      "id": "exact-01-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective exact 1 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-02-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 2 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-02-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 2 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-02-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 2 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-02-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective exact 2 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-03-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 3 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-03-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 3 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-03-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 3 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-03-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective exact 3 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-04-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 4 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-04-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 4 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-04-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 4 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-04-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective exact 4 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-05-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 5 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-05-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 5 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-05-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 5 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-05-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective exact 5 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-06-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 6 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-06-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 6 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-06-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 6 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-06-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective exact 6 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-07-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 7 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-07-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 7 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-07-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 7 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-07-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective exact 7 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-08-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 8 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-08-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 8 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-08-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 8 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-08-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective exact 8 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-09-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 9 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-09-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 9 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-09-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 9 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-09-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective exact 9 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "exact-10-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 10 is enabled.",
+      "importance": 0.8
+    },
+    {
+      "id": "exact-10-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Project Atlas retention policy 10 is enabled.",
+      "importance": 0.9
+    },
+    {
+      "id": "exact-10-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note exact 10 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "exact-10-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective exact 10 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-01-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答1，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-01-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答1，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-01-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 1 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-01-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective cjk 1 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-02-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答2，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-02-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答2，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-02-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 2 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-02-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective cjk 2 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-03-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答3，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-03-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答3，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-03-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 3 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-03-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective cjk 3 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-04-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答4，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-04-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答4，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-04-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 4 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-04-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective cjk 4 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-05-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答5，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-05-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答5，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-05-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 5 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-05-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective cjk 5 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-06-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答6，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-06-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答6，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-06-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 6 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-06-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective cjk 6 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-07-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答7，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-07-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答7，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-07-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 7 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-07-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective cjk 7 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-08-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答8，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-08-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答8，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-08-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 8 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-08-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective cjk 8 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-09-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答9，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-09-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答9，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-09-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 9 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-09-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective cjk 9 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "cjk-10-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答10，避免冗长铺垫。",
+      "importance": 0.8
+    },
+    {
+      "id": "cjk-10-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "用户偏好简洁中文回答10，避免冗长铺垫。",
+      "importance": 0.9
+    },
+    {
+      "id": "cjk-10-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note cjk 10 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "cjk-10-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective cjk 10 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-01-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api1/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-01-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api1/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-01-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 1 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-01-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective path 1 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-02-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api2/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-02-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api2/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-02-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 2 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-02-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective path 2 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-03-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api3/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-03-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api3/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-03-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 3 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-03-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective path 3 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-04-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api4/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-04-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api4/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-04-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 4 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-04-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective path 4 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-05-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api5/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-05-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api5/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-05-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 5 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-05-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective path 5 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-06-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api6/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-06-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api6/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-06-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 6 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-06-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective path 6 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-07-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api7/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-07-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api7/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-07-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 7 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-07-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective path 7 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-08-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api8/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-08-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api8/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-08-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 8 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-08-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective path 8 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-09-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api9/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-09-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api9/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-09-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 9 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-09-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective path 9 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "path-10-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api10/config.yaml.",
+      "importance": 0.8
+    },
+    {
+      "id": "path-10-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deployment settings live at /workspace/services/api10/config.yaml.",
+      "importance": 0.9
+    },
+    {
+      "id": "path-10-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note path 10 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "path-10-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective path 10 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-01-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache1 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-01-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache1 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-01-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 1 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-01-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective code 1 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-02-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache2 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-02-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache2 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-02-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 2 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-02-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective code 2 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-03-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache3 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-03-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache3 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-03-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 3 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-03-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective code 3 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-04-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache4 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-04-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache4 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-04-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 4 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-04-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective code 4 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-05-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache5 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-05-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache5 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-05-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 5 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-05-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective code 5 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-06-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache6 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-06-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache6 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-06-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 6 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-06-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective code 6 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-07-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache7 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-07-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache7 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-07-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 7 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-07-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective code 7 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-08-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache8 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-08-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache8 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-08-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 8 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-08-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective code 8 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-09-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache9 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-09-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache9 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-09-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 9 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-09-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective code 9 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "code-10-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache10 invalidates stale entries.",
+      "importance": 0.8
+    },
+    {
+      "id": "code-10-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "The helper resolveAgentCache10 invalidates stale entries.",
+      "importance": 0.9
+    },
+    {
+      "id": "code-10-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note code 10 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "code-10-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective code 10 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-01-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Outage",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-01-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Outage",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-01-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 1 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-01-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective semantic 1 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-02-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Auth",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-02-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Auth",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-02-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 2 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-02-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective semantic 2 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-03-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Latency",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-03-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Latency",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-03-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 3 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-03-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective semantic 3 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-04-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Cleanup",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-04-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Cleanup",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-04-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 4 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-04-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective semantic 4 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-05-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Billing",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-05-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Billing",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-05-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 5 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-05-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective semantic 5 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-06-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Deploy",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-06-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Deploy",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-06-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 6 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-06-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective semantic 6 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-07-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Cache",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-07-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Cache",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-07-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 7 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-07-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective semantic 7 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-08-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Timezone",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-08-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Timezone",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-08-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 8 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-08-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective semantic 8 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-09-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Concise",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-09-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Concise",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-09-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 9 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-09-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective semantic 9 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "semantic-10-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "Backup",
+      "importance": 0.8
+    },
+    {
+      "id": "semantic-10-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "Backup",
+      "importance": 0.9
+    },
+    {
+      "id": "semantic-10-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note semantic 10 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "semantic-10-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective semantic 10 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-01-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 1 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-01-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 1 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-01-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 1 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-01-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective mixed 1 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-02-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 2 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-02-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 2 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-02-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 2 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-02-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective mixed 2 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-03-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 3 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-03-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 3 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-03-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 3 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-03-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective mixed 3 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-04-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 4 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-04-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 4 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-04-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 4 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-04-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective mixed 4 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-05-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 5 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-05-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 5 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-05-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 5 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-05-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective mixed 5 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-06-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 6 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-06-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 6 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-06-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 6 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-06-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective mixed 6 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-07-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 7 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-07-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 7 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-07-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 7 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-07-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective mixed 7 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-08-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 8 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-08-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 8 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-08-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 8 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-08-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective mixed 8 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-09-relevant",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 9 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-09-cross-agent",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 9 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-09-distractor-a",
+      "agentId": "agent-alpha",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 9 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-09-distractor-b",
+      "agentId": "agent-alpha",
+      "kind": "reflection",
+      "content": "General retrospective mixed 9 without the requested detail.",
+      "importance": 0.3
+    },
+    {
+      "id": "mixed-10-relevant",
+      "agentId": "agent-beta",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 10 时保留审计记录。",
+      "importance": 0.8
+    },
+    {
+      "id": "mixed-10-cross-agent",
+      "agentId": "agent-alpha",
+      "kind": "semantic",
+      "content": "修复 Redis session timeout 10 时保留审计记录。",
+      "importance": 0.9
+    },
+    {
+      "id": "mixed-10-distractor-a",
+      "agentId": "agent-beta",
+      "kind": "episodic",
+      "content": "Unrelated gardening note mixed 10 about soil and watering.",
+      "importance": 0.4
+    },
+    {
+      "id": "mixed-10-distractor-b",
+      "agentId": "agent-beta",
+      "kind": "reflection",
+      "content": "General retrospective mixed 10 without the requested detail.",
+      "importance": 0.3
+    }
+  ],
+  "queries": [
+    {
+      "id": "exact-01",
+      "agentId": "agent-alpha",
+      "text": "Project Atlas retention policy 1",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-01-relevant", "exact-01-secondary-relevant"]
+    },
+    {
+      "id": "exact-02",
+      "agentId": "agent-beta",
+      "text": "Project Atlas retention policy 2",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-02-relevant"]
+    },
+    {
+      "id": "exact-03",
+      "agentId": "agent-alpha",
+      "text": "Project Atlas retention policy 3",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-03-relevant"]
+    },
+    {
+      "id": "exact-04",
+      "agentId": "agent-beta",
+      "text": "Project Atlas retention policy 4",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-04-relevant"]
+    },
+    {
+      "id": "exact-05",
+      "agentId": "agent-alpha",
+      "text": "Project Atlas retention policy 5",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-05-relevant"]
+    },
+    {
+      "id": "exact-06",
+      "agentId": "agent-beta",
+      "text": "Project Atlas retention policy 6",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-06-relevant"]
+    },
+    {
+      "id": "exact-07",
+      "agentId": "agent-alpha",
+      "text": "Project Atlas retention policy 7",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-07-relevant"]
+    },
+    {
+      "id": "exact-08",
+      "agentId": "agent-beta",
+      "text": "Project Atlas retention policy 8",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-08-relevant"]
+    },
+    {
+      "id": "exact-09",
+      "agentId": "agent-alpha",
+      "text": "Project Atlas retention policy 9",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-09-relevant"]
+    },
+    {
+      "id": "exact-10",
+      "agentId": "agent-beta",
+      "text": "Project Atlas retention policy 10",
+      "subsets": ["exact"],
+      "relevantIds": ["exact-10-relevant"]
+    },
+    {
+      "id": "cjk-01",
+      "agentId": "agent-alpha",
+      "text": "偏好简洁中文回答1",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-01-relevant"]
+    },
+    {
+      "id": "cjk-02",
+      "agentId": "agent-beta",
+      "text": "偏好简洁中文回答2",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-02-relevant"]
+    },
+    {
+      "id": "cjk-03",
+      "agentId": "agent-alpha",
+      "text": "偏好简洁中文回答3",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-03-relevant"]
+    },
+    {
+      "id": "cjk-04",
+      "agentId": "agent-beta",
+      "text": "偏好简洁中文回答4",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-04-relevant"]
+    },
+    {
+      "id": "cjk-05",
+      "agentId": "agent-alpha",
+      "text": "偏好简洁中文回答5",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-05-relevant"]
+    },
+    {
+      "id": "cjk-06",
+      "agentId": "agent-beta",
+      "text": "偏好简洁中文回答6",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-06-relevant"]
+    },
+    {
+      "id": "cjk-07",
+      "agentId": "agent-alpha",
+      "text": "偏好简洁中文回答7",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-07-relevant"]
+    },
+    {
+      "id": "cjk-08",
+      "agentId": "agent-beta",
+      "text": "偏好简洁中文回答8",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-08-relevant"]
+    },
+    {
+      "id": "cjk-09",
+      "agentId": "agent-alpha",
+      "text": "偏好简洁中文回答9",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-09-relevant"]
+    },
+    {
+      "id": "cjk-10",
+      "agentId": "agent-beta",
+      "text": "偏好简洁中文回答10",
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-10-relevant"]
+    },
+    {
+      "id": "path-01",
+      "agentId": "agent-alpha",
+      "text": "/workspace/services/api1/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-01-relevant"]
+    },
+    {
+      "id": "path-02",
+      "agentId": "agent-beta",
+      "text": "/workspace/services/api2/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-02-relevant"]
+    },
+    {
+      "id": "path-03",
+      "agentId": "agent-alpha",
+      "text": "/workspace/services/api3/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-03-relevant"]
+    },
+    {
+      "id": "path-04",
+      "agentId": "agent-beta",
+      "text": "/workspace/services/api4/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-04-relevant"]
+    },
+    {
+      "id": "path-05",
+      "agentId": "agent-alpha",
+      "text": "/workspace/services/api5/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-05-relevant"]
+    },
+    {
+      "id": "path-06",
+      "agentId": "agent-beta",
+      "text": "/workspace/services/api6/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-06-relevant"]
+    },
+    {
+      "id": "path-07",
+      "agentId": "agent-alpha",
+      "text": "/workspace/services/api7/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-07-relevant"]
+    },
+    {
+      "id": "path-08",
+      "agentId": "agent-beta",
+      "text": "/workspace/services/api8/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-08-relevant"]
+    },
+    {
+      "id": "path-09",
+      "agentId": "agent-alpha",
+      "text": "/workspace/services/api9/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-09-relevant"]
+    },
+    {
+      "id": "path-10",
+      "agentId": "agent-beta",
+      "text": "/workspace/services/api10/config.yaml",
+      "subsets": ["path"],
+      "relevantIds": ["path-10-relevant"]
+    },
+    {
+      "id": "code-01",
+      "agentId": "agent-alpha",
+      "text": "resolveAgentCache1",
+      "subsets": ["code"],
+      "relevantIds": ["code-01-relevant"]
+    },
+    {
+      "id": "code-02",
+      "agentId": "agent-beta",
+      "text": "resolveAgentCache2",
+      "subsets": ["code"],
+      "relevantIds": ["code-02-relevant"]
+    },
+    {
+      "id": "code-03",
+      "agentId": "agent-alpha",
+      "text": "resolveAgentCache3",
+      "subsets": ["code"],
+      "relevantIds": ["code-03-relevant"]
+    },
+    {
+      "id": "code-04",
+      "agentId": "agent-beta",
+      "text": "resolveAgentCache4",
+      "subsets": ["code"],
+      "relevantIds": ["code-04-relevant"]
+    },
+    {
+      "id": "code-05",
+      "agentId": "agent-alpha",
+      "text": "resolveAgentCache5",
+      "subsets": ["code"],
+      "relevantIds": ["code-05-relevant"]
+    },
+    {
+      "id": "code-06",
+      "agentId": "agent-beta",
+      "text": "resolveAgentCache6",
+      "subsets": ["code"],
+      "relevantIds": ["code-06-relevant"]
+    },
+    {
+      "id": "code-07",
+      "agentId": "agent-alpha",
+      "text": "resolveAgentCache7",
+      "subsets": ["code"],
+      "relevantIds": ["code-07-relevant"]
+    },
+    {
+      "id": "code-08",
+      "agentId": "agent-beta",
+      "text": "resolveAgentCache8",
+      "subsets": ["code"],
+      "relevantIds": ["code-08-relevant"]
+    },
+    {
+      "id": "code-09",
+      "agentId": "agent-alpha",
+      "text": "resolveAgentCache9",
+      "subsets": ["code"],
+      "relevantIds": ["code-09-relevant"]
+    },
+    {
+      "id": "code-10",
+      "agentId": "agent-beta",
+      "text": "resolveAgentCache10",
+      "subsets": ["code"],
+      "relevantIds": ["code-10-relevant"]
+    },
+    {
+      "id": "semantic-01",
+      "agentId": "agent-alpha",
+      "text": "incident",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-01-relevant"]
+    },
+    {
+      "id": "semantic-02",
+      "agentId": "agent-beta",
+      "text": "login",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-02-relevant"]
+    },
+    {
+      "id": "semantic-03",
+      "agentId": "agent-alpha",
+      "text": "slowness",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-03-relevant"]
+    },
+    {
+      "id": "semantic-04",
+      "agentId": "agent-beta",
+      "text": "prune",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-04-relevant"]
+    },
+    {
+      "id": "semantic-05",
+      "agentId": "agent-alpha",
+      "text": "invoice",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-05-relevant"]
+    },
+    {
+      "id": "semantic-06",
+      "agentId": "agent-beta",
+      "text": "release",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-06-relevant"]
+    },
+    {
+      "id": "semantic-07",
+      "agentId": "agent-alpha",
+      "text": "memoization",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-07-relevant"]
+    },
+    {
+      "id": "semantic-08",
+      "agentId": "agent-beta",
+      "text": "localtime",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-08-relevant"]
+    },
+    {
+      "id": "semantic-09",
+      "agentId": "agent-alpha",
+      "text": "brief",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-09-relevant"]
+    },
+    {
+      "id": "semantic-10",
+      "agentId": "agent-beta",
+      "text": "snapshot",
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-10-relevant"]
+    },
+    {
+      "id": "mixed-01",
+      "agentId": "agent-alpha",
+      "text": "修复 Redis session timeout 1",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-01-relevant"]
+    },
+    {
+      "id": "mixed-02",
+      "agentId": "agent-beta",
+      "text": "修复 Redis session timeout 2",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-02-relevant"]
+    },
+    {
+      "id": "mixed-03",
+      "agentId": "agent-alpha",
+      "text": "修复 Redis session timeout 3",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-03-relevant"]
+    },
+    {
+      "id": "mixed-04",
+      "agentId": "agent-beta",
+      "text": "修复 Redis session timeout 4",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-04-relevant"]
+    },
+    {
+      "id": "mixed-05",
+      "agentId": "agent-alpha",
+      "text": "修复 Redis session timeout 5",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-05-relevant"]
+    },
+    {
+      "id": "mixed-06",
+      "agentId": "agent-beta",
+      "text": "修复 Redis session timeout 6",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-06-relevant"]
+    },
+    {
+      "id": "mixed-07",
+      "agentId": "agent-alpha",
+      "text": "修复 Redis session timeout 7",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-07-relevant"]
+    },
+    {
+      "id": "mixed-08",
+      "agentId": "agent-beta",
+      "text": "修复 Redis session timeout 8",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-08-relevant"]
+    },
+    {
+      "id": "mixed-09",
+      "agentId": "agent-alpha",
+      "text": "修复 Redis session timeout 9",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-09-relevant"]
+    },
+    {
+      "id": "mixed-10",
+      "agentId": "agent-beta",
+      "text": "修复 Redis session timeout 10",
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-10-relevant"]
+    }
+  ]
+}

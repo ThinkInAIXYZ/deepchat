@@ -661,6 +661,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionUiPort?: SessionUiPort
   private readonly memoryPort?: MemoryRuntimePort
   private readonly memoryExtractionChains = new Map<string, Promise<void>>()
+  private readonly memoryExtractionQueue = new Map<
+    number,
+    { sessionId: string; queuedAt: number }
+  >()
+  private nextMemoryExtractionQueueId = 0
   private readonly memoryExtractionEpochs = new Map<string, number>()
   private readonly memoryIngestionProjectionRetryAfter = new Map<string, number>()
   private readonly memoryInjectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
@@ -925,6 +930,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async destroySession(sessionId: string): Promise<void> {
     this.bumpMemoryExtractionEpoch(sessionId)
+    for (const [queueId, entry] of this.memoryExtractionQueue) {
+      if (entry.sessionId === sessionId) this.memoryExtractionQueue.delete(queueId)
+    }
+    this.observeMemoryExtractionQueue()
     const controller =
       this.activeGenerations.get(sessionId)?.abortController ?? this.abortControllers.get(sessionId)
     if (controller) {
@@ -2588,11 +2597,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     task: (epoch: number) => Promise<void>,
     expectedEpoch?: number
   ): void {
+    const queueId = ++this.nextMemoryExtractionQueueId
+    this.memoryExtractionQueue.set(queueId, { sessionId, queuedAt: Date.now() })
+    this.observeMemoryExtractionQueue()
     const prev = this.memoryExtractionChains.get(sessionId) ?? Promise.resolve()
     const runTask = async () => {
-      const currentEpoch = this.ensureMemoryExtractionEpoch(sessionId)
-      if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
-      await task(expectedEpoch ?? currentEpoch)
+      try {
+        const currentEpoch = this.ensureMemoryExtractionEpoch(sessionId)
+        if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
+        await task(expectedEpoch ?? currentEpoch)
+      } finally {
+        this.memoryExtractionQueue.delete(queueId)
+        this.observeMemoryExtractionQueue()
+      }
     }
     const next = prev.then(runTask, runTask).catch((error) => {
       logger.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
@@ -2606,6 +2623,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         }
       }
     })
+  }
+
+  private observeMemoryExtractionQueue(): void {
+    let oldestQueuedAt: number | null = null
+    for (const entry of this.memoryExtractionQueue.values()) {
+      oldestQueuedAt =
+        oldestQueuedAt === null ? entry.queuedAt : Math.min(oldestQueuedAt, entry.queuedAt)
+    }
+    this.memoryPort?.observeExtractionQueue?.(this.memoryExtractionQueue.size, oldestQueuedAt)
   }
 
   private getLatestUserQuery(sessionId: string): string {

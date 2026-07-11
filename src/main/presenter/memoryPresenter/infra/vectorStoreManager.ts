@@ -20,13 +20,6 @@ export interface LockedVectorStorePort {
   close(options?: { clearCertificate?: boolean }): Promise<void>
 }
 
-interface VectorStoreRuntimeState {
-  vectorStores: Map<string, Promise<IMemoryVectorStore>>
-  vectorStoreIdentities: Map<string, string>
-  vectorStoreReady: Map<string, VectorReadyCertificate>
-  vectorStoreLocks: Map<string, Promise<unknown>>
-}
-
 interface VectorStoreLeaseState {
   leaseEpoch: number
   storeGeneration: number
@@ -99,6 +92,11 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       policy: MemoryAgentPolicyPort
       vectorStoreFactory: MemoryVectorStoreFactoryPort
       perfObserver?: MemoryPerfObserver
+      diagnostics?: {
+        recordVectorOutcome(
+          outcome: 'eviction' | 'warmupSucceeded' | 'warmupDeferred' | 'warmupFailed'
+        ): void
+      }
     }
   ) {
     this.ctx = ports.ctx
@@ -447,6 +445,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       if (this.vectorStores.size > VECTOR_STORE_SOFT_CAP) {
         this.requestResourceConvergence()
       }
+      this.observeResources()
     }
   }
 
@@ -466,6 +465,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.vectorStoreIdentities.delete(agentId)
     const store = await pending.catch(() => null)
     if (store) await store.close().catch(() => undefined)
+    this.observeResources()
   }
 
   private ensureResourceSweep(): void {
@@ -563,6 +563,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       if (!stillExpired && this.vectorStores.size <= VECTOR_STORE_SOFT_CAP) return false
       state.leaseEpoch += 1
       await locked.close({ clearCertificate: false })
+      this.ports.diagnostics?.recordVectorOutcome('eviction')
       return true
     })
   }
@@ -820,6 +821,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.leaseStates.clear()
     this.resourceConvergence = null
     this.resourceConvergenceRequested = false
+    this.observeResources()
   }
 
   async settleAgent(agentId: string): Promise<void> {
@@ -840,6 +842,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     }
     this.vectorStoreReady.delete(agentId)
     this.leaseStates.delete(agentId)
+    this.observeResources()
   }
 
   clearAgentReady(agentId: string): void {
@@ -848,41 +851,5 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
 
   currentEmbeddingFingerprint(embedding: MemoryModelRef): string {
     return embeddingFingerprint(embedding.providerId, embedding.modelId)
-  }
-
-  /** @internal Deterministic resource convergence seam for scale tests. */
-  runResourceConvergenceForTests(now = Date.now()): Promise<void> {
-    return this.scheduleResourceConvergence(now)
-  }
-
-  /** @internal Resource state snapshot for scale tests. */
-  getResourceStatsForTests(): {
-    openStores: number
-    agents: Array<{
-      agentId: string
-      active: number
-      openInFlight: number
-      lastUsedAt: number
-    }>
-  } {
-    return {
-      openStores: this.vectorStores.size,
-      agents: [...this.leaseStates.entries()].map(([agentId, state]) => ({
-        agentId,
-        active: state.active,
-        openInFlight: state.openInFlight,
-        lastUsedAt: state.lastUsedAt
-      }))
-    }
-  }
-
-  /** @internal Live mutable state for legacy facade-oracle tests only. */
-  getMutableRuntimeStateForTests(): VectorStoreRuntimeState {
-    return {
-      vectorStores: this.vectorStores,
-      vectorStoreIdentities: this.vectorStoreIdentities,
-      vectorStoreReady: this.vectorStoreReady,
-      vectorStoreLocks: this.vectorStoreLocks
-    }
   }
 }

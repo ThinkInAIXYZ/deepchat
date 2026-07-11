@@ -30,6 +30,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
   private readonly generationByAgent = new Map<string, number>()
   private readonly unsettledByKey = new Map<string, number>()
   private unsettledTotal = 0
+  private admissionWaiting = 0
   private stopped = false
 
   constructor(private readonly deps: MemoryProviderGatewayDeps) {}
@@ -105,13 +106,31 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
     controllers.add(controller)
     const deadline = DEADLINE_MS[purpose]
     let timer: ReturnType<typeof setTimeout> | undefined
+    let admissionPending = true
+    let raceSettled = false
+    let deadlineRecorded = false
+    let abortedRecorded = false
+    const observeAdmissionQueue = () =>
+      this.deps.perfObserver?.observe('queueDepth', this.admissionWaiting)
+    const settleAdmission = () => {
+      if (!admissionPending) return
+      admissionPending = false
+      this.admissionWaiting = Math.max(0, this.admissionWaiting - 1)
+      observeAdmissionQueue()
+    }
     const runOperation = async (): Promise<T> => {
       this.assertCurrent(agentId, generation, controller.signal)
       const key = `${agentId}\0${providerId}\0${modelId}\0${purpose}`
-      this.reserveUnderlyingRequest(key)
-      this.deps.perfObserver?.increment('providerCalls')
-      this.deps.perfObserver?.observe('queueDepth', this.unsettledTotal)
       try {
+        this.reserveUnderlyingRequest(key)
+      } catch (error) {
+        this.deps.diagnostics?.recordProviderAdmissionDecision('capacityRejected')
+        throw error
+      }
+      try {
+        this.assertCurrent(agentId, generation, controller.signal)
+        this.deps.diagnostics?.recordProviderAdmissionDecision('admitted')
+        this.deps.perfObserver?.increment('providerCalls')
         const value = await operation(controller.signal)
         this.assertCurrent(agentId, generation, controller.signal)
         return value
@@ -119,12 +138,43 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
         this.releaseUnderlyingRequest(key)
       }
     }
-    const task = Promise.resolve(
-      this.deps.executeWithRateLimit(providerId, { signal: controller.signal, purpose })
-    ).then(runOperation)
+    this.admissionWaiting += 1
+    observeAdmissionQueue()
+    let admission: Promise<void>
+    try {
+      admission = Promise.resolve(
+        this.deps.executeWithRateLimit(providerId, { signal: controller.signal, purpose })
+      )
+    } catch (error) {
+      admission = Promise.reject(error)
+    }
+    const task = admission
+      .then(() => {
+        settleAdmission()
+        return runOperation()
+      })
+      .catch((error) => {
+        if (admissionPending) {
+          settleAdmission()
+          if (controller.signal.aborted) {
+            if (!abortedRecorded && !deadlineRecorded) {
+              abortedRecorded = true
+              this.deps.diagnostics?.recordProviderRaceEvent('aborted')
+            }
+          } else {
+            this.deps.diagnostics?.recordProviderAdmissionDecision('rateLimited')
+          }
+        }
+        throw error
+      })
+      .finally(() => {
+        if (raceSettled) this.deps.diagnostics?.recordProviderRaceEvent('lateSettled')
+      })
     void task.catch(() => undefined)
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
+        deadlineRecorded = true
+        this.deps.diagnostics?.recordProviderRaceEvent('deadline')
         reject(createAbortError(`[Memory] ${purpose} deadline exceeded (${deadline}ms)`))
         controller.abort()
       }, deadline)
@@ -133,11 +183,19 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
     const aborted = new Promise<never>((_resolve, reject) => {
       controller.signal.addEventListener(
         'abort',
-        () => reject(createAbortError('[Memory] provider request aborted')),
+        () => {
+          if (!deadlineRecorded && !abortedRecorded) {
+            abortedRecorded = true
+            this.deps.diagnostics?.recordProviderRaceEvent('aborted')
+          }
+          reject(createAbortError('[Memory] provider request aborted'))
+        },
         { once: true }
       )
     })
     return Promise.race([task, timeout, aborted]).finally(() => {
+      raceSettled = true
+      settleAdmission()
       if (timer) clearTimeout(timer)
       const current = this.activeControllersByAgent.get(agentId)
       current?.delete(controller)

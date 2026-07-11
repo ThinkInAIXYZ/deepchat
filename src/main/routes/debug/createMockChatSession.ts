@@ -34,6 +34,7 @@ type AssistantBlock = {
     | 'content'
     | 'search'
     | 'reasoning_content'
+    | 'plan'
     | 'error'
     | 'tool_call'
     | 'action'
@@ -69,6 +70,7 @@ const ONE_PIXEL_PNG =
 const ASSISTANT_BLOCK_TYPES: AssistantBlock['type'][] = [
   'content',
   'reasoning_content',
+  'plan',
   'search',
   'tool_call',
   'action',
@@ -351,6 +353,13 @@ function buildAssistantBlock(
       ...base,
       content: `Checked scroll window boundaries, top spacer math, bottom spacer math, and ${marker}.`,
       reasoning_time: { start: timestamp - 1200, end: timestamp - 100 }
+    }
+  }
+
+  if (type === 'plan') {
+    return {
+      ...base,
+      content: `Validated the synthetic rendering plan for ${marker}.`
     }
   }
 

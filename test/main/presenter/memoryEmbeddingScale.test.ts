@@ -1,14 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MemoryPresenter as BaseMemoryPresenter } from '@/presenter/memoryPresenter'
-import type { VectorReadyCertificate } from '@/presenter/memoryPresenter/infra/vectorStoreManager'
 import type { IMemoryVectorStore } from '@/presenter/memoryPresenter/types'
 import {
   EMBEDDING_WARM_FAILURE_COOLDOWN_MS,
   VECTOR_STORE_IDLE_TTL_MS,
-  VECTOR_STORE_SOFT_CAP
+  VECTOR_STORE_SOFT_CAP,
+  VECTOR_STORE_SWEEP_INTERVAL_MS
 } from '@/presenter/memoryPresenter/runtimeConstants'
-import { enabledConfig, FakeRepository, FakeVectorStore, textToVector } from './fakes/memoryFakes'
+import {
+  createFakeRepository,
+  enabledConfig,
+  FakeVectorStore,
+  textToVector,
+  type FakeRepository
+} from './fakes/memoryFakes'
 
 class MemoryPresenter extends BaseMemoryPresenter {
   constructor(deps: ConstructorParameters<typeof BaseMemoryPresenter>[0]) {
@@ -22,11 +28,6 @@ interface EmbeddingScaleTestSeams {
       agentId: string,
       embedding: { providerId: string; modelId: string }
     ): void
-    getMutableRuntimeStateForTests(): {
-      embeddingWarmups: Map<string, Promise<void>>
-      embeddingWarmSuccesses: Set<string>
-      embeddingWarmFailureUntil: Map<string, number>
-    }
   }
   vectorStore: {
     noteEmbeddingConfig(
@@ -44,12 +45,10 @@ interface EmbeddingScaleTestSeams {
       embedding: { providerId: string; modelId: string },
       dimensions: number
     ): void
-    runResourceConvergenceForTests(now?: number): Promise<void>
-    getResourceStatsForTests(): { openStores: number }
-    getMutableRuntimeStateForTests(): {
-      vectorStores: Map<string, Promise<IMemoryVectorStore>>
-      vectorStoreReady: Map<string, VectorReadyCertificate>
-    }
+    hasReadyCertificate(
+      agentId: string,
+      embedding: { providerId: string; modelId: string }
+    ): boolean
   }
 }
 
@@ -66,7 +65,7 @@ function makeScalePresenter(options: {
     dimensions: number
   ) => Promise<IMemoryVectorStore>
 }) {
-  const repository = options.repository ?? new FakeRepository()
+  const repository = options.repository ?? createFakeRepository()
   const store = new FakeVectorStore()
   const presenter = new MemoryPresenter({
     repository,
@@ -80,14 +79,10 @@ function makeScalePresenter(options: {
   return { presenter, repository, store }
 }
 
-async function settleWarmup(presenter: MemoryPresenter): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (
-      internals(presenter).embedding.getMutableRuntimeStateForTests().embeddingWarmups.size === 0
-    ) {
-      return
-    }
+async function settleWarmup(condition: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     await Promise.resolve()
+    if (condition()) return
   }
   throw new Error('embedding warmup did not settle')
 }
@@ -127,7 +122,7 @@ describe('embedding persistence scale contract', () => {
   })
 
   it('drains a 101-row backlog in fixed 50-row chunks without another trigger', async () => {
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     for (let index = 0; index < 101; index += 1) {
       repository.insert({
         id: `m-${String(index).padStart(3, '0')}`,
@@ -151,7 +146,7 @@ describe('embedding persistence scale contract', () => {
   })
 
   it('continues draining a concurrently edited row at its new revision', async () => {
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     repository.insert({
       id: 'm1',
       agentId: 'a',
@@ -190,7 +185,7 @@ describe('embedding persistence scale contract', () => {
   })
 
   it('does no persistence work when the provider fails the whole batch', async () => {
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     repository.insert({
       id: 'm1',
       agentId: 'a',
@@ -218,7 +213,7 @@ describe('embedding persistence scale contract', () => {
   })
 
   it('marks a malformed-only batch in one update without opening a vector store', async () => {
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     repository.insert({
       id: 'm1',
       agentId: 'a',
@@ -244,7 +239,7 @@ describe('embedding persistence scale contract', () => {
   })
 
   it('shares one dirty drain promise and batches malformed vector failures', async () => {
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     for (const id of ['valid', 'invalid']) {
       repository.insert({
         id,
@@ -300,7 +295,7 @@ describe('embedding warm and vector resource bounds', () => {
     }
     const stores: FakeVectorStore[] = []
     const presenter = new MemoryPresenter({
-      repository: new FakeRepository(),
+      repository: createFakeRepository(),
       resolveAgentConfig: () => config,
       getEmbeddings: async () => [],
       createVectorStore: async () => {
@@ -325,12 +320,12 @@ describe('embedding warm and vector resource bounds', () => {
     })
     await oldLeaseStarted
     vectorStore.markReady('a', oldEmbedding, 4)
-    expect(vectorStore.getMutableRuntimeStateForTests().vectorStoreReady.has('a')).toBe(true)
+    expect(vectorStore.hasReadyCertificate('a', oldEmbedding)).toBe(true)
 
     const nextEmbedding = { providerId: 'next-provider', modelId: 'next-model' }
     config = { memoryEnabled: true, memoryEmbedding: nextEmbedding }
     vectorStore.noteEmbeddingConfig('a', nextEmbedding)
-    expect(vectorStore.getMutableRuntimeStateForTests().vectorStoreReady.has('a')).toBe(false)
+    expect(vectorStore.hasReadyCertificate('a', oldEmbedding)).toBe(false)
 
     let nextLeaseStarted = false
     const nextLease = vectorStore.withStoreLease('a', nextEmbedding, 4, async () => {
@@ -358,7 +353,7 @@ describe('embedding warm and vector resource bounds', () => {
     const embedding = { providerId: 'p', modelId: 'm' }
 
     internals(presenter).embedding.warmEmbeddingConnection('agent-a', embedding)
-    await settleWarmup(presenter)
+    await settleWarmup(() => getEmbeddings.mock.calls.length === 1)
     expect(getEmbeddings).toHaveBeenCalledTimes(1)
 
     internals(presenter).embedding.warmEmbeddingConnection('agent-b', embedding)
@@ -367,7 +362,7 @@ describe('embedding warm and vector resource bounds', () => {
 
     await vi.advanceTimersByTimeAsync(EMBEDDING_WARM_FAILURE_COOLDOWN_MS)
     internals(presenter).embedding.warmEmbeddingConnection('agent-b', embedding)
-    await settleWarmup(presenter)
+    await settleWarmup(() => getEmbeddings.mock.calls.length === 2)
     expect(getEmbeddings).toHaveBeenCalledTimes(2)
 
     internals(presenter).embedding.warmEmbeddingConnection('agent-a', embedding)
@@ -378,7 +373,7 @@ describe('embedding warm and vector resource bounds', () => {
 
   it('evicts the least recently used store while retaining its ready certificate', async () => {
     vi.useFakeTimers()
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     const stores = new Map<string, FakeVectorStore[]>()
     const { presenter } = makeScalePresenter({
       repository,
@@ -405,26 +400,23 @@ describe('embedding warm and vector resource bounds', () => {
       })
       await presenter.processPendingEmbeddings(agentId)
     }
-    const runtime = vectorStore.getMutableRuntimeStateForTests()
-    const certificate = runtime.vectorStoreReady.get('agent-0')
+    await vi.advanceTimersByTimeAsync(0)
 
-    await vectorStore.runResourceConvergenceForTests(baseTime + VECTOR_STORE_SOFT_CAP)
-
-    expect(vectorStore.getResourceStatsForTests().openStores).toBe(VECTOR_STORE_SOFT_CAP)
-    expect(runtime.vectorStores.has('agent-0')).toBe(false)
-    expect(runtime.vectorStoreReady.get('agent-0')).toEqual(certificate)
+    expect(presenter.getHealth('agent-0').runtime.process.vector.openStores).toBe(
+      VECTOR_STORE_SOFT_CAP
+    )
     expect(stores.get('agent-0')?.[0].closeCount).toBe(1)
 
     vi.setSystemTime(baseTime + VECTOR_STORE_SOFT_CAP + 1)
     await presenter.recall('agent-0', 'memory 0')
     expect(stores.get('agent-0')).toHaveLength(2)
-    expect(runtime.vectorStoreReady.get('agent-0')).toEqual(certificate)
+    expect(vectorStore.hasReadyCertificate('agent-0', enabledConfig.memoryEmbedding!)).toBe(true)
     await presenter.dispose()
   })
 
   it('closes an idle store at the TTL without invalidating readiness', async () => {
     vi.useFakeTimers()
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     const { presenter, store } = makeScalePresenter({ repository })
     vi.setSystemTime(1_000_000)
     repository.insert({
@@ -436,20 +428,17 @@ describe('embedding warm and vector resource bounds', () => {
     })
     await presenter.processPendingEmbeddings('a')
     const vectorStore = internals(presenter).vectorStore
-    const runtime = vectorStore.getMutableRuntimeStateForTests()
-    const certificate = runtime.vectorStoreReady.get('a')
+    await vi.advanceTimersByTimeAsync(VECTOR_STORE_IDLE_TTL_MS + VECTOR_STORE_SWEEP_INTERVAL_MS)
 
-    await vectorStore.runResourceConvergenceForTests(1_000_000 + VECTOR_STORE_IDLE_TTL_MS)
-
-    expect(vectorStore.getResourceStatsForTests().openStores).toBe(0)
+    expect(presenter.getHealth('a').runtime.process.vector.openStores).toBe(0)
     expect(store.closeCount).toBe(1)
-    expect(runtime.vectorStoreReady.get('a')).toEqual(certificate)
+    expect(vectorStore.hasReadyCertificate('a', enabledConfig.memoryEmbedding!)).toBe(true)
     await presenter.dispose()
   })
 
   it('skips an active lease and evicts the next idle store when over capacity', async () => {
     vi.useFakeTimers()
-    const repository = new FakeRepository()
+    const repository = createFakeRepository()
     const stores = new Map<string, FakeVectorStore>()
     let blockOldestQuery = false
     let releaseOldestQuery!: () => void
@@ -497,12 +486,11 @@ describe('embedding warm and vector resource bounds', () => {
     const recall = presenter.recall('agent-0', 'memory 0')
     await queryStarted
 
-    await vectorStore.runResourceConvergenceForTests(baseTime + VECTOR_STORE_SOFT_CAP)
+    await vi.advanceTimersByTimeAsync(0)
 
-    const runtime = vectorStore.getMutableRuntimeStateForTests()
-    expect(vectorStore.getResourceStatsForTests().openStores).toBe(VECTOR_STORE_SOFT_CAP)
-    expect(runtime.vectorStores.has('agent-0')).toBe(true)
-    expect(runtime.vectorStores.has('agent-1')).toBe(false)
+    expect(presenter.getHealth('agent-0').runtime.process.vector.openStores).toBe(
+      VECTOR_STORE_SOFT_CAP
+    )
     expect(stores.get('agent-0')?.closeCount).toBe(0)
     expect(stores.get('agent-1')?.closeCount).toBe(1)
 

@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
-import { FakeRepository, FakeVectorStore, textToVector } from '../../presenter/fakes/memoryFakes'
+import {
+  createFakeRepository,
+  FakeVectorStore,
+  textToVector
+} from '../../presenter/fakes/memoryFakes'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 import { buildAgentFixture, buildDecisionFixture } from './fixtures'
@@ -22,7 +26,7 @@ afterEach(() => {
 
 describe('Agent Memory #28 bounded workloads', () => {
   it('drains 101 embeddings in fixed 50-row provider and persistence batches', async () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     const store = new FakeVectorStore()
     const observer = createMemoryPerfObserver(true)
     for (let index = 0; index < 101; index += 1) {
@@ -74,7 +78,7 @@ describe('Agent Memory #28 bounded workloads', () => {
 
   it('coordinates eight candidates with three neighbors each within steady provider caps', async () => {
     const fixture = buildDecisionFixture()
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     const observer = createMemoryPerfObserver(true)
     for (const candidate of fixture) {
       for (const neighbor of candidate.neighbors) {
@@ -159,7 +163,7 @@ describe('Agent Memory #28 bounded workloads', () => {
 
   it('prewarms only eight of 100 shared-model agents and warms the provider once', async () => {
     vi.useFakeTimers()
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     const observer = createMemoryPerfObserver(true)
     for (const [index, agent] of buildAgentFixture(100).entries()) {
       repo.insert({

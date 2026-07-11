@@ -4,6 +4,16 @@ import { describe, expect, it } from 'vitest'
 function makeLock() {
   const chains = new Map<string, Promise<void>>()
   const epochs = new Map<string, number>()
+  const queue = new Map<number, { sessionId: string; queuedAt: number }>()
+  const observations: Array<{ depth: number; oldestQueuedAt: number | null }> = []
+  let nextQueueId = 0
+  const observe = () => {
+    const queuedAt = [...queue.values()].map((entry) => entry.queuedAt)
+    observations.push({
+      depth: queue.size,
+      oldestQueuedAt: queuedAt.length > 0 ? Math.min(...queuedAt) : null
+    })
+  }
   function ensureEpoch(sessionId: string): number {
     if (!epochs.has(sessionId)) epochs.set(sessionId, 0)
     return epochs.get(sessionId) ?? 0
@@ -12,15 +22,31 @@ function makeLock() {
     epochs.set(sessionId, (epochs.get(sessionId) ?? 0) + 1)
   }
   function enqueue(sessionId: string, task: (epoch: number) => Promise<void>): void {
+    const queueId = ++nextQueueId
+    queue.set(queueId, { sessionId, queuedAt: Date.now() })
+    observe()
     const prev = chains.get(sessionId) ?? Promise.resolve()
-    const runTask = () => task(ensureEpoch(sessionId))
+    const runTask = async () => {
+      try {
+        await task(ensureEpoch(sessionId))
+      } finally {
+        queue.delete(queueId)
+        observe()
+      }
+    }
     const next = prev.then(runTask, runTask).catch(() => undefined)
     chains.set(sessionId, next)
     void next.finally(() => {
       if (chains.get(sessionId) === next) chains.delete(sessionId)
     })
   }
-  return { chains, enqueue, bumpEpoch }
+  function destroy(sessionId: string): void {
+    for (const [queueId, entry] of queue) {
+      if (entry.sessionId === sessionId) queue.delete(queueId)
+    }
+    observe()
+  }
+  return { chains, enqueue, bumpEpoch, destroy, observations }
 }
 
 function deferred() {
@@ -86,6 +112,20 @@ describe('per-session extraction lock (C2, AC-2.3/2.4)', () => {
     blocked.resolve()
     await tick()
     expect(events).toContain('s1-end')
+  })
+
+  it('reports absolute content-free queue state and clears destroyed sessions', async () => {
+    const { enqueue, destroy, observations } = makeLock()
+    const blocked = deferred()
+    enqueue('s1', async () => blocked.promise)
+    enqueue('s1', async () => undefined)
+    expect(observations.at(-1)).toMatchObject({ depth: 2 })
+
+    destroy('s1')
+    expect(observations.at(-1)).toEqual({ depth: 0, oldestQueuedAt: null })
+    expect(JSON.stringify(observations)).not.toContain('prompt')
+    blocked.resolve()
+    await tick()
   })
 
   it('clears the chain entry once the tail settles', async () => {

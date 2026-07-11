@@ -226,15 +226,4 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
     this.workingRefreshInFlight.clear()
     this.workingMemoryDirty.clear()
   }
-
-  /** @internal Live mutable state for legacy facade-oracle tests only. */
-  getMutableRuntimeStateForTests(): {
-    workingRefreshInFlight: Set<string>
-    workingMemoryDirty: Set<string>
-  } {
-    return {
-      workingRefreshInFlight: this.workingRefreshInFlight,
-      workingMemoryDirty: this.workingMemoryDirty
-    }
-  }
 }

@@ -32,7 +32,11 @@ describe('MaintenanceBudget', () => {
     expect(budget.reserve('merge', 9_000)).toBe(true)
     expect(budget.reserve('merge', 9_000)).toBe(true)
     expect(budget.reserve('reflection', 5_001)).toBe(false)
-    expect(budget.snapshot()).toMatchObject({ calls: 6, inputTokens: 22_000 })
+    expect(budget.snapshot()).toMatchObject({
+      calls: 6,
+      inputTokens: 22_000,
+      deniedByStep: { challenge: 1, merge: 0, reflection: 1, persona: 0 }
+    })
   })
 
   it('does not let unused quota move between steps', () => {

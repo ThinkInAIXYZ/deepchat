@@ -9,6 +9,7 @@ import {
   type MemoryArchiveCandidateLifecyclePreview,
   type MemoryHealthDto,
   type MemoryLifecycle,
+  type MemoryRuntimeDiagnosticsDto,
   type MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import {
@@ -139,6 +140,7 @@ export class ManagementService {
       syncWorkingMemoryAfterMutation: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
       clearConsolidationCooldown: (agentId: string) => void
+      getRuntimeDiagnostics: (agentId: string) => MemoryRuntimeDiagnosticsDto
     }
   ) {
     this.ctx = ports.ctx
@@ -352,7 +354,9 @@ export class ManagementService {
   getHealth(agentId: string): MemoryHealthDto {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) {
-      return createEmptyMemoryHealth(MEMORY_HEALTH_AUDIT_SCAN_LIMIT)
+      const health = createEmptyMemoryHealth(MEMORY_HEALTH_AUDIT_SCAN_LIMIT)
+      health.runtime = this.ports.getRuntimeDiagnostics(agentId)
+      return health
     }
 
     const stats = this.ports.repository.getHealthStats(agentId)
@@ -417,7 +421,8 @@ export class ManagementService {
         failed: auditStats?.failed ?? 0,
         scanLimit: MEMORY_HEALTH_AUDIT_SCAN_LIMIT,
         recentFailures: auditStats?.recentFailures ?? []
-      }
+      },
+      runtime: this.ports.getRuntimeDiagnostics(agentId)
     }
   }
 

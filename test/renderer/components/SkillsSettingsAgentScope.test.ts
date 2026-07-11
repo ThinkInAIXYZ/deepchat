@@ -3,6 +3,8 @@ import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
+
 const mocks = vi.hoisted(() => ({
   configClient: {
     getSkillDraftSuggestionsEnabled: vi.fn(),

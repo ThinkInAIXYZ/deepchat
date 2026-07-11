@@ -97,6 +97,8 @@ export interface MemoryInjectionPort {
 // Adds extraction entry points on top of injection. Extraction is an independent cheap
 // LLM call that never touches summarization.
 export interface MemoryRuntimePort extends MemoryInjectionPort {
+  observeExtractionQueue?(depth: number, oldestQueuedAt: number | null): void
+
   // Records memory rows that actually entered the assembled runtime prompt. Runtime owns the
   // final manifest visibility; memory presenter still owns the storage mutation.
   recordInjectionAccess(agentId: string, memoryIds: string[], accessedAt?: number): void

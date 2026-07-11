@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryProviderGateway } from '@/presenter/memoryPresenter/infra/providerGateway'
-import type { MemoryPresenterDeps } from '@/presenter/memoryPresenter/types'
+import type { MemoryProviderGatewayDeps } from '@/presenter/memoryPresenter/ports'
+import { createMemoryDiagnosticsProbe } from './memory/serviceHarness'
 
-function makeGateway(overrides: Partial<MemoryPresenterDeps> = {}): {
+function makeGateway(overrides: Partial<MemoryProviderGatewayDeps> = {}): {
   gateway: MemoryProviderGateway
-  deps: MemoryPresenterDeps
+  deps: MemoryProviderGatewayDeps
 } {
   const deps = {
     executeWithRateLimit: vi.fn(async () => undefined),
@@ -13,11 +14,38 @@ function makeGateway(overrides: Partial<MemoryPresenterDeps> = {}): {
     getDimensions: vi.fn(async () => ({ data: { dimensions: 3 } })),
     generateText: vi.fn(async () => 'ok'),
     ...overrides
-  } as unknown as MemoryPresenterDeps
+  } as MemoryProviderGatewayDeps
   return { gateway: new MemoryProviderGateway(deps), deps }
 }
 
 describe('MemoryProviderGateway', () => {
+  it('observes the real admission waiting gauge and closed outcomes', async () => {
+    let admit!: () => void
+    const perfObserver = { increment: vi.fn(), observe: vi.fn() }
+    const probe = createMemoryDiagnosticsProbe()
+    const diagnostics = {
+      recordProviderAdmissionDecision: vi.fn(probe.recordProviderAdmissionDecision),
+      recordProviderRaceEvent: vi.fn(probe.recordProviderRaceEvent)
+    }
+    const { gateway } = makeGateway({
+      perfObserver,
+      diagnostics,
+      executeWithRateLimit: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            admit = resolve
+          })
+      )
+    })
+
+    const request = gateway.generateText('agent', 'p', 'm', 'prompt', 'decision')
+    expect(perfObserver.observe).toHaveBeenLastCalledWith('queueDepth', 1)
+    admit()
+    await expect(request).resolves.toBe('ok')
+    expect(perfObserver.observe).toHaveBeenLastCalledWith('queueDepth', 0)
+    expect(diagnostics.recordProviderAdmissionDecision).toHaveBeenCalledWith('admitted')
+  })
+
   it('admits the request before invoking the provider and exposes its purpose', async () => {
     const order: string[] = []
     const { gateway, deps } = makeGateway({
@@ -65,6 +93,52 @@ describe('MemoryProviderGateway', () => {
     gateway.abortAll()
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('does not admit a queued request that resolves after abort', async () => {
+    let admit!: () => void
+    const diagnostics = {
+      recordProviderAdmissionDecision: vi.fn(),
+      recordProviderRaceEvent: vi.fn()
+    }
+    const { gateway } = makeGateway({
+      diagnostics,
+      executeWithRateLimit: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            admit = resolve
+          })
+      )
+    })
+    const request = gateway.generateText('agent', 'p', 'm', 'prompt', 'decision')
+
+    gateway.abortAgent('agent')
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+    admit()
+    await vi.waitFor(() => {
+      expect(diagnostics.recordProviderRaceEvent).toHaveBeenCalledWith('lateSettled')
+    })
+
+    expect(diagnostics.recordProviderAdmissionDecision).not.toHaveBeenCalledWith('admitted')
+  })
+
+  it('separates rate-limit rejection from local capacity rejection', async () => {
+    const diagnostics = {
+      recordProviderAdmissionDecision: vi.fn(),
+      recordProviderRaceEvent: vi.fn()
+    }
+    const { gateway } = makeGateway({
+      diagnostics,
+      executeWithRateLimit: vi.fn(async () => {
+        throw new Error('limited')
+      })
+    })
+
+    await expect(gateway.generateText('agent', 'p', 'm', 'prompt', 'decision')).rejects.toThrow(
+      'limited'
+    )
+    expect(diagnostics.recordProviderAdmissionDecision).toHaveBeenCalledWith('rateLimited')
+    expect(diagnostics.recordProviderAdmissionDecision).not.toHaveBeenCalledWith('admitted')
   })
 
   it('aborts only the invalidated agent and ignores a late provider resolution', async () => {
@@ -148,7 +222,12 @@ describe('MemoryProviderGateway', () => {
   })
 
   it('caps two unsettled provider calls per agent/provider/model/purpose key', async () => {
+    const diagnostics = {
+      recordProviderAdmissionDecision: vi.fn(),
+      recordProviderRaceEvent: vi.fn()
+    }
     const { gateway, deps } = makeGateway({
+      diagnostics,
       generateText: vi.fn(() => new Promise<string>(() => undefined))
     })
     const first = gateway.generateText('agent', 'p', 'm', 'one', 'decision')
@@ -160,6 +239,7 @@ describe('MemoryProviderGateway', () => {
       gateway.generateText('agent', 'p', 'm', 'three', 'decision')
     ).rejects.toMatchObject({ name: 'AbortError' })
     expect(deps.generateText).toHaveBeenCalledTimes(2)
+    expect(diagnostics.recordProviderAdmissionDecision).toHaveBeenCalledWith('capacityRejected')
 
     gateway.abortAll()
     await Promise.allSettled([first, second])

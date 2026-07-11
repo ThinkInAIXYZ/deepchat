@@ -3,6 +3,8 @@ import { defineComponent } from 'vue'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
+
 const ButtonStub = defineComponent({
   name: 'Button',
   props: {

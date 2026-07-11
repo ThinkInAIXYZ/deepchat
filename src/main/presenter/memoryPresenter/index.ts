@@ -48,6 +48,10 @@ import { ConflictService } from './services/conflictService'
 import { MaintenanceService } from './services/maintenanceService'
 import { WriteCoordinator } from './services/writeCoordinator'
 import { ManagementService } from './services/managementService'
+import {
+  createCompositeMemoryPerfObserver,
+  MemoryDiagnosticsCollector
+} from './infra/diagnostics/memoryDiagnosticsCollector'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 import type {
   MemoryAgentPolicyPort,
@@ -107,8 +111,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly maintenance: MaintenanceService
   private readonly writeCoordinator: WriteCoordinator
   private readonly management: ManagementService
+  private readonly diagnostics: MemoryDiagnosticsCollector
 
   constructor(deps: MemoryPresenterDeps) {
+    this.diagnostics = new MemoryDiagnosticsCollector()
+    const perfObserver = createCompositeMemoryPerfObserver([
+      deps.perfObserver,
+      this.diagnostics.createPerfObserverAdapter()
+    ])
     this.repository = observeRepository(deps.repository, deps.perfObserver)
     this.policy = {
       resolveAgentConfig: deps.resolveAgentConfig,
@@ -123,7 +133,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
       getEmbeddings: deps.getEmbeddings,
       getDimensions: deps.getDimensions,
       generateText: deps.generateText,
-      perfObserver: deps.perfObserver
+      perfObserver,
+      diagnostics: this.diagnostics
     })
     const vectorStoreFactory: MemoryVectorStoreFactoryPort = {
       createVectorStore: deps.createVectorStore,
@@ -145,7 +156,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
       repository,
       policy,
       vectorStoreFactory,
-      perfObserver: deps.perfObserver
+      perfObserver,
+      diagnostics: this.diagnostics
     })
     this.embedding = new EmbeddingPipeline({
       ctx: this.runtime,
@@ -155,7 +167,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
       vectorStore: this.vectorStore,
       rows: this.rows,
       reindexEmbeddings: (agentId, force) => this.reindexEmbeddings(agentId, force),
-      backfillEmbeddings: (agentId) => this.backfillEmbeddings(agentId)
+      backfillEmbeddings: (agentId) => this.backfillEmbeddings(agentId),
+      diagnostics: this.diagnostics
     })
     this.workingMemory = new WorkingMemoryService({ ctx: this.runtime, repository })
 
@@ -179,7 +192,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
           embedding,
           dimensions,
           memoryIds
-        )
+        ),
+      diagnostics: this.diagnostics
     })
     this.reflection = new ReflectionService({
       ctx: this.runtime,
@@ -244,7 +258,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
         const result = this.conflict.repairConflictIntegrity(agentId)
         return Object.values(result).some((count) => count > 0)
       },
-      runConsolidationPass: (agentId) => this.runConsolidationPass(agentId)
+      runConsolidationPass: (agentId) => this.runConsolidationPass(agentId),
+      diagnostics: this.diagnostics
     })
     this.maintenance = maintenanceService
 
@@ -266,7 +281,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
         ),
       markWorkingMemoryDirty: (agentId) => this.workingMemory.markWorkingMemoryDirty(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
-      scheduleConsolidation: (agentId) => this.maintenance.scheduleConsolidation(agentId)
+      scheduleConsolidation: (agentId) => this.maintenance.scheduleConsolidation(agentId),
+      diagnostics: this.diagnostics
     })
 
     this.management = new ManagementService({
@@ -286,7 +302,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
-      clearConsolidationCooldown: (agentId) => this.maintenance.clearCooldown(agentId)
+      clearConsolidationCooldown: (agentId) => this.maintenance.clearCooldown(agentId),
+      getRuntimeDiagnostics: (agentId) => this.diagnostics.snapshot(agentId)
     })
   }
 
@@ -316,6 +333,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   processPendingEmbeddings(agentId: string, limit = 50): Promise<void> {
     return this.embedding.processPendingEmbeddings(agentId, limit)
+  }
+
+  observeExtractionQueue(depth: number, oldestQueuedAt: number | null): void {
+    this.diagnostics.observeExtractionQueue(depth, oldestQueuedAt)
   }
 
   reindexEmbeddings(agentId: string, force = false): Promise<void> {
@@ -543,7 +564,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   async clearMemories(agentId: string): Promise<number> {
-    return this.management.clearMemories(agentId)
+    const cleared = await this.management.clearMemories(agentId)
+    this.diagnostics.cleanupAgent(agentId)
+    return cleared
   }
 
   async cleanupDeletedAgentResources(agentId: string): Promise<void> {
@@ -565,6 +588,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       await this.vectorStore.settleAgent(agentId)
       await this.persona.cleanupAgent(agentId)
       this.runtime.cleanupAgent(agentId)
+      this.diagnostics.cleanupAgent(agentId)
     }
     if (resetError) throw resetError
   }
@@ -602,5 +626,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.retrieval.clearAll()
     this.workingMemory.clearAll()
     this.runtime.clearRuntimeState()
+    this.diagnostics.clear()
   }
 }

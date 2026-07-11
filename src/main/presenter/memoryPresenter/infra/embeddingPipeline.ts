@@ -57,21 +57,45 @@ export interface EmbeddingPipelinePorts {
   }
   reindexEmbeddings: (agentId: string, force?: boolean) => Promise<void>
   backfillEmbeddings: (agentId: string) => Promise<void>
+  diagnostics?: {
+    observeEmbeddingBacklog(pending: number, activeAgents: number): void
+    recordEmbedding(
+      agentId: string,
+      sample: {
+        batchSize: number
+        drainDurationMs: number
+        succeeded: number
+        failed: number
+        ftsOnly: number
+      }
+    ): void
+    recordVectorOutcome(
+      outcome: 'eviction' | 'warmupSucceeded' | 'warmupDeferred' | 'warmupFailed'
+    ): void
+  }
 }
 
 type EmbeddingDrainOutcome = 'progress' | 'empty' | 'blocked'
+type EmbeddingDrainResult = {
+  outcome: EmbeddingDrainOutcome
+  batchSize: number
+  succeeded: number
+  failed: number
+  ftsOnly: number
+}
 
-interface EmbeddingPipelineRuntimeState {
-  embeddingWarmups: Map<string, Promise<void>>
-  embeddingWarmSuccesses: Set<string>
-  embeddingWarmFailureUntil: Map<string, number>
-  vectorStoreWarmups: Map<string, Promise<void>>
-  vectorStoreDimensionFailures: Map<string, number>
-  embeddingDrains: Map<string, Promise<void>>
-  reindexing: Map<string, Promise<void>>
-  backfilling: Map<string, Promise<void>>
-  errorRetryAt: Map<string, number>
-  errorRetryAfterId: Map<string, string | null>
+function embeddingDrainResult(
+  outcome: EmbeddingDrainOutcome,
+  batchSize = 0,
+  counts: Partial<Pick<EmbeddingDrainResult, 'succeeded' | 'failed' | 'ftsOnly'>> = {}
+): EmbeddingDrainResult {
+  return {
+    outcome,
+    batchSize,
+    succeeded: counts.succeeded ?? 0,
+    failed: counts.failed ?? 0,
+    ftsOnly: counts.ftsOnly ?? 0
+  }
 }
 
 export class EmbeddingPipeline {
@@ -116,8 +140,10 @@ export class EmbeddingPipeline {
       if (this.embeddingDrains.get(agentId) !== tracked) return
       this.embeddingDrains.delete(agentId)
       this.embeddingDrainLimits.delete(agentId)
+      this.observeBacklog()
     })
     this.embeddingDrains.set(agentId, tracked)
+    this.observeBacklog()
     return tracked
   }
 
@@ -135,9 +161,19 @@ export class EmbeddingPipeline {
         Math.max(1, this.embeddingDrainLimits.get(agentId) || REINDEX_BATCH_SIZE)
       )
       this.embeddingDrainLimits.set(agentId, 0)
-      const outcome = await this.drainPendingEmbeddings(agentId, limit)
+      const batchStartedAt = performance.now()
+      const result = await this.drainPendingEmbeddings(agentId, limit)
+      if (result.batchSize > 0) {
+        this.ports.diagnostics?.recordEmbedding(agentId, {
+          batchSize: result.batchSize,
+          drainDurationMs: performance.now() - batchStartedAt,
+          succeeded: result.succeeded,
+          failed: result.failed,
+          ftsOnly: result.ftsOnly
+        })
+      }
       if (!this.ctx.canContinueAgentMemoryTask(agentId)) break
-      if (outcome === 'blocked' || outcome === 'empty') break
+      if (result.outcome === 'blocked' || result.outcome === 'empty') break
       keepDraining = true
       this.embeddingDrainDirty.delete(agentId)
       if (cycle === REINDEX_MAX_BATCHES - 1) this.embeddingDrainDirty.add(agentId)
@@ -157,11 +193,18 @@ export class EmbeddingPipeline {
     }
   }
 
+  private observeBacklog(): void {
+    this.ports.diagnostics?.observeEmbeddingBacklog(
+      this.ports.repository.countPendingEmbedding(),
+      this.embeddingDrains.size
+    )
+  }
+
   private async drainPendingEmbeddings(
     agentId: string,
     limit: number
-  ): Promise<EmbeddingDrainOutcome> {
-    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return 'blocked'
+  ): Promise<EmbeddingDrainResult> {
+    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return embeddingDrainResult('blocked')
     const operationFence = this.ctx.captureOperationFence(agentId)
     const config = this.ports.policy.resolveAgentConfig(agentId)
     let pending = this.ports.repository.listPendingEmbedding(limit, agentId)
@@ -198,16 +241,17 @@ export class EmbeddingPipeline {
         }
       }
     }
-    if (!pending.length) return 'empty'
+    if (!pending.length) return embeddingDrainResult('empty')
+    const batchSize = pending.length
 
     const embedding = config?.memoryEmbedding
     if (!embedding?.providerId || !embedding?.modelId) {
-      this.ports.repository.markPendingEmbeddingsError(
+      const transitioned = this.ports.repository.markPendingEmbeddingsError(
         agentId,
         pending.map((row) => ({ id: row.id, expectedRevision: row.decision_revision })),
         'fts_only'
       )
-      return 'progress'
+      return embeddingDrainResult('progress', batchSize, { ftsOnly: transitioned.length })
     }
 
     let vectors: number[][]
@@ -221,10 +265,12 @@ export class EmbeddingPipeline {
       )
     } catch (error) {
       logger.error(`[Memory] embedding service failed for ${agentId}, will retry: ${String(error)}`)
-      return 'blocked'
+      return embeddingDrainResult('blocked', batchSize)
     }
 
-    if (!this.ctx.canContinueOperation(operationFence)) return 'blocked'
+    if (!this.ctx.canContinueOperation(operationFence)) {
+      return embeddingDrainResult('blocked', batchSize)
+    }
     const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
     const currentEmbedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
     if (
@@ -232,7 +278,7 @@ export class EmbeddingPipeline {
       !currentEmbedding?.modelId ||
       embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId) !== fingerprint
     ) {
-      return 'blocked'
+      return embeddingDrainResult('blocked', batchSize)
     }
 
     const authoritativeRows = this.ports.repository.listByIds(
@@ -284,15 +330,17 @@ export class EmbeddingPipeline {
     }
 
     if (!records.length) {
+      let failed = 0
       if (malformedUpdates.length) {
         this.errorRetryAt.set(agentId, Date.now())
-        this.ports.repository.markPendingEmbeddingsError(agentId, malformedUpdates)
+        failed = this.ports.repository.markPendingEmbeddingsError(agentId, malformedUpdates).length
       }
-      return 'progress'
+      return embeddingDrainResult('progress', batchSize, { failed })
     }
 
     let sidecarWritten = false
     let sqliteTransitionAttempted = false
+    let succeeded = 0
     try {
       const outcome = await this.ports.vectorStore.withVectorMutation(agentId, () =>
         this.ports.vectorStore.withStoreLease(
@@ -313,6 +361,7 @@ export class EmbeddingPipeline {
             sidecarWritten = true
             sqliteTransitionAttempted = true
             const readyIds = this.ports.repository.markPendingEmbeddingsReady(agentId, readyUpdates)
+            succeeded = readyIds.length
             const readySet = new Set(readyIds)
             const orphanIds = records
               .map((record) => record.memoryId)
@@ -327,7 +376,7 @@ export class EmbeddingPipeline {
         !this.ctx.canContinueOperation(operationFence) ||
         !this.ports.vectorStore.isGenerationCurrent(agentId, outcome.generation)
       ) {
-        return 'blocked'
+        return embeddingDrainResult('blocked', batchSize, { succeeded })
       }
       const latestEmbedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
       const currentFingerprint =
@@ -338,49 +387,55 @@ export class EmbeddingPipeline {
         logger.info(
           `[Memory] embedding config changed during drain for ${agentId}; discarding stale vectors`
         )
-        return 'blocked'
+        return embeddingDrainResult('blocked', batchSize, { succeeded })
       }
       if (!outcome.usable) {
         this.errorRetryAt.set(agentId, Date.now())
-        this.ports.repository.markPendingEmbeddingsError(agentId, [
+        const failed = this.ports.repository.markPendingEmbeddingsError(agentId, [
           ...readyUpdates,
           ...malformedUpdates
-        ])
+        ]).length
         this.ports.vectorStore.clearReady(agentId)
-        return 'progress'
+        return embeddingDrainResult('progress', batchSize, { failed })
       }
 
+      let failed = 0
       if (malformedUpdates.length) {
         this.errorRetryAt.set(agentId, Date.now())
-        this.ports.repository.markPendingEmbeddingsError(agentId, malformedUpdates)
+        failed = this.ports.repository.markPendingEmbeddingsError(agentId, malformedUpdates).length
       }
-      return 'progress'
+      return embeddingDrainResult('progress', batchSize, { succeeded, failed })
     } catch (error) {
       logger.error(`[Memory] vector store write failed for ${agentId}: ${String(error)}`)
-      if (error instanceof VectorStoreLeaseUnavailableError) return 'blocked'
-      if (!this.ctx.canContinueOperation(operationFence)) return 'blocked'
+      if (error instanceof VectorStoreLeaseUnavailableError) {
+        return embeddingDrainResult('blocked', batchSize, { succeeded })
+      }
+      if (!this.ctx.canContinueOperation(operationFence)) {
+        return embeddingDrainResult('blocked', batchSize, { succeeded })
+      }
       const latestEmbedding = this.ports.policy.resolveAgentConfig(agentId)?.memoryEmbedding
       if (
         !latestEmbedding?.providerId ||
         !latestEmbedding?.modelId ||
         embeddingFingerprint(latestEmbedding.providerId, latestEmbedding.modelId) !== fingerprint
       ) {
-        return 'blocked'
+        return embeddingDrainResult('blocked', batchSize, { succeeded })
       }
       this.ports.vectorStore.clearReady(agentId)
       if (!sidecarWritten && !sqliteTransitionAttempted) {
         this.errorRetryAt.set(agentId, Date.now())
-        this.ports.repository.markPendingEmbeddingsError(agentId, [
+        const failed = this.ports.repository.markPendingEmbeddingsError(agentId, [
           ...readyUpdates,
           ...malformedUpdates
-        ])
-        return 'progress'
+        ]).length
+        return embeddingDrainResult('progress', batchSize, { failed })
       }
+      let failed = 0
       if (malformedUpdates.length) {
         this.errorRetryAt.set(agentId, Date.now())
-        this.ports.repository.markPendingEmbeddingsError(agentId, malformedUpdates)
+        failed = this.ports.repository.markPendingEmbeddingsError(agentId, malformedUpdates).length
       }
-      return 'blocked'
+      return embeddingDrainResult('blocked', batchSize, { succeeded, failed })
     }
   }
 
@@ -471,9 +526,13 @@ export class EmbeddingPipeline {
     const openDelay = options.delayOpen ? this.waitForBackgroundTick() : null
     const tracked = Promise.resolve()
       .then(async () => {
-        await this.runWarmVectorStore(agentId, embedding, openDelay)
+        const outcome = await this.runWarmVectorStore(agentId, embedding, openDelay)
+        this.ports.diagnostics?.recordVectorOutcome(
+          outcome === 'succeeded' ? 'warmupSucceeded' : 'warmupDeferred'
+        )
       })
       .catch((error) => {
+        this.ports.diagnostics?.recordVectorOutcome('warmupFailed')
         this.ports.vectorStore.clearReady(agentId)
         logger.warn(`[Memory] vector store warm failed for ${agentId}: ${String(error)}`)
       })
@@ -495,20 +554,20 @@ export class EmbeddingPipeline {
     agentId: string,
     embedding: MemoryModelRef,
     openDelay: Promise<void> | null
-  ): Promise<void> {
-    if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
+  ): Promise<'succeeded' | 'deferred'> {
+    if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return 'deferred'
     const operationFence = this.ctx.captureOperationFence(agentId)
     const dimensions = await this.resolveWarmVectorDimensions(agentId, embedding, operationFence)
     if (
       !this.ctx.canContinueOperation(operationFence) ||
       !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)
     ) {
-      return
+      return 'deferred'
     }
     if (this.ports.vectorStore.getReadyCertificateDimension(agentId, embedding) === dimensions)
-      return
+      return 'succeeded'
     if (openDelay) await openDelay
-    if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
+    if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return 'deferred'
 
     const leaseResult = await this.ports.vectorStore.withStoreLease(
       agentId,
@@ -521,7 +580,7 @@ export class EmbeddingPipeline {
         return { usable: store.isUsable(), generation }
       }
     )
-    if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
+    if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return 'deferred'
 
     if (!leaseResult.usable) {
       this.ports.vectorStore.clearReady(agentId)
@@ -530,7 +589,7 @@ export class EmbeddingPipeline {
           logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
         })
       }
-      return
+      return 'deferred'
     }
 
     const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
@@ -539,7 +598,7 @@ export class EmbeddingPipeline {
       void this.ports.reindexEmbeddings(agentId).catch((error) => {
         logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
       })
-      return
+      return 'deferred'
     }
 
     const coverage = await this.verifyVectorCoverage(agentId, embedding, dimensions, fingerprint)
@@ -552,7 +611,7 @@ export class EmbeddingPipeline {
           )
         })
       }
-      return
+      return 'deferred'
     }
 
     this.ports.vectorStore.markReady(agentId, embedding, dimensions, coverage.generation)
@@ -561,6 +620,7 @@ export class EmbeddingPipeline {
         logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
       })
     }
+    return 'succeeded'
   }
 
   private collectCurrentEmbeddedIds(
@@ -792,6 +852,7 @@ export class EmbeddingPipeline {
     for (const key of this.vectorStoreDimensionFailures.keys()) {
       if (key.startsWith(`${agentId}::`)) this.vectorStoreDimensionFailures.delete(key)
     }
+    this.observeBacklog()
   }
 
   clearAll(): void {
@@ -808,21 +869,5 @@ export class EmbeddingPipeline {
     this.backfilling.clear()
     this.errorRetryAt.clear()
     this.errorRetryAfterId.clear()
-  }
-
-  /** @internal Live mutable state for legacy facade-oracle tests only. */
-  getMutableRuntimeStateForTests(): EmbeddingPipelineRuntimeState {
-    return {
-      embeddingWarmups: this.embeddingWarmups,
-      embeddingWarmSuccesses: this.embeddingWarmSuccesses,
-      embeddingWarmFailureUntil: this.embeddingWarmFailureUntil,
-      vectorStoreWarmups: this.vectorStoreWarmups,
-      vectorStoreDimensionFailures: this.vectorStoreDimensionFailures,
-      embeddingDrains: this.embeddingDrains,
-      reindexing: this.reindexing,
-      backfilling: this.backfilling,
-      errorRetryAt: this.errorRetryAt,
-      errorRetryAfterId: this.errorRetryAfterId
-    }
   }
 }

@@ -1,11 +1,24 @@
-import { describe, expect, it, vi } from 'vitest'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
 
-import { MemoryPresenter } from '@/presenter/memoryPresenter'
+import {
+  buildRecallKeywordQuery,
+  extractRecallKeywordCandidates,
+  selectRecallKeywordTerms
+} from '@/presenter/memoryPresenter/core/recallKeyword'
 import { fuse } from '@/presenter/memoryPresenter/core/scoring'
-import { DEFAULT_RETRIEVAL, DEFAULT_SIMILARITY_THRESHOLD } from '@/presenter/memoryPresenter/types'
+import { DEFAULT_RETRIEVAL } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+import fixtureValue from '../../fixtures/memory/retrieval-v1.json'
+import {
+  calculateRetrievalMetrics,
+  cosineSimilarity,
+  deterministicLexiconEmbed,
+  type MemoryRetrievalFixtureV1,
+  validateRetrievalFixture
+} from '../../helpers/memoryRetrievalEval'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
-import { FakeRepository, FakeVectorStore } from './fakes/memoryFakes'
 
 const tableModule = Database
   ? await import('@/presenter/sqlitePresenter/tables/agentMemory').catch(() => null)
@@ -18,298 +31,184 @@ const describeIfSqlite = nativeSqliteDescribeIf(
   'AgentMemoryTable is unavailable'
 )
 
-const VOCAB = [
-  'chinese',
-  'concise',
-  'redis',
-  'cache',
-  'session',
-  'vue',
-  'pinia',
-  'frontend',
-  'timezone',
-  'pacific',
-  'docker',
-  'kubernetes',
-  'deploy'
-] as const
+validateRetrievalFixture(fixtureValue)
+const fixture = fixtureValue as MemoryRetrievalFixtureV1
 
-// Light stemming so "caching"->"cache", "sessions"->"session" map onto the vocab.
-function tokens(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/caching/g, 'cache')
-    .replace(/sessions/g, 'session')
-    .split(/[^a-z]+/)
-    .filter(Boolean)
+function rankVectors(
+  queryText: string,
+  rows: AgentMemoryRow[],
+  options: { includeConcepts?: boolean } = {}
+) {
+  const queryVector = deterministicLexiconEmbed(queryText, options)
+  return rows
+    .map((row) => ({
+      row,
+      similarity: cosineSimilarity(queryVector, deterministicLexiconEmbed(row.content, options))
+    }))
+    .sort(
+      (left, right) => right.similarity - left.similarity || left.row.id.localeCompare(right.row.id)
+    )
+    .slice(0, 20)
+    .filter(({ similarity }) => similarity >= DEFAULT_RETRIEVAL.similarityThreshold)
 }
 
-function embed(text: string): number[] {
-  const present = new Set(tokens(text))
-  return VOCAB.map((term) => (present.has(term) ? 1 : 0))
-}
-
-function cosine(a: number[], b: number[]): number {
-  let dot = 0
-  let na = 0
-  let nb = 0
-  for (let i = 0; i < a.length; i += 1) {
-    dot += a[i] * b[i]
-    na += a[i] * a[i]
-    nb += b[i] * b[i]
-  }
-  const denom = Math.sqrt(na) * Math.sqrt(nb)
-  return denom === 0 ? 0 : dot / denom
-}
-
-function makeRow(id: string, content: string): AgentMemoryRow {
-  return {
-    id,
-    agent_id: 'a',
-    user_scope: null,
-    kind: 'semantic',
-    category: null,
-    content,
-    importance: 0.5,
-    status: 'embedded',
-    embedding_id: id,
-    embedding_dim: VOCAB.length,
-    embedding_model: 'stub:stub',
-    source_session: null,
-    provenance_key: null,
-    is_anchor: 0,
-    superseded_by: null,
-    created_at: 1000,
-    last_accessed: null,
-    access_count: 0,
-    decay_score: null,
-    source_entry_ids: null,
-    confidence: null,
-    last_consolidated_at: null,
-    conflict_state: null,
-    conflict_with: null,
-    persona_state: null
-  }
-}
-
-const FIXTURE: AgentMemoryRow[] = [
-  makeRow('m-chinese', 'user prefers concise answers in chinese'),
-  makeRow('m-redis', 'user likes redis caching for sessions'),
-  makeRow('m-vue', 'user builds vue frontend apps with pinia'),
-  makeRow('m-timezone', 'user works in the pacific timezone'),
-  makeRow('m-deploy', 'team deploys with docker and kubernetes')
-]
-
-interface EvalCase {
-  query: string
-  expected: string
-}
-
-const CASES: EvalCase[] = [
-  { query: 'redis caching', expected: 'm-redis' },
-  // Semantic, non-substring: "session store" never appears verbatim, vector must carry it.
-  { query: 'session store', expected: 'm-redis' },
-  { query: 'vue pinia frontend', expected: 'm-vue' },
-  { query: 'kubernetes deploy', expected: 'm-deploy' },
-  { query: 'pacific timezone', expected: 'm-timezone' }
-]
-
-function ftsCandidates(query: string): AgentMemoryRow[] {
-  const q = query.toLowerCase()
-  return FIXTURE.filter((row) => row.content.toLowerCase().includes(q))
-}
-
-function vecCandidates(query: string): { row: AgentMemoryRow; similarity: number }[] {
-  const queryVec = embed(query)
-  return FIXTURE.map((row) => ({ row, similarity: cosine(embed(row.content), queryVec) }))
-    .filter((candidate) => candidate.similarity >= DEFAULT_SIMILARITY_THRESHOLD)
-    .sort((a, b) => b.similarity - a.similarity)
-}
-
-const FUSE_OPTS = {
-  topK: 5,
-  rrfK: DEFAULT_RETRIEVAL.rrfK,
-  weights: DEFAULT_RETRIEVAL.weights,
-  now: 1000
-}
-
-function rankedIds(query: string, mode: 'hybrid' | 'fts'): string[] {
-  const vec = mode === 'hybrid' ? vecCandidates(query) : []
-  return fuse(ftsCandidates(query), vec, FUSE_OPTS).map((item) => item.id)
-}
-
-function reciprocalRank(ids: string[], expected: string): number {
-  const index = ids.indexOf(expected)
-  return index === -1 ? 0 : 1 / (index + 1)
-}
-
-function ndcgAtK(ids: string[], expected: string, k: number): number {
-  const index = ids.slice(0, k).indexOf(expected)
-  if (index === -1) return 0
-  // Single relevant doc → IDCG = 1; DCG = 1/log2(rank+2).
-  return 1 / Math.log2(index + 2)
-}
-
-describe('memory retrieval eval harness (hybrid RRF)', () => {
-  it('hits the expected memory at K=3 for every case (hit@3 = 1.0)', () => {
-    for (const testCase of CASES) {
-      const ids = rankedIds(testCase.query, 'hybrid')
-      expect(ids.slice(0, 3)).toContain(testCase.expected)
-    }
+describe('memory retrieval eval primitives', () => {
+  it('validates the versioned fixture and deterministic normalized vectors', () => {
+    expect(fixture.corpus).toHaveLength(240)
+    expect(fixture.queries).toHaveLength(60)
+    const first = deterministicLexiconEmbed(fixture.queries[0].text)
+    expect(first).toEqual(deterministicLexiconEmbed(fixture.queries[0].text))
+    expect(Math.hypot(...first)).toBeCloseTo(1, 10)
+    expect(JSON.stringify(fixture)).not.toContain('embedding')
   })
 
-  it('ranks the expected memory first for semantic, non-substring queries (strong vector wins)', () => {
-    const ids = rankedIds('session store', 'hybrid')
-    expect(ids[0]).toBe('m-redis')
-    // The keyword path alone cannot find it (no "session store" substring).
-    expect(ftsCandidates('session store')).toHaveLength(0)
-  })
-
-  it('hybrid MRR is at least as good as keyword-only retrieval', () => {
-    const mrr = (mode: 'hybrid' | 'fts') =>
-      CASES.reduce((sum, c) => sum + reciprocalRank(rankedIds(c.query, mode), c.expected), 0) /
-      CASES.length
-    const hybrid = mrr('hybrid')
-    const ftsOnly = mrr('fts')
-    expect(hybrid).toBeGreaterThanOrEqual(ftsOnly)
-    expect(hybrid).toBeGreaterThanOrEqual(0.9)
-  })
-
-  it('reports strong nDCG@3 across the fixture', () => {
-    const ndcg =
-      CASES.reduce((sum, c) => sum + ndcgAtK(rankedIds(c.query, 'hybrid'), c.expected, 3), 0) /
-      CASES.length
-    expect(ndcg).toBeGreaterThanOrEqual(0.9)
-  })
-
-  it('recalls the expected memory through MemoryPresenter with deterministic embeddings', async () => {
-    const repo = new FakeRepository()
-    const store = new FakeVectorStore()
-    const presenter = new MemoryPresenter({
-      executeWithRateLimit: vi.fn(async () => undefined),
-      repository: repo,
-      resolveAgentConfig: () => ({
-        memoryEnabled: true,
-        memoryEmbedding: { providerId: 'stub', modelId: 'stub' }
-      }),
-      getEmbeddings: vi.fn(async (_providerId: string, _modelId: string, texts: string[]) =>
-        texts.map(embed)
-      ),
-      getDimensions: vi.fn(async () => ({
-        data: { dimensions: embed('').length, normalized: false }
-      })),
-      generateText: vi.fn(async () => ''),
-      createVectorStore: async () => store,
-      resetVectorStore: async () => {
-        store.vectors.clear()
+  it('calculates multi-relevant metrics and ignores duplicate ranked IDs', () => {
+    const queries: MemoryRetrievalFixtureV1['queries'] = [
+      {
+        id: 'metric',
+        agentId: 'a',
+        text: 'metric',
+        subsets: ['exact'],
+        relevantIds: ['a', 'b']
       }
-    })
+    ]
+    const summary = calculateRetrievalMetrics(queries, new Map([['metric', ['x', 'a', 'a', 'b']]]))
+    expect(summary.recallAt5).toBe(1)
+    expect(summary.mrrAt10).toBe(0.5)
+    expect(summary.ndcgAt10).toBeGreaterThan(0.6)
+  })
 
-    for (const row of FIXTURE) {
-      repo.insert({
-        id: row.id,
-        agentId: row.agent_id,
-        kind: row.kind,
-        content: row.content,
-        importance: row.importance,
-        status: 'pending_embedding'
-      })
+  it('keeps every relevant row in the deterministic vector top five without cross-Agent leakage', () => {
+    for (const query of fixture.queries) {
+      const queryVector = deterministicLexiconEmbed(query.text)
+      const ranked = fixture.corpus
+        .filter((row) => row.agentId === query.agentId)
+        .map((row) => ({
+          id: row.id,
+          score: cosineSimilarity(queryVector, deterministicLexiconEmbed(row.content))
+        }))
+        .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+        .slice(0, 5)
+        .map((row) => row.id)
+      expect(ranked).toEqual(expect.arrayContaining(query.relevantIds))
     }
-    await presenter.processPendingEmbeddings('a')
+  })
 
-    const results = await presenter.recall('a', 'session store', 1000)
-    expect(results[0]?.id).toBe('m-redis')
+  it('requires concept features for the semantic subset', () => {
+    const rankedWithoutConcepts = new Map<string, string[]>()
+    for (const query of fixture.queries.filter(({ subsets }) => subsets.includes('semantic'))) {
+      const rows = fixture.corpus
+        .filter((row) => row.agentId === query.agentId)
+        .map(
+          (row) =>
+            ({
+              id: row.id,
+              agent_id: row.agentId,
+              kind: row.kind,
+              content: row.content,
+              importance: row.importance
+            }) as AgentMemoryRow
+        )
+      rankedWithoutConcepts.set(
+        query.id,
+        rankVectors(query.text, rows, { includeConcepts: false }).map(({ row }) => row.id)
+      )
+    }
+    const semanticQueries = fixture.queries.filter(({ subsets }) => subsets.includes('semantic'))
+    expect(
+      calculateRetrievalMetrics(semanticQueries, rankedWithoutConcepts).recallAt5
+    ).toBeLessThan(0.5)
+  })
+
+  it('reports zero metrics for empty results', () => {
+    const summary = calculateRetrievalMetrics([fixture.queries[0]], new Map())
+    expect(summary).toMatchObject({ recallAt5: 0, mrrAt10: 0, ndcgAt10: 0 })
+  })
+
+  it('rejects queries without relevant IDs', () => {
+    const invalid = structuredClone(fixture)
+    invalid.queries[0].relevantIds = []
+    expect(() => validateRetrievalFixture(invalid)).toThrow('relevant IDs')
   })
 })
 
-describeIfSqlite('memory retrieval eval harness (SQLite keyword index)', () => {
-  it('recalls CJK, path, command, and error-text fixtures through real SQLite search', () => {
+describeIfSqlite('memory retrieval eval v1', () => {
+  it('meets the hybrid quality gates through real SQLite FTS and production fusion', () => {
     const db = new DatabaseCtor(':memory:')
+    const artifactPath = resolve('test-results/memory/retrieval-v1.json')
     try {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
-      const fixtures = [
-        {
-          id: 'm-cn',
-          content: '用户偏好简洁中文回答，少铺垫。'
-        },
-        {
-          id: 'm-redis',
-          content: 'Debugged Redis TTL drift in the session cache.'
-        },
-        {
-          id: 'm-path',
-          content: 'Deployment command lives at /usr/local/bin/deploy --flag.'
-        },
-        {
-          id: 'm-error',
-          content: 'Port failure showed EADDRINUSE on localhost:5173.'
+      const rowById = new Map<string, AgentMemoryRow>()
+      for (const item of fixture.corpus) {
+        const row = table.insert({
+          id: item.id,
+          agentId: item.agentId,
+          kind: item.kind,
+          content: item.content,
+          importance: item.importance,
+          status: 'embedded'
+        })
+        rowById.set(row.id, row)
+      }
+
+      const ftsRanked = new Map<string, string[]>()
+      const vectorRanked = new Map<string, string[]>()
+      const hybridRanked = new Map<string, string[]>()
+      for (const query of fixture.queries) {
+        const keywordQuery = buildRecallKeywordQuery(
+          selectRecallKeywordTerms(extractRecallKeywordCandidates(query.text))
+        )
+        const fts = keywordQuery
+          ? table.searchWithStrategy(query.agentId, keywordQuery, 20, { matchMode: 'any' }).rows
+          : []
+        const agentRows = fixture.corpus
+          .filter((item) => item.agentId === query.agentId)
+          .map((item) => rowById.get(item.id)!)
+        const vectors = rankVectors(query.text, agentRows)
+        ftsRanked.set(
+          query.id,
+          fts.map((row) => row.id)
+        )
+        vectorRanked.set(
+          query.id,
+          vectors.map(({ row }) => row.id)
+        )
+        hybridRanked.set(
+          query.id,
+          fuse(fts, vectors, {
+            topK: 10,
+            rrfK: DEFAULT_RETRIEVAL.rrfK,
+            weights: DEFAULT_RETRIEVAL.weights,
+            now: Date.now()
+          }).map((item) => item.id)
+        )
+      }
+
+      const report = {
+        version: 1,
+        vectorProfile: fixture.vectorProfile,
+        generatedAt: new Date().toISOString(),
+        variants: {
+          fts: calculateRetrievalMetrics(fixture.queries, ftsRanked),
+          vector: calculateRetrievalMetrics(fixture.queries, vectorRanked),
+          hybrid: calculateRetrievalMetrics(fixture.queries, hybridRanked)
         }
-      ]
-      for (const fixture of fixtures) {
-        table.insert({
-          id: fixture.id,
-          agentId: 'deepchat',
-          kind: 'semantic',
-          content: fixture.content,
-          status: 'embedded'
-        })
       }
-      table.insert({
-        id: 'm-other',
-        agentId: 'other-agent',
-        kind: 'semantic',
-        content: 'Redis TTL belongs to a different agent.',
-        status: 'embedded'
-      })
+      mkdirSync(dirname(artifactPath), { recursive: true })
+      writeFileSync(artifactPath, `${JSON.stringify(report, null, 2)}\n`)
+      console.log(JSON.stringify(report))
 
-      const cases = [
-        { query: '简洁', expected: 'm-cn' },
-        { query: 'Redis TTL', expected: 'm-redis' },
-        { query: '/usr/local/bin/deploy', expected: 'm-path' },
-        { query: 'EADDRINUSE', expected: 'm-error' }
-      ]
-
-      for (const testCase of cases) {
-        const ids = table.search('deepchat', testCase.query, 5).map((row) => row.id)
-        expect(ids[0]).toBe(testCase.expected)
+      const { hybrid, fts } = report.variants
+      for (const subset of ['exact', 'cjk', 'path', 'code'] as const) {
+        expect(hybrid.bySubset[subset].recallAt5).toBe(1)
+        expect(hybrid.bySubset[subset].recallAt5).toBeGreaterThanOrEqual(
+          fts.bySubset[subset].recallAt5 - 0.02
+        )
       }
-      expect(table.search('deepchat', 'different agent', 5)).toHaveLength(0)
-    } finally {
-      db.close()
-    }
-  })
-
-  it('keeps hybrid RRF at least as strong as real SQLite keyword retrieval', () => {
-    const db = new DatabaseCtor(':memory:')
-    try {
-      const table = new AgentMemoryTableCtor(db)
-      table.createTable()
-      for (const row of FIXTURE) {
-        table.insert({
-          id: row.id,
-          agentId: row.agent_id,
-          kind: row.kind,
-          content: row.content,
-          importance: row.importance,
-          status: 'embedded'
-        })
-      }
-
-      const rankedFromSqlite = (query: string, mode: 'hybrid' | 'fts') => {
-        const keyword = table.search('a', query, FUSE_OPTS.topK)
-        const vec = mode === 'hybrid' ? vecCandidates(query) : []
-        return fuse(keyword, vec, FUSE_OPTS).map((item) => item.id)
-      }
-      const mrr = (mode: 'hybrid' | 'fts') =>
-        CASES.reduce(
-          (sum, testCase) =>
-            sum + reciprocalRank(rankedFromSqlite(testCase.query, mode), testCase.expected),
-          0
-        ) / CASES.length
-
-      expect(mrr('hybrid')).toBeGreaterThanOrEqual(mrr('fts'))
-      expect(rankedFromSqlite('session store', 'hybrid')[0]).toBe('m-redis')
+      expect(hybrid.recallAt5).toBeGreaterThanOrEqual(0.95)
+      expect(hybrid.mrrAt10).toBeGreaterThanOrEqual(0.85)
+      expect(hybrid.ndcgAt10).toBeGreaterThanOrEqual(0.85)
     } finally {
       db.close()
     }

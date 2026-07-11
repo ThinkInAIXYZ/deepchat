@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
 import {
   createEmptyMemoryHealth,
+  createEmptyMemoryRuntimeDiagnostics,
   decodeMemoryPageCursor,
   encodeMemoryPageCursor,
   memoryAddRoute,
@@ -19,7 +20,14 @@ import {
   memorySearchRoute,
   memoryUpdateRoute
 } from '@shared/contracts/routes'
-import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
+import {
+  AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
+  MEMORY_MAINTENANCE_BUDGET_STEPS,
+  MEMORY_RECALL_LATENCY_STAGES,
+  MEMORY_RETRIEVAL_DEGRADATION_CAUSES,
+  MEMORY_RETRIEVAL_OUTCOMES,
+  MEMORY_RETRIEVAL_PURPOSES
+} from '@shared/types/agent-memory'
 import { memoryUpdatedEvent } from '@shared/contracts/events/memory.events'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
@@ -248,6 +256,85 @@ describe('memory.reindex route contract', () => {
 })
 
 describe('memory.getHealth route contract', () => {
+  it('keeps runtime required, enum-complete, and free of unknown sensitive fields', () => {
+    const runtime = createEmptyMemoryRuntimeDiagnostics()
+    expect(Object.keys(runtime.agent.retrieval)).toEqual(MEMORY_RETRIEVAL_PURPOSES)
+    expect(Object.keys(runtime.agent.retrieval.recall.latencyMs)).toEqual(
+      MEMORY_RECALL_LATENCY_STAGES
+    )
+    expect(Object.keys(runtime.agent.retrieval.recall.outcomeCounts)).toEqual(
+      MEMORY_RETRIEVAL_OUTCOMES
+    )
+    expect(Object.keys(runtime.agent.retrieval.recall.degradationCounts)).toEqual(
+      MEMORY_RETRIEVAL_DEGRADATION_CAUSES
+    )
+    expect(Object.keys(runtime.agent.maintenance.budgetDeniedByStep)).toEqual(
+      MEMORY_MAINTENANCE_BUDGET_STEPS
+    )
+
+    const healthWithoutRuntime = { ...createEmptyMemoryHealth() } as Record<string, unknown>
+    delete healthWithoutRuntime.runtime
+    expect(memoryGetHealthRoute.output.safeParse({ health: healthWithoutRuntime }).success).toBe(
+      false
+    )
+
+    const marker = 'fixture-secret-marker'
+    const parsed = memoryGetHealthRoute.output.parse({
+      health: {
+        ...createEmptyMemoryHealth(),
+        runtime: {
+          ...runtime,
+          query: marker,
+          process: { ...runtime.process, providerResponse: marker }
+        }
+      }
+    })
+    expect(JSON.stringify(parsed)).not.toContain(marker)
+  })
+
+  it('round-trips a fully populated Agent/process runtime snapshot', () => {
+    const runtime = createEmptyMemoryRuntimeDiagnostics()
+    runtime.agent.retrieval.recall.latencyMs.total = { samples: 3, p50: 4, p95: 8, max: 9 }
+    runtime.agent.retrieval.recall.ftsCandidates = 7
+    runtime.agent.retrieval.recall.vectorCandidates = 5
+    runtime.agent.retrieval.recall.selected = 3
+    runtime.agent.retrieval.recall.degradationCounts.vectorCold = 2
+    runtime.agent.extraction = {
+      chunksCompleted: 4,
+      chunksCancelled: 2,
+      chunksFailed: 1,
+      llmCalls: 2,
+      casRetries: 3
+    }
+    runtime.agent.embedding.succeeded = 6
+    runtime.agent.embedding.failed = 1
+    runtime.agent.maintenance.llmCalls = 2
+    runtime.agent.maintenance.llmTokens = 120
+    runtime.agent.maintenance.budgetDeniedByStep.merge = 1
+    runtime.process.extractionQueue = { depth: 2, oldestQueuedAgeMs: 50 }
+    runtime.process.embeddingBacklog = { pending: 8, activeAgents: 2 }
+    runtime.process.vector = {
+      openStores: 2,
+      openStoresHighWater: 4,
+      activeLeases: 1,
+      activeLeasesHighWater: 3,
+      evictions: 5,
+      warmupSucceeded: 6,
+      warmupDeferred: 2,
+      warmupFailed: 1
+    }
+    runtime.process.providerAdmission = {
+      queued: 2,
+      admissionDecisions: { admitted: 9, rateLimited: 2, capacityRejected: 1 },
+      raceEvents: { deadline: 1, aborted: 1, lateSettled: 1 }
+    }
+
+    const parsed = memoryGetHealthRoute.output.parse({
+      health: { ...createEmptyMemoryHealth(), runtime }
+    })
+    expect(parsed.health.runtime).toEqual(runtime)
+  })
+
   it('round-trips the empty health DTO and a populated bounded preview', () => {
     expect(memoryGetHealthRoute.input.parse({ agentId: 'deepchat' })).toEqual({
       agentId: 'deepchat'

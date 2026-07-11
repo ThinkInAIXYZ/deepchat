@@ -127,6 +127,21 @@ export class MaintenanceService {
       ) => Promise<MemoryMaintenanceStepResult>
       repairConflictIntegrity: (agentId: string) => boolean
       runConsolidationPass: (agentId: string) => Promise<void>
+      diagnostics?: {
+        recordMaintenance(
+          agentId: string,
+          sample: {
+            phase: 'cheap' | 'heavy'
+            durationMs: number
+            outcome: 'completed' | 'skipped' | 'failed'
+            llmCalls: number
+            llmTokens: number
+            budgetDeniedByStep?: Partial<
+              Record<'challenge' | 'merge' | 'reflection' | 'persona', number>
+            >
+          }
+        ): void
+      }
     }
   ) {
     this.ctx = ports.ctx
@@ -324,6 +339,7 @@ export class MaintenanceService {
       return
     }
     await this.runCheapMaintenance(agentId, now, false)
+    const heavyEligibilityStartedAt = performance.now()
     const model = this.ctx.resolveConsolidationModel(agentId)
     if (!model) {
       this.archiveStale(agentId, now)
@@ -336,9 +352,17 @@ export class MaintenanceService {
         reason: 'missing-model',
         createdAt: now
       })
+      this.ports.diagnostics?.recordMaintenance(agentId, {
+        phase: 'heavy',
+        durationMs: performance.now() - heavyEligibilityStartedAt,
+        outcome: 'skipped',
+        llmCalls: 0,
+        llmTokens: 0
+      })
       return
     }
     await this.heavySemaphore.run(async () => {
+      const heavyStartedAt = performance.now()
       if (!this.ctx.canContinueOperation(operationFence)) return
       const previousLast = last ?? 0
       this.lastConsolidationAt.set(agentId, now)
@@ -434,6 +458,19 @@ export class MaintenanceService {
         completedHeavyPass = true
         this.lastConsolidationFailureAt.delete(agentId)
       } finally {
+        const budgetSnapshot = budget.snapshot()
+        this.ports.diagnostics?.recordMaintenance(agentId, {
+          phase: 'heavy',
+          durationMs: performance.now() - heavyStartedAt,
+          outcome: completedHeavyPass
+            ? 'completed'
+            : this.didAllAttemptedLlmCallsFail(llmStats)
+              ? 'failed'
+              : 'skipped',
+          llmCalls: budgetSnapshot.calls,
+          llmTokens: budgetSnapshot.inputTokens,
+          budgetDeniedByStep: budgetSnapshot.deniedByStep
+        })
         if (!completedHeavyPass && this.lastConsolidationAt.get(agentId) === now) {
           this.lastConsolidationAt.set(agentId, previousLast)
         }
@@ -723,23 +760,38 @@ export class MaintenanceService {
   }
 
   private async runCheapMaintenance(agentId: string, now: number, archive: boolean): Promise<void> {
-    let workingDirty = this.ports.repairConflictIntegrity(agentId)
-    this.ports.auditMaintenance?.pruneOperationalEvents(agentId)
-    if (archive) {
-      this.archiveStale(agentId, now)
-      await this.pruneDeadVectors(agentId)
-    }
-    const repaired = this.ports.repository.repairInternalKindStatuses(agentId)
-    if (repaired > 0) {
-      workingDirty = true
-      this.ctx.writeAudit(agentId, {
-        eventType: 'memory/repair',
-        actorType: 'scheduler',
-        status: 'completed',
-        outputRefs: { repaired }
+    const startedAt = performance.now()
+    let outcome: 'completed' | 'failed' = 'completed'
+    try {
+      let workingDirty = this.ports.repairConflictIntegrity(agentId)
+      this.ports.auditMaintenance?.pruneOperationalEvents(agentId)
+      if (archive) {
+        this.archiveStale(agentId, now)
+        await this.pruneDeadVectors(agentId)
+      }
+      const repaired = this.ports.repository.repairInternalKindStatuses(agentId)
+      if (repaired > 0) {
+        workingDirty = true
+        this.ctx.writeAudit(agentId, {
+          eventType: 'memory/repair',
+          actorType: 'scheduler',
+          status: 'completed',
+          outputRefs: { repaired }
+        })
+      }
+      if (workingDirty) this.ports.syncWorkingMemoryAfterMutation(agentId)
+    } catch (error) {
+      outcome = 'failed'
+      throw error
+    } finally {
+      this.ports.diagnostics?.recordMaintenance(agentId, {
+        phase: 'cheap',
+        durationMs: performance.now() - startedAt,
+        outcome,
+        llmCalls: 0,
+        llmTokens: 0
       })
     }
-    if (workingDirty) this.ports.syncWorkingMemoryAfterMutation(agentId)
   }
 
   private async pruneDeadVectors(agentId: string): Promise<void> {
@@ -808,18 +860,5 @@ export class MaintenanceService {
 
   clearInFlight(): void {
     this.consolidationRuns.clear()
-  }
-
-  /** @internal Live mutable state for legacy facade-oracle tests only. */
-  getMutableRuntimeStateForTests(): {
-    consolidationTimers: Map<string, NodeJS.Timeout>
-    lastConsolidationAt: Map<string, number>
-    consolidationScanCursor: Map<string, ConsolidationScanCursor>
-  } {
-    return {
-      consolidationTimers: this.consolidationTimers,
-      lastConsolidationAt: this.lastConsolidationAt,
-      consolidationScanCursor: this.consolidationScanCursor
-    }
   }
 }

@@ -18,6 +18,7 @@ export interface MaintenanceBudgetSnapshot {
   calls: number
   inputTokens: number
   callsByStep: Record<MaintenanceBudgetStep, number>
+  deniedByStep: Record<MaintenanceBudgetStep, number>
 }
 
 export function selectMaintenanceRowsWithinTokenBudget<T>(
@@ -45,12 +46,23 @@ export class MaintenanceBudget {
     reflection: 0,
     persona: 0
   }
+  private readonly deniedByStep: Record<MaintenanceBudgetStep, number> = {
+    challenge: 0,
+    merge: 0,
+    reflection: 0,
+    persona: 0
+  }
 
   reserve(step: MaintenanceBudgetStep, estimatedInputTokens: number): boolean {
     const tokens = Math.max(0, Math.ceil(estimatedInputTokens))
-    if (this.calls >= MAINTENANCE_TOTAL_MAX_LLM_CALLS) return false
-    if (this.callsByStep[step] >= STEP_CALL_LIMITS[step]) return false
-    if (this.inputTokens + tokens > MAINTENANCE_MAX_INPUT_TOKENS) return false
+    if (
+      this.calls >= MAINTENANCE_TOTAL_MAX_LLM_CALLS ||
+      this.callsByStep[step] >= STEP_CALL_LIMITS[step] ||
+      this.inputTokens + tokens > MAINTENANCE_MAX_INPUT_TOKENS
+    ) {
+      this.deniedByStep[step] += 1
+      return false
+    }
     this.calls += 1
     this.callsByStep[step] += 1
     this.inputTokens += tokens
@@ -61,7 +73,8 @@ export class MaintenanceBudget {
     return {
       calls: this.calls,
       inputTokens: this.inputTokens,
-      callsByStep: { ...this.callsByStep }
+      callsByStep: { ...this.callsByStep },
+      deniedByStep: { ...this.deniedByStep }
     }
   }
 }
