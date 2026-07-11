@@ -27,7 +27,7 @@
 - [x] 保留临时 legacy `timeout()` adapter，仅供 allowlisted migration。
 - [x] 增加 pre-abort、sync throw、late resolve/reject、listener/timer cleanup tests。
 - [x] 增加 deferred attempt/deadline-in-attempt/backoff tests，断言无 overlap/no next attempt。
-- [ ] 独立 verify agent 审查 observation/retry/resource cleanup 与 unused abstraction guard。
+- [x] 独立 verify agent 审查 observation/retry/resource cleanup 与 unused abstraction guard。
 - [x] 跑 focused tests、typecheck:node、format:check、lint:architecture、lint。
 
 ## SCH-002B：Safe consumer migration
