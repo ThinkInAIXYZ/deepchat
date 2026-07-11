@@ -619,6 +619,65 @@ describe('processStream', () => {
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
   })
 
+  it('terminates the turn when the atomic runtime pair refresh fails after skill activation', async () => {
+    const toolPresenter = {
+      ...createMockToolPresenter(),
+      callTool: vi.fn().mockResolvedValue({
+        content:
+          '{"success":true,"name":"deepchat-settings","activeForCurrentMessage":true,"activatedForMessage":true}',
+        rawData: {
+          toolCallId: 'tc1',
+          content: '{"success":true}',
+          isError: false,
+          toolResult: {
+            activationApplied: true,
+            activationSource: 'skill_md',
+            activatedSkill: 'deepchat-settings'
+          }
+        }
+      })
+    } as unknown as IToolPresenter
+    const coreStream = vi.fn(() =>
+      (async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'tc1',
+          tool_call_name: 'skill_view'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'tc1',
+          tool_call_arguments_complete: '{"name":"deepchat-settings"}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    ) as unknown as ProcessParams['coreStream']
+    const refreshRuntimePair = vi
+      .fn()
+      .mockRejectedValue(new Error('activation refresh registry failure'))
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('skill_view')],
+      refreshRuntimePair,
+      hooks: {
+        activateSkill: vi.fn(async () => ['deepchat-settings']),
+        getActiveSkillNames: vi.fn(() => ['deepchat-settings'])
+      }
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+
+    await expect(promise).resolves.toMatchObject({
+      status: 'error',
+      stopReason: 'error',
+      errorMessage: 'activation refresh registry failure'
+    })
+    expect(refreshRuntimePair).toHaveBeenCalledWith(['deepchat-settings'])
+    expect(coreStream).toHaveBeenCalledTimes(1)
+  })
+
   it('does not refresh tools after linked-file skill_view reads', async () => {
     let callCount = 0
     const toolPresenter = {

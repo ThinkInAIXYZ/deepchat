@@ -79,6 +79,7 @@ function createSkillPresenter(initialSnapshot: SkillRuntimeSnapshot) {
     getMetadataList: vi.fn(async () =>
       Array.from(snapshot.entries.values()).map((entry) => entry.metadata as SkillMetadata)
     ),
+    getPinnedActiveSkills: vi.fn(async () => Array.from(snapshot.entries.keys())),
     getActiveSkills: vi.fn(async () => Array.from(snapshot.entries.keys())),
     getPublishedRuntimeSnapshot: vi.fn(() => snapshot),
     waitForStableRuntimeSnapshot: vi.fn(async () => snapshot),
@@ -277,6 +278,87 @@ describe('system prompt cache coherence orchestration', () => {
     expect(toolPresenter.getAllToolDefinitions.mock.calls[1][0].skillRuntimeSnapshot).toBe(
       secondSnapshot
     )
+  })
+
+  it('does not cache an empty pair when an ordinary tool build fails transiently', async () => {
+    const metadata: SkillMetadata = {
+      name: 'review',
+      description: 'Review changes',
+      path: path.join(tempDir, 'review', 'SKILL.md'),
+      skillRoot: path.join(tempDir, 'review')
+    }
+    const snapshot = createSkillSnapshot(2, createSkillEntry(metadata, 'BODY', ['read']))
+    const skillPresenter = createSkillPresenter(snapshot)
+    const toolPresenter = createToolPresenter()
+    toolPresenter.getAllToolDefinitions
+      .mockRejectedValueOnce(new Error('transient tool registry failure'))
+      .mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'read',
+            description: 'read',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+    const runtime = createRuntime({ skillPresenter, toolPresenter }) as any
+
+    await expect(buildPair(runtime, tempDir)).rejects.toThrow('transient tool registry failure')
+    expect(runtime.systemPromptCache.has('session-1')).toBe(false)
+    expect(runtime.toolProfileCache.has('session-1')).toBe(false)
+
+    await expect(buildPair(runtime, tempDir)).resolves.toMatchObject({
+      systemPrompt: expect.stringContaining('BODY'),
+      tools: [expect.objectContaining({ function: expect.objectContaining({ name: 'read' }) })]
+    })
+    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the previous complete pair when skill activation tool refresh fails', async () => {
+    const metadataA: SkillMetadata = {
+      name: 'review',
+      description: 'Review changes',
+      path: path.join(tempDir, 'review', 'SKILL.md'),
+      skillRoot: path.join(tempDir, 'review')
+    }
+    const metadataB: SkillMetadata = {
+      ...metadataA,
+      name: 'deploy',
+      description: 'Deploy changes',
+      path: path.join(tempDir, 'deploy', 'SKILL.md'),
+      skillRoot: path.join(tempDir, 'deploy')
+    }
+    const snapshotA = createSkillSnapshot(2, createSkillEntry(metadataA, 'REVIEW BODY', ['read']))
+    const snapshotB = createSkillSnapshot(4, createSkillEntry(metadataB, 'DEPLOY BODY', ['write']))
+    const skillPresenter = createSkillPresenter(snapshotA)
+    const toolPresenter = createToolPresenter()
+    const runtime = createRuntime({ skillPresenter, toolPresenter }) as any
+    const previous = await buildPair(runtime, tempDir, ['review'])
+    const previousPromptCache = runtime.systemPromptCache.get('session-1')
+    const previousToolCache = runtime.toolProfileCache.get('session-1')
+
+    skillPresenter.setSnapshot(snapshotB)
+    toolPresenter.getAllToolDefinitions.mockRejectedValueOnce(
+      new Error('activation refresh registry failure')
+    )
+    await expect(buildPair(runtime, tempDir, ['deploy'])).rejects.toThrow(
+      'activation refresh registry failure'
+    )
+
+    expect(runtime.systemPromptCache.get('session-1')).toBe(previousPromptCache)
+    expect(runtime.toolProfileCache.get('session-1')).toBe(previousToolCache)
+    expect(previous.systemPrompt).toContain('REVIEW BODY')
+    expect(previous.tools.map((tool: MCPToolDefinition) => tool.function.name)).toContain('read')
+
+    await expect(buildPair(runtime, tempDir, ['deploy'])).resolves.toMatchObject({
+      systemPrompt: expect.stringContaining('DEPLOY BODY'),
+      tools: expect.arrayContaining([
+        expect.objectContaining({ function: expect.objectContaining({ name: 'write' }) })
+      ])
+    })
   })
 
   it('starts all three source chains together and keeps one absolute deadline through discovery', async () => {

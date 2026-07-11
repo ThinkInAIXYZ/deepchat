@@ -377,6 +377,7 @@ export interface ISkillPresenter {
   listSkillScripts(name: string): Promise<SkillScriptDescriptor[]>
 
   // Session state management
+  getPinnedActiveSkills(conversationId: string): Promise<string[]>
   getActiveSkills(conversationId: string): Promise<string[]>
   setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
   clearNewAgentSessionSkills?(conversationId: string): Promise<void>

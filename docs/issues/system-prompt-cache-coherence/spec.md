@@ -498,6 +498,9 @@ AND same stable-even skillMutationEpoch
 1. pre-stream source preparation 只创建一个 `deadlineAt = startedAt + 200ms`。env snapshot、verification
    snapshot 和 stable skill snapshot wait 立即并行启动并共享该 absolute deadline/`AbortSignal`；禁止先等
    env `200ms`，再等 verification `200ms`，再为 skill 创建新 budget。
+   `processMessage()`、manual compaction 和 resume 在进入该 orchestration 前只允许读取 session 持久化的
+   raw skill pins；该读取不得调用 metadata validation/discovery。raw names 必须在同一个 bounded immutable
+   skill snapshot 中完成 availability/policy filter，避免在 `deadlineAt` 创建前先做一次无界 source discovery。
 2. env/verification snapshots 和 stable skill epoch 必须在 cache hit 判定前取得。两个 file snapshot
    都 pending 时，wall-clock upper bound 是 overall `200ms` 加微小同步 compose/hash 开销，不是 `400ms`。
 3. cache entry 记录使用的 revisions/epoch，便于测试和 debug；日志不得输出 `AGENTS.md`、
@@ -515,6 +518,10 @@ AND same stable-even skillMutationEpoch
 `resolveToolProfile()` fingerprint 同样加入 stable even `skillMutationEpoch`。理由不是所有 skill content
 都改变 tool schema，而是 `allowedTools` 与 metadata/content 共用 `SKILL.md` mutation window。tool
 definitions 与 composed prompt 必须来自 C 中同一次 seqlock read；不能各自采样 epoch 后拼成半更新状态。
+
+tool definition build 的 transient failure 必须传播并终止本次 pre-stream/activation refresh。失败前已经存在
+的完整 prompt/tool pair 可以继续留在 cache 中供后续 fully matching fallback 判断，但本次失败不得写入空
+tool list、不得把旧 prompt 与空 tools 拼成新 pair；下一 turn 必须重新尝试 build。
 
 MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner。
 
@@ -559,6 +566,9 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
       retryable `SkillRuntimeUpdatingError`。
 - [ ] env、verification、odd skill 同时 pending 时仍只消耗同一个 `200ms` overall deadline，不出现
       source fallback 后重新给 skill wait 计时的 `400ms+` 路径。
+- [ ] `processMessage()`、manual compaction 和 resume 的 active-skill prelude 只读取 raw persisted pins，
+      不在 deadline 创建前触发 metadata discovery；slow/hung discovery 在三条生产入口都受同一 signal/
+      absolute `200ms` deadline 约束。
 - [ ] stable read 中途 epoch 变化时丢弃 candidate并在原 deadline 内最多重建一次；持续变化不写长期
       cache，也不发送已知 mixed pair。
 - [ ] watcher 外部编辑在 event 被观察前，以及 observed event 的 private staging 期间，允许继续命中旧
@@ -568,6 +578,8 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
       `AGENTS.md` disk read 次数在 `30s` 内保持为一，skill body 直接来自 immutable published snapshot。
 - [ ] fresh env/verification snapshot lookup 不执行 source content read 或重复 `.git` ancestor marker
       scan；修复没有把原本按天发生的同步文件系统检查放大到每个 turn。
+- [ ] ordinary tool build transient failure 不写 prompt/tool cache，下一 turn 会 retry；skill activation 后的
+      pair refresh failure 终止 turn，并保留此前完整 pair，不把 tools 替换为 `[]`。
 - [ ] 现有 base prompt、project dir、model、active skill names 和 natural-day invalidation 测试继续通过。
 - [ ] 本规格中的 contract 均有明确 owner、时序和 failure semantics，不留未决实现选择。
 
@@ -624,7 +636,8 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
 - [x] composed prompt/tool profile cache entry 与 fingerprint 加入 source revisions/stable epoch。
 - [x] 实现一次 bounded rebuild、fully matching previous stable fallback 和 typed
       `SkillRuntimeUpdatingError` propagation。
-- [ ] 完成 latency upper-bound、full baseline、manual validation；仅在 C 验证完成后关闭 P-07。
+- [x] 完成 latency upper-bound automated coverage 和 full baseline 对比。
+- [ ] 完成 manual validation；仅在 C 验证完成后关闭 P-07。
 
 ### Rollout order
 
@@ -722,6 +735,16 @@ pnpm run lint
 pnpm test -- --reporter=dot
 git diff --check
 ```
+
+2026-07-11 automated evidence：
+
+- source snapshot、runtime orchestration、SkillPresenter、SkillTools 和 AgentToolManager focused suite：
+  `403 passed`；
+- `pnpm run typecheck`、`pnpm run format`、`pnpm run i18n`、`pnpm run lint`、
+  `git diff --check`：通过；
+- full suite：`4564 passed / 5 failed / 135 skipped`。5 个失败与合入前 baseline 相同：
+  `SpotlightOverlay.test.ts` 3 个、`agentSessionPresenter/integration.test.ts` 1 个、
+  `createMockChatSession.test.ts` 1 个。
 
 ### Manual validation
 

@@ -3347,19 +3347,27 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   /**
-   * Get active skills for a conversation
+   * Get persisted skill pins without triggering catalog discovery.
+   * Runtime callers validate these names against one bounded immutable snapshot.
    */
-  async getActiveSkills(conversationId: string): Promise<string[]> {
+  async getPinnedActiveSkills(conversationId: string): Promise<string[]> {
     if (await this.isNewAgentSession(conversationId)) {
-      const skills = await this.loadNewSessionSkills(conversationId)
-      const validSkills = await this.validateSkillNames(skills)
-      if (!this.areSkillListsEqual(validSkills, skills)) {
-        this.setPersistedNewSessionSkills(conversationId, validSkills)
-      }
-      return validSkills
+      return await this.loadNewSessionSkills(conversationId)
     }
 
     return []
+  }
+
+  /**
+   * Get active skills for a conversation
+   */
+  async getActiveSkills(conversationId: string): Promise<string[]> {
+    const skills = await this.getPinnedActiveSkills(conversationId)
+    const validSkills = await this.validateSkillNames(skills)
+    if (!this.areSkillListsEqual(validSkills, skills)) {
+      this.setPersistedNewSessionSkills(conversationId, validSkills)
+    }
+    return validSkills
   }
 
   /**

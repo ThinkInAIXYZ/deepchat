@@ -655,7 +655,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
     | 'getMetadataList'
-    | 'getActiveSkills'
+    | 'getPinnedActiveSkills'
     | 'getPublishedRuntimeSnapshot'
     | 'waitForStableRuntimeSnapshot'
     | 'loadSkillContent'
@@ -681,7 +681,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       skillPresenter?: Pick<
         ISkillPresenter,
         | 'getMetadataList'
-        | 'getActiveSkills'
+        | 'getPinnedActiveSkills'
         | 'getPublishedRuntimeSnapshot'
         | 'waitForStableRuntimeSnapshot'
         | 'loadSkillContent'
@@ -5015,21 +5015,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const agentId = this.getSessionAgentId(params.sessionId) ?? 'deepchat'
-    try {
-      return await this.toolPresenter.getAllToolDefinitions({
-        agentId,
-        enabledPluginIds: params.extensionPolicy.enabledPluginIds ?? undefined,
-        disabledAgentTools: this.getDisabledAgentTools(params.sessionId),
-        chatMode: 'agent',
-        conversationId: params.sessionId,
-        agentWorkspacePath: params.projectDir,
-        activeSkillNames: params.activeSkillNames,
-        skillRuntimeSnapshot: params.skillSnapshot
-      })
-    } catch (error) {
-      console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
-      return []
-    }
+    return await this.toolPresenter.getAllToolDefinitions({
+      agentId,
+      enabledPluginIds: params.extensionPolicy.enabledPluginIds ?? undefined,
+      disabledAgentTools: this.getDisabledAgentTools(params.sessionId),
+      chatMode: 'agent',
+      conversationId: params.sessionId,
+      agentWorkspacePath: params.projectDir,
+      activeSkillNames: params.activeSkillNames,
+      skillRuntimeSnapshot: params.skillSnapshot
+    })
   }
 
   private resolveMatchingRuntimePairFallback(params: {
@@ -7037,11 +7032,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       return tools
     } catch (error) {
-      if (error instanceof SkillRuntimeUpdatingError || this.isAbortError(error)) {
-        throw error
-      }
       console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
-      return []
+      throw error
     }
   }
 
@@ -7086,14 +7078,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private async resolveActiveSkillNamesForToolProfile(sessionId: string): Promise<string[]> {
-    if (!this.configPresenter.getSkillsEnabled() || !this.skillPresenter?.getActiveSkills) {
+    if (!this.configPresenter.getSkillsEnabled() || !this.skillPresenter?.getPinnedActiveSkills) {
       return []
     }
 
     try {
       const policy = await this.resolveAgentExtensionPolicy(sessionId)
       return this.filterSkillNamesByPolicy(
-        this.normalizeSkillNames(await this.skillPresenter.getActiveSkills(sessionId)),
+        this.normalizeSkillNames(await this.skillPresenter.getPinnedActiveSkills(sessionId)),
         policy
       )
     } catch (error) {

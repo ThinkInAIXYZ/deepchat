@@ -2456,6 +2456,19 @@ describe('SkillPresenter', () => {
   })
 
   describe('getActiveSkills', () => {
+    it('reads persisted pins without triggering catalog discovery', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      newSessionActiveSkillsStore.set('new-session-raw-pins', ['available', 'not-yet-discovered'])
+      const discoverySpy = vi
+        .spyOn(skillPresenter, 'getMetadataList')
+        .mockRejectedValue(new Error('catalog discovery must stay inside runtime deadline'))
+
+      const pinned = await skillPresenter.getPinnedActiveSkills('new-session-raw-pins')
+
+      expect(pinned).toEqual(['available', 'not-yet-discovered'])
+      expect(discoverySpy).not.toHaveBeenCalled()
+    })
+
     it('should return empty skills for new agent sessions', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
 
