@@ -286,6 +286,10 @@ export class DeepChatMessageStore {
     return this.toRecords(rows)
   }
 
+  hasMessages(sessionId: string): boolean {
+    return this.sqlitePresenter.deepchatMessagesTable.hasBySession(sessionId)
+  }
+
   listMessagesPage(
     sessionId: string,
     options?: {

@@ -2978,6 +2978,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return this.messageStore.getMessages(sessionId)
   }
 
+  async hasMessages(sessionId: string): Promise<boolean> {
+    return this.messageStore.hasMessages(sessionId)
+  }
+
   async getTapeInfo(sessionId: string): Promise<AgentTapeInfo> {
     this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
     return this.tapeService.info(sessionId)

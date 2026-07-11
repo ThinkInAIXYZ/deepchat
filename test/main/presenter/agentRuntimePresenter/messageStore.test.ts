@@ -21,6 +21,7 @@ function createMockSqlitePresenter() {
       updateStatus: vi.fn(),
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
+      hasBySession: vi.fn().mockReturnValue(false),
       getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
       getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
@@ -415,6 +416,17 @@ describe('DeepChatMessageStore', () => {
         think: false,
         activeSkills: ['algorithmic-art']
       })
+    })
+  })
+
+  describe('hasMessages', () => {
+    it('delegates to the table existence query', () => {
+      sqlitePresenter.deepchatMessagesTable.hasBySession.mockReturnValue(true)
+
+      expect(store.hasMessages('s1')).toBe(true)
+      expect(sqlitePresenter.deepchatMessagesTable.hasBySession).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.deepchatMessagesTable.getBySession).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.getIdsBySession).not.toHaveBeenCalled()
     })
   })
 

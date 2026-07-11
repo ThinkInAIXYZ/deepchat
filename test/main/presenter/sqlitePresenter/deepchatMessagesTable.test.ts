@@ -1,6 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatMessagesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
 
+const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
+const Database = sqliteModule?.default
+const DatabaseCtor = Database!
+
+let sqliteAvailable = false
+if (Database) {
+  try {
+    const smokeDb = new Database(':memory:')
+    smokeDb.close()
+    sqliteAvailable = true
+  } catch {
+    sqliteAvailable = false
+  }
+}
+
+const describeIfSqlite = sqliteAvailable ? describe : describe.skip
+
 function createMessageRow(orderSeq: number) {
   return {
     id: `m${orderSeq}`,
@@ -73,5 +90,50 @@ describe('DeepChatMessagesTable', () => {
     expect(page).toHaveLength(501)
     expect(page[0]?.order_seq).toBe(502)
     expect(page[500]?.order_seq).toBe(2)
+  })
+})
+
+describeIfSqlite('DeepChatMessagesTable existence query', () => {
+  function createTable() {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatMessagesTable(db)
+    table.createTable()
+    return { db, table }
+  }
+
+  it('distinguishes empty and non-empty sessions', () => {
+    const { db, table } = createTable()
+
+    expect(table.hasBySession('s1')).toBe(false)
+    table.insert({
+      id: 'm1',
+      sessionId: 's1',
+      orderSeq: 1,
+      role: 'user',
+      content: '{}',
+      status: 'sent'
+    })
+    expect(table.hasBySession('s1')).toBe(true)
+    expect(table.hasBySession('s2')).toBe(false)
+
+    db.close()
+  })
+
+  it('uses the session index without scanning message rows', () => {
+    const { db } = createTable()
+    const plan = (
+      db
+        .prepare('EXPLAIN QUERY PLAN SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1')
+        .all('s1') as Array<{ detail: string }>
+    )
+      .map((row) => row.detail)
+      .join('\n')
+
+    expect(plan).toMatch(
+      /SEARCH deepchat_messages USING COVERING INDEX idx_deepchat_messages_session/i
+    )
+    expect(plan).not.toMatch(/\bSCAN deepchat_messages\b/i)
+
+    db.close()
   })
 })

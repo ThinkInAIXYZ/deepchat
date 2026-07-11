@@ -88,6 +88,7 @@ function createMockDeepChatAgent() {
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
+    hasMessages: vi.fn().mockResolvedValue(false),
     getSessionCompactionState: vi.fn().mockResolvedValue({
       status: 'idle',
       cursorOrderSeq: 1,
@@ -1821,6 +1822,7 @@ describe('AgentSessionPresenter', () => {
         created_at: 1000,
         updated_at: 1000
       })
+      deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await presenter.sendMessage('s1', 'Follow-up')
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
@@ -1831,6 +1833,109 @@ describe('AgentSessionPresenter', () => {
           projectDir: '/tmp/workspace'
         }
       )
+      expect(deepChatAgent.hasMessages).toHaveBeenCalledWith('s1')
+      expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+    })
+
+    it('generates a title only when a non-draft session was empty before send', async () => {
+      const row = {
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'New Chat',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(row)
+      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
+        if (fields.title !== undefined) row.title = fields.title
+      })
+      deepChatAgent.hasMessages.mockResolvedValue(false)
+      deepChatAgent.getMessages.mockResolvedValue([
+        {
+          id: 'm1',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({ text: 'Explain indexed existence queries' }),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: 1000,
+          updatedAt: 1000
+        }
+      ])
+
+      await presenter.sendMessage('s1', 'Explain indexed existence queries')
+      await vi.waitFor(() => expect(llmProviderPresenter.summaryTitles).toHaveBeenCalledOnce())
+
+      expect(deepChatAgent.hasMessages).toHaveBeenCalledWith('s1')
+      expect(deepChatAgent.hasMessages.mock.invocationCallOrder[0]).toBeLessThan(
+        deepChatAgent.queuePendingInput.mock.invocationCallOrder[0]
+      )
+      expect(deepChatAgent.getMessages.mock.invocationCallOrder[0]).toBeGreaterThan(
+        deepChatAgent.queuePendingInput.mock.invocationCallOrder[0]
+      )
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
+      await vi.waitFor(() =>
+        expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+          title: 'Async Generated Title'
+        })
+      )
+    })
+
+    it('preserves draft promotion title without starting generated title work', async () => {
+      const row = {
+        id: 's-draft',
+        agent_id: 'deepchat',
+        title: 'New Chat',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 1,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(row)
+      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
+        if (fields.title !== undefined) row.title = fields.title
+        if (fields.is_draft !== undefined) row.is_draft = fields.is_draft
+      })
+
+      await presenter.sendMessage('s-draft', 'Draft title')
+
+      expect(row.title).toBe('Draft title')
+      expect(deepChatAgent.hasMessages).toHaveBeenCalledWith('s-draft')
+      expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+    })
+
+    it('propagates existence query failures before accepting input', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.hasMessages.mockRejectedValue(new Error('existence query failed'))
+
+      await expect(presenter.sendMessage('s1', 'Follow-up')).rejects.toThrow(
+        'existence query failed'
+      )
+
+      expect(deepChatAgent.queuePendingInput).not.toHaveBeenCalled()
+      expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
     })
 
     it('routes active generation submissions to queue', async () => {
@@ -1850,6 +1955,7 @@ describe('AgentSessionPresenter', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access'
       })
+      deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await presenter.sendMessage('s1', 'Refine this')
 
@@ -2007,7 +2113,7 @@ describe('AgentSessionPresenter', () => {
       }
       sqlitePresenter.newSessionsTable.list.mockReturnValue([draftRow])
       sqlitePresenter.newSessionsTable.get.mockReturnValue(draftRow)
-      deepChatAgent.getMessageIds.mockResolvedValue([])
+      deepChatAgent.hasMessages.mockResolvedValue(false)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',
@@ -2028,6 +2134,8 @@ describe('AgentSessionPresenter', () => {
       )
       expect(session.id).toBe('draft-1')
       expect(session.isDraft).toBe(true)
+      expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
     })
   })
 
@@ -3056,8 +3164,8 @@ describe('AgentSessionPresenter', () => {
         filters?.parentSessionId ? [] : rows
       )
       configPresenter.getAgentType.mockResolvedValue('deepchat')
-      deepChatAgent.getMessageIds.mockImplementation(async (sessionId: string) =>
-        sessionId === 's-ready' ? ['m1'] : []
+      deepChatAgent.hasMessages.mockImplementation(
+        async (sessionId: string) => sessionId === 's-ready'
       )
 
       const impact = await presenter.getAgentTransferImpact('deepchat-writer')
@@ -3067,6 +3175,39 @@ describe('AgentSessionPresenter', () => {
       expect(impact.emptyDrafts).toBe(1)
       expect(impact.blockedSessions).toBe(0)
       expect(impact.samples.map((sample) => sample.id)).toEqual(['s-ready'])
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
+    })
+
+    it('conservatively treats an existence query failure as having messages', async () => {
+      sqlitePresenter.newSessionsTable.list.mockImplementation((filters: any) =>
+        filters?.parentSessionId
+          ? []
+          : [
+              {
+                id: 's-draft',
+                agent_id: 'deepchat-writer',
+                title: 'Draft',
+                project_dir: null,
+                is_pinned: 0,
+                is_draft: 1,
+                session_kind: 'regular',
+                parent_session_id: null,
+                subagent_enabled: 0,
+                subagent_meta_json: null,
+                created_at: 1000,
+                updated_at: 1000
+              }
+            ]
+      )
+      configPresenter.getAgentType.mockResolvedValue('deepchat')
+      deepChatAgent.hasMessages.mockRejectedValue(new Error('existence query failed'))
+
+      const impact = await presenter.getAgentTransferImpact('deepchat-writer')
+
+      expect(impact.movableSessions).toBe(1)
+      expect(impact.emptyDrafts).toBe(0)
+      expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
+      expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
     })
 
     it('rejects blank agent ids for destructive agent-session deletion', async () => {
@@ -3118,7 +3259,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: ['agent_filesystem_read_file'],
         subagentEnabled: false
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'anthropic',
@@ -3188,7 +3329,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: true
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockImplementation(async () => {
         if (row.agent_id === 'deepchat-coder') {
           return {
@@ -3266,7 +3407,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: true
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',
@@ -3358,7 +3499,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: true
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'openai',
@@ -3402,7 +3543,7 @@ describe('AgentSessionPresenter', () => {
         }
         return null
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await expect(presenter.moveSessionToAgent('s-deepchat', 'acp-coder')).rejects.toThrow(
         'Conversation history cannot be moved to ACP agents.'
@@ -3461,7 +3602,7 @@ describe('AgentSessionPresenter', () => {
         disabledAgentTools: [],
         subagentEnabled: false
       })
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await expect(
         presenter.moveSessionToAgent('s-deepchat', 'deepchat-acp-default')
@@ -3492,7 +3633,7 @@ describe('AgentSessionPresenter', () => {
       configPresenter.getAgentType.mockImplementation(async (agentId: string) =>
         agentId === 'acp-coder' || agentId === 'acp-reviewer' ? 'acp' : null
       )
-      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',

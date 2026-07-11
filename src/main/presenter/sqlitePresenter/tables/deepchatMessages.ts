@@ -158,6 +158,12 @@ export class DeepChatMessagesTable extends BaseTable {
       .all(sessionId) as DeepChatMessageRow[]
   }
 
+  hasBySession(sessionId: string): boolean {
+    return Boolean(
+      this.db.prepare('SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1').get(sessionId)
+    )
+  }
+
   listPageBySession(
     sessionId: string,
     options?: {
