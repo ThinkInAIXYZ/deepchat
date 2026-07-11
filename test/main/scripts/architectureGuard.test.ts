@@ -151,18 +151,28 @@ describe.sequential('architecture guard', () => {
     expect(result.status).toBe(0)
   })
 
-  it('pins session create DTO ownership and durable queue acceptance', async () => {
-    const [guardSource, agentInterfaceSource] = await Promise.all([
+  it('pins session create DTO ownership, durable queue, and typed renderer caller', async () => {
+    const [guardSource, agentInterfaceSource, sessionClientSource, sessionStoreSource] =
+      await Promise.all([
       readFile(ARCHITECTURE_GUARD_PATH, 'utf8'),
-      readFile(path.join(ROOT, 'src/shared/types/agent-interface.d.ts'), 'utf8')
+      readFile(path.join(ROOT, 'src/shared/types/agent-interface.d.ts'), 'utf8'),
+      readFile(path.join(ROOT, 'src/renderer/api/SessionClient.ts'), 'utf8'),
+      readFile(path.join(ROOT, 'src/renderer/src/stores/ui/session.ts'), 'utf8')
     ])
 
     expect(guardSource).toContain('[session-create-operation-dto-owner]')
     expect(guardSource).toContain('[session-create-durable-queue]')
     expect(guardSource).toContain('[session-create-owner-inventory]')
+    expect(guardSource).toContain('[session-create-operation-id-owner]')
+    expect(guardSource).toContain('[session-create-production-caller]')
     expect(agentInterfaceSource).not.toMatch(
       /(?:CreateSessionOperation|SessionCreateOperation|CreateOperation)(?:State|Stage|Summary|Output|Envelope|Cursor)?\b/
     )
+    expect(sessionClientSource).not.toMatch(
+      /input\s+as\s+DeepchatRouteInput<\s*typeof sessionsCreateRoute\.name\s*>/
+    )
+    expect(sessionStoreSource.match(/\bsessionClient\.create\s*\(/g)).toHaveLength(1)
+    expect(sessionStoreSource).toContain('sessionClient.create(input, operationId)')
 
     const result = runArchitectureGuard()
     expect(result.status).toBe(0)
@@ -204,6 +214,45 @@ describe.sequential('architecture guard', () => {
       expect(result.stderr).toContain('[session-create-operation-dto-owner]')
     } finally {
       await writeFile(agentInterfacePath, original, 'utf8')
+    }
+  })
+
+  it('fails when SessionClient casts around the required operation id', async () => {
+    const sessionClientPath = path.join(ROOT, 'src/renderer/api/SessionClient.ts')
+    const original = await readFile(sessionClientPath, 'utf8')
+    try {
+      await writeFile(
+        sessionClientPath,
+        original.replace(
+          '{ ...input, operationId }',
+          'input as DeepchatRouteInput<typeof sessionsCreateRoute.name>'
+        ),
+        'utf8'
+      )
+
+      const result = runArchitectureGuard()
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('[session-create-production-caller]')
+    } finally {
+      await writeFile(sessionClientPath, original, 'utf8')
+    }
+  })
+
+  it('fails when the production store omits the operation id', async () => {
+    const sessionStorePath = path.join(ROOT, 'src/renderer/src/stores/ui/session.ts')
+    const original = await readFile(sessionStorePath, 'utf8')
+    try {
+      await writeFile(
+        sessionStorePath,
+        original.replace('sessionClient.create(input, operationId)', 'sessionClient.create(input)'),
+        'utf8'
+      )
+
+      const result = runArchitectureGuard()
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('[session-create-production-caller]')
+    } finally {
+      await writeFile(sessionStorePath, original, 'utf8')
     }
   })
 

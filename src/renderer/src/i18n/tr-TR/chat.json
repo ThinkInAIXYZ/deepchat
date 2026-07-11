@@ -310,7 +310,66 @@
     }
   },
   "newThread": {
-    "title": "İnşa edin ve keşfedin"
+    "title": "İnşa edin ve keşfedin",
+    "createRecovery": {
+      "title": "Unconfirmed session creations",
+      "showHistory": "Show history",
+      "hideHistory": "Hide history",
+      "check": "Check",
+      "dismiss": "Dismiss",
+      "dismissed": "Dismissed",
+      "empty": "No unconfirmed creations on this page.",
+      "loadMore": "Load more",
+      "queryError": "Could not check this creation. Try again.",
+      "state": {
+        "pending": "Pending",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "unknown": "Unknown"
+      },
+      "status": {
+        "creating": {
+          "title": "Creating session",
+          "description": "The draft stays here while the result is checked."
+        },
+        "pending": {
+          "title": "Confirming creation",
+          "description": "The session may still finish in the background. The draft is preserved."
+        },
+        "failed": {
+          "title": "Session creation failed",
+          "description": "The draft is preserved. Sending again starts a new attempt."
+        },
+        "unknown": {
+          "title": "Creation result is unknown",
+          "description": "Check the existing operation before trying again."
+        },
+        "query_error": {
+          "title": "Could not check creation",
+          "description": "The same operation can be checked again; no new session was started."
+        },
+        "missing": {
+          "title": "Creation record is unavailable",
+          "description": "Refresh the session list or explicitly try again."
+        },
+        "existing": {
+          "title": "A matching creation is unresolved",
+          "description": "Check the existing operation; this draft was not attached to it."
+        },
+        "conflict": {
+          "title": "Creation identity conflict",
+          "description": "Check the original operation; no new session was started."
+        },
+        "activation_failed": {
+          "title": "Session created but not opened",
+          "description": "The previous session and draft remain unchanged. Open the created session from the list."
+        },
+        "unavailable": {
+          "title": "Created session is unavailable",
+          "description": "Refresh the session list and check the operation again."
+        }
+      }
+    }
   },
   "floatingWidget": {
     "title": "Göreve Genel Bakış",

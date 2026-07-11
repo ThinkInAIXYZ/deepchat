@@ -158,27 +158,35 @@ SCH-003A development 验证记录：
 
 ## SCH-003B：Renderer/integration atomic cutover
 
-- [ ] 显式基于 `SCH-003A + SES-003` 集成。
-- [ ] SessionClient 每个新 intent 生成 operation id；transport retry 复用，用户 explicit retry 换新 id。
-- [ ] production missing-operation-id caller static count = 0。
-- [ ] store 维护 current intent token，draft 保持在原 owner，不复制到 operation state/journal。
-- [ ] pending reconciliation 固定 `2_000ms × 15`；到界只留 manual Check，离页/intent 变化清 timer。
-- [ ] succeeded/current 显式 activate exactly once 后导航；succeeded/stale 只刷新且 activate count = 0。
-- [ ] failed/unknown/query error 均不自动 create retry；unknown 先 reconcile，相同 fingerprint unresolved 不重建。
-- [ ] `kind: existing/conflict` 只读 structured output 并显式 Check，不自动绑定 draft/生成新 id。
-- [ ] startup cursor history 可遍历 pending/unknown/dismissed；无论一条/多条都需 explicit selection。
-- [ ] restart recovery 不绑定当前 draft、不自动 activate/navigate、不显示内容。
-- [ ] dismiss 只折叠 open panel；history/retry guard 可见，不删除 session/identity。
-- [ ] 增加 pending/unknown/history/dismiss/error i18n keys。
-- [ ] 添加 current/stale activate 1/0、binding retained、cursor pages、dismiss guard、privacy、duplicate event tests。
-- [ ] 增加 real IPC 或 structured serialization + `createBridge` boundary test，不接受仅 dispatcher 直调。
-- [ ] boundary test 覆盖 operation/existing/conflict；negative control 证明 custom Error 过界只剩 message。
-- [ ] current activate failure 不 navigate/onboarding、不改 previous binding，created session 仍可从 list 选择。
-- [ ] 删除 create 5s legacy timeout；provider 未完成时 adapter 只剩精确 provider一项。
-- [ ] 003A + 003B 只创建一个 atomic production PR，不发布 backend-only version。
+- [x] 显式基于 `SCH-003A + SES-003` 集成。
+- [x] SessionClient 每个新 intent 生成 operation id；transport retry 复用，用户 explicit retry 换新 id。
+- [x] production missing-operation-id caller static count = 0。
+- [x] store 维护 current intent token，draft 保持在原 owner，不复制到 operation state/journal。
+- [x] pending reconciliation 固定 `2_000ms × 15`；到界只留 manual Check，离页/intent 变化清 timer。
+- [x] succeeded/current 显式 activate exactly once 后导航；succeeded/stale 只刷新且 activate count = 0。
+- [x] failed/unknown/query error 均不自动 create retry；unknown 先 reconcile，相同 fingerprint unresolved 不重建。
+- [x] `kind: existing/conflict` 只读 structured output 并显式 Check，不自动绑定 draft/生成新 id。
+- [x] startup cursor history 可遍历 pending/unknown/dismissed；无论一条/多条都需 explicit selection。
+- [x] restart recovery 不绑定当前 draft、不自动 activate/navigate、不显示内容。
+- [x] dismiss 只折叠 open panel；history/retry guard 可见，不删除 session/identity。
+- [x] 增加 pending/unknown/history/dismiss/error i18n keys。
+- [x] 添加 current/stale activate 1/0、binding retained、cursor pages、dismiss guard、privacy、duplicate event tests。
+- [x] 增加 real IPC 或 structured serialization + `createBridge` boundary test，不接受仅 dispatcher 直调。
+- [x] boundary test 覆盖 operation/existing/conflict；negative control 证明 custom Error 过界只剩 message。
+- [x] current activate failure 不 navigate/onboarding、不改 previous binding，created session 仍可从 list 选择。
+- [x] 删除 create 5s legacy timeout；provider 未完成时 adapter 只剩精确 provider一项。
+- [x] 003A + 003B 只作为一个 atomic production merge unit，不发布 backend-only version。
 - [ ] 独立 integration verifier 审查 navigation、draft、poll cleanup、restart、legacy finite semantics。
 - [ ] 跑 renderer/main focused tests、typecheck、format、i18n、lint、full tests。
 - [ ] 完成 DeepChat/ACP/slow/stale/unknown/restart/data-hygiene manual smoke。
+
+SCH-003B development 验证记录：
+
+- renderer/API focused：Session store、New Thread page、SessionClient 与真实 `createBridge` serialization 共
+  `113 passed`；另一次含 App/component/architecture guard 的扩展 focused 共 `184 passed`。
+- architecture guard 单测 `35 passed`，覆盖 renderer operation id 静态约束及其 negative mutations。
+- `typecheck`、`format`、`i18n`、`lint`、`git diff --check` 通过。
+- full tests、独立 verifier 与 manual smoke 留给 integration/final verify，不在 developer 阶段冒充完成。
 
 ## 每个 PR 的 blocking gate
 

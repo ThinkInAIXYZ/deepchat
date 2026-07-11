@@ -329,7 +329,66 @@
     }
   },
   "newThread": {
-    "title": "构建与探索"
+    "title": "构建与探索",
+    "createRecovery": {
+      "title": "待确认的会话创建",
+      "showHistory": "显示历史",
+      "hideHistory": "收起历史",
+      "check": "检查",
+      "dismiss": "折叠",
+      "dismissed": "已折叠",
+      "empty": "本页没有待确认的创建记录。",
+      "loadMore": "加载更多",
+      "queryError": "暂时无法检查这条创建记录，请重试。",
+      "state": {
+        "pending": "处理中",
+        "succeeded": "已成功",
+        "failed": "已失败",
+        "unknown": "状态未知"
+      },
+      "status": {
+        "creating": {
+          "title": "正在创建会话",
+          "description": "确认结果期间会保留当前草稿。"
+        },
+        "pending": {
+          "title": "正在确认创建结果",
+          "description": "会话可能仍在后台完成，当前草稿会保留。"
+        },
+        "failed": {
+          "title": "会话创建失败",
+          "description": "当前草稿已保留；再次发送会开始新的尝试。"
+        },
+        "unknown": {
+          "title": "创建结果尚未确认",
+          "description": "再次尝试前，请先检查现有操作。"
+        },
+        "query_error": {
+          "title": "暂时无法检查创建结果",
+          "description": "可以继续检查同一操作，不会新建会话。"
+        },
+        "missing": {
+          "title": "创建记录不可用",
+          "description": "请刷新会话列表，或明确发起新的尝试。"
+        },
+        "existing": {
+          "title": "存在尚未确认的相同创建",
+          "description": "请检查现有操作；当前草稿不会与它自动关联。"
+        },
+        "conflict": {
+          "title": "创建标识发生冲突",
+          "description": "请检查原操作；本次没有新建会话。"
+        },
+        "activation_failed": {
+          "title": "会话已创建但未打开",
+          "description": "原会话和草稿保持不变，可从列表打开已创建的会话。"
+        },
+        "unavailable": {
+          "title": "已创建的会话暂不可用",
+          "description": "请刷新会话列表并再次检查操作。"
+        }
+      }
+    }
   },
   "floatingWidget": {
     "title": "任务总览",

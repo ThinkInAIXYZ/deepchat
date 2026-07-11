@@ -536,6 +536,7 @@ onMounted(() => {
   void providerStore.ensureInitialized()
   void modelStore.initialize()
   void sessionStore.fetchSessions()
+  void sessionStore.loadCreateOperationHistory()
   setupMcpDeeplink()
   setupAppIpcRuntime()
 

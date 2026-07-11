@@ -95,6 +95,117 @@
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <section
+          v-if="currentCreateIntent"
+          data-testid="current-create-operation"
+          class="mb-4 w-full max-w-4xl rounded-xl border border-border bg-muted/40 px-4 py-3"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-foreground">
+                {{ currentCreateIntentTitle }}
+              </p>
+              <p class="mt-0.5 text-xs text-muted-foreground">
+                {{ currentCreateIntentDescription }}
+              </p>
+            </div>
+            <Button
+              v-if="canCheckCurrentCreateIntent"
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="current-create-operation-check"
+              @click="checkCurrentCreateIntentManually"
+            >
+              {{ t('chat.newThread.createRecovery.check') }}
+            </Button>
+          </div>
+        </section>
+
+        <section
+          v-if="showCreateRecoveryPanel"
+          data-testid="create-operation-recovery"
+          class="mb-4 w-full max-w-4xl rounded-xl border border-border bg-card px-4 py-3"
+          :aria-labelledby="createRecoveryTitleId"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 :id="createRecoveryTitleId" class="min-w-0 flex-1 text-sm font-medium">
+              {{ t('chat.newThread.createRecovery.title') }}
+            </h2>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              data-testid="create-operation-history-toggle"
+              @click="showCreateOperationHistory = !showCreateOperationHistory"
+            >
+              {{
+                showCreateOperationHistory
+                  ? t('chat.newThread.createRecovery.hideHistory')
+                  : t('chat.newThread.createRecovery.showHistory')
+              }}
+            </Button>
+          </div>
+
+          <p v-if="sessionStore.createOperationHistoryError" class="mt-2 text-xs text-destructive">
+            {{ t('chat.newThread.createRecovery.queryError') }}
+          </p>
+
+          <div v-if="displayedCreateOperations.length" class="mt-2 space-y-2">
+            <div
+              v-for="operation in displayedCreateOperations"
+              :key="operation.operationId"
+              class="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2"
+              :data-operation-id="operation.operationId"
+            >
+              <span class="min-w-0 flex-1 text-xs text-muted-foreground">
+                {{ formatCreateOperationTime(operation.createdAt) }} ·
+                {{ createOperationStateLabel(operation.state) }}
+                <span v-if="operation.dismissedAt">
+                  · {{ t('chat.newThread.createRecovery.dismissed') }}
+                </span>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                :aria-label="t('chat.newThread.createRecovery.check')"
+                @click="sessionStore.checkCreateOperation(operation.operationId)"
+              >
+                {{ t('chat.newThread.createRecovery.check') }}
+              </Button>
+              <Button
+                v-if="!operation.dismissedAt"
+                type="button"
+                size="sm"
+                variant="ghost"
+                :aria-label="t('chat.newThread.createRecovery.dismiss')"
+                @click="sessionStore.dismissCreateOperation(operation.operationId)"
+              >
+                {{ t('chat.newThread.createRecovery.dismiss') }}
+              </Button>
+            </div>
+          </div>
+          <p v-else class="mt-2 text-xs text-muted-foreground">
+            {{ t('chat.newThread.createRecovery.empty') }}
+          </p>
+
+          <Button
+            v-if="showCreateOperationHistory && sessionStore.createOperationHistoryHasMore"
+            type="button"
+            size="sm"
+            variant="ghost"
+            class="mt-2"
+            :disabled="sessionStore.createOperationHistoryLoadingMore"
+            data-testid="create-operation-history-more"
+            @click="sessionStore.loadNextCreateOperationHistoryPage()"
+          >
+            {{ t('chat.newThread.createRecovery.loadMore') }}
+          </Button>
+        </section>
+
         <!-- Input area -->
         <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
           <ChatInputBox
@@ -105,7 +216,7 @@
             :session-id="acpDraftSessionId"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
-            :submit-disabled="isAcpWorkdirUnavailable"
+            :submit-disabled="isAcpWorkdirUnavailable || isCreateSubmissionBlocked"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
@@ -117,7 +228,9 @@
                 :show-voice-input="isVoiceInputEnabled"
                 :is-voice-input-listening="isVoiceInputListening"
                 :is-voice-input-transcribing="isVoiceInputTranscribing"
-                :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
+                :send-disabled="
+                  isAcpWorkdirUnavailable || isCreateSubmissionBlocked || !message.trim()
+                "
                 @attach="onAttach"
                 @voice-input="onToggleVoiceInput"
                 @send="onSubmit"
@@ -193,6 +306,10 @@ import type {
   UserMessageInlineItem,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import type {
+  CreateSessionOperationState,
+  CreateSessionOperationSummary
+} from '@shared/contracts/routes'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import {
   resolveChatModelByQuery,
@@ -225,9 +342,119 @@ type SubmissionModelSelection = { providerId: string; modelId: string }
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
+const showCreateOperationHistory = ref(false)
 const guideRootRef = ref<HTMLElement | null>(null)
 const agentGuideTargetRef = ref<HTMLElement | null>(null)
 const modelGuideTargetRef = ref<HTMLElement | null>(null)
+const createRecoveryTitleId = 'new-thread-create-recovery-title'
+const CREATE_OPERATION_POLL_INTERVAL_MS = 2_000
+const CREATE_OPERATION_MAX_AUTOMATIC_CHECKS = 15
+let createOperationPollTimer: number | null = null
+let automaticCreateOperationChecks = 0
+let automaticPollingStoppedForToken: number | null = null
+
+const createOperationTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit'
+})
+
+const currentCreateIntent = computed(() => sessionStore.currentCreateIntent)
+const currentCreateIntentTitle = computed(() => {
+  const status = currentCreateIntent.value?.status ?? 'creating'
+  return t(`chat.newThread.createRecovery.status.${status}.title`)
+})
+const currentCreateIntentDescription = computed(() => {
+  const status = currentCreateIntent.value?.status ?? 'creating'
+  return t(`chat.newThread.createRecovery.status.${status}.description`)
+})
+const canCheckCurrentCreateIntent = computed(() => {
+  const status = currentCreateIntent.value?.status
+  return Boolean(status && status !== 'creating' && status !== 'failed')
+})
+const isCreateSubmissionBlocked = computed(() => {
+  const intent = currentCreateIntent.value
+  if (!intent || intent.status === 'failed' || intent.status === 'missing') return false
+  if (
+    (intent.status === 'existing' || intent.status === 'conflict') &&
+    (intent.operation?.state === 'failed' || intent.operation?.state === 'succeeded')
+  ) {
+    return false
+  }
+  return true
+})
+const defaultCreateRecoveryOperations = computed(() => {
+  const currentOperationId = currentCreateIntent.value?.operation?.operationId ?? null
+  return sessionStore.createOperationHistory.filter(
+    (operation) =>
+      operation.operationId !== currentOperationId &&
+      !operation.dismissedAt &&
+      (operation.state === 'pending' || operation.state === 'unknown')
+  )
+})
+const displayedCreateOperations = computed<CreateSessionOperationSummary[]>(() =>
+  showCreateOperationHistory.value
+    ? sessionStore.createOperationHistory
+    : defaultCreateRecoveryOperations.value
+)
+const hasCreateRecoveryHistory = computed(() =>
+  sessionStore.createOperationHistory.some(
+    (operation) => operation.state !== 'succeeded' || operation.dismissedAt !== null
+  )
+)
+const showCreateRecoveryPanel = computed(
+  () =>
+    sessionStore.createOperationHistoryLoading ||
+    hasCreateRecoveryHistory.value ||
+    sessionStore.createOperationHistoryHasMore
+)
+
+function createOperationStateLabel(state: CreateSessionOperationState): string {
+  return t(`chat.newThread.createRecovery.state.${state}`)
+}
+
+function formatCreateOperationTime(timestamp: number): string {
+  return createOperationTimeFormatter.format(new Date(timestamp))
+}
+
+function clearCreateOperationPollTimer(): void {
+  if (createOperationPollTimer === null) return
+  window.clearTimeout(createOperationPollTimer)
+  createOperationPollTimer = null
+}
+
+function canAutomaticallyCheckCreateIntent(token: number): boolean {
+  const intent = currentCreateIntent.value
+  return Boolean(
+    intent &&
+    intent.token === token &&
+    automaticPollingStoppedForToken !== token &&
+    automaticCreateOperationChecks < CREATE_OPERATION_MAX_AUTOMATIC_CHECKS &&
+    (intent.status === 'pending' || intent.status === 'query_error')
+  )
+}
+
+function scheduleCreateOperationPoll(token: number): void {
+  if (createOperationPollTimer !== null || !canAutomaticallyCheckCreateIntent(token)) return
+  createOperationPollTimer = window.setTimeout(async () => {
+    createOperationPollTimer = null
+    if (!canAutomaticallyCheckCreateIntent(token)) return
+    automaticCreateOperationChecks += 1
+    await sessionStore.reconcileCurrentCreateIntent(token)
+    if (automaticCreateOperationChecks >= CREATE_OPERATION_MAX_AUTOMATIC_CHECKS) {
+      automaticPollingStoppedForToken = token
+      return
+    }
+    scheduleCreateOperationPoll(token)
+  }, CREATE_OPERATION_POLL_INTERVAL_MS)
+}
+
+async function checkCurrentCreateIntentManually(): Promise<void> {
+  const intent = currentCreateIntent.value
+  if (!intent) return
+  automaticPollingStoppedForToken = intent.token
+  clearCreateOperationPollTimer()
+  await sessionStore.reconcileCurrentCreateIntent(intent.token)
+}
 const firstChatGuideHostRef = ref<HTMLElement | null>(null)
 const firstChatGuideTargetRef = ref<HTMLElement | null>(null)
 const isVoiceInputEnabled = ref(false)
@@ -801,9 +1028,10 @@ async function onSubmit() {
   const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
 
   try {
-    await submitText(text, files)
-    message.value = ''
-    attachedFiles.value = []
+    if (await submitText(text, files)) {
+      message.value = ''
+      attachedFiles.value = []
+    }
   } catch (e) {
     console.error('[NewThreadPage] submit failed:', e)
   }
@@ -816,8 +1044,9 @@ async function onCommandSubmit(command: string) {
   if (shouldIgnoreManualCompactionDraft(text)) return
   const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
   try {
-    await submitText(text, files)
-    attachedFiles.value = []
+    if (await submitText(text, files)) {
+      attachedFiles.value = []
+    }
   } catch (e) {
     console.error('[NewThreadPage] submit failed:', e)
   }
@@ -827,9 +1056,9 @@ function shouldIgnoreManualCompactionDraft(text: string): boolean {
   return !isAcpSelectedAgent.value && isManualCompactionCommand(text)
 }
 
-async function submitText(text: string, files: MessageFile[]) {
-  if (!text.trim()) return
-  if (isAcpWorkdirUnavailable.value) return
+async function submitText(text: string, files: MessageFile[]): Promise<boolean> {
+  if (!text.trim()) return false
+  if (isAcpWorkdirUnavailable.value) return false
 
   const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
 
@@ -856,7 +1085,7 @@ async function submitText(text: string, files: MessageFile[]) {
       await sessionStore.selectSession(acpDraftSessionId.value)
       await sessionStore.sendMessage(acpDraftSessionId.value, messagePayload)
       chatInputRef.value?.clearPendingSkills?.()
-      return
+      return true
     }
 
     let providerId: string | undefined
@@ -872,13 +1101,13 @@ async function submitText(text: string, files: MessageFile[]) {
         if (preparedHeroFlight) {
           cancelChatInputHeroFlight()
         }
-        return
+        return false
       }
       providerId = resolved.providerId
       modelId = resolved.modelId
     }
 
-    await sessionStore.createSession({
+    const activated = await sessionStore.createSession({
       message: messagePayload.text,
       files: messagePayload.files,
       inlineItems: messagePayload.inlineItems,
@@ -892,7 +1121,14 @@ async function submitText(text: string, files: MessageFile[]) {
       generationSettings: draftGenerationSettings,
       activeSkills: messagePayload.activeSkills
     })
-    chatInputRef.value?.clearPendingSkills?.()
+    if (activated) {
+      chatInputRef.value?.clearPendingSkills?.()
+      return true
+    }
+    if (preparedHeroFlight) {
+      cancelChatInputHeroFlight()
+    }
+    return false
   } catch (error) {
     if (preparedHeroFlight) {
       cancelChatInputHeroFlight()
@@ -1203,6 +1439,25 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () =>
+    [currentCreateIntent.value?.token ?? null, currentCreateIntent.value?.status ?? null] as const,
+  ([token, status], previous) => {
+    const previousToken = previous?.[0]
+    if (token !== previousToken) {
+      clearCreateOperationPollTimer()
+      automaticCreateOperationChecks = 0
+      automaticPollingStoppedForToken = null
+    }
+    if (token !== null && (status === 'pending' || status === 'query_error')) {
+      scheduleCreateOperationPoll(token)
+      return
+    }
+    clearCreateOperationPollTimer()
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
   draftStore.projectDir = projectStore.selectedProject?.path
   void nextTick(syncGuideTargets)
@@ -1210,6 +1465,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  const createIntentToken = currentCreateIntent.value?.token
+  clearCreateOperationPollTimer()
+  if (createIntentToken !== undefined) {
+    sessionStore.invalidateCurrentCreateIntent(createIntentToken)
+  }
   removeModelConfigChangedListener()
   voiceInput.cleanup()
   cancelEnsureDraftTask?.()
