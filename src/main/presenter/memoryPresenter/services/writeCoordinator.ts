@@ -1,4 +1,6 @@
 import logger from '@shared/logger'
+import { AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
+import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
 import {
   ADD_DECISION,
@@ -6,6 +8,11 @@ import {
   parseDecisionResult,
   type MemoryDecision
 } from '../core/decision'
+import {
+  parseBatchDecisionResults,
+  partitionBatchDecisions,
+  type BatchDecisionInput
+} from '../core/batchDecision'
 import { normalizeMemoryCandidate } from '../core/candidates'
 import {
   buildExtractionPrompt,
@@ -13,15 +20,22 @@ import {
   parseMemoryCandidates,
   parseTriageDecision
 } from '../core/extraction'
-import { buildMemoryProvenanceKey } from '../core/scoring'
-import { DECISION_NEIGHBOR_TOP_S, MEMORY_CREATED_IDS_EVENT_LIMIT } from '../runtimeConstants'
+import { buildMemoryProvenanceKey, normalizeForProvenanceV2 } from '../core/scoring'
+import {
+  DECISION_NEIGHBOR_TOP_S,
+  DECISION_RETRY_MAX_CANDIDATES,
+  MEMORY_CREATED_IDS_EVENT_LIMIT
+} from '../runtimeConstants'
 import type { MemoryRowMutations } from './rowMutations'
 import type {
   AgentMemoryRow,
   MemoryCandidate,
   MemoryExtractionInput,
   MemoryExtractionResult,
+  MemoryDecisionNeighborSet,
+  MemoryDecisionQueryVectorSnapshot,
   MemoryRecallItem,
+  NormalizedMemoryCandidate,
   MemoryUpdateContext,
   MemoryWriteOutcome,
   WriteMemoriesOptions
@@ -128,6 +142,39 @@ class DecisionInsertCollisionError extends Error {}
 
 type CoordinateWriteResult = MemoryWriteOutcome | { action: 'retry' }
 
+interface IndexedCandidate {
+  candidateIndex: number
+  candidate: NormalizedMemoryCandidate
+}
+
+interface PreparedCoordinateCandidate extends IndexedCandidate {
+  provenanceKey: string
+  decisionHeadId: string | null
+  neighbors: MemoryRecallItem[]
+  queryVector?: MemoryDecisionQueryVectorSnapshot
+}
+
+type PrepareCoordinateCandidateResult =
+  | { prepared: PreparedCoordinateCandidate }
+  | {
+      candidateIndex: number
+      candidate: NormalizedMemoryCandidate
+      outcome: MemoryWriteOutcome
+    }
+
+interface BatchWriteResult {
+  outcomes: MemoryWriteOutcome[]
+  decisionBudgetFallbacks: number
+  failed: boolean
+}
+
+interface CandidateApplyPolicy {
+  isRetry: boolean
+  allowInsert: boolean
+  invalidDecisionFallback: 'add' | 'concurrent-update'
+  retryConflict: boolean
+}
+
 function recallItemFromRow(row: AgentMemoryRow): MemoryRecallItem {
   return {
     id: row.id,
@@ -160,6 +207,13 @@ export class WriteCoordinator {
         query: string,
         now: number
       ) => Promise<MemoryRecallItem[]>
+      retrieveForDecisions: (
+        agentId: string,
+        candidates: readonly NormalizedMemoryCandidate[],
+        now: number,
+        queryVectors?: readonly (MemoryDecisionQueryVectorSnapshot | undefined)[],
+        pinnedIdsByCandidate?: readonly (readonly string[] | undefined)[]
+      ) => Promise<MemoryDecisionNeighborSet[]>
       markWorkingMemoryDirty: (agentId: string) => void
       flushWorkingMemoryIfDirty: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
@@ -237,22 +291,22 @@ export class WriteCoordinator {
         logger.warn(`[Memory] extraction parse failed: ${parsed.reason}`)
         return { ok: false }
       }
-      const candidates = parsed.candidates
+      const candidateStats = this.prepareExtractionCandidates(parsed.candidates)
       const options: WriteMemoriesOptions = {
         agentId: input.agentId,
         sourceSession: input.sourceSession ?? null,
         sourceEntryIds: input.sourceEntryIds ?? null
       }
       const now = Date.now()
-      for (const candidate of candidates) {
-        const outcome = await this.coordinateWrite(
-          input.agentId,
-          candidate,
-          model,
-          options,
-          now,
-          operationFence
-        )
+      const batch = await this.coordinateBatchWrites(
+        input.agentId,
+        candidateStats.candidates,
+        model,
+        options,
+        now,
+        operationFence
+      )
+      for (const outcome of batch.outcomes) {
         if (this.ctx.isOperationGenerationCurrent(operationFence)) {
           outcomes.push(outcome)
           createdIds.push(...createdIdsFromOutcome(outcome))
@@ -262,10 +316,21 @@ export class WriteCoordinator {
             touched = true
           }
         }
-        // If a non-empty extraction is disabled mid-batch, keep the cursor for retry; any rows
-        // already written are picked up by the next embedding/backfill drain.
-        if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
       }
+      if (this.ctx.isOperationGenerationCurrent(operationFence)) {
+        this.writeExtractionAudit(input, model, {
+          parsedCount: parsed.candidates.length,
+          acceptedCount: candidateStats.candidates.length,
+          duplicateCandidateIndexes: candidateStats.duplicateCandidateIndexes,
+          rejectedCandidates: candidateStats.rejectedCandidates,
+          decisionBudgetFallbacks: batch.decisionBudgetFallbacks,
+          failed: batch.failed
+        })
+      }
+      // If a non-empty extraction is disabled mid-batch, keep the cursor for retry; any rows
+      // already written are picked up by the next embedding/backfill drain.
+      if (batch.failed) return { ok: false }
+      if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
       return { ok: true, createdIds }
     } catch (error) {
       logger.warn(`[Memory] extraction failed: ${String(error)}`)
@@ -274,6 +339,462 @@ export class WriteCoordinator {
       if (touched && this.ctx.isOperationGenerationCurrent(operationFence)) {
         this.finalizeCommittedExtraction(input, outcomes)
       }
+    }
+  }
+
+  private prepareExtractionCandidates(candidates: readonly MemoryCandidate[]): {
+    candidates: IndexedCandidate[]
+    duplicateCandidateIndexes: number[]
+    rejectedCandidates: Array<{ candidateIndex: number; reason: 'candidate-too-large' }>
+  } {
+    const accepted: IndexedCandidate[] = []
+    const duplicateCandidateIndexes: number[] = []
+    const rejectedCandidates: Array<{
+      candidateIndex: number
+      reason: 'candidate-too-large'
+    }> = []
+    const seen = new Set<string>()
+    candidates.forEach((candidate, candidateIndex) => {
+      const normalized = normalizeMemoryCandidate(candidate)
+      if (!normalized) return
+      if (unicodeCodePointLength(normalized.content) > AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS) {
+        rejectedCandidates.push({ candidateIndex, reason: 'candidate-too-large' })
+        return
+      }
+      const key = `${normalized.kind}\0${normalizeForProvenanceV2(normalized.content)}`
+      if (seen.has(key)) {
+        duplicateCandidateIndexes.push(candidateIndex)
+        return
+      }
+      seen.add(key)
+      accepted.push({ candidateIndex, candidate: normalized })
+    })
+    return { candidates: accepted, duplicateCandidateIndexes, rejectedCandidates }
+  }
+
+  private writeExtractionAudit(
+    input: MemoryExtractionInput,
+    model: MemoryModelRef,
+    summary: {
+      parsedCount: number
+      acceptedCount: number
+      duplicateCandidateIndexes: number[]
+      rejectedCandidates: Array<{ candidateIndex: number; reason: 'candidate-too-large' }>
+      decisionBudgetFallbacks: number
+      failed: boolean
+    }
+  ): void {
+    this.ctx.writeAudit(input.agentId, {
+      eventType: 'memory/extract',
+      actorType: 'runtime',
+      status: summary.failed ? 'failed' : 'completed',
+      reason: summary.failed ? 'partial-apply-failed' : null,
+      inputRefs: {
+        parsedCount: summary.parsedCount,
+        acceptedCount: summary.acceptedCount
+      },
+      outputRefs: {
+        duplicateCandidateIndexes: summary.duplicateCandidateIndexes,
+        rejectedCandidates: summary.rejectedCandidates,
+        decisionBudgetFallbacks: summary.decisionBudgetFallbacks
+      },
+      model,
+      sessionId: input.sourceSession ?? null
+    })
+  }
+
+  private prepareCoordinateCandidate(
+    agentId: string,
+    indexed: IndexedCandidate
+  ): PrepareCoordinateCandidateResult {
+    const content = indexed.candidate.content
+    const provenanceKey = buildMemoryProvenanceKey(agentId, indexed.candidate.kind, content)
+    const duplicate = this.ctx.resolveProvenance(agentId, indexed.candidate.kind, content)
+    let decisionHeadId: string | null = null
+    if (duplicate) {
+      const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
+        allowDecisionForSuperseded: true
+      })
+      if (hit.action === 'absorbed') {
+        return {
+          candidateIndex: indexed.candidateIndex,
+          candidate: indexed.candidate,
+          outcome: { action: 'updated', id: duplicate.id }
+        }
+      }
+      if (hit.action === 'noop') {
+        return {
+          candidateIndex: indexed.candidateIndex,
+          candidate: indexed.candidate,
+          outcome: { action: 'noop', reason: hit.reason, id: duplicate.id }
+        }
+      }
+      const head = this.rows.supersedeHead(agentId, duplicate)
+      if (isLiveDecisionTarget(agentId, head)) decisionHeadId = head.id
+    }
+    return {
+      prepared: {
+        ...indexed,
+        provenanceKey,
+        decisionHeadId,
+        neighbors: []
+      }
+    }
+  }
+
+  private applyImmediatePrepared(
+    agentId: string,
+    result: PrepareCoordinateCandidateResult,
+    options: WriteMemoriesOptions,
+    now: number,
+    allowInsert: boolean
+  ): MemoryWriteOutcome {
+    if ('prepared' in result) throw new Error('Expected an immediate candidate result')
+    return this.applyCurrentProvenanceOrInsert(agentId, result.candidate, options, now, allowInsert)
+  }
+
+  private applyCurrentProvenanceOrInsert(
+    agentId: string,
+    candidate: NormalizedMemoryCandidate,
+    options: WriteMemoriesOptions,
+    now: number,
+    allowInsert: boolean
+  ): MemoryWriteOutcome {
+    let outcome: MemoryWriteOutcome = { action: 'noop', reason: 'concurrent-update' }
+    this.ctx.deps.repository.runInTransaction(() => {
+      const owner = this.ctx.resolveProvenance(agentId, candidate.kind, candidate.content)
+      if (owner) {
+        const hit = this.rows.handleProvenanceHit(agentId, owner, {
+          allowDecisionForSuperseded: true
+        })
+        if (hit.action === 'absorbed') {
+          outcome = this.ctx.deps.repository.activateForEmbeddingIfRevision(
+            agentId,
+            owner.id,
+            owner.decision_revision
+          )
+            ? { action: 'updated', id: owner.id }
+            : { action: 'noop', reason: 'concurrent-update' }
+          return
+        }
+        if (hit.action === 'noop') {
+          outcome = { action: 'noop', reason: hit.reason, id: owner.id }
+          return
+        }
+        outcome = this.reviveProvenanceOwner(agentId, owner, now, candidate.category)
+        return
+      }
+      if (!allowInsert) return
+      const provenanceKey = buildMemoryProvenanceKey(agentId, candidate.kind, candidate.content)
+      const id = this.rows.insertMemory(
+        agentId,
+        candidate,
+        candidate.content,
+        provenanceKey,
+        options
+      )
+      outcome = id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
+    })
+    return outcome
+  }
+
+  private applyNoNeighborDecision(
+    agentId: string,
+    prepared: PreparedCoordinateCandidate,
+    options: WriteMemoriesOptions,
+    now: number,
+    isRetry: boolean
+  ): MemoryWriteOutcome {
+    if (isRetry) return { action: 'noop', reason: 'concurrent-update' }
+    return this.applyCurrentProvenanceOrInsert(agentId, prepared.candidate, options, now, true)
+  }
+
+  private applyPreparedCandidate(
+    agentId: string,
+    preparedResult: PrepareCoordinateCandidateResult,
+    retrieved: PreparedCoordinateCandidate | undefined,
+    parsed: { decision: MemoryDecision; valid: boolean } | undefined,
+    options: WriteMemoriesOptions,
+    now: number,
+    policy: CandidateApplyPolicy
+  ): CoordinateWriteResult {
+    if (!('prepared' in preparedResult)) {
+      return this.applyImmediatePrepared(agentId, preparedResult, options, now, policy.allowInsert)
+    }
+    const prepared = retrieved ?? preparedResult.prepared
+    if (!prepared.neighbors.length) {
+      return this.applyNoNeighborDecision(agentId, prepared, options, now, policy.isRetry)
+    }
+    if (!parsed?.valid && policy.invalidDecisionFallback === 'concurrent-update') {
+      return { action: 'noop', reason: 'concurrent-update' }
+    }
+    const result = this.applyDecisionAttempt(
+      agentId,
+      prepared.candidate,
+      prepared.neighbors,
+      parsed?.valid ? parsed.decision : ADD_DECISION,
+      options,
+      now,
+      prepared.provenanceKey
+    )
+    if (result.action === 'retry' && !policy.retryConflict) {
+      return { action: 'noop', reason: 'concurrent-update' }
+    }
+    return result
+  }
+
+  private async retrievePreparedCandidates(
+    agentId: string,
+    prepared: readonly PreparedCoordinateCandidate[],
+    now: number,
+    queryVectors?: readonly (MemoryDecisionQueryVectorSnapshot | undefined)[]
+  ): Promise<PreparedCoordinateCandidate[]> {
+    if (!prepared.length) return []
+    try {
+      const sets = await this.ports.retrieveForDecisions(
+        agentId,
+        prepared.map((item) => item.candidate),
+        now,
+        queryVectors,
+        prepared.map((item) => (item.decisionHeadId ? [item.decisionHeadId] : undefined))
+      )
+      return prepared.map((item, index) => ({
+        ...item,
+        neighbors: [...(sets[index]?.neighbors ?? [])].slice(0, DECISION_NEIGHBOR_TOP_S),
+        queryVector: sets[index]?.queryVector
+      }))
+    } catch (error) {
+      logger.warn(`[Memory] batch decision neighbor recall failed, adding: ${String(error)}`)
+      return prepared.map((item) => ({ ...item, neighbors: [], queryVector: undefined }))
+    }
+  }
+
+  private async requestBatchDecisions(
+    agentId: string,
+    model: MemoryModelRef,
+    inputs: readonly BatchDecisionInput[],
+    maxBatches: number,
+    operationFence: MemoryOperationFence
+  ): Promise<{
+    decisions: Map<number, { decision: MemoryDecision; valid: boolean }>
+    fallbackCandidateIndexes: Set<number>
+  }> {
+    const partitioned = partitionBatchDecisions(inputs)
+    const decisions = new Map<number, { decision: MemoryDecision; valid: boolean }>()
+    const fallbackCandidateIndexes = new Set(partitioned.fallbackCandidateIndexes)
+    const partitions = partitioned.partitions.slice(0, maxBatches)
+    for (const skipped of partitioned.partitions.slice(maxBatches)) {
+      skipped.inputs.forEach((input) => fallbackCandidateIndexes.add(input.candidateIndex))
+    }
+    for (const partition of partitions) {
+      if (!this.ctx.canContinueOperation(operationFence)) break
+      try {
+        const raw = await this.ctx.provider.generateText(
+          agentId,
+          model.providerId,
+          model.modelId,
+          partition.prompt,
+          'decision'
+        )
+        if (!this.ctx.canContinueOperation(operationFence)) break
+        for (const [candidateIndex, result] of parseBatchDecisionResults(raw, partition.inputs)) {
+          decisions.set(candidateIndex, { decision: result.decision, valid: result.valid })
+        }
+      } catch (error) {
+        if (!this.ctx.canContinueOperation(operationFence)) break
+        logger.warn(`[Memory] batch decision model failed: ${String(error)}`)
+      }
+    }
+    return { decisions, fallbackCandidateIndexes }
+  }
+
+  private async coordinateBatchWrites(
+    agentId: string,
+    candidates: readonly IndexedCandidate[],
+    model: MemoryModelRef,
+    options: WriteMemoriesOptions,
+    now: number,
+    operationFence: MemoryOperationFence
+  ): Promise<BatchWriteResult> {
+    if (!candidates.length) return { outcomes: [], decisionBudgetFallbacks: 0, failed: false }
+
+    const preparation = candidates.map((candidate) =>
+      this.prepareCoordinateCandidate(agentId, candidate)
+    )
+    const preparationByIndex = new Map(
+      preparation.map((result) => [
+        'prepared' in result ? result.prepared.candidateIndex : result.candidateIndex,
+        result
+      ])
+    )
+    const preparedInitial = await this.retrievePreparedCandidates(
+      agentId,
+      preparation.flatMap((result) => ('prepared' in result ? [result.prepared] : [])),
+      now
+    )
+    const preparedByIndex = new Map(
+      preparedInitial.map((prepared) => [prepared.candidateIndex, prepared])
+    )
+    const initialDecisionInputs: BatchDecisionInput[] = preparedInitial
+      .filter((prepared) => prepared.neighbors.length > 0)
+      .map((prepared) => ({
+        candidateIndex: prepared.candidateIndex,
+        candidate: prepared.candidate,
+        neighbors: prepared.neighbors
+      }))
+    const initialBatch = await this.requestBatchDecisions(
+      agentId,
+      model,
+      initialDecisionInputs,
+      2,
+      operationFence
+    )
+
+    const outcomesByIndex = new Map<number, MemoryWriteOutcome>()
+    const retryCandidates: PreparedCoordinateCandidate[] = []
+    let failed = false
+    for (const candidate of candidates) {
+      if (!this.ctx.canContinueOperation(operationFence)) break
+      try {
+        const preparedResult = preparationByIndex.get(candidate.candidateIndex)
+        if (!preparedResult) continue
+        const result = this.applyPreparedCandidate(
+          agentId,
+          preparedResult,
+          preparedByIndex.get(candidate.candidateIndex),
+          initialBatch.decisions.get(candidate.candidateIndex),
+          options,
+          now,
+          {
+            isRetry: false,
+            allowInsert: true,
+            invalidDecisionFallback: 'add',
+            retryConflict: true
+          }
+        )
+        if (result.action === 'retry') {
+          const retryCandidate =
+            preparedByIndex.get(candidate.candidateIndex) ??
+            ('prepared' in preparedResult ? preparedResult.prepared : null)
+          if (retryCandidate) retryCandidates.push(retryCandidate)
+          else {
+            outcomesByIndex.set(candidate.candidateIndex, {
+              action: 'noop',
+              reason: 'concurrent-update'
+            })
+          }
+        } else outcomesByIndex.set(candidate.candidateIndex, result)
+      } catch (error) {
+        logger.warn(`[Memory] candidate apply failed: ${String(error)}`)
+        failed = true
+        break
+      }
+    }
+
+    const retrySlice = retryCandidates.slice(0, DECISION_RETRY_MAX_CANDIDATES)
+    for (const skipped of retryCandidates.slice(DECISION_RETRY_MAX_CANDIDATES)) {
+      outcomesByIndex.set(skipped.candidateIndex, {
+        action: 'noop',
+        reason: 'concurrent-update'
+      })
+    }
+    const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const retryEligible = retrySlice.filter((candidate) => {
+      const snapshot = candidate.queryVector
+      const valid =
+        !snapshot ||
+        (snapshot.providerId === currentEmbedding?.providerId &&
+          snapshot.modelId === currentEmbedding?.modelId &&
+          snapshot.dimensions === snapshot.vector.length)
+      if (!valid) {
+        outcomesByIndex.set(candidate.candidateIndex, {
+          action: 'noop',
+          reason: 'concurrent-update'
+        })
+      }
+      return valid
+    })
+    if (!failed && retryEligible.length && this.ctx.canContinueOperation(operationFence)) {
+      const retryPreparation = retryEligible.map((candidate) =>
+        this.prepareCoordinateCandidate(agentId, {
+          candidateIndex: candidate.candidateIndex,
+          candidate: candidate.candidate
+        })
+      )
+      const retryPreparationByIndex = new Map(
+        retryPreparation.map((result) => [
+          'prepared' in result ? result.prepared.candidateIndex : result.candidateIndex,
+          result
+        ])
+      )
+      const retryPreparedBase = retryPreparation.flatMap((result) =>
+        'prepared' in result ? [result.prepared] : []
+      )
+      const oldVectors = new Map(
+        retryEligible.map((candidate) => [candidate.candidateIndex, candidate.queryVector])
+      )
+      const retryPrepared = await this.retrievePreparedCandidates(
+        agentId,
+        retryPreparedBase,
+        now,
+        retryPreparedBase.map((candidate) => oldVectors.get(candidate.candidateIndex))
+      )
+      const retryByIndex = new Map(retryPrepared.map((item) => [item.candidateIndex, item]))
+      const retryInputs: BatchDecisionInput[] = retryPrepared
+        .filter((candidate) => candidate.neighbors.length > 0)
+        .map((candidate) => ({
+          candidateIndex: candidate.candidateIndex,
+          candidate: candidate.candidate,
+          neighbors: candidate.neighbors
+        }))
+      const retryBatch = await this.requestBatchDecisions(
+        agentId,
+        model,
+        retryInputs,
+        1,
+        operationFence
+      )
+
+      for (const original of retryEligible) {
+        if (!this.ctx.canContinueOperation(operationFence)) break
+        try {
+          const preparedResult = retryPreparationByIndex.get(original.candidateIndex)
+          if (!preparedResult) continue
+          const retryResult = this.applyPreparedCandidate(
+            agentId,
+            preparedResult,
+            retryByIndex.get(original.candidateIndex),
+            retryBatch.decisions.get(original.candidateIndex),
+            options,
+            now,
+            {
+              isRetry: true,
+              allowInsert: false,
+              invalidDecisionFallback: 'concurrent-update',
+              retryConflict: false
+            }
+          )
+          outcomesByIndex.set(
+            original.candidateIndex,
+            retryResult.action === 'retry'
+              ? { action: 'noop', reason: 'concurrent-update' }
+              : retryResult
+          )
+        } catch (error) {
+          logger.warn(`[Memory] candidate retry apply failed: ${String(error)}`)
+          failed = true
+          break
+        }
+      }
+    }
+
+    return {
+      outcomes: candidates.flatMap((candidate) => {
+        const outcome = outcomesByIndex.get(candidate.candidateIndex)
+        return outcome ? [outcome] : []
+      }),
+      decisionBudgetFallbacks: initialBatch.fallbackCandidateIndexes.size,
+      failed
     }
   }
 
@@ -345,7 +866,6 @@ export class WriteCoordinator {
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
     const duplicate = this.ctx.resolveProvenance(agentId, normalized.kind, content)
     let decisionHead: AgentMemoryRow | null = null
-    let supersededDuplicate: AgentMemoryRow | null = null
     if (duplicate) {
       const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
         allowDecisionForSuperseded: true
@@ -355,7 +875,6 @@ export class WriteCoordinator {
         return { action: 'updated', id: duplicate.id }
       }
       if (hit.action === 'noop') return { action: 'noop', reason: hit.reason, id: duplicate.id }
-      supersededDuplicate = duplicate
       const head = this.rows.supersedeHead(agentId, duplicate)
       if (isLiveDecisionTarget(agentId, head)) decisionHead = head
     }
@@ -364,8 +883,14 @@ export class WriteCoordinator {
     try {
       const hits = await this.ports.retrieveForDecision(agentId, content, now)
       neighbors = hits.slice(0, DECISION_NEIGHBOR_TOP_S)
-      if (decisionHead && !neighbors.some((neighbor) => neighbor.id === decisionHead.id)) {
-        neighbors.unshift(recallItemFromRow(decisionHead))
+      const currentDecisionHead = decisionHead
+        ? this.ctx.deps.repository.getById(decisionHead.id)
+        : undefined
+      if (
+        isLiveDecisionTarget(agentId, currentDecisionHead) &&
+        !neighbors.some((neighbor) => neighbor.id === currentDecisionHead.id)
+      ) {
+        neighbors.unshift(recallItemFromRow(currentDecisionHead))
         neighbors = neighbors.slice(0, DECISION_NEIGHBOR_TOP_S)
       }
     } catch (error) {
@@ -376,11 +901,7 @@ export class WriteCoordinator {
     }
     if (!neighbors.length) {
       if (isRetry) return { action: 'noop', reason: 'concurrent-update' }
-      if (supersededDuplicate) {
-        return this.reviveProvenanceOwner(agentId, supersededDuplicate, now, normalized.category)
-      }
-      const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
-      return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
+      return this.applyCurrentProvenanceOrInsert(agentId, normalized, options, now, true)
     }
 
     let decision: MemoryDecision = ADD_DECISION
@@ -396,10 +917,15 @@ export class WriteCoordinator {
         'decision'
       )
       const parsed = parseDecisionResult(raw, neighbors.length)
-      if (isRetry && !parsed.valid) {
+      const valid =
+        parsed.valid &&
+        (parsed.decision.mergedContent === null ||
+          unicodeCodePointLength(parsed.decision.mergedContent) <=
+            AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS)
+      if (isRetry && !valid) {
         return { action: 'noop', reason: 'concurrent-update' }
       }
-      decision = parsed.decision
+      decision = valid ? parsed.decision : ADD_DECISION
     } catch (error) {
       if (isRetry) {
         logger.warn(`[Memory] decision retry failed: ${String(error)}`)
@@ -411,6 +937,27 @@ export class WriteCoordinator {
       return { action: 'noop', reason: 'disposed' }
     }
 
+    return this.applyDecisionAttempt(
+      agentId,
+      normalized,
+      neighbors,
+      decision,
+      options,
+      now,
+      provenanceKey
+    )
+  }
+
+  private applyDecisionAttempt(
+    agentId: string,
+    normalized: NormalizedMemoryCandidate,
+    neighbors: readonly MemoryRecallItem[],
+    decision: MemoryDecision,
+    options: WriteMemoriesOptions,
+    now: number,
+    provenanceKey: string
+  ): CoordinateWriteResult {
+    const content = normalized.content
     const target = decision.targetIndex !== null ? neighbors[decision.targetIndex] : null
     switch (decision.decision) {
       case 'NOOP':
@@ -560,11 +1107,7 @@ export class WriteCoordinator {
         }
         break
     }
-    const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
-    if (!id && supersededDuplicate) {
-      return this.reviveProvenanceOwner(agentId, supersededDuplicate, now, normalized.category)
-    }
-    return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
+    return this.applyCurrentProvenanceOrInsert(agentId, normalized, options, now, true)
   }
 
   private foldDecisionTargetIntoOwner(

@@ -1160,6 +1160,80 @@ describe('MemoryPresenter write + two-phase embedding', () => {
     )
   })
 
+  it('revalidates an equivalent v2 owner after a lazy re-key UNIQUE race', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const content = 'User likes Redis'
+    const legacyKey = buildLegacyMemoryProvenanceKey('a', 'semantic', content)
+    const v2Key = buildMemoryProvenanceKey('a', 'semantic', content)
+    repo.insert({
+      id: 'legacy',
+      agentId: 'a',
+      kind: 'semantic',
+      content,
+      provenanceKey: legacyKey
+    })
+    const concurrent = repo.insert({
+      id: 'concurrent',
+      agentId: 'a',
+      kind: 'semantic',
+      content: '  User   likes Redis  '
+    })
+    const originalLookup = repo.getByProvenanceKey.bind(repo)
+    let v2Reads = 0
+    vi.spyOn(repo, 'getByProvenanceKey').mockImplementation((agentId, provenanceKey) => {
+      if (provenanceKey !== v2Key) return originalLookup(agentId, provenanceKey)
+      v2Reads += 1
+      return v2Reads === 1 ? undefined : concurrent
+    })
+    vi.spyOn(repo, 'rekeyProvenance').mockImplementation(() => {
+      throw new Error('UNIQUE constraint failed')
+    })
+
+    const created = presenter.writeMemoriesSync([{ kind: 'semantic', content }], { agentId: 'a' })
+
+    expect(created).toEqual([])
+    expect(repo.getById('legacy')?.provenance_key).toBe(legacyKey)
+    expect(v2Reads).toBe(2)
+  })
+
+  it('does not accept a different-content v2 owner after a lazy re-key UNIQUE race', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const content = 'User likes Redis'
+    const legacyKey = buildLegacyMemoryProvenanceKey('a', 'semantic', content)
+    const v2Key = buildMemoryProvenanceKey('a', 'semantic', content)
+    repo.insert({
+      id: 'legacy',
+      agentId: 'a',
+      kind: 'semantic',
+      content,
+      provenanceKey: legacyKey
+    })
+    const concurrentCollision = repo.insert({
+      id: 'concurrent-collision',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'different content'
+    })
+    const originalLookup = repo.getByProvenanceKey.bind(repo)
+    let v2Reads = 0
+    vi.spyOn(repo, 'getByProvenanceKey').mockImplementation((agentId, provenanceKey) => {
+      if (provenanceKey !== v2Key) return originalLookup(agentId, provenanceKey)
+      v2Reads += 1
+      return v2Reads === 1 ? undefined : concurrentCollision
+    })
+    vi.spyOn(repo, 'rekeyProvenance').mockImplementation(() => {
+      throw new Error('UNIQUE constraint failed')
+    })
+
+    const created = presenter.writeMemoriesSync([{ kind: 'semantic', content }], { agentId: 'a' })
+
+    expect(created).toHaveLength(1)
+    expect(repo.getById(created[0])?.content).toBe(content)
+    expect(repo.getById('legacy')?.provenance_key).toBe(legacyKey)
+    expect(repo.getById('concurrent-collision')?.content).toBe('different content')
+    expect(v2Reads).toBe(2)
+  })
+
   it('processPendingEmbeddings embeds and flips status to embedded', async () => {
     const { presenter, repo, store } = makePresenter(enabledConfig)
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
@@ -4003,6 +4077,59 @@ describe('MemoryPresenter async write guards', () => {
     expect(onMemoryChanged).not.toHaveBeenCalled()
   })
 
+  it('invalidates a slow decision when the embedding identity changes', async () => {
+    const repo = new FakeRepository()
+    let config: DeepChatAgentConfig = enabledConfig
+    let resolveDecision!: (value: string) => void
+    let markDecisionStarted!: () => void
+    const decisionStarted = new Promise<void>((resolve) => {
+      markDecisionStarted = resolve
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_providerId, _modelId, texts) => texts.map(textToVector),
+      getDimensions: embeddingDimensions,
+      generateText: async (_providerId, _modelId, prompt) => {
+        if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+        if (prompt.includes('JSON array')) {
+          return '[{"kind":"semantic","content":"redis preference","importance":0.9}]'
+        }
+        markDecisionStarted()
+        return new Promise<string>((resolve) => {
+          resolveDecision = resolve
+        })
+      },
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'target',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis fact',
+      status: 'embedded'
+    })
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+
+    const pending = presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: redis preference',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    await decisionStarted
+    config = {
+      ...enabledConfig,
+      memoryEmbedding: { providerId: 'p', modelId: 'm2' }
+    }
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    resolveDecision('{"decision":"UPDATE","targetIndex":0,"mergedContent":"late update"}')
+
+    await expect(pending).resolves.toEqual({ ok: false })
+    expect(repo.getById('target')?.content).toBe('redis fact')
+    expect(repo.listByAgent('a')).toHaveLength(1)
+  })
+
   it('does not start extraction for unmanaged agents', async () => {
     const repo = new FakeRepository()
     const generateText = vi.fn(async () => 'KEEP')
@@ -5006,6 +5133,19 @@ function routedLLM(opts: {
     if (prompt.includes('JSON array')) return opts.extraction ?? '[]'
     if (prompt.includes('Choose exactly ONE decision')) {
       if (opts.throwDecision) throw new Error('decision model down')
+      const candidateIndexes = [...prompt.matchAll(/^Candidate (\d+) \(/gm)].map((match) =>
+        Number(match[1])
+      )
+      if (candidateIndexes.length > 0) {
+        const batch = candidateIndexes.map((candidateIndex) => {
+          const raw = Array.isArray(opts.decision)
+            ? (opts.decision[decisionIndex++] ??
+              '{"decision":"ADD","targetIndex":null,"mergedContent":null}')
+            : (opts.decision ?? '{"decision":"ADD","targetIndex":null,"mergedContent":null}')
+          return { ...JSON.parse(raw), candidateIndex }
+        })
+        return JSON.stringify(batch)
+      }
       if (Array.isArray(opts.decision)) {
         return (
           opts.decision[decisionIndex++] ??
@@ -5073,6 +5213,121 @@ const decisionCalls = (generateText: ReturnType<typeof vi.fn>) =>
     .length
 
 describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
+  it('does not admit a second decision partition after destructive clear', async () => {
+    const extraction = Array.from({ length: 8 }, (_, index) => ({
+      kind: 'semantic',
+      content: `redis clear race ${index} updated`,
+      importance: 0.8
+    }))
+    let releaseDecision!: (value: string) => void
+    let markDecisionStarted!: () => void
+    const decisionStarted = new Promise<void>((resolve) => {
+      markDecisionStarted = resolve
+    })
+    let decisionCount = 0
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      if (prompt.includes('JSON array')) return JSON.stringify(extraction)
+      if (!prompt.includes('Choose exactly ONE decision')) return ''
+      decisionCount += 1
+      markDecisionStarted()
+      return new Promise<string>((resolve) => {
+        releaseDecision = resolve
+      })
+    })
+    const { presenter } = makeLLMPresenter(generateText)
+    for (let index = 0; index < 8; index += 1) {
+      await seedEmbedded(presenter, `redis clear race ${index} baseline`)
+    }
+
+    const pending = presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User updated eight redis topics before clearing memory',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    await decisionStarted
+    expect(await presenter.clearMemories('a')).toBe(8)
+    releaseDecision('[]')
+
+    await expect(pending).resolves.toEqual({ ok: false })
+    expect(decisionCount).toBe(1)
+  })
+
+  it('cancels a slow decision after permanent forget without reviving the cached owner', async () => {
+    let releaseDecision!: (value: string) => void
+    let markDecisionStarted!: () => void
+    const decisionStarted = new Promise<void>((resolve) => {
+      markDecisionStarted = resolve
+    })
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      if (prompt.includes('JSON array')) {
+        return JSON.stringify([
+          { kind: 'semantic', content: 'permanently forgotten fact', importance: 0.8 },
+          { kind: 'semantic', content: 'redis neighbor update', importance: 0.8 }
+        ])
+      }
+      if (!prompt.includes('Choose exactly ONE decision')) return ''
+      markDecisionStarted()
+      return new Promise<string>((resolve) => {
+        releaseDecision = resolve
+      })
+    })
+    const repo = new FakeRepository()
+    const auditRepo = new FakeAuditRepository()
+    const { presenter } = makeLLMPresenter(generateText, embeddingConfig, repo, auditRepo)
+    repo.insert({
+      id: 'forgotten-owner',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'permanently forgotten fact',
+      status: 'archived'
+    })
+    await seedEmbedded(presenter, 'redis neighbor baseline')
+
+    const pending = presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User repeats one old fact and updates redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    await decisionStarted
+    expect(await presenter.forgetMemory('a', 'forgotten-owner')).toBe(true)
+    releaseDecision('[{"candidateIndex":1,"decision":"NOOP","targetIndex":0}]')
+
+    await expect(pending).resolves.toEqual({ ok: false })
+    expect(repo.getById('forgotten-owner')?.status).toBe('archived')
+    expect(auditRepo.hasForgetEvent('a', 'forgotten-owner')).toBe(true)
+  })
+
+  it('bounds eight-candidate steady-state provider work to two decision batches', async () => {
+    const extraction = Array.from({ length: 8 }, (_, index) => ({
+      kind: 'semantic',
+      content: `redis topic ${index} updated`,
+      importance: 0.8
+    }))
+    const generateText = routedLLM({
+      extraction: JSON.stringify(extraction),
+      decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter, getEmbeddings } = makeLLMPresenter(generateText)
+    for (let index = 0; index < 8; index += 1) {
+      await seedEmbedded(presenter, `redis topic ${index} baseline`)
+    }
+    getEmbeddings.mockClear()
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User updated eight redis topics',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+
+    expect(result).toEqual({ ok: true, createdIds: [] })
+    expect(generateText).toHaveBeenCalledTimes(4)
+    expect(decisionCalls(generateText)).toBe(2)
+    expect(getEmbeddings).toHaveBeenCalledTimes(1)
+    expect(getEmbeddings.mock.calls[0][2]).toHaveLength(8)
+  })
+
   it('ADD: model keeps the candidate as a new memory alongside the related neighbor', async () => {
     const generateText = routedLLM({
       extraction: '[{"kind":"semantic","content":"user prefers redis","importance":0.8}]',
@@ -5516,6 +5771,43 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     }
   })
 
+  it('does not retry a failed candidate embedding provider call during CAS contention', async () => {
+    const repo = new FakeRepository()
+    let targetId = ''
+    let decisionCallCount = 0
+    const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      if (prompt.includes('JSON array')) {
+        return '[{"kind":"semantic","content":"user changed redis preference","importance":0.8}]'
+      }
+      if (prompt.includes('Choose exactly ONE decision')) {
+        decisionCallCount += 1
+        if (decisionCallCount === 1) repo.updateUserMetadata(targetId, { importance: 0.7 })
+        return '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis"}'
+      }
+      return ''
+    })
+    const { presenter, getEmbeddings } = makeLLMPresenter(generateText, embeddingConfig, repo)
+    targetId = await seedEmbedded(presenter, 'user likes redis')
+    getEmbeddings.mockClear()
+    getEmbeddings.mockRejectedValue(new Error('query embedding unavailable'))
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: my redis preference changed',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+
+    expect(result.ok).toBe(true)
+    expect(decisionCallCount).toBe(2)
+    const candidateEmbeddingCalls = getEmbeddings.mock.calls.filter(([, , texts]) =>
+      texts.includes('user changed redis preference')
+    )
+    expect(candidateEmbeddingCalls).toHaveLength(1)
+    expect(getEmbeddings).toHaveBeenCalledTimes(2)
+    expect(repo.getById(targetId)?.content).toBe('user prefers redis')
+  })
+
   it('returns concurrent-update after a second stale decision without mutating the target', async () => {
     const repo = new FakeRepository()
     let targetId = ''
@@ -5548,6 +5840,78 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     expect(repo.countByAgent('a')).toBe(1)
   })
 
+  it('retries only the first four conflicts in original order with one provider batch', async () => {
+    const repo = new FakeRepository()
+    const candidates = Array.from({ length: 5 }, (_, index) => ({
+      kind: 'semantic' as const,
+      content: `candidate ${index} updated`,
+      importance: 0.8
+    }))
+    const targetIds = candidates.map((_, index) => {
+      const id = `target-${index}`
+      repo.insert({
+        id,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `target ${index} original`,
+        status: 'embedded'
+      })
+      repo.updateStatus('a1', 'embedded', {
+        embeddingId: 'a1',
+        embeddingDim: 4,
+        embeddingModel: 'p:m'
+      })
+      return id
+    })
+    let searchCall = 0
+    vi.spyOn(repo, 'search').mockImplementation(() => {
+      const targetIndex = searchCall < 5 ? searchCall : searchCall - 5
+      searchCall += 1
+      return [repo.getById(targetIds[targetIndex])!]
+    })
+    let decisionBatch = 0
+    const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      if (prompt.includes('JSON array')) return JSON.stringify(candidates)
+      if (!prompt.includes('Choose exactly ONE decision')) return ''
+      decisionBatch += 1
+      const indexes = [...prompt.matchAll(/^Candidate (\d+) \(/gm)].map((match) => Number(match[1]))
+      if (decisionBatch <= 2) {
+        indexes.forEach((candidateIndex) => {
+          repo.updateUserMetadata(targetIds[candidateIndex], { importance: 0.7 })
+        })
+      }
+      return JSON.stringify(
+        indexes.map((candidateIndex) => ({
+          candidateIndex,
+          decision: 'UPDATE',
+          targetIndex: 0,
+          mergedContent: `target ${candidateIndex} merged`
+        }))
+      )
+    })
+    const { presenter } = makeLLMPresenter(
+      generateText,
+      { memoryEnabled: true, memoryExtractionModel: { providerId: 'cheap', modelId: 'cheap' } },
+      repo
+    )
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User updated five candidates',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+
+    expect(result).toEqual({ ok: true, createdIds: [] })
+    expect(decisionBatch).toBe(3)
+    expect(searchCall).toBe(9)
+    targetIds.slice(0, 4).forEach((id, index) => {
+      expect(repo.getById(id)?.content).toBe(`target ${index} merged`)
+    })
+    expect(repo.getById(targetIds[4])?.content).toBe('target 4 original')
+    expect(repo.countByAgent('a')).toBe(5)
+  })
+
   it('falls back to a plain ADD when the decision model throws or returns garbage (T-A2)', async () => {
     const thrown = routedLLM({
       extraction: '[{"kind":"semantic","content":"user prefers redis","importance":0.8}]',
@@ -5578,6 +5942,28 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     if (!r2.ok) throw new Error('expected ok')
     expect(r2.createdIds).toHaveLength(1)
     expect(b.repo.countByAgent('a')).toBe(2)
+  })
+
+  it('treats oversized model-generated merged content as an invalid decision', async () => {
+    const generateText = routedLLM({
+      decision: JSON.stringify({
+        decision: 'UPDATE',
+        targetIndex: 0,
+        mergedContent: 'x'.repeat(2_001)
+      })
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+
+    const outcome = await presenter.rememberMemory(
+      { kind: 'semantic', content: 'user strongly likes redis', importance: 0.8 },
+      { agentId: 'a' },
+      { providerId: 'main', modelId: 'main' }
+    )
+
+    expect(outcome.action).toBe('created')
+    expect(repo.getById(targetId)?.content).toBe('user likes redis')
+    expect(repo.countByAgent('a')).toBe(2)
   })
 
   it('short-circuits a byte-level duplicate before any neighbor recall or decision call (T-A4)', async () => {

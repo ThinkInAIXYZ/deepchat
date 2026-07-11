@@ -146,6 +146,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.writeCoordinator = new WriteCoordinator(this.runtime, this.rows, {
       retrieveForDecision: (agentId, query, now) =>
         this.retrieval.retrieveForDecision(agentId, query, now),
+      retrieveForDecisions: (agentId, candidates, now, queryVectors, pinnedIdsByCandidate) =>
+        this.retrieval.retrieveForDecisions(
+          agentId,
+          candidates,
+          now,
+          queryVectors,
+          pinnedIdsByCandidate
+        ),
       markWorkingMemoryDirty: (agentId) => this.workingMemory.markWorkingMemoryDirty(agentId),
       flushWorkingMemoryIfDirty: (agentId) => this.workingMemory.flushWorkingMemoryIfDirty(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),

@@ -6,6 +6,9 @@ export const AGENT_MEMORY_CATEGORIES = [
   'anti_pattern'
 ] as const
 
+export const AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS = 12_000
+export const AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS = 2_000
+
 export type AgentMemoryCategory = (typeof AGENT_MEMORY_CATEGORIES)[number]
 
 export const AGENT_MEMORY_HEALTH_KIND_KEYS = [

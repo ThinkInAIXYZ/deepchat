@@ -359,6 +359,18 @@ export interface MemoryRecallItem {
   }
 }
 
+export interface MemoryDecisionNeighborSet {
+  neighbors: MemoryRecallItem[]
+  queryVector?: MemoryDecisionQueryVectorSnapshot
+}
+
+export interface MemoryDecisionQueryVectorSnapshot {
+  vector: number[]
+  providerId: string
+  modelId: string
+  dimensions: number
+}
+
 export type MemoryKeywordSearchStrategy = 'fts-only' | 'like-fallback'
 
 export interface MemoryKeywordSearchResult {

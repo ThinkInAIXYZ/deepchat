@@ -142,6 +142,7 @@ export class ManagementService {
     if (!row || row.agent_id !== agentId) return false
     if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
+    this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.status === 'archived'
     this.ctx.deps.repository.runInTransaction(() => {
       if (!alreadyArchived) {
@@ -172,6 +173,7 @@ export class ManagementService {
     if (!row || row.agent_id !== agentId) return false
     if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
+    this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.status === 'archived'
     this.ctx.deps.repository.runInTransaction(() => {
       if (!alreadyArchived) {
@@ -503,6 +505,7 @@ export class ManagementService {
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
     if (this.ctx.deps.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
+    this.ctx.invalidateAgentOperations(agentId)
     this.ctx.deps.repository.delete(memoryId)
     this.ctx.markDomainMutationCommitted(agentId)
     if (row.kind !== 'working') {

@@ -52,6 +52,18 @@ export function isUniqueConstraintError(error: unknown): boolean {
   return /UNIQUE constraint failed/i.test(message)
 }
 
+function isEquivalentProvenanceOwner(
+  owner: AgentMemoryRow | undefined,
+  kind: string,
+  normalizedContent: string
+): owner is AgentMemoryRow {
+  return (
+    owner !== undefined &&
+    owner.kind === kind &&
+    normalizeForProvenanceV2(owner.content) === normalizedContent
+  )
+}
+
 export class MemoryRuntimeContext {
   private disposed = false
   private readonly readEpochByAgent = new Map<string, number>()
@@ -108,8 +120,13 @@ export class MemoryRuntimeContext {
   }
 
   resolveProvenance(agentId: string, kind: string, content: string): AgentMemoryRow | undefined {
+    const normalizedContent = normalizeForProvenanceV2(content)
     const v2Key = buildMemoryProvenanceKey(agentId, kind, content)
-    const v2Owner = this.deps.repository.getByProvenanceKey(agentId, v2Key)
+    const resolveEquivalentV2Owner = (): AgentMemoryRow | undefined => {
+      const owner = this.deps.repository.getByProvenanceKey(agentId, v2Key)
+      return isEquivalentProvenanceOwner(owner, kind, normalizedContent) ? owner : undefined
+    }
+    const v2Owner = resolveEquivalentV2Owner()
     if (v2Owner) return v2Owner
 
     const legacyKey = buildLegacyMemoryProvenanceKey(agentId, kind, content)
@@ -117,7 +134,7 @@ export class MemoryRuntimeContext {
     if (
       !legacyOwner ||
       legacyOwner.kind !== kind ||
-      normalizeForProvenanceV2(legacyOwner.content) !== normalizeForProvenanceV2(content)
+      normalizeForProvenanceV2(legacyOwner.content) !== normalizedContent
     ) {
       return undefined
     }
@@ -128,10 +145,10 @@ export class MemoryRuntimeContext {
       })
       return rekeyed
         ? (this.deps.repository.getById(legacyOwner.id) ?? legacyOwner)
-        : this.deps.repository.getByProvenanceKey(agentId, v2Key)
+        : resolveEquivalentV2Owner()
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
-      return this.deps.repository.getByProvenanceKey(agentId, v2Key)
+      return resolveEquivalentV2Owner()
     }
   }
 
