@@ -341,6 +341,7 @@ import {
   sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
+  sessionsDismissCreateOperationRoute,
   sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
   sessionsDeletePendingInputRoute,
@@ -354,6 +355,7 @@ import {
   sessionsGetAcpSessionCommandsRoute,
   sessionsGetAcpSessionConfigOptionsRoute,
   sessionsGetActiveRoute,
+  sessionsGetCreateOperationRoute,
   sessionsGetAgentsRoute,
   sessionsGetAgentTransferImpactRoute,
   sessionsGetDisabledAgentToolsRoute,
@@ -364,6 +366,7 @@ import {
   sessionsGetTapeContextRoute,
   sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
+  sessionsListCreateOperationsRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
@@ -766,6 +769,9 @@ const DEEPCHAT_ROUTE_CATALOG_PART_3 = {
 
 const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
   [sessionsCreateRoute.name]: sessionsCreateRoute,
+  [sessionsGetCreateOperationRoute.name]: sessionsGetCreateOperationRoute,
+  [sessionsListCreateOperationsRoute.name]: sessionsListCreateOperationsRoute,
+  [sessionsDismissCreateOperationRoute.name]: sessionsDismissCreateOperationRoute,
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,
   [sessionsListMessagesPageRoute.name]: sessionsListMessagesPageRoute,
   [sessionsListRoute.name]: sessionsListRoute,

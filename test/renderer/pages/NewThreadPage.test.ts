@@ -1,12 +1,17 @@
 import { mount, flushPromises } from '@vue/test-utils'
-import { reactive } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { nextTick, reactive } from 'vue'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 const setup = async (
   pendingModelId: string,
   options?: {
     projects?: Array<{ name: string; path: string; exists: boolean }>
     environments?: Array<{ path: string; exists: boolean }>
+    agentType?: 'deepchat' | 'acp'
   }
 ) => {
   vi.resetModules()
@@ -66,15 +71,32 @@ const setup = async (
     }),
     openFolderPicker: vi.fn()
   })
-  const sessionStore = {
+  const sessionStore = reactive({
     selectSession: vi.fn(),
     sendMessage: vi.fn(),
-    createSession: vi.fn()
-  }
+    createSession: vi.fn().mockResolvedValue(true),
+    currentCreateIntent: null as null | {
+      token: number
+      requestedOperationId: string
+      status: string
+      operation: null | Record<string, unknown>
+    },
+    createOperationHistory: [] as Array<Record<string, any>>,
+    createOperationHistoryLoading: false,
+    createOperationHistoryLoadingMore: false,
+    createOperationHistoryHasMore: false,
+    createOperationHistoryError: null as string | null,
+    reconcileCurrentCreateIntent: vi.fn(),
+    invalidateCurrentCreateIntent: vi.fn(),
+    checkCreateOperation: vi.fn(),
+    dismissCreateOperation: vi.fn(),
+    loadNextCreateOperationHistoryPage: vi.fn()
+  })
+  const selectedAgentId = options?.agentType === 'acp' ? 'codex-acp' : 'deepchat'
   const agentStore = reactive({
-    selectedAgentId: 'deepchat',
+    selectedAgentId,
     selectedAgent: null,
-    agents: [{ id: 'deepchat', type: 'deepchat' }]
+    agents: [{ id: selectedAgentId, type: options?.agentType ?? 'deepchat' }]
   })
   const getChatSelectableModelGroups = () => modelStore.enabledModels
   const modelStore = reactive({
@@ -128,7 +150,11 @@ const setup = async (
     })
   }
   const sessionClient = {
-    ensureAcpDraftSession: vi.fn()
+    ensureAcpDraftSession: vi.fn().mockResolvedValue({
+      id: 'acp-draft-session',
+      providerId: 'acp',
+      modelId: selectedAgentId
+    })
   }
   const fileClient = {
     isDirectory: vi.fn().mockResolvedValue(true)
@@ -167,8 +193,10 @@ const setup = async (
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
     default: {
       name: 'ChatInputBox',
-      props: ['modelValue'],
-      template: '<div data-testid="chat-input">{{ modelValue }}<slot name="toolbar" /></div>'
+      props: ['modelValue', 'submitDisabled'],
+      emits: ['submit'],
+      template:
+        '<div data-testid="chat-input">{{ modelValue }}<button data-testid="chat-input-submit" :disabled="submitDisabled" @click="$emit(\'submit\')">send</button><slot name="toolbar" /></div>'
     }
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
@@ -222,8 +250,10 @@ const setup = async (
         ChatStatusBar: true,
         ChatInputBox: {
           name: 'ChatInputBox',
-          props: ['modelValue'],
-          template: '<div data-testid="chat-input">{{ modelValue }}<slot name="toolbar" /></div>'
+          props: ['modelValue', 'submitDisabled'],
+          emits: ['submit'],
+          template:
+            '<div data-testid="chat-input">{{ modelValue }}<button data-testid="chat-input-submit" :disabled="submitDisabled" @click="$emit(\'submit\')">send</button><slot name="toolbar" /></div>'
         }
       }
     }
@@ -234,7 +264,8 @@ const setup = async (
   return {
     wrapper,
     draftStore,
-    projectStore
+    projectStore,
+    sessionStore
   }
 }
 
@@ -283,5 +314,130 @@ describe('NewThreadPage start deeplink prefill', () => {
     expect(wrapper.text()).toContain('/workspace/demo')
     expect(wrapper.text()).not.toContain('/workspace/missing')
     expect(wrapper.text()).not.toContain('/workspace/stale')
+  }, 20000)
+})
+
+describe('NewThreadPage create operation lifecycle', () => {
+  it('preserves the local draft until the current session is activated', async () => {
+    const { wrapper, sessionStore } = await setup('deepseek-chat')
+    sessionStore.createSession.mockResolvedValueOnce(false)
+
+    await wrapper.get('[data-testid="chat-input-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="chat-input"]').text()).toContain('帮我总结一下这周的迭代状态')
+  }, 20000)
+
+  it('clears the local draft only after confirmed activation', async () => {
+    const { wrapper, sessionStore } = await setup('deepseek-chat')
+    sessionStore.createSession.mockResolvedValueOnce(true)
+
+    await wrapper.get('[data-testid="chat-input-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="chat-input"]').text()).not.toContain(
+      '帮我总结一下这周的迭代状态'
+    )
+  }, 20000)
+
+  it('keeps the existing ACP draft-session send path outside create operations', async () => {
+    const { wrapper, sessionStore } = await setup('codex-acp', { agentType: 'acp' })
+
+    await wrapper.get('[data-testid="chat-input-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.selectSession).toHaveBeenCalledWith('acp-draft-session')
+    expect(sessionStore.sendMessage).toHaveBeenCalledWith(
+      'acp-draft-session',
+      expect.objectContaining({ text: expect.stringContaining('帮我总结一下这周的迭代状态') })
+    )
+    expect(sessionStore.createSession).not.toHaveBeenCalled()
+  }, 20000)
+
+  it('polls sequentially at most fifteen times and leaves only manual check', async () => {
+    const { wrapper, sessionStore } = await setup('deepseek-chat')
+    vi.useFakeTimers()
+    sessionStore.reconcileCurrentCreateIntent.mockResolvedValue(false)
+    sessionStore.currentCreateIntent = {
+      token: 7,
+      requestedOperationId: '11111111-1111-4111-8111-111111111111',
+      status: 'pending',
+      operation: null
+    }
+    await nextTick()
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(sessionStore.reconcileCurrentCreateIntent).toHaveBeenCalledTimes(15)
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(sessionStore.reconcileCurrentCreateIntent).toHaveBeenCalledTimes(15)
+
+    await wrapper.get('[data-testid="current-create-operation-check"]').trigger('click')
+    await flushPromises()
+    expect(sessionStore.reconcileCurrentCreateIntent).toHaveBeenCalledTimes(16)
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(sessionStore.reconcileCurrentCreateIntent).toHaveBeenCalledTimes(16)
+  }, 20000)
+
+  it('never overlaps polling and clears the timer when the page leaves', async () => {
+    const { wrapper, sessionStore } = await setup('deepseek-chat')
+    vi.useFakeTimers()
+    let resolveFirstCheck: () => void = () => undefined
+    sessionStore.reconcileCurrentCreateIntent.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveFirstCheck = resolve
+      })
+    )
+    sessionStore.currentCreateIntent = {
+      token: 8,
+      requestedOperationId: '11111111-1111-4111-8111-111111111111',
+      status: 'pending',
+      operation: null
+    }
+    await nextTick()
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(sessionStore.reconcileCurrentCreateIntent).toHaveBeenCalledTimes(1)
+
+    resolveFirstCheck()
+    await flushPromises()
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(sessionStore.reconcileCurrentCreateIntent).toHaveBeenCalledTimes(1)
+    expect(sessionStore.invalidateCurrentCreateIntent).toHaveBeenCalledWith(8)
+  }, 20000)
+
+  it('shows content-free recovery identities without selecting a single record', async () => {
+    const { wrapper, sessionStore } = await setup('deepseek-chat')
+    sessionStore.createOperationHistory = [
+      {
+        operationId: '22222222-2222-4222-8222-222222222222',
+        sessionId: 'session-secret',
+        state: 'unknown',
+        stage: 'runtime_ready',
+        code: 'CREATE_OPERATION_RESTARTED',
+        dismissedAt: null,
+        createdAt: 1,
+        updatedAt: 1,
+        message: 'must-not-render',
+        files: ['/secret/path']
+      }
+    ]
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="create-operation-recovery"]')).toBeTruthy()
+    expect(wrapper.text()).not.toContain('must-not-render')
+    expect(wrapper.text()).not.toContain('/secret/path')
+    expect(sessionStore.checkCreateOperation).not.toHaveBeenCalled()
+    expect(sessionStore.selectSession).not.toHaveBeenCalled()
+
+    const buttons = wrapper.findAll('[data-operation-id] button')
+    await buttons[1]?.trigger('click')
+    expect(sessionStore.dismissCreateOperation).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222'
+    )
   }, 20000)
 })

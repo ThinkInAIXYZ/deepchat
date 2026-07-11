@@ -47,6 +47,7 @@ export class NewSessionManager {
     title: string,
     projectDir: string | null,
     options?: {
+      id?: string
       isDraft?: boolean
       disabledAgentTools?: string[]
       subagentEnabled?: boolean
@@ -56,7 +57,7 @@ export class NewSessionManager {
       metadata?: SessionMetadata | null
     }
   ): string {
-    const id = nanoid()
+    const id = options?.id ?? nanoid()
     this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools,
@@ -197,6 +198,42 @@ export class NewSessionManager {
     this.sqlitePresenter.newSessionsTable.delete(id)
     for (const path of affectedPaths) {
       this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
+    }
+  }
+
+  cleanupPartialCreate(id: string, projectDir: string | null): void {
+    const errors: unknown[] = []
+    const affectedPaths = new Set<string>(projectDir ? [projectDir] : [])
+    try {
+      for (const path of this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)) {
+        affectedPaths.add(path)
+      }
+    } catch (error) {
+      errors.push(error)
+    }
+
+    const cleanupSteps = [
+      () => this.sqlitePresenter.deepchatSessionMetadataTable?.delete(id),
+      () => this.sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession(id),
+      () => this.sqlitePresenter.newSessionsTable.delete(id)
+    ]
+    for (const cleanup of cleanupSteps) {
+      try {
+        cleanup()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    for (const path of affectedPaths) {
+      try {
+        this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new AggregateError(errors, 'Partial session create cleanup failed')
     }
   }
 

@@ -255,7 +255,8 @@ const mountApp = async (options?: {
     startNewConversation: vi.fn().mockResolvedValue(undefined),
     closeSession: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn(),
-    fetchSessions: vi.fn().mockResolvedValue(undefined)
+    fetchSessions: vi.fn().mockResolvedValue(undefined),
+    loadCreateOperationHistory: vi.fn().mockResolvedValue(undefined)
   }
   const providerStore = {
     ensureInitialized: vi.fn().mockResolvedValue(undefined)
@@ -468,7 +469,7 @@ afterEach(() => {
 
 describe('App startup welcome flow', () => {
   it('routes to welcome when init is incomplete', async () => {
-    const { router, configPresenter, onboardingClient } = await mountApp({
+    const { router, configPresenter, onboardingClient, sessionStore } = await mountApp({
       initComplete: false,
       routeName: 'chat'
     })
@@ -477,6 +478,7 @@ describe('App startup welcome flow', () => {
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.start).toHaveBeenCalledTimes(1)
     expect(router.replace).toHaveBeenCalledWith({ name: 'welcome' })
+    expect(sessionStore.loadCreateOperationHistory).toHaveBeenCalledTimes(1)
   }, 10000)
 
   it('redirects welcome back to chat when init is complete', async () => {

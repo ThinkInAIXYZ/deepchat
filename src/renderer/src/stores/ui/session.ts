@@ -7,8 +7,12 @@ import { createSessionClient } from '../../../api/SessionClient'
 import { createTabClient } from '@api/TabClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
-import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
-import type { PublicSessionResolution } from '@shared/contracts/routes'
+import type {
+  CreateSessionOperationSummary,
+  GuidedOnboardingStepId,
+  PublicSessionResolution,
+  SessionCreateOutput
+} from '@shared/contracts/routes'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
@@ -74,9 +78,29 @@ export type CloseSessionOptions = {
   refresh?: boolean
 }
 
+export type CreateSessionIntentStatus =
+  | 'creating'
+  | 'pending'
+  | 'failed'
+  | 'unknown'
+  | 'query_error'
+  | 'missing'
+  | 'existing'
+  | 'conflict'
+  | 'activation_failed'
+  | 'unavailable'
+
+export type CurrentCreateSessionIntent = {
+  token: number
+  requestedOperationId: string
+  status: CreateSessionIntentStatus
+  operation: CreateSessionOperationSummary | null
+}
+
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 const DEFAULT_GROUP_MODE: GroupMode = 'project'
 const DEFAULT_SESSION_PAGE_SIZE = 30
+const DEFAULT_CREATE_OPERATION_PAGE_SIZE = 20
 const NO_PROJECT_GROUP_ID = '__no_project__'
 const SESSION_TITLE_COLLATOR = new Intl.Collator(undefined, {
   numeric: true,
@@ -268,6 +292,20 @@ function cloneSessionPageCursor(
   return cursor ? { updatedAt: cursor.updatedAt, id: cursor.id } : null
 }
 
+function mergeCreateOperations(
+  current: CreateSessionOperationSummary[],
+  updates: CreateSessionOperationSummary[]
+): CreateSessionOperationSummary[] {
+  const next = new Map(current.map((operation) => [operation.operationId, operation]))
+  for (const operation of updates) {
+    next.set(operation.operationId, operation)
+  }
+  return Array.from(next.values()).sort((left, right) => {
+    if (left.createdAt !== right.createdAt) return right.createdAt - left.createdAt
+    return left.operationId.localeCompare(right.operationId)
+  })
+}
+
 export const useSessionStore = defineStore('session', () => {
   const sessionClient = createSessionClient()
   const chatClient = createChatClient()
@@ -287,7 +325,12 @@ export const useSessionStore = defineStore('session', () => {
   let initialPageRequestId = 0
   let nextPageRequestId = 0
   let activationNavigationRequestId = 0
+  let createIntentVersion = 0
+  let createOperationHistoryRequestId = 0
   let sessionFetchPromise: Promise<void> | null = null
+  let createOperationHistoryFetchPromise: Promise<void> | null = null
+  let createOperationHistoryResetMutations: Set<string> | null = null
+  let localActivationRequest: { requestId: number; sessionId: string } | null = null
 
   const sessions = ref<UISession[]>([])
   const bootstrapActiveSession = ref<UISession | null>(null)
@@ -301,6 +344,16 @@ export const useSessionStore = defineStore('session', () => {
   const hasLoadedInitialPage = ref(false)
   const hasMore = ref(false)
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
+  const currentCreateIntent = ref<CurrentCreateSessionIntent | null>(null)
+  const createOperationHistory = ref<CreateSessionOperationSummary[]>([])
+  const createOperationHistoryLoading = ref(false)
+  const createOperationHistoryLoadingMore = ref(false)
+  const createOperationHistoryHasMore = ref(false)
+  const createOperationHistoryNextCursor = ref<{
+    createdAt: number
+    operationId: string
+  } | null>(null)
+  const createOperationHistoryError = ref<string | null>(null)
   const error = ref<string | null>(null)
 
   void getCurrentWebContentsId()
@@ -340,6 +393,52 @@ export const useSessionStore = defineStore('session', () => {
 
   const isCurrentActivationNavigation = (requestId: number, sessionId: string): boolean =>
     activationNavigationRequestId === requestId && activeSessionId.value === sessionId
+
+  const invalidateCurrentCreateIntent = (token?: number): void => {
+    if (token !== undefined && currentCreateIntent.value?.token !== token) return
+    createIntentVersion += 1
+    currentCreateIntent.value = null
+  }
+
+  const isCurrentCreateIntent = (token: number): boolean =>
+    currentCreateIntent.value?.token === token && createIntentVersion === token
+
+  const upsertCreateOperations = (operations: CreateSessionOperationSummary[]): void => {
+    for (const operation of operations) {
+      createOperationHistoryResetMutations?.add(operation.operationId)
+    }
+    createOperationHistory.value = mergeCreateOperations(createOperationHistory.value, operations)
+  }
+
+  const removeCreateOperation = (operationId: string): void => {
+    createOperationHistoryResetMutations?.add(operationId)
+    createOperationHistory.value = createOperationHistory.value.filter(
+      (operation) => operation.operationId !== operationId
+    )
+  }
+
+  const setCurrentCreateIntent = (
+    token: number,
+    patch: Omit<Partial<CurrentCreateSessionIntent>, 'token' | 'requestedOperationId'>
+  ): boolean => {
+    const current = currentCreateIntent.value
+    if (!current || current.token !== token || createIntentVersion !== token) return false
+    currentCreateIntent.value = { ...current, ...patch }
+    return true
+  }
+
+  const beginLocalActivation = (requestId: number, sessionId: string): void => {
+    localActivationRequest = { requestId, sessionId }
+  }
+
+  const endLocalActivation = (requestId: number, sessionId: string): void => {
+    if (
+      localActivationRequest?.requestId === requestId &&
+      localActivationRequest.sessionId === sessionId
+    ) {
+      localActivationRequest = null
+    }
+  }
 
   const notifyRendererReady = (): void => {
     if (rendererReadyNotified) return
@@ -778,30 +877,311 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function createSession(input: CreateSessionInput): Promise<void> {
-    error.value = null
-    createActivationNavigationRequest()
+  const refreshSucceededCreateOperation = (operation: CreateSessionOperationSummary): void => {
+    if (operation.state === 'succeeded') {
+      void refreshSessionsByIds([operation.sessionId])
+    }
+  }
+
+  const applyStaleCreateOutput = (result: SessionCreateOutput): void => {
+    upsertCreateOperations([result.operation])
+    if (result.kind === 'operation' && result.session) {
+      upsertSessions([mapToUISession(result.session)])
+      return
+    }
+    refreshSucceededCreateOperation(result.operation)
+  }
+
+  const activateCreatedSession = async (
+    token: number,
+    session: SessionWithState
+  ): Promise<boolean> => {
+    const lightweightSession = mapToUISession(session)
+    upsertSessions([lightweightSession])
+    if (!isCurrentCreateIntent(token)) return false
+
+    const requestId = createActivationNavigationRequest()
+    beginLocalActivation(requestId, session.id)
     try {
-      const result = await sessionClient.create(input)
-      const session = result.session
-      const lightweightSession = mapToUISession(session)
-      upsertSessions([lightweightSession])
+      let activationConfirmed = false
+      try {
+        await sessionClient.activate(session.id)
+        activationConfirmed = true
+      } catch {
+        try {
+          const active = await sessionClient.getActive()
+          const confirmedSessionId =
+            active.session?.id ??
+            (active.resolution?.availability === 'available'
+              ? active.resolution.session.id
+              : active.resolution && active.resolution.availability !== 'missing'
+                ? active.resolution.sessionId
+                : null)
+          activationConfirmed = confirmedSessionId === session.id
+        } catch {
+          activationConfirmed = false
+        }
+        if (!activationConfirmed) {
+          if (isCurrentCreateIntent(token)) {
+            setCurrentCreateIntent(token, { status: 'activation_failed' })
+            error.value = 'Failed to activate created session'
+          }
+          return false
+        }
+      }
+
+      if (!isCurrentCreateIntent(token) || activationNavigationRequestId !== requestId) {
+        return false
+      }
+
+      if (activeSessionId.value && activeSessionId.value !== session.id) {
+        messageStore.clearStreamingState()
+      }
       setActiveSessionId(session.id)
       bootstrapActiveSession.value = lightweightSession
       activeSessionSummary.value = mapToUIActiveSessionSummary(session)
       setSessionAvailability(session.id, 'available', 'main')
       syncSelectedAgentToSession(session.id)
+      currentCreateIntent.value = null
       pageRouter.goToChat(session.id)
       await completeOnboardingStep('first-chat')
-    } catch (createError) {
-      error.value = `Failed to create session: ${createError}`
-      throw createError
+      return true
+    } finally {
+      endLocalActivation(requestId, session.id)
     }
+  }
+
+  const applyCreateOperationResult = async (
+    token: number,
+    result: {
+      operation: CreateSessionOperationSummary | null
+      session: SessionWithState | null
+    }
+  ): Promise<boolean> => {
+    const { operation, session } = result
+    if (operation) upsertCreateOperations([operation])
+
+    if (!isCurrentCreateIntent(token)) {
+      if (session) upsertSessions([mapToUISession(session)])
+      if (operation) refreshSucceededCreateOperation(operation)
+      return false
+    }
+
+    if (!operation) {
+      setCurrentCreateIntent(token, { status: 'missing', operation: null })
+      return false
+    }
+
+    setCurrentCreateIntent(token, { operation })
+    switch (operation.state) {
+      case 'pending':
+        setCurrentCreateIntent(token, { status: 'pending' })
+        return false
+      case 'failed':
+        setCurrentCreateIntent(token, { status: 'failed' })
+        return false
+      case 'unknown':
+        setCurrentCreateIntent(token, { status: 'unknown' })
+        return false
+      case 'succeeded':
+        if (!session) {
+          setCurrentCreateIntent(token, { status: 'unavailable' })
+          refreshSucceededCreateOperation(operation)
+          return false
+        }
+        return await activateCreatedSession(token, session)
+    }
+  }
+
+  const applyCreateOutput = async (
+    token: number,
+    result: SessionCreateOutput
+  ): Promise<boolean> => {
+    if (!isCurrentCreateIntent(token)) {
+      applyStaleCreateOutput(result)
+      return false
+    }
+
+    upsertCreateOperations([result.operation])
+    if (result.kind === 'existing' || result.kind === 'conflict') {
+      setCurrentCreateIntent(token, {
+        status: result.kind,
+        operation: result.operation
+      })
+      return false
+    }
+    return await applyCreateOperationResult(token, result)
+  }
+
+  async function createSession(input: CreateSessionInput): Promise<boolean> {
+    error.value = null
+    createActivationNavigationRequest()
+    const token = ++createIntentVersion
+    const operationId = sessionClient.createOperationId()
+    currentCreateIntent.value = {
+      token,
+      requestedOperationId: operationId,
+      status: 'creating',
+      operation: null
+    }
+
+    try {
+      const result = await sessionClient.create(input, operationId)
+      return await applyCreateOutput(token, result)
+    } catch {
+      if (!isCurrentCreateIntent(token)) return false
+      error.value = 'Failed to create session'
+      try {
+        const result = await sessionClient.getCreateOperation(operationId)
+        return await applyCreateOperationResult(token, result)
+      } catch {
+        if (isCurrentCreateIntent(token)) {
+          setCurrentCreateIntent(token, { status: 'query_error' })
+          error.value = 'Failed to check session creation'
+        }
+        return false
+      }
+    }
+  }
+
+  async function reconcileCurrentCreateIntent(token: number): Promise<boolean> {
+    const intent = currentCreateIntent.value
+    if (!intent || intent.token !== token || createIntentVersion !== token) return false
+    if ((intent.status === 'existing' || intent.status === 'conflict') && intent.operation) {
+      try {
+        const result = await sessionClient.getCreateOperation(intent.operation.operationId)
+        if (result.operation) {
+          upsertCreateOperations([result.operation])
+          setCurrentCreateIntent(token, { operation: result.operation })
+        }
+        if (result.session) {
+          upsertSessions([mapToUISession(result.session)])
+        } else if (result.operation) {
+          refreshSucceededCreateOperation(result.operation)
+        }
+      } catch {
+        if (isCurrentCreateIntent(token)) {
+          error.value = 'Failed to check session creation'
+        }
+      }
+      return false
+    }
+    try {
+      const result = await sessionClient.getCreateOperation(intent.requestedOperationId)
+      return await applyCreateOperationResult(token, result)
+    } catch {
+      if (isCurrentCreateIntent(token)) {
+        setCurrentCreateIntent(token, { status: 'query_error' })
+        error.value = 'Failed to check session creation'
+      }
+      return false
+    }
+  }
+
+  async function checkCreateOperation(operationId: string): Promise<void> {
+    createOperationHistoryError.value = null
+    try {
+      const result = await sessionClient.getCreateOperation(operationId)
+      if (result.operation) upsertCreateOperations([result.operation])
+      else removeCreateOperation(operationId)
+      if (result.session) {
+        upsertSessions([mapToUISession(result.session)])
+      } else if (result.operation) {
+        refreshSucceededCreateOperation(result.operation)
+      }
+    } catch {
+      createOperationHistoryError.value = 'Failed to check session creation'
+    }
+  }
+
+  async function dismissCreateOperation(operationId: string): Promise<void> {
+    createOperationHistoryError.value = null
+    try {
+      const result = await sessionClient.dismissCreateOperation(operationId)
+      if (result.operation) upsertCreateOperations([result.operation])
+    } catch {
+      createOperationHistoryError.value = 'Failed to dismiss session creation'
+    }
+  }
+
+  const loadCreateOperationHistoryPage = async (reset: boolean): Promise<void> => {
+    if (
+      !reset &&
+      (!createOperationHistoryHasMore.value || !createOperationHistoryNextCursor.value)
+    ) {
+      return
+    }
+
+    const requestId = ++createOperationHistoryRequestId
+    const resetMutations = reset ? new Set<string>() : null
+    if (resetMutations) createOperationHistoryResetMutations = resetMutations
+    if (reset) createOperationHistoryLoading.value = true
+    else createOperationHistoryLoadingMore.value = true
+    createOperationHistoryError.value = null
+    try {
+      const result = await sessionClient.listCreateOperations({
+        limit: DEFAULT_CREATE_OPERATION_PAGE_SIZE,
+        cursor: reset ? null : createOperationHistoryNextCursor.value
+      })
+      if (requestId !== createOperationHistoryRequestId) return
+      if (resetMutations) {
+        const currentById = new Map(
+          createOperationHistory.value.map((operation) => [operation.operationId, operation])
+        )
+        const authoritativeItems = new Map(
+          result.items.map((operation) => [operation.operationId, operation])
+        )
+        for (const operationId of resetMutations) {
+          const current = currentById.get(operationId)
+          if (current) authoritativeItems.set(operationId, current)
+          else authoritativeItems.delete(operationId)
+        }
+        createOperationHistory.value = mergeCreateOperations(
+          [],
+          Array.from(authoritativeItems.values())
+        )
+      } else {
+        createOperationHistory.value = mergeCreateOperations(
+          createOperationHistory.value,
+          result.items
+        )
+      }
+      createOperationHistoryHasMore.value = result.hasMore
+      createOperationHistoryNextCursor.value = result.nextCursor
+    } catch {
+      createOperationHistoryError.value = 'Failed to load session creation history'
+    } finally {
+      if (createOperationHistoryResetMutations === resetMutations) {
+        createOperationHistoryResetMutations = null
+      }
+      if (requestId === createOperationHistoryRequestId) {
+        if (reset) createOperationHistoryLoading.value = false
+        else createOperationHistoryLoadingMore.value = false
+      }
+    }
+  }
+
+  function loadCreateOperationHistory(): Promise<void> {
+    if (createOperationHistoryFetchPromise) return createOperationHistoryFetchPromise
+    const task = loadCreateOperationHistoryPage(true).finally(() => {
+      if (createOperationHistoryFetchPromise === task) {
+        createOperationHistoryFetchPromise = null
+      }
+    })
+    createOperationHistoryFetchPromise = task
+    return task
+  }
+
+  async function loadNextCreateOperationHistoryPage(): Promise<void> {
+    if (createOperationHistoryLoadingMore.value) return
+    await loadCreateOperationHistoryPage(false)
   }
 
   async function selectSession(sessionId: string): Promise<void> {
     error.value = null
+    invalidateCurrentCreateIntent()
     const requestId = createActivationNavigationRequest()
+    beginLocalActivation(requestId, sessionId)
     try {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
@@ -830,11 +1210,14 @@ export const useSessionStore = defineStore('session', () => {
         return
       }
       error.value = `Failed to select session: ${selectError}`
+    } finally {
+      endLocalActivation(requestId, sessionId)
     }
   }
 
   async function closeSession(options: CloseSessionOptions = {}): Promise<void> {
     error.value = null
+    invalidateCurrentCreateIntent()
     createActivationNavigationRequest()
     try {
       messageStore.clearStreamingState()
@@ -849,6 +1232,7 @@ export const useSessionStore = defineStore('session', () => {
 
   async function startNewConversation(options: StartNewConversationOptions = {}): Promise<void> {
     error.value = null
+    invalidateCurrentCreateIntent()
 
     const targetAgentId = newConversationTargetAgentId.value
     if (!targetAgentId) {
@@ -1141,6 +1525,17 @@ export const useSessionStore = defineStore('session', () => {
     refreshSessionsByIds,
     removeSessions,
     onActivated: async (sessionId) => {
+      if (localActivationRequest?.sessionId === sessionId) {
+        return
+      }
+      if (
+        activeSessionId.value === sessionId &&
+        pageRouter.currentRoute === 'chat' &&
+        pageRouter.chatSessionId === sessionId
+      ) {
+        return
+      }
+      invalidateCurrentCreateIntent()
       const requestId = createActivationNavigationRequest()
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
@@ -1162,6 +1557,7 @@ export const useSessionStore = defineStore('session', () => {
       void tabClient.notifyRendererActivated(sessionId)
     },
     onDeactivated: () => {
+      invalidateCurrentCreateIntent()
       createActivationNavigationRequest()
       messageStore.clearStreamingState()
       clearActiveSessionSummary()
@@ -1186,6 +1582,12 @@ export const useSessionStore = defineStore('session', () => {
     loadingMore,
     hasLoadedInitialPage,
     hasMore,
+    currentCreateIntent,
+    createOperationHistory,
+    createOperationHistoryLoading,
+    createOperationHistoryLoadingMore,
+    createOperationHistoryHasMore,
+    createOperationHistoryError,
     error,
     activeSession,
     sessionGroups,
@@ -1198,6 +1600,12 @@ export const useSessionStore = defineStore('session', () => {
     loadNextPage,
     refreshSessionsByIds,
     createSession,
+    reconcileCurrentCreateIntent,
+    invalidateCurrentCreateIntent,
+    checkCreateOperation,
+    dismissCreateOperation,
+    loadCreateOperationHistory,
+    loadNextCreateOperationHistoryPage,
     sendMessage,
     setSessionModel,
     selectSession,

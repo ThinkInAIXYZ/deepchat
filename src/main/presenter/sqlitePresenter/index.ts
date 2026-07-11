@@ -45,6 +45,7 @@ import { SettingsActivityTable } from './tables/settingsActivity'
 import { CronJobsTable } from './tables/cronJobs'
 import { CronJobRunsTable } from './tables/cronJobRuns'
 import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
+import { SessionCreateOperationsTable } from './tables/sessionCreateOperations'
 import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
@@ -241,6 +242,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public cronJobsTable!: CronJobsTable
   public cronJobRunsTable!: CronJobRunsTable
   public cronJobDeliveriesTable!: CronJobDeliveriesTable
+  public sessionCreateOperationsTable!: SessionCreateOperationsTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -448,6 +450,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.cronJobsTable = new CronJobsTable(this.db)
     this.cronJobRunsTable = new CronJobRunsTable(this.db)
     this.cronJobDeliveriesTable = new CronJobDeliveriesTable(this.db)
+    this.sessionCreateOperationsTable = new SessionCreateOperationsTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -481,6 +484,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.cronJobsTable.createTable()
     this.cronJobRunsTable.createTable()
     this.cronJobDeliveriesTable.createTable()
+    this.sessionCreateOperationsTable.createTable()
   }
 
   private initVersionTable() {
@@ -529,7 +533,8 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.settingsActivityTable,
       this.cronJobsTable,
       this.cronJobRunsTable,
-      this.cronJobDeliveriesTable
+      this.cronJobDeliveriesTable,
+      this.sessionCreateOperationsTable
     ]
   }
 
@@ -634,6 +639,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM new_session_disabled_agent_tools;
         DELETE FROM new_environment_preferences;
         DELETE FROM new_environments;
+        DELETE FROM session_create_operations;
         DELETE FROM new_sessions;
       `)
       this.deepchatTapeSearchProjectionTable.clearAll()

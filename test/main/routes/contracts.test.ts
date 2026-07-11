@@ -165,6 +165,7 @@ describe('main kernel contracts', () => {
         'sessions.clearMessages',
         'sessions.compact',
         'sessions.convertPendingInputToSteer',
+        'sessions.dismissCreateOperation',
         'sessions.delete',
         'sessions.deleteMessage',
         'sessions.deletePendingInput',
@@ -177,10 +178,12 @@ describe('main kernel contracts', () => {
         'sessions.getAgents',
         'sessions.getDisabledAgentTools',
         'sessions.getGenerationSettings',
+        'sessions.getCreateOperation',
         'sessions.getPermissionMode',
         'sessions.getSearchResults',
         'sessions.getUsageDashboard',
         'sessions.listMessageTraces',
+        'sessions.listCreateOperations',
         'sessions.listPendingInputs',
         'sessions.moveQueuedInput',
         'sessions.queuePendingInput',
@@ -258,6 +261,33 @@ describe('main kernel contracts', () => {
       ])
     )
     expect(new Set(routeKeys).size).toBe(routeKeys.length)
+  })
+
+  it('keeps session create operation codes closed and content-free', () => {
+    const operation = {
+      operationId: '00000000-0000-4000-8000-000000000001',
+      sessionId: 'session-1',
+      state: 'unknown',
+      stage: 'runtime_ready',
+      dismissedAt: null,
+      createdAt: 1,
+      updatedAt: 2
+    }
+
+    expect(() =>
+      sessionsCreateRoute.output.parse({
+        kind: 'operation',
+        operation: { ...operation, code: 'raw provider error /private/path' },
+        session: null
+      })
+    ).toThrow()
+    expect(
+      sessionsCreateRoute.output.parse({
+        kind: 'operation',
+        operation: { ...operation, code: 'CREATE_SESSION_CLEANUP_UNCERTAIN' },
+        session: null
+      })
+    ).toMatchObject({ operation: { code: 'CREATE_SESSION_CLEANUP_UNCERTAIN' } })
   })
 
   it('trims and rejects blank project path route inputs', () => {
@@ -814,6 +844,7 @@ describe('main kernel contracts', () => {
 
     expect(
       sessionsCreateRoute.input.parse({
+        operationId: '00000000-0000-4000-8000-000000000001',
         agentId: 'deepchat',
         message: 'hello',
         generationSettings: {
@@ -821,6 +852,7 @@ describe('main kernel contracts', () => {
         }
       })
     ).toEqual({
+      operationId: '00000000-0000-4000-8000-000000000001',
       agentId: 'deepchat',
       message: 'hello',
       generationSettings: {
@@ -984,11 +1016,13 @@ describe('main kernel contracts', () => {
 
     expect(
       sessionsCreateRoute.input.parse({
+        operationId: '00000000-0000-4000-8000-000000000001',
         agentId: 'deepchat',
         message: 'summarize this',
         files: [pdfAttachment]
       })
     ).toEqual({
+      operationId: '00000000-0000-4000-8000-000000000001',
       agentId: 'deepchat',
       message: 'summarize this',
       files: [pdfAttachment]

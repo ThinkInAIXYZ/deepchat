@@ -43,7 +43,7 @@ operation。若 operation 是 session create、发送输入或工具交互，界
 2. retry 永远不与同一次调用中尚未 settle 的 attempt 重叠；
 3. 不可取消 mutation 不再伪装成确定失败；
 4. 有意的异步 settlement 设计继续保留，不因“看起来反常”被误改；
-5. 改造按小 PR 交付，避免一次重写 session、chat、provider 和 runtime。
+5. 改造按小的独立交付切片实施，避免一次重写 session、chat、provider 和 runtime。
 
 ## 目标
 
@@ -454,6 +454,15 @@ waitForGenerationSettlement(runId: string): Promise<GenerationTerminalState>
   terminal，不阻止用户创建内容相同的新 session。
 - fingerprint 只用于冲突检测，和 session 数据保存在同一 SQLite/SQLCipher database；不得另建
   plaintext sidecar。日志不得记录 message、file path、fingerprint 或 payload。
+- fingerprint 表示稳定的 create command，不固化执行时解析出的动态默认配置。显式字段按 create 的同步
+  normalization 计算：`activeSkills` trim/dedupe，DeepChat 的 `disabledAgentTools` trim/map/dedupe/sort；省略的
+  provider/model/permission/generation/DeepChat tools/subagent 使用稳定 source marker。`projectDir` omitted 或全空白
+  都使用同一个 default marker，显式 `null` 表示禁用 default，必须得到不同 fingerprint。ACP 不消费
+  `disabledAgentTools/subagentEnabled`，这两个字段使用固定 ignored marker，不能制造伪冲突。
+- agent type lookup 是 fingerprint 前唯一的异步外观步骤；production 实现只是同步 SQLite repository lookup 的
+  Promise wrapper，不允许引入网络、IPC 或远程等待。agent config、global/agent default 等 runtime preparation 必须
+  在 journal 登记后解析，因此设置变化不会让同一 transport retry conflict，解析迟滞也能在 5 秒后返回 journal
+  snapshot。
 
 operation id 是 transport identity，fingerprint 是 restart 后丢失 id 时的 duplicate guard，二者不能互相
 替代。`unknown` 必须先 reconcile：权威 session/runtime/queue 证据能收敛才改成 `succeeded/failed`；仍无法
@@ -485,6 +494,11 @@ updated_at
 journal 只保存 identity、stage 和结果证据。实现要为 `(input_fingerprint, state)` duplicate lookup 与
 `(created_at, operation_id)` history cursor 建窄索引，避免 operation row 增长后每次 create/recovery 全表扫描。
 
+本 slice 的 content-free `error_code` 是 closed enum：`CREATE_SESSION_FAILED`、
+`CREATE_SESSION_CLEANUP_UNCERTAIN`、`CREATE_OPERATION_RESTARTED`、
+`CREATE_OPERATION_SESSION_UNAVAILABLE`。新增 code 必须先更新 route Zod enum 与 renderer copy，不能把任意
+error message 写进 journal/output。
+
 ### Stage 与 terminal 规则
 
 | 证据 | journal 结果 |
@@ -494,7 +508,7 @@ journal 只保存 identity、stage 和结果证据。实现要为 `(input_finger
 | attempt 已 reject，且 runtime/provider/record compensation 全部完成 | `failed` |
 | cleanup 任一步失败、process 在 incomplete stage 重启、无法证明 initial input 是否 accepted | `unknown` |
 | process 重启后 journal `succeeded` 且 session record 可读 | 重建 result，仍为 `succeeded` |
-| process 重启后 journal incomplete | 保守转 `unknown`；不自动重放 payload |
+| process 重启后 journal incomplete | 所有 `pending` 保守转 `unknown`；不自动重放 payload，也不按 stage/session row 猜成功 |
 
 当前 `cleanupFailedSessionInitialization()` 会吞掉 cleanup error 后删除 record。实施时必须让 operation owner
 拿到每个 compensation 结果；否则它没有资格写 `failed`。这不要求把 raw error 暴露 renderer，只记录稳定
@@ -521,9 +535,9 @@ queue Promise；它 resolve 是“输入已 durable accepted”的证据，不�
 保留 `sessions.create` 名称，但不发布一个“backend 已改、renderer 仍旧”的中间版本：
 
 - `SCH-003A` 是 non-mergeable backend development slice；`SCH-003B` 显式依赖 `SCH-003A + SES-003`；二者
-  可以分 commit、分 develop/verify，但必须在同一个 atomic production PR/cutover 中合入；
+  可以分 commit、分 develop/verify，但必须在同一个 atomic local merge/cutover 中合入；
 - route schema 在 cutover 中新增 operation envelope；新路径允许 `session: null` + `pending/unknown`；
-- 同一个 PR 把全部 production caller 改为传 `operationId`，静态 guard 要求缺失 caller 为 `0`；
+- 同一个 merge unit 把全部 production caller 改为传 `operationId`，静态 guard 要求缺失 caller 为 `0`；
 - route schema 直接要求 UUID/length-valid `operationId`；missing/malformed 都是 generic validation rejection，
   在任何副作用前结束，renderer 不按错误类型分支；
 - 不提供“无 id 就一直等”的 adapter，也不伪造可独立合入的 003A compatibility；
@@ -601,7 +615,13 @@ sessions.listCreateOperations({ cursor?, limit?: 1..50 = 20 })
   同一复合 key，state/updatedAt/dismiss 变化不会让 row 在翻页间移动，也不能漏掉同毫秒记录；UI recovery 默认
   关注 `pending/unknown`，但 dismissed/history 仍可翻页查回；
 - route 不返回 prompt、files、title、agent/provider/model、fingerprint、error detail 或任何 input payload；
-- app restart 把 persisted incomplete `pending` 保守转为 `unknown`，不重放 payload；
+- app restart 把所有 persisted `pending` 保守转为 `unknown`，保留原 stage 作为诊断信息，但不重放 payload；
+- 当前 content-free journal 没有 pending-input record id 或其他可排除“partial cleanup 后 session row 残留”的
+  强证据，因此 `input_accepted/input_not_required/completed` stage 加可读 session row 也不能把 `unknown` 自动提升
+  为 `succeeded`。`unknown` 保持 unknown，直到未来引入单独设计且可验证的权威证据；
+- 查询 persisted `succeeded` 时，SES `available` 可重建 session；authoritative `missing` 删除 orphan
+  succeeded row 并返回双 null；`unavailable/transient_error` 保留 succeeded identity，返回
+  `session: null` + `CREATE_OPERATION_SESSION_UNAVAILABLE` 供以后重查，不降级 unknown；
 - 无论列表只有一条还是多条，UI 都只显示“待确认的创建记录”，必须由用户显式选择“查看结果”；不得把它
   绑定到当前 draft，不得自动 navigate/activate；
 - succeeded session 仍由正常 session list 展示；history row 可用于诊断/去重，直到 session deletion cleanup；

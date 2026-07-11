@@ -1,17 +1,24 @@
 import type {
   ChatMessagePageResult,
-  CreateSessionInput,
   MessagePageCursor,
   SessionWithState
 } from '@shared/types/agent-interface'
 import type { ActiveSessionResolution, SessionResolutionResult } from '@shared/presenter'
 import type { PublicSessionResolution } from '@shared/contracts/routes'
+import type {
+  SessionCreateOutput,
+  SessionCreateRouteInput
+} from '@shared/contracts/routes/sessions.routes'
 import {
   getAvailableSession,
   reportTerminalSessionResolution
 } from '@/presenter/agentSessionPresenter/sessionResolution'
 import type { MessageRepository, SessionListFilters, SessionRepository } from '../hotPathPorts'
 import type { OperationRunner } from '../operationRunner'
+import {
+  CreateOperationConflictError,
+  ExistingCreateOperationError
+} from '@/presenter/agentSessionPresenter/createSessionOperation'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
 const DEFAULT_RESTORE_MESSAGE_LIMIT = 100
@@ -72,15 +79,77 @@ export class SessionService {
     }
   ) {}
 
-  async createSession(
-    input: CreateSessionInput,
-    context: SessionRouteContext
-  ): Promise<SessionWithState> {
-    return await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.create(input, context.webContentsId),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
-      reason: 'sessions.create'
-    })
+  async createSession(input: SessionCreateRouteInput): Promise<SessionCreateOutput> {
+    const { operationId, ...createInput } = input
+    try {
+      const task = this.deps.sessionRepository.create(createInput, operationId)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const observationDeadline = new Promise<{ settled: false }>((resolve) => {
+        timer = setTimeout(() => resolve({ settled: false }), SESSION_OPERATION_TIMEOUT_MS)
+      })
+      let observed: { settled: true; session: SessionWithState | null } | { settled: false }
+      try {
+        observed = await Promise.race([
+          task.then((session) => ({ settled: true as const, session })),
+          observationDeadline
+        ])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+
+      if (!observed.settled) {
+        const operation = this.deps.sessionRepository.getCreateOperationSnapshot(operationId)
+        if (!operation) {
+          throw new Error('Session create operation journal entry is missing')
+        }
+        return {
+          kind: 'operation',
+          operation,
+          session: null
+        }
+      }
+
+      const result = await this.deps.sessionRepository.getCreateOperation(operationId)
+      if (!result.operation) {
+        throw new Error('Session create operation journal entry is missing')
+      }
+      return {
+        kind: 'operation',
+        operation: result.operation,
+        session: observed.session
+      }
+    } catch (error) {
+      if (error instanceof ExistingCreateOperationError) {
+        return {
+          kind: 'existing',
+          code: error.code,
+          operation: error.operation
+        }
+      }
+      if (error instanceof CreateOperationConflictError) {
+        return {
+          kind: 'conflict',
+          code: error.code,
+          operation: error.operation
+        }
+      }
+      throw error
+    }
+  }
+
+  async getCreateOperation(operationId: string) {
+    return await this.deps.sessionRepository.getCreateOperation(operationId)
+  }
+
+  listCreateOperations(input: {
+    limit: number
+    cursor?: { createdAt: number; operationId: string } | null
+  }) {
+    return this.deps.sessionRepository.listCreateOperations(input)
+  }
+
+  dismissCreateOperation(operationId: string) {
+    return this.deps.sessionRepository.dismissCreateOperation(operationId)
   }
 
   async restoreSession(

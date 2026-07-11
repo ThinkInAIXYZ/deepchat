@@ -25,6 +25,7 @@ import {
   SessionGenerationSettingsSchema,
   SessionGenerationSettingsPatchSchema,
   SessionWithStateSchema,
+  TimestampMsSchema,
   defineRouteContract
 } from '../common'
 import type { RouteContract } from '../common'
@@ -117,11 +118,113 @@ export const CreateSessionInputSchema = z.object({
   generationSettings: SessionGenerationSettingsPatchSchema.optional()
 })
 
+export const CreateSessionOperationIdSchema = z.string().uuid().length(36)
+
+export const CreateSessionOperationStateSchema = z.enum([
+  'pending',
+  'succeeded',
+  'failed',
+  'unknown'
+])
+
+export const CreateSessionOperationStageSchema = z.enum([
+  'accepted',
+  'record_created',
+  'runtime_ready',
+  'input_not_required',
+  'input_accepted',
+  'completed'
+])
+
+export const CreateSessionOperationCodeSchema = z.enum([
+  'CREATE_SESSION_FAILED',
+  'CREATE_SESSION_CLEANUP_UNCERTAIN',
+  'CREATE_OPERATION_RESTARTED',
+  'CREATE_OPERATION_SESSION_UNAVAILABLE'
+])
+
+export const CreateSessionOperationSummarySchema = z.object({
+  operationId: CreateSessionOperationIdSchema,
+  sessionId: EntityIdSchema,
+  state: CreateSessionOperationStateSchema,
+  stage: CreateSessionOperationStageSchema,
+  code: CreateSessionOperationCodeSchema.nullable(),
+  dismissedAt: TimestampMsSchema.nullable(),
+  createdAt: TimestampMsSchema,
+  updatedAt: TimestampMsSchema
+})
+
+export const CreateSessionOperationCursorSchema = z.object({
+  createdAt: TimestampMsSchema,
+  operationId: CreateSessionOperationIdSchema
+})
+
+export type CreateSessionOperationState = z.output<typeof CreateSessionOperationStateSchema>
+export type CreateSessionOperationStage = z.output<typeof CreateSessionOperationStageSchema>
+export type CreateSessionOperationCode = z.output<typeof CreateSessionOperationCodeSchema>
+export type CreateSessionOperationSummary = z.output<typeof CreateSessionOperationSummarySchema>
+
+export const SessionCreateOutputSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('operation'),
+    operation: CreateSessionOperationSummarySchema,
+    session: SessionWithStateSchema.nullable()
+  }),
+  z.object({
+    kind: z.literal('existing'),
+    code: z.literal('CREATE_OPERATION_EXISTS'),
+    operation: CreateSessionOperationSummarySchema
+  }),
+  z.object({
+    kind: z.literal('conflict'),
+    code: z.literal('CREATE_OPERATION_CONFLICT'),
+    operation: CreateSessionOperationSummarySchema
+  })
+])
+
+export type SessionCreateOutput = z.output<typeof SessionCreateOutputSchema>
+
 export const sessionsCreateRoute = defineRouteContract({
   name: 'sessions.create',
-  input: CreateSessionInputSchema,
+  input: CreateSessionInputSchema.extend({
+    operationId: CreateSessionOperationIdSchema
+  }),
+  output: SessionCreateOutputSchema
+})
+
+export type SessionCreateRouteInput = z.output<typeof sessionsCreateRoute.input>
+
+export const sessionsGetCreateOperationRoute = defineRouteContract({
+  name: 'sessions.getCreateOperation',
+  input: z.object({
+    operationId: CreateSessionOperationIdSchema
+  }),
   output: z.object({
-    session: SessionWithStateSchema
+    operation: CreateSessionOperationSummarySchema.nullable(),
+    session: SessionWithStateSchema.nullable()
+  })
+})
+
+export const sessionsListCreateOperationsRoute = defineRouteContract({
+  name: 'sessions.listCreateOperations',
+  input: z.object({
+    cursor: CreateSessionOperationCursorSchema.nullable().optional(),
+    limit: z.number().int().min(1).max(50).default(20)
+  }),
+  output: z.object({
+    items: z.array(CreateSessionOperationSummarySchema),
+    nextCursor: CreateSessionOperationCursorSchema.nullable(),
+    hasMore: z.boolean()
+  })
+})
+
+export const sessionsDismissCreateOperationRoute = defineRouteContract({
+  name: 'sessions.dismissCreateOperation',
+  input: z.object({
+    operationId: CreateSessionOperationIdSchema
+  }),
+  output: z.object({
+    operation: CreateSessionOperationSummarySchema.nullable()
   })
 })
 

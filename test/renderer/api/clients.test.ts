@@ -1278,16 +1278,67 @@ describe('renderer api clients', () => {
     })
   })
 
+  it('generates new create intent ids and reuses an explicit id for transport resend', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+    const firstId = sessionClient.createOperationId()
+    const secondId = sessionClient.createOperationId()
+
+    expect(firstId).toMatch(/^[0-9a-f-]{36}$/i)
+    expect(secondId).not.toBe(firstId)
+
+    await sessionClient.create({ agentId: 'deepchat', message: 'hello' }, firstId)
+    await sessionClient.create({ agentId: 'deepchat', message: 'hello' }, firstId)
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.create', {
+      agentId: 'deepchat',
+      message: 'hello',
+      operationId: firstId
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.create', {
+      agentId: 'deepchat',
+      message: 'hello',
+      operationId: firstId
+    })
+  })
+
+  it('routes create operation reconciliation, history, and dismiss calls', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+    const operationId = '11111111-1111-4111-8111-111111111111'
+
+    await sessionClient.getCreateOperation(operationId)
+    await sessionClient.listCreateOperations({
+      cursor: { createdAt: 10, operationId },
+      limit: 20
+    })
+    await sessionClient.dismissCreateOperation(operationId)
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.getCreateOperation', {
+      operationId
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.listCreateOperations', {
+      cursor: { createdAt: 10, operationId },
+      limit: 20
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.dismissCreateOperation', {
+      operationId
+    })
+  })
+
   it('routes session and chat calls through the shared registry names', async () => {
     const bridge = createBridge()
     const sessionClient = createSessionClient(bridge)
     const chatClient = createChatClient(bridge)
     const providerClient = createProviderClient(bridge)
 
-    await sessionClient.create({
-      agentId: 'deepchat',
-      message: 'hello'
-    })
+    await sessionClient.create(
+      {
+        agentId: 'deepchat',
+        message: 'hello'
+      },
+      '11111111-1111-4111-8111-111111111111'
+    )
     await sessionClient.restore('session-1', 100)
     await sessionClient.listMessagesPage('session-1', {
       cursor: { orderSeq: 10, id: 'message-10' },
@@ -1326,7 +1377,8 @@ describe('renderer api clients', () => {
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.create', {
       agentId: 'deepchat',
-      message: 'hello'
+      message: 'hello',
+      operationId: '11111111-1111-4111-8111-111111111111'
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.restore', {
       sessionId: 'session-1',

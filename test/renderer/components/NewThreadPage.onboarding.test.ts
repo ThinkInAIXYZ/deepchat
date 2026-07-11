@@ -69,9 +69,20 @@ const setup = async () => {
   })
 
   const sessionStore = {
-    createSession: vi.fn().mockResolvedValue(undefined),
+    createSession: vi.fn().mockResolvedValue(true),
     selectSession: vi.fn().mockResolvedValue(undefined),
-    sendMessage: vi.fn().mockResolvedValue(undefined)
+    sendMessage: vi.fn().mockResolvedValue(undefined),
+    currentCreateIntent: null,
+    createOperationHistory: [],
+    createOperationHistoryLoading: false,
+    createOperationHistoryLoadingMore: false,
+    createOperationHistoryHasMore: false,
+    createOperationHistoryError: null,
+    reconcileCurrentCreateIntent: vi.fn(),
+    invalidateCurrentCreateIntent: vi.fn(),
+    checkCreateOperation: vi.fn(),
+    dismissCreateOperation: vi.fn(),
+    loadNextCreateOperationHistoryPage: vi.fn()
   }
 
   const agentStore = reactive({

@@ -3,6 +3,10 @@ import type { ChatMessagePageResult } from '@shared/types/agent-interface'
 import { SessionService } from '@/routes/sessions/sessionService'
 import { createNodeOperationRunner } from '@/routes/operationRunner'
 import { reportTerminalSessionResolution } from '@/presenter/agentSessionPresenter/sessionResolution'
+import {
+  CreateOperationConflictError,
+  ExistingCreateOperationError
+} from '@/presenter/agentSessionPresenter/createSessionOperation'
 
 vi.mock('@shared/logger', () => ({
   default: {
@@ -76,6 +80,10 @@ const createMessageRepository = () => ({
 
 const createSessionRepository = () => ({
   create: vi.fn(),
+  getCreateOperation: vi.fn(),
+  getCreateOperationSnapshot: vi.fn(),
+  listCreateOperations: vi.fn(),
+  dismissCreateOperation: vi.fn(),
   resolve: vi.fn(),
   resolveList: vi.fn(),
   activate: vi.fn(),
@@ -86,6 +94,110 @@ const createSessionRepository = () => ({
 describe('SessionService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  const operationId = '00000000-0000-4000-8000-000000000001'
+  const operation = {
+    operationId,
+    sessionId: 'session-1',
+    state: 'succeeded' as const,
+    stage: 'completed' as const,
+    code: null,
+    dismissedAt: null,
+    createdAt: 1,
+    updatedAt: 2
+  }
+
+  it('returns a fast create as a structured operation result without window context', async () => {
+    const scheduler = createScheduler()
+    const sessionRepository = createSessionRepository()
+    sessionRepository.create.mockResolvedValue({ id: 'session-1' })
+    sessionRepository.getCreateOperation.mockResolvedValue({
+      operation,
+      session: { id: 'session-1' }
+    })
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler: scheduler as any
+    })
+
+    await expect(
+      service.createSession({ operationId, agentId: 'deepchat', message: 'hello' })
+    ).resolves.toEqual({
+      kind: 'operation',
+      operation,
+      session: { id: 'session-1' }
+    })
+    expect(sessionRepository.create).toHaveBeenCalledWith(
+      { agentId: 'deepchat', message: 'hello' },
+      operationId
+    )
+    expect(scheduler.timeout).not.toHaveBeenCalled()
+  })
+
+  it('returns pending after the fixed observation deadline and leaves the owner running', async () => {
+    vi.useFakeTimers()
+    const scheduler = createScheduler()
+    const sessionRepository = createSessionRepository()
+    const create = deferred<Record<string, unknown> | null>()
+    sessionRepository.create.mockReturnValue(create.promise)
+    sessionRepository.getCreateOperationSnapshot.mockReturnValue({
+      ...operation,
+      state: 'pending',
+      stage: 'runtime_ready'
+    })
+    sessionRepository.getCreateOperation.mockReturnValue(new Promise(() => undefined))
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler: scheduler as any
+    })
+
+    try {
+      const creating = service.createSession({ operationId, agentId: 'deepchat', message: 'slow' })
+      await vi.advanceTimersByTimeAsync(4_999)
+      expect(sessionRepository.getCreateOperationSnapshot).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(creating).resolves.toMatchObject({
+        kind: 'operation',
+        operation: { state: 'pending', stage: 'runtime_ready' },
+        session: null
+      })
+      expect(sessionRepository.getCreateOperation).not.toHaveBeenCalled()
+      expect(sessionRepository.getCreateOperationSnapshot).toHaveBeenCalledOnce()
+
+      create.resolve({ id: 'session-1' })
+      await Promise.resolve()
+      expect(sessionRepository.create).toHaveBeenCalledTimes(1)
+      expect(scheduler.timeout).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    {
+      error: new ExistingCreateOperationError({ ...operation, state: 'unknown' }),
+      expected: { kind: 'existing', code: 'CREATE_OPERATION_EXISTS' }
+    },
+    {
+      error: new CreateOperationConflictError(operation),
+      expected: { kind: 'conflict', code: 'CREATE_OPERATION_CONFLICT' }
+    }
+  ])('maps typed create domain errors without inspecting messages', async ({ error, expected }) => {
+    const sessionRepository = createSessionRepository()
+    sessionRepository.create.mockRejectedValue(error)
+    const service = new SessionService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: createMessageRepository() as any,
+      scheduler: createScheduler() as any
+    })
+
+    await expect(
+      service.createSession({ operationId, agentId: 'deepchat', message: 'hello' })
+    ).resolves.toMatchObject({ ...expected, operation: error.operation })
+    expect(sessionRepository.getCreateOperation).not.toHaveBeenCalled()
   })
 
   it('restores an available session through the scheduler and repositories', async () => {

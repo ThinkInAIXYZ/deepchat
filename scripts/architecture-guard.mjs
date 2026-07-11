@@ -38,6 +38,8 @@ const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const SHARED_SOURCE_ROOT = path.join(ROOT, 'src/shared')
 const ROUTE_ROOT_PATH = path.join(ROOT, 'src/main/routes/index.ts')
+const SESSION_CLIENT_PATH = path.join(ROOT, 'src/renderer/api/SessionClient.ts')
+const SESSION_STORE_PATH = path.join(ROOT, 'src/renderer/src/stores/ui/session.ts')
 const PRESENTER_COMPATIBILITY_CORE_PATH = path.join(
   ROOT,
   'src/shared/types/presenters/core.presenter.d.ts'
@@ -154,13 +156,20 @@ const OPERATION_RUNNER_ALLOWED_METHODS = new Set([
   'runCancellable',
   'timeout'
 ])
-const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map([
-  ['src/main/routes/sessions/sessionService.ts#createSession#timeout', 1]
-])
+const LEGACY_OPERATION_RUNNER_ALLOWLIST = new Map([])
 const CANCELLABLE_OPERATION_RUNNER_FILES = new Set([
   'src/main/routes/operationRunner.ts',
   'src/main/routes/providers/providerService.ts'
 ])
+const SESSION_ROUTE_CONTRACT_PATH = path.join(
+  ROOT,
+  'src/shared/contracts/routes/sessions.routes.ts'
+)
+const AGENT_INTERFACE_PATH = path.join(ROOT, 'src/shared/types/agent-interface.d.ts')
+const AGENT_SESSION_PRESENTER_PATH = path.join(
+  ROOT,
+  'src/main/presenter/agentSessionPresenter/index.ts'
+)
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
@@ -542,6 +551,87 @@ async function checkOperationRunnerContract(fileSet, violations) {
     if (actual !== expected) {
       violations.push(`[operation-runner-legacy-call] ${key} expected ${expected}, found ${actual}`)
     }
+  }
+}
+
+async function checkSessionCreateOperationContract(violations) {
+  const [routeSource, agentInterfaceSource, presenterSource, clientSource, storeSource] =
+    await Promise.all([
+    fs.readFile(SESSION_ROUTE_CONTRACT_PATH, 'utf8'),
+    fs.readFile(AGENT_INTERFACE_PATH, 'utf8'),
+    fs.readFile(AGENT_SESSION_PRESENTER_PATH, 'utf8'),
+    fs.readFile(SESSION_CLIENT_PATH, 'utf8'),
+    fs.readFile(SESSION_STORE_PATH, 'utf8')
+  ])
+
+  if (
+    /(?:CreateSessionOperation|SessionCreateOperation|CreateOperation)(?:State|Stage|Summary|Output|Envelope|Cursor)?\b/.test(
+      agentInterfaceSource
+    )
+  ) {
+    violations.push(
+      '[session-create-operation-dto-owner] agent-interface.d.ts must not duplicate sessions route operation DTOs'
+    )
+  }
+  if (!/CreateSessionOperationIdSchema\s*=\s*z\.string\(\)\.uuid\(\)\.length\(36\)/.test(routeSource)) {
+    violations.push(
+      '[session-create-operation-id-schema] sessions route must require UUID length 36'
+    )
+  }
+  if (!/function createOperationId\(\): string \{\s*return crypto\.randomUUID\(\)/.test(clientSource)) {
+    violations.push(
+      '[session-create-operation-id-owner] SessionClient must generate a UUID for each new create intent'
+    )
+  }
+  if (!/async function create\(input: CreateIntentInput, operationId: string\)/.test(clientSource)) {
+    violations.push(
+      '[session-create-production-caller] SessionClient create must require an explicit operation id for transport reuse'
+    )
+  }
+  if (/input\s+as\s+DeepchatRouteInput<\s*typeof sessionsCreateRoute\.name\s*>/.test(clientSource)) {
+    violations.push(
+      '[session-create-production-caller] SessionClient must not cast around the required route operation id'
+    )
+  }
+  const productionCreateCalls = countMatches(storeSource, /\bsessionClient\.create\s*\(/g)
+  if (productionCreateCalls !== 1 || !/sessionClient\.create\(input, operationId\)/.test(storeSource)) {
+    violations.push(
+      `[session-create-production-caller] expected one typed store caller with operation id, found ${productionCreateCalls}`
+    )
+  }
+
+  const createStart = presenterSource.indexOf('  private async executeCreateSessionOperation(')
+  const createEnd = presenterSource.indexOf('  async createDetachedSession(', createStart)
+  const createSource =
+    createStart >= 0 && createEnd > createStart
+      ? presenterSource.slice(createStart, createEnd)
+      : ''
+  if (!createSource) {
+    violations.push('[session-create-durable-queue] createSession implementation was not found')
+  } else {
+    if (!/typeof queuePendingInput !== 'function'/.test(createSource)) {
+      violations.push('[session-create-durable-queue] createSession must fail closed without queue support')
+    }
+    if (!/await queuePendingInput\.call\(/.test(createSource)) {
+      violations.push('[session-create-durable-queue] createSession must await durable queue acceptance')
+    }
+    if (/\.processMessage\s*\(/.test(createSource)) {
+      violations.push('[session-create-durable-queue] createSession must not restore processMessage fallback')
+    }
+    if (/bindWindow|webContentsId/.test(createSource)) {
+      violations.push('[session-create-unbound] createSession must not own renderer window binding')
+    }
+  }
+
+  const registrationCount = countMatches(presenterSource, /this\.agentRegistry\.register\s*\(/g)
+  const sharesRuntimeOwner =
+    /agentType === 'deepchat' \|\| agentType === 'acp'[\s\S]{0,180}agentRegistry\.resolve\('deepchat'\)/.test(
+      presenterSource
+    )
+  if (registrationCount !== 1 || !sharesRuntimeOwner) {
+    violations.push(
+      '[session-create-owner-inventory] deepchat/acp must share the single registered durable queue owner'
+    )
   }
 }
 
@@ -1095,6 +1185,7 @@ async function main() {
 
   await checkArchitectureGrowth(fileSet, violations)
   await checkOperationRunnerContract(fileSet, violations)
+  await checkSessionCreateOperationContract(violations)
 
   const hotPathEdges = await collectHotPathDirectEdges()
   if (hotPathEdges.length > HOT_PATH_EDGE_BASELINE) {

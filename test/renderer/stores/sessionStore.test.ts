@@ -29,6 +29,7 @@ type SetupStoreOptions = {
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
+const CREATE_OPERATION_ID = '11111111-1111-4111-8111-111111111111'
 
 afterEach(() => {
   window.sessionStorage.removeItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY)
@@ -53,6 +54,18 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 })
 
+const createOperation = (overrides: Record<string, unknown> = {}) => ({
+  operationId: CREATE_OPERATION_ID,
+  sessionId: 'session-1',
+  state: 'succeeded',
+  stage: 'completed',
+  code: null,
+  dismissedAt: null,
+  createdAt: 1,
+  updatedAt: 1,
+  ...overrides
+})
+
 const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.resetModules()
   const sessionListeners: Array<(payload: any) => void> = []
@@ -67,9 +80,22 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       nextCursor: null
     }),
     getLightweightByIds: vi.fn().mockResolvedValue([]),
+    createOperationId: vi.fn(() => CREATE_OPERATION_ID),
     create: vi.fn().mockResolvedValue({
+      kind: 'operation',
+      operation: createOperation(),
       session: createSession()
     }),
+    getCreateOperation: vi.fn().mockResolvedValue({
+      operation: createOperation(),
+      session: createSession()
+    }),
+    listCreateOperations: vi.fn().mockResolvedValue({
+      items: [],
+      hasMore: false,
+      nextCursor: null
+    }),
+    dismissCreateOperation: vi.fn().mockResolvedValue({ operation: null }),
     setSessionModel: vi
       .fn()
       .mockImplementation(async (_sessionId: string, providerId: string, modelId: string) =>
@@ -101,8 +127,17 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   const pageRouter = {
     goToChat: vi.fn(),
     goToNewThread: vi.fn(),
-    currentRoute: 'chat'
+    currentRoute: 'chat',
+    chatSessionId: null as string | null
   }
+  pageRouter.goToChat.mockImplementation((sessionId: string) => {
+    pageRouter.currentRoute = 'chat'
+    pageRouter.chatSessionId = sessionId
+  })
+  pageRouter.goToNewThread.mockImplementation(() => {
+    pageRouter.currentRoute = 'newThread'
+    pageRouter.chatSessionId = null
+  })
   const onboardingCurrentStepId = options.onboardingCurrentStepId ?? null
   const resolveOnboardingStateAfterCompletion = (stepId: 'first-chat' | 'switch-model') => ({
     version: 1,
@@ -1015,13 +1050,16 @@ describe('sessionStore onboarding progress', () => {
       modelId: 'gpt-4'
     })
 
-    expect(sessionClient.create).toHaveBeenCalledWith({
-      agentId: 'deepchat',
-      message: 'hello onboarding',
-      projectDir: '/tmp/workspace',
-      providerId: 'openai',
-      modelId: 'gpt-4'
-    })
+    expect(sessionClient.create).toHaveBeenCalledWith(
+      {
+        agentId: 'deepchat',
+        message: 'hello onboarding',
+        projectDir: '/tmp/workspace',
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      },
+      CREATE_OPERATION_ID
+    )
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
@@ -1100,6 +1138,337 @@ describe('sessionStore onboarding progress', () => {
 
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.setStepStatus).not.toHaveBeenCalled()
+  })
+})
+
+describe('sessionStore create operation intent', () => {
+  it('activates a current success exactly once across early and late activation events', async () => {
+    const { store, sessionClient, pageRouter, emitSessionUpdate, onboardingClient } =
+      await setupStore({ onboardingCurrentStepId: 'first-chat' })
+    sessionClient.activate.mockImplementationOnce(async (sessionId: string) => {
+      emitSessionUpdate({
+        sessionIds: [sessionId],
+        reason: 'activated',
+        webContentsId: 1,
+        activeSessionId: sessionId
+      })
+      return { activated: true }
+    })
+
+    const activated = await store.createSession({ agentId: 'deepchat', message: 'hello' })
+
+    expect(activated).toBe(true)
+    expect(sessionClient.activate).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToChat).toHaveBeenCalledTimes(1)
+    expect(onboardingClient.setStepStatus).toHaveBeenCalledTimes(1)
+
+    emitSessionUpdate({
+      sessionIds: ['session-1'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-1'
+    })
+    await Promise.resolve()
+
+    expect(pageRouter.goToChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('reconciles a pending current intent with the same id and then activates', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    sessionClient.create.mockResolvedValueOnce({
+      kind: 'operation',
+      operation: createOperation({ state: 'pending', stage: 'runtime_ready' }),
+      session: null
+    })
+
+    await expect(store.createSession({ agentId: 'deepchat', message: 'slow' })).resolves.toBe(false)
+    const token = store.currentCreateIntent.value?.token
+    expect(token).toBeTypeOf('number')
+    expect(store.currentCreateIntent.value?.status).toBe('pending')
+    expect(store.currentCreateIntent.value).not.toHaveProperty('input')
+    expect(store.currentCreateIntent.value).not.toHaveProperty('message')
+    expect(store.currentCreateIntent.value).not.toHaveProperty('files')
+
+    await expect(store.reconcileCurrentCreateIntent(token as number)).resolves.toBe(true)
+
+    expect(sessionClient.create).toHaveBeenCalledWith(
+      { agentId: 'deepchat', message: 'slow' },
+      CREATE_OPERATION_ID
+    )
+    expect(sessionClient.getCreateOperation).toHaveBeenCalledWith(CREATE_OPERATION_ID)
+    expect(sessionClient.activate).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a late success stale after the intent leaves and never activates it', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    let resolveCreate: (value: unknown) => void = () => undefined
+    sessionClient.create.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCreate = resolve
+      })
+    )
+
+    const creating = store.createSession({ agentId: 'deepchat', message: 'slow' })
+    const token = store.currentCreateIntent.value?.token
+    store.invalidateCurrentCreateIntent(token)
+    resolveCreate({
+      kind: 'operation',
+      operation: createOperation(),
+      session: createSession()
+    })
+
+    await expect(creating).resolves.toBe(false)
+    expect(sessionClient.activate).not.toHaveBeenCalled()
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+    expect(store.sessions.value.map((session: { id: string }) => session.id)).toContain('session-1')
+  })
+
+  it('retains the previous binding and skips navigation/onboarding when activation rejects', async () => {
+    const { store, sessionClient, pageRouter, onboardingClient } = await setupStore({
+      onboardingCurrentStepId: 'first-chat'
+    })
+    store.sessions.value = [createSession({ id: 'session-previous' })]
+    store.activeSessionId.value = 'session-previous'
+    sessionClient.activate.mockRejectedValueOnce(new Error('activation failed'))
+
+    await expect(store.createSession({ agentId: 'deepchat', message: 'hello' })).resolves.toBe(
+      false
+    )
+
+    expect(store.activeSessionId.value).toBe('session-previous')
+    expect(store.currentCreateIntent.value?.status).toBe('activation_failed')
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+    expect(onboardingClient.setStepStatus).not.toHaveBeenCalled()
+    expect(store.sessions.value.map((session: { id: string }) => session.id)).toContain('session-1')
+  })
+
+  it('accepts an authoritative active-session read when the activation response is lost', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    sessionClient.activate.mockRejectedValueOnce(new Error('response lost'))
+    sessionClient.getActive.mockResolvedValueOnce({ session: createSession() })
+
+    await expect(store.createSession({ agentId: 'deepchat', message: 'hello' })).resolves.toBe(true)
+
+    expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
+    expect(store.activeSessionId.value).toBe('session-1')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
+  })
+
+  it('does not swallow a different external activation while local activation is pending', async () => {
+    const { store, sessionClient, pageRouter, emitSessionUpdate } = await setupStore()
+    let resolveLocalActivation: () => void = () => undefined
+    sessionClient.activate.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveLocalActivation = resolve
+      })
+    )
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: createSession({ id: 'session-external', agentId: 'dimcode' })
+    })
+    store.sessions.value = [createSession({ id: 'session-external', agentId: 'dimcode' })]
+
+    const creating = store.createSession({ agentId: 'deepchat', message: 'hello' })
+    await vi.waitFor(() => expect(sessionClient.activate).toHaveBeenCalledTimes(1))
+    emitSessionUpdate({
+      sessionIds: ['session-external'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-external'
+    })
+    await Promise.resolve()
+    resolveLocalActivation()
+
+    await expect(creating).resolves.toBe(false)
+    await vi.waitFor(() => expect(store.activeSessionId.value).toBe('session-external'))
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
+    expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-1')
+  })
+
+  it.each(['failed', 'unknown'] as const)(
+    'keeps a %s outcome checkable without starting another create',
+    async (state) => {
+      const { store, sessionClient } = await setupStore()
+      sessionClient.create.mockResolvedValueOnce({
+        kind: 'operation',
+        operation: createOperation({ state, stage: 'runtime_ready' }),
+        session: null
+      })
+
+      await store.createSession({ agentId: 'deepchat', message: 'hello' })
+
+      expect(store.currentCreateIntent.value?.status).toBe(state)
+      expect(sessionClient.create).toHaveBeenCalledTimes(1)
+      expect(sessionClient.activate).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['existing', 'conflict'] as const)(
+    'reads a structured %s outcome without associating the requested id',
+    async (kind) => {
+      const { store, sessionClient } = await setupStore()
+      const oldOperation = createOperation({
+        operationId: '22222222-2222-4222-8222-222222222222',
+        state: 'unknown'
+      })
+      sessionClient.create.mockResolvedValueOnce({
+        kind,
+        code: kind === 'existing' ? 'CREATE_OPERATION_EXISTS' : 'CREATE_OPERATION_CONFLICT',
+        operation: oldOperation
+      })
+
+      await store.createSession({ agentId: 'deepchat', message: 'hello' })
+      const token = store.currentCreateIntent.value?.token
+      sessionClient.getCreateOperation.mockResolvedValueOnce({
+        operation: oldOperation,
+        session: kind === 'existing' ? createSession() : null
+      })
+      await store.reconcileCurrentCreateIntent(token as number)
+
+      expect(store.currentCreateIntent.value).toMatchObject({
+        requestedOperationId: CREATE_OPERATION_ID,
+        status: kind,
+        operation: oldOperation
+      })
+      expect(sessionClient.getCreateOperation).toHaveBeenCalledWith(oldOperation.operationId)
+      expect(sessionClient.activate).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps transport query errors on the same operation id without create retry', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.create.mockRejectedValueOnce(new Error('transport failed'))
+    sessionClient.getCreateOperation.mockRejectedValueOnce(new Error('query failed'))
+
+    await store.createSession({ agentId: 'deepchat', message: 'hello' })
+
+    expect(store.currentCreateIntent.value).toMatchObject({
+      requestedOperationId: CREATE_OPERATION_ID,
+      status: 'query_error'
+    })
+    expect(sessionClient.create).toHaveBeenCalledTimes(1)
+    expect(sessionClient.getCreateOperation).toHaveBeenCalledWith(CREATE_OPERATION_ID)
+  })
+
+  it('pages, dismisses, and checks content-free recovery identities without activation', async () => {
+    const { store, sessionClient } = await setupStore()
+    const first = createOperation({ state: 'unknown' })
+    const second = createOperation({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: 'session-2',
+      createdAt: 0,
+      updatedAt: 0
+    })
+    sessionClient.listCreateOperations
+      .mockResolvedValueOnce({
+        items: [first],
+        hasMore: true,
+        nextCursor: { createdAt: 1, operationId: CREATE_OPERATION_ID }
+      })
+      .mockResolvedValueOnce({ items: [second], hasMore: false, nextCursor: null })
+    sessionClient.dismissCreateOperation.mockResolvedValueOnce({
+      operation: { ...first, dismissedAt: 10 }
+    })
+    sessionClient.getCreateOperation.mockResolvedValueOnce({
+      operation: { ...first, dismissedAt: 10 },
+      session: null
+    })
+
+    await store.loadCreateOperationHistory()
+    await store.loadNextCreateOperationHistoryPage()
+    await store.dismissCreateOperation(CREATE_OPERATION_ID)
+    await store.checkCreateOperation(CREATE_OPERATION_ID)
+
+    expect(store.createOperationHistory.value).toHaveLength(2)
+    expect(store.createOperationHistory.value[0]).not.toHaveProperty('message')
+    expect(store.createOperationHistory.value[0]).not.toHaveProperty('files')
+    expect(store.createOperationHistory.value[0]?.dismissedAt).toBe(10)
+    expect(sessionClient.activate).not.toHaveBeenCalled()
+  })
+
+  it('removes old succeeded identities when an authoritative reset page is empty', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listCreateOperations
+      .mockResolvedValueOnce({ items: [createOperation()], hasMore: false, nextCursor: null })
+      .mockResolvedValueOnce({ items: [], hasMore: false, nextCursor: null })
+
+    await store.loadCreateOperationHistory()
+    expect(store.createOperationHistory.value).toHaveLength(1)
+
+    await store.loadCreateOperationHistory()
+
+    expect(store.createOperationHistory.value).toEqual([])
+  })
+
+  it('removes a checked identity when the service no longer has it', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listCreateOperations.mockResolvedValueOnce({
+      items: [createOperation()],
+      hasMore: false,
+      nextCursor: null
+    })
+    sessionClient.getCreateOperation.mockResolvedValueOnce({ operation: null, session: null })
+
+    await store.loadCreateOperationHistory()
+    await store.checkCreateOperation(CREATE_OPERATION_ID)
+
+    expect(store.createOperationHistory.value).toEqual([])
+  })
+
+  it('preserves an operation updated while an authoritative reset is in flight', async () => {
+    const { store, sessionClient } = await setupStore()
+    const initial = createOperation({ state: 'pending', stage: 'runtime_ready' })
+    const updated = createOperation({ state: 'unknown', stage: 'runtime_ready', updatedAt: 2 })
+    let resolveReset: (value: {
+      items: Array<ReturnType<typeof createOperation>>
+      hasMore: boolean
+      nextCursor: null
+    }) => void = () => undefined
+    sessionClient.listCreateOperations
+      .mockResolvedValueOnce({ items: [initial], hasMore: false, nextCursor: null })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveReset = resolve
+        })
+      )
+    sessionClient.getCreateOperation.mockResolvedValueOnce({ operation: updated, session: null })
+
+    await store.loadCreateOperationHistory()
+    const resetting = store.loadCreateOperationHistory()
+    await vi.waitFor(() => expect(sessionClient.listCreateOperations).toHaveBeenCalledTimes(2))
+    await store.checkCreateOperation(CREATE_OPERATION_ID)
+    resolveReset({ items: [], hasMore: false, nextCursor: null })
+    await resetting
+
+    expect(store.createOperationHistory.value).toEqual([updated])
+  })
+
+  it('merges next pages with stable sorting and operation-id deduplication', async () => {
+    const { store, sessionClient } = await setupStore()
+    const first = createOperation({ createdAt: 10, updatedAt: 10 })
+    const updatedFirst = createOperation({ state: 'failed', createdAt: 10, updatedAt: 11 })
+    const second = createOperation({
+      operationId: '22222222-2222-4222-8222-222222222222',
+      sessionId: 'session-2',
+      createdAt: 20,
+      updatedAt: 20
+    })
+    sessionClient.listCreateOperations
+      .mockResolvedValueOnce({
+        items: [first],
+        hasMore: true,
+        nextCursor: { createdAt: 10, operationId: CREATE_OPERATION_ID }
+      })
+      .mockResolvedValueOnce({
+        items: [updatedFirst, second],
+        hasMore: false,
+        nextCursor: null
+      })
+
+    await store.loadCreateOperationHistory()
+    await store.loadNextCreateOperationHistoryPage()
+
+    expect(store.createOperationHistory.value).toEqual([second, updatedFirst])
   })
 })
 
@@ -1307,7 +1676,7 @@ describe('sessionStore streaming cleanup', () => {
     )
   })
 
-  it('keeps the current session summary while duplicate activation rehydrates', async () => {
+  it('keeps the current session summary without repeating duplicate activation navigation', async () => {
     const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
     store.sessions.value = [createSession({ id: 'session-acp', agentId: 'dimcode' })]
     sessionClient.getActive.mockResolvedValueOnce({
@@ -1320,14 +1689,6 @@ describe('sessionStore streaming cleanup', () => {
     })
     await store.selectSession('session-acp')
     pageRouter.goToChat.mockClear()
-    let resolveActiveSession: (value: { session: ReturnType<typeof createSession> }) => void = () =>
-      undefined
-    sessionClient.getActive.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveActiveSession = resolve
-      })
-    )
-
     emitSessionUpdate({
       sessionIds: ['session-acp'],
       reason: 'activated',
@@ -1339,17 +1700,10 @@ describe('sessionStore streaming cleanup', () => {
     expect(store.activeSession.value?.modelId).toBe('dimcode')
     expect(pageRouter.goToChat).not.toHaveBeenCalled()
 
-    resolveActiveSession({
-      session: createSession({
-        id: 'session-acp',
-        agentId: 'dimcode',
-        providerId: 'acp',
-        modelId: 'dimcode'
-      })
-    })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-acp')
+    expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
   })
 
   it('does not route stale activation after the window is deactivated', async () => {

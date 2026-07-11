@@ -14,6 +14,7 @@ import {
   sessionsClearMessagesRoute,
   sessionsCompactRoute,
   sessionsCreateRoute,
+  sessionsDismissCreateOperationRoute,
   sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
   sessionsDeletePendingInputRoute,
@@ -27,6 +28,7 @@ import {
   sessionsGetAcpSessionCommandsRoute,
   sessionsGetAcpSessionConfigOptionsRoute,
   sessionsGetActiveRoute,
+  sessionsGetCreateOperationRoute,
   sessionsGetAgentsRoute,
   sessionsGetAgentTransferImpactRoute,
   sessionsGetDisabledAgentToolsRoute,
@@ -37,6 +39,7 @@ import {
   sessionsGetTapeContextRoute,
   sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
+  sessionsListCreateOperationsRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
@@ -66,7 +69,6 @@ import {
 } from '@shared/contracts/routes'
 import type {
   AgentTapeContextOptions,
-  CreateSessionInput,
   PermissionMode,
   SendMessageInput
 } from '@shared/types/agent-interface'
@@ -77,11 +79,29 @@ import type {
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function create(input: CreateSessionInput) {
-    return await bridge.invoke(
-      sessionsCreateRoute.name,
-      input as DeepchatRouteInput<typeof sessionsCreateRoute.name>
-    )
+  type CreateIntentInput = Omit<DeepchatRouteInput<typeof sessionsCreateRoute.name>, 'operationId'>
+
+  function createOperationId(): string {
+    return crypto.randomUUID()
+  }
+
+  async function create(input: CreateIntentInput, operationId: string) {
+    return await bridge.invoke(sessionsCreateRoute.name, { ...input, operationId })
+  }
+
+  async function getCreateOperation(operationId: string) {
+    return await bridge.invoke(sessionsGetCreateOperationRoute.name, { operationId })
+  }
+
+  async function listCreateOperations(input?: {
+    cursor?: { createdAt: number; operationId: string } | null
+    limit?: number
+  }) {
+    return await bridge.invoke(sessionsListCreateOperationsRoute.name, input ?? {})
+  }
+
+  async function dismissCreateOperation(operationId: string) {
+    return await bridge.invoke(sessionsDismissCreateOperationRoute.name, { operationId })
   }
 
   async function restore(sessionId: string, limit?: number) {
@@ -547,7 +567,11 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   return {
+    createOperationId,
     create,
+    getCreateOperation,
+    listCreateOperations,
+    dismissCreateOperation,
     restore,
     listMessagesPage,
     activate,

@@ -32,6 +32,7 @@ import { SettingsActivityTable } from './tables/settingsActivity'
 import { CronJobsTable } from './tables/cronJobs'
 import { CronJobRunsTable } from './tables/cronJobRuns'
 import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
+import { SessionCreateOperationsTable } from './tables/sessionCreateOperations'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -122,6 +123,11 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       subagent_meta_json: 'ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;'
     },
     typeCheckedColumns: ['subagent_enabled', 'session_kind']
+  },
+  {
+    name: 'session_create_operations',
+    createTable: (db) => new SessionCreateOperationsTable(db),
+    typeCheckedColumns: ['state', 'stage']
   },
   {
     name: 'new_projects',

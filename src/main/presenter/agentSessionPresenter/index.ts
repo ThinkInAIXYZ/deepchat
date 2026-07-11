@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { nanoid } from 'nanoid'
 import type {
   Agent,
   AgentTapeAnchorResult,
@@ -92,6 +93,16 @@ import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
 import type { ProviderSessionPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
 import { getAvailableSession, reportTerminalSessionResolution } from './sessionResolution'
+import type {
+  CreateSessionOperationSummary,
+  CreateSessionOperationStage
+} from '@shared/contracts/routes/sessions.routes'
+import {
+  CreateOperationConflictError,
+  ExistingCreateOperationError,
+  fingerprintCreateSessionInput,
+  toCreateOperationSummary
+} from './createSessionOperation'
 
 type SearchableSessionRow = {
   id: string
@@ -119,6 +130,19 @@ type AgentTransferTargetContext = {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools: string[]
   subagentEnabled: boolean
+}
+
+type PreparedCreateSession = {
+  agentId: string
+  agentType: 'deepchat' | 'acp' | null
+  normalizedInput: SendMessageInput
+  projectDir: string | null
+  disabledAgentTools: string[]
+  subagentEnabled: boolean
+  providerId: string
+  modelId: string
+  permissionMode: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
 }
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
@@ -281,6 +305,7 @@ export class AgentSessionPresenter {
   private mainlineNormalizationPromise: Promise<void> | null = null
   private disabledSearchToolCleanupPromise: Promise<void> | null = null
   private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
+  private readonly createSessionFlights = new Map<string, Promise<SessionWithState | null>>()
 
   constructor(
     agentRuntimeAgent: IAgentImplementation,
@@ -312,163 +337,247 @@ export class AgentSessionPresenter {
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       agentRuntimeAgent
     )
+    this.sqlitePresenter.sessionCreateOperationsTable.markPendingUnknown(Date.now())
   }
 
   // ---- IPC-facing methods ----
 
-  async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
+  async createSession(
+    input: CreateSessionInput,
+    operationId: string
+  ): Promise<SessionWithState | null> {
+    const table = this.sqlitePresenter.sessionCreateOperationsTable
     const agentId = input.agentId || 'deepchat'
-    logger.info(
-      `[AgentSessionPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`
-    )
-    const normalizedInput = this.normalizeCreateSessionInput(input)
     const agentType = await this.getAgentType(agentId)
-    const deepChatAgentConfig =
-      agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
-    const projectDir = this.resolveCreateSessionProjectDir(
-      input.projectDir,
-      deepChatAgentConfig?.defaultProjectPath
+    const inputFingerprint = fingerprintCreateSessionInput(
+      this.buildCreateSessionCommandFingerprint(input, agentType)
     )
-    const disabledAgentTools =
-      agentType === 'deepchat'
-        ? this.normalizeDisabledAgentTools(
-            input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
-          )
-        : []
-    const subagentEnabled = this.resolveSessionSubagentEnabled(
-      agentType,
-      input.subagentEnabled,
-      deepChatAgentConfig?.subagentEnabled
-    )
-
-    const agent = await this.resolveAgentImplementation(agentId)
-
-    // Resolve provider/model
-    const defaultModel = this.configPresenter.getDefaultModel()
-    const providerId =
-      input.providerId ??
-      deepChatAgentConfig?.defaultModelPreset?.providerId ??
-      defaultModel?.providerId ??
-      ''
-    const modelId =
-      input.modelId ??
-      deepChatAgentConfig?.defaultModelPreset?.modelId ??
-      defaultModel?.modelId ??
-      ''
-    const permissionMode =
-      input.permissionMode !== undefined
-        ? normalizePermissionMode(input.permissionMode)
-        : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
-    const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
-      deepChatAgentConfig,
-      input.generationSettings
-    )
-    logger.info(`[AgentSessionPresenter] resolved provider=${providerId} model=${modelId}`)
-
-    if (!providerId || !modelId) {
-      throw new Error('No provider or model configured. Please set a default model in settings.')
-    }
-    this.assertAcpSessionHasWorkdir(providerId, projectDir)
-
-    // Create session record
-    const title = normalizedInput.text.slice(0, 50) || 'New Chat'
-    const sessionId = this.sessionManager.create(agentId, title, projectDir, {
-      isDraft: false,
-      disabledAgentTools,
-      subagentEnabled
-    })
-    logger.info(`[AgentSessionPresenter] session created id=${sessionId} title="${title}"`)
-
-    // Initialize agent-side session
-    const initConfig: {
-      agentId?: string
-      providerId: string
-      modelId: string
-      projectDir: string | null
-      permissionMode: PermissionMode
-      generationSettings?: Partial<SessionGenerationSettings>
-    } = {
-      agentId,
-      providerId,
-      modelId,
-      projectDir,
-      permissionMode
-    }
-    if (generationSettings) {
-      initConfig.generationSettings = generationSettings
-    }
-    try {
-      await this.initializeSessionRuntime(agent, sessionId, initConfig)
-    } catch (error) {
-      await this.cleanupFailedSessionInitialization(agent, sessionId, providerId)
-      throw error
-    }
-    logger.info(`[AgentSessionPresenter] agent.initSession done`)
-
-    // Bind to window and emit activated
-    this.sessionManager.bindWindow(webContentsId, sessionId)
-    this.emitSessionListUpdated({
-      sessionIds: [sessionId],
-      reason: 'created',
-      activeSessionId: sessionId,
-      webContentsId
-    })
-
-    // Return enriched session first
-    const state = await agent.getSessionState(sessionId)
-    const sessionResult: SessionWithState = {
-      id: sessionId,
-      agentId,
-      title,
-      projectDir,
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled,
-      subagentMeta: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? providerId,
-      modelId: state?.modelId ?? modelId
-    }
-
-    // Start the first message (non-blocking) after returning session ID.
-    const hasInitialTurn =
-      normalizedInput.text.trim().length > 0 || (normalizedInput.files?.length ?? 0) > 0
-    if (hasInitialTurn) {
-      logger.info(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
-      if (agent.queuePendingInput) {
-        agent
-          .queuePendingInput(
-            sessionId,
-            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
-            {
-              source: 'send',
-              projectDir
-            }
-          )
-          .catch((err) => {
-            console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
-          })
-      } else {
-        agent
-          .processMessage(
-            sessionId,
-            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
-            {
-              projectDir
-            }
-          )
-          .catch((err) => {
-            console.error('[AgentSessionPresenter] processMessage failed:', err)
-          })
+    const existing = table.get(operationId)
+    if (existing) {
+      const operation = toCreateOperationSummary(existing)
+      if (existing.input_fingerprint !== inputFingerprint) {
+        throw new CreateOperationConflictError(operation)
       }
-      void this.generateSessionTitle(sessionId, title, providerId, modelId)
+      const flight = this.createSessionFlights.get(operationId)
+      if (flight) {
+        return await flight
+      }
+      return existing.state === 'succeeded' ? await this.getSession(existing.session_id) : null
     }
 
-    return sessionResult
+    const unresolved = table.findUnresolvedByFingerprint(inputFingerprint)
+    if (unresolved) {
+      throw new ExistingCreateOperationError(toCreateOperationSummary(unresolved))
+    }
+
+    const sessionId = nanoid()
+    table.create({
+      operationId,
+      sessionId,
+      inputFingerprint,
+      now: Date.now()
+    })
+    const flight = this.executeCreateSessionOperation(
+      input,
+      agentId,
+      agentType,
+      operationId,
+      sessionId
+    ).finally(() => {
+      if (this.createSessionFlights.get(operationId) === flight) {
+        this.createSessionFlights.delete(operationId)
+      }
+    })
+    this.createSessionFlights.set(operationId, flight)
+    return await flight
+  }
+
+  async getCreateOperation(operationId: string): Promise<{
+    operation: CreateSessionOperationSummary | null
+    session: SessionWithState | null
+  }> {
+    const table = this.sqlitePresenter.sessionCreateOperationsTable
+    let row = table.get(operationId)
+    if (!row) {
+      return { operation: null, session: null }
+    }
+
+    let session: SessionWithState | null = null
+    if (row.state === 'succeeded') {
+      const resolution = session
+        ? ({ availability: 'available', session } as const)
+        : await this.resolveSession(row.session_id)
+      switch (resolution.availability) {
+        case 'available':
+          session = resolution.session
+          table.setSucceededCode(operationId, null, Date.now())
+          row = table.get(operationId) as typeof row
+          break
+        case 'missing':
+          table.deleteSucceededOperation(operationId)
+          return { operation: null, session: null }
+        case 'unavailable':
+        case 'transient_error':
+          table.setSucceededCode(operationId, 'CREATE_OPERATION_SESSION_UNAVAILABLE', Date.now())
+          row = table.get(operationId) as typeof row
+          break
+      }
+    }
+    return {
+      operation: toCreateOperationSummary(row),
+      session
+    }
+  }
+
+  listCreateOperations(input: {
+    limit: number
+    cursor?: { createdAt: number; operationId: string } | null
+  }): {
+    items: CreateSessionOperationSummary[]
+    nextCursor: { createdAt: number; operationId: string } | null
+    hasMore: boolean
+  } {
+    const page = this.sqlitePresenter.sessionCreateOperationsTable.listPage(input)
+    const items = page.rows.map(toCreateOperationSummary)
+    const last = items.at(-1)
+    return {
+      items,
+      nextCursor:
+        page.hasMore && last ? { createdAt: last.createdAt, operationId: last.operationId } : null,
+      hasMore: page.hasMore
+    }
+  }
+
+  dismissCreateOperation(operationId: string): CreateSessionOperationSummary | null {
+    const row = this.sqlitePresenter.sessionCreateOperationsTable.dismiss(operationId, Date.now())
+    return row ? toCreateOperationSummary(row) : null
+  }
+
+  getCreateOperationSnapshot(operationId: string): CreateSessionOperationSummary | null {
+    const row = this.sqlitePresenter.sessionCreateOperationsTable.get(operationId)
+    return row ? toCreateOperationSummary(row) : null
+  }
+
+  private async executeCreateSessionOperation(
+    input: CreateSessionInput,
+    agentId: string,
+    agentType: 'deepchat' | 'acp' | null,
+    operationId: string,
+    sessionId: string
+  ): Promise<SessionWithState | null> {
+    logger.info(`[AgentSessionPresenter] createSession operation=${operationId} agent=${agentId}`)
+    const table = this.sqlitePresenter.sessionCreateOperationsTable
+    let prepared: PreparedCreateSession | null = null
+    let agent: IAgentImplementation | null = null
+    let runtimeInitializationStarted = false
+    let inputAccepted = false
+    let terminalSettlementUncertain = false
+    try {
+      prepared = await this.prepareCreateSession(input, agentId, agentType)
+      agent = await this.resolveAgentImplementation(agentId)
+      const queuePendingInput = agent.queuePendingInput
+      if (typeof queuePendingInput !== 'function') {
+        throw new Error('Session create agent does not provide durable pending input acceptance')
+      }
+
+      const title = prepared.normalizedInput.text.slice(0, 50) || 'New Chat'
+      this.sessionManager.create(agentId, title, prepared.projectDir, {
+        id: sessionId,
+        isDraft: false,
+        disabledAgentTools: prepared.disabledAgentTools,
+        subagentEnabled: prepared.subagentEnabled
+      })
+      this.updateCreateOperationStage(operationId, 'record_created')
+
+      const initConfig: {
+        agentId?: string
+        providerId: string
+        modelId: string
+        projectDir: string | null
+        permissionMode: PermissionMode
+        generationSettings?: Partial<SessionGenerationSettings>
+      } = {
+        agentId,
+        providerId: prepared.providerId,
+        modelId: prepared.modelId,
+        projectDir: prepared.projectDir,
+        permissionMode: prepared.permissionMode
+      }
+      if (prepared.generationSettings) {
+        initConfig.generationSettings = prepared.generationSettings
+      }
+      runtimeInitializationStarted = true
+      await this.initializeSessionRuntime(agent, sessionId, initConfig)
+      this.updateCreateOperationStage(operationId, 'runtime_ready')
+
+      const state = await agent.getSessionState(sessionId)
+      const sessionResult: SessionWithState = {
+        id: sessionId,
+        agentId,
+        title,
+        projectDir: prepared.projectDir,
+        isPinned: false,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentEnabled: prepared.subagentEnabled,
+        subagentMeta: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: state?.status ?? 'idle',
+        providerId: state?.providerId ?? prepared.providerId,
+        modelId: state?.modelId ?? prepared.modelId
+      }
+
+      const hasInitialTurn =
+        prepared.normalizedInput.text.trim().length > 0 ||
+        (prepared.normalizedInput.files?.length ?? 0) > 0
+      if (hasInitialTurn) {
+        await queuePendingInput.call(agent, sessionId, prepared.normalizedInput, {
+          source: 'send',
+          projectDir: prepared.projectDir
+        })
+        inputAccepted = true
+        this.updateCreateOperationStage(operationId, 'input_accepted')
+      } else {
+        this.updateCreateOperationStage(operationId, 'input_not_required')
+      }
+
+      terminalSettlementUncertain = true
+      table.settle(operationId, {
+        state: 'succeeded',
+        stage: 'completed',
+        errorCode: null,
+        now: Date.now()
+      })
+      terminalSettlementUncertain = false
+      try {
+        this.emitSessionListUpdated({ sessionIds: [sessionId], reason: 'created' })
+      } catch {
+        logger.warn('[AgentSessionPresenter] created session notification failed', { sessionId })
+      }
+      if (hasInitialTurn) {
+        void this.generateSessionTitle(sessionId, title, prepared.providerId, prepared.modelId)
+      }
+      return sessionResult
+    } catch {
+      const cleanupSucceeded = await this.cleanupCreateSessionOperationFailure({
+        agent,
+        sessionId,
+        providerId: prepared?.providerId ?? input.providerId ?? '',
+        projectDir:
+          prepared?.projectDir ??
+          (input.projectDir === null ? null : input.projectDir?.trim() || null),
+        runtimeInitializationStarted,
+        uncertainEffect: inputAccepted || terminalSettlementUncertain
+      })
+      table.settle(operationId, {
+        state: cleanupSucceeded ? 'failed' : 'unknown',
+        errorCode: cleanupSucceeded ? 'CREATE_SESSION_FAILED' : 'CREATE_SESSION_CLEANUP_UNCERTAIN',
+        now: Date.now()
+      })
+      return null
+    }
   }
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
@@ -2595,8 +2704,10 @@ export class AgentSessionPresenter {
     publishDeepchatEvent('sessions.updated', {
       sessionIds,
       reason,
-      activeSessionId: options.activeSessionId,
-      webContentsId: options.webContentsId
+      ...(options.activeSessionId !== undefined
+        ? { activeSessionId: options.activeSessionId }
+        : {}),
+      ...(options.webContentsId !== undefined ? { webContentsId: options.webContentsId } : {})
     })
     this.sessionUiPort?.refreshSessionUi()
   }
@@ -3161,6 +3272,7 @@ export class AgentSessionPresenter {
     this.sessionPermissionPort?.clearSessionPermissions(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
+    this.sqlitePresenter.sessionCreateOperationsTable.deleteSucceededBySession(sessionId)
     this.sessionStatusSnapshots.delete(sessionId)
     deletedSessionIds.push(sessionId)
 
@@ -3295,9 +3407,7 @@ export class AgentSessionPresenter {
     } catch (error) {
       console.warn('[AgentSessionPresenter] Failed to sync ACP workdir for session:', {
         conversationId,
-        agentId,
-        projectDir: normalizedProjectDir,
-        error
+        agentId
       })
       throw error
     }
@@ -3330,6 +3440,51 @@ export class AgentSessionPresenter {
     }
 
     this.sessionManager.delete(sessionId)
+  }
+
+  private updateCreateOperationStage(
+    operationId: string,
+    stage: CreateSessionOperationStage
+  ): void {
+    this.sqlitePresenter.sessionCreateOperationsTable.updateStage(operationId, stage, Date.now())
+  }
+
+  private async cleanupCreateSessionOperationFailure(input: {
+    agent: IAgentImplementation | null
+    sessionId: string
+    providerId: string
+    projectDir: string | null
+    runtimeInitializationStarted: boolean
+    uncertainEffect: boolean
+  }): Promise<boolean> {
+    const cleanups: Promise<unknown>[] = []
+    let providerCleanupObservable = true
+    if (input.runtimeInitializationStarted && input.providerId === 'acp') {
+      providerCleanupObservable = false
+      cleanups.push(
+        Promise.resolve().then(async () => {
+          await (this.providerSessionPort?.clearAcpSession?.(input.sessionId) ??
+            this.llmProviderPresenter.clearAcpSession(input.sessionId))
+        })
+      )
+    }
+    if (input.runtimeInitializationStarted && input.agent) {
+      cleanups.push(
+        Promise.resolve().then(async () => await input.agent!.destroySession(input.sessionId))
+      )
+    }
+    cleanups.push(
+      Promise.resolve().then(() => {
+        this.sessionManager.cleanupPartialCreate(input.sessionId, input.projectDir)
+      })
+    )
+
+    const results = await Promise.allSettled(cleanups)
+    return (
+      !input.uncertainEffect &&
+      providerCleanupObservable &&
+      results.every((result) => result.status === 'fulfilled')
+    )
   }
 
   private async buildExportConversation(
@@ -4247,6 +4402,103 @@ export class AgentSessionPresenter {
       },
       input.activeSkills
     )
+  }
+
+  private buildCreateSessionCommandFingerprint(
+    input: CreateSessionInput,
+    agentType: 'deepchat' | 'acp' | null
+  ): unknown {
+    const defaultSource = { source: 'default' }
+    const agentDefaultSource = { source: 'agent_default' }
+    const ignoredSource = { source: 'ignored' }
+    const projectDir =
+      input.projectDir === null
+        ? null
+        : input.projectDir?.trim()
+          ? input.projectDir.trim()
+          : defaultSource
+
+    return {
+      agentId: input.agentId || 'deepchat',
+      normalizedInput: this.normalizeCreateSessionInput(input),
+      projectDir,
+      providerId: input.providerId === undefined ? defaultSource : input.providerId,
+      modelId: input.modelId === undefined ? defaultSource : input.modelId,
+      permissionMode:
+        input.permissionMode === undefined
+          ? defaultSource
+          : normalizePermissionMode(input.permissionMode),
+      generationSettings:
+        input.generationSettings === undefined ? defaultSource : input.generationSettings,
+      disabledAgentTools:
+        agentType === 'acp'
+          ? ignoredSource
+          : input.disabledAgentTools === undefined
+            ? agentDefaultSource
+            : this.normalizeDisabledAgentTools(input.disabledAgentTools),
+      subagentEnabled:
+        agentType === 'acp'
+          ? ignoredSource
+          : input.subagentEnabled === undefined
+            ? agentDefaultSource
+            : input.subagentEnabled
+    }
+  }
+
+  private async prepareCreateSession(
+    input: CreateSessionInput,
+    agentId: string,
+    agentType: 'deepchat' | 'acp' | null
+  ): Promise<PreparedCreateSession> {
+    const deepChatAgentConfig =
+      agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
+    const projectDir = this.resolveCreateSessionProjectDir(
+      input.projectDir,
+      deepChatAgentConfig?.defaultProjectPath
+    )
+    const defaultModel = this.configPresenter.getDefaultModel()
+    const providerId =
+      input.providerId ??
+      deepChatAgentConfig?.defaultModelPreset?.providerId ??
+      defaultModel?.providerId ??
+      ''
+    const modelId =
+      input.modelId ??
+      deepChatAgentConfig?.defaultModelPreset?.modelId ??
+      defaultModel?.modelId ??
+      ''
+    if (!providerId || !modelId) {
+      throw new Error('No provider or model configured')
+    }
+    this.assertAcpSessionHasWorkdir(providerId, projectDir)
+
+    return {
+      agentId,
+      agentType,
+      normalizedInput: this.normalizeCreateSessionInput(input),
+      projectDir,
+      disabledAgentTools:
+        agentType === 'deepchat'
+          ? this.normalizeDisabledAgentTools(
+              input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
+            )
+          : [],
+      subagentEnabled: this.resolveSessionSubagentEnabled(
+        agentType,
+        input.subagentEnabled,
+        deepChatAgentConfig?.subagentEnabled
+      ),
+      providerId,
+      modelId,
+      permissionMode:
+        input.permissionMode !== undefined
+          ? normalizePermissionMode(input.permissionMode)
+          : normalizePermissionMode(deepChatAgentConfig?.permissionMode),
+      generationSettings: this.mergeDeepChatDefaultGenerationSettings(
+        deepChatAgentConfig,
+        input.generationSettings
+      )
+    }
   }
 
   private withInitialMessageActiveSkills(

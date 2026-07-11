@@ -409,6 +409,9 @@ function createMockSqlitePresenter() {
   }
 
   return {
+    sessionCreateOperationsTable: {
+      markPendingUnknown: vi.fn().mockReturnValue(0)
+    },
     deepchatSessionsTable,
     deepchatMessagesTable,
     deepchatAssistantBlocksTable: {

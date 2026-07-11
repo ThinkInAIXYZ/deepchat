@@ -45,6 +45,7 @@ describe('schema catalog fresh install metadata', () => {
   it('keeps active session tables in fresh startup schema checks', () => {
     expect(isSchemaTableCreatedOnFreshInstall('new_sessions')).toBe(true)
     expect(isSchemaTableCreatedOnFreshInstall('deepchat_sessions')).toBe(true)
+    expect(isSchemaTableCreatedOnFreshInstall('session_create_operations')).toBe(true)
   })
 
   it('keeps excluded tables present in the full schema catalog definitions', () => {
@@ -69,5 +70,18 @@ describe('schema catalog fresh install metadata', () => {
 
     expect(initTablesSource).toContain('this.newSessionsTable.createTable()')
     expect(initTablesSource).toContain('this.deepchatSessionsTable.createTable()')
+    expect(initTablesSource).toContain('this.sessionCreateOperationsTable.createTable()')
+  })
+
+  it('clears session create operation evidence during full new-agent data reset', () => {
+    const sqliteSource = readSource('index.ts')
+    const clearStart = sqliteSource.indexOf('  public async clearNewAgentData()')
+    const clearEnd = sqliteSource.indexOf('  public async recordSettingsActivity(', clearStart)
+
+    expect(clearStart).toBeGreaterThanOrEqual(0)
+    expect(clearEnd).toBeGreaterThan(clearStart)
+    expect(sqliteSource.slice(clearStart, clearEnd)).toContain(
+      'DELETE FROM session_create_operations;'
+    )
   })
 })

@@ -9,6 +9,7 @@ import type {
   SessionResolutionResult
 } from '@shared/presenter'
 import type { DeepchatEventName, DeepchatEventPayload } from '@shared/contracts/events'
+import type { CreateSessionOperationSummary } from '@shared/contracts/routes/sessions.routes'
 import type {
   ChatMessagePageResult,
   ChatMessageRecord,
@@ -29,7 +30,21 @@ import { publishDeepchatEvent } from './publishDeepchatEvent'
 export type SessionListFilters = SessionResolutionListFilters
 
 export interface SessionRepository {
-  create(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+  create(input: CreateSessionInput, operationId: string): Promise<SessionWithState | null>
+  getCreateOperation(operationId: string): Promise<{
+    operation: CreateSessionOperationSummary | null
+    session: SessionWithState | null
+  }>
+  getCreateOperationSnapshot(operationId: string): CreateSessionOperationSummary | null
+  listCreateOperations(input: {
+    limit: number
+    cursor?: { createdAt: number; operationId: string } | null
+  }): {
+    items: CreateSessionOperationSummary[]
+    nextCursor: { createdAt: number; operationId: string } | null
+    hasMore: boolean
+  }
+  dismissCreateOperation(operationId: string): CreateSessionOperationSummary | null
   resolve(sessionId: string): Promise<SessionResolutionResult>
   resolveList(filters?: SessionListFilters): Promise<SessionResolutionResult[]>
   activate(webContentsId: number, sessionId: string): Promise<void>
@@ -81,6 +96,10 @@ export function createPresenterHotPathPorts(deps: {
   agentSessionPresenter: Pick<
     IAgentSessionPresenter,
     | 'createSession'
+    | 'getCreateOperation'
+    | 'getCreateOperationSnapshot'
+    | 'listCreateOperations'
+    | 'dismissCreateOperation'
     | 'resolveSession'
     | 'resolveSessionList'
     | 'activateSession'
@@ -108,8 +127,15 @@ export function createPresenterHotPathPorts(deps: {
 } {
   return {
     sessionRepository: {
-      create: async (input, webContentsId) =>
-        await deps.agentSessionPresenter.createSession(input, webContentsId),
+      create: async (input, operationId) =>
+        await deps.agentSessionPresenter.createSession(input, operationId),
+      getCreateOperation: async (operationId) =>
+        await deps.agentSessionPresenter.getCreateOperation(operationId),
+      getCreateOperationSnapshot: (operationId) =>
+        deps.agentSessionPresenter.getCreateOperationSnapshot(operationId),
+      listCreateOperations: (input) => deps.agentSessionPresenter.listCreateOperations(input),
+      dismissCreateOperation: (operationId) =>
+        deps.agentSessionPresenter.dismissCreateOperation(operationId),
       resolve: async (sessionId) => await deps.agentSessionPresenter.resolveSession(sessionId),
       resolveList: async (filters) => await deps.agentSessionPresenter.resolveSessionList(filters),
       activate: async (webContentsId, sessionId) =>

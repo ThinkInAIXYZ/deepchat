@@ -17,6 +17,7 @@ vi.mock('@/eventbus', () => ({
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+const CREATE_OPERATION_ID = '00000000-0000-4000-8000-000000000001'
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
@@ -64,6 +65,7 @@ function createMockSqlitePresenter() {
   const messagesStore = new Map<string, any>()
   const pendingInputsStore = new Map<string, any>()
   const assistantBlocksStore = new Map<string, any[]>()
+  const createOperationStore = new Map<string, any>()
   let messagesList: any[] = []
 
   const buildAssistantBlockRows = (messageId: string, blocks: any[]) => {
@@ -107,6 +109,65 @@ function createMockSqlitePresenter() {
   }
 
   return {
+    sessionCreateOperationsTable: {
+      markPendingUnknown: vi.fn(() => 0),
+      get: vi.fn((operationId: string) => createOperationStore.get(operationId) ?? null),
+      findUnresolvedByFingerprint: vi.fn(
+        (inputFingerprint: string) =>
+          [...createOperationStore.values()].find(
+            (row) =>
+              row.input_fingerprint === inputFingerprint &&
+              (row.state === 'pending' || row.state === 'unknown')
+          ) ?? null
+      ),
+      create: vi.fn(
+        (input: {
+          operationId: string
+          sessionId: string
+          inputFingerprint: string
+          now: number
+        }) => {
+          const { operationId, sessionId, inputFingerprint, now } = input
+          const row = {
+            operation_id: operationId,
+            session_id: sessionId,
+            input_fingerprint: inputFingerprint,
+            state: 'pending',
+            stage: 'accepted',
+            error_code: null,
+            dismissed_at: null,
+            created_at: now,
+            updated_at: now
+          }
+          createOperationStore.set(operationId, row)
+          return row
+        }
+      ),
+      updateStage: vi.fn((operationId: string, stage: string, now: number) => {
+        const row = createOperationStore.get(operationId)
+        if (row?.state === 'pending') {
+          Object.assign(row, { stage, updated_at: now })
+        }
+      }),
+      settle: vi.fn((operationId: string, input: Record<string, any>) => {
+        const row = createOperationStore.get(operationId)
+        if (row?.state === 'pending') {
+          Object.assign(row, {
+            state: input.state,
+            stage: input.stage ?? row.stage,
+            error_code: input.errorCode,
+            updated_at: input.now
+          })
+        }
+      }),
+      deleteSucceededBySession: vi.fn((sessionId: string) => {
+        for (const [operationId, row] of createOperationStore) {
+          if (row.session_id === sessionId && row.state === 'succeeded') {
+            createOperationStore.delete(operationId)
+          }
+        }
+      })
+    },
     newSessionsTable: {
       create: vi.fn(
         (
@@ -670,7 +731,7 @@ describe('Integration: createSession end-to-end', () => {
         ],
         projectDir: '/tmp/proj'
       },
-      1
+      CREATE_OPERATION_ID
     )
 
     // Wait for non-blocking processMessage to complete
@@ -715,13 +776,13 @@ describe('Integration: createSession end-to-end', () => {
     // 4. Assistant message finalized with content
     expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalled()
 
-    // 5. Typed events emitted with conversationId
-    const activatedCalls = publishDeepchatEventMock.mock.calls.filter(
+    // 5. Create publishes a list update without claiming window activation ownership
+    const createdCalls = publishDeepchatEventMock.mock.calls.filter(
       (c: any[]) => c[0] === 'sessions.updated' && c[1]?.reason === 'created'
     )
-    expect(activatedCalls.length).toBeGreaterThanOrEqual(1)
-    expect(activatedCalls[0][1].webContentsId).toBe(1)
-    expect(activatedCalls[0][1].activeSessionId).toBe(session.id)
+    expect(createdCalls).toEqual([
+      ['sessions.updated', { sessionIds: [session.id], reason: 'created' }]
+    ])
 
     // Stream events should carry conversationId (sessionId)
     const streamEndCalls = publishDeepchatEventMock.mock.calls.filter(
@@ -732,7 +793,10 @@ describe('Integration: createSession end-to-end', () => {
   })
 
   it('session list returns enriched sessions', async () => {
-    await agentPresenter.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
+    await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'Hello' },
+      CREATE_OPERATION_ID
+    )
 
     // Wait for processMessage to complete
     await new Promise((r) => setTimeout(r, 50))
@@ -746,7 +810,7 @@ describe('Integration: createSession end-to-end', () => {
   it('deleteSession cleans up all data', async () => {
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'To delete' },
-      1
+      CREATE_OPERATION_ID
     )
 
     await new Promise((r) => setTimeout(r, 50))
@@ -761,7 +825,7 @@ describe('Integration: createSession end-to-end', () => {
   it('clearSessionMessages clears messages but keeps session row', async () => {
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'To clear' },
-      1
+      CREATE_OPERATION_ID
     )
 
     await new Promise((r) => setTimeout(r, 50))
@@ -815,7 +879,7 @@ describe('Integration: ACP hooks bridge', () => {
         message: 'Inspect workspace',
         projectDir: '/tmp/acp-project'
       },
-      1
+      CREATE_OPERATION_ID
     )
 
     await new Promise((r) => setTimeout(r, 50))
@@ -889,7 +953,7 @@ describe('Integration: multi-turn context', () => {
     // Send first message
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'Hello', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
 
     // Wait for first processMessage to complete
@@ -920,7 +984,7 @@ describe('Integration: multi-turn context', () => {
   it('supports both string and object sendMessage input', async () => {
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'Hello', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 50))
 
@@ -957,7 +1021,7 @@ describe('Integration: multi-turn context', () => {
 
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 20))
 
@@ -993,7 +1057,7 @@ describe('Integration: multi-turn context', () => {
 
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 80))
 
@@ -1034,7 +1098,7 @@ describe('Integration: multi-turn context', () => {
 
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 20))
 
@@ -1080,7 +1144,7 @@ describe('Integration: multi-turn context', () => {
 
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'Turn one', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 20))
 
@@ -1149,7 +1213,7 @@ describe('Integration: multi-turn context', () => {
 
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: firstPrompt, projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 20))
 
@@ -1307,7 +1371,7 @@ describe('Integration: multi-turn context', () => {
 
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'Fail first', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 50))
 
@@ -1348,7 +1412,7 @@ describe('Integration: multi-turn context', () => {
 
     const session = await agentPresenter.createSession(
       { agentId: 'deepchat', message: 'Turn that errors', projectDir: null },
-      1
+      CREATE_OPERATION_ID
     )
     await new Promise((r) => setTimeout(r, 20))
 
