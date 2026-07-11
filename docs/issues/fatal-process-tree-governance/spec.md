@@ -330,7 +330,12 @@ cleanup treats either a start-identity mismatch or marker mismatch as unrelated 
 signal. In particular, if a native Windows utility command line does not expose the marker, the
 development probe fails safely: PID plus `CreationDate` may be retained for survivor observation,
 but never authorizes a signal. The artifact records `signalAttempted: false` and whether that
-survivor requires operator cleanup.
+survivor requires operator cleanup. A strict capture error carries every identity captured before
+the failure, including a non-signalable utility identity; the outer harness consumes that partial
+result directly instead of discarding it and attempting a relaxed recapture. If any later census or
+identity query is unavailable, the artifact records `unknown`/`null` visibility,
+`manualCleanupRequired: true`, `contractSatisfied: false`, and `allMarkedGone: false`. Unknown is
+never treated as process absence.
 
 The modes are measurements rather than mechanism choices:
 
@@ -358,8 +363,9 @@ group, or a cached PID after identity or marker mismatch. Tests cover successful
 PID/start-identity mismatch, same-start-identity marker mismatch, early owner exit using
 `/usr/bin/false`, cancellation of the losing readiness poll with a separate CLI wall-time check,
 exit/timeout exactly-once listener settlement, a synthetic Windows utility-marker failure with zero
-cleanup calls for that role, real Electron artifact persistence, wrong owner exit, wrong healthy
-settlement, and exactly-once healthy utility settlement.
+cleanup calls for that role, retention of that partial identity when later process visibility fails,
+fail-closed artifact cleanup fields for unknown visibility, real Electron artifact persistence,
+wrong owner exit, wrong healthy settlement, and exactly-once healthy utility settlement.
 
 Retained macOS development-fixture evidence is under
 [`evidence/macos`](./evidence/macos). On Darwin 25.5.0 arm64 with Electron 40.10.5:

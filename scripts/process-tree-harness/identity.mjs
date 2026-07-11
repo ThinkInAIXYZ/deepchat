@@ -92,10 +92,11 @@ export async function censusProcesses() {
 }
 
 export class ProcessIdentityVerificationError extends Error {
-  constructor(message) {
+  constructor(message, captureResult) {
     super(message)
     this.name = 'ProcessIdentityVerificationError'
     this.code = 'PROCESS_IDENTITY_UNVERIFIED'
+    if (captureResult) this.captureResult = captureResult
   }
 }
 

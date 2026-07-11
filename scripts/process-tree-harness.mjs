@@ -135,6 +135,43 @@ function roleIdentities(events, census, unverified) {
   )
 }
 
+function captureResult(verified, unverified) {
+  return { verified: [...verified], unverified: [...unverified] }
+}
+
+function captureError(error, verified, unverified) {
+  const capturedError = error instanceof Error ? error : new Error(String(error))
+  capturedError.captureResult = captureResult(verified, unverified)
+  return capturedError
+}
+
+function visibilityError(errors, stage, error, identity) {
+  errors.push({
+    stage,
+    role: identity?.role ?? null,
+    pid: identity?.pid ?? null,
+    error: error instanceof Error ? error.message : String(error)
+  })
+}
+
+async function captureCensus(marker, stage, errors, census) {
+  try {
+    return await census(marker)
+  } catch (error) {
+    visibilityError(errors, stage, error)
+    return null
+  }
+}
+
+async function captureStatus(identity, stage, errors, getStatus) {
+  try {
+    return await getStatus(identity)
+  } catch (error) {
+    visibilityError(errors, stage, error, identity)
+    return 'unknown'
+  }
+}
+
 export async function captureReadyIdentities(
   events,
   marker,
@@ -152,7 +189,13 @@ export async function captureReadyIdentities(
   for (const role of ['owner', 'utility', 'shell', 'grandchild']) {
     const event = readyByRole.get(role)
     if (!event) {
-      if (requireCompleteTree) throw new Error(`Missing process-ready event for ${role}`)
+      if (requireCompleteTree) {
+        throw captureError(
+          new Error(`Missing process-ready event for ${role}`),
+          verified,
+          unverified
+        )
+      }
       continue
     }
     const commandMarkerRequired =
@@ -170,7 +213,8 @@ export async function captureReadyIdentities(
         unverified.push(unverifiedIdentity)
         if (requireCompleteTree) {
           throw new ProcessIdentityVerificationError(
-            `Process ${event.pid} utility marker cannot be verified outside the process`
+            `Process ${event.pid} utility marker cannot be verified outside the process`,
+            captureResult(verified, unverified)
           )
         }
         continue
@@ -185,7 +229,7 @@ export async function captureReadyIdentities(
         signalable: true
       })
     } catch (error) {
-      if (requireCompleteTree) throw error
+      if (requireCompleteTree) throw captureError(error, verified, unverified)
     }
   }
   if (requireCompleteTree) {
@@ -196,8 +240,12 @@ export async function captureReadyIdentities(
       ['grandchild', 'shell']
     ]) {
       if (byRole[childRole].parentPid !== byRole[parentRole].pid) {
-        throw new Error(
-          `Unexpected marked-tree parent for ${childRole}: ${byRole[childRole].parentPid}`
+        throw captureError(
+          new Error(
+            `Unexpected marked-tree parent for ${childRole}: ${byRole[childRole].parentPid}`
+          ),
+          verified,
+          unverified
         )
       }
     }
@@ -257,7 +305,6 @@ function renderReport(artifact) {
 - Phase: \`${artifact.phase}\`
 - Mode: \`${artifact.mode}\`
 - Started: \`${artifact.startedAt}\`
-- Completed: \`${artifact.completedAt}\`
 - Observation window: \`${artifact.observation.windowMs}ms\`
 - Platform: \`${artifact.runtime.platform}/${artifact.runtime.arch}\` (${artifact.runtime.osRelease})
 - Distribution: \`${artifact.runtime.distribution}\` (packaged: \`${artifact.runtime.packaged}\`)
@@ -320,6 +367,7 @@ export function evaluateHarnessContract({
     error === null &&
     Object.keys(statusByRole).length === 4 &&
     Object.values(statusByRole).every((status) => status === 'absent') &&
+    postObservation !== null &&
     postObservation.length === 0
   const ownerExitSatisfied =
     ownerExit.code === expectedOwnerExit.code && ownerExit.signal === expectedOwnerExit.signal
@@ -329,7 +377,11 @@ export function evaluateHarnessContract({
       utilitySettlements[0].reason === 'shell-close:0:null' &&
       utilitySettlements[0].code === 0 &&
       utilitySettlements[0].settlementCount === 1)
-  const censusSatisfied = before.length === 0 && preExit.length === 4 && postObservation.length === 0
+  const censusSatisfied =
+    before.length === 0 &&
+    preExit.length === 4 &&
+    postObservation !== null &&
+    postObservation.length === 0
   const checks = {
     processStatusesSatisfied,
     ownerExitSatisfied,
@@ -358,7 +410,8 @@ export async function runProcessTreeHarness(options = {}) {
   const eventPath = path.join(runRoot, 'events.jsonl')
   const controlFile = path.join(runRoot, 'continue')
   const stopFile = path.join(runRoot, 'healthy-stop')
-  const electronMainPath = path.join(scriptDir, 'process-tree-harness/electron-main.mjs')
+  const electronMainPath =
+    options.electronMainPath ?? path.join(scriptDir, 'process-tree-harness/electron-main.mjs')
   const utilityPath = path.join(scriptDir, 'process-tree-harness/utility.mjs')
   const grandchildPath = path.join(scriptDir, 'process-tree-harness/grandchild.mjs')
   const harnessSha256 = await hashHarnessSources([
@@ -369,7 +422,11 @@ export async function runProcessTreeHarness(options = {}) {
     path.join(scriptDir, 'process-tree-harness/identity.mjs')
   ])
   const startedAt = new Date().toISOString()
-  const before = await censusMarkedProcesses(marker)
+  const captureIdentity = options.captureIdentity ?? captureProcessIdentity
+  const census = options.censusMarkedProcesses ?? censusMarkedProcesses
+  const cleanupIdentity = options.cleanupMarkedIdentity ?? cleanupMarkedIdentity
+  const getIdentityStatus = options.getProcessIdentityStatus ?? getProcessIdentityStatus
+  const before = await census(marker)
   let child
   let ownerExit = { code: null, signal: null }
   let preExit = []
@@ -381,6 +438,7 @@ export async function runProcessTreeHarness(options = {}) {
   let errorCode = null
   let unverifiedIdentities = []
   const cleanupAttempts = []
+  const identityVisibilityErrors = []
 
   try {
     child = spawn(electronPath, [electronMainPath, `--ptg-marker=${marker}`], {
@@ -412,33 +470,57 @@ export async function runProcessTreeHarness(options = {}) {
     ;({ verified: preExit, unverified: unverifiedIdentities } = await captureReadyIdentities(
       events,
       marker,
-      true
+      true,
+      captureIdentity
     ))
     await writeFile(controlFile, 'continue\n')
     ownerExit = await ownerExitPromise
     await new Promise((resolve) => setTimeout(resolve, observationMs))
     events = await readEventFile(eventPath)
-    postObservation = await censusMarkedProcesses(marker)
+    postObservation = await captureCensus(
+      marker,
+      'post-observation-census',
+      identityVisibilityErrors,
+      census
+    )
     statusAfterObservation = Object.fromEntries(
       await Promise.all(
-        preExit.map(async (identity) => [identity.role, await getProcessIdentityStatus(identity)])
+        preExit.map(async (identity) => [
+          identity.role,
+          await captureStatus(
+            identity,
+            'post-observation-status',
+            identityVisibilityErrors,
+            getIdentityStatus
+          )
+        ])
       )
     )
   } catch (caught) {
     error = caught instanceof Error ? caught.message : String(caught)
     errorCode = caught?.code ?? null
     events = await readEventFile(eventPath)
-    if (preExit.length === 0) {
-      ;({ verified: preExit, unverified: unverifiedIdentities } = await captureReadyIdentities(
-        events,
-        marker,
-        false
-      ))
+    if (caught?.captureResult) {
+      preExit = caught.captureResult.verified
+      unverifiedIdentities = caught.captureResult.unverified
     }
-    postObservation = await censusMarkedProcesses(marker)
+    postObservation = await captureCensus(
+      marker,
+      'error-census',
+      identityVisibilityErrors,
+      census
+    )
     statusAfterObservation = Object.fromEntries(
       await Promise.all(
-        preExit.map(async (identity) => [identity.role, await getProcessIdentityStatus(identity)])
+        [...preExit, ...unverifiedIdentities].map(async (identity) => [
+          identity.role,
+          await captureStatus(
+            identity,
+            'error-status',
+            identityVisibilityErrors,
+            getIdentityStatus
+          )
+        ])
       )
     )
   } finally {
@@ -446,20 +528,26 @@ export async function runProcessTreeHarness(options = {}) {
       cleanupAttempts.push(
         ...(await cleanupCapturedIdentities(
           preExit.map((identity) => ({ ...identity, marker })),
-          postObservation.map((identity) => ({ ...identity, marker })),
-          unverifiedIdentities
+          (postObservation ?? []).map((identity) => ({ ...identity, marker })),
+          unverifiedIdentities,
+          cleanupIdentity
         ))
       )
     } catch (cleanupError) {
       cleanupAttempts.push({ error: String(cleanupError) })
     }
     if (child && child.exitCode === null && child.signalCode === null) {
-      const currentOwner = (await censusMarkedProcesses(marker)).find(
-        (entry) => entry.pid === child.pid
-      )
+      const currentOwner = (
+        (await captureCensus(
+          marker,
+          'owner-cleanup-census',
+          identityVisibilityErrors,
+          census
+        )) ?? []
+      ).find((entry) => entry.pid === child.pid)
       if (currentOwner) {
         try {
-          cleanupAttempts.push(await cleanupMarkedIdentity({ ...currentOwner, marker }))
+          cleanupAttempts.push(await cleanupIdentity({ ...currentOwner, marker }))
         } catch (cleanupError) {
           cleanupAttempts.push({ pid: currentOwner.pid, error: String(cleanupError) })
         }
@@ -467,10 +555,20 @@ export async function runProcessTreeHarness(options = {}) {
     }
   }
 
-  const postCleanup = await censusMarkedProcesses(marker)
+  const postCleanup = await captureCensus(
+    marker,
+    'post-cleanup-census',
+    identityVisibilityErrors,
+    census
+  )
   const unverifiedCleanup = await Promise.all(
     unverifiedIdentities.map(async (identity) => {
-      const status = await getProcessIdentityStatus(identity)
+      const status = await captureStatus(
+        identity,
+        'unverified-cleanup-status',
+        identityVisibilityErrors,
+        getIdentityStatus
+      )
       return {
         role: identity.role,
         pid: identity.pid,
@@ -479,8 +577,10 @@ export async function runProcessTreeHarness(options = {}) {
         markerSource: identity.markerSource,
         verificationCode: identity.verificationCode,
         status,
+        signalable: false,
         signalAttempted: false,
-        manualCleanupRequired: status === 'match'
+        signalAttempts: 0,
+        manualCleanupRequired: status !== 'absent'
       }
     })
   )
@@ -488,7 +588,12 @@ export async function runProcessTreeHarness(options = {}) {
     await Promise.all(
       [...preExit, ...unverifiedIdentities].map(async (identity) => [
         identity.role,
-        await getProcessIdentityStatus(identity)
+        await captureStatus(
+          identity,
+          'post-cleanup-status',
+          identityVisibilityErrors,
+          getIdentityStatus
+        )
       ])
     )
   )
@@ -547,10 +652,17 @@ export async function runProcessTreeHarness(options = {}) {
       attempts: cleanupAttempts,
       statusByRole: statusAfterCleanup,
       unverified: unverifiedCleanup,
-      manualCleanupRequired: unverifiedCleanup.some((entry) => entry.manualCleanupRequired),
+      visibilityErrors: identityVisibilityErrors,
+      manualCleanupRequired:
+        identityVisibilityErrors.length > 0 ||
+        unverifiedCleanup.some((entry) => entry.manualCleanupRequired),
       allMarkedGone:
+        postCleanup !== null &&
         postCleanup.length === 0 &&
-        Object.values(statusAfterCleanup).every((status) => status !== 'match') &&
+        identityVisibilityErrors.length === 0 &&
+        Object.values(statusAfterCleanup).every(
+          (status) => status !== 'match' && status !== 'unknown'
+        ) &&
         unverifiedCleanup.every((entry) => !entry.manualCleanupRequired)
     },
     stderr,

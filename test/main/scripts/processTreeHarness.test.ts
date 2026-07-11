@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -265,7 +265,15 @@ describe.sequential('process tree harness ownership', () => {
     }))
 
     await expect(captureReadyIdentities(events, marker, true, captureIdentity)).rejects.toMatchObject(
-      { code: 'PROCESS_IDENTITY_UNVERIFIED' }
+      {
+        code: 'PROCESS_IDENTITY_UNVERIFIED',
+        captureResult: {
+          verified: [expect.objectContaining({ role: 'owner', pid: 101 })],
+          unverified: [
+            expect.objectContaining({ role: 'utility', pid: 102, signalable: false })
+          ]
+        }
+      }
     )
 
     const captured = await captureReadyIdentities(events, marker, false, captureIdentity)
@@ -287,6 +295,100 @@ describe.sequential('process tree harness ownership', () => {
 
     expect(attempts).toEqual([])
     expect(signal).not.toHaveBeenCalled()
+  })
+
+  it('retains an unverified utility identity when later process visibility fails', async () => {
+    const outputDir = await mkdtemp(path.join(tmpdir(), 'deepchat-ptg-test-'))
+    temporaryDirectories.push(outputDir)
+    const fixturePath = path.join(outputDir, 'synthetic-owner.mjs')
+    await writeFile(
+      fixturePath,
+      `import { appendFileSync } from 'node:fs'
+const eventPath = process.env.DEEPCHAT_PTG_EVENT_PATH
+const events = [
+  { type: 'process-ready', role: 'owner', pid: 101 },
+  { type: 'process-ready', role: 'utility-host', pid: 102, markerMechanism: 'utility-event-unverified' },
+  { type: 'process-ready', role: 'shell', pid: 103 },
+  { type: 'process-ready', role: 'grandchild', pid: 104 },
+  { type: 'tree-ready' }
+]
+for (const event of events) appendFileSync(eventPath, JSON.stringify(event) + '\\n')
+setTimeout(() => process.exit(17), 250)
+`
+    )
+    const parentByPid = new Map([
+      [101, 1],
+      [102, 101],
+      [103, 102],
+      [104, 103]
+    ])
+    const captureIdentity = vi.fn(async (pid, marker, commandMarkerRequired) => ({
+      pid,
+      parentPid: parentByPid.get(pid),
+      startIdentity: `synthetic-start-${pid}`,
+      commandLine: commandMarkerRequired ? `fixture ${marker}` : 'electron utility',
+      marker,
+      commandMarkerRequired
+    }))
+    let censusCalls = 0
+    const censusMarkedProcesses = vi.fn(async () => {
+      censusCalls += 1
+      if (censusCalls === 1) return []
+      throw new Error('CIM visibility unavailable')
+    })
+    const getProcessIdentityStatus = vi.fn(async () => {
+      throw new Error('CIM identity lookup unavailable')
+    })
+    const cleanupMarkedIdentity = vi.fn(async (identity) => ({
+      pid: identity.pid,
+      before: 'unknown',
+      signals: [],
+      after: 'unknown'
+    }))
+
+    const { artifact } = await runProcessTreeHarness({
+      electronPath: process.execPath,
+      electronMainPath: fixturePath,
+      observationMs: 0,
+      outputDir,
+      captureIdentity,
+      censusMarkedProcesses,
+      getProcessIdentityStatus,
+      cleanupMarkedIdentity
+    })
+
+    expect(artifact).toMatchObject({
+      processTree: {
+        owner: { pid: 101 },
+        utility: {
+          pid: 102,
+          signalable: false,
+          verificationCode: 'PROCESS_IDENTITY_UNVERIFIED'
+        }
+      },
+      census: { postObservation: null, postCleanup: null },
+      observation: {
+        statusByRole: { owner: 'unknown', utility: 'unknown' },
+        contractSatisfied: false
+      },
+      cleanup: {
+        manualCleanupRequired: true,
+        allMarkedGone: false,
+        unverified: [
+          expect.objectContaining({
+            role: 'utility',
+            pid: 102,
+            status: 'unknown',
+            signalable: false,
+            signalAttempts: 0,
+            manualCleanupRequired: true
+          })
+        ]
+      },
+      errorCode: 'PROCESS_IDENTITY_UNVERIFIED'
+    })
+    expect(artifact.cleanup.visibilityErrors.length).toBeGreaterThan(0)
+    expect(cleanupMarkedIdentity).not.toHaveBeenCalledWith(expect.objectContaining({ pid: 102 }))
   })
 
   it.runIf(process.platform === 'darwin').each(['owner-loss', 'callback-observation'] as const)(

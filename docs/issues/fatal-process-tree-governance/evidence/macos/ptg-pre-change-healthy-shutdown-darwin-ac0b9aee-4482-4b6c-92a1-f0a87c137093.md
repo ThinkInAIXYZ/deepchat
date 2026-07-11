@@ -1,30 +1,29 @@
 # PTG marked-tree harness result
 
-- Run: `34acb1e8-22a2-4775-87e8-e13b7063e2b5`
+- Run: `ac0b9aee-4482-4b6c-92a1-f0a87c137093`
 - Phase: `pre-change`
-- Mode: `owner-loss`
-- Started: `2026-07-11T01:56:41.809Z`
-- Completed: `2026-07-11T01:56:47.450Z`
-- Observation window: `5000ms`
+- Mode: `healthy-shutdown`
+- Started: `2026-07-11T02:08:22.345Z`
+- Observation window: `250ms`
 - Platform: `darwin/arm64` (25.5.0)
 - Distribution: `development-fixture` (packaged: `false`)
 - Electron: `40.10.5`
-- Harness SHA-256: `86c318069dd2cd0b0b7deb2ee3d7ea11044fb1c498e7bbd84f026d4ed6c42b9f`
-- Owner exit: code `17`, signal `null`
-- Contract satisfied before cleanup: `false`
-- Expected owner exit: code `17`, signal `null`
+- Harness SHA-256: `f5769e9f93eefb216d1544a746f8e658d7f6b20f22a7f682afc9e59de56421c0`
+- Owner exit: code `0`, signal `null`
+- Contract satisfied before cleanup: `true`
+- Expected owner exit: code `0`, signal `null`
 - Utility callbacks: none observed
 - Utility callback probes: none registered
-- Utility settlements: none observed
+- Utility settlements: shell-close:0:null / code 0 / count 1
 - Cleanup left no marked process: `true`
 - Manual cleanup required: `false`
 
 | Role | PID | Parent PID | Marker source | Start identity | Status after observation |
 | --- | ---: | ---: | --- | --- | --- |
-| owner | 41015 | 41006 | command-line | Sat Jul 11 09:56:41 2026 | absent |
-| utility | 41018 | 41015 | process-title | Sat Jul 11 09:56:41 2026 | absent |
-| shell | 41019 | 41018 | command-line | Sat Jul 11 09:56:42 2026 | match |
-| grandchild | 41020 | 41019 | command-line | Sat Jul 11 09:56:42 2026 | match |
+| owner | 60639 | 60630 | command-line | Sat Jul 11 10:08:22 2026 | absent |
+| utility | 60666 | 60639 | process-title | Sat Jul 11 10:08:22 2026 | absent |
+| shell | 60667 | 60666 | command-line | Sat Jul 11 10:08:22 2026 | absent |
+| grandchild | 60668 | 60667 | command-line | Sat Jul 11 10:08:22 2026 | absent |
 
 The result is a measurement, not a containment success assertion. Cleanup signals only a process
 whose PID, marker, and OS start identity still match the captured identity. A role whose marker

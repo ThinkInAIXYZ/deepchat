@@ -1,15 +1,14 @@
 # PTG marked-tree harness result
 
-- Run: `d980735c-5282-4667-90b6-b19d7cd6478d`
+- Run: `ccf2ed2f-7cc1-43f1-ba3c-97af21d8f148`
 - Phase: `pre-change`
 - Mode: `callback-observation`
-- Started: `2026-07-11T01:56:47.685Z`
-- Completed: `2026-07-11T01:56:53.300Z`
+- Started: `2026-07-11T02:08:29.300Z`
 - Observation window: `5000ms`
 - Platform: `darwin/arm64` (25.5.0)
 - Distribution: `development-fixture` (packaged: `false`)
 - Electron: `40.10.5`
-- Harness SHA-256: `86c318069dd2cd0b0b7deb2ee3d7ea11044fb1c498e7bbd84f026d4ed6c42b9f`
+- Harness SHA-256: `f5769e9f93eefb216d1544a746f8e658d7f6b20f22a7f682afc9e59de56421c0`
 - Owner exit: code `17`, signal `null`
 - Contract satisfied before cleanup: `false`
 - Expected owner exit: code `17`, signal `null`
@@ -21,10 +20,10 @@
 
 | Role | PID | Parent PID | Marker source | Start identity | Status after observation |
 | --- | ---: | ---: | --- | --- | --- |
-| owner | 41356 | 41347 | command-line | Sat Jul 11 09:56:47 2026 | absent |
-| utility | 41359 | 41356 | process-title | Sat Jul 11 09:56:47 2026 | absent |
-| shell | 41360 | 41359 | command-line | Sat Jul 11 09:56:47 2026 | match |
-| grandchild | 41361 | 41360 | command-line | Sat Jul 11 09:56:47 2026 | match |
+| owner | 61153 | 61142 | command-line | Sat Jul 11 10:08:29 2026 | absent |
+| utility | 61157 | 61153 | process-title | Sat Jul 11 10:08:29 2026 | absent |
+| shell | 61159 | 61157 | command-line | Sat Jul 11 10:08:29 2026 | match |
+| grandchild | 61160 | 61159 | command-line | Sat Jul 11 10:08:29 2026 | match |
 
 The result is a measurement, not a containment success assertion. Cleanup signals only a process
 whose PID, marker, and OS start identity still match the captured identity. A role whose marker
