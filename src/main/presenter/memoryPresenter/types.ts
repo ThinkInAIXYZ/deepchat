@@ -23,6 +23,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
+import type { MemoryPerfObserver } from './ports'
 
 export type {
   AgentMemoryKind,
@@ -35,6 +36,19 @@ export type {
   AgentMemoryInsertInput,
   AgentMemoryListOptions,
   AgentMemoryHealthStats
+}
+
+export interface EmbeddedMemoryUpdate {
+  id: string
+  expectedRevision: number
+  embeddingId: string
+  embeddingDim: number
+  embeddingModel: string
+}
+
+export interface FailedEmbeddingUpdate {
+  id: string
+  expectedRevision: number
 }
 
 // SQLite repository port. AgentMemoryTable satisfies it structurally; the abstraction lets
@@ -74,16 +88,13 @@ export interface MemoryRepositoryPort {
     }
   ): void
   activateForEmbedding(id: string): void
-  updatePendingEmbeddingStatus(
+  activateForEmbeddingIfRevision(agentId: string, id: string, expectedRevision: number): boolean
+  markPendingEmbeddingsReady(agentId: string, updates: readonly EmbeddedMemoryUpdate[]): string[]
+  markPendingEmbeddingsError(
     agentId: string,
-    id: string,
-    status: AgentMemoryStatus,
-    embedding?: {
-      embeddingId?: string | null
-      embeddingDim?: number | null
-      embeddingModel?: string | null
-    }
-  ): boolean
+    updates: readonly FailedEmbeddingUpdate[],
+    status?: Extract<AgentMemoryStatus, 'error' | 'fts_only'>
+  ): string[]
   // Bulk-resets the embedding state of an agent's non-superseded rows in the given statuses back
   // to pending_embedding (one SQL UPDATE), returning how many rows changed. Used by reindex and
   // backfill so the requeue never loops per row on the caller's stack.
@@ -98,6 +109,13 @@ export interface MemoryRepositoryPort {
     statuses: AgentMemoryStatus[],
     limit: number,
     afterId?: string | null
+  ): string[]
+  listCurrentEmbeddedIds(
+    agentId: string,
+    embeddingDim: number,
+    embeddingModel: string,
+    afterId: string | null,
+    limit: number
   ): string[]
   markSuperseded(id: string, supersededBy: string | null): void
   markSupersededIfRevision(
@@ -401,6 +419,7 @@ export interface MemoryStatus {
 export interface MemoryPresenterDeps {
   repository: MemoryRepositoryPort
   auditRepository?: MemoryAuditRepositoryPort
+  perfObserver?: MemoryPerfObserver
   resolveAgentConfig: (agentId: string) => DeepChatAgentConfig | null
   resolveAgentDefaultModel?: (agentId: string) => { providerId: string; modelId: string } | null
   // True only for a real, existing DeepChat agent. Management surfaces use it to refuse

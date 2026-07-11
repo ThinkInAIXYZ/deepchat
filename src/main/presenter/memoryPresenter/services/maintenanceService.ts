@@ -69,7 +69,7 @@ export class MaintenanceService {
         memoryId: string,
         topK: number
       ) => Promise<Array<{ memoryId: string; distance: number }>>
-      getWarmVectorStoreDimension: (agentId: string, embedding: MemoryModelRef) => number | null
+      getReadyCertificateDimension: (agentId: string, embedding: MemoryModelRef) => number | null
       deletePrunableVectorsForMemoryIds: (
         agentId: string,
         embedding: MemoryModelRef,
@@ -686,7 +686,7 @@ export class MaintenanceService {
     const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
     if (!embedding?.providerId || !embedding?.modelId) return
     const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-    const dimensions = this.ports.getWarmVectorStoreDimension(agentId, currentEmbedding)
+    const dimensions = this.ports.getReadyCertificateDimension(agentId, currentEmbedding)
     if (dimensions === null) return
     const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
     const refs = this.ctx.deps.repository.listPrunableVectorRefs(agentId, {

@@ -87,6 +87,67 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   }, 15_000)
 
+  it('bulk embedding persistence rejects stale revisions and batches malformed errors', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      for (const id of ['ready', 'edited']) {
+        table.insert({
+          id,
+          agentId: 'a',
+          kind: 'semantic',
+          content: id,
+          status: 'pending_embedding'
+        })
+      }
+      expect(
+        table.updateDecisionContentIfRevision({
+          agentId: 'a',
+          id: 'edited',
+          expectedRevision: 1,
+          content: 'edited after snapshot',
+          provenanceKey: null,
+          at: 10
+        })
+      ).toBe(true)
+
+      expect(
+        table.markPendingEmbeddingsReady('a', [
+          {
+            id: 'ready',
+            expectedRevision: 1,
+            embeddingId: 'ready',
+            embeddingDim: 4,
+            embeddingModel: 'p:m'
+          },
+          {
+            id: 'edited',
+            expectedRevision: 1,
+            embeddingId: 'edited',
+            embeddingDim: 4,
+            embeddingModel: 'p:m'
+          }
+        ])
+      ).toEqual(['ready'])
+      expect(table.getById('ready')).toMatchObject({ status: 'embedded', embedding_dim: 4 })
+      expect(table.getById('edited')).toMatchObject({
+        status: 'pending_embedding',
+        decision_revision: 2,
+        embedding_id: null
+      })
+      expect(
+        table.markPendingEmbeddingsError('a', [{ id: 'edited', expectedRevision: 1 }])
+      ).toEqual([])
+      expect(
+        table.markPendingEmbeddingsError('a', [{ id: 'edited', expectedRevision: 2 }])
+      ).toEqual(['edited'])
+      expect(table.getById('edited')?.status).toBe('error')
+    } finally {
+      db.close()
+    }
+  })
+
   it('inserts and reads back a memory row with defaults', () => {
     const db = new DatabaseCtor(':memory:')
     try {

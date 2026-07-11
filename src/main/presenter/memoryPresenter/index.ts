@@ -45,6 +45,7 @@ import { ConflictService } from './services/conflictService'
 import { MaintenanceService } from './services/maintenanceService'
 import { WriteCoordinator } from './services/writeCoordinator'
 import { ManagementService } from './services/managementService'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 
 export { appendMemorySection, appendMemorySectionWithManifest, buildMemorySection, isSafeAgentId }
 export type {
@@ -114,8 +115,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     maintenanceService = new MaintenanceService(this.runtime, this.rows, {
       queryNeighborsByMemoryId: (agentId, embedding, dimensions, memoryId, topK) =>
         this.vectorStore.queryNeighborsByMemoryId(agentId, embedding, dimensions, memoryId, topK),
-      getWarmVectorStoreDimension: (agentId, embedding) =>
-        this.vectorStore.getWarmVectorStoreDimension(agentId, embedding),
+      getReadyCertificateDimension: (agentId, embedding) =>
+        this.vectorStore.getReadyCertificateDimension(agentId, embedding),
       deletePrunableVectorsForMemoryIds: (agentId, embedding, dimensions, memoryIds) =>
         this.vectorStore.deletePrunableVectorsForMemoryIds(
           agentId,
@@ -212,10 +213,27 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   onAgentMemoryMaintenanceConfigChanged(agentId: string, delayMs?: number): void {
+    const embedding = this.runtime.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const identityChanged = this.vectorStore.noteEmbeddingConfig(
+      agentId,
+      embedding?.providerId && embedding?.modelId
+        ? { providerId: embedding.providerId, modelId: embedding.modelId }
+        : null
+    )
+    if (identityChanged) this.runtime.invalidateAgentOperations(agentId)
     this.maintenance.onAgentMemoryMaintenanceConfigChanged(agentId, delayMs)
   }
 
   onBuiltinDeepChatMemoryMaintenanceConfigChanged(): void {
+    const embedding =
+      this.runtime.deps.resolveAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID)?.memoryEmbedding
+    const identityChanged = this.vectorStore.noteEmbeddingConfig(
+      BUILTIN_DEEPCHAT_AGENT_ID,
+      embedding?.providerId && embedding?.modelId
+        ? { providerId: embedding.providerId, modelId: embedding.modelId }
+        : null
+    )
+    if (identityChanged) this.runtime.invalidateAgentOperations(BUILTIN_DEEPCHAT_AGENT_ID)
     this.maintenance.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
   }
 

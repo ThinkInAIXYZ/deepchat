@@ -196,6 +196,7 @@ const DEPRECATED_PROVIDER_MODEL_SETTING_KEYS: ProviderModelSettingKey[] = [
 ]
 const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'memoryEnabled',
+  'memoryEmbedding',
   'memoryExtractionModel',
   'personaEvolutionEnabled',
   'assistantModel',

@@ -22,6 +22,7 @@ import { gzipSync } from 'node:zlib'
 interface TestStore {
   connection: { run: ReturnType<typeof vi.fn> }
   vectorTable: string
+  perfObserver?: { increment: ReturnType<typeof vi.fn>; observe: ReturnType<typeof vi.fn> }
   upsert(records: MemoryVectorRecord[]): Promise<void>
 }
 
@@ -61,8 +62,11 @@ const records: MemoryVectorRecord[] = [{ memoryId: 'm1', embedding: [0.1, 0.2] }
 describe('MemoryVectorStore.upsert transaction (C4, AC-4.2)', () => {
   it('wraps DELETE+INSERT in a single BEGIN/COMMIT', async () => {
     const { store, calls } = makeStore()
+    const increment = vi.fn()
+    store.perfObserver = { increment, observe: vi.fn() }
     await store.upsert(records)
     expect(calls).toEqual(['BEGIN', 'DELETE', 'INSERT', 'COMMIT'])
+    expect(increment.mock.calls).toEqual([['duckDbStatements'], ['duckDbStatements']])
   })
 
   it('rolls back and rethrows when INSERT fails, never COMMITs', async () => {

@@ -14,6 +14,7 @@ import type {
   MemoryVectorQueryOptions,
   MemoryVectorRecord
 } from '../types'
+import type { MemoryPerfObserver } from '../ports'
 
 const runtimeBasePath = path
   .join(app.getAppPath(), 'runtime')
@@ -48,20 +49,22 @@ export class MemoryVectorStore implements IMemoryVectorStore {
 
   private constructor(
     private readonly dbPath: string,
-    private readonly metric: 'cosine' | 'l2sq' | 'ip'
+    private readonly metric: 'cosine' | 'l2sq' | 'ip',
+    private readonly perfObserver?: MemoryPerfObserver
   ) {}
 
   static async create(
     dbPath: string,
     dimensions: number,
     embedding: EmbeddingIdentity,
-    metric: 'cosine' | 'l2sq' | 'ip' = 'cosine'
+    metric: 'cosine' | 'l2sq' | 'ip' = 'cosine',
+    perfObserver?: MemoryPerfObserver
   ): Promise<MemoryVectorStore> {
     const parentDir = path.dirname(dbPath)
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true })
     }
-    const store = new MemoryVectorStore(dbPath, metric)
+    const store = new MemoryVectorStore(dbPath, metric, perfObserver)
     try {
       if (fs.existsSync(dbPath)) {
         await store.open(dimensions, embedding)
@@ -286,16 +289,22 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     if (!records.length) return
     await this.connection.run('BEGIN TRANSACTION;')
     try {
-      for (const record of records) {
-        const vec = arrayValue(Array.from(record.embedding))
-        await this.connection.run(`DELETE FROM ${this.vectorTable} WHERE memory_id = ?;`, [
-          record.memoryId
-        ])
-        await this.connection.run(
-          `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES (?, ?::FLOAT[]);`,
-          [record.memoryId, vec]
-        )
-      }
+      const deletePlaceholders = records.map(() => '?').join(', ')
+      this.perfObserver?.increment('duckDbStatements')
+      await this.connection.run(
+        `DELETE FROM ${this.vectorTable} WHERE memory_id IN (${deletePlaceholders});`,
+        records.map((record) => record.memoryId)
+      )
+      const insertPlaceholders = records.map(() => '(?, ?::FLOAT[])').join(', ')
+      const insertParams = records.flatMap((record) => [
+        record.memoryId,
+        arrayValue(Array.from(record.embedding))
+      ])
+      this.perfObserver?.increment('duckDbStatements')
+      await this.connection.run(
+        `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES ${insertPlaceholders};`,
+        insertParams
+      )
       await this.connection.run('COMMIT;')
     } catch (error) {
       await this.connection.run('ROLLBACK;').catch(() => undefined)
@@ -314,11 +323,13 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       ORDER BY distance
       LIMIT ?;
     `
+    this.perfObserver?.increment('duckDbStatements')
     const reader = await this.connection.runAndReadAll(sql, [
       arrayValue(Array.from(embedding)),
       options.topK
     ])
     const rows = reader.getRowObjectsJson()
+    this.perfObserver?.increment('materializedRows', rows.length)
     return rows.map((row: Record<string, unknown>) => ({
       memoryId: String(row.memory_id),
       distance: Number(row.distance)
@@ -329,11 +340,13 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     memoryId: string,
     options: MemoryVectorQueryOptions
   ): Promise<MemoryVectorMatch[]> {
+    this.perfObserver?.increment('duckDbStatements')
     const reader = await this.connection.runAndReadAll(
       `SELECT embedding FROM ${this.vectorTable} WHERE memory_id = ? LIMIT 1;`,
       [memoryId]
     )
     const source = reader.getRowObjectsJson()[0]?.embedding
+    if (source !== undefined) this.perfObserver?.increment('materializedRows')
     if (!Array.isArray(source)) return []
     const embedding = source.map(Number).filter((value) => Number.isFinite(value))
     if (embedding.length !== source.length || embedding.length === 0) return []
@@ -344,6 +357,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   async deleteByMemoryIds(memoryIds: string[]): Promise<void> {
     if (!memoryIds.length) return
     const placeholders = memoryIds.map(() => '?').join(', ')
+    this.perfObserver?.increment('duckDbStatements')
     await this.connection.run(
       `DELETE FROM ${this.vectorTable} WHERE memory_id IN (${placeholders});`,
       memoryIds
@@ -353,6 +367,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   async listMemoryIds(afterId: string | null, limit: number): Promise<string[]> {
     const cappedLimit = Math.max(0, Math.floor(limit))
     if (cappedLimit === 0) return []
+    this.perfObserver?.increment('duckDbStatements')
     const reader = afterId
       ? await this.connection.runAndReadAll(
           `SELECT memory_id
@@ -369,7 +384,9 @@ export class MemoryVectorStore implements IMemoryVectorStore {
            LIMIT ?;`,
           [cappedLimit]
         )
-    return reader.getRowObjectsJson().map((row: Record<string, unknown>) => String(row.memory_id))
+    const rows = reader.getRowObjectsJson()
+    this.perfObserver?.increment('materializedRows', rows.length)
+    return rows.map((row: Record<string, unknown>) => String(row.memory_id))
   }
 
   /**

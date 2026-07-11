@@ -4,20 +4,25 @@ import {
   ERROR_RETRY_BATCH_LIMIT,
   ERROR_RETRY_COOLDOWN_MS,
   EMBEDDING_PREWARM_TEXT,
+  EMBEDDING_WARM_FAILURE_COOLDOWN_MS,
   ORPHAN_RECONCILE_BATCH,
-  ORPHAN_RECONCILE_RETRY_COOLDOWN_MS,
   REINDEX_BATCH_SIZE,
   REINDEX_MAX_BATCHES,
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '../runtimeConstants'
-import type { AgentMemoryRow, MemoryVectorRecord } from '../types'
+import type {
+  AgentMemoryRow,
+  EmbeddedMemoryUpdate,
+  FailedEmbeddingUpdate,
+  MemoryVectorRecord
+} from '../types'
 import {
   embeddingFingerprint,
   type MemoryModelRef,
   type MemoryOperationFence,
   type MemoryRuntimeContext
 } from '../context'
-import { VectorStoreManager } from './vectorStoreManager'
+import { VectorStoreLeaseUnavailableError, VectorStoreManager } from './vectorStoreManager'
 
 export interface EmbeddingPipelinePorts {
   reindexEmbeddings: (agentId: string, force?: boolean) => Promise<void>
@@ -28,33 +33,35 @@ interface PendingEmbeddableRowPort {
   isPendingEmbeddableRow(agentId: string, row: AgentMemoryRow | undefined): boolean
 }
 
+type EmbeddingDrainOutcome = 'progress' | 'empty' | 'blocked'
+
 interface EmbeddingPipelineRuntimeState {
   embeddingWarmups: Map<string, Promise<void>>
+  embeddingWarmSuccesses: Set<string>
+  embeddingWarmFailureUntil: Map<string, number>
   vectorStoreWarmups: Map<string, Promise<void>>
   vectorStoreDimensionFailures: Map<string, number>
-  embeddingDrains: Map<string, Promise<unknown>>
+  embeddingDrains: Map<string, Promise<void>>
   reindexing: Map<string, Promise<void>>
   backfilling: Map<string, Promise<void>>
   errorRetryAt: Map<string, number>
   errorRetryAfterId: Map<string, string | null>
-  orphanVectorReconciles: Map<string, Promise<void>>
-  orphanVectorReconciled: Set<string>
-  orphanVectorReconcileRetryAt: Map<string, number>
 }
 
 export class EmbeddingPipeline {
   private readonly embeddingWarmups = new Map<string, Promise<void>>()
+  private readonly embeddingWarmupAgents = new Map<string, Set<string>>()
+  private readonly embeddingWarmSuccesses = new Set<string>()
+  private readonly embeddingWarmFailureUntil = new Map<string, number>()
   private readonly vectorStoreWarmups = new Map<string, Promise<void>>()
   private readonly vectorStoreDimensionFailures = new Map<string, number>()
-  private readonly embeddingDrains = new Map<string, Promise<unknown>>()
+  private readonly embeddingDrains = new Map<string, Promise<void>>()
+  private readonly embeddingDrainDirty = new Set<string>()
+  private readonly embeddingDrainLimits = new Map<string, number>()
   private readonly reindexing = new Map<string, Promise<void>>()
   private readonly backfilling = new Map<string, Promise<void>>()
   private readonly errorRetryAt = new Map<string, number>()
   private readonly errorRetryAfterId = new Map<string, string | null>()
-  private readonly orphanVectorReconciles = new Map<string, Promise<void>>()
-  private readonly orphanVectorReconcileTokens = new Map<string, symbol>()
-  private readonly orphanVectorReconciled = new Set<string>()
-  private readonly orphanVectorReconcileRetryAt = new Map<string, number>()
 
   constructor(
     private readonly ctx: MemoryRuntimeContext,
@@ -69,28 +76,68 @@ export class EmbeddingPipeline {
 
   processPendingEmbeddings(agentId: string, limit = 50): Promise<void> {
     if (!this.ctx.canWriteAgentMemory(agentId)) return Promise.resolve()
-    const prev = this.embeddingDrains.get(agentId)
-    const run = prev
-      ? prev.then(
-          () => this.drainPendingEmbeddings(agentId, limit),
-          () => this.drainPendingEmbeddings(agentId, limit)
-        )
-      : this.drainPendingEmbeddings(agentId, limit)
-    const tracked = run.then(
-      () => undefined,
-      () => undefined
+    const normalizedLimit = Math.min(REINDEX_BATCH_SIZE, Math.max(1, Math.floor(limit)))
+    this.embeddingDrainDirty.add(agentId)
+    this.embeddingDrainLimits.set(
+      agentId,
+      Math.max(this.embeddingDrainLimits.get(agentId) ?? 0, normalizedLimit)
     )
-    this.embeddingDrains.set(agentId, tracked)
-    void tracked.finally(() => {
-      if (this.embeddingDrains.get(agentId) === tracked) {
-        this.embeddingDrains.delete(agentId)
+    const existing = this.embeddingDrains.get(agentId)
+    if (existing) return existing
+
+    const tracked = this.runEmbeddingDrainSupervisor(agentId).finally(async () => {
+      while (this.embeddingDrainDirty.has(agentId) && this.ctx.canWriteAgentMemory(agentId)) {
+        await this.runEmbeddingDrainSupervisor(agentId)
       }
+      if (this.embeddingDrains.get(agentId) !== tracked) return
+      this.embeddingDrains.delete(agentId)
+      this.embeddingDrainLimits.delete(agentId)
     })
-    return run
+    this.embeddingDrains.set(agentId, tracked)
+    return tracked
   }
 
-  private async drainPendingEmbeddings(agentId: string, limit: number): Promise<void> {
-    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+  private async runEmbeddingDrainSupervisor(agentId: string): Promise<void> {
+    while (this.embeddingDrainDirty.delete(agentId) && this.ctx.canWriteAgentMemory(agentId)) {
+      await this.runEmbeddingDrainLoop(agentId)
+    }
+  }
+
+  private async runEmbeddingDrainLoop(agentId: string): Promise<void> {
+    let keepDraining = true
+    for (let cycle = 0; cycle < REINDEX_MAX_BATCHES && keepDraining; cycle += 1) {
+      const limit = Math.min(
+        REINDEX_BATCH_SIZE,
+        Math.max(1, this.embeddingDrainLimits.get(agentId) || REINDEX_BATCH_SIZE)
+      )
+      this.embeddingDrainLimits.set(agentId, 0)
+      const outcome = await this.drainPendingEmbeddings(agentId, limit)
+      if (!this.ctx.canContinueAgentMemoryTask(agentId)) break
+      if (outcome === 'blocked' || outcome === 'empty') break
+      keepDraining = true
+      this.embeddingDrainDirty.delete(agentId)
+      if (cycle === REINDEX_MAX_BATCHES - 1) this.embeddingDrainDirty.add(agentId)
+    }
+    if (
+      !this.reindexing.has(agentId) &&
+      this.ctx.canContinueAgentMemoryTask(agentId) &&
+      this.ctx.deps.repository.listPendingEmbedding(1, agentId).length === 0
+    ) {
+      const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      if (embedding?.providerId && embedding?.modelId) {
+        await this.warmVectorStore(agentId, {
+          providerId: embedding.providerId,
+          modelId: embedding.modelId
+        })
+      }
+    }
+  }
+
+  private async drainPendingEmbeddings(
+    agentId: string,
+    limit: number
+  ): Promise<EmbeddingDrainOutcome> {
+    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return 'blocked'
     const operationFence = this.ctx.captureOperationFence(agentId)
     const config = this.ctx.deps.resolveAgentConfig(agentId)
     let pending = this.ctx.deps.repository.listPendingEmbedding(limit, agentId)
@@ -127,14 +174,16 @@ export class EmbeddingPipeline {
         }
       }
     }
-    if (!pending.length) return
+    if (!pending.length) return 'empty'
 
     const embedding = config?.memoryEmbedding
     if (!embedding?.providerId || !embedding?.modelId) {
-      for (const row of pending) {
-        this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'fts_only')
-      }
-      return
+      this.ctx.deps.repository.markPendingEmbeddingsError(
+        agentId,
+        pending.map((row) => ({ id: row.id, expectedRevision: row.decision_revision })),
+        'fts_only'
+      )
+      return 'progress'
     }
 
     let vectors: number[][]
@@ -148,145 +197,169 @@ export class EmbeddingPipeline {
       )
     } catch (error) {
       logger.error(`[Memory] embedding service failed for ${agentId}, will retry: ${String(error)}`)
-      if (!this.ctx.canContinueOperation(operationFence)) return
-      for (const row of pending) {
-        this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'pending_embedding')
-      }
-      return
+      return 'blocked'
     }
 
-    if (!this.ctx.canContinueOperation(operationFence)) return
-    try {
-      const dim = vectors.find((vector) => vector?.length)?.length ?? 0
-      const records: MemoryVectorRecord[] = []
-      let liveRecordsForOutcome: MemoryVectorRecord[] = []
-      for (let i = 0; i < pending.length; i += 1) {
-        const vector = vectors[i]
-        if (dim > 0 && vector?.length === dim) {
-          records.push({ memoryId: pending[i].id, embedding: vector })
-        } else if (
-          this.rows.isPendingEmbeddableRow(agentId, this.ctx.deps.repository.getById(pending[i].id))
-        ) {
-          this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, pending[i].id, 'error')
-          this.errorRetryAt.set(agentId, Date.now())
-        }
-      }
-      if (!records.length) return
+    if (!this.ctx.canContinueOperation(operationFence)) return 'blocked'
+    const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+    const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    if (
+      !currentEmbedding?.providerId ||
+      !currentEmbedding?.modelId ||
+      embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId) !== fingerprint
+    ) {
+      return 'blocked'
+    }
 
-      const liveBeforeLease = records.filter((record) =>
-        this.rows.isPendingEmbeddableRow(agentId, this.ctx.deps.repository.getById(record.memoryId))
-      )
-      const currentEmbeddingBeforeLease = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    const authoritativeRows = this.ctx.deps.repository.listByIds(
+      agentId,
+      pending.map((row) => row.id)
+    )
+    const authoritativeById = new Map(authoritativeRows.map((row) => [row.id, row]))
+    const dim =
+      vectors.find(
+        (vector) =>
+          Array.isArray(vector) &&
+          vector.length > 0 &&
+          vector.every((value) => Number.isFinite(value))
+      )?.length ?? 0
+    const records: MemoryVectorRecord[] = []
+    const readyUpdates: EmbeddedMemoryUpdate[] = []
+    const malformedUpdates: FailedEmbeddingUpdate[] = []
+    for (let index = 0; index < pending.length; index += 1) {
+      const snapshot = pending[index]
+      const current = authoritativeById.get(snapshot.id)
       if (
-        !liveBeforeLease.length ||
-        !currentEmbeddingBeforeLease?.providerId ||
-        !currentEmbeddingBeforeLease?.modelId ||
-        embeddingFingerprint(
-          currentEmbeddingBeforeLease.providerId,
-          currentEmbeddingBeforeLease.modelId
-        ) !== embeddingFingerprint(embedding.providerId, embedding.modelId)
+        !current ||
+        current.decision_revision !== snapshot.decision_revision ||
+        !this.rows.isPendingEmbeddableRow(agentId, current)
       ) {
-        return
+        continue
       }
+      const vector = vectors[index]
+      if (
+        dim > 0 &&
+        Array.isArray(vector) &&
+        vector.length === dim &&
+        vector.every((value) => Number.isFinite(value))
+      ) {
+        records.push({ memoryId: current.id, embedding: vector })
+        readyUpdates.push({
+          id: current.id,
+          expectedRevision: snapshot.decision_revision,
+          embeddingId: current.id,
+          embeddingDim: dim,
+          embeddingModel: fingerprint
+        })
+      } else {
+        malformedUpdates.push({
+          id: current.id,
+          expectedRevision: snapshot.decision_revision
+        })
+      }
+    }
 
-      const outcome = await this.vectorStore.withStoreLease(
-        agentId,
-        { providerId: embedding.providerId, modelId: embedding.modelId },
-        dim,
-        async (store, generation) => {
-          if (!this.ctx.canContinueAgentMemoryTask(agentId)) {
-            return { written: new Set<string>(), usable: true, generation }
-          }
-          const live = records.filter((record) =>
-            this.rows.isPendingEmbeddableRow(
+    if (!records.length) {
+      if (malformedUpdates.length) {
+        this.errorRetryAt.set(agentId, Date.now())
+        this.ctx.deps.repository.markPendingEmbeddingsError(agentId, malformedUpdates)
+      }
+      return 'progress'
+    }
+
+    let sidecarWritten = false
+    let sqliteTransitionAttempted = false
+    try {
+      const outcome = await this.vectorStore.withVectorMutation(agentId, () =>
+        this.vectorStore.withStoreLease(
+          agentId,
+          { providerId: embedding.providerId, modelId: embedding.modelId },
+          dim,
+          async (store, generation) => {
+            if (
+              !this.ctx.canContinueOperation(operationFence) ||
+              !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)
+            ) {
+              return { written: new Set<string>(), usable: true, generation }
+            }
+            if (!store.isUsable()) {
+              return { written: new Set<string>(), usable: false, generation }
+            }
+            await store.upsert(records)
+            sidecarWritten = true
+            sqliteTransitionAttempted = true
+            const readyIds = this.ctx.deps.repository.markPendingEmbeddingsReady(
               agentId,
-              this.ctx.deps.repository.getById(record.memoryId)
+              readyUpdates
             )
-          )
-          liveRecordsForOutcome = live
-          if (!live.length) return { written: new Set<string>(), usable: true, generation }
-          const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
-          if (
-            !currentEmbedding?.providerId ||
-            !currentEmbedding?.modelId ||
-            embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId) !==
-              embeddingFingerprint(embedding.providerId, embedding.modelId)
-          ) {
-            return { written: new Set<string>(), usable: true, generation }
+            const readySet = new Set(readyIds)
+            const orphanIds = records
+              .map((record) => record.memoryId)
+              .filter((memoryId) => !readySet.has(memoryId))
+            if (orphanIds.length) await store.deleteByMemoryIds(orphanIds)
+            return { written: readySet, usable: true, generation }
           }
-          if (!this.ctx.canContinueAgentMemoryTask(agentId)) {
-            return { written: new Set<string>(), usable: true, generation }
-          }
-          if (!store.isUsable()) {
-            return { written: new Set<string>(), usable: false, generation }
-          }
-          await store.upsert(live)
-          return {
-            written: new Set(live.map((record) => record.memoryId)),
-            usable: true,
-            generation
-          }
-        }
+        )
       )
 
       if (
-        !this.ctx.canContinueAgentMemoryTask(agentId) ||
+        !this.ctx.canContinueOperation(operationFence) ||
         !this.vectorStore.isGenerationCurrent(agentId, outcome.generation)
       ) {
-        return
+        return 'blocked'
       }
-      const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-      const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      const latestEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
       const currentFingerprint =
-        currentEmbedding?.providerId && currentEmbedding?.modelId
-          ? embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId)
+        latestEmbedding?.providerId && latestEmbedding?.modelId
+          ? embeddingFingerprint(latestEmbedding.providerId, latestEmbedding.modelId)
           : null
       if (currentFingerprint !== fingerprint) {
         logger.info(
           `[Memory] embedding config changed during drain for ${agentId}; discarding stale vectors`
         )
-        return
-      }
-      for (const record of liveRecordsForOutcome) {
-        if (outcome.written.has(record.memoryId)) {
-          this.ctx.deps.repository.updatePendingEmbeddingStatus(
-            agentId,
-            record.memoryId,
-            'embedded',
-            {
-              embeddingId: record.memoryId,
-              embeddingDim: dim,
-              embeddingModel: fingerprint
-            }
-          )
-        } else if (!outcome.usable) {
-          this.errorRetryAt.set(agentId, Date.now())
-          this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, record.memoryId, 'error')
-        }
+        return 'blocked'
       }
       if (!outcome.usable) {
+        this.errorRetryAt.set(agentId, Date.now())
+        this.ctx.deps.repository.markPendingEmbeddingsError(agentId, [
+          ...readyUpdates,
+          ...malformedUpdates
+        ])
         this.vectorStore.clearReady(agentId)
-      } else if (
-        outcome.written.size > 0 &&
-        !this.ctx.deps.repository.hasStaleEmbeddings(agentId, dim, fingerprint)
-      ) {
-        this.vectorStore.markReady(
-          agentId,
-          { providerId: embedding.providerId, modelId: embedding.modelId },
-          dim,
-          outcome.generation
-        )
+        return 'progress'
       }
+
+      if (malformedUpdates.length) {
+        this.errorRetryAt.set(agentId, Date.now())
+        this.ctx.deps.repository.markPendingEmbeddingsError(agentId, malformedUpdates)
+      }
+      return 'progress'
     } catch (error) {
       logger.error(`[Memory] vector store write failed for ${agentId}: ${String(error)}`)
-      if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
-      const liveRows = pending.filter((row) =>
-        this.rows.isPendingEmbeddableRow(agentId, this.ctx.deps.repository.getById(row.id))
-      )
-      if (liveRows.length) this.errorRetryAt.set(agentId, Date.now())
-      for (const row of liveRows) {
-        this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'error')
+      if (error instanceof VectorStoreLeaseUnavailableError) return 'blocked'
+      if (!this.ctx.canContinueOperation(operationFence)) return 'blocked'
+      const latestEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      if (
+        !latestEmbedding?.providerId ||
+        !latestEmbedding?.modelId ||
+        embeddingFingerprint(latestEmbedding.providerId, latestEmbedding.modelId) !== fingerprint
+      ) {
+        return 'blocked'
       }
+      this.vectorStore.clearReady(agentId)
+      if (!sidecarWritten && !sqliteTransitionAttempted) {
+        this.errorRetryAt.set(agentId, Date.now())
+        this.ctx.deps.repository.markPendingEmbeddingsError(agentId, [
+          ...readyUpdates,
+          ...malformedUpdates
+        ])
+        return 'progress'
+      }
+      if (malformedUpdates.length) {
+        this.errorRetryAt.set(agentId, Date.now())
+        this.ctx.deps.repository.markPendingEmbeddingsError(agentId, malformedUpdates)
+      }
+      return 'blocked'
     }
   }
 
@@ -316,10 +389,17 @@ export class EmbeddingPipeline {
     if (!requeued && !force) return
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     await this.vectorStore.resetAgentStore(agentId)
-    this.clearOrphanReconcileMarks(agentId)
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     this.ctx.emitChanged(agentId, 'reindex')
     await this.drainUntilExhausted(agentId)
+    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+    const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    if (currentEmbedding?.providerId && currentEmbedding?.modelId) {
+      await this.warmVectorStore(agentId, {
+        providerId: currentEmbedding.providerId,
+        modelId: currentEmbedding.modelId
+      })
+    }
   }
 
   backfillEmbeddings(agentId: string): Promise<void> {
@@ -362,6 +442,7 @@ export class EmbeddingPipeline {
     if (this.ctx.isDisposed || !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) {
       return Promise.resolve()
     }
+    if (this.vectorStore.hasReadyCertificate(agentId, embedding)) return Promise.resolve()
     const key = this.vectorStore.warmupKey(agentId, embedding)
     const inflight = this.vectorStoreWarmups.get(key)
     if (inflight) return inflight
@@ -403,6 +484,7 @@ export class EmbeddingPipeline {
     ) {
       return
     }
+    if (this.vectorStore.getReadyCertificateDimension(agentId, embedding) === dimensions) return
     if (openDelay) await openDelay
     if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
 
@@ -438,8 +520,20 @@ export class EmbeddingPipeline {
       return
     }
 
-    this.vectorStore.markReady(agentId, embedding, dimensions, leaseResult.generation)
-    this.scheduleOrphanVectorReconcile(agentId, embedding, dimensions, fingerprint)
+    const coverage = await this.verifyVectorCoverage(agentId, embedding, dimensions, fingerprint)
+    if (!coverage.verified) {
+      this.vectorStore.clearReady(agentId)
+      if (coverage.missingAuthoritativeVector && !this.reindexing.has(agentId)) {
+        void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+          logger.warn(
+            `[Memory] incomplete vector store rebuild failed for ${agentId}: ${String(error)}`
+          )
+        })
+      }
+      return
+    }
+
+    this.vectorStore.markReady(agentId, embedding, dimensions, coverage.generation)
     if (!this.reindexing.has(agentId)) {
       void this.ports.backfillEmbeddings(agentId).catch((error) => {
         logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
@@ -447,135 +541,97 @@ export class EmbeddingPipeline {
     }
   }
 
-  private scheduleOrphanVectorReconcile(
+  private collectCurrentEmbeddedIds(
+    agentId: string,
+    dimensions: number,
+    fingerprint: string
+  ): { ids: string[]; complete: boolean } {
+    const ids: string[] = []
+    let afterId: string | null = null
+    for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
+      const page = this.ctx.deps.repository.listCurrentEmbeddedIds(
+        agentId,
+        dimensions,
+        fingerprint,
+        afterId,
+        ORPHAN_RECONCILE_BATCH
+      )
+      ids.push(...page)
+      if (page.length < ORPHAN_RECONCILE_BATCH) return { ids, complete: true }
+      afterId = page[page.length - 1]
+    }
+    return { ids, complete: false }
+  }
+
+  private async verifyVectorCoverage(
     agentId: string,
     embedding: MemoryModelRef,
     dimensions: number,
     fingerprint: string
-  ): void {
-    const key = this.vectorStore.cacheKey(agentId, embedding, dimensions)
-    if (this.orphanVectorReconciled.has(key)) return
-    if (Date.now() < (this.orphanVectorReconcileRetryAt.get(key) ?? 0)) return
-    if (this.orphanVectorReconciles.has(key)) return
-
-    const token = Symbol(key)
-    this.orphanVectorReconcileTokens.set(key, token)
-    const tracked = this.waitForBackgroundTick()
-      .then(() =>
-        this.reconcileOrphanVectorsOnce(agentId, embedding, dimensions, fingerprint, key, token)
-      )
-      .catch((error) => {
-        if (this.isCurrentOrphanReconcile(key, token)) {
-          this.orphanVectorReconcileRetryAt.set(
-            key,
-            Date.now() + ORPHAN_RECONCILE_RETRY_COOLDOWN_MS
-          )
-        }
-        logger.warn(`[Memory] orphan vector reconcile failed for ${agentId}: ${String(error)}`)
-      })
-      .finally(() => {
-        if (this.orphanVectorReconciles.get(key) === tracked) {
-          this.orphanVectorReconciles.delete(key)
-          if (this.isCurrentOrphanReconcile(key, token)) {
-            this.orphanVectorReconcileTokens.delete(key)
-          }
-        }
-      })
-    this.orphanVectorReconciles.set(key, tracked)
-  }
-
-  private isCurrentOrphanReconcile(key: string, token: symbol): boolean {
-    return this.orphanVectorReconcileTokens.get(key) === token
-  }
-
-  private async reconcileOrphanVectorsOnce(
-    agentId: string,
-    embedding: MemoryModelRef,
-    dimensions: number,
-    fingerprint: string,
-    key: string,
-    token: symbol
-  ): Promise<void> {
-    if (!this.isCurrentOrphanReconcile(key, token)) return
-    if (this.orphanVectorReconciled.has(key)) return
-    const retryAt = this.orphanVectorReconcileRetryAt.get(key) ?? 0
-    if (Date.now() < retryAt) return
-    try {
+  ): Promise<{
+    verified: boolean
+    missingAuthoritativeVector: boolean
+    generation: number
+  }> {
+    return this.vectorStore.withVectorMutation(agentId, async () => {
+      const readEpoch = this.ctx.captureReadEpoch(agentId)
+      const authoritative = this.collectCurrentEmbeddedIds(agentId, dimensions, fingerprint)
+      if (!authoritative.complete) {
+        return { verified: false, missingAuthoritativeVector: true, generation: -1 }
+      }
       const outcome = await this.vectorStore.withStoreLease(
         agentId,
         embedding,
         dimensions,
         async (store, generation) => {
-          if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) {
-            return { completed: false, generation }
-          }
           if (!store.isUsable()) {
-            return { completed: false, generation }
+            return {
+              verified: false,
+              missingAuthoritativeVector: false,
+              generation
+            }
           }
+          const sidecarIds: string[] = []
           let afterId: string | null = null
+          let complete = false
           for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
-            const ids = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
-            if (!ids.length) return { completed: true, generation }
-            afterId = ids[ids.length - 1]
-            const liveRows = this.ctx.deps.repository.listByIds(agentId, ids)
-            const liveIds = new Set(liveRows.map((row) => row.id))
-            const missingIds = ids.filter((id) => !liveIds.has(id))
-            if (missingIds.length) {
-              const prunableIds = [
-                ...new Set(
-                  this.ctx.deps.repository.filterPrunableVectorRefs(
-                    agentId,
-                    missingIds,
-                    dimensions,
-                    fingerprint
-                  )
-                )
-              ]
-              for (let start = 0; start < prunableIds.length; start += ORPHAN_RECONCILE_BATCH) {
-                if (!this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) {
-                  return { completed: false, generation }
-                }
-                await store.deleteByMemoryIds(
-                  prunableIds.slice(start, start + ORPHAN_RECONCILE_BATCH)
-                )
-              }
+            const page = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
+            sidecarIds.push(...page)
+            if (page.length < ORPHAN_RECONCILE_BATCH) {
+              complete = true
+              break
             }
-            if (ids.length < ORPHAN_RECONCILE_BATCH) {
-              return { completed: true, generation }
-            }
+            afterId = page[page.length - 1]
           }
-          return { completed: false, generation }
+          if (!complete) {
+            return { verified: false, missingAuthoritativeVector: false, generation }
+          }
+          const authoritativeSet = new Set(authoritative.ids)
+          const sidecarSet = new Set(sidecarIds)
+          const missingAuthoritativeVector = authoritative.ids.some((id) => !sidecarSet.has(id))
+          if (missingAuthoritativeVector) {
+            return { verified: false, missingAuthoritativeVector: true, generation }
+          }
+          const extras = sidecarIds.filter((id) => !authoritativeSet.has(id))
+          for (let start = 0; start < extras.length; start += ORPHAN_RECONCILE_BATCH) {
+            await store.deleteByMemoryIds(extras.slice(start, start + ORPHAN_RECONCILE_BATCH))
+          }
+          return { verified: true, missingAuthoritativeVector: false, generation }
         }
       )
-      if (!this.isCurrentOrphanReconcile(key, token)) return
-      if (!this.vectorStore.isGenerationCurrent(agentId, outcome.generation)) return
-      if (outcome.completed) {
-        this.orphanVectorReconciled.add(key)
-        this.orphanVectorReconcileRetryAt.delete(key)
-      } else {
-        this.orphanVectorReconcileRetryAt.set(key, Date.now() + ORPHAN_RECONCILE_RETRY_COOLDOWN_MS)
-        logger.warn(
-          `[Memory] orphan vector reconcile did not complete full scan for ${agentId}; retrying later`
-        )
+      if (
+        !this.ctx.isReadEpochCurrent(agentId, readEpoch) ||
+        !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding) ||
+        !this.vectorStore.isGenerationCurrent(agentId, outcome.generation)
+      ) {
+        return {
+          verified: false,
+          missingAuthoritativeVector: false,
+          generation: outcome.generation
+        }
       }
-    } catch (error) {
-      if (this.isCurrentOrphanReconcile(key, token)) {
-        this.orphanVectorReconcileRetryAt.set(key, Date.now() + ORPHAN_RECONCILE_RETRY_COOLDOWN_MS)
-      }
-      logger.warn(`[Memory] orphan vector reconcile failed for ${agentId}: ${String(error)}`)
-    }
-  }
-
-  private clearOrphanReconcileMarks(agentId: string): void {
-    for (const key of this.orphanVectorReconciled) {
-      if (key.startsWith(`${agentId}::`)) this.orphanVectorReconciled.delete(key)
-    }
-    for (const key of this.orphanVectorReconcileRetryAt.keys()) {
-      if (key.startsWith(`${agentId}::`)) this.orphanVectorReconcileRetryAt.delete(key)
-    }
-    for (const key of this.orphanVectorReconcileTokens.keys()) {
-      if (key.startsWith(`${agentId}::`)) this.orphanVectorReconcileTokens.delete(key)
-    }
+      return outcome
+    })
   }
 
   private async resolveWarmVectorDimensions(
@@ -628,7 +684,12 @@ export class EmbeddingPipeline {
 
   warmEmbeddingConnection(agentId: string, embedding: MemoryModelRef): void {
     if (this.ctx.isDisposed || !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) return
-    const key = this.vectorStore.warmupKey(agentId, embedding)
+    const key = `${embedding.providerId}::${embedding.modelId}`
+    if (this.embeddingWarmSuccesses.has(key)) return
+    if (Date.now() < (this.embeddingWarmFailureUntil.get(key) ?? 0)) return
+    const agents = this.embeddingWarmupAgents.get(key) ?? new Set<string>()
+    agents.add(agentId)
+    this.embeddingWarmupAgents.set(key, agents)
     if (this.embeddingWarmups.has(key)) return
     const tracked = Promise.resolve()
       .then(async () => {
@@ -639,12 +700,20 @@ export class EmbeddingPipeline {
           [EMBEDDING_PREWARM_TEXT],
           'embedding-warm'
         )
+        if (!this.ctx.isDisposed) {
+          this.embeddingWarmSuccesses.add(key)
+          this.embeddingWarmFailureUntil.delete(key)
+        }
       })
       .catch((error) => {
+        if (!this.ctx.isDisposed) {
+          this.embeddingWarmFailureUntil.set(key, Date.now() + EMBEDDING_WARM_FAILURE_COOLDOWN_MS)
+        }
         logger.warn(`[Memory] embedding warm failed for ${agentId}: ${String(error)}`)
       })
       .finally(() => {
         if (this.embeddingWarmups.get(key) === tracked) this.embeddingWarmups.delete(key)
+        this.embeddingWarmupAgents.delete(key)
       })
     this.embeddingWarmups.set(key, tracked)
   }
@@ -654,7 +723,6 @@ export class EmbeddingPipeline {
       ...this.reindexing.values(),
       ...this.backfilling.values(),
       ...this.embeddingDrains.values(),
-      ...this.orphanVectorReconciles.values(),
       ...this.vectorStoreWarmups.values(),
       ...this.embeddingWarmups.values()
     ]
@@ -664,17 +732,18 @@ export class EmbeddingPipeline {
     const reindexing = this.reindexing.get(agentId)
     const backfilling = this.backfilling.get(agentId)
     const embeddingDrain = this.embeddingDrains.get(agentId)
-    const orphanReconciles = this.getAgentEntries(this.orphanVectorReconciles, agentId)
     const vectorWarmups = this.getAgentEntries(this.vectorStoreWarmups, agentId)
-    const embeddingWarmups = this.getAgentEntries(this.embeddingWarmups, agentId)
-    return [
+    const embeddingWarmups = [...this.embeddingWarmups.entries()].filter(([key]) =>
+      this.embeddingWarmupAgents.get(key)?.has(agentId)
+    )
+    const inflight: Array<Promise<unknown> | undefined> = [
       reindexing,
       backfilling,
       embeddingDrain,
-      ...orphanReconciles.map(([, promise]) => promise),
       ...vectorWarmups.map(([, promise]) => promise),
       ...embeddingWarmups.map(([, promise]) => promise)
-    ].filter((promise): promise is Promise<unknown> => Boolean(promise))
+    ]
+    return inflight.filter((promise): promise is Promise<unknown> => Boolean(promise))
   }
 
   private getAgentEntries<T>(map: Map<string, T>, agentId: string): Array<[string, T]> {
@@ -691,18 +760,12 @@ export class EmbeddingPipeline {
     this.reindexing.delete(agentId)
     this.backfilling.delete(agentId)
     this.embeddingDrains.delete(agentId)
+    this.embeddingDrainDirty.delete(agentId)
+    this.embeddingDrainLimits.delete(agentId)
     this.errorRetryAt.delete(agentId)
     this.errorRetryAfterId.delete(agentId)
-    this.clearOrphanReconcileMarks(agentId)
-    for (const [key] of this.getAgentEntries(this.orphanVectorReconciles, agentId)) {
-      this.orphanVectorReconciles.delete(key)
-      this.orphanVectorReconcileTokens.delete(key)
-    }
     for (const [key] of this.getAgentEntries(this.vectorStoreWarmups, agentId)) {
       this.vectorStoreWarmups.delete(key)
-    }
-    for (const [key] of this.getAgentEntries(this.embeddingWarmups, agentId)) {
-      this.embeddingWarmups.delete(key)
     }
     for (const key of this.vectorStoreDimensionFailures.keys()) {
       if (key.startsWith(`${agentId}::`)) this.vectorStoreDimensionFailures.delete(key)
@@ -711,33 +774,33 @@ export class EmbeddingPipeline {
 
   clearAll(): void {
     this.embeddingWarmups.clear()
+    this.embeddingWarmupAgents.clear()
+    this.embeddingWarmSuccesses.clear()
+    this.embeddingWarmFailureUntil.clear()
     this.vectorStoreWarmups.clear()
     this.vectorStoreDimensionFailures.clear()
     this.embeddingDrains.clear()
+    this.embeddingDrainDirty.clear()
+    this.embeddingDrainLimits.clear()
     this.reindexing.clear()
     this.backfilling.clear()
     this.errorRetryAt.clear()
     this.errorRetryAfterId.clear()
-    this.orphanVectorReconciles.clear()
-    this.orphanVectorReconcileTokens.clear()
-    this.orphanVectorReconciled.clear()
-    this.orphanVectorReconcileRetryAt.clear()
   }
 
   /** @internal Live mutable state for legacy facade-oracle tests only. */
   getMutableRuntimeStateForTests(): EmbeddingPipelineRuntimeState {
     return {
       embeddingWarmups: this.embeddingWarmups,
+      embeddingWarmSuccesses: this.embeddingWarmSuccesses,
+      embeddingWarmFailureUntil: this.embeddingWarmFailureUntil,
       vectorStoreWarmups: this.vectorStoreWarmups,
       vectorStoreDimensionFailures: this.vectorStoreDimensionFailures,
       embeddingDrains: this.embeddingDrains,
       reindexing: this.reindexing,
       backfilling: this.backfilling,
       errorRetryAt: this.errorRetryAt,
-      errorRetryAfterId: this.errorRetryAfterId,
-      orphanVectorReconciles: this.orphanVectorReconciles,
-      orphanVectorReconciled: this.orphanVectorReconciled,
-      orphanVectorReconcileRetryAt: this.orphanVectorReconcileRetryAt
+      errorRetryAfterId: this.errorRetryAfterId
     }
   }
 }

@@ -527,6 +527,10 @@ describe('deleteDeepChatAgent cleanup', () => {
 describe('DeepChat agent memory maintenance config changed callback', () => {
   it.each([
     ['memoryEnabled', { memoryEnabled: true }],
+    [
+      'memoryEmbedding',
+      { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
+    ],
     ['memoryExtractionModel', { memoryExtractionModel: createModelSelection('openai', 'gpt-4o') }],
     ['personaEvolutionEnabled', { personaEvolutionEnabled: true }],
     ['assistantModel', { assistantModel: createModelSelection('openai', 'gpt-4o-mini') }],
@@ -574,9 +578,6 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       config: { systemPrompt: 'You are concise.' }
     })
     await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
-      config: { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
-    })
-    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
       config: { memoryRetrieval: { topK: 20 } }
     })
     await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
@@ -584,7 +585,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     })
 
     expect(callback).not.toHaveBeenCalled()
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(5)
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(4)
   })
 
   it('does not notify when a maintenance-relevant custom update finds no agent', async () => {
@@ -633,6 +634,10 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
 
   it.each([
     ['memoryEnabled', { memoryEnabled: true }],
+    [
+      'memoryEmbedding',
+      { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
+    ],
     ['memoryExtractionModel', { memoryExtractionModel: createModelSelection('openai', 'gpt-4o') }],
     ['personaEvolutionEnabled', { personaEvolutionEnabled: true }],
     ['assistantModel', { assistantModel: createModelSelection('openai', 'gpt-4o-mini') }],
@@ -666,10 +671,6 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     ['systemPrompt', { systemPrompt: 'You are concise.' }],
     ['autoCompactionEnabled', { autoCompactionEnabled: false }],
     ['disabledAgentTools', { disabledAgentTools: ['builtin/web-search'] }],
-    [
-      'memoryEmbedding',
-      { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
-    ],
     ['memoryRetrieval', { memoryRetrieval: { topK: 20 } }],
     ['memoryInjectionTokenBudget', { memoryInjectionTokenBudget: 4096 }]
   ])('does not notify after builtin DeepChat %s config updates', (_name, updates) => {

@@ -142,6 +142,24 @@ export interface AgentMemorySearchResult {
   strategy: 'fts-only' | 'like-fallback'
 }
 
+function buildRevisionAwareEmbeddingValues<T extends { id: string; expectedRevision: number }>(
+  updates: readonly T[],
+  additionalValues: (update: T) => readonly unknown[] = () => []
+): { valuesSql: string; params: unknown[] } {
+  const unique = [...new Map(updates.map((update) => [update.id, update])).values()]
+  const columnCount = 2 + (unique[0] ? additionalValues(unique[0]).length : 0)
+  return {
+    valuesSql: unique
+      .map(() => `(${Array.from({ length: columnCount }, () => '?').join(', ')})`)
+      .join(', '),
+    params: unique.flatMap((update) => [
+      update.id,
+      update.expectedRevision,
+      ...additionalValues(update)
+    ])
+  }
+}
+
 function isTransientFtsError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === 'SQLITE_BUSY' || code === 'SQLITE_LOCKED' || code === 'SQLITE_INTERRUPT'
@@ -1139,35 +1157,79 @@ export class AgentMemoryTable extends BaseTable {
     return result.changes > 0
   }
 
-  updatePendingEmbeddingStatus(
+  markPendingEmbeddingsReady(
     agentId: string,
-    id: string,
-    status: AgentMemoryStatus,
-    embedding?: {
-      embeddingId?: string | null
-      embeddingDim?: number | null
-      embeddingModel?: string | null
-    }
-  ): boolean {
-    const result = this.db
+    updates: ReadonlyArray<{
+      id: string
+      expectedRevision: number
+      embeddingId: string
+      embeddingDim: number
+      embeddingModel: string
+    }>
+  ): string[] {
+    if (!updates.length) return []
+    const { valuesSql, params } = buildRevisionAwareEmbeddingValues(updates, (update) => [
+      update.embeddingId,
+      update.embeddingDim,
+      update.embeddingModel
+    ])
+    const rows = this.db
       .prepare(
-        `UPDATE agent_memory
-         SET status = ?, embedding_id = ?, embedding_dim = ?, embedding_model = ?
-         WHERE id = ?
-           AND agent_id = ?
+        `WITH updates(id, expected_revision, embedding_id, embedding_dim, embedding_model) AS (
+           VALUES ${valuesSql}
+         )
+         UPDATE agent_memory
+         SET status = 'embedded',
+             embedding_id = (SELECT embedding_id FROM updates WHERE updates.id = agent_memory.id),
+             embedding_dim = (SELECT embedding_dim FROM updates WHERE updates.id = agent_memory.id),
+             embedding_model = (SELECT embedding_model FROM updates WHERE updates.id = agent_memory.id)
+         WHERE agent_id = ?
            AND status = 'pending_embedding'
            AND superseded_by IS NULL
-           AND kind NOT IN ('persona', 'working')`
+           AND kind NOT IN ('persona', 'working')
+           AND EXISTS (
+             SELECT 1
+             FROM updates
+             WHERE updates.id = agent_memory.id
+               AND updates.expected_revision = agent_memory.decision_revision
+           )
+         RETURNING id`
       )
-      .run(
-        status,
-        embedding?.embeddingId ?? null,
-        embedding?.embeddingDim ?? null,
-        embedding?.embeddingModel ?? null,
-        id,
-        agentId
+      .all(...params, agentId) as Array<{ id: string }>
+    return rows.map((row) => row.id)
+  }
+
+  markPendingEmbeddingsError(
+    agentId: string,
+    updates: ReadonlyArray<{ id: string; expectedRevision: number }>,
+    status: Extract<AgentMemoryStatus, 'error' | 'fts_only'> = 'error'
+  ): string[] {
+    if (!updates.length) return []
+    const { valuesSql, params } = buildRevisionAwareEmbeddingValues(updates)
+    const rows = this.db
+      .prepare(
+        `WITH updates(id, expected_revision) AS (
+           VALUES ${valuesSql}
+         )
+         UPDATE agent_memory
+         SET status = ?,
+             embedding_id = NULL,
+             embedding_dim = NULL,
+             embedding_model = NULL
+         WHERE agent_id = ?
+           AND status = 'pending_embedding'
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND EXISTS (
+             SELECT 1
+             FROM updates
+             WHERE updates.id = agent_memory.id
+               AND updates.expected_revision = agent_memory.decision_revision
+           )
+         RETURNING id`
       )
-    return result.changes > 0
+      .all(...params, status, agentId) as Array<{ id: string }>
+    return rows.map((row) => row.id)
   }
 
   // Resets the embedding state of the agent's non-superseded rows in `statuses` back to
@@ -1253,6 +1315,37 @@ export class AgentMemoryTable extends BaseTable {
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')
            AND status IN (${placeholders})
+           ${afterSql}
+         ORDER BY id ASC
+         LIMIT ?`
+      )
+      .all(...params) as Array<{ id: string }>
+    return rows.map((row) => row.id)
+  }
+
+  listCurrentEmbeddedIds(
+    agentId: string,
+    embeddingDim: number,
+    embeddingModel: string,
+    afterId: string | null,
+    limit: number
+  ): string[] {
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0) return []
+    const afterSql = afterId === null ? '' : 'AND id > ?'
+    const params: Array<string | number> = [agentId, embeddingDim, embeddingModel]
+    if (afterId !== null) params.push(afterId)
+    params.push(cappedLimit)
+    const rows = this.db
+      .prepare(
+        `SELECT id
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND status = 'embedded'
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND embedding_dim = ?
+           AND embedding_model = ?
            ${afterSql}
          ORDER BY id ASC
          LIMIT ?`

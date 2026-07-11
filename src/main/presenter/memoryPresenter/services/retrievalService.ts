@@ -39,11 +39,7 @@ type QueryEmbeddingInFlight = {
   promise: Promise<number[][]>
 }
 
-
-function isLiveRecallVectorRow(
-  agentId: string,
-  row: AgentMemoryRow | undefined
-): row is AgentMemoryRow {
+function isLiveRecallRow(agentId: string, row: AgentMemoryRow | undefined): row is AgentMemoryRow {
   return (
     !!row &&
     row.agent_id === agentId &&
@@ -52,6 +48,20 @@ function isLiveRecallVectorRow(
     row.kind !== 'working' &&
     row.status !== 'archived' &&
     row.status !== 'conflicted'
+  )
+}
+
+function isCurrentRecallVectorRow(
+  agentId: string,
+  row: AgentMemoryRow | undefined,
+  dimensions: number,
+  fingerprint: string
+): row is AgentMemoryRow {
+  return (
+    isLiveRecallRow(agentId, row) &&
+    row.status === 'embedded' &&
+    row.embedding_dim === dimensions &&
+    row.embedding_model === fingerprint
   )
 }
 
@@ -236,7 +246,7 @@ export class RetrievalService {
     const embedding = config?.memoryEmbedding
     if (embedding?.providerId && embedding?.modelId) {
       const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-      if (!this.vectorStore.isWarm(agentId, currentEmbedding)) {
+      if (!this.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
         void this.ports
           .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
           .catch((error) => {
@@ -268,54 +278,46 @@ export class RetrievalService {
               if (!this.ctx.canReadAgentMemory(agentId)) return []
               const vector = vectors[0]
               if (vector?.length) {
-                const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+                if (!this.ctx.canReadAgentMemory(agentId)) return []
+                const matches = await this.vectorStore.query(
+                  agentId,
+                  currentEmbedding,
+                  vector.length,
+                  vector,
+                  candidateLimit
+                )
+                if (!this.ctx.canReadAgentMemory(agentId)) return []
                 if (
-                  this.ctx.deps.repository.hasStaleEmbeddings(agentId, vector.length, fingerprint)
+                  this.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
+                  this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
                 ) {
-                  this.vectorStore.clearReady(agentId)
-                  if (this.ctx.canReadAgentMemory(agentId)) {
-                    void this.ports.reindexEmbeddings(agentId).catch((error) => {
-                      logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
+                  if (!this.ctx.canReadAgentMemory(agentId)) return []
+                  vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
+                  for (const match of matches) {
+                    const similarity = distanceToSimilarity(match.distance)
+                    if (similarity < similarityThreshold) continue
+                    vecCandidates.push({ memoryId: match.memoryId, similarity })
+                  }
+                  if (this.ctx.canReadAgentMemory(agentId) && !this.ports.isReindexing(agentId)) {
+                    void this.ports.backfillEmbeddings(agentId).catch((error) => {
+                      logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
                     })
                   }
-                } else {
-                  if (!this.ctx.canReadAgentMemory(agentId)) return []
-                  const matches = await this.vectorStore.query(
-                    agentId,
-                    currentEmbedding,
-                    vector.length,
-                    vector,
-                    candidateLimit
-                  )
-                  if (!this.ctx.canReadAgentMemory(agentId)) return []
-                  if (this.vectorStore.isWarm(agentId, currentEmbedding)) {
-                    if (!this.ctx.canReadAgentMemory(agentId)) return []
-                    vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
-                    for (const match of matches) {
-                      const similarity = distanceToSimilarity(match.distance)
-                      if (similarity < similarityThreshold) continue
-                      vecCandidates.push({ memoryId: match.memoryId, similarity })
-                    }
-                    if (this.ctx.canReadAgentMemory(agentId) && !this.ports.isReindexing(agentId)) {
-                      void this.ports.backfillEmbeddings(agentId).catch((error) => {
-                        logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
-                      })
-                    }
-                  } else if (
-                    this.ctx.canReadAgentMemory(agentId) &&
-                    !this.ports.isReindexing(agentId)
-                  ) {
-                    void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
-                      logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
-                    })
-                  }
+                } else if (
+                  this.ctx.canReadAgentMemory(agentId) &&
+                  !this.ports.isReindexing(agentId)
+                ) {
+                  void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+                    logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+                  })
                 }
               }
             }
           }
         } catch (error) {
           if (!this.ctx.canReadAgentMemory(agentId)) return []
-          if ((error as { name?: string } | null)?.name !== 'AbortError') {
+          const errorName = (error as { name?: string } | null)?.name
+          if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
             this.vectorStore.clearReady(agentId)
           }
           logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
@@ -333,12 +335,17 @@ export class RetrievalService {
     const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
     const authoritativeFtsRows = ftsRows
       .map((row) => rowsById.get(row.id))
-      .filter((row): row is AgentMemoryRow => isLiveRecallVectorRow(agentId, row))
+      .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
+    const vectorFingerprint = vectorContext
+      ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
+      : null
     const authoritativeVecMatches = vecCandidates
       .map((candidate) => {
         const row = rowsById.get(candidate.memoryId)
-        return isLiveRecallVectorRow(agentId, row)
-          ? { row, similarity: candidate.similarity }
+        return vectorContext && vectorFingerprint
+          ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)
+            ? { row, similarity: candidate.similarity }
+            : null
           : null
       })
       .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)

@@ -265,32 +265,72 @@ export class FakeRepository implements MemoryRepositoryPort {
     row.decision_revision += 1
   }
 
-  updatePendingEmbeddingStatus(
-    agentId: string,
-    id: string,
-    status: AgentMemoryRow['status'],
-    embedding?: {
-      embeddingId?: string | null
-      embeddingDim?: number | null
-      embeddingModel?: string | null
-    }
-  ) {
+  activateForEmbeddingIfRevision(agentId: string, id: string, expectedRevision: number) {
     const row = this.rows.get(id)
-    if (
-      !row ||
-      row.agent_id !== agentId ||
-      row.status !== 'pending_embedding' ||
-      row.superseded_by ||
-      row.kind === 'persona' ||
-      row.kind === 'working'
-    ) {
-      return false
-    }
-    row.status = status
-    row.embedding_id = embedding?.embeddingId ?? null
-    row.embedding_dim = embedding?.embeddingDim ?? null
-    row.embedding_model = embedding?.embeddingModel ?? null
+    if (!row || row.agent_id !== agentId || row.decision_revision !== expectedRevision) return false
+    this.activateForEmbedding(id)
     return true
+  }
+
+  markPendingEmbeddingsReady(
+    agentId: string,
+    updates: ReadonlyArray<{
+      id: string
+      expectedRevision: number
+      embeddingId: string
+      embeddingDim: number
+      embeddingModel: string
+    }>
+  ) {
+    const updated: string[] = []
+    for (const update of updates) {
+      const row = this.rows.get(update.id)
+      if (
+        !row ||
+        row.agent_id !== agentId ||
+        row.decision_revision !== update.expectedRevision ||
+        row.status !== 'pending_embedding' ||
+        row.superseded_by !== null ||
+        row.kind === 'persona' ||
+        row.kind === 'working'
+      ) {
+        continue
+      }
+      row.status = 'embedded'
+      row.embedding_id = update.embeddingId
+      row.embedding_dim = update.embeddingDim
+      row.embedding_model = update.embeddingModel
+      updated.push(row.id)
+    }
+    return updated
+  }
+
+  markPendingEmbeddingsError(
+    agentId: string,
+    updates: ReadonlyArray<{ id: string; expectedRevision: number }>,
+    status: 'error' | 'fts_only' = 'error'
+  ) {
+    const updated: string[] = []
+    for (const update of updates) {
+      const row = this.rows.get(update.id)
+      if (
+        !row ||
+        row.agent_id !== agentId ||
+        row.decision_revision !== update.expectedRevision ||
+        row.status !== 'pending_embedding' ||
+        row.superseded_by !== null ||
+        row.kind === 'persona' ||
+        row.kind === 'working'
+      ) {
+        continue
+      }
+      row.status = status
+      row.embedding_id = null
+      row.embedding_dim = null
+      row.embedding_model = null
+      updated.push(row.id)
+    }
+    return updated
   }
 
   requeueForEmbedding(
@@ -347,6 +387,30 @@ export class FakeRepository implements MemoryRepositoryPort {
           (!afterId || row.id > afterId)
       )
       .sort((a, b) => a.id.localeCompare(b.id))
+      .slice(0, Math.max(0, Math.floor(limit)))
+      .map((row) => row.id)
+  }
+
+  listCurrentEmbeddedIds(
+    agentId: string,
+    embeddingDim: number,
+    embeddingModel: string,
+    afterId: string | null,
+    limit: number
+  ) {
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          row.status === 'embedded' &&
+          row.superseded_by === null &&
+          row.kind !== 'persona' &&
+          row.kind !== 'working' &&
+          row.embedding_dim === embeddingDim &&
+          row.embedding_model === embeddingModel &&
+          (afterId === null || row.id > afterId)
+      )
+      .sort((left, right) => left.id.localeCompare(right.id))
       .slice(0, Math.max(0, Math.floor(limit)))
       .map((row) => row.id)
   }

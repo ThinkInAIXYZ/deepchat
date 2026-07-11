@@ -25,7 +25,7 @@ export interface MemoryPerfObserver {
 }
 
 export interface VectorStoreRetrievalPort {
-  isWarm(agentId: string, embedding: MemoryModelRef): boolean
+  hasReadyCertificate(agentId: string, embedding: MemoryModelRef): boolean
   query(
     agentId: string,
     embedding: MemoryModelRef,
@@ -33,11 +33,18 @@ export interface VectorStoreRetrievalPort {
     vector: number[],
     topK: number
   ): Promise<MemoryVectorMatch[]>
+  queryBatch(
+    agentId: string,
+    embedding: MemoryModelRef,
+    dimensions: number,
+    vectors: readonly number[][],
+    topK: number
+  ): Promise<MemoryVectorMatch[][]>
   markReady(
     agentId: string,
     embedding: MemoryModelRef,
     dimensions: number,
-    generation?: number
+    leaseEpoch?: number
   ): void
   clearReady(agentId: string): void
 }
