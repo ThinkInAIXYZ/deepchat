@@ -2880,6 +2880,7 @@
       "emptyDescription": "Aggiungi una memoria manualmente o lascia che l’agente ne crei una durante la conversazione.",
       "disabledDescription": "Attiva la memoria prima di aggiungere nuove righe per questo agente.",
       "addMemory": "Aggiungi memoria",
+      "loadMore": "Carica altro",
       "configTitle": "Impostazioni memoria",
       "configDescription": "Le modifiche si applicano immediatamente per ogni campo.",
       "relativeWeightsHint": "I pesi sono relativi; valori più alti incidono maggiormente sull’ordinamento.",

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import ts from 'typescript'
 
 const ROOT = process.cwd()
 const SOURCE_EXTENSIONS = new Set([
@@ -122,6 +123,14 @@ const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
   /window\.electron(?:\?\.|\.)ipcRenderer(?:\?\.|\.)(?:on|once|addListener)\s*\(/g
+const LEGACY_MEMORY_PRESENTER_LIST_PATTERN = /\.listMemories\s*\(/g
+const LEGACY_MEMORY_PRESENTER_LIST_ALLOWLIST = new Map([
+  [path.join(ROOT, 'src/main/routes/index.ts'), 1],
+  [path.join(ROOT, 'src/main/presenter/memoryPresenter/index.ts'), 1]
+])
+const LEGACY_MEMORY_BRIDGE_ALLOWLIST = new Map([
+  [path.join(ROOT, 'src/renderer/api/MemoryClient.ts'), 1]
+])
 const INLINE_IPC_CHANNEL_PATTERN =
   /(?:window\.electron(?:\?\.|\.)ipcRenderer|ipcRenderer|ipcMain)(?:\?\.|\.)(?:invoke|send|on|once|handle|handleOnce|removeListener|removeAllListeners|addListener)\s*\(\s*['"`][^'"`]+['"`]/g
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
@@ -191,6 +200,105 @@ function countMatches(source, pattern) {
   }
 
   pattern.lastIndex = 0
+  return count
+}
+
+function scriptSourceForAst(source, filePath) {
+  if (path.extname(filePath) !== '.vue') return source
+  return [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((match) => match[1])
+    .join('\n')
+}
+
+function countDeprecatedMemoryClientCalls(source, filePath) {
+  const astSource = scriptSourceForAst(source, filePath)
+  if (!astSource.trim()) return 0
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    astSource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  )
+  const factoryNames = new Set(['createMemoryClient'])
+  const routeNames = new Set(['memoryListRoute'])
+  const clientNames = new Set()
+  const destructuredListNames = new Set()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue
+    const bindings = statement.importClause.namedBindings
+    if (!bindings || !ts.isNamedImports(bindings)) continue
+    for (const element of bindings.elements) {
+      const importedName = element.propertyName?.text ?? element.name.text
+      if (importedName === 'createMemoryClient') factoryNames.add(element.name.text)
+      if (importedName === 'memoryListRoute') routeNames.add(element.name.text)
+    }
+  }
+
+  const isFactoryCall = (node) =>
+    ts.isCallExpression(node) && ts.isIdentifier(node.expression) && factoryNames.has(node.expression.text)
+  const isClientExpression = (node) =>
+    (ts.isIdentifier(node) && clientNames.has(node.text)) || isFactoryCall(node)
+
+  let changed = true
+  while (changed) {
+    changed = false
+    const discover = (node) => {
+      if (ts.isVariableDeclaration(node) && node.initializer) {
+        if (ts.isIdentifier(node.name) && isClientExpression(node.initializer)) {
+          if (!clientNames.has(node.name.text)) {
+            clientNames.add(node.name.text)
+            changed = true
+          }
+        } else if (ts.isObjectBindingPattern(node.name) && isClientExpression(node.initializer)) {
+          for (const element of node.name.elements) {
+            const propertyName = element.propertyName
+            const boundName = element.name
+            if (
+              ts.isIdentifier(boundName) &&
+              ((propertyName && ts.isIdentifier(propertyName) && propertyName.text === 'list') ||
+                (!propertyName && boundName.text === 'list'))
+            ) {
+              destructuredListNames.add(boundName.text)
+            }
+          }
+        }
+      }
+      ts.forEachChild(node, discover)
+    }
+    discover(sourceFile)
+  }
+
+  let count = 0
+  const inspect = (node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression
+      if (
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'list' &&
+        isClientExpression(callee.expression)
+      ) {
+        count += 1
+      } else if (ts.isIdentifier(callee) && destructuredListNames.has(callee.text)) {
+        count += 1
+      } else if (
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'invoke' &&
+        node.arguments.some(
+          (argument) =>
+            ts.isPropertyAccessExpression(argument) &&
+            argument.name.text === 'name' &&
+            ts.isIdentifier(argument.expression) &&
+            routeNames.has(argument.expression.text)
+        )
+      ) {
+        count += 1
+      }
+    }
+    ts.forEachChild(node, inspect)
+  }
+  inspect(sourceFile)
   return count
 }
 
@@ -473,6 +581,16 @@ async function main() {
 
     await checkMemoryPresenterLayerImports(filePath, specifiers, violations)
 
+    if (isUnder(filePath, MAIN_SOURCE_ROOT)) {
+      const legacyListCalls = countMatches(source, LEGACY_MEMORY_PRESENTER_LIST_PATTERN)
+      const allowedCalls = LEGACY_MEMORY_PRESENTER_LIST_ALLOWLIST.get(path.resolve(filePath)) ?? 0
+      if (legacyListCalls > allowedCalls) {
+        violations.push(
+          `[memory-legacy-list-caller] ${relativePath(filePath)} expected <= ${allowedCalls}, found ${legacyListCalls}; use memory.page or an owner-scoped lookup`
+        )
+      }
+    }
+
     if (RENDERER_BUSINESS_ROOTS.some((root) => isUnder(filePath, root))) {
       const file = relativePath(filePath)
       const legacyPresenterHelperCount = countMatches(
@@ -484,6 +602,9 @@ async function main() {
       const windowElectronCount = countMatches(source, WINDOW_ELECTRON_PATTERN)
       const windowApiCount = countMatches(source, WINDOW_API_PATTERN)
       const actualListenerCount = countMatches(source, IPC_RENDERER_LISTENER_PATTERN)
+      const legacyMemoryListCount = countDeprecatedMemoryClientCalls(source, filePath)
+      const allowedMemoryListCount =
+        LEGACY_MEMORY_BRIDGE_ALLOWLIST.get(path.resolve(filePath)) ?? 0
 
       if (legacyPresenterImportCount > 0) {
         violations.push(
@@ -518,6 +639,12 @@ async function main() {
       if (actualListenerCount > 0) {
         violations.push(
           `[renderer-business-direct-ipc-listener] ${file} expected 0, found ${actualListenerCount}`
+        )
+      }
+
+      if (legacyMemoryListCount > allowedMemoryListCount) {
+        violations.push(
+          `[memory-legacy-list-caller] ${file} expected <= ${allowedMemoryListCount}, found ${legacyMemoryListCount}; use memoryClient.page`
         )
       }
     }

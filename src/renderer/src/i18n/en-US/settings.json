@@ -208,6 +208,7 @@
       "searchPlaceholder": "Search memories",
       "noSearchResults": "No memories match your search.",
       "addMemory": "Add memory",
+      "loadMore": "Load more",
       "addContentPlaceholder": "What you want this assistant to remember…",
       "addCategoryLabel": "Memory category",
       "addCategoryNone": "No category",
@@ -309,9 +310,9 @@
         "forget": {
           "title": "Forgetting",
           "score": "Computed decay score",
-          "materialized": "Stored decay",
+          "materialized": "Legacy stored decay snapshot",
           "notRefreshed": "Not refreshed yet",
-          "stale": "Stored decay is missing or differs from the computed score.",
+          "stale": "This legacy snapshot differs from the current score; archive eligibility uses the current score.",
           "halfLife": "Half-life days",
           "age": "Age days",
           "anchor": "Decay anchor"
@@ -2909,6 +2910,7 @@
       "emptyDescription": "Add a memory manually or let the agent create one during conversation.",
       "disabledDescription": "Turn memory on before adding new rows for this agent.",
       "addMemory": "Add memory",
+      "loadMore": "Load more",
       "configTitle": "Memory settings",
       "configDescription": "Changes apply immediately per field.",
       "relativeWeightsHint": "Weights are relative; higher values contribute more to ranking.",

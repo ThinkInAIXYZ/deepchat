@@ -66,6 +66,12 @@ export interface MemoryRepositoryPort {
   getByProvenanceKey(agentId: string, provenanceKey: string): AgentMemoryRow | undefined
   rekeyProvenance(agentId: string, id: string, expectedKey: string, nextKey: string): boolean
   listByAgent(agentId: string, options?: AgentMemoryListOptions): AgentMemoryRow[]
+  listManagementPage(
+    agentId: string,
+    cursor: MemoryManagementPageCursor | null,
+    limit: number
+  ): AgentMemoryRow[]
+  listManagementVisibleByIds(agentId: string, ids: string[]): AgentMemoryRow[]
   listByIds(agentId: string, ids: string[]): AgentMemoryRow[]
   getCognitiveMaintenanceInput(
     agentId: string,
@@ -328,6 +334,16 @@ export interface MemoryVectorRef {
 export interface ConsolidationScanCursor {
   createdAt: number
   id: string
+}
+
+export interface MemoryManagementPageCursor {
+  createdAt: number
+  id: string
+}
+
+export interface MemoryManagementPage {
+  rows: AgentMemoryRow[]
+  nextCursor: MemoryManagementPageCursor | null
 }
 
 // Vector store port (DuckDB), isolated per agent: one database each, with independent dimensions.

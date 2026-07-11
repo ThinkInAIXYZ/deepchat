@@ -3088,6 +3088,35 @@ describe('MemoryPresenter management', () => {
     expect(presenter.getByIds('a', ['other-agent-memory'])).toEqual([])
   })
 
+  it('keeps source-span lookups inside management visibility', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const ids = presenter.writeMemoriesSync(
+      [
+        { kind: 'semantic', content: 'active source' },
+        { kind: 'semantic', content: 'archived source' },
+        { kind: 'semantic', content: 'superseded source' },
+        { kind: 'semantic', content: 'conflicted source' }
+      ],
+      { agentId: 'a' }
+    )
+    repo.archive(ids[1])
+    repo.markSuperseded(ids[2], ids[0])
+    repo.updateStatus(ids[3], 'conflicted')
+    repo.insert({
+      id: 'persona-source',
+      agentId: 'a',
+      kind: 'persona',
+      content: 'hidden persona',
+      status: 'fts_only'
+    })
+
+    expect(
+      presenter
+        .getManagementVisibleByIds('a', [ids[2], ids[1], ids[3], 'persona-source', ids[0]])
+        .map((row) => row.id)
+    ).toEqual([ids[1], ids[0]])
+  })
+
   it('archiveUserMemory soft-archives owned memory and writes content-free user audit', async () => {
     const { presenter, repo, auditRepo } = makePresenter(enabledConfig)
     const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis cache' }], {

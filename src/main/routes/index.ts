@@ -103,6 +103,7 @@ import {
   memoryListConflictsRoute,
   memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
+  memoryPageRoute,
   memoryListRoute,
   memoryListViewManifestsRoute,
   memoryRejectPersonaDraftRoute,
@@ -113,6 +114,8 @@ import {
   memorySearchRoute,
   memorySetPersonaAnchorRoute,
   memoryUpdateRoute,
+  decodeMemoryPageCursor,
+  encodeMemoryPageCursor,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -690,7 +693,7 @@ function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
 }
 
 function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, memoryId: string) {
-  const row = runtime.memoryPresenter.listMemories(agentId).find((memory) => memory.id === memoryId)
+  const [row] = runtime.memoryPresenter.getManagementVisibleByIds(agentId, [memoryId])
   if (!row || row.agent_id !== agentId || !row.source_session) return null
   const sourceEntryIds = parseAgentMemorySourceEntryIds(row.source_entry_ids)
   if (!sourceEntryIds?.length) return null
@@ -2331,6 +2334,16 @@ export async function dispatchDeepchatRoute(
       const input = memoryListRoute.input.parse(rawInput)
       const memories = runtime.memoryPresenter.listMemories(input.agentId).map(toMemoryItemDto)
       return memoryListRoute.output.parse({ memories })
+    }
+
+    case memoryPageRoute.name: {
+      const input = memoryPageRoute.input.parse(rawInput)
+      const cursor = input.cursor ? decodeMemoryPageCursor(input.cursor) : null
+      const page = runtime.memoryPresenter.pageMemories(input.agentId, cursor, input.limit)
+      return memoryPageRoute.output.parse({
+        items: page.rows.map(toMemoryItemDto),
+        nextCursor: page.nextCursor ? encodeMemoryPageCursor({ v: 1, ...page.nextCursor }) : null
+      })
     }
 
     case memorySearchRoute.name: {

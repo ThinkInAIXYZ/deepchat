@@ -2880,6 +2880,7 @@
       "emptyDescription": "Dodaj pamięć ręcznie albo pozwól agentowi utworzyć ją podczas rozmowy.",
       "disabledDescription": "Włącz pamięć, zanim dodasz nowe wpisy dla tego agenta.",
       "addMemory": "Dodaj pamięć",
+      "loadMore": "Wczytaj więcej",
       "configTitle": "Ustawienia pamięci",
       "configDescription": "Zmiany są stosowane natychmiast dla każdego pola.",
       "relativeWeightsHint": "Wagi są względne; wyższe wartości mocniej wpływają na ranking.",

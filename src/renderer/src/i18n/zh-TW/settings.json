@@ -2889,6 +2889,7 @@
       "emptyDescription": "可以手動新增記憶，也可以讓代理在對話中自動建立。",
       "disabledDescription": "為此代理開啟記憶後才能新增內容。",
       "addMemory": "新增記憶",
+      "loadMore": "載入更多",
       "configTitle": "記憶設定",
       "configDescription": "每個欄位修改後立即生效。",
       "relativeWeightsHint": "權重是相對值；值越高，對排序影響越大。",

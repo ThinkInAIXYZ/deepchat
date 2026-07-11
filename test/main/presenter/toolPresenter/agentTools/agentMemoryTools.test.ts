@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
 
 import {
   AgentMemoryToolHandler,
@@ -33,6 +34,37 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
   }) as any
 
 describe('Agent memory tools', () => {
+  it('rejects memory_remember content above the manual limit before invoking the runtime', async () => {
+    const runtimePort = buildRuntimePort()
+    const handler = new AgentMemoryToolHandler(runtimePort)
+
+    await expect(
+      handler.call(
+        MEMORY_TOOL_NAMES.remember,
+        { content: 'x'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS + 1) },
+        'conversation-1'
+      )
+    ).rejects.toThrow()
+    expect(runtimePort.rememberMemory).not.toHaveBeenCalled()
+  })
+
+  it('accepts astral content at the manual code-point limit', async () => {
+    const runtimePort = buildRuntimePort({
+      rememberMemory: vi.fn().mockResolvedValue({ action: 'created', id: 'mem-emoji' })
+    })
+    const handler = new AgentMemoryToolHandler(runtimePort)
+    const content = '😀'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS)
+
+    await handler.call(MEMORY_TOOL_NAMES.remember, { content }, 'conversation-1')
+
+    expect(runtimePort.rememberMemory).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({ content }),
+      'conversation-1',
+      expect.any(Object)
+    )
+  })
+
   it('passes memory_remember category through to the runtime port', async () => {
     const runtimePort = buildRuntimePort({
       rememberMemory: vi.fn().mockResolvedValue({ action: 'created', id: 'mem-1' })

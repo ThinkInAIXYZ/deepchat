@@ -146,6 +146,36 @@ export class FakeRepository implements MemoryRepositoryPort {
     return result
   }
 
+  listManagementPage(
+    agentId: string,
+    cursor: { createdAt: number; id: string } | null,
+    limit: number
+  ) {
+    return this.listByAgent(agentId, { includeArchived: true })
+      .filter((row) => row.kind !== 'persona')
+      .filter(
+        (row) =>
+          cursor === null ||
+          row.created_at < cursor.createdAt ||
+          (row.created_at === cursor.createdAt && row.id < cursor.id)
+      )
+      .sort((a, b) => b.created_at - a.created_at || b.id.localeCompare(a.id))
+      .slice(0, Math.max(1, Math.floor(limit)))
+  }
+
+  listManagementVisibleByIds(agentId: string, ids: string[]) {
+    const idSet = new Set(ids)
+    return [...this.rows.values()].filter(
+      (row) =>
+        row.agent_id === agentId &&
+        idSet.has(row.id) &&
+        row.superseded_by === null &&
+        row.status !== 'conflicted' &&
+        row.kind !== 'persona' &&
+        row.kind !== 'working'
+    )
+  }
+
   listByIds(agentId: string, ids: string[]) {
     const idSet = new Set(ids)
     return [...this.rows.values()].filter((row) => row.agent_id === agentId && idSet.has(row.id))

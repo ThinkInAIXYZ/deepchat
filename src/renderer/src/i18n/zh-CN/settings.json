@@ -309,9 +309,9 @@
         "forget": {
           "title": "遗忘",
           "score": "现算衰减分",
-          "materialized": "已存衰减分",
+          "materialized": "旧版存储衰减快照",
           "notRefreshed": "尚未刷新",
-          "stale": "已存值缺失或与现算分不一致。",
+          "stale": "旧版快照与当前结果不一致；归档判断使用当前实时计算值。",
           "halfLife": "半衰天数",
           "age": "已衰减天数",
           "anchor": "衰减锚点"
@@ -2909,6 +2909,7 @@
       "emptyDescription": "可以手动添加记忆，也可以让智能体在对话中自动创建。",
       "disabledDescription": "为此智能体开启记忆后才能新增内容。",
       "addMemory": "新增记忆",
+      "loadMore": "加载更多",
       "configTitle": "记忆设置",
       "configDescription": "每个字段修改后即时生效。",
       "relativeWeightsHint": "权重是相对值；值越高，对排序影响越大。",

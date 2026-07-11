@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
 import {
   FakeAuditRepository,
   FakeRepository,
@@ -46,6 +47,29 @@ function makeLLM(decision: string, config = extractionConfig) {
 }
 
 describe('MemoryPresenter.addUserMemory (manual user write)', () => {
+  it('rejects oversized manual content before recall, provider, persistence, or audit work', async () => {
+    const { presenter, repo, auditRepo, generateText } = makeLLM('{"decision":"ADD"}')
+
+    const outcome = await presenter.addUserMemory('deepchat', {
+      content: 'x'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS + 1)
+    })
+
+    expect(outcome).toEqual({ action: 'noop', reason: 'content-too-large' })
+    expect(repo.listByAgent('deepchat')).toHaveLength(0)
+    expect(auditRepo.listByAgent('deepchat')).toHaveLength(0)
+    expect(generateText).not.toHaveBeenCalled()
+  })
+
+  it('accepts the manual limit when astral characters use two UTF-16 code units', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const content = '😀'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS)
+
+    const outcome = await presenter.addUserMemory('deepchat', { content })
+
+    expect(outcome.action).toBe('created')
+    expect(repo.listByAgent('deepchat')[0]?.content).toBe(content)
+  })
+
   it('directly adds when no extraction model is configured and audits the user write', async () => {
     const { presenter, repo, auditRepo } = makePresenter(enabledConfig)
 

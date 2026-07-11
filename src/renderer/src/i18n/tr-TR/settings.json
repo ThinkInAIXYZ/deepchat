@@ -2880,6 +2880,7 @@
       "emptyDescription": "Elle bellek ekleyin veya konuşma sırasında ajanın oluşturmasına izin verin.",
       "disabledDescription": "Bu ajan için yeni satırlar eklemeden önce belleği açın.",
       "addMemory": "Bellek ekle",
+      "loadMore": "Daha fazla yükle",
       "configTitle": "Bellek ayarları",
       "configDescription": "Değişiklikler her alan için hemen uygulanır.",
       "relativeWeightsHint": "Ağırlıklar görecelidir; daha yüksek değerler sıralamayı daha fazla etkiler.",

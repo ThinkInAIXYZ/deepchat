@@ -8,6 +8,7 @@ import {
   type AgentMemoryHealthCategory
 } from '@shared/types/agent-memory'
 import { serializeAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
+import { MEMORY_PAGE_MAX_LIMIT } from '@shared/contracts/routes/memory.routes'
 import type { MemoryPerfObserver } from '../../memoryPresenter/ports'
 import {
   AGENT_MEMORY_FTS_POLICY_VERSION,
@@ -172,7 +173,13 @@ const AGENT_MEMORY_BASE_INDEX_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_memory_provenance
     ON agent_memory(agent_id, provenance_key)
     WHERE provenance_key IS NOT NULL;
+  DROP INDEX IF EXISTS idx_agent_memory_management_page;
   DROP INDEX IF EXISTS idx_agent_memory_cognitive_top;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_management_page_v2
+    ON agent_memory(agent_id, created_at DESC, id DESC)
+    WHERE superseded_by IS NULL
+      AND status != 'conflicted'
+      AND kind NOT IN ('persona', 'working');
   CREATE INDEX IF NOT EXISTS idx_agent_memory_cognitive_top_v2
     ON agent_memory(agent_id, importance DESC, created_at DESC, id DESC)
     WHERE superseded_by IS NULL
@@ -896,6 +903,48 @@ export class AgentMemoryTable extends BaseTable {
     }
 
     return this.db.prepare(sql).all(...params) as AgentMemoryRow[]
+  }
+
+  listManagementPage(
+    agentId: string,
+    cursor: { createdAt: number; id: string } | null,
+    limit: number
+  ): AgentMemoryRow[] {
+    const cappedLimit = Math.min(MEMORY_PAGE_MAX_LIMIT + 1, Math.max(1, Math.floor(limit)))
+    const cursorSql = cursor ? 'AND (created_at < ? OR (created_at = ? AND id < ?))' : ''
+    const params: Array<string | number> = [agentId]
+    if (cursor) params.push(cursor.createdAt, cursor.createdAt, cursor.id)
+    params.push(cappedLimit)
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status != 'conflicted'
+           AND kind NOT IN ('persona', 'working')
+           ${cursorSql}
+         ORDER BY created_at DESC, id DESC
+         LIMIT ?`
+      )
+      .all(...params) as AgentMemoryRow[]
+  }
+
+  listManagementVisibleByIds(agentId: string, ids: string[]): AgentMemoryRow[] {
+    const uniqueIds = [...new Set(ids.filter((id) => id.length > 0))]
+    if (uniqueIds.length === 0) return []
+    const placeholders = uniqueIds.map(() => '?').join(', ')
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND id IN (${placeholders})
+           AND superseded_by IS NULL
+           AND status != 'conflicted'
+           AND kind NOT IN ('persona', 'working')`
+      )
+      .all(agentId, ...uniqueIds) as AgentMemoryRow[]
   }
 
   // Active = the approved self-model. A draft persona also has superseded_by IS NULL, so the state

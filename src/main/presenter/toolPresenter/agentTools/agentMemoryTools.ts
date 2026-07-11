@@ -2,7 +2,11 @@ import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
-import { AGENT_MEMORY_CATEGORIES } from '@shared/types/agent-memory'
+import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import {
+  AGENT_MEMORY_CATEGORIES,
+  AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS
+} from '@shared/types/agent-memory'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 
@@ -20,6 +24,10 @@ const rememberSchema = z.strictObject({
     .string()
     .trim()
     .min(1)
+    .refine(
+      (content) => unicodeCodePointLength(content) <= AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
+      `content must be at most ${AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS} Unicode code points`
+    )
     .describe('The durable fact or event to remember long-term, written in third person.'),
   kind: z
     .enum(['semantic', 'episodic'])

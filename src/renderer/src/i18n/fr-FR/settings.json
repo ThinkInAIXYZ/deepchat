@@ -2889,6 +2889,7 @@
       "emptyDescription": "Ajoutez une mémoire manuellement ou laissez l’agent en créer une pendant la conversation.",
       "disabledDescription": "Activez la mémoire avant d’ajouter de nouvelles entrées pour cet agent.",
       "addMemory": "Ajouter une mémoire",
+      "loadMore": "Charger plus",
       "configTitle": "Paramètres de mémoire",
       "configDescription": "Les modifications s’appliquent immédiatement champ par champ.",
       "relativeWeightsHint": "Les pondérations sont relatives ; les valeurs plus élevées influencent davantage le classement.",

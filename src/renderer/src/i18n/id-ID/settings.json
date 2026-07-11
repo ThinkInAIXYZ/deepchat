@@ -2880,6 +2880,7 @@
       "emptyDescription": "Tambahkan memori secara manual atau biarkan agen membuatnya selama percakapan.",
       "disabledDescription": "Aktifkan memori sebelum menambahkan baris baru untuk agen ini.",
       "addMemory": "Tambah memori",
+      "loadMore": "Muat lebih banyak",
       "configTitle": "Pengaturan memori",
       "configDescription": "Perubahan diterapkan langsung untuk tiap bidang.",
       "relativeWeightsHint": "Bobot bersifat relatif; nilai yang lebih tinggi lebih memengaruhi peringkat.",

@@ -1151,6 +1151,25 @@ describe('renderer api clients', () => {
                   }
                 ]
               }
+            case 'memory.page':
+              return {
+                items: [
+                  {
+                    id: 'mem-page',
+                    agentId: payload?.agentId ?? 'agent-1',
+                    kind: 'semantic',
+                    category: null,
+                    content: 'paged memory',
+                    importance: 0.6,
+                    status: 'embedded',
+                    sourceSession: null,
+                    sourceEntryIds: null,
+                    supersededBy: null,
+                    createdAt: 900
+                  }
+                ],
+                nextCursor: null
+              }
             default:
               return {}
           }
@@ -1424,6 +1443,7 @@ describe('renderer api clients', () => {
     const lifecycle = await memoryClient.getLifecycle('agent-1', 'mem-1')
     const archiveCandidatePreview =
       await memoryClient.getArchiveCandidateLifecyclePreview('agent-1')
+    const page = await memoryClient.page('agent-1', { cursor: 'opaque', limit: 25 })
     const off = memoryClient.onUpdated(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.list', { agentId: 'agent-1' })
@@ -1505,6 +1525,12 @@ describe('renderer api clients', () => {
       }
     )
     expect(archiveCandidatePreview.lifecycles[0].memoryId).toBe('mem-1')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(21, 'memory.page', {
+      agentId: 'agent-1',
+      cursor: 'opaque',
+      limit: 25
+    })
+    expect(page.items[0].id).toBe('mem-page')
     expect(bridge.on).toHaveBeenCalledWith('memory.updated', expect.any(Function))
     expect(typeof off).toBe('function')
   })

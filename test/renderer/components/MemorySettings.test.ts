@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { Agent } from '../../../src/shared/types/agent-interface'
@@ -59,6 +59,10 @@ const baseStatus: MemoryStatusDto = {
   personaDraftCount: 0,
   personaVersionCount: 0
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 async function setup(
   agents: Agent[],
@@ -329,15 +333,25 @@ describe('MemorySettings redesign shell', () => {
   })
 
   it('uses memory.updated as the single refresh path instead of child changed events', async () => {
-    const { wrapper, emitUpdated } = await setup([deepchat])
+    vi.useFakeTimers()
+    const { wrapper, emitUpdated, memoryClient } = await setup([deepchat])
     const before = Number(listView(wrapper).props('refreshToken'))
+    const statusCallsBefore = memoryClient.getStatus.mock.calls.length
 
     listView(wrapper).vm.$emit('changed')
     await flushPromises()
     expect(listView(wrapper).props('refreshToken')).toBe(before)
 
     emitUpdated({ agentId: 'deepchat' })
+    emitUpdated({ agentId: 'deepchat' })
+    emitUpdated({ agentId: 'deepchat' })
+    await vi.advanceTimersByTimeAsync(99)
+    await flushPromises()
+    expect(Number(listView(wrapper).props('refreshToken'))).toBe(before)
+
+    await vi.advanceTimersByTimeAsync(1)
     await flushPromises()
     expect(Number(listView(wrapper).props('refreshToken'))).toBeGreaterThan(before)
+    expect(memoryClient.getStatus).toHaveBeenCalledTimes(statusCallsBefore + 1)
   })
 })

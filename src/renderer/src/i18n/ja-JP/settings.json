@@ -2889,6 +2889,7 @@
       "emptyDescription": "手動でメモリを追加するか、会話中にエージェントへ作成させます。",
       "disabledDescription": "このエージェントに新しい行を追加する前にメモリをオンにしてください。",
       "addMemory": "メモリを追加",
+      "loadMore": "さらに読み込む",
       "configTitle": "メモリ設定",
       "configDescription": "変更はフィールドごとにすぐ適用されます。",
       "relativeWeightsHint": "重みは相対値です。値が高いほどランキングへの影響が大きくなります。",

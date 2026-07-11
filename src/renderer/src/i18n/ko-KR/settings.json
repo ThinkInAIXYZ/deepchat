@@ -2889,6 +2889,7 @@
       "emptyDescription": "메모리를 수동으로 추가하거나 대화 중 에이전트가 만들도록 하세요.",
       "disabledDescription": "이 에이전트에 새 행을 추가하기 전에 메모리를 켜세요.",
       "addMemory": "메모리 추가",
+      "loadMore": "더 불러오기",
       "configTitle": "메모리 설정",
       "configDescription": "변경 사항은 필드별로 즉시 적용됩니다.",
       "relativeWeightsHint": "가중치는 상대값입니다. 값이 높을수록 순위에 더 크게 반영됩니다.",

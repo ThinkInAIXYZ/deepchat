@@ -24,7 +24,8 @@ import type { CronJobRunSessionStarter } from '@/presenter/cronJobs'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
-  createEmptyMemoryHealth
+  createEmptyMemoryHealth,
+  decodeMemoryPageCursor
 } from '@shared/contracts/routes'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
@@ -2238,7 +2239,7 @@ describe('dispatchDeepchatRoute', () => {
   it('returns a null memory source span when the SQLite presenter has no tape table', async () => {
     const { runtime } = createRuntime()
     ;(runtime as any).memoryPresenter = {
-      listMemories: vi.fn(() => [
+      getManagementVisibleByIds: vi.fn(() => [
         {
           id: 'm1',
           agent_id: 'deepchat',
@@ -2256,6 +2257,59 @@ describe('dispatchDeepchatRoute', () => {
         { webContentsId: 42, windowId: 7 }
       )
     ).resolves.toEqual({ span: null })
+  })
+
+  it('dispatches bounded memory pages and returns an opaque keyset cursor', async () => {
+    const { runtime } = createRuntime()
+    const pageMemories = vi.fn(() => ({
+      rows: [
+        {
+          id: 'm1',
+          agent_id: 'deepchat',
+          user_scope: null,
+          kind: 'semantic',
+          category: null,
+          content: 'paged fact',
+          importance: 0.5,
+          status: 'embedded',
+          embedding_id: null,
+          embedding_dim: null,
+          embedding_model: null,
+          source_session: null,
+          provenance_key: null,
+          is_anchor: 0,
+          superseded_by: null,
+          created_at: 1000,
+          last_accessed: null,
+          access_count: 0,
+          decay_score: null,
+          source_entry_ids: null,
+          confidence: null,
+          last_consolidated_at: null,
+          conflict_state: null,
+          conflict_with: null,
+          persona_state: null,
+          decision_revision: 1
+        }
+      ],
+      nextCursor: { createdAt: 1000, id: 'm1' }
+    }))
+    ;(runtime as any).memoryPresenter = { pageMemories }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'memory.page',
+      { agentId: 'deepchat', limit: 25 },
+      { webContentsId: 42, windowId: 7 }
+    )
+
+    expect(pageMemories).toHaveBeenCalledWith('deepchat', null, 25)
+    expect(result.items.map((item) => item.id)).toEqual(['m1'])
+    expect(decodeMemoryPageCursor(result.nextCursor!)).toEqual({
+      v: 1,
+      createdAt: 1000,
+      id: 'm1'
+    })
   })
 
   it('does not expand all sessions when listing memory view manifests', async () => {

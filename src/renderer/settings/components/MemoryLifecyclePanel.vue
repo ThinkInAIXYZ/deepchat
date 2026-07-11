@@ -83,6 +83,7 @@
               :value="formatScore(lifecycle.forget.decayScore)"
             />
             <MetricRow
+              v-if="lifecycle.forget.materializedDecay !== null"
               :label="t('settings.deepchatAgents.memoryManager.lifecycle.forget.materialized')"
               :value="formatOptionalScore(lifecycle.forget.materializedDecay)"
             />
@@ -99,7 +100,9 @@
               :value="formatTime(lifecycle.forget.anchorAt)"
             />
             <div
-              v-if="lifecycle.forget.materializedStale"
+              v-if="
+                lifecycle.forget.materializedDecay !== null && lifecycle.forget.materializedStale
+              "
               class="text-[10px] text-muted-foreground"
             >
               {{ t('settings.deepchatAgents.memoryManager.lifecycle.forget.stale') }}
@@ -233,17 +236,6 @@ const archiveConditions = computed(() => {
         gaps.decayAboveThresholdBy !== undefined
           ? t('settings.deepchatAgents.memoryManager.lifecycle.archive.decayAboveThresholdBy', {
               score: formatScore(gaps.decayAboveThresholdBy)
-            })
-          : null
-    },
-    {
-      key: 'neverAccessed',
-      ok: lifecycle.archiveEligibility.neverAccessed,
-      label: t('settings.deepchatAgents.memoryManager.lifecycle.archive.neverAccessed'),
-      detail:
-        gaps.accessCount !== undefined
-          ? t('settings.deepchatAgents.memoryManager.lifecycle.archive.accessCount', {
-              count: gaps.accessCount
             })
           : null
     },

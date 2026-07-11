@@ -2880,6 +2880,7 @@
       "emptyDescription": "Füge eine Erinnerung manuell hinzu oder lasse den Assistenten im Gespräch eine erstellen.",
       "disabledDescription": "Aktiviere Erinnerung, bevor du neue Einträge für diesen Assistenten hinzufügst.",
       "addMemory": "Erinnerung hinzufügen",
+      "loadMore": "Mehr laden",
       "configTitle": "Erinnerungseinstellungen",
       "configDescription": "Änderungen werden je Feld sofort angewendet.",
       "relativeWeightsHint": "Gewichtungen sind relativ; höhere Werte beeinflussen die Rangfolge stärker.",

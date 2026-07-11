@@ -40,6 +40,8 @@
       </div>
     </div>
 
+    <p v-if="searchError" class="text-xs text-destructive">{{ searchError }}</p>
+
     <div
       v-if="expandedMode === 'create'"
       :ref="setExpandedPanelEl"
@@ -57,8 +59,6 @@
         @cancel-pending="cancelPendingAction"
       />
     </div>
-
-    <p v-if="searchError" class="text-xs text-destructive">{{ searchError }}</p>
 
     <div v-if="initialLoading" class="py-12 text-center text-sm text-muted-foreground">
       {{ t('common.loading') }}
@@ -148,6 +148,18 @@
       </div>
     </ScrollArea>
 
+    <div v-if="!initialLoading && nextCursor" class="flex justify-center pt-1">
+      <Button
+        variant="outline"
+        size="sm"
+        data-testid="memory-load-more"
+        :disabled="loadingMore"
+        @click="loadMore"
+      >
+        {{ loadingMore ? t('common.loading') : t('settings.memory.redesign.loadMore') }}
+      </Button>
+    </div>
+
     <AlertDialog :open="deleteTarget !== null" @update:open="onDeleteDialogOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -226,7 +238,9 @@ const { toast } = useToast()
 const memoryClient = createMemoryClient()
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const memories = ref<MemoryItem[]>([])
+const nextCursor = ref<string | null>(null)
 const searchQuery = ref('')
 const searchResults = ref<MemorySearchResult[]>([])
 const searchError = ref<string | null>(null)
@@ -245,9 +259,10 @@ const pendingAction = ref<PendingPanelAction | null>(null)
 const closePrompt = ref(false)
 const panelDirty = ref(false)
 const deleteTarget = ref<MemoryItem | null>(null)
+let pageGeneration = 0
+let loadedPageCount = 0
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let searchRequestId = 0
-let loadRequestId = 0
 
 const memoryDisabled = computed(() => props.memoryEnabled === false)
 // Only block the whole view with a spinner when there's nothing to show yet
@@ -255,8 +270,9 @@ const memoryDisabled = computed(() => props.memoryEnabled === false)
 const initialLoading = computed(() => loading.value && memories.value.length === 0)
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
 const categoryFilterActive = computed(() => categoryFilter.value !== 'all')
-const searchRows = computed<MemoryItem[]>(() => searchResults.value)
-const baseRows = computed(() => (searchActive.value ? searchRows.value : memories.value))
+const baseRows = computed<MemoryItem[]>(() =>
+  searchActive.value ? searchResults.value : memories.value
+)
 const visibleMemories = computed(() =>
   baseRows.value.filter((memory) => {
     if (!includeArchived.value && memory.status === 'archived') return false
@@ -415,53 +431,9 @@ function notifyFailed(error?: unknown): void {
 }
 
 function clearSearchTimer(): void {
-  if (searchTimer) {
-    clearTimeout(searchTimer)
-    searchTimer = null
-  }
-}
-
-async function load(): Promise<void> {
-  const agentId = props.agentId
-  if (!agentId) return
-  const requestId = ++loadRequestId
-  loading.value = true
-  try {
-    const rows = await memoryClient.list(agentId)
-    if (requestId !== loadRequestId || props.agentId !== agentId) return
-    memories.value = rows
-    if (expandedMemory.value) {
-      const refreshed = rows.find((row) => row.id === expandedMemory.value?.id)
-      if (refreshed) {
-        expandedMemory.value = refreshed
-      } else {
-        closePanel()
-        expandedMemory.value = null
-      }
-    }
-  } catch (error) {
-    if (requestId !== loadRequestId || props.agentId !== agentId) return
-    notifyFailed(error)
-  } finally {
-    if (requestId === loadRequestId && props.agentId === agentId) loading.value = false
-  }
-}
-
-function resetForAgentChange(): void {
-  clearSearchTimer()
-  searchRequestId += 1
-  searchQuery.value = ''
-  searchResults.value = []
-  searchError.value = null
-  categoryFilter.value = 'all'
-  includeArchived.value = false
-  memories.value = []
-  expandedMemory.value = null
-  pendingAction.value = null
-  closePrompt.value = false
-  deleteTarget.value = null
-  expandedMode.value = null
-  panelDirty.value = false
+  if (!searchTimer) return
+  clearTimeout(searchTimer)
+  searchTimer = null
 }
 
 function isCurrentSearch(agentId: string, query: string, requestId: number): boolean {
@@ -474,23 +446,23 @@ async function runSearch(agentId: string, query: string, requestId: number): Pro
   searchError.value = null
   try {
     const results = await memoryClient.search(agentId, query)
-    if (isCurrentSearch(agentId, query, requestId)) searchResults.value = results
-  } catch (error) {
     if (isCurrentSearch(agentId, query, requestId)) {
-      searchResults.value = []
-      searchError.value =
-        error instanceof Error
-          ? error.message
-          : t('settings.deepchatAgents.memoryManager.searchFailed')
+      searchResults.value = Array.isArray(results) ? results : []
     }
+  } catch (error) {
+    if (!isCurrentSearch(agentId, query, requestId)) return
+    searchResults.value = []
+    searchError.value =
+      error instanceof Error
+        ? error.message
+        : t('settings.deepchatAgents.memoryManager.searchFailed')
   }
 }
 
 function queueSearch(value: string, delay = 200): void {
   const query = value.trim()
   clearSearchTimer()
-  searchRequestId += 1
-  const requestId = searchRequestId
+  const requestId = ++searchRequestId
   if (!query) {
     searchResults.value = []
     searchError.value = null
@@ -498,6 +470,135 @@ function queueSearch(value: string, delay = 200): void {
   }
   const agentId = props.agentId
   searchTimer = setTimeout(() => void runSearch(agentId, query, requestId), delay)
+}
+
+function mergePageRows(current: MemoryItem[], incoming: MemoryItem[]): MemoryItem[] {
+  const seen = new Set<string>()
+  const merged: MemoryItem[] = []
+  for (const row of [...current, ...incoming]) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    merged.push(row)
+  }
+  return merged
+}
+
+async function loadPage(append: boolean, generation: number): Promise<void> {
+  const agentId = props.agentId
+  if (!agentId) return
+  const cursor = append ? (nextCursor.value ?? undefined) : undefined
+  if (append && !cursor) return
+  if (append) loadingMore.value = true
+  else loading.value = true
+  try {
+    const page = await memoryClient.page(agentId, { cursor })
+    if (generation !== pageGeneration || props.agentId !== agentId) return
+    const nextRows = append ? mergePageRows(memories.value, page.items) : [...page.items]
+    if (
+      !append &&
+      panelDirty.value &&
+      expandedMemory.value &&
+      !nextRows.some((row) => row.id === expandedMemory.value?.id)
+    ) {
+      nextRows.push(expandedMemory.value)
+    }
+    memories.value = nextRows
+    nextCursor.value = page.nextCursor
+    if (append) loadedPageCount += 1
+    else loadedPageCount = 1
+    if (!append && expandedMemory.value) {
+      const refreshed = page.items.find((row) => row.id === expandedMemory.value?.id)
+      if (refreshed) {
+        if (!panelDirty.value) expandedMemory.value = refreshed
+      } else if (!panelDirty.value) {
+        closePanel()
+      }
+    }
+  } catch (error) {
+    if (generation !== pageGeneration || props.agentId !== agentId) return
+    notifyFailed(error)
+  } finally {
+    if (generation === pageGeneration && props.agentId === agentId) {
+      if (append) loadingMore.value = false
+      else loading.value = false
+    }
+  }
+}
+
+function resetPages(): number {
+  pageGeneration += 1
+  loading.value = false
+  loadingMore.value = false
+  memories.value = []
+  nextCursor.value = null
+  loadedPageCount = 0
+  return pageGeneration
+}
+
+async function refreshLoadedPages(): Promise<void> {
+  const agentId = props.agentId
+  if (!agentId) return
+  const pagesToLoad = Math.max(1, loadedPageCount)
+  const generation = ++pageGeneration
+  loading.value = true
+  loadingMore.value = false
+  let cursor: string | undefined
+  let refreshedRows: MemoryItem[] = []
+  let refreshedCursor: string | null = null
+  let refreshedPageCount = 0
+  try {
+    for (let pageIndex = 0; pageIndex < pagesToLoad; pageIndex += 1) {
+      const page = await memoryClient.page(agentId, { cursor })
+      if (generation !== pageGeneration || props.agentId !== agentId) return
+      refreshedRows = mergePageRows(refreshedRows, page.items)
+      refreshedCursor = page.nextCursor
+      refreshedPageCount += 1
+      if (!page.nextCursor) break
+      cursor = page.nextCursor
+    }
+    if (
+      panelDirty.value &&
+      expandedMemory.value &&
+      !refreshedRows.some((row) => row.id === expandedMemory.value?.id)
+    ) {
+      refreshedRows.push(expandedMemory.value)
+    }
+    memories.value = refreshedRows
+    nextCursor.value = refreshedCursor
+    loadedPageCount = refreshedPageCount
+    if (expandedMemory.value) {
+      const refreshed = refreshedRows.find((row) => row.id === expandedMemory.value?.id)
+      if (refreshed && !panelDirty.value) expandedMemory.value = refreshed
+      else if (!refreshed && !panelDirty.value) closePanel()
+    }
+    if (searchActive.value) queueSearch(searchQuery.value, 0)
+  } catch (error) {
+    if (generation === pageGeneration && props.agentId === agentId) notifyFailed(error)
+  } finally {
+    if (generation === pageGeneration && props.agentId === agentId) loading.value = false
+  }
+}
+
+function loadMore(): void {
+  if (loadingMore.value || !nextCursor.value) return
+  void loadPage(true, pageGeneration)
+}
+
+function resetForAgentChange(): void {
+  searchQuery.value = ''
+  searchResults.value = []
+  searchError.value = null
+  clearSearchTimer()
+  searchRequestId += 1
+  categoryFilter.value = 'all'
+  includeArchived.value = false
+  resetPages()
+  expandedMemory.value = null
+  pendingAction.value = null
+  closePrompt.value = false
+  deleteTarget.value = null
+  expandedMode.value = null
+  panelDirty.value = false
 }
 
 function openCreate(): void {
@@ -699,7 +800,7 @@ watch(
   () => props.agentId,
   () => {
     resetForAgentChange()
-    void load()
+    void loadPage(false, pageGeneration)
   },
   { immediate: true }
 )
@@ -707,14 +808,11 @@ watch(
 watch(
   () => props.refreshToken,
   () => {
-    void load()
-    if (searchActive.value) queueSearch(searchQuery.value, 0)
+    void refreshLoadedPages()
   }
 )
 
-watch(searchQuery, (value) => {
-  queueSearch(value)
-})
+watch(searchQuery, (value) => queueSearch(value))
 
 watch(panelDirty, (dirty) => {
   if (!dirty) {
@@ -730,7 +828,5 @@ watch(
   }
 )
 
-onUnmounted(() => {
-  clearSearchTimer()
-})
+onUnmounted(() => clearSearchTimer())
 </script>

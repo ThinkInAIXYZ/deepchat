@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { buildMemoryProvenanceKey } from '@/presenter/memoryPresenter/core/scoring'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
-import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import {
+  AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
+  type AgentMemoryCategory
+} from '@shared/types/agent-memory'
 import { enabledConfig, FakeRepository, makePresenter } from './fakes/memoryFakes'
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -37,6 +40,25 @@ function insertMemory(
 }
 
 describe('MemoryPresenter.updateMemory', () => {
+  it('rejects oversized content without mutating or auditing the row', () => {
+    const { presenter, repo, auditRepo, getEmbeddings } = makePresenter(enabledConfig)
+    insertMemory(repo, {
+      id: 'm1',
+      content: 'user likes redis',
+      category: 'user_preference',
+      importance: 0.6
+    })
+
+    expect(
+      presenter.updateMemory('deepchat', 'm1', {
+        content: 'x'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS + 1)
+      })
+    ).toEqual({ action: 'noop', reason: 'content-too-large' })
+    expect(repo.getById('m1')?.content).toBe('user likes redis')
+    expect(auditRepo.listByAgent('deepchat')).toHaveLength(0)
+    expect(getEmbeddings).not.toHaveBeenCalled()
+  })
+
   it('sets metadata exactly and emits manual-edit without re-embedding', async () => {
     const onMemoryChanged = vi.fn()
     const { presenter, repo, auditRepo, getEmbeddings } = makePresenter(enabledConfig, undefined, {

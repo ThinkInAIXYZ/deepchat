@@ -80,6 +80,41 @@ describe.sequential('architecture guard', () => {
     expect(result.stderr).toContain('[renderer-business-direct-ipc-listener]')
   })
 
+  it('fails when renderer business code calls the deprecated unbounded memory list', async () => {
+    await writeSettingsFixture(`
+      import { createMemoryClient as makeMemoryClient } from '@api/MemoryClient'
+
+      const memoryClient = makeMemoryClient()
+      const renamedClient = memoryClient
+      const { list: legacyList } = renamedClient
+      export const fixture = [
+        renamedClient.list('deepchat'),
+        legacyList('deepchat'),
+        makeMemoryClient().list('deepchat')
+      ]
+    `)
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[memory-legacy-list-caller]')
+    expect(result.stderr).toContain('use memoryClient.page')
+  })
+
+  it('fails when renderer business code invokes the legacy memory route directly', async () => {
+    await writeSettingsFixture(`
+      import { memoryListRoute as legacyMemoryRoute } from '@shared/contracts/routes'
+
+      const bridge = { invoke: async (..._args: unknown[]) => ({ memories: [] }) }
+      export const fixture = bridge.invoke(legacyMemoryRoute.name, { agentId: 'deepchat' })
+    `)
+
+    const result = runArchitectureGuard()
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('[memory-legacy-list-caller]')
+  })
+
   it('fails when memory core imports runtime context', async () => {
     await writeFixture(
       MEMORY_CORE_FIXTURE_PATH,

@@ -2889,6 +2889,7 @@
       "emptyDescription": "Adicione uma memória manualmente ou deixe o agente criar uma durante a conversa.",
       "disabledDescription": "Ative a memória antes de adicionar novas linhas para este agente.",
       "addMemory": "Adicionar memória",
+      "loadMore": "Carregar mais",
       "configTitle": "Configurações de memória",
       "configDescription": "As alterações são aplicadas imediatamente por campo.",
       "relativeWeightsHint": "Os pesos são relativos; valores mais altos influenciam mais a classificação.",

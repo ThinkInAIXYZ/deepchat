@@ -101,11 +101,15 @@ async function setup(
     searchRows?: MemorySearchResult[]
     agentId?: string
     refreshToken?: number
+    nextCursor?: string | null
   } = {}
 ) {
   vi.resetModules()
   const memoryClient = {
-    list: vi.fn().mockResolvedValue(options.rows ?? [memory()]),
+    page: vi.fn().mockResolvedValue({
+      items: options.rows ?? [memory()],
+      nextCursor: options.nextCursor ?? null
+    }),
     search: vi.fn().mockResolvedValue(
       options.searchRows ?? [
         {
@@ -159,16 +163,18 @@ describe('MemoryListView', () => {
     const { wrapper, memoryClient } = await setup()
 
     await wrapper.find('input[type="search"]').setValue('redis')
-    vi.advanceTimersByTime(200)
+    await vi.advanceTimersByTimeAsync(200)
     await flushPromises()
-    expect(memoryClient.search).toHaveBeenLastCalledWith('deepchat', 'redis')
+    expect(wrapper.text()).toContain('user likes redis')
+    expect(memoryClient.search).toHaveBeenCalledWith('deepchat', 'redis')
 
     await wrapper.setProps({ refreshToken: 1 })
-    vi.advanceTimersByTime(0)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
     await flushPromises()
 
     expect((wrapper.find('input[type="search"]').element as HTMLInputElement).value).toBe('redis')
-    expect(memoryClient.search).toHaveBeenLastCalledWith('deepchat', 'redis')
+    expect(wrapper.text()).toContain('user likes redis')
 
     await wrapper.find('[role="button"]').trigger('click')
     await flushPromises()
@@ -182,14 +188,63 @@ describe('MemoryListView', () => {
     expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
   })
 
-  it('keeps the current list mounted during a background refresh instead of showing the loading placeholder', async () => {
+  it('shows server search errors without replacing the loaded management page', async () => {
+    vi.useFakeTimers()
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.search.mockRejectedValueOnce(new Error('search unavailable'))
+
+    await wrapper.find('input[type="search"]').setValue('redis')
+    await vi.advanceTimersByTimeAsync(200)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('search unavailable')
+    expect(wrapper.text()).not.toContain('user likes redis')
+
+    await wrapper.find('input[type="search"]').setValue('')
+    await flushPromises()
+    expect(wrapper.text()).toContain('user likes redis')
+  })
+
+  it('drops stale search responses after a newer query completes', async () => {
+    vi.useFakeTimers()
+    const { wrapper, memoryClient } = await setup()
+    const staleSearch = deferred<MemorySearchResult[]>()
+    memoryClient.search.mockReturnValueOnce(staleSearch.promise)
+    memoryClient.search.mockResolvedValueOnce([
+      {
+        ...memory({ id: 'new-result', content: 'postgres result' }),
+        score: 1,
+        sources: { fts: true }
+      }
+    ])
+
+    await wrapper.find('input[type="search"]').setValue('redis')
+    await vi.advanceTimersByTimeAsync(200)
+    await wrapper.find('input[type="search"]').setValue('postgres')
+    await vi.advanceTimersByTimeAsync(200)
+    await flushPromises()
+
+    staleSearch.resolve([
+      {
+        ...memory({ id: 'stale-result', content: 'stale redis result' }),
+        score: 1,
+        sources: { fts: true }
+      }
+    ])
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('postgres result')
+    expect(wrapper.text()).not.toContain('stale redis result')
+  })
+
+  it('keeps loaded pages visible while a refresh atomically replaces them', async () => {
     const { wrapper, memoryClient } = await setup({ rows: [memory()] })
     expect(wrapper.text()).toContain('user likes redis')
 
-    let resolveNext!: (rows: MemoryItem[]) => void
-    memoryClient.list.mockImplementationOnce(
+    let resolveNext!: (page: { items: MemoryItem[]; nextCursor: string | null }) => void
+    memoryClient.page.mockImplementationOnce(
       () =>
-        new Promise<MemoryItem[]>((resolve) => {
+        new Promise<{ items: MemoryItem[]; nextCursor: string | null }>((resolve) => {
           resolveNext = resolve
         })
     )
@@ -197,12 +252,10 @@ describe('MemoryListView', () => {
     await wrapper.setProps({ refreshToken: 1 })
     await flushPromises()
 
-    // While the background refresh is in flight, the loading placeholder
-    // must not replace the already-rendered list.
     expect(wrapper.text()).not.toContain('common.loading')
     expect(wrapper.text()).toContain('user likes redis')
 
-    resolveNext([memory({ content: 'updated fact' })])
+    resolveNext({ items: [memory({ content: 'updated fact' })], nextCursor: null })
     await flushPromises()
 
     expect(wrapper.text()).toContain('updated fact')
@@ -210,23 +263,118 @@ describe('MemoryListView', () => {
 
   it('ignores stale list failures after switching agents', async () => {
     const { wrapper, memoryClient, toast } = await setup({ rows: [memory()] })
-    const staleLoad = deferred<MemoryItem[]>()
-    memoryClient.list.mockReturnValueOnce(staleLoad.promise)
+    const staleLoad = deferred<{ items: MemoryItem[]; nextCursor: string | null }>()
+    memoryClient.page.mockReturnValueOnce(staleLoad.promise)
 
     await wrapper.setProps({ refreshToken: 1 })
     await flushPromises()
-    expect(memoryClient.list).toHaveBeenLastCalledWith('deepchat')
+    expect(memoryClient.page).toHaveBeenLastCalledWith('deepchat', { cursor: undefined })
 
-    memoryClient.list.mockResolvedValueOnce([memory({ id: 'other-memory', content: 'other fact' })])
+    memoryClient.page.mockResolvedValueOnce({
+      items: [memory({ id: 'other-memory', content: 'other fact' })],
+      nextCursor: null
+    })
     await wrapper.setProps({ agentId: 'other' })
     await flushPromises()
-    expect(memoryClient.list).toHaveBeenLastCalledWith('other')
+    expect(memoryClient.page).toHaveBeenLastCalledWith('other', { cursor: undefined })
 
     staleLoad.reject(new Error('stale failure'))
     await flushPromises()
 
     expect(toast).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('other fact')
+  })
+
+  it('appends and deduplicates keyset pages with the opaque next cursor', async () => {
+    const { wrapper, memoryClient } = await setup({
+      rows: [memory({ id: 'm1', content: 'first page' })],
+      nextCursor: 'cursor-1'
+    })
+    memoryClient.page.mockResolvedValueOnce({
+      items: [
+        memory({ id: 'm1', content: 'duplicate should be ignored' }),
+        memory({ id: 'm2', content: 'second page' })
+      ],
+      nextCursor: null
+    })
+
+    await wrapper.find('[data-testid="memory-load-more"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.page).toHaveBeenLastCalledWith('deepchat', { cursor: 'cursor-1' })
+    expect(wrapper.text()).toContain('first page')
+    expect(wrapper.text()).toContain('second page')
+    expect(wrapper.text()).not.toContain('duplicate should be ignored')
+    expect(wrapper.findAll('[role="button"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="memory-load-more"]').exists()).toBe(false)
+  })
+
+  it('keeps load more available when loaded rows are hidden by local search', async () => {
+    const { wrapper } = await setup({
+      rows: [memory()],
+      nextCursor: 'cursor-1'
+    })
+
+    await wrapper.find('input[type="search"]').setValue('postgres')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('user likes redis')
+    expect(wrapper.find('[data-testid="memory-load-more"]').exists()).toBe(true)
+  })
+
+  it('drops a stale load-more response after refresh resets the page generation', async () => {
+    const { wrapper, memoryClient } = await setup({
+      rows: [memory({ id: 'm1', content: 'first page' })],
+      nextCursor: 'cursor-1'
+    })
+    const stalePage = deferred<{ items: MemoryItem[]; nextCursor: string | null }>()
+    memoryClient.page.mockReturnValueOnce(stalePage.promise)
+
+    await wrapper.find('[data-testid="memory-load-more"]').trigger('click')
+    memoryClient.page.mockResolvedValueOnce({
+      items: [memory({ id: 'fresh', content: 'fresh first page' })],
+      nextCursor: null
+    })
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+
+    stalePage.resolve({
+      items: [memory({ id: 'stale', content: 'stale appended page' })],
+      nextCursor: null
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('fresh first page')
+    expect(wrapper.text()).not.toContain('stale appended page')
+  })
+
+  it('keeps a dirty page-two editor open when first-page refresh omits its row', async () => {
+    const { wrapper, memoryClient } = await setup({
+      rows: [memory({ id: 'm1', content: 'first page' })],
+      nextCursor: 'cursor-1'
+    })
+    memoryClient.page.mockResolvedValueOnce({
+      items: [memory({ id: 'm2', content: 'page two draft source' })],
+      nextCursor: null
+    })
+    await wrapper.find('[data-testid="memory-load-more"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('[role="button"]')[1].trigger('click')
+    const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
+    panel.vm.$emit('dirty', true)
+    await flushPromises()
+
+    memoryClient.page.mockResolvedValueOnce({
+      items: [memory({ id: 'm1', content: 'refreshed first page' })],
+      nextCursor: 'cursor-2'
+    })
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m2')
+    expect(wrapper.findComponent({ name: 'MemoryInlinePanel' }).props('memory').content).toBe(
+      'page two draft source'
+    )
   })
 
   it('opens rows as read-only details and row edit as an edit panel', async () => {
@@ -371,7 +519,10 @@ describe('MemoryListView', () => {
     expect(memoryClient.archive).toHaveBeenCalledWith('deepchat', 'm1')
     expect(wrapper.text()).not.toContain('user likes redis')
 
-    memoryClient.list.mockResolvedValueOnce([memory({ id: 'm2', content: 'visible fact' })])
+    memoryClient.page.mockResolvedValueOnce({
+      items: [memory({ id: 'm2', content: 'visible fact' })],
+      nextCursor: null
+    })
     await wrapper.setProps({ refreshToken: 1 })
     await flushPromises()
     memoryClient.archive.mockResolvedValueOnce(false)
@@ -393,9 +544,9 @@ describe('MemoryListView', () => {
     })
 
     await wrapper.find('input[type="search"]').setValue('redis')
-    vi.advanceTimersByTime(200)
+    await vi.advanceTimersByTimeAsync(200)
     await flushPromises()
-    expect(memoryClient.search).toHaveBeenLastCalledWith('deepchat', 'redis')
+    expect(memoryClient.search).toHaveBeenCalledWith('deepchat', 'redis')
     expect(wrapper.text()).toContain('redis search fact')
 
     await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
@@ -417,7 +568,7 @@ describe('MemoryListView', () => {
     expect(wrapper.find('[data-testid="memory-row-archive"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="memory-row-restore"]').exists()).toBe(false)
 
-    memoryClient.list.mockResolvedValueOnce([archived])
+    memoryClient.page.mockResolvedValueOnce({ items: [archived], nextCursor: null })
     await wrapper.setProps({ refreshToken: 1 })
     await flushPromises()
     memoryClient.restore.mockResolvedValueOnce(false)
@@ -505,12 +656,15 @@ describe('MemoryListView', () => {
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
 
-    memoryClient.list.mockResolvedValueOnce([memory({ id: 'm1', content: 'updated' })])
+    memoryClient.page.mockResolvedValueOnce({
+      items: [memory({ id: 'm1', content: 'updated' })],
+      nextCursor: null
+    })
     await wrapper.setProps({ refreshToken: 1 })
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
 
-    memoryClient.list.mockResolvedValueOnce([])
+    memoryClient.page.mockResolvedValueOnce({ items: [], nextCursor: null })
     await wrapper.setProps({ refreshToken: 2 })
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
@@ -539,17 +693,14 @@ describe('MemoryListView', () => {
       status: 'archived',
       createdAt: 1700000001000
     })
-    const { wrapper, memoryClient } = await setup({
-      rows: [memory(), archived],
-      searchRows: []
-    })
+    const { wrapper, memoryClient } = await setup({ rows: [memory(), archived] })
 
     await wrapper.find('input[type="checkbox"]').setChecked(true)
     await wrapper.find('input[type="search"]').setValue('archived')
-    vi.advanceTimersByTime(200)
+    await vi.advanceTimersByTimeAsync(200)
     await flushPromises()
 
-    expect(memoryClient.search).toHaveBeenLastCalledWith('deepchat', 'archived')
+    expect(memoryClient.search).toHaveBeenCalledWith('deepchat', 'archived')
     expect(wrapper.text()).toContain('settings.memory.redesign.archivedMatches')
     expect(wrapper.text()).toContain('archived redis fact')
   })

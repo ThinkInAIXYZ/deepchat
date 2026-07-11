@@ -2880,6 +2880,7 @@
       "emptyDescription": "Thêm bộ nhớ thủ công hoặc để tác nhân tạo trong khi trò chuyện.",
       "disabledDescription": "Bật bộ nhớ trước khi thêm hàng mới cho tác nhân này.",
       "addMemory": "Thêm bộ nhớ",
+      "loadMore": "Tải thêm",
       "configTitle": "Cài đặt bộ nhớ",
       "configDescription": "Thay đổi được áp dụng ngay cho từng trường.",
       "relativeWeightsHint": "Trọng số là tương đối; giá trị cao hơn ảnh hưởng nhiều hơn đến xếp hạng.",

@@ -2880,6 +2880,7 @@
       "emptyDescription": "Tambah memori secara manual atau biarkan ejen menciptanya semasa perbualan.",
       "disabledDescription": "Hidupkan memori sebelum menambah baris baharu untuk ejen ini.",
       "addMemory": "Tambah memori",
+      "loadMore": "Muat lagi",
       "configTitle": "Tetapan memori",
       "configDescription": "Perubahan digunakan serta-merta untuk setiap medan.",
       "relativeWeightsHint": "Wajaran adalah relatif; nilai lebih tinggi lebih mempengaruhi kedudukan.",

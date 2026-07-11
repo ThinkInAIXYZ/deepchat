@@ -25,6 +25,8 @@ import type {
   MemoryLifecycle,
   MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
+import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
+import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 import type {
   MemoryExtractionInput,
   MemoryExtractionResult,
@@ -284,6 +286,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
     options: WriteMemoriesOptions,
     model?: { providerId: string; modelId: string } | null
   ): Promise<MemoryWriteOutcome> {
+    if (unicodeCodePointLength(candidate.content) > AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS) {
+      return { action: 'noop', reason: 'content-too-large' }
+    }
     return this.writeCoordinator.rememberMemory(candidate, options, model)
   }
 
@@ -309,6 +314,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
     },
     sessionId?: string | null
   ): Promise<MemoryWriteOutcome> {
+    this.runtime.assertSafeAgentId(agentId)
+    if (unicodeCodePointLength(input.content) > AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS) {
+      return { action: 'noop', reason: 'content-too-large' }
+    }
     return this.writeCoordinator.addUserMemory(agentId, input, sessionId)
   }
 
@@ -389,12 +398,21 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.persona.rollbackPersona(agentId, versionId)
   }
 
+  /** @deprecated Use pageMemories for bounded management reads. */
   listMemories(agentId: string): AgentMemoryRow[] {
     return this.management.listMemories(agentId)
   }
 
+  pageMemories(agentId: string, cursor: { createdAt: number; id: string } | null, limit: number) {
+    return this.management.pageMemories(agentId, cursor, limit)
+  }
+
   getByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[] {
     return this.management.getByIds(agentId, memoryIds)
+  }
+
+  getManagementVisibleByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[] {
+    return this.management.getManagementVisibleByIds(agentId, memoryIds)
   }
 
   getLifecycle(agentId: string, memoryId: string): MemoryLifecycle | null {

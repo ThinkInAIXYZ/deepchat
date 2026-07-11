@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
 import {
   createEmptyMemoryHealth,
+  decodeMemoryPageCursor,
+  encodeMemoryPageCursor,
   memoryAddRoute,
   memoryArchiveRoute,
   memoryGetArchiveCandidateLifecyclePreviewRoute,
@@ -11,11 +13,13 @@ import {
   memoryGetLifecycleRoute,
   memoryGetStatusRoute,
   memoryListRoute,
+  memoryPageRoute,
   memoryReindexRoute,
   memoryRestoreRoute,
   memorySearchRoute,
   memoryUpdateRoute
 } from '@shared/contracts/routes'
+import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
 import { memoryUpdatedEvent } from '@shared/contracts/events/memory.events'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
@@ -170,6 +174,51 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
       memories: [toMemoryItemDto(makeRow({ category: null }))]
     })
     expect(parsed.memories[0].category).toBeNull()
+  })
+})
+
+describe('memory.page route contract', () => {
+  it('round-trips a versioned opaque cursor and applies the default page limit', () => {
+    const cursor = encodeMemoryPageCursor({ v: 1, createdAt: 1_700_000_000_000, id: 'memory-α' })
+    expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/u)
+    expect(decodeMemoryPageCursor(cursor)).toEqual({
+      v: 1,
+      createdAt: 1_700_000_000_000,
+      id: 'memory-α'
+    })
+    expect(memoryPageRoute.input.parse({ agentId: 'deepchat', cursor })).toEqual({
+      agentId: 'deepchat',
+      cursor,
+      limit: 100
+    })
+  })
+
+  it('rejects malformed, unsupported, and oversized cursors instead of returning page one', () => {
+    const unsupported = Buffer.from(
+      JSON.stringify({ v: 2, createdAt: 1000, id: 'm1' }),
+      'utf8'
+    ).toString('base64url')
+    const unsafeTimestamp = Buffer.from(
+      JSON.stringify({ v: 1, createdAt: Number.MAX_SAFE_INTEGER + 1, id: 'm1' }),
+      'utf8'
+    ).toString('base64url')
+    for (const cursor of ['not+base64', unsupported, unsafeTimestamp, 'a'.repeat(2049)]) {
+      expect(memoryPageRoute.input.safeParse({ agentId: 'deepchat', cursor }).success).toBe(false)
+    }
+    expect(memoryPageRoute.input.safeParse({ agentId: 'deepchat', limit: 101 }).success).toBe(false)
+  })
+
+  it('caps the output page to 100 management rows', () => {
+    const items = Array.from({ length: 100 }, (_, index) =>
+      toMemoryItemDto(makeRow({ id: `m${index}` }))
+    )
+    expect(memoryPageRoute.output.parse({ items, nextCursor: null }).items).toHaveLength(100)
+    expect(
+      memoryPageRoute.output.safeParse({
+        items: [...items, toMemoryItemDto(makeRow({ id: 'overflow' }))],
+        nextCursor: null
+      }).success
+    ).toBe(false)
   })
 })
 
@@ -428,6 +477,30 @@ describe('memory.add route contract', () => {
     expect(
       memoryAddRoute.input.safeParse({
         agentId: 'deepchat',
+        content: 'x'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS)
+      }).success
+    ).toBe(true)
+    expect(
+      memoryAddRoute.input.safeParse({
+        agentId: 'deepchat',
+        content: 'x'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS + 1)
+      }).success
+    ).toBe(false)
+    expect(
+      memoryAddRoute.input.safeParse({
+        agentId: 'deepchat',
+        content: '😀'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS)
+      }).success
+    ).toBe(true)
+    expect(
+      memoryAddRoute.input.safeParse({
+        agentId: 'deepchat',
+        content: '😀'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS + 1)
+      }).success
+    ).toBe(false)
+    expect(
+      memoryAddRoute.input.safeParse({
+        agentId: 'deepchat',
         content: 'x',
         category: 'unknown'
       }).success
@@ -470,6 +543,18 @@ describe('memory.update route contract', () => {
     expect(
       memoryUpdateRoute.input.safeParse({ agentId: 'deepchat', memoryId: 'm1', patch: {} }).success
     ).toBe(false)
+    expect(
+      memoryUpdateRoute.input.safeParse({
+        agentId: 'deepchat',
+        memoryId: 'm1',
+        patch: { content: 'x'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS + 1) }
+      }).success
+    ).toBe(false)
+    expect(
+      memoryUpdateRoute.output.parse({
+        result: { action: 'noop', reason: 'content-too-large' }
+      }).result.reason
+    ).toBe('content-too-large')
     expect(
       memoryUpdateRoute.input.safeParse({
         agentId: 'bad/id',

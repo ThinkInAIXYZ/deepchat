@@ -200,6 +200,7 @@ const configOpen = ref(false)
 const refreshToken = ref(0)
 let statusRequestId = 0
 let disposeUpdated: (() => void) | null = null
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
 const configReady = computed(() => resolvedAgentId.value === selectedAgentId.value)
 const memoryEnabled = computed(
@@ -353,11 +354,23 @@ async function refreshSelected(): Promise<void> {
   await Promise.all([loadResolved(), loadStatus()])
 }
 
+function queueRefreshSelected(): void {
+  if (refreshTimer) clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null
+    void refreshSelected()
+  }, 100)
+}
+
 function handleConfigSaved(): void {
   void refreshSelected()
 }
 
 watch(selectedAgentId, () => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
   status.value = null
   // Children already react to the agentId prop change on their own; don't
   // also bump refreshToken here or they'd reload twice per switch.
@@ -382,11 +395,13 @@ onMounted(() => {
   void reload(fromQuery)
   disposeUpdated = memoryClient.onUpdated((payload) => {
     if (payload.agentId !== selectedAgentId.value) return
-    void refreshSelected()
+    queueRefreshSelected()
   })
 })
 
 onUnmounted(() => {
+  if (refreshTimer) clearTimeout(refreshTimer)
+  refreshTimer = null
   disposeUpdated?.()
   disposeUpdated = null
 })

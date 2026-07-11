@@ -2,11 +2,19 @@ import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import {
   AGENT_MEMORY_CATEGORIES,
+  AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
   AGENT_MEMORY_HEALTH_CATEGORY_KEYS,
   AGENT_MEMORY_HEALTH_KIND_KEYS,
   AGENT_MEMORY_HEALTH_STATUS_KEYS,
   AGENT_MEMORY_HEALTH_TOP_KIND_KEYS
 } from '../../types/agent-memory'
+import { unicodeCodePointLength } from '../../lib/unicodeText'
+
+const ManualMemoryContentSchema = z
+  .string()
+  .refine((content) => unicodeCodePointLength(content) <= AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS, {
+    message: `content must be at most ${AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS} Unicode code points`
+  })
 
 /** URL-safe agent ids, matching the main-process memory storage guard. */
 const AgentIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/, 'invalid agentId')
@@ -58,7 +66,9 @@ export const MemoryUpdateResultSchema = z.object({
   memoryId: z.string().optional(),
   supersededId: z.string().optional(),
   // Only populated on a 'noop' outcome, explaining why the edit was refused/ignored.
-  reason: z.enum(['not-editable', 'conflict', 'suppressed', 'duplicate', 'empty']).optional()
+  reason: z
+    .enum(['not-editable', 'conflict', 'suppressed', 'duplicate', 'empty', 'content-too-large'])
+    .optional()
 })
 
 export const MemoryStatusSchema = z.object({
@@ -327,10 +337,90 @@ export const MemoryViewManifestSchema = z.object({
   createdAt: z.number()
 })
 
+export const MEMORY_PAGE_DEFAULT_LIMIT = 100
+export const MEMORY_PAGE_MAX_LIMIT = 100
+
+export const MemoryPageCursorV1Schema = z
+  .object({
+    v: z.literal(1),
+    createdAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    id: z.string().min(1).max(512)
+  })
+  .strict()
+
+export type MemoryPageCursorV1 = z.infer<typeof MemoryPageCursorV1Schema>
+
+function encodeBase64Url(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '')
+}
+
+function decodeBase64Url(value: string): string {
+  if (!/^[A-Za-z0-9_-]+$/u.test(value)) throw new Error('invalid base64url cursor')
+  const remainder = value.length % 4
+  if (remainder === 1) throw new Error('invalid base64url cursor length')
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - remainder) % 4)
+  const binary = atob(padded)
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+  const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  if (encodeBase64Url(decoded) !== value) throw new Error('non-canonical base64url cursor')
+  return decoded
+}
+
+export function encodeMemoryPageCursor(cursor: MemoryPageCursorV1): string {
+  return encodeBase64Url(JSON.stringify(MemoryPageCursorV1Schema.parse(cursor)))
+}
+
+export function decodeMemoryPageCursor(cursor: string): MemoryPageCursorV1 {
+  try {
+    return MemoryPageCursorV1Schema.parse(JSON.parse(decodeBase64Url(cursor)))
+  } catch {
+    throw new Error('invalid memory page cursor')
+  }
+}
+
+const MemoryPageCursorSchema = z
+  .string()
+  .min(1)
+  .max(2048)
+  .refine(
+    (cursor) => {
+      try {
+        decodeMemoryPageCursor(cursor)
+        return true
+      } catch {
+        return false
+      }
+    },
+    { message: 'invalid memory page cursor' }
+  )
+
+/** @deprecated Use memoryPageRoute for bounded management reads. */
 export const memoryListRoute = defineRouteContract({
   name: 'memory.list',
   input: z.object({ agentId: AgentIdSchema }),
   output: z.object({ memories: z.array(MemoryItemSchema) })
+})
+
+export const memoryPageRoute = defineRouteContract({
+  name: 'memory.page',
+  input: z.object({
+    agentId: AgentIdSchema,
+    cursor: MemoryPageCursorSchema.optional(),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(MEMORY_PAGE_MAX_LIMIT)
+      .optional()
+      .default(MEMORY_PAGE_DEFAULT_LIMIT)
+  }),
+  output: z.object({
+    items: z.array(MemoryItemSchema).max(MEMORY_PAGE_MAX_LIMIT),
+    nextCursor: MemoryPageCursorSchema.nullable()
+  })
 })
 
 export const memoryGetStatusRoute = defineRouteContract({
@@ -378,7 +468,9 @@ export const memoryAddRoute = defineRouteContract({
   name: 'memory.add',
   input: z.object({
     agentId: AgentIdSchema,
-    content: z.string().min(1),
+    content: ManualMemoryContentSchema.refine((content) => content.length > 0, {
+      message: 'content must not be empty'
+    }),
     kind: z.enum(['episodic', 'semantic']).optional(),
     category: z.enum(AGENT_MEMORY_CATEGORIES).optional(),
     importance: z.number().min(0).max(1).optional(),
@@ -394,7 +486,7 @@ export const memoryUpdateRoute = defineRouteContract({
     memoryId: z.string().min(1),
     patch: z
       .object({
-        content: z.string().optional(),
+        content: ManualMemoryContentSchema.optional(),
         category: z.enum(AGENT_MEMORY_CATEGORIES).nullable().optional(),
         importance: z.number().min(0).max(1).optional()
       })
@@ -543,6 +635,7 @@ export const memorySetPersonaAnchorRoute = defineRouteContract({
 })
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>
+export type MemoryPage = z.infer<typeof memoryPageRoute.output>
 export type MemorySearchResult = z.infer<typeof MemorySearchResultSchema>
 export type MemoryAddResult = z.infer<typeof MemoryAddResultSchema>
 export type MemoryUpdateResult = z.infer<typeof MemoryUpdateResultSchema>

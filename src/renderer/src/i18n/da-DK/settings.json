@@ -2889,6 +2889,7 @@
       "emptyDescription": "Tilføj en hukommelse manuelt, eller lad agenten oprette en under samtalen.",
       "disabledDescription": "Slå hukommelse til, før du tilføjer nye rækker for denne agent.",
       "addMemory": "Tilføj hukommelse",
+      "loadMore": "Indlæs flere",
       "configTitle": "Hukommelsesindstillinger",
       "configDescription": "Ændringer anvendes straks for hvert felt.",
       "relativeWeightsHint": "Vægte er relative; højere værdier påvirker rangeringen mere.",
