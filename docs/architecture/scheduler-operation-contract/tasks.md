@@ -43,9 +43,11 @@
 - [x] `providers.testConnection` 暂不改：精确 legacy allowlist、无 automatic retry、tests 固定 model 60s
   observation/no-model no-uniform-bound truth。
 - [x] Chat preflight reads 迁 idempotent observation，abort 后不进入下一 mutation。
+- [x] verifier repair：stop fence 覆盖同 session 全部并发 steer preflight；旧 cleanup 不删新 fence。
 - [x] Chat send/steer/respond 删除 non-cancellable mutation 外层 deadline。
 - [x] stop 保留 both-cleanups-attempted，不把 cancel request 说成 terminal settlement。
 - [x] static allowlist 精确为 `sessions.create` + `providers.testConnection` 两项。
+- [x] verifier repair：禁止 production namespace import 绕过 OperationRunner provenance guard，并补 alias 负测。
 - [x] production legacy retry caller 归零后删除 `retry()` interface/factory adapter/input。
 - [x] 保持 AgentRuntime exactly-once cancel/stale-run tests 全绿。
 - [ ] 独立 verify agent 对每个 consumer 重做 capability 分类。
@@ -59,6 +61,9 @@ SCH-002B development 验证记录：
 - single-worker full：`472` files，`4726 passed / 5 failed / 140 skipped`；在未修改的基线
   `fe126bf3` 上重跑失败文件得到完全相同的 `5` 个失败，新增失败数为 `0`。基线失败属于
   long-steer rebudget、debug mock plan block 与 Spotlight Pinia setup，不在 SCH-002B scope。
+- verifier repair focused：Chat stop/steer fence 与 architecture adversarial guard 共 `46 passed`；namespace
+  factory/type/destructure、factory/property alias、local type alias、routes 外与 renamed owner 均有负测。
+  repair 后 `typecheck`、`format`、`i18n`、`lint` 全部通过；combined full 留给 final verifier/merge gate。
 
 ## PRV-CAN-001：Provider owner cancellation（dependent slice）
 

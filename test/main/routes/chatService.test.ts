@@ -565,4 +565,152 @@ describe('ChatService', () => {
     })
     expect(providerExecutionPort.sendMessage).toHaveBeenCalledTimes(2)
   })
+
+  it('aborts every concurrent steer preflight for the stopped session', async () => {
+    const scheduler = createNodeOperationRunner()
+    const firstRead = deferred<ReturnType<typeof availableSession>>()
+    const secondRead = deferred<ReturnType<typeof availableSession>>()
+    const sessionRepository = {
+      resolve: vi
+        .fn()
+        .mockReturnValueOnce(firstRead.promise)
+        .mockReturnValueOnce(secondRead.promise)
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn(),
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn().mockResolvedValue(undefined)
+    }
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: { listBySession: vi.fn(), get: vi.fn() } as any,
+      providerExecutionPort,
+      providerCatalogPort: { getAgentType: vi.fn() } as any,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    const firstSteer = service.steerActiveTurn('session-1', 'first')
+    const secondSteer = service.steerActiveTurn('session-1', 'second')
+    const firstAborted = expect(firstSteer).rejects.toMatchObject({ name: 'AbortError' })
+    const secondAborted = expect(secondSteer).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sessionRepository.resolve).toHaveBeenCalledTimes(2)
+
+    await expect(service.stopStream({ sessionId: 'session-1' })).resolves.toEqual({
+      stopped: true
+    })
+    await Promise.all([firstAborted, secondAborted])
+
+    firstRead.resolve(availableSession({ id: 'session-1', agentId: 'deepchat' }))
+    secondRead.resolve(availableSession({ id: 'session-1', agentId: 'deepchat' }))
+    await Promise.resolve()
+    expect(providerExecutionPort.steerActiveTurn).not.toHaveBeenCalled()
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledOnce()
+    expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledOnce()
+  })
+
+  it('does not let stale steer cleanup delete a newer preflight fence', async () => {
+    const scheduler = createNodeOperationRunner()
+    const firstRead = deferred<ReturnType<typeof availableSession>>()
+    const secondRead = deferred<ReturnType<typeof availableSession>>()
+    const sessionRepository = {
+      resolve: vi
+        .fn()
+        .mockReturnValueOnce(firstRead.promise)
+        .mockReturnValueOnce(secondRead.promise)
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn(),
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn().mockResolvedValue(undefined)
+    }
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: { listBySession: vi.fn(), get: vi.fn() } as any,
+      providerExecutionPort,
+      providerCatalogPort: { getAgentType: vi.fn() } as any,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    const oldSteer = service.steerActiveTurn('session-1', 'old')
+    const oldAborted = expect(oldSteer).rejects.toMatchObject({ name: 'AbortError' })
+    const firstStop = service.stopStream({ sessionId: 'session-1' })
+    const newSteer = service.steerActiveTurn('session-1', 'new')
+    const newAborted = expect(newSteer).rejects.toMatchObject({ name: 'AbortError' })
+
+    await firstStop
+    await oldAborted
+    await service.stopStream({ sessionId: 'session-1' })
+
+    firstRead.resolve(availableSession({ id: 'session-1', agentId: 'deepchat' }))
+    secondRead.resolve(availableSession({ id: 'session-1', agentId: 'deepchat' }))
+    await newAborted
+    expect(providerExecutionPort.steerActiveTurn).not.toHaveBeenCalled()
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledTimes(2)
+    expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps an owner-started steer pending while stop only requests cancellation', async () => {
+    const scheduler = createNodeOperationRunner()
+    const firstOwnerMutation = deferred<void>()
+    const providerExecutionPort = {
+      sendMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
+      steerActiveTurn: vi
+        .fn()
+        .mockReturnValueOnce(firstOwnerMutation.promise)
+        .mockResolvedValueOnce(undefined),
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn().mockResolvedValue(undefined)
+    }
+    const service = new ChatService({
+      sessionRepository: {
+        resolve: vi
+          .fn()
+          .mockResolvedValue(availableSession({ id: 'session-1', agentId: 'deepchat' }))
+      } as any,
+      messageRepository: { listBySession: vi.fn(), get: vi.fn() } as any,
+      providerExecutionPort,
+      providerCatalogPort: { getAgentType: vi.fn().mockResolvedValue('deepchat') } as any,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    const firstSteer = service.steerActiveTurn('session-1', 'first')
+    await vi.waitFor(() => {
+      expect(providerExecutionPort.steerActiveTurn).toHaveBeenCalledOnce()
+    })
+    let firstSettled = false
+    void firstSteer.finally(() => {
+      firstSettled = true
+    })
+
+    await expect(service.sendMessage('session-1', 'send')).resolves.toMatchObject({
+      accepted: true
+    })
+    await service.stopStream({ sessionId: 'session-1' })
+    await Promise.resolve()
+    expect(firstSettled).toBe(false)
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledOnce()
+    expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledOnce()
+
+    await expect(service.steerActiveTurn('session-1', 'second')).resolves.toEqual({
+      accepted: true
+    })
+
+    firstOwnerMutation.resolve()
+    await expect(firstSteer).resolves.toEqual({ accepted: true })
+    expect(providerExecutionPort.steerActiveTurn).toHaveBeenCalledTimes(2)
+  })
 })

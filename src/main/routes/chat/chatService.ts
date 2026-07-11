@@ -13,6 +13,7 @@ const CHAT_LOOKUP_TIMEOUT_MS = 5_000
 
 export class ChatService {
   private readonly activeControllers = new Map<string, AbortController>()
+  private readonly steerPreflightControllers = new Map<string, Set<AbortController>>()
 
   constructor(
     private readonly deps: {
@@ -78,12 +79,25 @@ export class ChatService {
     sessionId: string,
     content: string | SendMessageInput
   ): Promise<{ accepted: true }> {
-    const resolution = await this.deps.scheduler.observeIdempotent({
-      task: async () => await this.deps.sessionRepository.resolve(sessionId),
-      deadlineMs: CHAT_LOOKUP_TIMEOUT_MS,
-      reason: `chat.steerActiveTurn:${sessionId}:session`
-    })
-    requireAvailableSession('chat.steerActiveTurn', resolution)
+    const controller = new AbortController()
+    const controllers = this.steerPreflightControllers.get(sessionId) ?? new Set<AbortController>()
+    controllers.add(controller)
+    this.steerPreflightControllers.set(sessionId, controllers)
+
+    try {
+      const resolution = await this.deps.scheduler.observeIdempotent({
+        task: async () => await this.deps.sessionRepository.resolve(sessionId),
+        deadlineMs: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.steerActiveTurn:${sessionId}:session`,
+        signal: controller.signal
+      })
+      requireAvailableSession('chat.steerActiveTurn', resolution)
+    } finally {
+      controllers.delete(controller)
+      if (controllers.size === 0 && this.steerPreflightControllers.get(sessionId) === controllers) {
+        this.steerPreflightControllers.delete(sessionId)
+      }
+    }
 
     await this.deps.providerExecutionPort.steerActiveTurn(sessionId, content)
 
@@ -114,6 +128,14 @@ export class ChatService {
     if (controller) {
       controller.abort()
       this.activeControllers.delete(targetSessionId)
+    }
+
+    const steerControllers = this.steerPreflightControllers.get(targetSessionId)
+    if (steerControllers) {
+      this.steerPreflightControllers.delete(targetSessionId)
+      for (const steerController of steerControllers) {
+        steerController.abort()
+      }
     }
 
     const cleanupResults = await Promise.allSettled([

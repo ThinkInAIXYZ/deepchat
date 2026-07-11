@@ -427,7 +427,7 @@ waitForGenerationSettlement(runId: string): Promise<GenerationTerminalState>
 | `sessions.activate/deactivate` | 同步 map set/unset + event，Promise 返回前已完成 | 直接 await/call；删除无效 timeout，不 retry | `SCH-002B` |
 | `providers.listModels` | getter 在 `Promise.resolve` 前同步完成 | 直接调用；删除两个无效 timeout | `SCH-002B` |
 | `providers.testConnection` | 真实 probe；route 5s 不取消；model 60s 也只观察；no-model 无统一 bound | `SCH-002B` 暂不改，保留为已知 legacy exception且绝不 retry；真实 owner cancellation 另立 `PRV-CAN-001` | provider owner task 后再迁移 |
-| Chat preflight session/agent lookup | read-only；stop 可以停止 route 继续进入 mutation | `observeIdempotent` + route wait signal；late read 不继续 mutation | `SCH-002B` |
+| Chat preflight session/agent lookup | read-only；stop 可以停止 route 继续进入 mutation | `observeIdempotent` + route wait signal；同 session 的 send 与全部并发 steer preflight 都纳入 stop fence，late read 不继续 mutation | `SCH-002B` |
 | `chat.sendMessage/steer/respond` | durable queue/tool mutation；现有 task 不收 signal | 删除 mutation 外层 deadline，等待 owner acceptance；不自动 retry | `SCH-002B`；generation owner 仍属 `CHAT-*` |
 | `chat.stopStream` cleanup | controller abort + permission clear + cancel request；cancel 不是 terminal settle | 保留 request semantics，直接等待 cleanup request results；不宣称 generation settled | `SCH-002B` / `CHAT-*` |
 
