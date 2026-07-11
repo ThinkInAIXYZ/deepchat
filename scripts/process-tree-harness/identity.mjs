@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { readdir, readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -43,16 +44,59 @@ async function queryPosixProcesses() {
     .filter(Boolean)
 }
 
-export async function censusProcesses() {
+export function parseLinuxStat(stat) {
+  const commandEnd = stat.lastIndexOf(')')
+  if (commandEnd < 0) return null
+  const fields = stat.slice(commandEnd + 2).trim().split(/\s+/)
+  const parentPid = Number(fields[1])
+  const startTicks = fields[19]
+  if (!Number.isInteger(parentPid) || !startTicks) return null
+  return { parentPid, startTicks }
+}
+
+async function queryLinuxProcess(pidText) {
+  const pid = Number(pidText)
+  if (!Number.isInteger(pid)) return null
+  try {
+    const statBefore = parseLinuxStat(await readFile(`/proc/${pidText}/stat`, 'utf8'))
+    if (!statBefore) return null
+    const commandBuffer = await readFile(`/proc/${pidText}/cmdline`)
+    const statAfter = parseLinuxStat(await readFile(`/proc/${pidText}/stat`, 'utf8'))
+    if (!statAfter || statBefore.startTicks !== statAfter.startTicks) return null
+    const commandLine = commandBuffer.toString('utf8').replaceAll('\0', ' ').trim()
+    if (!commandLine) return null
+    return {
+      pid,
+      parentPid: statAfter.parentPid,
+      startIdentity: `proc-start-ticks:${statAfter.startTicks}`,
+      commandLine
+    }
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'EACCES' || error?.code === 'EPERM') return null
+    throw error
+  }
+}
+
+async function queryLinuxProcesses() {
+  const entries = await readdir('/proc')
   return (
-    process.platform === 'win32'
-      ? await queryWindowsProcesses()
-      : process.platform === 'darwin' || process.platform === 'linux'
-        ? await queryPosixProcesses()
-        : (() => {
-            throw new Error(`Unsupported process identity platform: ${process.platform}`)
-          })()
-  )
+    await Promise.all(entries.filter((entry) => /^\d+$/.test(entry)).map(queryLinuxProcess))
+  ).filter(Boolean)
+}
+
+export async function censusProcesses() {
+  if (process.platform === 'win32') return queryWindowsProcesses()
+  if (process.platform === 'linux') return queryLinuxProcesses()
+  if (process.platform === 'darwin') return queryPosixProcesses()
+  throw new Error(`Unsupported process identity platform: ${process.platform}`)
+}
+
+export class ProcessIdentityVerificationError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'ProcessIdentityVerificationError'
+    this.code = 'PROCESS_IDENTITY_UNVERIFIED'
+  }
 }
 
 export async function censusMarkedProcesses(marker) {
@@ -61,9 +105,13 @@ export async function censusMarkedProcesses(marker) {
 
 export async function captureProcessIdentity(pid, marker, commandMarkerRequired = true) {
   const identity = (await censusProcesses()).find((entry) => entry.pid === pid)
-  if (!identity) throw new Error(`Process ${pid} exited before identity capture`)
+  if (!identity) {
+    throw new ProcessIdentityVerificationError(`Process ${pid} exited before identity capture`)
+  }
   if (commandMarkerRequired && !identity.commandLine.includes(marker)) {
-    throw new Error(`Process ${pid} command does not contain marker ${marker}`)
+    throw new ProcessIdentityVerificationError(
+      `Process ${pid} command does not contain marker ${marker}`
+    )
   }
   return { ...identity, marker, commandMarkerRequired }
 }

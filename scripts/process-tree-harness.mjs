@@ -65,6 +65,10 @@ async function waitForEvent(eventPath, predicate, timeoutMs) {
   throw new Error(`Harness event timed out after ${timeoutMs}ms`)
 }
 
+function describeExit(exit) {
+  return `code ${exit.code ?? 'null'}, signal ${exit.signal ?? 'null'}`
+}
+
 export function waitForChildExit(child, timeoutMs) {
   return new Promise((resolve, reject) => {
     let settled = false
@@ -84,7 +88,21 @@ export function waitForChildExit(child, timeoutMs) {
     )
     child.once('exit', onExit)
     child.once('error', onError)
+    if (child.exitCode !== null && child.exitCode !== undefined) {
+      finish(resolve, { code: child.exitCode, signal: child.signalCode ?? null })
+    } else if (child.signalCode !== null && child.signalCode !== undefined) {
+      finish(resolve, { code: child.exitCode ?? null, signal: child.signalCode })
+    }
   })
+}
+
+async function waitForTreeReady(eventPath, ownerExitPromise, timeoutMs) {
+  return Promise.race([
+    waitForEvent(eventPath, (event) => event.type === 'tree-ready', timeoutMs),
+    ownerExitPromise.then((exit) => {
+      throw new Error(`Electron harness owner exited before tree-ready (${describeExit(exit)})`)
+    })
+  ])
 }
 
 function roleIdentities(events, census) {
@@ -113,12 +131,18 @@ async function captureReadyIdentities(events, marker, requireCompleteTree) {
       if (requireCompleteTree) throw new Error(`Missing process-ready event for ${role}`)
       continue
     }
-    const commandMarkerRequired = role !== 'utility'
+    const commandMarkerRequired =
+      role !== 'utility' || event.markerMechanism === 'process-title'
     try {
       identities.push({
         ...(await captureProcessIdentity(event.pid, marker, commandMarkerRequired)),
         role,
-        markerSource: commandMarkerRequired ? 'command-line' : 'utility-event'
+        markerSource:
+          role === 'utility' && event.markerMechanism === 'process-title'
+            ? 'process-title'
+            : commandMarkerRequired
+              ? 'command-line'
+              : 'utility-event-unverified'
       })
     } catch (error) {
       if (requireCompleteTree) throw error
@@ -151,6 +175,19 @@ function renderReport(artifact) {
   const callbacks = artifact.observation.utilityCallbacks.length
     ? artifact.observation.utilityCallbacks.map((event) => event.name).join(', ')
     : 'none observed'
+  const probes = artifact.observation.utilityProbes.length
+    ? artifact.observation.utilityProbes
+        .map(
+          (event) =>
+            `${event.target}.${event.eventName} (registered: ${event.registered}, documented: ${event.documentedByElectron ?? event.documentedByNode ?? false})`
+        )
+        .join(', ')
+    : 'none registered'
+  const settlements = artifact.observation.utilitySettlements.length
+    ? artifact.observation.utilitySettlements
+        .map((event) => `${event.reason} / code ${event.code} / count ${event.settlementCount}`)
+        .join(', ')
+    : 'none observed'
   return `# PTG marked-tree harness result
 
 - Run: \`${artifact.runId}\`
@@ -165,7 +202,10 @@ function renderReport(artifact) {
 - Harness SHA-256: \`${artifact.runtime.harnessSha256}\`
 - Owner exit: code \`${artifact.ownerExit.code}\`, signal \`${artifact.ownerExit.signal}\`
 - Contract satisfied before cleanup: \`${artifact.observation.contractSatisfied}\`
+- Expected owner exit: code \`${artifact.observation.expectedOwnerExit.code}\`, signal \`${artifact.observation.expectedOwnerExit.signal}\`
 - Utility callbacks: ${callbacks}
+- Utility callback probes: ${probes}
+- Utility settlements: ${settlements}
 - Cleanup left no marked process: \`${artifact.cleanup.allMarkedGone}\`
 
 | Role | PID | Parent PID | Marker source | Start identity | Status after observation |
@@ -195,6 +235,47 @@ async function hashHarnessSources(paths) {
     hash.update(await readFile(sourcePath))
   }
   return hash.digest('hex')
+}
+
+export function evaluateHarnessContract({
+  mode,
+  error,
+  statusByRole,
+  ownerExit,
+  utilitySettlements,
+  before,
+  preExit,
+  postObservation
+}) {
+  const expectedOwnerExit = {
+    code: mode === 'healthy-shutdown' ? 0 : 17,
+    signal: null
+  }
+  const processStatusesSatisfied =
+    error === null &&
+    Object.keys(statusByRole).length === 4 &&
+    Object.values(statusByRole).every((status) => status === 'absent') &&
+    postObservation.length === 0
+  const ownerExitSatisfied =
+    ownerExit.code === expectedOwnerExit.code && ownerExit.signal === expectedOwnerExit.signal
+  const healthySettlementSatisfied =
+    mode !== 'healthy-shutdown' ||
+    (utilitySettlements.length === 1 &&
+      utilitySettlements[0].reason === 'shell-close:0:null' &&
+      utilitySettlements[0].code === 0 &&
+      utilitySettlements[0].settlementCount === 1)
+  const censusSatisfied = before.length === 0 && preExit.length === 4 && postObservation.length === 0
+  const checks = {
+    processStatusesSatisfied,
+    ownerExitSatisfied,
+    healthySettlementSatisfied,
+    censusSatisfied
+  }
+  return {
+    expectedOwnerExit,
+    checks,
+    contractSatisfied: Object.values(checks).every(Boolean)
+  }
 }
 
 export async function runProcessTreeHarness(options = {}) {
@@ -250,16 +331,20 @@ export async function runProcessTreeHarness(options = {}) {
       },
       stdio: ['ignore', 'ignore', 'pipe']
     })
+    const ownerExitPromise = waitForChildExit(child, 10_000).then((exit) => {
+      ownerExit = exit
+      return exit
+    })
     child.stderr.setEncoding('utf8')
     child.stderr.on('data', (chunk) => {
       stderr += chunk
     })
 
-    await waitForEvent(eventPath, (event) => event.type === 'tree-ready', 10_000)
+    await waitForTreeReady(eventPath, ownerExitPromise, 10_000)
     events = await readEventFile(eventPath)
     preExit = await captureReadyIdentities(events, marker, true)
     await writeFile(controlFile, 'continue\n')
-    ownerExit = await waitForChildExit(child, 10_000)
+    ownerExit = await ownerExitPromise
     await new Promise((resolve) => setTimeout(resolve, observationMs))
     events = await readEventFile(eventPath)
     postObservation = await censusMarkedProcesses(marker)
@@ -315,14 +400,21 @@ export async function runProcessTreeHarness(options = {}) {
     Object.keys(identitiesByRole).map((role) => [role, statusAfterObservation[role] ?? 'not-captured'])
   )
   const utilityCallbacks = events.filter((event) => event.type === 'utility-callback')
-  const contractSatisfied =
-    error === null &&
-    Object.keys(statusByRole).length === 4 &&
-    Object.values(statusByRole).every((status) => status === 'absent') &&
-    postObservation.length === 0
+  const utilityProbes = events.filter((event) => event.type === 'utility-probe')
+  const utilitySettlements = events.filter((event) => event.type === 'utility-settled')
+  const contract = evaluateHarnessContract({
+    mode,
+    error,
+    statusByRole,
+    ownerExit,
+    utilitySettlements,
+    before,
+    preExit,
+    postObservation
+  })
 
   const artifact = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runId,
     marker,
     phase,
@@ -344,7 +436,16 @@ export async function runProcessTreeHarness(options = {}) {
     events,
     census: { before, preExit, postObservation, postCleanup },
     ownerExit,
-    observation: { windowMs: observationMs, statusByRole, utilityCallbacks, contractSatisfied },
+    observation: {
+      windowMs: observationMs,
+      statusByRole,
+      expectedOwnerExit: contract.expectedOwnerExit,
+      utilityCallbacks,
+      utilityProbes,
+      utilitySettlements,
+      checks: contract.checks,
+      contractSatisfied: contract.contractSatisfied
+    },
     cleanup: {
       attempts: cleanupAttempts,
       statusByRole: statusAfterCleanup,

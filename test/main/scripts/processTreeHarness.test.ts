@@ -8,9 +8,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   captureProcessIdentity,
   cleanupMarkedIdentity,
-  getProcessIdentityStatus
+  getProcessIdentityStatus,
+  parseLinuxStat,
+  ProcessIdentityVerificationError
 } from '../../../scripts/process-tree-harness/identity.mjs'
 import {
+  evaluateHarnessContract,
   runProcessTreeHarness,
   waitForChildExit
 } from '../../../scripts/process-tree-harness.mjs'
@@ -46,6 +49,15 @@ afterEach(async () => {
 })
 
 describe.sequential('process tree harness ownership', () => {
+  it('parses Linux proc start ticks after a parenthesized command name', () => {
+    const remainingFields = ['S', '42', ...Array(17).fill('0'), '777']
+
+    expect(parseLinuxStat(`123 (worker ) name) ${remainingFields.join(' ')}`)).toEqual({
+      parentPid: 42,
+      startTicks: '777'
+    })
+  })
+
   it('cleans a survivor only while marker, PID, and start identity still match', async () => {
     const { identity } = await spawnMarkedChild()
 
@@ -68,6 +80,27 @@ describe.sequential('process tree harness ownership', () => {
     expect(await getProcessIdentityStatus(identity)).toBe('match')
   })
 
+  it('does not signal a same-start-identity PID whose marker mismatches', async () => {
+    const { identity } = await spawnMarkedChild()
+
+    const cleanup = await cleanupMarkedIdentity({
+      ...identity,
+      marker: `${identity.marker}-different`
+    })
+
+    expect(cleanup).toMatchObject({ before: 'mismatch', signals: [], after: 'mismatch' })
+    expect(await getProcessIdentityStatus(identity)).toBe('match')
+  })
+
+  it.runIf(process.platform === 'linux')(
+    'uses Linux proc start ticks instead of second-resolution wall time',
+    async () => {
+      const { identity } = await spawnMarkedChild()
+
+      expect(identity.startIdentity).toMatch(/^proc-start-ticks:\d+$/)
+    }
+  )
+
   it('times out once and removes competing child listeners', async () => {
     const child = new EventEmitter()
     const settlement = waitForChildExit(child, 20)
@@ -77,6 +110,96 @@ describe.sequential('process tree harness ownership', () => {
 
     expect(child.listenerCount('exit')).toBe(0)
     expect(child.listenerCount('error')).toBe(0)
+  })
+
+  it('settles immediately for an already-exited child', async () => {
+    const child = Object.assign(new EventEmitter(), { exitCode: 23, signalCode: null })
+
+    await expect(waitForChildExit(child, 5_000)).resolves.toEqual({ code: 23, signal: null })
+
+    expect(child.listenerCount('exit')).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'captures an owner that exits before tree-ready without waiting for the tree timeout',
+    async () => {
+      const outputDir = await mkdtemp(path.join(tmpdir(), 'deepchat-ptg-test-'))
+      temporaryDirectories.push(outputDir)
+      const startedAt = Date.now()
+
+      const { artifact } = await runProcessTreeHarness({
+        electronPath: '/usr/bin/false',
+        observationMs: 0,
+        outputDir
+      })
+
+      expect(Date.now() - startedAt).toBeLessThan(2_000)
+      expect(artifact.ownerExit).toEqual({ code: 1, signal: null })
+      expect(artifact.error).toContain('owner exited before tree-ready (code 1, signal null)')
+      expect(artifact.cleanup.allMarkedGone).toBe(true)
+    }
+  )
+
+  it('rejects wrong owner exits and wrong healthy settlement details', () => {
+    const base = {
+      mode: 'healthy-shutdown',
+      error: null,
+      statusByRole: {
+        owner: 'absent',
+        utility: 'absent',
+        shell: 'absent',
+        grandchild: 'absent'
+      },
+      ownerExit: { code: 0, signal: null },
+      utilitySettlements: [
+        {
+          reason: 'shell-close:0:null',
+          code: 0,
+          settlementCount: 1
+        }
+      ],
+      before: [],
+      preExit: [{}, {}, {}, {}],
+      postObservation: []
+    }
+
+    expect(evaluateHarnessContract(base).contractSatisfied).toBe(true)
+    expect(
+      evaluateHarnessContract({ ...base, ownerExit: { code: 17, signal: null } })
+        .contractSatisfied
+    ).toBe(false)
+    expect(
+      evaluateHarnessContract({
+        ...base,
+        mode: 'owner-loss',
+        ownerExit: { code: 0, signal: null }
+      }).contractSatisfied
+    ).toBe(false)
+    expect(
+      evaluateHarnessContract({
+        ...base,
+        mode: 'callback-observation',
+        ownerExit: { code: 17, signal: null }
+      }).contractSatisfied
+    ).toBe(true)
+    expect(
+      evaluateHarnessContract({
+        ...base,
+        utilitySettlements: [{ reason: 'wrong', code: 0, settlementCount: 2 }]
+      }).contractSatisfied
+    ).toBe(false)
+    expect(evaluateHarnessContract({ ...base, postObservation: [{}] }).contractSatisfied).toBe(
+      false
+    )
+  })
+
+  it('rejects an unverifiable command marker with a typed identity error', async () => {
+    const { identity } = await spawnMarkedChild()
+
+    await expect(
+      captureProcessIdentity(identity.pid, `${identity.marker}-different`)
+    ).rejects.toBeInstanceOf(ProcessIdentityVerificationError)
   })
 
   it.runIf(process.platform === 'darwin').each(['owner-loss', 'callback-observation'] as const)(
@@ -111,6 +234,20 @@ describe.sequential('process tree harness ownership', () => {
         'utility'
       ])
       expect(result.artifact.observation).toHaveProperty('contractSatisfied')
+      if (mode === 'callback-observation') {
+        expect(
+          result.artifact.observation.utilityProbes
+            .filter((probe) => probe.target === 'parentPort')
+            .map((probe) => probe.eventName)
+        ).toEqual(['close', 'disconnect', 'exit', 'error'])
+        expect(
+          result.artifact.observation.utilityProbes
+            .filter((probe) => probe.target === 'parentPort')
+            .every((probe) => probe.registered && probe.documentedByElectron === false)
+        ).toBe(true)
+      }
+      expect(result.artifact.processTree.utility.markerSource).toBe('process-title')
+      expect(result.artifact.processTree.utility.commandLine).toContain(result.artifact.marker)
       expect(persisted).toEqual(result.artifact)
     },
     20_000
@@ -130,6 +267,19 @@ describe.sequential('process tree harness ownership', () => {
 
       expect(artifact.ownerExit).toEqual({ code: 0, signal: null })
       expect(artifact.events.filter((event) => event.type === 'utility-settled')).toHaveLength(1)
+      expect(artifact.observation.utilitySettlements).toEqual([
+        expect.objectContaining({
+          reason: 'shell-close:0:null',
+          code: 0,
+          settlementCount: 1
+        })
+      ])
+      expect(artifact.observation.checks).toEqual({
+        processStatusesSatisfied: true,
+        ownerExitSatisfied: true,
+        healthySettlementSatisfied: true,
+        censusSatisfied: true
+      })
       expect(artifact.observation.contractSatisfied).toBe(true)
       expect(artifact.cleanup.allMarkedGone).toBe(true)
     },

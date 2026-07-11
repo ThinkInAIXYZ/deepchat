@@ -13,19 +13,65 @@ if (!marker || !eventPath || !stopFile || !grandchildPath || !nodePath || !paren
   throw new Error('Incomplete utility harness environment')
 }
 
+if (process.platform === 'darwin' || process.platform === 'linux') process.title = marker
+
 function appendEvent(event) {
   appendFileSync(eventPath, `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`)
 }
 
-function recordCallback(name, value) {
-  appendEvent({ type: 'utility-callback', name, value: value ?? null, pid: process.pid })
+function normalizeCallbackValue(value) {
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message, code: value.code ?? null }
+  }
+  if (Array.isArray(value)) return value.map(normalizeCallbackValue)
+  return value ?? null
+}
+
+function recordCallback(name, values) {
+  appendEvent({
+    type: 'utility-callback',
+    name,
+    values: normalizeCallbackValue(values),
+    pid: process.pid
+  })
 }
 
 if (observeCallbacks) {
-  parentPort.on('close', () => recordCallback('parentPort.close'))
-  parentPort.on('disconnect', () => recordCallback('parentPort.disconnect'))
+  for (const eventName of ['close', 'disconnect', 'exit', 'error']) {
+    try {
+      parentPort.on(eventName, (...values) =>
+        recordCallback(`parentPort.${eventName}`, values)
+      )
+      appendEvent({
+        type: 'utility-probe',
+        target: 'parentPort',
+        eventName,
+        registered: true,
+        documentedByElectron: false,
+        pid: process.pid
+      })
+    } catch (error) {
+      appendEvent({
+        type: 'utility-probe',
+        target: 'parentPort',
+        eventName,
+        registered: false,
+        documentedByElectron: false,
+        registrationError: normalizeCallbackValue(error),
+        pid: process.pid
+      })
+    }
+  }
   for (const eventName of ['disconnect', 'beforeExit', 'exit', 'SIGTERM', 'SIGHUP', 'SIGINT']) {
-    process.on(eventName, (value) => recordCallback(`process.${eventName}`, value))
+    process.on(eventName, (...values) => recordCallback(`process.${eventName}`, values))
+    appendEvent({
+      type: 'utility-probe',
+      target: 'process',
+      eventName,
+      registered: true,
+      documentedByNode: true,
+      pid: process.pid
+    })
   }
 }
 
@@ -56,7 +102,16 @@ const shell =
         { stdio: 'ignore' }
       )
 
-appendEvent({ type: 'process-ready', role: 'utility', pid: process.pid, marker })
+appendEvent({
+  type: 'process-ready',
+  role: 'utility',
+  pid: process.pid,
+  marker,
+  markerMechanism:
+    process.platform === 'darwin' || process.platform === 'linux'
+      ? 'process-title'
+      : 'unverified-on-platform'
+})
 appendEvent({ type: 'process-ready', role: 'shell', pid: shell.pid, marker })
 
 let settled = false

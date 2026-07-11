@@ -46,14 +46,16 @@ used Electron 40.10.5 and the production background-exec launch path:
 
 Observed macOS result: `[utility host exited, shell alive, grandchild alive]`.
 
-The same branch ran a narrower exploratory parent-loss probe. The utility process registered `parentPort`
-`close`, `disconnect`, `exit`, and `error` listeners and process `disconnect`, `beforeExit`, `exit`,
-`SIGTERM`, `SIGHUP`, and `SIGINT` listeners before main-process exit. The main side observed utility
-exit code `0`, but none of those utility-side JavaScript callbacks recorded an event; the shell and
-grandchild were reparented and remained alive. No reusable fixture or result artifact was preserved,
-so this is branch-local exploratory observation, not acceptance evidence and not enough to eliminate
-a candidate. The PTG harness must reproduce it before any mechanism decision. It says nothing about
-Windows or Linux.
+The same branch ran a narrower exploratory parent-loss probe. `PTG-M2A` now reproduces that probe
+and retains the exact macOS result. The utility registered `parentPort` `close`, `disconnect`,
+`exit`, and `error` probes plus process `disconnect`, `beforeExit`, `exit`, `SIGTERM`, `SIGHUP`, and
+`SIGINT` probes before main-process exit. Electron 40.10.5 documents only the `message` event and
+`postMessage()` on `parentPort`; the four lifecycle event names are deliberately recorded as
+runtime EventEmitter probes with `documentedByElectron: false`, not represented as supported API.
+The main side observed utility exit code `0`, but none of the registered utility-side callbacks
+recorded an event; the shell and grandchild were reparented and remained alive. This is reusable
+macOS development-fixture evidence, but it is not enough to eliminate a cross-platform candidate.
+It says nothing about Windows or Linux.
 
 ## Existing code truth
 
@@ -308,14 +310,24 @@ Node measurement owner
          └─ marked Node grandchild
 ```
 
-The outer Node owner waits until all four Electron-owned roles report readiness, captures the PID,
-parent PID, command line, unique run marker, and OS start identity, verifies every parent edge, and
-only then permits the selected owner action. POSIX identity uses `ps` parent PID, start time, and full
-command line; Windows identity uses `Win32_Process.ParentProcessId`, `CreationDate`, and
-`CommandLine`. Electron does not expose the utility script or its arguments in the native utility
-process command line. That role is therefore tied to the unique marker by its synchronous utility
-readiness event and then protected against PID reuse by its captured OS start identity. The owner,
-shell, and grandchild additionally require the unique marker in their command lines.
+The outer Node measurement process registers the Electron owner's exit observation immediately
+after `spawn`, then waits until all four Electron-owned roles report readiness. Readiness is raced
+against early owner exit, preserving its exact code and signal instead of waiting for the tree-ready
+timeout. Only after capturing each PID, parent PID, command line, unique run marker, and OS start
+identity and verifying every parent edge does the harness permit the selected owner action. Darwin
+identity uses `ps` parent PID, `lstart`, and full command line. Linux reads parent PID and kernel
+start ticks from `/proc/<pid>/stat` and the command from `/proc/<pid>/cmdline`, avoiding the
+second-resolution `ps` start-time collision. Windows identity uses
+`Win32_Process.ParentProcessId`, `CreationDate`, and `CommandLine`.
+
+Electron does not include utility script arguments in the native utility command line on macOS.
+The utility fixture therefore applies the run marker through `process.title`; retained macOS
+evidence confirms that `ps` exposes that unique marker. The harness requires this external marker
+and the captured `lstart` before treating the utility PID as signalable. A platform that cannot
+externally verify the marker fails with `PROCESS_IDENTITY_UNVERIFIED`; cleanup does not signal that
+unverified PID. Owner, shell, and grandchild markers remain command-line arguments. Identity-safe
+cleanup treats either a start-identity mismatch or marker mismatch as unrelated and sends no
+signal.
 
 The modes are measurements rather than mechanism choices:
 
@@ -324,30 +336,38 @@ The modes are measurements rather than mechanism choices:
 - `owner-loss` directly calls `process.exit(17)` in the Electron main fixture. It does not import or
   simulate the future fatal helper.
 - `callback-observation` performs the same forced owner loss after registering utility
-  `parentPort` and process lifecycle observations. A missing callback is recorded as an exact empty
-  observation, not inferred from logs.
+  `parentPort` and process lifecycle observations. The artifact separately records every probe,
+  whether registration happened, and whether Electron documents the event. A missing callback is
+  recorded as an exact empty observation, not inferred from logs or replaced by a synthetic event.
 
 Each run writes JSON and Markdown with the platform, architecture, OS release, Electron and Node
 versions, development/packaged flag, owner exit, all captured identities, pre-action/post-action/
-post-cleanup census, callbacks, exact role status, stderr, cleanup attempts, and a SHA-256 digest of
-the harness sources used for that run. The CLI exits successfully when measurement and cleanup
-complete even if `contractSatisfied` is `false`; an orphan is never relabelled as a passing
-containment assertion. Harness errors or a marked cleanup survivor make the CLI fail.
+post-cleanup census, callback probes and observed callbacks, utility settlements, expected and
+actual owner exit, exact role status, per-condition contract checks, stderr, cleanup attempts, and a
+SHA-256 digest of the harness sources used for that run. The CLI exits successfully when measurement
+and cleanup complete even if `contractSatisfied` is `false`; an orphan is never relabelled as a
+passing containment assertion. Harness errors or a marked cleanup survivor make the CLI fail.
 
 Cleanup is deliberately narrower than a production mechanism. It checks the captured start
-identity immediately before each exact PID signal, tries TERM then KILL with bounded grace, and
-checks identity again. It never uses `pkill`, `killall`, a marker-wide signal, a process group, or a
-cached PID after identity mismatch. Tests cover successful cleanup, PID/start-identity mismatch,
-timeout listener settlement, real Electron artifact persistence, and exactly-once healthy utility
-settlement.
+identity and marker immediately before each exact PID signal, tries TERM then KILL with bounded
+grace, and checks identity again. It never uses `pkill`, `killall`, a marker-wide signal, a process
+group, or a cached PID after identity or marker mismatch. Tests cover successful cleanup,
+PID/start-identity mismatch, same-start-identity marker mismatch, early owner exit using
+`/usr/bin/false`, exit/timeout exactly-once listener settlement, real Electron artifact persistence,
+wrong owner exit, wrong healthy settlement, and exactly-once healthy utility settlement.
 
 Retained macOS development-fixture evidence is under
 [`evidence/macos`](./evidence/macos). On Darwin 25.5.0 arm64 with Electron 40.10.5:
 
 - healthy shutdown produced `[owner absent, utility absent, shell absent, grandchild absent]` and
-  one utility settlement;
+  one `shell-close:0:null`, code-0 utility settlement with `settlementCount: 1`; owner exit code was
+  the mode-required `0`, every pre-cleanup census check passed, and `contractSatisfied` was `true`;
+- forced owner loss produced `[owner absent, utility absent, shell match, grandchild match]` after
+  five seconds, with the mode-required owner exit code `17`; `contractSatisfied` remained `false`;
 - callback observation forced the owner to exit with code 17; after five seconds it produced
-  `[owner absent, utility absent, shell match, grandchild match]` and no utility lifecycle callback;
+  `[owner absent, utility absent, shell match, grandchild match]`. All four undocumented
+  `parentPort` probes and six process probes were recorded as registered, while observed utility
+  callbacks remained exactly empty;
 - identity-safe `finally` cleanup removed both survivors and the post-cleanup marked census was
   empty.
 
