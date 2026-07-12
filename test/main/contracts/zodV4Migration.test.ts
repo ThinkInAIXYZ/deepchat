@@ -130,6 +130,28 @@ describe('Zod 4 migration contracts', () => {
     expect(parsed.success).toBe(false)
   })
 
+  it('accepts an optional nullable priority field on agent plan items', () => {
+    const withPriority = agentPlanItemSchema.safeParse({
+      step: 'Analyze requirements',
+      status: 'in_progress',
+      priority: 'high'
+    })
+    expect(withPriority.success).toBe(true)
+
+    const withNullPriority = agentPlanItemSchema.safeParse({
+      step: 'Analyze requirements',
+      status: 'in_progress',
+      priority: null
+    })
+    expect(withNullPriority.success).toBe(true)
+
+    const withoutPriority = agentPlanItemSchema.safeParse({
+      step: 'Analyze requirements',
+      status: 'in_progress'
+    })
+    expect(withoutPriority.success).toBe(true)
+  })
+
   it('falls back to content when normalizing blank agent plan steps', () => {
     expect(
       normalizeAgentPlanEntry({

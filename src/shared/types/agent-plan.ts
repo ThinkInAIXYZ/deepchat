@@ -9,7 +9,8 @@ export const agentPlanItemSchema = z.strictObject({
     .string()
     .transform((value) => value.trim())
     .refine((value) => value.length > 0, 'step must be a non-empty string'),
-  status: agentPlanStepStatusSchema
+  status: agentPlanStepStatusSchema,
+  priority: z.string().nullish()
 })
 
 export type AgentPlanStepStatus = z.infer<typeof agentPlanStepStatusSchema>
