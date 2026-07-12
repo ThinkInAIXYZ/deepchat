@@ -17,12 +17,9 @@ export type RemoteRuntimeState =
 
 export interface RemoteChannelDescriptor {
   id: RemoteChannelId
-  type: 'builtin'
-  implemented: boolean
   titleKey: string
   descriptionKey: string
-  supportsPairing: boolean
-  supportsNotifications: boolean
+  supportsCronDelivery: boolean
 }
 
 export interface RemoteBindingSummary {

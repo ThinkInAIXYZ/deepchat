@@ -4,7 +4,7 @@
 > memory domain contracts. See [plan.md](./plan.md) for the implementation design and
 > [tasks.md](./tasks.md) for the execution record.
 >
-> - Status: **implementation-complete / validation-blocked**
+> - Status: **implemented**
 > - Classification: architecture refactor
 > - Migration class: schema-free and behavior-preserving
 > - GitHub issue: none

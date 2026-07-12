@@ -25,53 +25,58 @@
         v-else-if="hasDiagnostics"
         class="flex flex-col flex-1 min-h-0 space-y-4 overflow-hidden"
       >
-        <div v-if="requestOptions.length > 1" class="flex flex-wrap gap-2">
-          <Button
-            v-for="option in requestOptions"
-            :key="option.requestSeq"
-            size="sm"
-            :variant="option.requestSeq === selectedRequestSeq ? 'default' : 'outline'"
-            @click="selectedRequestSeq = option.requestSeq"
-          >
-            #{{ option.requestSeq }}
-          </Button>
-        </div>
-
         <div class="space-y-3 text-sm">
-          <div v-if="selectedTrace">
-            <span class="font-semibold">{{ t('traceDialog.endpoint') }}:</span>
-            <div class="mt-1 px-2 py-1 bg-muted rounded break-all">
-              <span class="text-xs">{{ selectedTrace.endpoint }}</span>
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Select v-if="requestOptions.length > 1" v-model="selectedRequestSeq">
+              <SelectTrigger size="sm" class="w-32" :aria-label="t('traceDialog.requestSeq')">
+                <SelectValue :placeholder="t('traceDialog.requestSeq')" />
+              </SelectTrigger>
+              <SelectContent class="max-h-64">
+                <SelectItem
+                  v-for="option in requestOptions"
+                  :key="option.requestSeq"
+                  :value="option.requestSeq"
+                >
+                  #{{ option.requestSeq }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <div class="flex min-w-0 max-w-64 items-center gap-2">
+              <span class="shrink-0 font-semibold">{{ t('traceDialog.provider') }}:</span>
+              <span class="min-w-0 break-all">
+                {{ diagnosticProviderId || t('traceDialog.notAvailable') }}
+              </span>
+            </div>
+            <div class="flex min-w-0 max-w-64 items-center gap-2">
+              <span class="shrink-0 font-semibold">{{ t('traceDialog.model') }}:</span>
+              <span class="min-w-0 break-all">
+                {{ diagnosticModelId || t('traceDialog.notAvailable') }}
+              </span>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="min-w-0">
-              <span class="font-semibold">{{ t('traceDialog.provider') }}:</span>
-              <span class="ml-2 `wrap-break-word">{{
-                diagnosticProviderId || t('traceDialog.notAvailable')
-              }}</span>
-            </div>
-            <div class="min-w-0">
-              <span class="font-semibold">{{ t('traceDialog.model') }}:</span>
-              <span class="ml-2 `wrap-break-word">{{
-                diagnosticModelId || t('traceDialog.notAvailable')
-              }}</span>
-            </div>
-          </div>
-          <div v-if="integrityStatus" class="space-y-1">
-            <div class="flex items-center gap-2">
+          <div
+            v-if="selectedTrace || integrityStatus"
+            class="flex flex-wrap items-center gap-x-6 gap-y-2"
+          >
+            <div v-if="integrityStatus" class="flex shrink-0 items-center gap-2">
               <span class="font-semibold">{{ t('traceDialog.integrity.label') }}:</span>
               <Badge :variant="integrityVariant">
                 {{ t(`traceDialog.integrity.${integrityStatus}`) }}
               </Badge>
             </div>
-            <p v-if="integrityStatus === 'invalid'" class="text-xs text-destructive">
-              {{ t('traceDialog.integrity.invalidWarning') }}
-            </p>
-            <p v-else-if="integrityStatus === 'unverified'" class="text-xs text-muted-foreground">
-              {{ t('traceDialog.integrity.unverifiedNote') }}
-            </p>
+            <div v-if="selectedTrace" class="flex min-w-0 flex-1 basis-96 items-center gap-2">
+              <span class="shrink-0 font-semibold">{{ t('traceDialog.endpoint') }}:</span>
+              <div class="min-w-0 flex-1 rounded bg-muted px-2 py-1 break-all">
+                <span class="text-xs">{{ selectedTrace.endpoint }}</span>
+              </div>
+            </div>
           </div>
+          <p v-if="integrityStatus === 'invalid'" class="text-xs text-destructive">
+            {{ t('traceDialog.integrity.invalidWarning') }}
+          </p>
+          <p v-else-if="integrityStatus === 'unverified'" class="text-xs text-muted-foreground">
+            {{ t('traceDialog.integrity.unverifiedNote') }}
+          </p>
         </div>
 
         <Tabs v-model="activeTab" class="h-0 flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -301,6 +306,13 @@ import {
   DialogFooter
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'

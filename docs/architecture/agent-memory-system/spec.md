@@ -847,6 +847,14 @@ enable memory (top-level Memory page / agent toggle)
 
 ## 18. Testing
 
+Memory quality uses one versioned scope manifest for portable, Native, eval, and performance suites.
+`test:memory:eval` uses a test-local `deterministic-lexicon-v1` embedder with real SQLite FTS and production
+fusion; it never reads credentials or calls a network provider. Runtime diagnostics are bounded to 64 Agents,
+256 samples per distribution, and a 24-hour Agent TTL. Process-wide queue/vector/provider gauges are retained
+outside Agent eviction and surfaced through the required `MemoryHealthDto.runtime` field. The complete metric
+ownership, units, cleanup, and privacy classification are documented in the
+[Memory Runtime Metric Dictionary](../memory-quality-gates-and-observability/metrics.md).
+
 Coverage mirrors source under `test/main/**` (and `test/renderer/**` for UI), pinning each invariant:
 
 - Injection sanitization; per-session serial extraction lock; monotonic cursor; insert error

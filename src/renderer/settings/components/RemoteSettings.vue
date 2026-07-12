@@ -47,10 +47,10 @@
           <TabsList
             v-if="!singleChannelMode"
             class="grid w-full"
-            :style="{ gridTemplateColumns: `repeat(${implementedChannelCount}, minmax(0, 1fr))` }"
+            :style="{ gridTemplateColumns: `repeat(${remoteChannelCount}, minmax(0, 1fr))` }"
           >
             <TabsTrigger
-              v-for="channel in implementedChannels"
+              v-for="channel in remoteChannelIds"
               :key="`remote-tab-${channel}`"
               :value="channel"
               :data-testid="`remote-tab-${channel}`"
@@ -1840,54 +1840,6 @@ import type {
   WeixinIlinkRemoteStatus
 } from '@shared/presenter'
 
-const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
-  {
-    id: 'telegram',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.telegram.title',
-    descriptionKey: 'settings.remote.telegram.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'feishu',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.feishu.title',
-    descriptionKey: 'settings.remote.feishu.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'qqbot',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.qqbot.title',
-    descriptionKey: 'settings.remote.qqbot.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'discord',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.discord.title',
-    descriptionKey: 'settings.remote.discord.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'weixin-ilink',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.weixinIlink.title',
-    descriptionKey: 'settings.remote.weixinIlink.description',
-    supportsPairing: false,
-    supportsNotifications: false
-  }
-]
-
 const remoteControlClient = createRemoteControlClient()
 const projectClient = createProjectClient()
 const sessionClient = createSessionClient()
@@ -1933,7 +1885,7 @@ const feishuStatus = ref<FeishuRemoteStatus | null>(null)
 const qqbotStatus = ref<QQBotRemoteStatus | null>(null)
 const discordStatus = ref<DiscordRemoteStatus | null>(null)
 const weixinIlinkStatus = ref<WeixinIlinkRemoteStatus | null>(null)
-const channelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackChannelDescriptors)
+const channelDescriptors = ref<RemoteChannelDescriptor[]>([])
 const isLoading = ref(false)
 const showBotToken = ref(false)
 const showDiscordBotToken = ref(false)
@@ -2079,10 +2031,6 @@ const normalizeDiscordPairingSnapshot = (
   pairCodeExpiresAt: snapshot?.pairCodeExpiresAt ?? null,
   pairedChannelIds: [...(snapshot?.pairedChannelIds ?? [])]
 })
-
-const listRemoteChannelsCompat = async (): Promise<RemoteChannelDescriptor[]> => {
-  return await remoteControlClient.listRemoteChannels()
-}
 
 function getChannelSettingsCompat(channel: 'telegram'): Promise<TelegramRemoteSettings>
 function getChannelSettingsCompat(channel: 'feishu'): Promise<FeishuRemoteSettings>
@@ -2259,17 +2207,13 @@ const resolveWeixinIlinkLoginMessage = (input: {
   messageKey?: string | null
 }): string => resolveRemoteMessage(input, 'settings.remote.weixinIlink.loginFailed')
 
-const implementedChannels = computed(() =>
-  channelDescriptors.value
-    .filter((descriptor) => descriptor.implemented)
-    .map((descriptor) => descriptor.id)
-)
-const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
+const remoteChannelIds = computed(() => channelDescriptors.value.map((descriptor) => descriptor.id))
+const remoteChannelCount = computed(() => Math.max(1, remoteChannelIds.value.length))
 const rootComponent = computed(() => (props.embedded ? 'div' : ScrollArea))
 const singleChannelMode = computed(() => Boolean(props.singleChannel || props.channel))
 const isRemoteChannel = (value: unknown): value is RemoteChannel =>
   typeof value === 'string' &&
-  fallbackChannelDescriptors.some((descriptor) => descriptor.id === value)
+  channelDescriptors.value.some((descriptor) => descriptor.id === value)
 const syncActiveChannelFromProps = () => {
   if (props.channel && isRemoteChannel(props.channel)) {
     activeChannel.value = props.channel
@@ -2650,7 +2594,7 @@ const loadState = async () => {
       loadedDiscordStatus,
       loadedWeixinIlinkStatus
     ] = await Promise.all([
-      listRemoteChannelsCompat(),
+      remoteControlClient.listRemoteChannels(),
       getChannelSettingsCompat('telegram'),
       getChannelSettingsCompat('feishu'),
       getChannelSettingsCompat('qqbot'),
@@ -2665,8 +2609,7 @@ const loadState = async () => {
       loadRecentProjects()
     ])
 
-    channelDescriptors.value =
-      loadedChannelDescriptors.length > 0 ? loadedChannelDescriptors : fallbackChannelDescriptors
+    channelDescriptors.value = loadedChannelDescriptors
     syncTelegramFields(loadedTelegramSettings)
     syncFeishuFields(loadedFeishuSettings)
     syncQQBotFields(loadedQQBotSettings)
@@ -2679,8 +2622,8 @@ const loadState = async () => {
     weixinIlinkStatus.value = loadedWeixinIlinkStatus
 
     syncActiveChannelFromProps()
-    if (!implementedChannels.value.includes(activeChannel.value)) {
-      activeChannel.value = implementedChannels.value[0] ?? 'telegram'
+    if (!remoteChannelIds.value.includes(activeChannel.value)) {
+      activeChannel.value = remoteChannelIds.value[0] ?? 'telegram'
     }
     scheduleStatusRefresh(
       hasEnabledRemoteSettings() ? REMOTE_STATUS_ACTIVE_POLL_MS : REMOTE_STATUS_IDLE_POLL_MS

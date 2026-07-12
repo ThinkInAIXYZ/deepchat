@@ -549,13 +549,13 @@ const handleError = (scope: string, error: unknown) => {
   })
 }
 
-const loadRemoteDeliveryOptions = async (): Promise<RemoteDeliveryOption[]> => {
+const loadRemoteDeliveryOptions = async (): Promise<RemoteDeliveryOption[] | null> => {
   remoteDeliveryLoading.value = true
   try {
     const descriptors = await remoteControlClient.listRemoteChannels()
     const groups = await Promise.all(
       descriptors
-        .filter((descriptor) => descriptor.implemented && descriptor.id !== 'qqbot')
+        .filter((descriptor) => descriptor.supportsCronDelivery)
         .map(async (descriptor) => {
           const status = await remoteControlClient.getChannelStatus(descriptor.id)
           if (!status.enabled) {
@@ -582,7 +582,7 @@ const loadRemoteDeliveryOptions = async (): Promise<RemoteDeliveryOption[]> => {
       )
   } catch (error) {
     console.error('[CronJobs] Failed to load remote delivery options:', error)
-    return []
+    return null
   } finally {
     remoteDeliveryLoading.value = false
   }
@@ -598,7 +598,9 @@ const loadJobs = async () => {
     ])
     jobs.value = sortJobs(response.jobs)
     agents.value = nextAgents
-    remoteDeliveryOptions.value = nextRemoteDeliveryOptions
+    if (nextRemoteDeliveryOptions !== null) {
+      remoteDeliveryOptions.value = nextRemoteDeliveryOptions
+    }
     schedulerStatus.value = response.schedulerStatus
     for (const job of jobs.value) {
       void refreshJobPreview(job)

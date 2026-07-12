@@ -303,15 +303,4 @@ export class PersonaService {
     if (personaLock) await Promise.allSettled([personaLock])
     if (this.personaLocks.get(agentId) === personaLock) this.personaLocks.delete(agentId)
   }
-
-  /** @internal Live mutable state for legacy facade-oracle tests only. */
-  getMutableRuntimeStateForTests(): {
-    personaAttemptWatermark: Map<string, number>
-    personaLocks: Map<string, Promise<unknown>>
-  } {
-    return {
-      personaAttemptWatermark: this.personaAttemptWatermark,
-      personaLocks: this.personaLocks
-    }
-  }
 }

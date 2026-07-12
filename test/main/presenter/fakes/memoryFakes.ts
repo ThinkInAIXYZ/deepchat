@@ -23,6 +23,15 @@ import type {
   MemoryVectorMatch,
   MemoryVectorRecord
 } from '@/presenter/memoryPresenter/types'
+import type {
+  MemoryAccessRepositoryPort,
+  MemoryEmbeddingRepositoryPort,
+  MemoryHealthRepositoryPort,
+  MemoryLifecycleRepositoryPort,
+  MemoryMutationRepositoryPort,
+  MemoryReadRepositoryPort,
+  MemoryTransactionPort
+} from '@/presenter/memoryPresenter/ports'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
@@ -46,7 +55,7 @@ function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
 // In-memory stand-in for the SQLite-backed repository. Mirrors the authoritative table's observable
 // behavior (provenance uniqueness, supersede/persona state machine, archive/decay) closely enough to
 // exercise the presenter without a native database.
-export class FakeRepository implements MemoryRepositoryPort {
+class FakeRepositoryBehavior implements MemoryRepositoryPort {
   rows = new Map<string, AgentMemoryRow>()
   transactionCalls = 0
 
@@ -294,6 +303,10 @@ export class FakeRepository implements MemoryRepositoryPort {
           (!agentId || row.agent_id === agentId)
       )
       .slice(0, limit)
+  }
+
+  countPendingEmbedding(agentId?: string) {
+    return this.listPendingEmbedding(Number.MAX_SAFE_INTEGER, agentId).length
   }
 
   updateStatus(
@@ -1246,6 +1259,158 @@ export class FakeRepository implements MemoryRepositoryPort {
   }
 }
 
+export interface FakeRepositoryState {
+  rows: Map<string, AgentMemoryRow>
+  transactionCalls: number
+}
+
+export type FakeRepository = MemoryRepositoryPort & FakeRepositoryState
+
+export interface FakeRepositoryHarness {
+  state: FakeRepositoryState
+  read: MemoryReadRepositoryPort
+  mutation: MemoryMutationRepositoryPort
+  access: MemoryAccessRepositoryPort
+  embedding: MemoryEmbeddingRepositoryPort
+  lifecycle: MemoryLifecycleRepositoryPort
+  health: MemoryHealthRepositoryPort
+  transaction: MemoryTransactionPort
+}
+
+export function bindCapability<T extends object, K extends keyof T>(
+  owner: T,
+  keys: readonly K[]
+): Pick<T, K> {
+  return Object.fromEntries(
+    keys.map((key) => {
+      const value = owner[key]
+      return [key, typeof value === 'function' ? value.bind(owner) : value]
+    })
+  ) as Pick<T, K>
+}
+
+const READ_CAPABILITY_KEYS = [
+  'getById',
+  'getByProvenanceKey',
+  'listByAgent',
+  'listManagementPage',
+  'listManagementVisibleByIds',
+  'listByIds',
+  'getActivePersona',
+  'getDraftPersona',
+  'listPersonaVersions',
+  'search',
+  'searchWithStrategy',
+  'listWorkingCandidates',
+  'listAgentIdsWithMemories',
+  'listRecentlyActiveAgentIds',
+  'hasActiveMemory'
+] as const satisfies readonly (keyof MemoryReadRepositoryPort)[]
+
+const MUTATION_CAPABILITY_KEYS = [
+  'insert',
+  'rekeyProvenance',
+  'updateStatus',
+  'updateContent',
+  'updateDecisionContentIfRevision',
+  'updateUserMetadata',
+  'setConfidence',
+  'setImportance',
+  'setPersonaState',
+  'setAnchor',
+  'markSuperseded',
+  'markSupersededIfRevision',
+  'markConflict',
+  'markConflictIfRevision',
+  'setConflictWith',
+  'delete',
+  'clearByAgent'
+] as const satisfies readonly (keyof MemoryMutationRepositoryPort)[]
+
+const ACCESS_CAPABILITY_KEYS = [
+  'recordAccess',
+  'recordAccessBatch'
+] as const satisfies readonly (keyof MemoryAccessRepositoryPort)[]
+
+const EMBEDDING_CAPABILITY_KEYS = [
+  'listPendingEmbedding',
+  'countPendingEmbedding',
+  'activateForEmbedding',
+  'activateForEmbeddingIfRevision',
+  'markPendingEmbeddingsReady',
+  'markPendingEmbeddingsError',
+  'requeueForEmbedding',
+  'listEmbeddingStatusIds',
+  'listCurrentEmbeddedIds',
+  'getCurrentEmbeddingDimension',
+  'hasStaleEmbeddings',
+  'countStaleEmbeddings',
+  'listPrunableVectorRefs',
+  'filterPrunableVectorRefs',
+  'clearPrunableEmbeddingRefs'
+] as const satisfies readonly (keyof MemoryEmbeddingRepositoryPort)[]
+
+const LIFECYCLE_CAPABILITY_KEYS = [
+  'getCognitiveMaintenanceInput',
+  'updateDecayScore',
+  'setLastConsolidatedAt',
+  'getLastConsolidatedAt',
+  'archive',
+  'archiveEligibleBatch',
+  'countArchiveEligible',
+  'listArchiveCandidateLifecycleRows',
+  'countConflictPairs',
+  'isUnresolvedConflictParticipant',
+  'listConflictIntegrityRows',
+  'listConflictChallengersForMaintenance',
+  'listConflictSiblings',
+  'retireConflictSiblings',
+  'clearTargetConflictIfNoChallengers',
+  'repairConflictIntegrityBatch',
+  'listConsolidationScanRows',
+  'repairInternalKindStatuses'
+] as const satisfies readonly (keyof MemoryLifecycleRepositoryPort)[]
+
+const HEALTH_CAPABILITY_KEYS = [
+  'getHealthStats',
+  'listTopAccessed',
+  'countByAgent',
+  'countStatusView',
+  'getPersonaCounts'
+] as const satisfies readonly (keyof MemoryHealthRepositoryPort)[]
+
+const TRANSACTION_CAPABILITY_KEYS = [
+  'runInTransaction'
+] as const satisfies readonly (keyof MemoryTransactionPort)[]
+
+export function createFakeRepositoryHarness(): FakeRepositoryHarness {
+  const state = new FakeRepositoryBehavior()
+  return {
+    state,
+    read: bindCapability(state, READ_CAPABILITY_KEYS),
+    mutation: bindCapability(state, MUTATION_CAPABILITY_KEYS),
+    access: bindCapability(state, ACCESS_CAPABILITY_KEYS),
+    embedding: bindCapability(state, EMBEDDING_CAPABILITY_KEYS),
+    lifecycle: bindCapability(state, LIFECYCLE_CAPABILITY_KEYS),
+    health: bindCapability(state, HEALTH_CAPABILITY_KEYS),
+    transaction: bindCapability(state, TRANSACTION_CAPABILITY_KEYS)
+  }
+}
+
+export function createFakeRepository(): FakeRepository {
+  const harness = createFakeRepositoryHarness()
+  return Object.assign(
+    harness.state,
+    harness.read,
+    harness.mutation,
+    harness.access,
+    harness.embedding,
+    harness.lifecycle,
+    harness.health,
+    harness.transaction
+  ) as FakeRepository
+}
+
 export class FakeAuditRepository implements MemoryAuditRepositoryPort {
   rows: AgentMemoryAuditRow[] = []
 
@@ -1451,7 +1616,7 @@ export const enabledConfig: DeepChatAgentConfig = {
 
 export function makePresenter(
   config: DeepChatAgentConfig | null,
-  repo = new FakeRepository(),
+  repo = createFakeRepository(),
   options: {
     isManagedAgent?: (agentId: string) => boolean
     onMemoryChanged?: MemoryPresenterDeps['onMemoryChanged']

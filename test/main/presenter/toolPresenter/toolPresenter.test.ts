@@ -546,7 +546,7 @@ describe('ToolPresenter', () => {
     expect(upsertCronJob).not.toHaveBeenCalled()
   })
 
-  it('passes DeepChat agent MCP policy context to MCP presenter', async () => {
+  it('passes DeepChat agent MCP server policy context to MCP presenter', async () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
@@ -567,7 +567,6 @@ describe('ToolPresenter', () => {
     await toolPresenter.getAllToolDefinitions({
       agentId: 'agent-1',
       enabledMcpServerIds: ['server-a'],
-      enabledPluginIds: ['plugin-a'],
       chatMode: 'agent',
       conversationId: 'session-1'
     })
@@ -576,7 +575,6 @@ describe('ToolPresenter', () => {
       expect.objectContaining({
         agentId: 'agent-1',
         enabledServerIds: ['server-a'],
-        enabledPluginIds: ['plugin-a'],
         conversationId: 'session-1'
       })
     )
@@ -605,7 +603,6 @@ describe('ToolPresenter', () => {
     await toolPresenter.getAllToolDefinitions({
       agentId: 'agent-1',
       enabledMcpServerIds: undefined,
-      enabledPluginIds: undefined,
       chatMode: 'agent',
       conversationId: 'session-unrestricted'
     })
@@ -627,8 +624,7 @@ describe('ToolPresenter', () => {
       expect.objectContaining({ conversationId: 'session-unrestricted' }),
       expect.objectContaining({
         agentId: 'agent-1',
-        enabledServerIds: undefined,
-        enabledPluginIds: undefined
+        enabledServerIds: undefined
       })
     )
   })

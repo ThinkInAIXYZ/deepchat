@@ -515,6 +515,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
@@ -546,12 +547,8 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
-import type {
-  RemoteChannel,
-  RemoteChannelStatus,
-  RemoteChannelDescriptor,
-  RemoteRuntimeState
-} from '@shared/presenter'
+import { usePluginCatalogStore } from '@/stores/pluginCatalog'
+import type { RemoteChannel, RemoteRuntimeState } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
@@ -595,6 +592,9 @@ const sessionStore = useSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 const themeStore = useThemeStore()
+const pluginCatalogStore = usePluginCatalogStore()
+const { remoteChannels: remoteChannelDescriptors, remoteStatuses: remoteControlStatus } =
+  storeToRefs(pluginCatalogStore)
 
 // line-md 过渡图标自带线条流动动画：切到该模式时，线条会绘制/morph 成对应形状
 const themeIcon = computed(() => {
@@ -622,69 +622,11 @@ const themeModeLabel = computed(() => {
   }
 })
 
-const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
-  {
-    id: 'telegram',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.telegram.title',
-    descriptionKey: 'settings.remote.telegram.description',
-    supportsPairing: true,
-    supportsNotifications: true
-  },
-  {
-    id: 'feishu',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.feishu.title',
-    descriptionKey: 'settings.remote.feishu.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'qqbot',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.qqbot.title',
-    descriptionKey: 'settings.remote.qqbot.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'discord',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.discord.title',
-    descriptionKey: 'settings.remote.discord.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'weixin-ilink',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.weixinIlink.title',
-    descriptionKey: 'settings.remote.weixinIlink.description',
-    supportsPairing: false,
-    supportsNotifications: false
-  }
-]
-
 const collapsed = computed(() => sidebarStore.collapsed)
 const sessionSearchQuery = ref('')
 const pluginsRouteActive = computed(() =>
   String(router?.currentRoute?.value?.name ?? '').startsWith('plugins')
 )
-const remoteChannelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackRemoteChannels)
-const createRemoteStatusMap = (): Record<RemoteChannel, RemoteChannelStatus | null> => ({
-  telegram: null,
-  feishu: null,
-  qqbot: null,
-  discord: null,
-  'weixin-ilink': null
-})
-const remoteControlStatus =
-  ref<Record<RemoteChannel, RemoteChannelStatus | null>>(createRemoteStatusMap())
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: number | null = null
@@ -728,25 +670,20 @@ const selectedAgentName = computed(() => {
   return matchedAgent?.name ?? t('chat.sidebar.allAgents')
 })
 
-const implementedRemoteChannels = computed(() =>
-  remoteChannelDescriptors.value
-    .filter((descriptor) => descriptor.implemented)
-    .map((descriptor) => descriptor.id)
+const remoteChannelIds = computed(() =>
+  remoteChannelDescriptors.value.map((descriptor) => descriptor.id)
 )
 const getRemoteChannelStatus = (channel: RemoteChannel) => remoteControlStatus.value[channel]
 const showRemoteControlButton = computed(() =>
-  implementedRemoteChannels.value.some((channel) =>
-    Boolean(getRemoteChannelStatus(channel)?.enabled)
-  )
+  remoteChannelIds.value.some((channel) => Boolean(getRemoteChannelStatus(channel)?.enabled))
 )
 const firstEnabledRemoteChannel = computed<RemoteChannel | null>(
   () =>
-    implementedRemoteChannels.value.find((channel) =>
-      Boolean(getRemoteChannelStatus(channel)?.enabled)
-    ) ?? null
+    remoteChannelIds.value.find((channel) => Boolean(getRemoteChannelStatus(channel)?.enabled)) ??
+    null
 )
 const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
-  const states = implementedRemoteChannels.value
+  const states = remoteChannelIds.value
     .map((channel) => getRemoteChannelStatus(channel))
     .filter((status) => status?.enabled)
     .map((status) => status?.state as RemoteRuntimeState)
@@ -772,7 +709,7 @@ const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
   return 'disabled'
 })
 const remoteControlTooltip = computed(() => {
-  return implementedRemoteChannels.value
+  return remoteChannelIds.value
     .map((channel) => {
       const descriptor = remoteChannelDescriptors.value.find((item) => item.id === channel)
       const title = descriptor ? t(descriptor.titleKey) : channel
@@ -1279,36 +1216,14 @@ const scheduleRemoteControlStatusRefresh = (delayMs = 0) => {
 }
 
 const refreshRemoteControlStatus = async (): Promise<boolean> => {
+  const version = pluginCatalogStore.captureRemoteRefresh()
   try {
-    remoteChannelDescriptors.value =
-      (await remoteControlClient.listRemoteChannels()) ?? fallbackRemoteChannels
-
-    const channels = remoteChannelDescriptors.value
-      .filter((descriptor) => descriptor.implemented)
-      .map((descriptor) => descriptor.id)
+    const descriptors = await remoteControlClient.listRemoteChannels()
+    const channels = descriptors.map((descriptor) => descriptor.id)
     const statuses = await Promise.all(
-      channels.map(async (channel) => ({
-        channel,
-        status: await remoteControlClient.getChannelStatus(channel)
-      }))
+      channels.map((channel) => remoteControlClient.getChannelStatus(channel))
     )
-
-    if (statuses.every((entry) => entry.status !== null)) {
-      remoteControlStatus.value = statuses.reduce(
-        (acc, entry) => ({
-          ...acc,
-          [entry.channel]: entry.status as RemoteChannelStatus
-        }),
-        createRemoteStatusMap()
-      )
-      return true
-    }
-
-    remoteControlStatus.value = {
-      ...createRemoteStatusMap(),
-      telegram: await remoteControlClient.getTelegramStatus(),
-      'weixin-ilink': await remoteControlClient.getWeixinIlinkStatus()
-    }
+    pluginCatalogStore.replaceRemoteSnapshot(descriptors, statuses, version)
     return true
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)

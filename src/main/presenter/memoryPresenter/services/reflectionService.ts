@@ -176,9 +176,4 @@ export class ReflectionService {
   cleanupAgent(agentId: string): void {
     this.reflectionAttemptWatermark.delete(agentId)
   }
-
-  /** @internal Live mutable state for legacy facade-oracle tests only. */
-  getMutableRuntimeStateForTests(): { reflectionAttemptWatermark: Map<string, number> } {
-    return { reflectionAttemptWatermark: this.reflectionAttemptWatermark }
-  }
 }

@@ -679,12 +679,9 @@ function createRuntime() {
     listRemoteChannels: vi.fn().mockResolvedValue([
       {
         id: 'telegram',
-        type: 'builtin',
-        implemented: true,
         titleKey: 'settings.remote.telegram.title',
         descriptionKey: 'settings.remote.telegram.description',
-        supportsPairing: true,
-        supportsNotifications: false
+        supportsCronDelivery: true
       }
     ]),
     getChannelSettings: vi.fn().mockResolvedValue({

@@ -16,7 +16,7 @@ import {
   MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
   MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT
 } from '@shared/contracts/routes'
-import { enabledConfig, FakeRepository, makePresenter } from './fakes/memoryFakes'
+import { createFakeRepository, enabledConfig, makePresenter } from './fakes/memoryFakes'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW = 220 * DAY_MS
@@ -178,7 +178,7 @@ describe('deriveLifecycle', () => {
 
 describe('MemoryPresenter.getLifecycle', () => {
   it('loads a single memory by id without using the full lifecycle listing', () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     repo.insert({
       id: 'm1',
       agentId: 'a',
@@ -197,7 +197,7 @@ describe('MemoryPresenter.getLifecycle', () => {
   })
 
   it('predicts archive candidates from a narrow prefilter and current decay state', () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(NOW)
     try {
       repo.insert({
@@ -308,7 +308,7 @@ describe('MemoryPresenter.getLifecycle', () => {
   })
 
   it('bounds archive candidate prediction scanning and preview rows', () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(NOW)
     try {
       for (let index = 0; index < MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT + 5; index += 1) {
@@ -344,7 +344,7 @@ describe('MemoryPresenter.getLifecycle', () => {
   })
 
   it('returns no archive candidate predictions for unmanaged agents', () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     repo.insert({
       id: 'eligible',
       agentId: 'a',
@@ -367,7 +367,7 @@ describe('MemoryPresenter.getLifecycle', () => {
   })
 
   it('rejects wrong-agent and working single-memory reads', () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'single' })
     repo.insert({ id: 'w1', agentId: 'a', kind: 'working', content: 'working' })
     const { presenter } = makePresenter(enabledConfig, repo)
@@ -377,7 +377,7 @@ describe('MemoryPresenter.getLifecycle', () => {
   })
 
   it('treats an explicitly provided empty memory id as a single-memory read', () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'single' })
     const { presenter } = makePresenter(enabledConfig, repo)
     const getSpy = vi.spyOn(repo, 'getById')
@@ -451,7 +451,7 @@ describe('MemoryPresenter.getLifecycle', () => {
   })
 
   it('matches archiveStale decisions after the existing decay refresh step', () => {
-    const repo = new FakeRepository()
+    const repo = createFakeRepository()
     const rows = [
       repo.insert({
         id: 'eligible',

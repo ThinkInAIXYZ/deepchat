@@ -219,7 +219,7 @@ describe('ToolManager', () => {
     expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
   })
 
-  it('filters DeepChat MCP tool definitions by enabled server and plugin policies', async () => {
+  it('filters normal MCP definitions while keeping plugin-owned definitions available', async () => {
     const normalClient = createClient('server-a')
     const blockedClient = createClient('server-b')
     const pluginClient = createClient('plugin-server', undefined, {
@@ -234,8 +234,7 @@ describe('ToolManager', () => {
 
     const definitions = await manager.getAllToolDefinitions({
       agentId: 'agent-1',
-      enabledServerIds: ['server-a'],
-      enabledPluginIds: ['plugin-a']
+      enabledServerIds: ['server-a']
     })
 
     expect(definitions.map((tool) => tool.server.name).sort()).toEqual([
@@ -244,28 +243,45 @@ describe('ToolManager', () => {
     ])
   })
 
-  it('gates source plugin MCP servers by plugin policy instead of server policy', async () => {
+  it('keeps source plugin MCP servers available outside normal server policy', async () => {
     const pluginClient = createClient('plugin-source-server', undefined, {
       source: 'plugin',
       sourceId: 'plugin-b'
     })
     const configPresenter = createConfigPresenter('plugin-source-server')
+    configPresenter.getMcpServers.mockResolvedValue({
+      'plugin-source-server': {
+        autoApprove: ['all'],
+        source: 'plugin',
+        sourceId: 'plugin-b'
+      }
+    })
     const manager = new ToolManager(
       configPresenter as never,
       createServerManager([pluginClient]) as never
     )
 
-    const blockedDefinitions = await manager.getAllToolDefinitions({
-      enabledServerIds: ['plugin-source-server'],
-      enabledPluginIds: []
-    })
-    const allowedDefinitions = await manager.getAllToolDefinitions({
-      enabledServerIds: [],
-      enabledPluginIds: ['plugin-b']
-    })
+    const definitions = await manager.getAllToolDefinitions({ enabledServerIds: [] })
+    const result = await manager.callTool(
+      {
+        id: 'plugin-tool',
+        type: 'function',
+        function: {
+          name: 'echo',
+          arguments: '{}'
+        },
+        conversationId: 'deepchat-session',
+        providerId: 'openai'
+      },
+      {
+        agentId: 'deepchat',
+        enabledServerIds: []
+      }
+    )
 
-    expect(blockedDefinitions).toEqual([])
-    expect(allowedDefinitions.map((tool) => tool.server.name)).toEqual(['plugin-source-server'])
+    expect(definitions.map((tool) => tool.server.name)).toEqual(['plugin-source-server'])
+    expect(result.isError).toBe(false)
+    expect(pluginClient.callTool).toHaveBeenCalledWith('echo', {})
   })
 
   it('blocks DeepChat MCP tool calls outside enabled server policy', async () => {

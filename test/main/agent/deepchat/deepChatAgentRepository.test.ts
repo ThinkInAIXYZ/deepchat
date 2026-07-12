@@ -464,7 +464,7 @@ describe('DeepChatAgentRepository', () => {
     expect(repository.resolveConfig('overriding-agent').memoryInjectionTokenBudget).toBe(2000)
   })
 
-  it('inherits extension policies from builtin and lets custom agents override with empty arrays', () => {
+  it('inherits skill and MCP policies while ignoring historical plugin policies', () => {
     const now = Date.now()
     const makeRow = (id: string, source: string, config: object) => ({
       id,
@@ -506,15 +506,18 @@ describe('DeepChatAgentRepository', () => {
       }
     } as never)
 
-    expect(repository.resolveConfig('inheriting-agent')).toMatchObject({
-      enabledPluginIds: ['plugin-a'],
+    const inheritedConfig = repository.resolveConfig('inheriting-agent')
+    const overriddenConfig = repository.resolveConfig('overriding-agent')
+
+    expect(inheritedConfig).toMatchObject({
       enabledSkillNames: ['skill-a'],
       enabledMcpServerIds: ['server-a']
     })
-    expect(repository.resolveConfig('overriding-agent')).toMatchObject({
-      enabledPluginIds: [],
+    expect(overriddenConfig).toMatchObject({
       enabledSkillNames: ['skill-b'],
       enabledMcpServerIds: []
     })
+    expect(inheritedConfig).not.toHaveProperty('enabledPluginIds')
+    expect(overriddenConfig).not.toHaveProperty('enabledPluginIds')
   })
 })

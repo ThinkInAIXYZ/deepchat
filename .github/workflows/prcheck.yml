@@ -105,6 +105,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Validate memory test scope
+        run: pnpm run test:memory:scope
+
+      - name: Validate portable memory behavior
+        run: pnpm run test:memory
+
       - name: Prepare native SQLite for the Node ABI
         run: pnpm --dir node_modules/better-sqlite3-multiple-ciphers run install
 
@@ -114,15 +120,22 @@ jobs:
       - name: Validate native memory storage
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
-        run: >-
-          pnpm exec vitest
-          --config vitest.config.ts
-          test/main/presenter/agentMemoryTable.test.ts
-          test/main/presenter/memoryNativeMigration.test.ts
-          test/main/presenter/agentRuntimePresenter/tapeService.test.ts
-          test/main/presenter/memoryRetrieval.eval.test.ts
+        run: pnpm exec vitest --config vitest.config.memory-native.ts --run
+
+      - name: Validate memory retrieval quality
+        env:
+          DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
+        run: pnpm run test:memory:eval
 
       - name: Validate memory performance bounds
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
         run: pnpm run test:main:memory-perf
+
+      - name: Upload memory retrieval report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: memory-retrieval-v1
+          path: test-results/memory/retrieval-v1.json
+          if-no-files-found: warn

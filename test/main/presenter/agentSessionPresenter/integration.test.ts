@@ -1169,7 +1169,7 @@ describe('Integration: multi-turn context', () => {
     let releaseFirstTurn: (() => void) | null = null
     const firstPrompt = 'P'.repeat(2000)
     const firstResponse = 'R'.repeat(2000)
-    const steerFileContent = 'S'.repeat(8000)
+    const steerUserText = `Steer with attachment\n${'S'.repeat(8000)}`
     const providerInstance = {
       coreStream: vi
         .fn()
@@ -1199,13 +1199,12 @@ describe('Integration: multi-turn context', () => {
     })
 
     await agentPresenter.queuePendingInput(session.id, {
-      text: 'Steer with attachment',
+      text: steerUserText,
       files: [
         {
           name: 'steer.txt',
           path: '/tmp/steer.txt',
-          mimeType: 'text/plain',
-          content: steerFileContent
+          mimeType: 'text/plain'
         } as any
       ]
     })
@@ -1233,8 +1232,8 @@ describe('Integration: multi-turn context', () => {
       (message: any) => message.role === 'user'
     )
 
-    expect(secondCallContents).toContain(firstPrompt)
-    expect(secondCallContents).toContain(firstResponse)
+    expect(secondCallContents).not.toContain(firstPrompt)
+    expect(secondCallContents).not.toContain(firstResponse)
     expect(estimateMessagesTokens(secondCallMessages) + 128).toBeLessThanOrEqual(2048)
     expect(secondCallUserMessages[secondCallUserMessages.length - 1].content).toEqual(
       expect.stringContaining('[Attached File 1]')

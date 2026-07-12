@@ -1,25 +1,13 @@
-import { resolve } from 'path'
 import { defineConfig } from 'vitest/config'
+import { memoryResolveConfig, memoryTestDefaults } from './vitest.config.memory-shared'
 
 const MEMORY_PERF_TIMEOUT_MS = 120_000
 
 export default defineConfig({
-  resolve: {
-    alias: [
-      { find: '@/', replacement: resolve('src/main/') + '/' },
-      { find: '@shared', replacement: resolve('src/shared') },
-      { find: 'electron', replacement: resolve('test/mocks/electron.ts') },
-      {
-        find: '@electron-toolkit/utils',
-        replacement: resolve('test/mocks/electron-toolkit-utils.ts')
-      }
-    ]
-  },
+  resolve: memoryResolveConfig,
   test: {
-    environment: 'node',
+    ...memoryTestDefaults,
     include: ['test/main/performance/memory/**/*.perf.ts'],
-    setupFiles: ['./test/setup.ts'],
-    globals: true,
     testTimeout: MEMORY_PERF_TIMEOUT_MS,
     hookTimeout: MEMORY_PERF_TIMEOUT_MS,
     maxWorkers: 1,

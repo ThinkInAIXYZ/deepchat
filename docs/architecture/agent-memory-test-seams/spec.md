@@ -5,10 +5,12 @@
 Agent memory tests should keep their lifecycle and race coverage without forcing `MemoryPresenter`
 to retain facade-level private accessors that exist only for tests.
 
-## Goal
+## Superseded by the Quality Gates Architecture
 
-Remove the legacy `MemoryPresenter` runtime accessor shims and migrate affected tests to the
-existing service-level `getMutableRuntimeStateForTests()` seams.
+The temporary service-level mutable seams described here were removed by
+[Memory Quality Gates and Observability](../memory-quality-gates-and-observability/spec.md). Lifecycle and race
+tests now use controlled promises, fake clocks, public behavior, and the immutable runtime diagnostics
+snapshot. This document remains only as historical context and is no longer a maintained testing contract.
 
 ## Acceptance Criteria
 
@@ -18,12 +20,13 @@ existing service-level `getMutableRuntimeStateForTests()` seams.
   `embeddingDrains`, `personaLocks`, or related compat getters.
 - Existing lifecycle, cleanup, cold-path, cooldown, and dispose tests remain present and pass.
 - Production memory behavior and public APIs are unchanged.
+- The six service/infra `getMutableRuntimeStateForTests()` accessors and vector resource-state accessors are
+  absent from production source.
 
 ## Constraints
 
 - Do not create a GitHub issue, branch, or commit.
-- Keep this as a local refactor; do not rewrite tests into broader behavior-only harnesses.
-- Preserve the existing service-level test seams for this change.
+- Keep tests on service capability harnesses or public behavior; do not reintroduce mutable production seams.
 
 ## Non-Goals
 

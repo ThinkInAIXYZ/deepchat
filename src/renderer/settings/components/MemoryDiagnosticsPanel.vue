@@ -74,6 +74,67 @@
           </div>
         </section>
 
+        <section class="rounded-lg border border-border p-3" data-testid="runtime-pipeline">
+          <div>
+            <h3 class="text-sm font-semibold">
+              {{ t('settings.memory.redesign.runtimePipelineTitle') }}
+            </h3>
+            <p class="mt-1 text-xs text-muted-foreground">
+              {{ t('settings.memory.redesign.processWideDescription') }}
+            </p>
+          </div>
+          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <StatusPill
+              :label="t('settings.memory.redesign.recallP50')"
+              :value="recallLatencyP50"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.recallP95')"
+              :value="recallLatencyP95"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.fallbackCount')"
+              :value="fallbackCount"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.maintenanceFailures')"
+              :value="health?.runtime.agent.maintenance.failed ?? 0"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.extractionQueueDepth')"
+              :value="health?.runtime.process.extractionQueue.depth ?? 0"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.extractionQueueAge')"
+              :value="extractionQueueAge"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.embeddingBacklog')"
+              :value="health?.runtime.process.embeddingBacklog.pending ?? 0"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.vectorResources')"
+              :value="health?.runtime.process.vector.openStores ?? 0"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.providerQueued')"
+              :value="health?.runtime.process.providerAdmission.queued ?? 0"
+            />
+            <StatusPill
+              :label="t('settings.memory.redesign.providerPressure')"
+              :value="providerEventSummary"
+            />
+          </div>
+          <p class="mt-2 text-[11px] text-muted-foreground">
+            {{
+              t('settings.memory.redesign.resourceHighWater', {
+                stores: health?.runtime.process.vector.openStoresHighWater ?? 0,
+                leases: health?.runtime.process.vector.activeLeasesHighWater ?? 0
+              })
+            }}
+          </p>
+        </section>
+
         <section class="rounded-lg border border-border p-3">
           <div class="flex items-center justify-between gap-3">
             <div>
@@ -284,6 +345,31 @@ let statusEpoch = 0
 let pendingStartEpoch: number | null = null
 
 const reindexing = computed(() => reindexPending.value || props.status?.reindexing === true)
+const recallDiagnostics = computed(() => health.value?.runtime.agent.retrieval.recall)
+const recallLatencyP50 = computed(() => recallDiagnostics.value?.latencyMs.total.p50 ?? '—')
+const recallLatencyP95 = computed(() => recallDiagnostics.value?.latencyMs.total.p95 ?? '—')
+const fallbackCount = computed(() => {
+  const counts = recallDiagnostics.value?.degradationCounts
+  if (!counts) return 0
+  return Object.values(counts).reduce((total, count) => total + count, 0)
+})
+const extractionQueueAge = computed(() => {
+  const age = health.value?.runtime.process.extractionQueue.oldestQueuedAgeMs
+  return age == null ? '—' : Math.round(age)
+})
+const providerEventSummary = computed(() => {
+  const admission = health.value?.runtime.process.providerAdmission
+  if (!admission) return '—'
+  const decisions = admission.admissionDecisions
+  const race = admission.raceEvents
+  return t('settings.memory.redesign.providerPressureSummary', {
+    rateLimited: decisions.rateLimited,
+    capacityRejected: decisions.capacityRejected,
+    deadline: race.deadline,
+    aborted: race.aborted,
+    lateSettled: race.lateSettled
+  })
+})
 
 const MetricTile = defineComponent({
   name: 'MetricTile',
@@ -314,7 +400,7 @@ const StatusPill = defineComponent({
   name: 'StatusPill',
   props: {
     label: { type: String, required: true },
-    value: { type: Number, required: true }
+    value: { type: [Number, String], required: true }
   },
   setup(pillProps) {
     return () =>

@@ -732,7 +732,6 @@ export interface DeepChatAgentConfig {
   systemPrompt?: string
   permissionMode?: PermissionMode
   disabledAgentTools?: string[]
-  enabledPluginIds?: string[] | null
   enabledSkillNames?: string[] | null
   enabledMcpServerIds?: string[] | null
   subagentEnabled?: boolean

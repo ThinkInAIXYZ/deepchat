@@ -4,8 +4,8 @@ import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
 import {
+  createFakeRepository,
   FakeAuditRepository,
-  FakeRepository,
   FakeVectorStore,
   enabledConfig,
   makePresenter,
@@ -19,7 +19,7 @@ const extractionConfig: DeepChatAgentConfig = {
 }
 
 function makeLLM(decision: string, config = extractionConfig) {
-  const repo = new FakeRepository()
+  const repo = createFakeRepository()
   const auditRepo = new FakeAuditRepository()
   const store = new FakeVectorStore()
   const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {

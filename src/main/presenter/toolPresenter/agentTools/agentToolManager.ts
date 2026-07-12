@@ -106,7 +106,6 @@ interface AgentToolExecutionOptions {
   allowExternalFileAccess?: boolean
   activeSkillNames?: string[]
   enabledSkillNames?: string[] | null
-  enabledPluginIds?: string[] | null
 }
 
 interface AgentToolPermissionCheckOptions {
@@ -2174,14 +2173,12 @@ export class AgentToolManager {
     const skillTools = this.getSkillTools()
     const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
     const enabledSkillNames = this.normalizeNullableSkillOption(options?.enabledSkillNames)
-    const enabledPluginIds = this.normalizeNullableSkillOption(options?.enabledPluginIds)
 
     if (toolName === 'skill_list') {
       const result = await skillTools.handleSkillList(
         conversationId,
         enabledSkillNames,
-        effectiveActiveSkills,
-        enabledPluginIds
+        effectiveActiveSkills
       )
       return { content: JSON.stringify(result) }
     }
@@ -2200,8 +2197,7 @@ export class AgentToolManager {
       const result = await skillTools.handleSkillView(
         conversationId,
         validationResult.data,
-        enabledSkillNames,
-        enabledPluginIds
+        enabledSkillNames
       )
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
       const activeSkillNamesForResult = effectiveActiveSkills ?? []

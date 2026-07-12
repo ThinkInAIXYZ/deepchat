@@ -1,10 +1,4 @@
-import {
-  type AgentPlanDisplayItem,
-  type AgentPlanItem,
-  type AgentPlanStepStatus,
-  normalizeAgentPlanEntry as normalizeSharedAgentPlanEntry,
-  normalizeAgentPlanStatus
-} from '@shared/types/agent-plan'
+import { type AgentPlanItem, type AgentPlanStepStatus } from '@shared/types/agent-plan'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
 
@@ -13,23 +7,6 @@ export type AgentPlanStepPresentation = {
   iconClass: string
   badgeClass: string
   textClass: string
-}
-
-export type NormalizedAgentPlanEntry = AgentPlanItem & {
-  priority?: string | null
-}
-
-export function normalizePlanEntry(value: unknown): NormalizedAgentPlanEntry | null {
-  const entry = normalizeSharedAgentPlanEntry(value) as AgentPlanDisplayItem | null
-  if (!entry?.step) {
-    return null
-  }
-
-  return {
-    step: entry.step,
-    status: normalizeAgentPlanStatus(entry.status),
-    ...(entry.priority ? { priority: entry.priority } : {})
-  }
 }
 
 export function resolveStepPresentation(

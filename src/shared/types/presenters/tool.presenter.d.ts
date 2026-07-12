@@ -32,7 +32,6 @@ export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
     enabledMcpServerIds?: string[]
-    enabledPluginIds?: string[]
     agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
@@ -64,7 +63,6 @@ export interface IToolPresenter {
       enabledSkillNames?: string[] | null
       agentId?: string
       enabledMcpServerIds?: string[]
-      enabledPluginIds?: string[] | null
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 

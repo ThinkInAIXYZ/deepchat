@@ -229,7 +229,6 @@ type ResumeBudgetToolCall = {
 }
 
 type AgentExtensionPolicy = {
-  enabledPluginIds?: string[] | null
   enabledSkillNames?: string[] | null
 }
 
@@ -630,6 +629,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionUiPort?: SessionUiPort
   private readonly memoryPort?: MemoryRuntimePort
   private readonly memoryExtractionChains = new Map<string, Promise<void>>()
+  private readonly memoryExtractionQueue = new Map<
+    number,
+    { sessionId: string; queuedAt: number }
+  >()
+  private nextMemoryExtractionQueueId = 0
   private readonly memoryExtractionEpochs = new Map<string, number>()
   private readonly memoryIngestionProjectionRetryAfter = new Map<string, number>()
   private readonly memoryInjectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
@@ -953,6 +957,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   async destroySession(sessionId: string): Promise<void> {
     const instance = this.getHydratedDeepChatInstance(sessionId)
     this.bumpMemoryExtractionEpoch(sessionId)
+    for (const [queueId, entry] of this.memoryExtractionQueue) {
+      if (entry.sessionId === sessionId) this.memoryExtractionQueue.delete(queueId)
+    }
+    this.observeMemoryExtractionQueue()
     instance?.abortAndClearGeneration()
     this.abortDeferredToolAbortControllers(sessionId)
     this.clearFirstTurnReady(sessionId)
@@ -2604,11 +2612,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     task: (epoch: number) => Promise<void>,
     expectedEpoch?: number
   ): void {
+    const queueId = ++this.nextMemoryExtractionQueueId
+    this.memoryExtractionQueue.set(queueId, { sessionId, queuedAt: Date.now() })
+    this.observeMemoryExtractionQueue()
     const prev = this.memoryExtractionChains.get(sessionId) ?? Promise.resolve()
     const runTask = async () => {
-      const currentEpoch = this.ensureMemoryExtractionEpoch(sessionId)
-      if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
-      await task(expectedEpoch ?? currentEpoch)
+      try {
+        const currentEpoch = this.ensureMemoryExtractionEpoch(sessionId)
+        if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
+        await task(expectedEpoch ?? currentEpoch)
+      } finally {
+        this.memoryExtractionQueue.delete(queueId)
+        this.observeMemoryExtractionQueue()
+      }
     }
     const next = prev.then(runTask, runTask).catch((error) => {
       logger.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
@@ -2622,6 +2638,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         }
       }
     })
+  }
+
+  private observeMemoryExtractionQueue(): void {
+    const oldestQueuedAt = this.memoryExtractionQueue.values().next().value?.queuedAt ?? null
+    this.memoryPort?.observeExtractionQueue?.(this.memoryExtractionQueue.size, oldestQueuedAt)
   }
 
   private getLatestUserQuery(sessionId: string): string {
@@ -4165,8 +4186,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
           getEnabledSkillNames: () =>
             this.normalizeNullablePolicyList(streamExtensionPolicy.enabledSkillNames),
-          getEnabledPluginIds: () =>
-            this.normalizeNullablePolicyList(streamExtensionPolicy.enabledPluginIds),
           activateSkill: async (skillName) => {
             const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
             if (this.filterSkillNamesByPolicy([skillName], policy).length === 0) {
@@ -5011,10 +5030,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       extensionPolicy.enabledSkillNames === null || extensionPolicy.enabledSkillNames === undefined
         ? null
         : new Set(this.normalizeSkillNames(extensionPolicy.enabledSkillNames))
-    const allowedPluginIdSet =
-      extensionPolicy.enabledPluginIds === null || extensionPolicy.enabledPluginIds === undefined
-        ? null
-        : new Set(this.normalizeSkillNames(extensionPolicy.enabledPluginIds))
 
     if (skillsEnabled && skillPresenter) {
       if (skillPresenter.getMetadataList) {
@@ -5023,12 +5038,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           const metadataList = await skillPresenter.getMetadataList()
           for (const metadata of metadataList) {
             const skillName = metadata?.name?.trim()
-            const ownerPluginId = metadata?.ownerPluginId?.trim()
-            if (
-              skillName &&
-              (!allowedSkillNameSet || allowedSkillNameSet.has(skillName)) &&
-              (!ownerPluginId || !allowedPluginIdSet || allowedPluginIdSet.has(ownerPluginId))
-            ) {
+            if (skillName && (!allowedSkillNameSet || allowedSkillNameSet.has(skillName))) {
               availableSkills.push({
                 name: skillName,
                 description: metadata.description?.trim() || '',
@@ -6849,7 +6859,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const result = await this.toolPresenter.callTool(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
         enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
-        enabledPluginIds: extensionPolicy.enabledPluginIds ?? undefined,
         onProgress: (update) => {
           if (
             update.kind !== 'subagent_orchestrator' ||
@@ -7008,7 +7017,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       const tools = await this.toolPresenter.getAllToolDefinitions({
         agentId,
-        enabledPluginIds: policy.enabledPluginIds ?? undefined,
         disabledAgentTools: this.getDisabledAgentTools(sessionId),
         chatMode: 'agent',
         conversationId: sessionId,
@@ -7065,7 +7073,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
           left.localeCompare(right)
         ),
-        enabledPluginIds: this.normalizeNullablePolicyList(policy.enabledPluginIds),
         enabledSkillNames: this.normalizeNullablePolicyList(policy.enabledSkillNames),
         skillsEnabled,
         activeSkillNames
@@ -7109,7 +7116,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     try {
       const config = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
       return {
-        enabledPluginIds: config.enabledPluginIds,
         enabledSkillNames: config.enabledSkillNames
       }
     } catch (error) {

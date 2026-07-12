@@ -700,6 +700,10 @@ function makeFakeRepo() {
       [...rows.values()]
         .filter((r) => r.status === 'pending_embedding' && (!agentId || r.agent_id === agentId))
         .slice(0, limit),
+    countPendingEmbedding: (agentId?: string) =>
+      [...rows.values()].filter(
+        (r) => r.status === 'pending_embedding' && (!agentId || r.agent_id === agentId)
+      ).length,
     updateStatus: (id: string, status: string) => {
       const r = rows.get(id)
       if (r) r.status = status

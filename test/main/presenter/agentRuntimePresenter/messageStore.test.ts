@@ -352,7 +352,6 @@ describe('DeepChatMessageStore', () => {
           status: 'sent',
           is_context_edge: 0,
           metadata: '{}',
-          trace_count: 2,
           created_at: 1000,
           updated_at: 1000
         }
@@ -369,7 +368,7 @@ describe('DeepChatMessageStore', () => {
         status: 'sent',
         isContextEdge: 0,
         metadata: '{}',
-        traceCount: 2,
+        traceCount: 0,
         createdAt: 1000,
         updatedAt: 1000
       })
@@ -497,7 +496,7 @@ describe('DeepChatMessageStore', () => {
   })
 
   describe('getMessage', () => {
-    it('returns mapped record when found', () => {
+    it('uses the trace-free runtime projection', () => {
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
         id: 'm1',
         session_id: 's1',
@@ -514,6 +513,7 @@ describe('DeepChatMessageStore', () => {
       const msg = store.getMessage('m1')
       expect(msg).not.toBeNull()
       expect(msg!.sessionId).toBe('s1')
+      expect(msg!.traceCount).toBe(0)
     })
 
     it('returns null when not found', () => {

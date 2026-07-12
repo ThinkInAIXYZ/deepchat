@@ -1,4 +1,10 @@
 import logger from '@shared/logger'
+import type {
+  MemoryRecallLatencyStage,
+  MemoryRetrievalDegradationCause,
+  MemoryRetrievalOutcome,
+  MemoryRetrievalPurpose
+} from '@shared/types/agent-memory'
 
 import {
   buildMemoryProvenanceKey,
@@ -125,14 +131,28 @@ export class RetrievalService {
         dimensions: number,
         memoryIds: string[]
       ) => Promise<string[]>
+      diagnostics?: {
+        recordRecall(
+          agentId: string,
+          sample: {
+            latencyMs: Partial<Record<MemoryRecallLatencyStage, number>>
+            ftsCandidates: number
+            vectorCandidates: number
+            selected: number
+            purpose: MemoryRetrievalPurpose
+            outcome: MemoryRetrievalOutcome
+            degradations: readonly MemoryRetrievalDegradationCause[]
+          }
+        ): void
+      }
     }
   ) {
     this.ctx = ports.ctx
   }
 
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
-    if (!this.ctx.canReadAgentMemory(agentId)) return []
     return this.retrieve(agentId, query, now, true, {
+      purpose: 'recall',
       keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
       keywordMatchMode: 'any'
     })
@@ -144,6 +164,7 @@ export class RetrievalService {
     now: number
   ): Promise<MemoryRecallItem[]> {
     return this.retrieve(agentId, query, now, false, {
+      purpose: 'decision',
       keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
       keywordMatchMode: 'any',
       enableInlinePrune: false
@@ -157,190 +178,258 @@ export class RetrievalService {
     queryVectors?: readonly (MemoryDecisionQueryVectorSnapshot | undefined)[],
     pinnedIdsByCandidate?: readonly (readonly string[] | undefined)[]
   ): Promise<MemoryDecisionNeighborSet[]> {
-    if (!candidates.length) return []
-    if (!this.ctx.canReadAgentMemory(agentId)) {
-      return candidates.map(() => ({ neighbors: [] }))
-    }
-
-    const config = this.ports.policy.resolveAgentConfig(agentId)
-    const { rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
-    const candidateLimit = DECISION_NEIGHBOR_TOP_S * 2
-    const keywordRows = candidates.map((candidate) => {
-      const keywordQuery = this.buildAgentFacingRecallKeywordQuery(candidate.content)
-      return keywordQuery
-        ? this.ports.repository.searchWithStrategy(agentId, keywordQuery, candidateLimit, {
-            matchMode: 'any'
-          }).rows
-        : []
-    })
-
-    const embedding = config?.memoryEmbedding
-    const currentEmbedding =
-      embedding?.providerId && embedding?.modelId
-        ? { providerId: embedding.providerId, modelId: embedding.modelId }
-        : null
-    const vectors: Array<number[] | undefined> = candidates.map((_, index) => {
-      const snapshot = queryVectors?.[index]
-      return snapshot &&
-        currentEmbedding &&
-        snapshot.providerId === currentEmbedding.providerId &&
-        snapshot.modelId === currentEmbedding.modelId &&
-        snapshot.dimensions === snapshot.vector.length
-        ? Array.from(snapshot.vector)
-        : undefined
-    })
-    // A supplied vector array is a retry snapshot. Undefined slots stay FTS-only so contention
-    // never performs a second embedding provider call after the first attempt failed or omitted one.
-    if (currentEmbedding && queryVectors === undefined) {
-      const missingIndexes = vectors
-        .map((vector, index) => (vector ? -1 : index))
-        .filter((index) => index >= 0)
-      if (missingIndexes.length) {
-        try {
-          const embedded = await this.ports.embeddingGateway.getEmbeddings(
-            agentId,
-            currentEmbedding.providerId,
-            currentEmbedding.modelId,
-            missingIndexes.map((index) => candidates[index].content),
-            'query-embedding'
-          )
-          missingIndexes.forEach((candidateIndex, embeddedIndex) => {
-            const vector = embedded[embeddedIndex]
-            if (vector?.length) vectors[candidateIndex] = vector
-          })
-        } catch (error) {
-          logger.warn(`[Memory] batch query embedding failed for ${agentId}: ${String(error)}`)
-        }
+    const totalStartedAt = performance.now()
+    const latencyMs: Partial<Record<MemoryRecallLatencyStage, number>> = {}
+    const degradations = new Set<MemoryRetrievalDegradationCause>()
+    let outcome: MemoryRetrievalOutcome = 'failed'
+    let ftsCandidates = 0
+    let vectorCandidates = 0
+    let selected = 0
+    let activeStage: MemoryRecallLatencyStage | 'idle' = 'idle'
+    try {
+      if (!candidates.length) {
+        outcome = 'completed'
+        return []
       }
-    }
+      if (!this.ctx.canReadAgentMemory(agentId)) {
+        outcome = 'disabled'
+        return candidates.map(() => ({ neighbors: [] }))
+      }
 
-    const vectorMatches: Array<Array<{ memoryId: string; similarity: number }>> = candidates.map(
-      () => []
-    )
-    let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
-    if (currentEmbedding && this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)) {
-      if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
-        void this.ports
-          .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
-          .catch((error) => {
-            logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
-          })
-        this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
-      } else {
-        const dimensions = vectors.find((vector) => vector?.length)?.length ?? 0
-        const queryIndexes = vectors
-          .map((vector, index) => (vector?.length === dimensions ? index : -1))
+      const config = this.ports.policy.resolveAgentConfig(agentId)
+      const { rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
+      const candidateLimit = DECISION_NEIGHBOR_TOP_S * 2
+      const keywordStartedAt = performance.now()
+      activeStage = 'keyword'
+      const keywordSearches = candidates.map((candidate) => {
+        const keywordQuery = this.buildAgentFacingRecallKeywordQuery(candidate.content)
+        return keywordQuery
+          ? this.ports.repository.searchWithStrategy(agentId, keywordQuery, candidateLimit, {
+              matchMode: 'any'
+            })
+          : null
+      })
+      const keywordRows = keywordSearches.map((search) => search?.rows ?? [])
+      if (keywordSearches.some((search) => search?.strategy === 'like-fallback')) {
+        degradations.add('ftsUnavailable')
+      }
+      latencyMs.keyword = performance.now() - keywordStartedAt
+
+      const embedding = config?.memoryEmbedding
+      const currentEmbedding =
+        embedding?.providerId && embedding?.modelId
+          ? { providerId: embedding.providerId, modelId: embedding.modelId }
+          : null
+      const vectors: Array<number[] | undefined> = candidates.map((_, index) => {
+        const snapshot = queryVectors?.[index]
+        return snapshot &&
+          currentEmbedding &&
+          snapshot.providerId === currentEmbedding.providerId &&
+          snapshot.modelId === currentEmbedding.modelId &&
+          snapshot.dimensions === snapshot.vector.length
+          ? Array.from(snapshot.vector)
+          : undefined
+      })
+      // A supplied vector array is a retry snapshot. Undefined slots stay FTS-only so contention
+      // never performs a second embedding provider call after the first attempt failed or omitted one.
+      if (currentEmbedding && queryVectors === undefined) {
+        const missingIndexes = vectors
+          .map((vector, index) => (vector ? -1 : index))
           .filter((index) => index >= 0)
-        if (dimensions > 0 && queryIndexes.length > 0) {
+        if (missingIndexes.length) {
           try {
-            const matches = await this.ports.vectorStore.queryBatch(
+            const embeddingStartedAt = performance.now()
+            activeStage = 'queryEmbedding'
+            const embedded = await this.ports.embeddingGateway.getEmbeddings(
               agentId,
-              currentEmbedding,
-              dimensions,
-              queryIndexes.map((index) => vectors[index] as number[]),
-              candidateLimit
+              currentEmbedding.providerId,
+              currentEmbedding.modelId,
+              missingIndexes.map((index) => candidates[index].content),
+              'query-embedding'
             )
-            if (
-              this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding) &&
-              this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)
-            ) {
-              vectorContext = { embedding: currentEmbedding, dimensions }
-              queryIndexes.forEach((candidateIndex, resultIndex) => {
-                vectorMatches[candidateIndex] = (matches[resultIndex] ?? [])
-                  .map((match) => ({
-                    memoryId: match.memoryId,
-                    similarity: distanceToSimilarity(match.distance)
-                  }))
-                  .filter((match) => match.similarity >= similarityThreshold)
-              })
-            }
+            missingIndexes.forEach((candidateIndex, embeddedIndex) => {
+              const vector = embedded[embeddedIndex]
+              if (vector?.length) vectors[candidateIndex] = vector
+            })
+            latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
           } catch (error) {
-            const errorName = (error as { name?: string } | null)?.name
-            if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
-              this.ports.vectorStore.clearReady(agentId)
-            }
-            logger.warn(`[Memory] batch vector recall degraded to FTS: ${String(error)}`)
+            degradations.add('embeddingError')
+            logger.warn(`[Memory] batch query embedding failed for ${agentId}: ${String(error)}`)
           }
         }
       }
-    }
 
-    if (!this.ctx.canReadAgentMemory(agentId)) {
-      return candidates.map(() => ({ neighbors: [] }))
-    }
-    const candidateIds = new Set<string>()
-    keywordRows.forEach((rows) => rows.forEach((row) => candidateIds.add(row.id)))
-    vectorMatches.forEach((matches) => matches.forEach((match) => candidateIds.add(match.memoryId)))
-    pinnedIdsByCandidate?.forEach((ids) => ids?.forEach((id) => candidateIds.add(id)))
-    const authoritativeRows = candidateIds.size
-      ? this.ports.repository.listByIds(agentId, [...candidateIds])
-      : []
-    const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
-    const vectorFingerprint = vectorContext
-      ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
-      : null
-
-    return candidates.map((_, index) => {
-      const ftsRows = keywordRows[index]
-        .map((row) => rowsById.get(row.id))
-        .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
-      const currentVectorMatches = vectorMatches[index]
-        .map((match) => {
-          const row = rowsById.get(match.memoryId)
-          return vectorContext && vectorFingerprint
-            ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)
-              ? { row, similarity: match.similarity }
-              : null
-            : null
-        })
-        .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
-      const neighbors = fuse(ftsRows, currentVectorMatches, {
-        topK: DECISION_NEIGHBOR_TOP_S,
-        rrfK,
-        weights,
-        now
-      })
-      const pinnedRows = (pinnedIdsByCandidate?.[index] ?? [])
-        .map((id) => rowsById.get(id))
-        .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
-      for (const pinned of pinnedRows.reverse()) {
-        if (!neighbors.some((neighbor) => neighbor.id === pinned.id)) {
-          neighbors.unshift({
-            id: pinned.id,
-            decisionRevision: pinned.decision_revision,
-            kind: pinned.kind,
-            content: pinned.content,
-            score: 1,
-            importance: pinned.importance,
-            sources: { fts: true },
-            sourceSession: pinned.source_session,
-            sourceEntryIds: null,
-            breakdown: {
-              similarity: 0,
-              recency: pinned.last_accessed ?? pinned.created_at,
-              importance: pinned.importance,
-              confidence: pinned.confidence ?? 0,
-              rrf: 1,
-              final: 1
+      const vectorMatches: Array<Array<{ memoryId: string; similarity: number }>> = candidates.map(
+        () => []
+      )
+      let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
+      if (currentEmbedding && this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)) {
+        if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
+          degradations.add('vectorCold')
+          void this.ports
+            .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
+            .catch((error) => {
+              logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
+            })
+          this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
+        } else {
+          const dimensions = vectors.find((vector) => vector?.length)?.length ?? 0
+          const queryIndexes = vectors
+            .map((vector, index) => (vector?.length === dimensions ? index : -1))
+            .filter((index) => index >= 0)
+          if (dimensions > 0 && queryIndexes.length > 0) {
+            try {
+              const vectorStartedAt = performance.now()
+              activeStage = 'vector'
+              const matches = await this.ports.vectorStore.queryBatch(
+                agentId,
+                currentEmbedding,
+                dimensions,
+                queryIndexes.map((index) => vectors[index] as number[]),
+                candidateLimit
+              )
+              latencyMs.vector = performance.now() - vectorStartedAt
+              if (
+                this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding) &&
+                this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)
+              ) {
+                vectorContext = { embedding: currentEmbedding, dimensions }
+                queryIndexes.forEach((candidateIndex, resultIndex) => {
+                  vectorMatches[candidateIndex] = (matches[resultIndex] ?? [])
+                    .map((match) => ({
+                      memoryId: match.memoryId,
+                      similarity: distanceToSimilarity(match.distance)
+                    }))
+                    .filter((match) => match.similarity >= similarityThreshold)
+                })
+              }
+            } catch (error) {
+              const errorName = (error as { name?: string } | null)?.name
+              if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
+                this.ports.vectorStore.clearReady(agentId)
+              }
+              degradations.add(
+                errorName === 'VectorStoreLeaseUnavailableError' ? 'storeUnusable' : 'storeError'
+              )
+              logger.warn(`[Memory] batch vector recall degraded to FTS: ${String(error)}`)
             }
-          })
+          }
         }
       }
-      neighbors.splice(DECISION_NEIGHBOR_TOP_S)
-      const vector = vectors[index]
-      const queryVector =
-        vector &&
-        currentEmbedding &&
-        this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
-          ? {
-              vector,
-              providerId: currentEmbedding.providerId,
-              modelId: currentEmbedding.modelId,
-              dimensions: vector.length
-            }
-          : undefined
-      return { neighbors, queryVector }
-    })
+
+      if (!this.ctx.canReadAgentMemory(agentId)) {
+        outcome = 'cancelled'
+        return candidates.map(() => ({ neighbors: [] }))
+      }
+      const candidateIds = new Set<string>()
+      keywordRows.forEach((rows) => rows.forEach((row) => candidateIds.add(row.id)))
+      vectorMatches.forEach((matches) =>
+        matches.forEach((match) => candidateIds.add(match.memoryId))
+      )
+      pinnedIdsByCandidate?.forEach((ids) => ids?.forEach((id) => candidateIds.add(id)))
+      const revalidationStartedAt = performance.now()
+      activeStage = 'authoritativeRevalidation'
+      const authoritativeRows = candidateIds.size
+        ? this.ports.repository.listByIds(agentId, [...candidateIds])
+        : []
+      latencyMs.authoritativeRevalidation = performance.now() - revalidationStartedAt
+      const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
+      const vectorFingerprint = vectorContext
+        ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
+        : null
+
+      const assemblyStartedAt = performance.now()
+      activeStage = 'assembly'
+      const results = candidates.map((_, index) => {
+        const ftsRows = keywordRows[index]
+          .map((row) => rowsById.get(row.id))
+          .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
+        const currentVectorMatches = vectorMatches[index]
+          .map((match) => {
+            const row = rowsById.get(match.memoryId)
+            return vectorContext && vectorFingerprint
+              ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)
+                ? { row, similarity: match.similarity }
+                : null
+              : null
+          })
+          .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
+        const neighbors = fuse(ftsRows, currentVectorMatches, {
+          topK: DECISION_NEIGHBOR_TOP_S,
+          rrfK,
+          weights,
+          now
+        })
+        ftsCandidates += ftsRows.length
+        vectorCandidates += currentVectorMatches.length
+        const pinnedRows = (pinnedIdsByCandidate?.[index] ?? [])
+          .map((id) => rowsById.get(id))
+          .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
+        for (const pinned of pinnedRows.reverse()) {
+          if (!neighbors.some((neighbor) => neighbor.id === pinned.id)) {
+            neighbors.unshift({
+              id: pinned.id,
+              decisionRevision: pinned.decision_revision,
+              kind: pinned.kind,
+              content: pinned.content,
+              score: 1,
+              importance: pinned.importance,
+              sources: { fts: true },
+              sourceSession: pinned.source_session,
+              sourceEntryIds: null,
+              breakdown: {
+                similarity: 0,
+                recency: pinned.last_accessed ?? pinned.created_at,
+                importance: pinned.importance,
+                confidence: pinned.confidence ?? 0,
+                rrf: 1,
+                final: 1
+              }
+            })
+          }
+        }
+        neighbors.splice(DECISION_NEIGHBOR_TOP_S)
+        const vector = vectors[index]
+        const queryVector =
+          vector &&
+          currentEmbedding &&
+          this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
+            ? {
+                vector,
+                providerId: currentEmbedding.providerId,
+                modelId: currentEmbedding.modelId,
+                dimensions: vector.length
+              }
+            : undefined
+        return { neighbors, queryVector }
+      })
+      selected = results.reduce((total, result) => total + result.neighbors.length, 0)
+      latencyMs.assembly = performance.now() - assemblyStartedAt
+      outcome = 'completed'
+      return results
+    } catch (error) {
+      if (!this.ctx.canReadAgentMemory(agentId)) outcome = 'cancelled'
+      else {
+        outcome = 'failed'
+        degradations.add(
+          activeStage === 'keyword' || activeStage === 'authoritativeRevalidation'
+            ? 'storeError'
+            : 'unknown'
+        )
+      }
+      throw error
+    } finally {
+      latencyMs.total = performance.now() - totalStartedAt
+      this.ports.diagnostics?.recordRecall(agentId, {
+        purpose: 'decision',
+        latencyMs,
+        ftsCandidates,
+        vectorCandidates,
+        selected,
+        outcome,
+        degradations: [...degradations]
+      })
+    }
   }
 
   private buildAgentFacingRecallKeywordQuery(query: string): string {
@@ -400,13 +489,13 @@ export class RetrievalService {
     query: string,
     options: { limit?: number } = {}
   ): Promise<MemorySearchHit[]> {
-    if (!this.ctx.canReadAgentMemory(agentId)) return []
     const limit =
       options.limit != null
         ? Math.min(MAX_TOP_K, Math.max(0, Math.floor(options.limit)))
         : MEMORY_SEARCH_DEFAULT_LIMIT
     if (limit === 0) return []
     const hits = await this.retrieve(agentId, query, Date.now(), false, {
+      purpose: 'search',
       topKOverride: limit,
       enableInlinePrune: false
     })
@@ -426,193 +515,281 @@ export class RetrievalService {
     now: number,
     recordAccessHits: boolean,
     options: {
+      purpose: MemoryRetrievalPurpose
       trace?: boolean
       keywordQuery?: string
       keywordMatchMode?: 'all' | 'any'
       topKOverride?: number
       enableInlinePrune?: boolean
-    } = {}
+    }
   ): Promise<MemoryRecallItem[]> {
-    if (!this.ctx.canReadAgentMemory(agentId)) return []
-    const config = this.ports.policy.resolveAgentConfig(agentId)
-    const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
-    const normalizedQuery = query.trim()
-    if (!normalizedQuery) return []
-    const normalizedKeywordQuery = (options.keywordQuery ?? normalizedQuery).trim()
+    const totalStartedAt = performance.now()
+    const latencyMs: Partial<Record<MemoryRecallLatencyStage, number>> = {}
+    const degradations = new Set<MemoryRetrievalDegradationCause>()
+    let outcome: MemoryRetrievalOutcome = 'failed'
+    let ftsCandidates = 0
+    let vectorCandidates = 0
+    let selected = 0
+    let activeStage: MemoryRecallLatencyStage | 'idle' = 'idle'
+    try {
+      if (!this.ctx.canReadAgentMemory(agentId)) {
+        outcome = 'disabled'
+        return []
+      }
+      const config = this.ports.policy.resolveAgentConfig(agentId)
+      const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
+      const normalizedQuery = query.trim()
+      if (!normalizedQuery) {
+        outcome = 'emptyQuery'
+        return []
+      }
+      const normalizedKeywordQuery = (options.keywordQuery ?? normalizedQuery).trim()
 
-    const effectiveTopK =
-      options.topKOverride !== undefined ? clampRetrievalTopK(options.topKOverride) : topK
-    const candidateLimit = effectiveTopK * 2
-    const ftsRows = normalizedKeywordQuery
-      ? this.ports.repository
-          .searchWithStrategy(agentId, normalizedKeywordQuery, candidateLimit, {
-            matchMode: options.keywordMatchMode ?? 'all'
-          })
-          .rows.filter((row) => row.kind !== 'persona' && row.kind !== 'working')
-      : []
-
-    const vecCandidates: { memoryId: string; similarity: number }[] = []
-    let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
-    const embedding = config?.memoryEmbedding
-    if (embedding?.providerId && embedding?.modelId) {
-      const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-      if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
-        void this.ports
-          .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
-          .catch((error) => {
-            logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
-          })
-        this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
-      } else {
-        try {
-          const queryEmbedding = this.startQueryEmbedding(
+      const effectiveTopK =
+        options.topKOverride !== undefined ? clampRetrievalTopK(options.topKOverride) : topK
+      const candidateLimit = effectiveTopK * 2
+      const keywordStartedAt = performance.now()
+      activeStage = 'keyword'
+      const keywordSearch = normalizedKeywordQuery
+        ? this.ports.repository.searchWithStrategy(
             agentId,
-            currentEmbedding,
-            normalizedQuery
+            normalizedKeywordQuery,
+            candidateLimit,
+            {
+              matchMode: options.keywordMatchMode ?? 'all'
+            }
           )
-          if (!queryEmbedding) {
-            logger.warn(
-              `[Memory] query embedding already in flight for ${agentId}; vector recall skipped this turn`
+        : null
+      const ftsRows = (keywordSearch?.rows ?? []).filter(
+        (row) => row.kind !== 'persona' && row.kind !== 'working'
+      )
+      if (keywordSearch?.strategy === 'like-fallback') degradations.add('ftsUnavailable')
+      latencyMs.keyword = performance.now() - keywordStartedAt
+
+      const vecCandidates: { memoryId: string; similarity: number }[] = []
+      let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
+      const embedding = config?.memoryEmbedding
+      if (embedding?.providerId && embedding?.modelId) {
+        const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
+        if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
+          degradations.add('vectorCold')
+          void this.ports
+            .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
+            .catch((error) => {
+              logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
+            })
+          this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
+        } else {
+          try {
+            const queryEmbedding = this.startQueryEmbedding(
+              agentId,
+              currentEmbedding,
+              normalizedQuery
             )
-          } else {
-            const vectorsResult = await withSoftTimeout(
-              queryEmbedding,
-              RECALL_QUERY_EMBEDDING_TIMEOUT_MS
-            )
-            if (vectorsResult.timedOut) {
+            if (!queryEmbedding) {
               logger.warn(
-                `[Memory] query embedding timed out for ${agentId}; vector recall skipped this turn`
+                `[Memory] query embedding already in flight for ${agentId}; vector recall skipped this turn`
               )
             } else {
-              const vectors = vectorsResult.value
-              if (!this.ctx.canReadAgentMemory(agentId)) return []
-              const vector = vectors[0]
-              if (vector?.length) {
-                if (!this.ctx.canReadAgentMemory(agentId)) return []
-                const matches = await this.ports.vectorStore.query(
-                  agentId,
-                  currentEmbedding,
-                  vector.length,
-                  vector,
-                  candidateLimit
+              const embeddingStartedAt = performance.now()
+              activeStage = 'queryEmbedding'
+              const vectorsResult = await withSoftTimeout(
+                queryEmbedding,
+                RECALL_QUERY_EMBEDDING_TIMEOUT_MS
+              )
+              latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
+              if (vectorsResult.timedOut) {
+                degradations.add('embeddingTimeout')
+                logger.warn(
+                  `[Memory] query embedding timed out for ${agentId}; vector recall skipped this turn`
                 )
-                if (!this.ctx.canReadAgentMemory(agentId)) return []
-                if (
-                  this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
-                  this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
-                ) {
-                  if (!this.ctx.canReadAgentMemory(agentId)) return []
-                  vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
-                  for (const match of matches) {
-                    const similarity = distanceToSimilarity(match.distance)
-                    if (similarity < similarityThreshold) continue
-                    vecCandidates.push({ memoryId: match.memoryId, similarity })
+              } else {
+                const vectors = vectorsResult.value
+                if (!this.ctx.canReadAgentMemory(agentId)) {
+                  outcome = 'cancelled'
+                  return []
+                }
+                const vector = vectors[0]
+                if (vector?.length) {
+                  if (!this.ctx.canReadAgentMemory(agentId)) {
+                    outcome = 'cancelled'
+                    return []
                   }
-                  if (this.ctx.canReadAgentMemory(agentId) && !this.ports.isReindexing(agentId)) {
-                    void this.ports.backfillEmbeddings(agentId).catch((error) => {
-                      logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
+                  const vectorStartedAt = performance.now()
+                  activeStage = 'vector'
+                  const matches = await this.ports.vectorStore.query(
+                    agentId,
+                    currentEmbedding,
+                    vector.length,
+                    vector,
+                    candidateLimit
+                  )
+                  latencyMs.vector = performance.now() - vectorStartedAt
+                  if (!this.ctx.canReadAgentMemory(agentId)) {
+                    outcome = 'cancelled'
+                    return []
+                  }
+                  if (
+                    this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
+                    this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
+                  ) {
+                    if (!this.ctx.canReadAgentMemory(agentId)) {
+                      outcome = 'cancelled'
+                      return []
+                    }
+                    vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
+                    for (const match of matches) {
+                      const similarity = distanceToSimilarity(match.distance)
+                      if (similarity < similarityThreshold) continue
+                      vecCandidates.push({ memoryId: match.memoryId, similarity })
+                    }
+                    if (this.ctx.canReadAgentMemory(agentId) && !this.ports.isReindexing(agentId)) {
+                      void this.ports.backfillEmbeddings(agentId).catch((error) => {
+                        logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
+                      })
+                    }
+                  } else if (
+                    this.ctx.canReadAgentMemory(agentId) &&
+                    !this.ports.isReindexing(agentId)
+                  ) {
+                    degradations.add('revisionChanged')
+                    void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+                      logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
                     })
                   }
-                } else if (
-                  this.ctx.canReadAgentMemory(agentId) &&
-                  !this.ports.isReindexing(agentId)
-                ) {
-                  void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
-                    logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
-                  })
                 }
               }
             }
+          } catch (error) {
+            if (!this.ctx.canReadAgentMemory(agentId)) {
+              outcome = 'cancelled'
+              return []
+            }
+            const errorName = (error as { name?: string } | null)?.name
+            if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
+              this.ports.vectorStore.clearReady(agentId)
+            }
+            degradations.add(
+              errorName === 'VectorStoreLeaseUnavailableError'
+                ? 'storeUnusable'
+                : activeStage === 'queryEmbedding'
+                  ? 'embeddingError'
+                  : 'storeError'
+            )
+            logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
           }
-        } catch (error) {
-          if (!this.ctx.canReadAgentMemory(agentId)) return []
-          const errorName = (error as { name?: string } | null)?.name
-          if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
-            this.ports.vectorStore.clearReady(agentId)
-          }
-          logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
         }
       }
-    }
 
-    const candidateIds = [
-      ...ftsRows.map((row) => row.id),
-      ...vecCandidates.map((candidate) => candidate.memoryId)
-    ]
-    const authoritativeRows = candidateIds.length
-      ? this.ports.repository.listByIds(agentId, [...new Set(candidateIds)])
-      : []
-    const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
-    const authoritativeFtsRows = ftsRows
-      .map((row) => rowsById.get(row.id))
-      .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
-    const vectorFingerprint = vectorContext
-      ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
-      : null
-    const authoritativeVecMatches = vecCandidates
-      .map((candidate) => {
-        const row = rowsById.get(candidate.memoryId)
-        return vectorContext && vectorFingerprint
-          ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)
-            ? { row, similarity: candidate.similarity }
-            : null
-          : null
-      })
-      .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
-
-    if (
-      options.enableInlinePrune !== false &&
-      vectorContext &&
-      this.ctx.canReadAgentMemory(agentId)
-    ) {
-      const liveVectorIds = new Set(authoritativeVecMatches.map((match) => match.row.id))
-      const deadVectorIds = [
-        ...new Set(
-          vecCandidates
-            .map((candidate) => candidate.memoryId)
-            .filter((memoryId) => !liveVectorIds.has(memoryId))
-        )
+      const candidateIds = [
+        ...ftsRows.map((row) => row.id),
+        ...vecCandidates.map((candidate) => candidate.memoryId)
       ]
-      if (deadVectorIds.length > 0) {
-        void this.ports
-          .deletePrunableVectorsForMemoryIds(
-            agentId,
-            vectorContext.embedding,
-            vectorContext.dimensions,
-            deadVectorIds
-          )
-          .catch((error) => {
-            logger.warn(`[Memory] inline vector prune failed: ${String(error)}`)
-          })
-      }
-    }
+      const revalidationStartedAt = performance.now()
+      activeStage = 'authoritativeRevalidation'
+      const authoritativeRows = candidateIds.length
+        ? this.ports.repository.listByIds(agentId, [...new Set(candidateIds)])
+        : []
+      latencyMs.authoritativeRevalidation = performance.now() - revalidationStartedAt
+      const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
+      const authoritativeFtsRows = ftsRows
+        .map((row) => rowsById.get(row.id))
+        .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
+      const vectorFingerprint = vectorContext
+        ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
+        : null
+      const authoritativeVecMatches = vecCandidates
+        .map((candidate) => {
+          const row = rowsById.get(candidate.memoryId)
+          return vectorContext && vectorFingerprint
+            ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)
+              ? { row, similarity: candidate.similarity }
+              : null
+            : null
+        })
+        .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
+      ftsCandidates = authoritativeFtsRows.length
+      vectorCandidates = authoritativeVecMatches.length
 
-    const results = fuse(authoritativeFtsRows, authoritativeVecMatches, {
-      topK: effectiveTopK,
-      rrfK,
-      weights,
-      now,
-      trace: options.trace
-    })
-    if (recordAccessHits && this.ctx.canReadAgentMemory(agentId)) {
-      this.ports.repository.recordAccessBatch(
-        results.map((item) => item.id),
-        now
-      )
+      if (
+        options.enableInlinePrune !== false &&
+        vectorContext &&
+        this.ctx.canReadAgentMemory(agentId)
+      ) {
+        const liveVectorIds = new Set(authoritativeVecMatches.map((match) => match.row.id))
+        const deadVectorIds = [
+          ...new Set(
+            vecCandidates
+              .map((candidate) => candidate.memoryId)
+              .filter((memoryId) => !liveVectorIds.has(memoryId))
+          )
+        ]
+        if (deadVectorIds.length > 0) {
+          void this.ports
+            .deletePrunableVectorsForMemoryIds(
+              agentId,
+              vectorContext.embedding,
+              vectorContext.dimensions,
+              deadVectorIds
+            )
+            .catch((error) => {
+              logger.warn(`[Memory] inline vector prune failed: ${String(error)}`)
+            })
+        }
+      }
+
+      const assemblyStartedAt = performance.now()
+      activeStage = 'assembly'
+      const results = fuse(authoritativeFtsRows, authoritativeVecMatches, {
+        topK: effectiveTopK,
+        rrfK,
+        weights,
+        now,
+        trace: options.trace
+      })
+      latencyMs.assembly = performance.now() - assemblyStartedAt
+      selected = results.length
+      if (recordAccessHits && this.ctx.canReadAgentMemory(agentId)) {
+        this.ports.repository.recordAccessBatch(
+          results.map((item) => item.id),
+          now
+        )
+      }
+      outcome = 'completed'
+      return results
+    } catch (error) {
+      if (!this.ctx.canReadAgentMemory(agentId)) outcome = 'cancelled'
+      else {
+        outcome = 'failed'
+        degradations.add(
+          activeStage === 'keyword' || activeStage === 'authoritativeRevalidation'
+            ? 'storeError'
+            : 'unknown'
+        )
+      }
+      throw error
+    } finally {
+      latencyMs.total = performance.now() - totalStartedAt
+      this.ports.diagnostics?.recordRecall(agentId, {
+        purpose: options.purpose,
+        latencyMs,
+        ftsCandidates,
+        vectorCandidates,
+        selected,
+        outcome,
+        degradations: [...degradations]
+      })
     }
-    return results
   }
 
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
-    if (!this.ctx.canReadAgentMemory(agentId)) return null
     const readEpoch = this.ctx.captureReadEpoch(agentId)
     const config = this.ports.policy.resolveAgentConfig(agentId)
-    const recalled = query.trim()
-      ? await this.retrieve(agentId, query, Date.now(), false, {
-          keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
-          keywordMatchMode: 'any'
-        })
-      : []
+    const recalled = await this.retrieve(agentId, query, Date.now(), false, {
+      purpose: 'injection',
+      keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
+      keywordMatchMode: 'any'
+    })
     if (!this.ctx.canReadAgentMemory(agentId) || !this.ctx.isReadEpochCurrent(agentId, readEpoch)) {
       return null
     }

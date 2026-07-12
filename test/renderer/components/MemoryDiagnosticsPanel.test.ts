@@ -89,18 +89,25 @@ async function setup(
   options: {
     auditEvents?: MemoryAuditEvent[]
     messages?: Record<string, string>
+    health?: MemoryHealthDto
   } = {}
 ) {
   vi.resetModules()
   const memoryClient = {
-    getHealth: vi.fn().mockResolvedValue(baseHealth),
+    getHealth: vi.fn().mockResolvedValue(options.health ?? baseHealth),
     getArchiveCandidateLifecyclePreview: vi.fn().mockResolvedValue(basePreview),
     listAuditEvents: vi.fn().mockResolvedValue(options.auditEvents ?? []),
     reindex: vi.fn().mockResolvedValue({ started: true }),
     clear: vi.fn().mockResolvedValue(0)
   }
   const toast = vi.fn()
-  const t = vi.fn((key: string) => options.messages?.[key] ?? key)
+  const t = vi.fn((key: string, params?: Record<string, string | number>) => {
+    const message = options.messages?.[key] ?? key
+    if (!params) return message
+    return message.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+      Object.hasOwn(params, name) ? String(params[name]) : placeholder
+    )
+  })
   const te = vi.fn((key: string) => Object.hasOwn(options.messages ?? {}, key))
 
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
@@ -143,6 +150,57 @@ function clearAllActionButton(wrapper: Awaited<ReturnType<typeof setup>>['wrappe
 }
 
 describe('MemoryDiagnosticsPanel', () => {
+  it('renders Agent recall and process-wide pipeline pressure', async () => {
+    const health: MemoryHealthDto = structuredClone(baseHealth)
+    health.runtime.agent.retrieval.recall.latencyMs.total = {
+      samples: 4,
+      p50: 12,
+      p95: 48,
+      max: 50
+    }
+    health.runtime.agent.retrieval.recall.degradationCounts.vectorCold = 3
+    health.runtime.process.extractionQueue.depth = 2
+    health.runtime.process.extractionQueue.oldestQueuedAgeMs = 1250
+    health.runtime.process.embeddingBacklog.pending = 7
+    health.runtime.process.vector.openStores = 4
+    health.runtime.process.vector.openStoresHighWater = 6
+    health.runtime.process.vector.activeLeasesHighWater = 5
+    health.runtime.process.providerAdmission.raceEvents.deadline = 1
+    health.runtime.process.providerAdmission.admissionDecisions.rateLimited = 2
+    const providerPressureSummary =
+      'Rate limit {rateLimited} · Capacity {capacityRejected} · Deadline {deadline} · Aborted {aborted} · Late settle {lateSettled}'
+    const { wrapper, t } = await setup(baseStatus, {
+      health,
+      messages: { 'settings.memory.redesign.providerPressureSummary': providerPressureSummary }
+    })
+
+    const pipeline = wrapper.get('[data-testid="runtime-pipeline"]')
+    expect(pipeline.text()).toContain('12')
+    expect(pipeline.text()).toContain('48')
+    expect(pipeline.text()).toContain('1250')
+    expect(pipeline.text()).toContain('7')
+    expect(pipeline.text()).toContain('Rate limit 2')
+    expect(pipeline.text()).toContain('Deadline 1')
+    expect(t).toHaveBeenCalledWith('settings.memory.redesign.providerPressureSummary', {
+      rateLimited: 2,
+      capacityRejected: 0,
+      deadline: 1,
+      aborted: 0,
+      lateSettled: 0
+    })
+    expect(pipeline.text()).toContain('settings.memory.redesign.processWideDescription')
+    wrapper.unmount()
+  })
+
+  it('renders missing latency and queue-age samples as unavailable', async () => {
+    const { wrapper } = await setup(baseStatus, { health: structuredClone(baseHealth) })
+
+    const pipeline = wrapper.get('[data-testid="runtime-pipeline"]')
+    expect(pipeline.text().match(/—/g)?.length).toBeGreaterThanOrEqual(3)
+    expect(pipeline.text()).not.toContain('0ms')
+    wrapper.unmount()
+  })
+
   it('normalizes persisted audit event types to stable i18n keys', () => {
     expect(auditSentenceKey('memory/maintenance_llm')).toBe(
       'settings.memory.redesign.audit.memory-maintenance-llm'

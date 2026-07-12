@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
-import { FakeRepository, FakeVectorStore, textToVector } from './fakes/memoryFakes'
+import {
+  createFakeRepository,
+  FakeVectorStore,
+  textToVector,
+  type FakeRepository
+} from './fakes/memoryFakes'
 
 // Offline persona-evolution eval probes (US-6). Deterministic: a stub model stands in for the
 // distillation call and a keyword-vector stub for embeddings, so the guarded loop
@@ -21,7 +26,7 @@ const PERSONA_ON: DeepChatAgentConfig = {
 }
 
 function makeAgent(generateText: ReturnType<typeof vi.fn>) {
-  const repo = new FakeRepository()
+  const repo = createFakeRepository()
   const presenter = new MemoryPresenter({
     executeWithRateLimit: vi.fn(async () => undefined),
     repository: repo,

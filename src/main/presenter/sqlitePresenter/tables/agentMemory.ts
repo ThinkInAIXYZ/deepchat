@@ -78,6 +78,11 @@ const AGENT_MEMORY_BASE_INDEX_SQL = `
     ON agent_memory(agent_id, kind, status);
   CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_active
     ON agent_memory(agent_id, superseded_by);
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_pending_embedding_v1
+    ON agent_memory(status, agent_id, created_at, id)
+    WHERE status = 'pending_embedding'
+      AND superseded_by IS NULL
+      AND kind NOT IN ('persona', 'working');
   CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_memory_provenance
     ON agent_memory(agent_id, provenance_key)
     WHERE provenance_key IS NOT NULL;
@@ -1125,6 +1130,30 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          LIMIT ?`
       )
       .all(cappedLimit) as AgentMemoryRow[]
+  }
+
+  countPendingEmbedding(agentId?: string): number {
+    const row = agentId
+      ? (this.db
+          .prepare(
+            `SELECT COUNT(*) AS count
+             FROM agent_memory
+             WHERE status = 'pending_embedding'
+               AND superseded_by IS NULL
+               AND kind NOT IN ('persona', 'working')
+               AND agent_id = ?`
+          )
+          .get(agentId) as { count: number })
+      : (this.db
+          .prepare(
+            `SELECT COUNT(*) AS count
+             FROM agent_memory
+             WHERE status = 'pending_embedding'
+               AND superseded_by IS NULL
+               AND kind NOT IN ('persona', 'working')`
+          )
+          .get() as { count: number })
+    return row.count
   }
 
   updateStatus(

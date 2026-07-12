@@ -175,6 +175,8 @@ interface BatchWriteResult {
   outcomes: MemoryWriteOutcome[]
   decisionBudgetFallbacks: number
   failed: boolean
+  llmCalls: number
+  casRetries: number
 }
 
 interface CandidateApplyPolicy {
@@ -234,6 +236,16 @@ export class WriteCoordinator {
       markWorkingMemoryDirty: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
       scheduleConsolidation: (agentId: string) => void
+      diagnostics?: {
+        recordExtraction(
+          agentId: string,
+          sample: {
+            outcome: 'completed' | 'cancelled' | 'failed'
+            llmCalls: number
+            casRetries: number
+          }
+        ): void
+      }
     }
   ) {
     this.ctx = ports.ctx
@@ -279,9 +291,13 @@ export class WriteCoordinator {
     const createdIds: string[] = []
     const outcomes: MemoryWriteOutcome[] = []
     let touched = false
+    let extractionOutcome: 'completed' | 'cancelled' | 'failed' = 'failed'
+    let llmCalls = 0
+    let casRetries = 0
     try {
       let shouldExtract = true
       try {
+        llmCalls += 1
         const triage = await this.ports.textGeneration.generateText(
           input.agentId,
           model.providerId,
@@ -293,9 +309,16 @@ export class WriteCoordinator {
       } catch (error) {
         logger.warn(`[Memory] triage skipped, extracting anyway: ${String(error)}`)
       }
-      if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
-      if (!shouldExtract) return { ok: true, createdIds: [] }
+      if (!this.ctx.canContinueOperation(operationFence)) {
+        extractionOutcome = 'cancelled'
+        return { ok: false }
+      }
+      if (!shouldExtract) {
+        extractionOutcome = 'completed'
+        return { ok: true, createdIds: [] }
+      }
 
+      llmCalls += 1
       const response = await this.ports.textGeneration.generateText(
         input.agentId,
         model.providerId,
@@ -303,7 +326,10 @@ export class WriteCoordinator {
         buildExtractionPrompt(span),
         'extraction'
       )
-      if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
+      if (!this.ctx.canContinueOperation(operationFence)) {
+        extractionOutcome = 'cancelled'
+        return { ok: false }
+      }
       const parsed = parseMemoryCandidates(response)
       if (!parsed.ok) {
         logger.warn(`[Memory] extraction parse failed: ${parsed.reason}`)
@@ -324,6 +350,8 @@ export class WriteCoordinator {
         now,
         operationFence
       )
+      llmCalls += batch.llmCalls
+      casRetries += batch.casRetries
       for (const outcome of batch.outcomes) {
         if (this.ctx.isOperationGenerationCurrent(operationFence)) {
           outcomes.push(outcome)
@@ -348,12 +376,21 @@ export class WriteCoordinator {
       // If a non-empty extraction is disabled mid-batch, keep the cursor for retry; any rows
       // already written are picked up by the next embedding/backfill drain.
       if (batch.failed) return { ok: false }
-      if (!this.ctx.canContinueOperation(operationFence)) return { ok: false }
+      if (!this.ctx.canContinueOperation(operationFence)) {
+        extractionOutcome = 'cancelled'
+        return { ok: false }
+      }
+      extractionOutcome = 'completed'
       return { ok: true, createdIds }
     } catch (error) {
       logger.warn(`[Memory] extraction failed: ${String(error)}`)
       return { ok: false }
     } finally {
+      this.ports.diagnostics?.recordExtraction(input.agentId, {
+        outcome: extractionOutcome,
+        llmCalls,
+        casRetries
+      })
       if (touched && this.ctx.isOperationGenerationCurrent(operationFence)) {
         this.finalizeCommittedExtraction(input, outcomes)
       }
@@ -596,10 +633,12 @@ export class WriteCoordinator {
   ): Promise<{
     decisions: Map<number, { decision: MemoryDecision; valid: boolean }>
     fallbackCandidateIndexes: Set<number>
+    calls: number
   }> {
     const partitioned = partitionBatchDecisions(inputs)
     const decisions = new Map<number, { decision: MemoryDecision; valid: boolean }>()
     const fallbackCandidateIndexes = new Set(partitioned.fallbackCandidateIndexes)
+    let calls = 0
     const partitions = partitioned.partitions.slice(0, maxBatches)
     for (const skipped of partitioned.partitions.slice(maxBatches)) {
       skipped.inputs.forEach((input) => fallbackCandidateIndexes.add(input.candidateIndex))
@@ -607,6 +646,7 @@ export class WriteCoordinator {
     for (const partition of partitions) {
       if (!this.ctx.canContinueOperation(operationFence)) break
       try {
+        calls += 1
         const raw = await this.ports.textGeneration.generateText(
           agentId,
           model.providerId,
@@ -623,7 +663,7 @@ export class WriteCoordinator {
         logger.warn(`[Memory] batch decision model failed: ${String(error)}`)
       }
     }
-    return { decisions, fallbackCandidateIndexes }
+    return { decisions, fallbackCandidateIndexes, calls }
   }
 
   private async coordinateBatchWrites(
@@ -634,7 +674,9 @@ export class WriteCoordinator {
     now: number,
     operationFence: MemoryOperationFence
   ): Promise<BatchWriteResult> {
-    if (!candidates.length) return { outcomes: [], decisionBudgetFallbacks: 0, failed: false }
+    if (!candidates.length) {
+      return { outcomes: [], decisionBudgetFallbacks: 0, failed: false, llmCalls: 0, casRetries: 0 }
+    }
 
     const preparation = candidates.map((candidate) =>
       this.prepareCoordinateCandidate(agentId, candidate)
@@ -670,6 +712,7 @@ export class WriteCoordinator {
 
     const outcomesByIndex = new Map<number, MemoryWriteOutcome>()
     const retryCandidates: PreparedCoordinateCandidate[] = []
+    let decisionCalls = initialBatch.calls
     let failed = false
     for (const candidate of candidates) {
       if (!this.ctx.canContinueOperation(operationFence)) break
@@ -710,6 +753,7 @@ export class WriteCoordinator {
     }
 
     const retrySlice = retryCandidates.slice(0, DECISION_RETRY_MAX_CANDIDATES)
+    let casRetries = 0
     for (const skipped of retryCandidates.slice(DECISION_RETRY_MAX_CANDIDATES)) {
       outcomesByIndex.set(skipped.candidateIndex, {
         action: 'noop',
@@ -772,12 +816,14 @@ export class WriteCoordinator {
         1,
         operationFence
       )
+      decisionCalls += retryBatch.calls
 
       for (const original of retryEligible) {
         if (!this.ctx.canContinueOperation(operationFence)) break
         try {
           const preparedResult = retryPreparationByIndex.get(original.candidateIndex)
           if (!preparedResult) continue
+          casRetries += 1
           const retryResult = this.applyPreparedCandidate(
             agentId,
             preparedResult,
@@ -812,7 +858,9 @@ export class WriteCoordinator {
         return outcome ? [outcome] : []
       }),
       decisionBudgetFallbacks: initialBatch.fallbackCandidateIndexes.size,
-      failed
+      failed,
+      llmCalls: decisionCalls,
+      casRetries
     }
   }
 

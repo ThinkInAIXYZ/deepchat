@@ -23,6 +23,15 @@ servers、official Plugins 和 Remote control channels 时，不应该打开 Set
 Remote channel 是 Plugins UI 里的 virtual plugin，不是 `.dcplugin` 安装包。这个建模只改变用户入口和
 展示方式，不改变 remote control 的配置存储、runtime 生命周期或消息协议。
 
+Availability boundary:
+
+- The Plugins Hub belongs to the DeepChat runtime.
+- Globally enabled plugins are available to every DeepChat agent; there is no per-agent plugin
+  allow-list.
+- ACP agents use their own external runtime. Selecting an ACP agent replaces the whole Plugins Hub
+  with an unavailable state instead of exposing controls that cannot affect that runtime.
+- Skills and normal MCP servers may retain their separate DeepChat agent-scoped policies.
+
 ## Goals
 
 - 新增主窗口 route：`/plugins`。
@@ -34,6 +43,8 @@ Remote channel 是 Plugins UI 里的 virtual plugin，不是 `.dcplugin` 安装�
 - Remote 每个 implemented channel 都作为 plugin-like card 出现，并能进入该 channel 的详情子路由。
 - Remote 设置页不再在 Settings 中展示；从列表进入详情时使用主窗口 Plugins 子路由。
 - Official plugin 的详情和设置入口不再弹出 per-plugin BrowserWindow；从列表进入详情时使用主窗口 Plugins 子路由。
+- Selecting an ACP agent shows one Plugins-unavailable state and does not render catalog, detail,
+  Skills, or MCP child routes.
 - Settings 侧边栏、Settings Overview 搜索和 quick entry 不再展示 Skills、MCP、Plugins、Remote。
 - 保留 Settings 内部旧 route 的兼容能力，避免 deeplink、onboarding 或历史入口直接 404。
 - `所有 Agents` 标题保留。
@@ -51,8 +62,9 @@ Remote channel 是 Plugins UI 里的 virtual plugin，不是 `.dcplugin` 安装�
 - 不新增统一持久化表来存一个“大插件模型”。
 - 不改变 existing Remote commands、pairing protocol、channel binding behavior。
 - 不改变 existing MCP server config schema、Skill sidecar schema 或 plugin manifest schema，除非内嵌设置页确实需要最小 route 补充。
+- 不把 DeepChat Plugins Hub 或其插件注入 ACP runtime。
 
-## Current State
+## Current Architecture
 
 Relevant current files:
 
@@ -63,23 +75,24 @@ Relevant current files:
 | Chat page internal route state | `src/renderer/src/stores/ui/pageRouter.ts`, `src/renderer/src/views/ChatTabView.vue` |
 | Settings shell and navigation | `src/renderer/settings/App.vue`, `src/renderer/settings/main.ts`, `src/shared/settingsNavigation.ts` |
 | Settings window lifecycle | `src/main/presenter/windowPresenter/index.ts`, `src/shared/contracts/routes/system.routes.ts` |
-| Plugins settings page | `src/renderer/settings/components/PluginsSettings.vue`, `src/renderer/api/PluginClient.ts`, `src/shared/contracts/routes/plugins.routes.ts` |
+| Plugins Hub | `src/renderer/src/pages/plugins/**`, `src/renderer/src/stores/pluginCatalog.ts`, `src/renderer/api/PluginClient.ts` |
 | MCP settings page | `src/renderer/settings/components/McpSettings.vue`, `src/renderer/src/components/mcp-config/**`, `src/renderer/src/stores/mcp.ts` |
 | Skills settings page | `src/renderer/settings/components/skills/SkillsSettings.vue`, `src/renderer/src/stores/skillsStore.ts` |
 | Remote settings page | `src/renderer/settings/components/RemoteSettings.vue`, `src/renderer/api/RemoteControlClient.ts` |
 
-Important current constraints:
+Important current boundaries:
 
-- Main window Vue router currently exposes `/chat` and `/welcome`.
-- Main shell already keeps `WindowSideBar` outside `RouterView`, so adding `/plugins` naturally preserves the sidebar.
+- Main window Vue router exposes `/chat`, `/welcome`, and the nested `/plugins` route family.
+- Main shell keeps `WindowSideBar` outside `RouterView`, so Plugins routes preserve the sidebar.
 - Settings navigation is centralized in `src/shared/settingsNavigation.ts`.
 - Settings routes are generated from navigation items in `src/renderer/settings/main.ts`.
 - `system.openSettings` only accepts `SettingsRouteNameSchema`.
-- MCP install deeplinks currently open Settings and send `DEEPLINK_EVENTS.MCP_INSTALL`.
-- Plugin settings currently call `plugins.invokeAction({ actionId: 'settings.open' })`, which opens a per-plugin BrowserWindow.
-- Remote channels already expose `RemoteChannelDescriptor`, status, settings, bindings and pairing through typed routes.
+- MCP install deeplinks focus the main window and route to `/plugins/mcp`.
+- First-party plugin catalog and detail flows stay inside the main Plugins route family.
+- Remote channels expose their main-owned descriptor catalog, status, settings, bindings and pairing
+  through typed routes; renderer state is a cache, not a second static catalog.
 
-## Proposed Main Route Structure
+## Main Route Structure
 
 ```text
 src/renderer/src/router/index.ts
@@ -92,7 +105,7 @@ src/renderer/src/router/index.ts
     └── /plugins/:pluginId
 ```
 
-Implementation can use nested Vue routes or one `/plugins` route with internal tab state. The URL must be shareable enough for internal navigation and redirects:
+The router uses nested Vue routes so each destination remains addressable for internal navigation and redirects:
 
 | Target | Required addressable route |
 | --- | --- |
@@ -103,7 +116,7 @@ Implementation can use nested Vue routes or one `/plugins` route with internal t
 
 Legacy `/plugins/official/:pluginId`, `/plugins/remote` and `/plugins/remote/:channel` paths may redirect for compatibility, but they are not product routes.
 
-## Proposed Information Architecture
+## Information Architecture
 
 Top-level sections:
 
@@ -114,6 +127,18 @@ Top-level sections:
 | MCP | MCP Servers | user MCP servers, plugin-owned MCP status, MCP market/add flow |
 
 The visual top tab row uses `Plugins`, `Skills` and `MCP`. `Remote` is not a top tab; each remote channel is a virtual plugin card in the catalog.
+
+When an ACP agent is selected, the tab row and child route are replaced together:
+
+```text
+┌────────────────────────────────────────────┐
+│                                            │
+│       Plugins are unavailable             │
+│       ACP agents use their own runtime.    │
+│       Select a DeepChat agent.             │
+│                                            │
+└────────────────────────────────────────────┘
+```
 
 Remote virtual plugin ids use `remote:<channel>`. Feishu/Lark is special: when the official Feishu/Lark Integration plugin is installed, the Feishu/Lark Remote card is merged into that official plugin detail page.
 
@@ -194,7 +219,7 @@ Narrow behavior:
 
 ## Sidebar UX
 
-### Target Expanded Shape
+### Expanded Shape
 
 ```text
 ┌────┬──────────────────────────────┐
@@ -292,6 +317,9 @@ Compatibility behavior:
 - `AppBar`, sidebar, theme, language direction and global overlays continue to work.
 - The page has stable responsive behavior and remains usable at narrow widths.
 - User-facing strings use i18n keys.
+- Selecting an ACP agent hides the tab row and child route behind one accessible unavailable state.
+- Selecting a DeepChat agent restores the current Plugins route without a redirect or extra IPC
+  request.
 
 ### Official Plugins
 

@@ -6,7 +6,7 @@ import {
   AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
   type AgentMemoryCategory
 } from '@shared/types/agent-memory'
-import { enabledConfig, FakeRepository, makePresenter } from './fakes/memoryFakes'
+import { enabledConfig, makePresenter, type FakeRepository } from './fakes/memoryFakes'
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 

@@ -1018,7 +1018,7 @@ describe('RemoteControlPresenter', () => {
     expect(saved.defaultAgentId).toBe('deepchat')
   })
 
-  it('lists builtin remote channels including discord, qqbot, and weixin-ilink', async () => {
+  it('lists remote channels with Cron delivery capability', async () => {
     const configPresenter = createConfigPresenter()
 
     const presenter = new RemoteControlPresenter({
@@ -1029,22 +1029,24 @@ describe('RemoteControlPresenter', () => {
       tabPresenter: {} as any
     })
 
-    await expect(presenter.listRemoteChannels()).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'discord',
-          implemented: true
-        }),
-        expect.objectContaining({
-          id: 'qqbot',
-          implemented: true
-        }),
-        expect.objectContaining({
-          id: 'weixin-ilink',
-          implemented: true
-        })
-      ])
-    )
+    const channels = await presenter.listRemoteChannels()
+
+    expect(channels.map((channel) => channel.id)).toEqual([
+      'telegram',
+      'feishu',
+      'qqbot',
+      'discord',
+      'weixin-ilink'
+    ])
+    expect(
+      Object.fromEntries(channels.map((channel) => [channel.id, channel.supportsCronDelivery]))
+    ).toEqual({
+      telegram: true,
+      feishu: true,
+      qqbot: false,
+      discord: true,
+      'weixin-ilink': true
+    })
   })
 
   it('saves discord remote settings without touching unrelated config', async () => {

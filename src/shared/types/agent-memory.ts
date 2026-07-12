@@ -10,6 +10,49 @@ export const AGENT_MEMORY_AUDIT_ACTOR_TYPES = ['scheduler', 'user', 'runtime'] a
 export const AGENT_MEMORY_AUDIT_STATUSES = ['completed', 'skipped', 'failed'] as const
 export const AGENT_MEMORY_AUDIT_FAILURE_STATUSES = ['failed', 'skipped'] as const
 
+export const MEMORY_RECALL_LATENCY_STAGES = [
+  'keyword',
+  'queryEmbedding',
+  'vector',
+  'authoritativeRevalidation',
+  'assembly',
+  'total'
+] as const
+
+export const MEMORY_RETRIEVAL_PURPOSES = ['recall', 'decision', 'search', 'injection'] as const
+
+export const MEMORY_RETRIEVAL_OUTCOMES = [
+  'completed',
+  'disabled',
+  'emptyQuery',
+  'cancelled',
+  'failed'
+] as const
+
+export const MEMORY_RETRIEVAL_DEGRADATION_CAUSES = [
+  'vectorCold',
+  'embeddingTimeout',
+  'embeddingError',
+  'storeUnusable',
+  'storeError',
+  'revisionChanged',
+  'ftsUnavailable',
+  'unknown'
+] as const
+
+export const MEMORY_MAINTENANCE_BUDGET_STEPS = [
+  'challenge',
+  'merge',
+  'reflection',
+  'persona'
+] as const
+
+export type MemoryRecallLatencyStage = (typeof MEMORY_RECALL_LATENCY_STAGES)[number]
+export type MemoryRetrievalPurpose = (typeof MEMORY_RETRIEVAL_PURPOSES)[number]
+export type MemoryRetrievalOutcome = (typeof MEMORY_RETRIEVAL_OUTCOMES)[number]
+export type MemoryRetrievalDegradationCause = (typeof MEMORY_RETRIEVAL_DEGRADATION_CAUSES)[number]
+export type MemoryMaintenanceBudgetStep = (typeof MEMORY_MAINTENANCE_BUDGET_STEPS)[number]
+
 export type AgentMemoryAuditActorType = (typeof AGENT_MEMORY_AUDIT_ACTOR_TYPES)[number]
 export type AgentMemoryAuditStatus = (typeof AGENT_MEMORY_AUDIT_STATUSES)[number]
 export type AgentMemoryAuditFailureStatus = (typeof AGENT_MEMORY_AUDIT_FAILURE_STATUSES)[number]

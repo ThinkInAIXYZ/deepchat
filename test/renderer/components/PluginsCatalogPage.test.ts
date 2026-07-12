@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createPinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { flushPromises, shallowMount } from '@vue/test-utils'
+
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -61,12 +64,9 @@ async function mountCatalog() {
     listRemoteChannels: vi.fn().mockResolvedValue([
       {
         id: 'feishu',
-        type: 'builtin',
-        implemented: true,
         titleKey: 'settings.remote.feishu.title',
         descriptionKey: 'settings.remote.feishu.description',
-        supportsPairing: true,
-        supportsNotifications: false
+        supportsCronDelivery: true
       }
     ]),
     getChannelStatus: vi.fn().mockResolvedValue({
@@ -109,6 +109,7 @@ async function mountCatalog() {
   const PluginsCatalogPage = (await import('@/pages/plugins/PluginsCatalogPage.vue')).default
   const wrapper = shallowMount(PluginsCatalogPage, {
     global: {
+      plugins: [createPinia()],
       stubs: {
         Button: buttonStub,
         ScrollArea: passthrough('ScrollArea')
@@ -183,5 +184,23 @@ describe('PluginsCatalogPage', () => {
     expect(cards[1].text()).toContain('Feishu localized title')
     expect(cards[1].text()).toContain('Add')
     expect(cards[1].text()).toContain('Disabled')
+  })
+
+  it('keeps the current remote catalog when the IPC refresh fails', async () => {
+    const { wrapper, remoteControlClient } = await mountCatalog()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    expect(wrapper.findAll('article')).toHaveLength(2)
+    remoteControlClient.listRemoteChannels.mockRejectedValueOnce(new Error('IPC unavailable'))
+
+    await (wrapper.vm as any).loadCatalog()
+    await flushPromises()
+
+    expect(wrapper.findAll('article')).toHaveLength(2)
+    expect(warn).toHaveBeenCalledWith(
+      '[PluginsCatalogPage] Failed to load remote channels:',
+      expect.objectContaining({ message: 'IPC unavailable' })
+    )
+    warn.mockRestore()
   })
 })

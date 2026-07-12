@@ -133,6 +133,7 @@ export interface MemoryAccessRepositoryPort {
 
 export interface MemoryEmbeddingRepositoryPort {
   listPendingEmbedding(limit?: number, agentId?: string): AgentMemoryRow[]
+  countPendingEmbedding(agentId?: string): number
   activateForEmbedding(id: string): void
   activateForEmbeddingIfRevision(agentId: string, id: string, expectedRevision: number): boolean
   markPendingEmbeddingsReady(agentId: string, updates: readonly EmbeddedMemoryUpdate[]): string[]
@@ -365,6 +366,10 @@ export interface MemoryProviderGatewayDeps {
     signal?: AbortSignal
   ): Promise<string>
   perfObserver?: MemoryPerfObserver
+  diagnostics?: {
+    recordProviderAdmissionDecision(outcome: 'admitted' | 'rateLimited' | 'capacityRejected'): void
+    recordProviderRaceEvent(outcome: 'deadline' | 'aborted' | 'lateSettled'): void
+  }
 }
 
 export interface IMemoryVectorStore {

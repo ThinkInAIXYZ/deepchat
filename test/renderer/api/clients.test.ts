@@ -760,12 +760,9 @@ describe('renderer api clients', () => {
                 channels: [
                   {
                     id: 'telegram',
-                    type: 'builtin',
-                    implemented: true,
                     titleKey: 'settings.remote.telegram.title',
                     descriptionKey: 'settings.remote.telegram.description',
-                    supportsPairing: true,
-                    supportsNotifications: false
+                    supportsCronDelivery: true
                   }
                 ]
               }
