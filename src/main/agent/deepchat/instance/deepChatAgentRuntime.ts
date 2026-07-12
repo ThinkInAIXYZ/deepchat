@@ -7,6 +7,7 @@ export type DeepChatAgentInstanceHydrator = (
 
 export class DeepChatAgentRuntime {
   private readonly instances = new Map<AppSessionId, DeepChatAgentInstance>()
+  private toolRegistryRevision = 0
 
   constructor(private readonly hydrateInstance: DeepChatAgentInstanceHydrator) {}
 
@@ -37,5 +38,16 @@ export class DeepChatAgentRuntime {
 
   async dispose(sessionId: AppSessionId): Promise<void> {
     await this.instances.get(sessionId)?.close()
+  }
+
+  getToolRegistryRevision(): number {
+    return this.toolRegistryRevision
+  }
+
+  markToolRegistryChanged(): void {
+    this.toolRegistryRevision += 1
+    for (const instance of this.instances.values()) {
+      instance.invalidateToolProfileCache()
+    }
   }
 }

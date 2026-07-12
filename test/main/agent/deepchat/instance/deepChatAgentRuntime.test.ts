@@ -1,6 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
+
+const TOOL_DEFINITION: MCPToolDefinition = {
+  type: 'function',
+  source: 'agent',
+  function: {
+    name: 'read',
+    description: 'Read a file',
+    parameters: { type: 'object', properties: {} }
+  },
+  server: { name: 'agent-filesystem', icons: '', description: '' }
+}
 
 const createDelegate = () => ({
   compatibilityImplementation: {} as never,
@@ -232,6 +244,69 @@ describe('DeepChatAgentRuntime', () => {
     expect(currentController.signal.aborted).toBe(true)
     expect(first.hasDeferredToolAbortController('tool')).toBe(false)
     expect(first.hasActiveProviderPermission('request')).toBe(false)
+  })
+
+  it('owns isolated runtime skill selections and resource caches', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const first = runtime.getOrHydrate(toAppSessionId('first'))
+    const second = runtime.getOrHydrate(toAppSessionId('second'))
+
+    first.replaceRuntimeActivatedSkills(['skill-b', 'skill-a', 'skill-a', ' '])
+    first.setSystemPromptCache({ prompt: 'prompt', dayKey: 'day', fingerprint: 'prompt-v1' })
+    first.setToolProfileCache({
+      profile: 'code',
+      fingerprint: 'tools-v1',
+      tools: [TOOL_DEFINITION]
+    })
+
+    expect(first.getRuntimeActivatedSkills()).toEqual(['skill-a', 'skill-b'])
+    expect(first.getSystemPromptCache()?.prompt).toBe('prompt')
+    expect(first.getToolProfileCache()?.tools).toEqual([TOOL_DEFINITION])
+    expect(second.getRuntimeActivatedSkills()).toEqual([])
+    expect(second.getSystemPromptCache()).toBeUndefined()
+    expect(second.getToolProfileCache()).toBeUndefined()
+
+    expect(first.activateRuntimeSkill('skill-c')).toEqual(['skill-a', 'skill-b', 'skill-c'])
+    expect(first.getSystemPromptCache()).toBeUndefined()
+    expect(first.getToolProfileCache()).toBeUndefined()
+  })
+
+  it('invalidates tool revisions and clears only the owning instance lifecycle', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const sessionId = toAppSessionId('session')
+    const staleInstance = runtime.getOrHydrate(sessionId)
+    const other = runtime.getOrHydrate(toAppSessionId('other'))
+
+    for (const instance of [staleInstance, other]) {
+      instance.setSystemPromptCache({ prompt: 'prompt', dayKey: 'day', fingerprint: 'prompt-v1' })
+      instance.setToolProfileCache({
+        profile: 'code',
+        fingerprint: 'tools-v1',
+        tools: [TOOL_DEFINITION]
+      })
+    }
+
+    runtime.markToolRegistryChanged()
+
+    expect(runtime.getToolRegistryRevision()).toBe(1)
+    expect(staleInstance.getToolProfileCache()).toBeUndefined()
+    expect(other.getToolProfileCache()).toBeUndefined()
+    expect(staleInstance.getSystemPromptCache()?.prompt).toBe('prompt')
+
+    runtime.evict(sessionId)
+    const currentInstance = runtime.getOrHydrate(sessionId)
+    currentInstance.replaceRuntimeActivatedSkills(['current-skill'])
+    currentInstance.setSystemPromptCache({
+      prompt: 'current',
+      dayKey: 'day',
+      fingerprint: 'prompt-v2'
+    })
+    staleInstance.clearOwnedState()
+
+    expect(currentInstance.getRuntimeActivatedSkills()).toEqual(['current-skill'])
+    expect(currentInstance.getSystemPromptCache()?.prompt).toBe('current')
+    expect(staleInstance.getRuntimeActivatedSkills()).toEqual([])
+    expect(staleInstance.getSystemPromptCache()).toBeUndefined()
   })
 
   it('does not let a stale drain completion clear a rehydrated instance', () => {

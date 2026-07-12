@@ -1,5 +1,6 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   DeepChatSessionState,
   IAgentImplementation,
@@ -35,6 +36,20 @@ export interface DeepChatActiveProviderPermission {
   readonly resolve: (granted: boolean) => Promise<void>
 }
 
+export interface DeepChatSystemPromptCacheEntry {
+  readonly prompt: string
+  readonly dayKey: string
+  readonly fingerprint: string
+}
+
+export type DeepChatToolProfileKind = 'code' | 'research' | 'analysis' | 'general'
+
+export interface DeepChatToolProfileCacheEntry {
+  readonly profile: DeepChatToolProfileKind
+  readonly fingerprint: string
+  readonly tools: MCPToolDefinition[]
+}
+
 export class DeepChatAgentInstance {
   readonly kind = 'deepchat' as const
   private runtimeState?: DeepChatSessionState
@@ -52,6 +67,9 @@ export class DeepChatAgentInstance {
   private readonly resumingMessages = new Set<string>()
   private readonly deferredToolAbortControllers = new Map<string, AbortController>()
   private readonly activeProviderPermissions = new Map<string, DeepChatActiveProviderPermission>()
+  private readonly runtimeActivatedSkills = new Set<string>()
+  private systemPromptCache?: DeepChatSystemPromptCacheEntry
+  private toolProfileCache?: DeepChatToolProfileCacheEntry
 
   constructor(
     readonly sessionId: AppSessionId,
@@ -325,6 +343,56 @@ export class DeepChatAgentInstance {
     return this.activeProviderPermissions.has(requestId)
   }
 
+  replaceRuntimeActivatedSkills(skillNames: readonly string[]): void {
+    this.runtimeActivatedSkills.clear()
+    for (const skillName of skillNames) {
+      const normalized = skillName.trim()
+      if (normalized) this.runtimeActivatedSkills.add(normalized)
+    }
+  }
+
+  getRuntimeActivatedSkills(): string[] {
+    return [...this.runtimeActivatedSkills].sort((left, right) => left.localeCompare(right))
+  }
+
+  activateRuntimeSkill(skillName: string): string[] {
+    const normalized = skillName.trim()
+    if (!normalized) return this.getRuntimeActivatedSkills()
+
+    this.runtimeActivatedSkills.add(normalized)
+    this.invalidateResourceCaches()
+    return this.getRuntimeActivatedSkills()
+  }
+
+  getSystemPromptCache(): DeepChatSystemPromptCacheEntry | undefined {
+    return this.systemPromptCache
+  }
+
+  setSystemPromptCache(entry: DeepChatSystemPromptCacheEntry): void {
+    this.systemPromptCache = entry
+  }
+
+  invalidateSystemPromptCache(): void {
+    this.systemPromptCache = undefined
+  }
+
+  getToolProfileCache(): DeepChatToolProfileCacheEntry | undefined {
+    return this.toolProfileCache
+  }
+
+  setToolProfileCache(entry: DeepChatToolProfileCacheEntry): void {
+    this.toolProfileCache = entry
+  }
+
+  invalidateToolProfileCache(): void {
+    this.toolProfileCache = undefined
+  }
+
+  invalidateResourceCaches(): void {
+    this.invalidateSystemPromptCache()
+    this.invalidateToolProfileCache()
+  }
+
   clearOwnedState(): void {
     this.abortAndClearGeneration()
     this.runtimeState = undefined
@@ -339,6 +407,8 @@ export class DeepChatAgentInstance {
     this.resumingMessages.clear()
     this.abortDeferredToolCalls()
     this.activeProviderPermissions.clear()
+    this.runtimeActivatedSkills.clear()
+    this.invalidateResourceCaches()
   }
 
   async send(input: AgentSessionSendInput): Promise<MessageStartResult> {

@@ -2874,6 +2874,42 @@ describe('AgentRuntimePresenter', () => {
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
     })
 
+    it('does not let stale turn cleanup clear replacement instance resources', async () => {
+      const streamResult = deferred<{ status: 'completed' }>()
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        async () => await streamResult.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const turn = agent.processMessage('s1', {
+        text: 'Use the selected skill',
+        activeSkills: ['stale-skill']
+      })
+      await vi.waitFor(() => expect(processStream).toHaveBeenCalledTimes(1))
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.replaceRuntimeActivatedSkills(['replacement-skill'])
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'day',
+        fingerprint: 'replacement'
+      })
+
+      streamResult.resolve({ status: 'completed' })
+      await turn
+
+      expect(replacement.getRuntimeActivatedSkills()).toEqual(['replacement-skill'])
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+    })
+
     it('ignores historical agent MCP server allowlists for session tool discovery', async () => {
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
         enabledMcpServerIds: [],
@@ -5946,15 +5982,74 @@ describe('AgentRuntimePresenter', () => {
       const getGenerationSettings = (agent as any).getEffectiveSessionGenerationSettings.bind(agent)
       const generationSettingsSpy = vi
         .spyOn(agent as any, 'getEffectiveSessionGenerationSettings')
-        .mockImplementation(async (sessionId: string) => {
+        .mockImplementation(async (sessionId: string, expectedInstance: unknown) => {
           expect(getRuntimeState(agent, sessionId).status).toBe('generating')
-          return await getGenerationSettings(sessionId)
+          return await getGenerationSettings(sessionId, expectedInstance)
         })
 
       await agent.compactSession('s1')
 
-      expect(generationSettingsSpy).toHaveBeenCalledWith('s1')
+      expect(generationSettingsSpy).toHaveBeenCalledWith('s1', expect.anything())
       expect(getRuntimeState(agent, 's1').status).toBe('idle')
+    })
+
+    it('does not let stale manual compaction reset replacement instance resources', async () => {
+      const preparation = deferred<null>()
+      vi.spyOn(
+        (agent as any).compactionService,
+        'prepareForManualCompaction'
+      ).mockImplementationOnce(async () => await preparation.promise)
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+
+      const compaction = agent.compactSession('s1')
+      await vi.waitFor(() =>
+        expect((agent as any).compactionService.prepareForManualCompaction).toHaveBeenCalledTimes(1)
+      )
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'replacement day',
+        fingerprint: 'replacement prompt fingerprint'
+      })
+      replacement.setToolProfileCache({
+        profile: 'general',
+        fingerprint: 'replacement tool fingerprint',
+        tools: []
+      })
+
+      preparation.resolve(null)
+      await expect(compaction).rejects.toMatchObject({
+        name: 'StaleDeepChatAgentInstanceError'
+      })
+
+      expect(replacement.getRuntimeState()?.status).toBe('generating')
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+      expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
+      expect(replacement.getActiveGeneration()).toBeUndefined()
+    })
+
+    it('preserves the missing-session error when manual compaction hydration finds no row', async () => {
+      await expect(agent.compactSession('missing')).rejects.toMatchObject({
+        name: 'Error',
+        message: 'Session missing not found'
+      })
+      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('missing'))).toBeUndefined()
     })
 
     it('restores idle status when manual compaction has no eligible history', async () => {
@@ -6532,6 +6627,46 @@ describe('AgentRuntimePresenter', () => {
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
+    it('does not continue a stale resume after resource loading rehydrates the session', async () => {
+      const toolDefinitions = deferred<[]>()
+      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+        async () => await toolDefinitions.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const resume = (agent as any).resumeAssistantMessage('s1', 'm1', []) as Promise<boolean>
+      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1))
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'replacement day',
+        fingerprint: 'replacement prompt fingerprint'
+      })
+      replacement.setToolProfileCache({
+        profile: 'general',
+        fingerprint: 'replacement tool fingerprint',
+        tools: []
+      })
+
+      toolDefinitions.resolve([])
+
+      await expect(resume).resolves.toBe(false)
+      expect(processStream).not.toHaveBeenCalled()
+      expect(replacement.getRuntimeState()?.status).toBe('idle')
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+      expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
+      expect(replacement.getActiveGeneration()).toBeUndefined()
+    })
+
     it('views a skill draft inline and keeps the confirmation pending', async () => {
       const skillPresenter = getSkillPresenterMock()
       skillPresenter.viewDraftSkill.mockResolvedValue({
@@ -6612,11 +6747,9 @@ describe('AgentRuntimePresenter', () => {
         skillName: 'draft-skill',
         installedSkillName: 'draft-skill'
       })
-      const invalidateSystemPromptCache = vi.spyOn(agent as any, 'invalidateSystemPromptCache')
-      const invalidateToolProfileCache = vi.spyOn(agent as any, 'invalidateToolProfileCache')
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      invalidateSystemPromptCache.mockClear()
-      invalidateToolProfileCache.mockClear()
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const invalidateResourceCaches = vi.spyOn(instance, 'invalidateResourceCaches')
       makeAssistantRow({
         blocks: [
           {
@@ -6657,8 +6790,7 @@ describe('AgentRuntimePresenter', () => {
       expect(result).toEqual({ resumed: true })
       expect(skillPresenter.installDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
       expect(processStream).toHaveBeenCalledTimes(1)
-      expect(invalidateSystemPromptCache).toHaveBeenCalledWith('s1')
-      expect(invalidateToolProfileCache).toHaveBeenCalledWith('s1')
+      expect(invalidateResourceCaches).toHaveBeenCalledTimes(1)
 
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
@@ -6668,6 +6800,91 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
       expect(updatedBlocks[1].extra.answerText).toBe('chat.skillDraft.actions.install')
       expect(updatedBlocks[1].extra.skillDraftStatus).toBe('installed')
+    })
+
+    it('does not resume a stale skill draft interaction after the session is rehydrated', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const installation = deferred<{
+        success: true
+        action: 'install'
+        draftId: string
+        skillName: string
+        installedSkillName: string
+      }>()
+      skillPresenter.installDraftSkill.mockImplementationOnce(
+        async () => await installation.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: '',
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [{ label: 'chat.skillDraft.actions.install' }],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1',
+              skillDraftName: 'draft-skill',
+              skillDraftStatus: 'viewed'
+            }
+          }
+        ]
+      })
+
+      const interaction = agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.install'
+      })
+      await vi.waitFor(() => expect(skillPresenter.installDraftSkill).toHaveBeenCalledTimes(1))
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'replacement day',
+        fingerprint: 'replacement prompt fingerprint'
+      })
+      replacement.setToolProfileCache({
+        profile: 'general',
+        fingerprint: 'replacement tool fingerprint',
+        tools: []
+      })
+
+      installation.resolve({
+        success: true,
+        action: 'install',
+        draftId: 'draft-1',
+        skillName: 'draft-skill',
+        installedSkillName: 'draft-skill'
+      })
+
+      await expect(interaction).resolves.toEqual({ resumed: false })
+      expect(processStream).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
+      expect(replacement.getRuntimeState()?.status).toBe('idle')
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+      expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
+      expect(replacement.getActiveGeneration()).toBeUndefined()
     })
 
     it('discards a skill draft and resumes assistant message', async () => {

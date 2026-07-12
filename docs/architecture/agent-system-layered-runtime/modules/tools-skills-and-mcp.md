@@ -2,6 +2,11 @@
 
 > 状态：目标设计。资源 owner 保持独立；loop 只消费解析后的能力。
 
+> 实施进度：ASLR-045 已把 message-scoped runtime skill selection、prompt snapshot 和 final tool-definition
+> snapshot cache 迁入 `DeepChatAgentInstance`，全局 tool registry revision 由 `DeepChatAgentRuntime`
+> 广播失效。SkillPresenter、ToolPresenter、McpPresenter、configured selection 与 collision policy 的 owner
+> 均未移动；typed resource ports 与 LoopEngine 接线仍属于 ASLR-050..055。
+
 ## 1. 模块目的
 
 这个模块定义 DeepChat 和 ACP 怎样使用 tools、skills、MCP，而不把这些 subsystem 搬进 agent

@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..044 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..045 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -65,7 +65,7 @@
   Depends on: `ASLR-042`.
 - [x] `ASLR-044` Move ordered interaction queue and deferred-tool cancellation state; create a fresh run only after the final item.
   Depends on: `ASLR-042`.
-- [ ] `ASLR-045` Move runtime skills and prompt/tool cache ownership.
+- [x] `ASLR-045` Move runtime skills and prompt/tool cache ownership.
   Depends on: `ASLR-041`.
 - [ ] `ASLR-046` Move compaction state and keep the legacy Memory orchestrator behind a session handle without moving its maps.
   Depends on: `ASLR-043`, `ASLR-044`.
