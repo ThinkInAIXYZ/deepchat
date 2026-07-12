@@ -449,7 +449,6 @@ describe('AgentSessionPresenter usage dashboard', () => {
     const configPresenter = createMockConfigPresenter()
     const deepChatAgent = createMockDeepChatAgent()
     const presenter = new AgentSessionPresenter(
-      deepChatAgent as any,
       {
         resolveBackend: () => ({
           backend: createLegacyAgentBackend('deepchat', deepChatAgent as never)

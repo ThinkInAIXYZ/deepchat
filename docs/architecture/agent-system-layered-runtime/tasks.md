@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..023 completed。
+> 状态：implementation in progress；ASLR-000..026 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -37,7 +37,7 @@
   Depends on: `ASLR-021`.
 - [x] `ASLR-025` Route remote/cron/hot-path consumers through AgentManager ports.
   Depends on: `ASLR-022`, `ASLR-023`.
-- [ ] `ASLR-026` Remove fake AgentRegistry/NewMessageManager production resolution.
+- [x] `ASLR-026` Remove fake AgentRegistry/NewMessageManager production resolution.
   Depends on: `ASLR-020`, `ASLR-025`.
 
 ## Mechanical ownership cleanup

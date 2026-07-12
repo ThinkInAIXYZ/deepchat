@@ -64,10 +64,8 @@ import type {
   DeepChatMessageRow,
   DeepChatMessageUsageCandidateRow
 } from '../sqlitePresenter/tables/deepchatMessages'
-import { AgentRegistry } from './agentRegistry'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { NewMessageManager } from './messageManager'
 import { LegacyChatImportService } from './legacyImportService'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
@@ -264,10 +262,8 @@ const extractSearchableMessageContent = (rawContent: string): string => {
 }
 
 export class AgentSessionPresenter {
-  private agentRegistry: AgentRegistry
   private agentManager: AgentManager
   private sessionManager: AppSessionService
-  private messageManager: NewMessageManager
   private sqlitePresenter: SQLitePresenter
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
@@ -282,7 +278,6 @@ export class AgentSessionPresenter {
   private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
 
   constructor(
-    agentRuntimeAgent: IAgentImplementation,
     agentManager: AgentManager,
     appSessionService: AppSessionService,
     llmProviderPresenter: ILlmProviderPresenter,
@@ -301,19 +296,11 @@ export class AgentSessionPresenter {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.skillPresenter = skillPresenter
-    this.agentRegistry = new AgentRegistry()
     this.sessionManager = appSessionService
-    this.messageManager = new NewMessageManager(this.agentRegistry, appSessionService)
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
     this.providerSessionPort = runtimePorts?.providerSessionPort
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort ?? sessionRuntimePort
     this.sessionUiPort = runtimePorts?.sessionUiPort ?? sessionRuntimePort
-
-    // Register the built-in deepchat agent
-    this.agentRegistry.register(
-      { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
-      agentRuntimeAgent
-    )
   }
 
   // ---- IPC-facing methods ----
@@ -1833,7 +1820,7 @@ export class AgentSessionPresenter {
   }
 
   async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
-    return this.messageManager.getMessage(messageId)
+    return await this.agentManager.getMessage(messageId)
   }
 
   async translateText(text: string, locale?: string, agentId?: string): Promise<string> {

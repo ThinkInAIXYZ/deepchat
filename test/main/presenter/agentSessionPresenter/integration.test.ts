@@ -665,7 +665,6 @@ describe('Integration: createSession end-to-end', () => {
       createMockToolPresenter()
     )
     agentPresenter = new AgentSessionPresenter(
-      deepchatAgent as any,
       createLegacyManager(deepchatAgent, sqlitePresenter) as any,
       new AppSessionService({
         newSessionsTable: sqlitePresenter.newSessionsTable,
@@ -823,7 +822,6 @@ describe('Integration: ACP hooks bridge', () => {
       new NewSessionHooksBridge(hookDispatcher)
     )
     agentPresenter = new AgentSessionPresenter(
-      deepchatAgent as any,
       createLegacyManager(deepchatAgent, sqlitePresenter) as any,
       new AppSessionService({
         newSessionsTable: sqlitePresenter.newSessionsTable,
@@ -909,7 +907,6 @@ describe('Integration: multi-turn context', () => {
       createMockToolPresenter()
     )
     agentPresenter = new AgentSessionPresenter(
-      deepchatAgent as any,
       createLegacyManager(deepchatAgent, sqlitePresenter) as any,
       new AppSessionService({
         newSessionsTable: sqlitePresenter.newSessionsTable,

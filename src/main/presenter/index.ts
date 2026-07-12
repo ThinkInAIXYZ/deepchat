@@ -671,7 +671,6 @@ export class Presenter implements IPresenter {
       acp: createLegacyAgentBackend('acp', agentRuntimePresenter)
     })
     this.agentSessionPresenter = new AgentSessionPresenter(
-      agentRuntimePresenter,
       this.agentManager,
       appSessionService,
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,

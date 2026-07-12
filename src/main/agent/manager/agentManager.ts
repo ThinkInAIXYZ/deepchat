@@ -4,7 +4,7 @@ import type {
   DeepChatAgentDescriptor
 } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type { SessionRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord, SessionRecord } from '@shared/types/agent-interface'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type {
   LegacyAcpSubagentFacet,
@@ -121,6 +121,17 @@ export class AgentManager implements AgentManagerGenerationPort {
   async cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean> {
     const { backend } = this.resolveSessionBackend(sessionId)
     return await backend.generationControl.cancelGenerationByEventId(sessionId, eventId)
+  }
+
+  async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
+    const visited = new Set<object>()
+    for (const backend of [this.backends.deepchat, this.backends.acp]) {
+      if (visited.has(backend.implementation)) continue
+      visited.add(backend.implementation)
+      const message = await backend.implementation.getMessage(messageId)
+      if (message) return message
+    }
+    return null
   }
 
   resolveTransferSource(sessionId: AppSessionId): ResolvedTransferSource {

@@ -18,7 +18,8 @@ const implementation = (name: string) =>
     mergeSubagentTape: vi.fn(),
     discardSubagentTape: vi.fn(),
     getActiveGeneration: vi.fn().mockReturnValue(null),
-    cancelGenerationByEventId: vi.fn().mockResolvedValue(false)
+    cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
+    getMessage: vi.fn().mockResolvedValue(null)
   }) as never
 
 const descriptor = (kind: 'deepchat' | 'acp'): AgentDescriptor =>
@@ -111,6 +112,23 @@ describe('AgentManager', () => {
       expect(subagent.kind).toBe(kind)
     }
   )
+
+  it('deduplicates global message lookup when legacy backends share one implementation', async () => {
+    const shared = implementation('shared')
+    const message = { id: 'message', sessionId: 'session', role: 'assistant' }
+    shared.getMessage.mockResolvedValue(message)
+    const manager = new AgentManager(
+      { resolveExecutableDescriptor: vi.fn(() => descriptor('deepchat')) },
+      { get: vi.fn(() => null) },
+      {
+        deepchat: createLegacyAgentBackend('deepchat', shared),
+        acp: createLegacyAgentBackend('acp', shared)
+      }
+    )
+
+    await expect(manager.getMessage('message')).resolves.toBe(message)
+    expect(shared.getMessage).toHaveBeenCalledTimes(1)
+  })
 
   it.each(['deepchat', 'acp'] as const)(
     'routes remote generation control through the %s session backend',

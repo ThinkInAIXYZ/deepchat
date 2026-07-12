@@ -341,6 +341,7 @@ describe('AgentSessionPresenter', () => {
     resolveTransferSource: ReturnType<typeof vi.fn>
     resolveDeepChatTransferTarget: ReturnType<typeof vi.fn>
     resolveSubagentFacet: ReturnType<typeof vi.fn>
+    getMessage: ReturnType<typeof vi.fn>
   }
   let presenter: AgentSessionPresenter
 
@@ -394,10 +395,10 @@ describe('AgentSessionPresenter', () => {
       resolveSubagentFacet: vi.fn((sessionId: string) => {
         const { descriptor, backend } = resolveSessionBackend(sessionId)
         return { kind: descriptor.kind, descriptor, facet: backend.subagent }
-      })
+      }),
+      getMessage: vi.fn((messageId: string) => deepChatAgent.getMessage(messageId))
     }
     presenter = new AgentSessionPresenter(
-      deepChatAgent as any,
       agentManager as any,
       new AppSessionService({
         newSessionsTable: sqlitePresenter.newSessionsTable,
@@ -543,7 +544,6 @@ describe('AgentSessionPresenter', () => {
       acp: createLegacyAgentBackend('acp', acpImplementation)
     })
     const integratedPresenter = new AgentSessionPresenter(
-      deepchatImplementation,
       realManager,
       appSessionService,
       llmProviderPresenter,
@@ -2119,6 +2119,17 @@ describe('AgentSessionPresenter', () => {
       sqlitePresenter.deepchatMessageTracesTable.countByMessageId.mockReturnValue(3)
       await expect(presenter.getMessageTraceCount('m1')).resolves.toBe(3)
       expect(sqlitePresenter.deepchatMessageTracesTable.countByMessageId).toHaveBeenCalledWith('m1')
+    })
+  })
+
+  describe('getMessage', () => {
+    it('routes global message lookup through AgentManager', async () => {
+      const message = { id: 'm1', sessionId: 's1', role: 'assistant' }
+      deepChatAgent.getMessage.mockResolvedValue(message as any)
+
+      await expect(presenter.getMessage('m1')).resolves.toBe(message)
+
+      expect(agentManager.getMessage).toHaveBeenCalledWith('m1')
     })
   })
 
