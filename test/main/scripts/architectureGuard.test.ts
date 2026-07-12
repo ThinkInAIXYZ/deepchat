@@ -242,6 +242,7 @@ const virtualFiles = new Map<string, string>([
     CAUSAL_OBSERVATION_SAFE_FIXTURE,
     `
       import type { DeepChatTapeReplaySlice as MemoryStore } from '@shared/types/tape-replay'
+      import { MemoryPresenter as RuntimeAlias } from '../memoryPresenter'
       // MemoryStore append publish CREATE are documentation terms, not executable edges.
       const CREATE_DOCUMENTATION = 'CREATE is documentation, not SQL execution'
       const hash = (value: string) => value
@@ -255,19 +256,26 @@ const virtualFiles = new Map<string, string>([
             metadata.sliceId
           ]
         }
+        rebuildProjectionOutsideObservation() {
+          this.projection.replaceSession('session', [])
+          return new RuntimeAlias()
+        }
       }
     `
   ],
   [
     CAUSAL_OBSERVATION_METHOD_FIXTURE,
     `
+      import { MemoryPresenter as RuntimeAlias } from '../memoryPresenter'
       export class UnsafeMethodObservationReader {
         readCausalObservationSlice() {
           this.ensureSessionTapeReady('session')
           this.publish('completed')
           this.events.subscribe(() => {})
           this.db.exec('CREATE TABLE observation_cache')
-          return new MemoryRuntime()
+          this.projection.applyAppendedEntry({})
+          this.projection['replaceSession']('session', [])
+          return new RuntimeAlias()
         }
       }
     `
@@ -398,12 +406,16 @@ describe('architecture guard', () => {
       )
 
     const methodViolations = causalViolations(CAUSAL_OBSERVATION_METHOD_FIXTURE)
-    expect(methodViolations).toHaveLength(5)
+    expect(methodViolations).toHaveLength(7)
     expect(methodViolations.join('\n')).toContain('bootstrap/lifecycle member "ensureSessionTapeReady"')
     expect(methodViolations.join('\n')).toContain('event publication member "publish"')
     expect(methodViolations.join('\n')).toContain('event subscription member "subscribe"')
     expect(methodViolations.join('\n')).toContain('SQL execution member "exec"')
-    expect(methodViolations.join('\n')).toContain('Memory API call "MemoryRuntime"')
+    expect(methodViolations.join('\n')).toContain(
+      'projection mutation member "applyAppendedEntry"'
+    )
+    expect(methodViolations.join('\n')).toContain('projection mutation member "replaceSession"')
+    expect(methodViolations.join('\n')).toContain('Memory API call "RuntimeAlias"')
 
     const bracketViolations = causalViolations(CAUSAL_OBSERVATION_BRACKET_FIXTURE)
     expect(bracketViolations).toHaveLength(1)

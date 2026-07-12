@@ -15,6 +15,10 @@ import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable
 } from '@/presenter/sqlitePresenter/tables/deepchatTapeSearchProjection'
+import { DeepChatMemoryIngestionProjectionTable } from '@/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection'
+import { DeepChatMessagesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
+import { DeepChatMessageTracesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessageTraces'
+import { DeepChatSessionsTable } from '@/presenter/sqlitePresenter/tables/deepchatSessions'
 import { NewSessionsTable } from '@/presenter/sqlitePresenter/tables/newSessions'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
@@ -312,6 +316,130 @@ function createTapeService(
     },
     deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
   } as any)
+}
+
+function appendObservationIsolationFacts(table: unknown) {
+  const original = createRecord({ id: 'u1', orderSeq: 1, createdAt: 100, updatedAt: 100 })
+  const edited = createRecord({
+    id: 'u1',
+    orderSeq: 1,
+    content: JSON.stringify({
+      text: 'edited',
+      files: [],
+      links: [],
+      search: false,
+      think: false
+    }),
+    createdAt: 100,
+    updatedAt: 150
+  })
+  const retracted = createRecord({ id: 'u2', orderSeq: 2, createdAt: 160, updatedAt: 160 })
+  const pending = createRecord({
+    id: 'a1',
+    orderSeq: 3,
+    role: 'assistant',
+    status: 'pending',
+    content: JSON.stringify([
+      {
+        type: 'tool_call',
+        status: 'pending',
+        timestamp: 200,
+        tool_call: { id: 'tc1', name: 'search', params: '{"q":"x"}' }
+      }
+    ]),
+    createdAt: 200,
+    updatedAt: 200
+  })
+  const final = createRecord({
+    id: 'a1',
+    orderSeq: 3,
+    role: 'assistant',
+    status: 'sent',
+    content: JSON.stringify([
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: 300,
+        tool_call: {
+          id: 'tc1',
+          name: 'search',
+          params: '{"q":"x"}',
+          response: 'tape-result-secret'
+        }
+      }
+    ]),
+    metadata: '{"totalTokens":12}',
+    createdAt: 200,
+    updatedAt: 300
+  })
+
+  appendMessageRecordToTape(table as any, original, 'live')
+  appendMessageReplacementToTape(table as any, edited, 'test_edit')
+  appendMessageRecordToTape(table as any, retracted, 'live')
+  appendMessageRetractionToTape(table as any, retracted, 'test_delete')
+  appendMessageRecordToTape(table as any, pending, 'live')
+  appendMessageRecordToTape(table as any, final, 'live')
+
+  return { edited, final }
+}
+
+function stripObservationPayloadOptIns<T>(value: T): T {
+  const copy = structuredClone(value) as any
+  const stripEntryPayloads = (entries: any[] | undefined) => {
+    for (const entry of entries ?? []) {
+      delete entry.payload
+      delete entry.meta
+    }
+  }
+
+  if (copy.request?.state === 'manifest_bound') {
+    stripEntryPayloads(copy.request.replay.entries)
+    delete copy.request.replay.hashes.sliceHash
+    if (copy.request.replay.trace) {
+      delete copy.request.replay.trace.headersJson
+      delete copy.request.replay.trace.bodyJson
+    }
+  } else if (copy.request?.trace) {
+    delete copy.request.trace.headersJson
+    delete copy.request.trace.bodyJson
+  }
+  stripEntryPayloads(copy.output?.entries)
+  return copy
+}
+
+function createSpies(names: string[]) {
+  return Object.fromEntries(names.map((name) => [name, vi.fn()])) as Record<
+    string,
+    ReturnType<typeof vi.fn>
+  >
+}
+
+function trackMemoryPropertyAccess<T extends object>(target: T) {
+  const memoryPropertyAccess = vi.fn()
+  return {
+    memoryPropertyAccess,
+    presenter: new Proxy(target, {
+      get(value, property, receiver) {
+        if (typeof property === 'string' && /memory/i.test(property)) {
+          memoryPropertyAccess(property)
+        }
+        return Reflect.get(value, property, receiver)
+      }
+    })
+  }
+}
+
+function readObservationMatrix(service: DeepChatTapeService) {
+  return {
+    defaultObservation: service.readCausalObservationSlice('s1', 'a1'),
+    repeatedObservation: service.readCausalObservationSlice('s1', 'a1'),
+    explicitObservation: service.readCausalObservationSlice('s1', 'a1', { requestSeq: 1 }),
+    optInObservation: service.readCausalObservationSlice('s1', 'a1', {
+      includeTapePayloads: true,
+      includeTracePayload: true
+    }),
+    traceOnlyObservation: service.readCausalObservationSlice('s1', 'a-trace')
+  }
 }
 
 describe('DeepChatTapeService', () => {
@@ -3197,7 +3325,30 @@ describe('DeepChatTapeService', () => {
 
   it('reads an old message without bootstrapping or backfilling Tape', () => {
     const { table, entries } = createTapeTableMock()
-    const service = createTapeService(table, [], [createMessageRow()])
+    const messageInsert = vi.fn()
+    const traceInsert = vi.fn()
+    const projectionApply = vi.fn()
+    const projectionReplace = vi.fn()
+    const cursorWrite = vi.fn()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatMessageTracesTable: {
+        listByMessageId: vi.fn().mockReturnValue([]),
+        insert: traceInsert
+      },
+      deepchatMessagesTable: {
+        get: vi.fn().mockReturnValue(createMessageRow()),
+        insert: messageInsert
+      },
+      deepchatMemoryIngestionProjectionTable: {
+        applyAppendedEntry: projectionApply,
+        replaceSession: projectionReplace
+      },
+      deepchatSessionsTable: {
+        getSummaryState: vi.fn().mockReturnValue(null),
+        updateMemoryCursorOrderSeq: cursorWrite
+      }
+    } as any)
 
     const slice = service.readCausalObservationSlice('s1', 'a1')
 
@@ -3216,6 +3367,11 @@ describe('DeepChatTapeService', () => {
     expect(table.ensureBootstrapAnchor).not.toHaveBeenCalled()
     expect(table.append).not.toHaveBeenCalled()
     expect(table.appendEvent).not.toHaveBeenCalled()
+    expect(messageInsert).not.toHaveBeenCalled()
+    expect(traceInsert).not.toHaveBeenCalled()
+    expect(projectionApply).not.toHaveBeenCalled()
+    expect(projectionReplace).not.toHaveBeenCalled()
+    expect(cursorWrite).not.toHaveBeenCalled()
   })
 
   it('keeps causal observations metadata-only by default and reuses replay payload opt-ins', () => {
@@ -3224,9 +3380,9 @@ describe('DeepChatTapeService', () => {
       id: 'a1',
       orderSeq: 2,
       role: 'assistant',
-      content: 'secret-output',
+      content: 'tape-secret-output',
       status: 'sent',
-      metadata: '{"secret":"message-metadata"}',
+      metadata: '{"secret":"tape-metadata"}',
       createdAt: 200,
       updatedAt: 300
     })
@@ -3241,23 +3397,28 @@ describe('DeepChatTapeService', () => {
       ],
       [
         createMessageRow({
-          content: assistant.content,
-          metadata: assistant.metadata
+          content: 'projection-only-content-secret',
+          metadata: '{"secret":"projection-only-metadata"}',
+          blocks_json: '["projection-only-blocks"]',
+          error: 'projection-only-error'
         })
       ]
     )
     service.appendViewManifest(createObservationManifest())
 
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     const metadataOnly = service.readCausalObservationSlice('s1', 'a1')
     const withPayloads = service.readCausalObservationSlice('s1', 'a1', {
       includeTapePayloads: true,
       includeTracePayload: true
     })
+    now.mockRestore()
 
-    expect(JSON.stringify(metadataOnly)).not.toContain('secret-output')
-    expect(JSON.stringify(metadataOnly)).not.toContain('message-metadata')
+    expect(JSON.stringify(metadataOnly)).not.toContain('tape-secret-output')
+    expect(JSON.stringify(metadataOnly)).not.toContain('tape-metadata')
     expect(JSON.stringify(metadataOnly)).not.toContain('secret-header')
     expect(JSON.stringify(metadataOnly)).not.toContain('secret-request')
+    expect(JSON.stringify(metadataOnly)).not.toContain('projection-only')
     expect(withPayloads.output.entries.some((entry) => entry.payload?.record)).toBe(true)
     expect(withPayloads.request.state).toBe('manifest_bound')
     expect(
@@ -3265,7 +3426,295 @@ describe('DeepChatTapeService', () => {
         ? withPayloads.request.replay.trace?.headersJson
         : undefined
     ).toContain('secret-header')
+    expect(JSON.stringify(withPayloads)).toContain('tape-secret-output')
+    expect(JSON.stringify(withPayloads)).not.toContain('projection-only')
+    expect(metadataOnly.output.terminalMessage).not.toHaveProperty('content')
+    expect(metadataOnly.output.terminalMessage).not.toHaveProperty('metadata')
+    expect(metadataOnly.output.terminalMessage).not.toHaveProperty('blocks')
+    expect(metadataOnly.output.terminalMessage).not.toHaveProperty('error')
+    expect(stripObservationPayloadOptIns(withPayloads)).toEqual(
+      stripObservationPayloadOptIns(metadataOnly)
+    )
   })
+
+  it('keeps storage and Memory seams unchanged across every causal observation read mode', () => {
+    const { table, entries } = createTapeTableMock()
+    const { final } = appendObservationIsolationFacts(table)
+    const traceRows = [
+      createTraceRow({ id: 'trace-1', request_seq: 1 }),
+      createTraceRow({ id: 'trace-2', request_seq: 2 }),
+      createTraceRow({ id: 'trace-only', message_id: 'a-trace', request_seq: 7 })
+    ]
+    const messageRows = [createMessageRow({ order_seq: 3 })]
+    const projectionState = {
+      meta: { session_id: 's1', projection_version: 1, max_entry_id: entries.length },
+      range: [{ session_id: 's1', message_id: 'a1', order_seq: 3, entry_id: entries.length }]
+    }
+    const memoryCursorOrderSeq = 3
+    const memoryProjectionWrites = createSpies([
+      'applyAppendedEntry',
+      'replaceSession',
+      'invalidateSession'
+    ])
+    const memoryProjectionTable = {
+      ...memoryProjectionWrites,
+      readCurrentRange: vi.fn(() => structuredClone(projectionState.range)),
+      getSessionMeta: vi.fn(() => structuredClone(projectionState.meta))
+    }
+    const cursorWrites = createSpies(['updateMemoryCursorOrderSeq', 'rewindMemoryCursorOrderSeq'])
+    const sessionTable = {
+      ...cursorWrites,
+      getSummaryState: vi.fn().mockReturnValue(null),
+      getMemoryCursorOrderSeq: vi.fn(() => memoryCursorOrderSeq)
+    }
+    const messageWrites = createSpies([
+      'insert',
+      'updateContent',
+      'updateStatus',
+      'updateContentAndStatus'
+    ])
+    const messageTable = {
+      ...messageWrites,
+      get: vi.fn((messageId: string) => messageRows.find((row) => row.id === messageId))
+    }
+    const traceWrites = createSpies(['insert', 'deleteByMessageId', 'deleteBySessionId'])
+    const traceTable = {
+      ...traceWrites,
+      listByMessageId: vi.fn((messageId: string) =>
+        traceRows.filter((row) => row.message_id === messageId)
+      )
+    }
+    const { presenter, memoryPropertyAccess } = trackMemoryPropertyAccess({
+      deepchatTapeEntriesTable: table,
+      deepchatMessageTracesTable: traceTable,
+      deepchatMessagesTable: messageTable,
+      deepchatSessionsTable: sessionTable,
+      deepchatMemoryIngestionProjectionTable: memoryProjectionTable
+    })
+    const service = new DeepChatTapeService(presenter as any)
+    service.appendViewManifest(createObservationManifest({ requestSeq: 1, assembledAt: 210 }))
+    service.appendViewManifest(
+      createObservationManifest({
+        requestSeq: 2,
+        taskType: 'tool_loop',
+        policy: 'tool_loop_shadow',
+        policyVersion: null,
+        assembledAt: 310
+      })
+    )
+
+    for (const write of [
+      table.ensureBootstrapAnchor,
+      table.append,
+      table.appendAnchor,
+      table.appendEvent,
+      table.deleteBySession
+    ]) {
+      write.mockClear()
+    }
+    const captureState = () => ({
+      tapeRows: structuredClone(entries),
+      maxEntryId: table.getMaxEntryId('s1'),
+      entryOrder: entries.map((entry) => entry.entry_id),
+      maxMessageOrder: Math.max(0, ...service.getMessageRecords('s1').map((row) => row.orderSeq)),
+      messageRows: structuredClone(messageRows),
+      traceRows: structuredClone(traceRows),
+      viewManifestRows: structuredClone(
+        entries.filter((entry) => entry.kind === 'event' && entry.name === 'view/assembled')
+      ),
+      effectiveView: service.getMessageRecords('s1'),
+      replay: service.exportReplaySlice('s1', 'a1', { requestSeq: 2 }),
+      replayHash: service.exportReplaySlice('s1', 'a1', { requestSeq: 2 })?.hashes.sliceHash,
+      projectionMeta: memoryProjectionTable.getSessionMeta(),
+      projectionRange: memoryProjectionTable.readCurrentRange(),
+      memoryCursorOrderSeq: sessionTable.getMemoryCursorOrderSeq()
+    })
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+
+    try {
+      const before = captureState()
+      const { defaultObservation, repeatedObservation, explicitObservation, traceOnlyObservation } =
+        readObservationMatrix(service)
+      const after = captureState()
+
+      expect(after).toEqual(before)
+      expect(repeatedObservation).toEqual(defaultObservation)
+      expect(defaultObservation.request).toMatchObject({
+        state: 'manifest_bound',
+        requestSeq: 2
+      })
+      expect(explicitObservation.request).toMatchObject({
+        state: 'manifest_bound',
+        requestSeq: 1
+      })
+      expect(traceOnlyObservation.request).toMatchObject({
+        state: 'manifest_missing',
+        requestSeq: 7,
+        trace: { id: 'trace-only' }
+      })
+      expect(defaultObservation.output).toMatchObject({
+        correlation: 'message_only',
+        entries: [{ kind: 'message' }, { kind: 'tool_call' }, { kind: 'tool_result' }]
+      })
+      expect(before.effectiveView.map((record) => record.id)).toEqual(['u1', 'a1'])
+      expect(JSON.parse(before.effectiveView[0].content).text).toBe('edited')
+      expect(before.effectiveView[1]).toMatchObject({ status: 'sent', content: final.content })
+    } finally {
+      now.mockRestore()
+    }
+
+    for (const write of [
+      table.ensureBootstrapAnchor,
+      table.append,
+      table.appendAnchor,
+      table.appendEvent,
+      table.deleteBySession,
+      ...Object.values(messageWrites),
+      ...Object.values(traceWrites),
+      ...Object.values(memoryProjectionWrites),
+      ...Object.values(cursorWrites),
+      memoryPropertyAccess
+    ]) {
+      expect(write).not.toHaveBeenCalled()
+    }
+  })
+
+  itIfSqlite(
+    `preserves real Tape, message, trace, Memory projection and schema state while observing${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
+    () => {
+      const db = new DatabaseCtor(':memory:')
+      try {
+        const memoryProjectionTable = new DeepChatMemoryIngestionProjectionTable(db)
+        const tapeTable = new DeepChatTapeEntriesTable(db, memoryProjectionTable)
+        const messageTable = new DeepChatMessagesTable(db)
+        const traceTable = new DeepChatMessageTracesTable(db)
+        const sessionTable = new DeepChatSessionsTable(db)
+        memoryProjectionTable.createTable()
+        tapeTable.createTable()
+        messageTable.createTable()
+        traceTable.createTable()
+        sessionTable.createTable()
+        sessionTable.create('s1', 'openai', 'gpt-4o')
+        sessionTable.updateMemoryCursorOrderSeq('s1', 3)
+
+        appendObservationIsolationFacts(tapeTable)
+        messageTable.insert({
+          id: 'a1',
+          sessionId: 's1',
+          orderSeq: 3,
+          role: 'assistant',
+          content: 'projection-only-content-secret',
+          status: 'sent',
+          metadata: '{"secret":"projection-only-metadata"}',
+          createdAt: 200,
+          updatedAt: 300
+        })
+        for (const trace of [
+          { id: 'trace-1', messageId: 'a1', requestSeq: 1 },
+          { id: 'trace-2', messageId: 'a1', requestSeq: 2 },
+          { id: 'trace-only', messageId: 'a-trace', requestSeq: 7 }
+        ]) {
+          traceTable.insert({
+            ...trace,
+            sessionId: 's1',
+            providerId: 'openai',
+            modelId: 'gpt-4o',
+            endpoint: 'https://api.openai.test/v1/chat/completions',
+            headersJson: `{"authorization":"${trace.id}-header"}`,
+            bodyJson: `{"prompt":"${trace.id}-body"}`,
+            truncated: false,
+            createdAt: 300 + trace.requestSeq
+          })
+        }
+
+        const service = new DeepChatTapeService({
+          deepchatTapeEntriesTable: tapeTable,
+          deepchatMessagesTable: messageTable,
+          deepchatMessageTracesTable: traceTable,
+          deepchatSessionsTable: sessionTable,
+          deepchatMemoryIngestionProjectionTable: memoryProjectionTable
+        } as any)
+        service.appendViewManifest(createObservationManifest({ requestSeq: 1, assembledAt: 210 }))
+        service.appendViewManifest(
+          createObservationManifest({
+            requestSeq: 2,
+            taskType: 'tool_loop',
+            policy: 'tool_loop_shadow',
+            policyVersion: null,
+            assembledAt: 310
+          })
+        )
+        const effectiveRecords = service.getMessageRecords('s1')
+        const sourceMaps = service.getViewManifestSourceMaps('s1')
+        memoryProjectionTable.replaceSession(
+          's1',
+          effectiveRecords
+            .filter(
+              (record): record is ChatMessageRecord & { status: 'sent' | 'error' } =>
+                record.status === 'sent' || record.status === 'error'
+            )
+            .map((record) => ({
+              sessionId: 's1',
+              messageId: record.id,
+              orderSeq: record.orderSeq,
+              entryId: sourceMaps.entryIdByMessageId.get(record.id)!,
+              role: record.role,
+              content: record.content,
+              status: record.status,
+              hadToolUse: record.id === 'a1'
+            })),
+          tapeTable.getMaxEntryId('s1')
+        )
+
+        const captureState = () => {
+          const tapeRows = tapeTable.getBySession('s1')
+          return {
+            tapeRows,
+            maxEntryId: tapeTable.getMaxEntryId('s1'),
+            entryOrder: tapeRows.map((row) => row.entry_id),
+            messageRow: messageTable.get('a1'),
+            traceRows: db
+              .prepare(
+                `SELECT *
+                 FROM deepchat_message_traces
+                 ORDER BY session_id, message_id, request_seq, id`
+              )
+              .all(),
+            viewManifestRows: tapeRows.filter(
+              (row) => row.kind === 'event' && row.name === 'view/assembled'
+            ),
+            effectiveView: service.getMessageRecords('s1'),
+            replay: service.exportReplaySlice('s1', 'a1', { requestSeq: 2 }),
+            replayHash: service.exportReplaySlice('s1', 'a1', { requestSeq: 2 })?.hashes.sliceHash,
+            projectionMeta: memoryProjectionTable.getSessionMeta('s1'),
+            projectionRange: memoryProjectionTable.readCurrentRange('s1', 0, 10),
+            memoryCursorOrderSeq: sessionTable.getMemoryCursorOrderSeq('s1'),
+            schema: db
+              .prepare(
+                `SELECT type, name, tbl_name, sql
+                 FROM sqlite_master
+                 WHERE name NOT LIKE 'sqlite_%'
+                 ORDER BY type, name, tbl_name`
+              )
+              .all()
+          }
+        }
+        const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+
+        try {
+          const before = captureState()
+          readObservationMatrix(service)
+          const after = captureState()
+
+          expect(after).toEqual(before)
+        } finally {
+          now.mockRestore()
+        }
+      } finally {
+        db.close()
+      }
+    }
+  )
 
   it('keeps pending message records for resume but hides pending tool facts from search', () => {
     const { table } = createTapeTableMock()

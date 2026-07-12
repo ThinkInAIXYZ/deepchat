@@ -223,6 +223,9 @@ function forbiddenObservationMember(name) {
   if (/^(?:ensure|bootstrap|backfill)(?:$|[A-Z])/.test(name)) {
     return `bootstrap/lifecycle member "${name}"`
   }
+  if (/^(?:applyAppendedEntry|applyProjection|replaceProjection|replaceSession)$/.test(name)) {
+    return `projection mutation member "${name}"`
+  }
   if (/^(?:append|insert|update|delete|rebuild)(?:$|[A-Z])/.test(name)) {
     return `mutation member "${name}"`
   }
@@ -270,6 +273,29 @@ function findCausalObservationViolations(source, filePath) {
     true,
     ts.ScriptKind.TS
   )
+  const memoryRuntimeBindings = new Set()
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !statement.importClause ||
+      statement.importClause.isTypeOnly ||
+      !ts.isStringLiteralLike(statement.moduleSpecifier) ||
+      !/memoryPresenter(?:\/|$)/.test(statement.moduleSpecifier.text)
+    ) {
+      continue
+    }
+    if (statement.importClause.name) {
+      memoryRuntimeBindings.add(statement.importClause.name.text)
+    }
+    const bindings = statement.importClause.namedBindings
+    if (bindings && ts.isNamespaceImport(bindings)) {
+      memoryRuntimeBindings.add(bindings.name.text)
+    } else if (bindings) {
+      for (const element of bindings.elements) {
+        if (!element.isTypeOnly) memoryRuntimeBindings.add(element.name.text)
+      }
+    }
+  }
   const bodies = []
   const findImplementations = (node) => {
     const name = 'name' in node && node.name ? propertyNameText(node.name) : null
@@ -314,7 +340,10 @@ function findCausalObservationViolations(source, filePath) {
         }
 
         const segments = expressionSegments(callee)
-        if (segments.some((segment) => /memory/i.test(segment))) {
+        if (
+          segments.some((segment) => /memory/i.test(segment)) ||
+          memoryRuntimeBindings.has(segments[0])
+        ) {
           addFinding(callee, `Memory API call "${segments.join('.')}"`)
         } else if (
           ts.isNewExpression(node) &&
@@ -333,9 +362,23 @@ function findCausalObservationViolations(source, filePath) {
               ts.isElementAccessExpression(node.parent)) &&
             node.parent.expression === node
           const segments = expressionSegments(node)
-          if (!parentOwnsAccess && segments.some((segment) => /memory/i.test(segment))) {
+          if (
+            !parentOwnsAccess &&
+            (segments.some((segment) => /memory/i.test(segment)) ||
+              memoryRuntimeBindings.has(segments[0]))
+          ) {
             addFinding(node, `Memory API member "${segments.join('.')}"`)
           }
+        }
+      } else if (ts.isIdentifier(node) && memoryRuntimeBindings.has(node.text)) {
+        const parentConsumesIdentifier =
+          ((ts.isCallExpression(node.parent) || ts.isNewExpression(node.parent)) &&
+            node.parent.expression === node) ||
+          ((ts.isPropertyAccessExpression(node.parent) ||
+            ts.isElementAccessExpression(node.parent)) &&
+            node.parent.expression === node)
+        if (!parentConsumesIdentifier) {
+          addFinding(node, `Memory runtime import "${node.text}"`)
         }
       } else if (ts.isBindingElement(node) && ts.isIdentifier(node.name)) {
         const member = node.propertyName

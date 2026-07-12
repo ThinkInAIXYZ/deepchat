@@ -166,6 +166,12 @@ session，具体实例管理自己的 session state，DeepChat loop 只负责 tu
   non-hydrating runtime status. Renderer event history is not persisted and must be reported as unavailable,
   never inferred from message state. Adding a new Tape entry kind or durable event history is a separate
   data/behavior SDD, not part of this structural migration.
+- Observation reads are proven non-interfering across existing Tape/message/trace/Memory projection tables:
+  they do not change effective view, replay privacy/hash state, ingestion projection/cursor state, complete user
+  schema or routes, and an AST guard prevents Memory runtime, event-subscription and storage-write edges. This
+  test/proof slice adds no production raw-token persistence. TapeService has no public projection-retry cooldown
+  seam; that contract remains assigned to `ASLR-059`. This proof does not close the persisted renderer
+  event-history gap.
 - Memory injection remains opt-in, sanitized, hard-budgeted and fail-open.
 - Memory extraction remains background, per-session serialized, exact-lineage and cursor-safe.
 - Memory edit/delete/retry/clear/shutdown invalidation and fencing remain unchanged.

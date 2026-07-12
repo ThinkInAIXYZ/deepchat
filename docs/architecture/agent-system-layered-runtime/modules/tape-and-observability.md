@@ -1,6 +1,6 @@
 # Tape 与可观测性
 
-> 状态：已实施到 `ASLR-080`。继续使用现有 Tape；不新建 event store 或 entry kind。
+> 状态：已实施到 `ASLR-081`。继续使用现有 Tape；不新建 event store 或 entry kind。
 
 > Implementation progress: ASLR-052 placed the existing tool-round snapshot behind the fixed
 > `afterRoundPersisted` callback. The transitional `LegacyToolFactsSnapshotPort` still delegates to
@@ -11,7 +11,8 @@
 > synchronously attempts its matching manifest before rate admission/provider streaming, and a
 > persistence failure remains fail-open.
 > ASLR-080 added a pure-read causal observation slice in the existing Tape service. It joins only persisted
-> facts and reports the renderer event-history gap explicitly; ASLR-081 owns the full non-interference proof.
+> facts and reports the renderer event-history gap explicitly. ASLR-081 proved the reader does not mutate Tape,
+> projections, replay state or Memory ingestion; the event-history gap remains explicit and unresolved.
 
 ## 1. 模块目的
 
@@ -148,6 +149,23 @@ update 伪造已经发生的历史，也不能因为 Tape append-only 就禁止�
   只复用现有 `includeTapePayloads` / `includeTracePayload`；
 - old sessions、pending messages 与未 hydrate runtime 分别返回 unavailable/partial、无 terminal message、
   current runtime unavailable，且读取不触发 bootstrap/backfill/projection/Memory/event side effect。
+
+### ASLR-081 non-interference proof
+
+- repeated default、explicit/latest request、trace-only 与 payload opt-in reads 前后，Tape rows/max/order、
+  ViewManifest rows、message/trace rows、effective view、existing replay slice/hash 完全相同；
+- fixture 同时包含 replacement、retraction、pending assistant 与 final tool-call/result facts；observation
+  output 仍为 `message_only`，不会改变 effective fold；
+- Memory ingestion projection meta/range 与 session cursor 不变，现有 projection/cursor write seams 为零调用；
+  TapeService 不拥有也不暴露 runtime cooldown，不能在本任务伪造 snapshot；cooldown 的公共合同与迁移属于
+  `ASLR-059`；
+- default serialization 不暴露 Tape payload/meta、trace headers/body 或 terminal message raw fields；opt-in
+  只增加现有 replay flags 允许的 Tape/trace payload 以及由此派生的 replay slice hash；
+- old sessions 不 bootstrap/backfill/insert，architecture guard 禁止 observation reader 引入 write、SQL、
+  event subscription/publication、projection mutation 或 Memory runtime value-import/call edge；
+- native SQLite 可用时，同一套 proof 直接比较现有 Tape/message/trace/Memory projection/session tables 与
+  `sqlite_master` 的完整 user schema（排除 SQLite internal objects）。本 test/proof slice 没有 production
+  route/schema/raw-token log/durable event 改动。renderer event history 仍为 `not_persisted`。
 
 ## 10. Memory 与 Tape
 

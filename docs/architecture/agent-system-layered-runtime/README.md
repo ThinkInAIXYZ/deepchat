@@ -377,6 +377,13 @@ user message fact
 `eventHistory=not_persisted`，不能从 pending/terminal message 反推历史事件；runtime status 也只接受调用方
 从已 hydrate instance 非物化 peek 得到的当前值，否则为 unavailable。
 
+`ASLR-081` 已用 injected storage seams 与可用时的 native SQLite tables 固化 non-interference：所有 read
+模式前后的 Tape order/ViewManifest、message/trace、effective view、replay hash、Memory ingestion
+projection/cursor 与完整 user schema 相同，现有 table/projection/cursor write seams 为零调用；AST guard
+禁止 reader 引入 Memory runtime value import/call。cooldown 不属于 `DeepChatTapeService` 且当前没有 public
+observable seam，其迁移与公共合同仍由 `ASLR-059` 负责。该证明没有填补历史 renderer event 缺口；
+`eventHistory=not_persisted` 仍是 read model 的真实边界。
+
 - `deepchat_tape_entries.entry_id` 继续提供 per-session monotonic order。
 - mutable streaming block 继续保存在 message projection；final/replacement/retraction 进入 Tape。
 - request body/headers 继续只在 trace storage；现有 messageId/requestSeq correlation 保持，不向 Tape

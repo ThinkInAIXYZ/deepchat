@@ -360,11 +360,15 @@ Rollback: revert the direct routing and explicit-port slices together; no stored
 Objective: make the resulting loop causally inspectable by joining existing persisted facts without adding a
 new event store or Tape entry kind.
 
-Progress after `ASLR-080`: `DeepChatTapeService` exposes one pure-read causal observation slice over the existing
+Progress after `ASLR-081`: `DeepChatTapeService` exposes one pure-read causal observation slice over the existing
 replay DTO, effective Tape view, message row and trace table. It never bootstraps/backfills Tape or publishes an
 event. Request correlation is exact by session/message/request sequence; output facts remain explicitly
 `message_only`. Historical renderer events are reported as `not_persisted`, and runtime status is current-only
-when a caller supplies a non-hydrating peek. `ASLR-081` remains responsible for the full non-interference matrix.
+when a caller supplies a non-hydrating peek. Injected-port and native-table fixtures now prove repeated, explicit,
+latest, trace-only and payload-opt-in reads leave Tape order, ViewManifest rows, message/trace rows, effective view,
+replay hashes, Memory ingestion projection/cursor state and complete user schema unchanged. TapeService does not
+own or expose the runtime projection-retry cooldown, so its observable contract and migration remain assigned to
+`ASLR-059`. The historical renderer event gap remains; the proof does not manufacture event history.
 
 Deliverables:
 

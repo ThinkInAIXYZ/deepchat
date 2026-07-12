@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-070..073、ASLR-080 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-070..073、ASLR-080..081 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -106,7 +106,7 @@
 
 - [x] `ASLR-080` Build the causal observation slice from existing Tape/message-status/trace data with no new writes, explicitly reporting the persisted event-history gap.
   Depends on: `ASLR-052`, `ASLR-056`.
-- [ ] `ASLR-081` Prove the observation adapter does not affect effective view, replay privacy or Memory ingestion.
+- [x] `ASLR-081` Prove the observation adapter does not affect effective view, replay privacy or Memory ingestion.
   Depends on: `ASLR-080`.
 
 ## Memory integration last
