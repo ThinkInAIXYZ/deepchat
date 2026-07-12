@@ -667,7 +667,11 @@ export class Presenter implements IPresenter {
       newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
     })
     this.agentManager = new AgentManager(agentRepository, appSessionService, {
-      deepchat: createLegacyAgentBackend('deepchat', agentRuntimePresenter),
+      deepchat: createLegacyAgentBackend(
+        'deepchat',
+        agentRuntimePresenter,
+        agentRuntimePresenter.deepChatRuntime
+      ),
       acp: createLegacyAgentBackend('acp', agentRuntimePresenter)
     })
     this.agentSessionPresenter = new AgentSessionPresenter(

@@ -27,6 +27,10 @@ export class DeepChatAgentRuntime {
     return instance
   }
 
+  getHydrated(sessionId: AppSessionId): DeepChatAgentInstance | undefined {
+    return this.instances.get(sessionId)
+  }
+
   evict(sessionId: AppSessionId): boolean {
     return this.instances.delete(sessionId)
   }

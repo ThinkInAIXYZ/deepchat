@@ -18,6 +18,7 @@ import {
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -120,6 +121,12 @@ function getPublishedPayloads(eventName: string): any[] {
 
 function expectPublished(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEvent).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
+}
+
+function getRuntimeState(agent: AgentRuntimePresenter, sessionId: string): DeepChatSessionState {
+  const state = agent.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId)).getRuntimeState()
+  if (!state) throw new Error(`Missing runtime state for ${sessionId}`)
+  return state
 }
 
 function getEventHandler(eventName: string): () => void {
@@ -1432,6 +1439,7 @@ describe('AgentRuntimePresenter', () => {
         sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
       ).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).not.toHaveBeenCalled()
+      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
     })
   })
 
@@ -4338,7 +4346,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('rejects model switching while the session is generating', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      ;((agent as any).runtimeState as Map<string, DeepChatSessionState>).set('s1', {
+      agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).setRuntimeState({
         status: 'generating',
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -4389,6 +4397,7 @@ describe('AgentRuntimePresenter', () => {
         streamResolve(undefined)
       }
       await processPromise.catch(() => {}) // ignore error from status update on destroyed session
+      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
     })
   })
 
@@ -5940,14 +5949,14 @@ describe('AgentRuntimePresenter', () => {
       const generationSettingsSpy = vi
         .spyOn(agent as any, 'getEffectiveSessionGenerationSettings')
         .mockImplementation(async (sessionId: string) => {
-          expect((agent as any).runtimeState.get(sessionId).status).toBe('generating')
+          expect(getRuntimeState(agent, sessionId).status).toBe('generating')
           return await getGenerationSettings(sessionId)
         })
 
       await agent.compactSession('s1')
 
       expect(generationSettingsSpy).toHaveBeenCalledWith('s1')
-      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
     })
 
     it('restores idle status when manual compaction has no eligible history', async () => {
@@ -5965,7 +5974,7 @@ describe('AgentRuntimePresenter', () => {
       const result = await agent.compactSession('s1')
 
       expect(result.compacted).toBe(false)
-      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
     })
 
     it('does not manually compact ACP sessions', async () => {
@@ -5987,7 +5996,7 @@ describe('AgentRuntimePresenter', () => {
         providerId: 'openai',
         modelId: 'gpt-4'
       })
-      ;(agent as any).runtimeState.get('s1').status = 'generating'
+      getRuntimeState(agent, 's1').status = 'generating'
 
       await expect(agent.compactSession('s1')).rejects.toThrow(
         'Manual compaction is only available when the session is idle.'
@@ -7391,7 +7400,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('clears stale ACP permission modals when the provider request no longer exists', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
-      ;(agent as any).runtimeState.get('s1').status = 'generating'
+      getRuntimeState(agent, 's1').status = 'generating'
       llmProvider.resolveAgentPermission.mockRejectedValueOnce(
         new Error('Unknown ACP permission request: acp-stale-req')
       )
@@ -7444,7 +7453,7 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].content).toBe('Permission request expired.')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m1', 'sent')
-      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
     })
   })
 

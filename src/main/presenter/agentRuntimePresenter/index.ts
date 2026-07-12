@@ -92,6 +92,12 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/agent/deepchat/resources/systemEnvPromptBuilder'
+import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import type {
+  DeepChatAgentInstance,
+  DeepChatAgentInstanceDelegate
+} from '@/agent/deepchat/instance/deepChatAgentInstance'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ContextBuildMetadata } from './contextBuilder'
 import {
   buildTapeChatView,
@@ -632,16 +638,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly tapeService: DeepChatTapeService
   private readonly pendingInputStore: DeepChatPendingInputStore
   private readonly pendingInputCoordinator: PendingInputCoordinator
-  private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
-  private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
-  private readonly firstTurnReadySessions: Set<string> = new Set()
-  private readonly firstTurnReadyWaiters: Map<string, Set<(ready: boolean) => void>> = new Map()
   private readonly activeSteerPendingInputIds: Map<string, string> = new Map()
-  private readonly sessionAgentIds: Map<string, string> = new Map()
-  private readonly sessionProjectDirs: Map<string, string | null> = new Map()
+  readonly deepChatRuntime: DeepChatAgentRuntime
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
   private readonly toolProfileCache: Map<string, ToolProfileCacheEntry> = new Map()
   private readonly runtimeActivatedSkillsBySession: Map<string, Set<string>> = new Map()
@@ -709,6 +710,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.tapeService = new DeepChatTapeService(sqlitePresenter)
     this.pendingInputStore = new DeepChatPendingInputStore(sqlitePresenter)
     this.pendingInputCoordinator = new PendingInputCoordinator(this.pendingInputStore)
+    this.deepChatRuntime = new DeepChatAgentRuntime((sessionId) =>
+      this.createDeepChatInstanceDelegate(sessionId)
+    )
     this.compactionService = new CompactionService(
       this.sessionStore,
       this.messageStore,
@@ -761,6 +765,33 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     throw new Error('Session permission port is not available.')
+  }
+
+  private getDeepChatInstance(sessionId: string): DeepChatAgentInstance {
+    return this.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId))
+  }
+
+  private getDeepChatRuntimeState(sessionId: string): DeepChatSessionState | undefined {
+    return this.deepChatRuntime.getHydrated(toAppSessionId(sessionId))?.getRuntimeState()
+  }
+
+  private createDeepChatInstanceDelegate(sessionId: string): DeepChatAgentInstanceDelegate {
+    return {
+      compatibilityImplementation: this,
+      send: async (input) => {
+        if (input.queue) {
+          await this.queuePendingInput(sessionId, input.content, input.queue)
+          return { requestId: null, messageId: null }
+        }
+        return await this.processMessage(sessionId, input.content, input.context)
+      },
+      cancel: async () => await this.cancelGeneration(sessionId),
+      snapshot: async (options) =>
+        options?.lightweight
+          ? await this.getSessionListState(sessionId)
+          : await this.getSessionState(sessionId),
+      close: async () => await this.destroySession(sessionId)
+    }
   }
 
   private async reviewToolPermissionForAutoApprove(
@@ -904,13 +935,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       permissionMode,
       generationSettings
     )
-    this.sessionAgentIds.set(
-      sessionId,
-      config.agentId?.trim() || this.getSessionAgentId(sessionId) || 'deepchat'
-    )
-    this.sessionProjectDirs.set(sessionId, projectDir)
-    this.sessionGenerationSettings.set(sessionId, generationSettings)
-    this.runtimeState.set(sessionId, {
+    const instance = this.getDeepChatInstance(sessionId)
+    instance.setAgentId(config.agentId?.trim() || this.getSessionAgentId(sessionId) || 'deepchat')
+    instance.setProjectDir(projectDir)
+    instance.setGenerationSettings(generationSettings)
+    instance.setRuntimeState({
       status: 'idle',
       providerId: config.providerId,
       modelId: config.modelId,
@@ -940,10 +969,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.delete(sessionId)
-    this.runtimeState.delete(sessionId)
-    this.sessionAgentIds.delete(sessionId)
-    this.sessionGenerationSettings.delete(sessionId)
-    this.sessionProjectDirs.delete(sessionId)
+    this.deepChatRuntime.getHydrated(toAppSessionId(sessionId))?.clearOwnedState()
+    this.deepChatRuntime.evict(toAppSessionId(sessionId))
     this.systemPromptCache.delete(sessionId)
     this.toolProfileCache.delete(sessionId)
     this.runtimeActivatedSkillsBySession.delete(sessionId)
@@ -966,7 +993,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     hydrationMode: 'full' | 'summary'
   ): Promise<DeepChatSessionState | null> {
-    const state = this.runtimeState.get(sessionId)
+    const instance = this.getDeepChatInstance(sessionId)
+    const state = instance.getRuntimeState()
     if (state) {
       this.getSessionAgentId(sessionId)
       if (this.hasPendingInteractions(sessionId)) {
@@ -979,7 +1007,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const dbSession = this.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
-    if (!dbSession) return null
+    if (!dbSession) {
+      this.deepChatRuntime.evict(toAppSessionId(sessionId))
+      return null
+    }
 
     this.getSessionAgentId(sessionId)
     const rebuilt: DeepChatSessionState = {
@@ -988,7 +1019,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       modelId: dbSession.model_id,
       permissionMode: normalizePermissionMode(dbSession.permission_mode)
     }
-    this.runtimeState.set(sessionId, rebuilt)
+    instance.setRuntimeState(rebuilt)
     if (hydrationMode === 'full') {
       await this.getEffectiveSessionGenerationSettings(sessionId)
     }
@@ -1003,67 +1034,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     options?: { timeoutMs?: number }
   ): Promise<boolean> {
-    if (this.firstTurnReadySessions.has(sessionId)) {
-      return true
-    }
-
-    const timeoutMs = Math.max(0, options?.timeoutMs ?? 30000)
-    if (timeoutMs === 0) {
-      return false
-    }
-
-    return await new Promise<boolean>((resolve) => {
-      let settled = false
-      let timer: ReturnType<typeof setTimeout>
-
-      const waiters =
-        this.firstTurnReadyWaiters.get(sessionId) ?? new Set<(ready: boolean) => void>()
-      const cleanup = () => {
-        const current = this.firstTurnReadyWaiters.get(sessionId)
-        current?.delete(resolveWaiter)
-        if (current?.size === 0) {
-          this.firstTurnReadyWaiters.delete(sessionId)
-        }
-      }
-      const settle = (ready: boolean) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        cleanup()
-        resolve(ready)
-      }
-      const resolveWaiter = (ready: boolean) => settle(ready)
-
-      waiters.add(resolveWaiter)
-      this.firstTurnReadyWaiters.set(sessionId, waiters)
-      timer = setTimeout(() => settle(false), timeoutMs)
-    })
+    return await this.getDeepChatInstance(sessionId).waitForFirstTurnReady(options)
   }
 
   private markFirstTurnReady(sessionId: string): void {
-    if (this.firstTurnReadySessions.has(sessionId)) {
-      return
-    }
-
-    this.firstTurnReadySessions.add(sessionId)
-    this.settleFirstTurnReadyWaiters(sessionId, true)
+    this.getDeepChatInstance(sessionId).markFirstTurnReady()
   }
 
   private clearFirstTurnReady(sessionId: string): void {
-    this.firstTurnReadySessions.delete(sessionId)
-    this.settleFirstTurnReadyWaiters(sessionId, false)
-  }
-
-  private settleFirstTurnReadyWaiters(sessionId: string, ready: boolean): void {
-    const waiters = this.firstTurnReadyWaiters.get(sessionId)
-    if (!waiters) {
-      return
-    }
-
-    this.firstTurnReadyWaiters.delete(sessionId)
-    for (const waiter of waiters) {
-      waiter(ready)
-    }
+    this.getDeepChatInstance(sessionId).clearFirstTurnReady()
   }
 
   async queuePendingInput(
@@ -1256,7 +1235,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       maxProviderRounds?: number
     }
   ): Promise<MessageStartResult> {
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     if (!state) throw new Error(`Session ${sessionId} not found`)
     if (this.hasPendingInteractions(sessionId)) {
       throw new Error('Pending tool interactions must be resolved before sending a new message.')
@@ -1924,7 +1903,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           })
           return { resumed: false }
         }
-        const state = this.runtimeState.get(sessionId)
+        const state = this.getDeepChatRuntimeState(sessionId)
         const projectDir = this.resolveProjectDir(sessionId)
         let shouldDispatchResolvedToolHook = false
 
@@ -2096,7 +2075,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void> {
     const normalizedMode = normalizePermissionMode(mode)
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     if (state) {
       state.permissionMode = normalizedMode
     }
@@ -2110,7 +2089,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       throw new Error('Session model update requires providerId and modelId.')
     }
 
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const dbSession = this.sessionStore.get(sessionId)
     if (!state && !dbSession) {
       throw new Error(`Session ${sessionId} not found`)
@@ -2129,7 +2108,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       state.providerId = nextProviderId
       state.modelId = nextModelId
     } else {
-      this.runtimeState.set(sessionId, {
+      this.getDeepChatInstance(sessionId).setRuntimeState({
         status: 'idle',
         providerId: nextProviderId,
         modelId: nextModelId,
@@ -2142,7 +2121,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       sessionId,
       this.buildPersistedGenerationSettingsReplacement(sanitized)
     )
-    this.sessionGenerationSettings.set(sessionId, sanitized)
+    this.getDeepChatInstance(sessionId).setGenerationSettings(sanitized)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }
@@ -2158,7 +2137,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       throw new Error('Session agent context update requires agentId, providerId and modelId.')
     }
 
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const dbSession = this.sessionStore.get(sessionId)
     if (!state && !dbSession) {
       throw new Error(`Session ${sessionId} not found`)
@@ -2175,7 +2154,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       config.generationSettings ?? {}
     )
 
-    this.runtimeState.set(sessionId, {
+    const instance = this.getDeepChatInstance(sessionId)
+    instance.setRuntimeState({
       status: state?.status ?? 'idle',
       providerId: nextProviderId,
       modelId: nextModelId,
@@ -2187,19 +2167,20 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       sessionId,
       this.buildPersistedGenerationSettingsReplacement(sanitizedGenerationSettings)
     )
-    this.sessionAgentIds.set(sessionId, nextAgentId)
-    this.sessionProjectDirs.set(sessionId, this.normalizeProjectDir(config.projectDir))
-    this.sessionGenerationSettings.set(sessionId, sanitizedGenerationSettings)
+    instance.setAgentId(nextAgentId)
+    instance.setProjectDir(this.normalizeProjectDir(config.projectDir))
+    instance.setGenerationSettings(sanitizedGenerationSettings)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }
 
   async setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
     const normalized = this.normalizeProjectDir(projectDir)
-    const previous = this.sessionProjectDirs.has(sessionId)
-      ? (this.sessionProjectDirs.get(sessionId) ?? null)
+    const instance = this.getDeepChatInstance(sessionId)
+    const previous = instance.hasProjectDir()
+      ? instance.getProjectDir()
       : this.resolvePersistedSessionProjectDir(sessionId)
-    this.sessionProjectDirs.set(sessionId, normalized)
+    instance.setProjectDir(normalized)
     if (previous !== normalized) {
       this.invalidateSystemPromptCache(sessionId)
       this.invalidateToolProfileCache(sessionId)
@@ -2207,7 +2188,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     if (state) {
       return state.permissionMode
     }
@@ -2216,7 +2197,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async getGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const dbSession = this.sessionStore.get(sessionId)
     if (!state && !dbSession) {
       return null
@@ -2228,7 +2209,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     settings: Partial<SessionGenerationSettings>
   ): Promise<SessionGenerationSettings> {
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const dbSession = this.sessionStore.get(sessionId)
     if (!state && !dbSession) {
       throw new Error(`Session ${sessionId} not found`)
@@ -2241,7 +2222,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const current = await this.getEffectiveSessionGenerationSettings(sessionId)
     const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, settings, current)
-    this.sessionGenerationSettings.set(sessionId, sanitized)
+    this.getDeepChatInstance(sessionId).setGenerationSettings(sanitized)
     this.sessionStore.updateGenerationSettings(
       sessionId,
       this.buildPersistedGenerationSettingsPatch(settings, sanitized)
@@ -2299,7 +2280,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
    */
   private settleAbortedTurn(sessionId: string, messageId: string | null, runId?: string): void {
     this.writeCanceledTerminalBlock(sessionId, messageId)
-    this.dispatchTerminalHooks(sessionId, this.runtimeState.get(sessionId), {
+    this.dispatchTerminalHooks(sessionId, this.getDeepChatRuntimeState(sessionId), {
       status: 'aborted',
       stopReason: 'user_stop',
       errorMessage: 'common.error.userCanceledGeneration'
@@ -2426,14 +2407,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private getSessionAgentId(sessionId: string): string | undefined {
-    const cached = this.sessionAgentIds.get(sessionId)?.trim()
+    const instance = this.deepChatRuntime.getHydrated(toAppSessionId(sessionId))
+    const cached = instance?.getAgentId()?.trim()
     if (cached) {
       return cached
     }
 
     const persisted = this.sqlitePresenter.newSessionsTable?.get(sessionId)?.agent_id?.trim()
     if (persisted) {
-      this.sessionAgentIds.set(sessionId, persisted)
+      instance?.setAgentId(persisted)
       return persisted
     }
 
@@ -2601,7 +2583,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     void next.finally(() => {
       if (this.memoryExtractionChains.get(sessionId) === next) {
         this.memoryExtractionChains.delete(sessionId)
-        if (!this.runtimeState.has(sessionId)) {
+        if (!this.getDeepChatRuntimeState(sessionId)) {
           this.memoryExtractionEpochs.delete(sessionId)
         }
       }
@@ -2664,7 +2646,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     try {
       const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
       if (!this.memoryPort.isEnabled(agentId)) return
-      const state = this.runtimeState.get(sessionId)
+      const state = this.getDeepChatRuntimeState(sessionId)
       if (!state) return
       if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
 
@@ -3033,7 +3015,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const resolvedProviderId =
-      providerId?.trim() || this.runtimeState.get(sessionId)?.providerId?.trim() || ''
+      providerId?.trim() || this.getDeepChatRuntimeState(sessionId)?.providerId?.trim() || ''
     return resolvedProviderId === 'acp'
   }
 
@@ -3347,7 +3329,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
-    const runtimeState = this.runtimeState.get(sessionId)
+    const runtimeState = this.getDeepChatRuntimeState(sessionId)
     const session = this.sessionStore.get(sessionId)
     if (!runtimeState && !session) {
       throw new Error(`Session ${sessionId} not found`)
@@ -3375,7 +3357,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   async compactSession(
     sessionId: string
   ): Promise<{ compacted: boolean; state: SessionCompactionState }> {
-    const state = this.runtimeState.get(sessionId) ?? (await this.getSessionListState(sessionId))
+    const state =
+      this.getDeepChatRuntimeState(sessionId) ?? (await this.getSessionListState(sessionId))
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
@@ -3618,7 +3601,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       preStreamStartedAt,
       onRunRegistered
     } = args
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
@@ -4644,7 +4627,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     // Terminal hooks describe the run that just ended, so they fire even if a newer run has since
     // become the active one. Session status, however, must not be clobbered by a stale run — guard it.
     const isActive = !runId || this.isActiveRun(sessionId, runId)
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     if (!result || !result.status) {
       if (isActive) {
         this.setSessionStatus(sessionId, 'idle')
@@ -4692,7 +4675,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     let streamRunId: string | undefined
 
     try {
-      const state = this.runtimeState.get(sessionId)
+      const state = this.getDeepChatRuntimeState(sessionId)
       if (!state) {
         throw new Error(`Session ${sessionId} not found`)
       }
@@ -4897,7 +4880,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     activeSkillNamesOverride?: string[]
   ): Promise<string> {
     const normalizedBase = basePrompt?.trim() ?? ''
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const providerId = state?.providerId?.trim() || 'unknown-provider'
     const modelId = state?.modelId?.trim() || 'unknown-model'
     if (this.isAcpBackedSubagentSession(sessionId, providerId)) {
@@ -5421,12 +5404,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private async getEffectiveSessionGenerationSettings(
     sessionId: string
   ): Promise<SessionGenerationSettings> {
-    const cached = this.sessionGenerationSettings.get(sessionId)
+    const cached = this.getDeepChatInstance(sessionId).getGenerationSettings()
     if (cached) {
       return { ...cached }
     }
 
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const dbSession = this.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
     const providerId = state?.providerId ?? dbSession?.provider_id
     const modelId = state?.modelId ?? dbSession?.model_id
@@ -5437,7 +5420,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const persistedPatch = dbSession ? this.mapPersistedGenerationPatch(dbSession) : {}
     const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, persistedPatch)
-    this.sessionGenerationSettings.set(sessionId, sanitized)
+    this.getDeepChatInstance(sessionId).setGenerationSettings(sanitized)
     return { ...sanitized }
   }
 
@@ -6903,7 +6886,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return []
     }
 
-    const providerId = this.runtimeState.get(sessionId)?.providerId?.trim()
+    const providerId = this.getDeepChatRuntimeState(sessionId)?.providerId?.trim()
     if (this.isAcpBackedSubagentSession(sessionId, providerId)) {
       return []
     }
@@ -6971,7 +6954,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       policy
     )
     const disabledAgentTools = this.getDisabledAgentTools(sessionId)
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
     const kind: ToolProfileKind = normalizedProjectDir ? 'code' : 'general'
 
@@ -7248,7 +7231,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     abortSignal?: AbortSignal
   ): Promise<{ providerId: string; modelId: string } | null> {
     this.throwIfAbortRequested(abortSignal)
-    const state = this.runtimeState.get(sessionId)
+    const state = this.getDeepChatRuntimeState(sessionId)
     const dbSession = this.sessionStore.get(sessionId)
     const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
     const resolved = await resolveSessionVisionTarget({
@@ -7539,7 +7522,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private setSessionStatus(sessionId: string, status: DeepChatSessionState['status']): void {
-    const current = this.runtimeState.get(sessionId)
+    const current = this.getDeepChatRuntimeState(sessionId)
     if (!current) {
       return
     }
@@ -7615,22 +7598,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private resolveProjectDir(sessionId: string, incoming?: string | null): string | null {
+    const instance = this.getDeepChatInstance(sessionId)
     if (incoming !== undefined) {
       const normalized = this.normalizeProjectDir(incoming)
-      const previous = this.sessionProjectDirs.get(sessionId) ?? null
-      this.sessionProjectDirs.set(sessionId, normalized)
+      const previous = instance.getProjectDir()
+      instance.setProjectDir(normalized)
       if (previous !== normalized) {
         this.invalidateSystemPromptCache(sessionId)
         this.invalidateToolProfileCache(sessionId)
       }
       return normalized
     }
-    if (this.sessionProjectDirs.has(sessionId)) {
-      return this.sessionProjectDirs.get(sessionId) ?? null
+    if (instance.hasProjectDir()) {
+      return instance.getProjectDir()
     }
 
     const persisted = this.resolvePersistedSessionProjectDir(sessionId)
-    this.sessionProjectDirs.set(sessionId, persisted)
+    instance.setProjectDir(persisted)
     return persisted
   }
 }

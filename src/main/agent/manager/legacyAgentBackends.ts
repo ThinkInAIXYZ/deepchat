@@ -107,15 +107,18 @@ function requireMethod<T extends (...args: never[]) => unknown>(
 
 export function createLegacyAgentBackend(
   kind: 'deepchat',
-  implementation: IAgentImplementation
+  implementation: IAgentImplementation,
+  deepChatRuntime?: DeepChatAgentRuntime
 ): LegacyDeepChatSessionBackend
 export function createLegacyAgentBackend(
   kind: 'acp',
-  implementation: IAgentImplementation
+  implementation: IAgentImplementation,
+  deepChatRuntime?: undefined
 ): LegacyAcpSessionBackend
 export function createLegacyAgentBackend(
   kind: 'deepchat' | 'acp',
-  implementation: IAgentImplementation
+  implementation: IAgentImplementation,
+  deepChatRuntime?: DeepChatAgentRuntime
 ): LegacyAgentSessionBackend {
   const hasMessages = requireMethod<IAgentImplementation['hasMessages']>(
     implementation,
@@ -196,7 +199,9 @@ export function createLegacyAgentBackend(
     const setSessionAgentContext = requireMethod<
       NonNullable<IAgentImplementation['setSessionAgentContext']>
     >(implementation, 'setSessionAgentContext')
-    const runtime = new DeepChatAgentRuntime((sessionId) => openLegacyHandle(sessionId, 'deepchat'))
+    const runtime =
+      deepChatRuntime ??
+      new DeepChatAgentRuntime((sessionId) => openLegacyHandle(sessionId, 'deepchat'))
     return {
       ...common,
       kind,

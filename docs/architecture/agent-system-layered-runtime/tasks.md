@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..041 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -57,7 +57,7 @@
 
 - [x] `ASLR-040` Add lazy `DeepChatAgentRuntime.getOrHydrate()` and instance façade.
   Depends on: `ASLR-020`, `ASLR-021`.
-- [ ] `ASLR-041` Move identity/project/effective settings and status/readiness state.
+- [x] `ASLR-041` Move identity/project/effective settings and status/readiness state.
   Depends on: `ASLR-040`.
 - [ ] `ASLR-042` Move generation/cancel/abort/stale-run state.
   Depends on: `ASLR-041`.

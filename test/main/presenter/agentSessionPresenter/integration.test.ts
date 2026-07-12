@@ -8,6 +8,7 @@ import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
 import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -635,7 +636,11 @@ function createMockToolPresenter() {
 }
 
 function createLegacyManager(deepchatAgent: AgentRuntimePresenter, sqlitePresenter: any) {
-  const backend = createLegacyAgentBackend('deepchat', deepchatAgent as never)
+  const backend = createLegacyAgentBackend(
+    'deepchat',
+    deepchatAgent as never,
+    deepchatAgent.deepChatRuntime
+  )
   return {
     resolveBackend: () => ({ backend }),
     resolveSessionHandle: (sessionId: string) => {
@@ -1259,7 +1264,11 @@ describe('Integration: multi-turn context', () => {
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
     await deepchatAgent.initSession('s-follow-up', { providerId: 'openai', modelId: 'gpt-4' })
-    ;(deepchatAgent as any).runtimeState.get('s-follow-up').status = 'generating'
+    const runtimeState = deepchatAgent.deepChatRuntime
+      .getOrHydrate(toAppSessionId('s-follow-up'))
+      .getRuntimeState()
+    if (!runtimeState) throw new Error('Missing runtime state for s-follow-up')
+    runtimeState.status = 'generating'
 
     await deepchatAgent.queuePendingInput('s-follow-up', 'Older queued prompt')
     expect(await deepchatAgent.listPendingInputs('s-follow-up')).toHaveLength(1)

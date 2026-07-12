@@ -33,6 +33,16 @@ describe('legacy agent backends', () => {
     expect(backend.open(toAppSessionId('other'))).not.toBe(backend.open(sessionId))
   })
 
+  it('reuses an explicitly owned DeepChat runtime', () => {
+    const implementation = createImplementation()
+    const owner = createLegacyAgentBackend('deepchat', implementation)
+    const backend = createLegacyAgentBackend('deepchat', implementation, owner.runtime)
+    const sessionId = toAppSessionId('session')
+
+    expect(backend.runtime).toBe(owner.runtime)
+    expect(backend.open(sessionId)).toBe(owner.open(sessionId))
+  })
+
   it('preserves direct and queued send results', async () => {
     const implementation = createImplementation()
     const handle = createLegacyAgentBackend('deepchat', implementation).open(
