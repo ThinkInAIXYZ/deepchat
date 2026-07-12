@@ -5,6 +5,23 @@ import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { normalizeAcpConfigState } from './acpConfigState'
 
+export function mapAcpPromptStopReason(
+  reason: schema.PromptResponse['stopReason']
+): 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' {
+  switch (reason) {
+    case 'max_tokens':
+      return 'max_tokens'
+    case 'max_turn_requests':
+      return 'stop_sequence'
+    case 'cancelled':
+    case 'refusal':
+      return 'error'
+    case 'end_turn':
+    default:
+      return 'complete'
+  }
+}
+
 export interface PlanEntry {
   step: string
   priority?: string | null

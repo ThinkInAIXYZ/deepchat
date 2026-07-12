@@ -43,6 +43,10 @@ const MEMORY_TABLE_PATH = path.join(
   'src/main/presenter/sqlitePresenter/tables/agentMemory.ts'
 )
 const MAIN_ROUTES_PATH = path.join(ROOT, 'src/main/routes/index.ts')
+const ACP_INSTANCE_FIXTURE = path.join(
+  ROOT,
+  'src/main/agent/acp/instance/__architecture_guard_fixture__.ts'
+)
 
 const virtualFiles = new Map<string, string>([
   [
@@ -187,6 +191,16 @@ const virtualFiles = new Map<string, string>([
         return decode(row.source_entry_ids)
       }
     `
+  ],
+  [
+    ACP_INSTANCE_FIXTURE,
+    `
+      import type { LoopRun } from '../../deepchat/loop/loopRun'
+      import type { MemoryPresenter } from '../../../presenter/memoryPresenter'
+      import type { Presenter } from '../../../presenter'
+      import type { SQLitePresenter } from '../../../presenter/sqlitePresenter'
+      export type Fixture = LoopRun<unknown> | MemoryPresenter | Presenter | SQLitePresenter
+    `
   ]
 ])
 
@@ -258,6 +272,14 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[memory-domain-sqlite-concrete]')
     expect(fixtureViolations).toContain('sqlitePresenter/tables/agentMemory.ts')
     expect(fixtureViolations).toContain('sqlitePresenter/index.ts')
+  })
+
+  it('keeps the direct ACP instance out of DeepChat loop, Memory, presenter root and SQLite', () => {
+    const fixtureViolations = forFile(violations, ACP_INSTANCE_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[acp-direct-instance-deepchat-loop]')
+    expect(fixtureViolations).toContain('[acp-direct-instance-memory]')
+    expect(fixtureViolations).toContain('[acp-direct-instance-presenter-root]')
+    expect(fixtureViolations).toContain('[acp-direct-instance-sqlite]')
   })
 
   it('restricts composites by resolved symbol and file-specific allowlists', () => {

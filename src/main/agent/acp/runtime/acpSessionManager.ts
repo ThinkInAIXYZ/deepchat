@@ -32,6 +32,7 @@ interface AcpSessionManagerOptions {
 interface SessionHooks {
   onSessionUpdate: SessionNotificationHandler
   onPermission: PermissionResolver
+  onProcessExit?: (sessionId: AcpRemoteSessionId) => void
 }
 
 type AcpConnectionWithUnstableSessionLifecycle = ClientSideConnectionType & {
@@ -90,6 +91,7 @@ export class AcpSessionManager {
   private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
   private readonly sessionsById = new Map<AcpRemoteSessionId, AcpSessionRecord>()
   private readonly pendingSessions = new Map<string, Promise<AcpSessionRecord>>()
+  private readonly exitedInitializingConversations = new Set<string>()
 
   constructor(options: AcpSessionManagerOptions) {
     this.providerId = options.providerId
@@ -121,7 +123,12 @@ export class AcpSessionManager {
         }
       })
       // Register new handlers
-      existing.detachHandlers = this.attachSessionHooks(agent.id, existing.sessionId, hooks)
+      existing.detachHandlers = this.attachSessionHooks(
+        conversationId,
+        agent.id,
+        existing.sessionId,
+        hooks
+      )
       existing.workdir = resolvedWorkdir
       return existing
     }
@@ -134,16 +141,28 @@ export class AcpSessionManager {
       return inflight
     }
 
-    const createPromise = this.createSession(conversationId, agent, hooks, resolvedWorkdir)
-    this.pendingSessions.set(conversationId, createPromise)
-    try {
-      const session = await createPromise
-      this.sessionsByConversation.set(conversationId, session)
-      this.sessionsById.set(session.sessionId, session)
-      return session
-    } finally {
-      this.pendingSessions.delete(conversationId)
-    }
+    let sharedPromise: Promise<AcpSessionRecord> | undefined
+    sharedPromise = (async () => {
+      try {
+        const session = await this.createSession(conversationId, agent, hooks, resolvedWorkdir)
+        if (this.exitedInitializingConversations.delete(conversationId)) {
+          this.disposeSessionHandlers(session)
+          throw new Error(
+            `[ACP] Process exited while session ${session.sessionId} was initializing`
+          )
+        }
+        this.sessionsByConversation.set(conversationId, session)
+        this.sessionsById.set(session.sessionId, session)
+        return session
+      } finally {
+        if (this.pendingSessions.get(conversationId) === sharedPromise) {
+          this.pendingSessions.delete(conversationId)
+          this.exitedInitializingConversations.delete(conversationId)
+        }
+      }
+    })()
+    this.pendingSessions.set(conversationId, sharedPromise)
+    return sharedPromise
   }
 
   getSession(conversationId: string): AcpSessionRecord | null {
@@ -201,6 +220,7 @@ export class AcpSessionManager {
     this.sessionsByConversation.clear()
     this.sessionsById.clear()
     this.pendingSessions.clear()
+    this.exitedInitializingConversations.clear()
   }
 
   private async createSession(
@@ -241,7 +261,8 @@ export class AcpSessionManager {
       throw initError
     })
     const detachListeners =
-      session.detachHandlers ?? this.attachSessionHooks(agent.id, session.sessionId, hooks)
+      session.detachHandlers ??
+      this.attachSessionHooks(conversationId, agent.id, session.sessionId, hooks)
 
     // Register session workdir for fs/terminal operations
     this.processManager.registerSessionWorkdir(session.sessionId, workdir, conversationId)
@@ -317,6 +338,7 @@ export class AcpSessionManager {
   }
 
   private attachSessionHooks(
+    conversationId: string,
     agentId: string,
     sessionId: string,
     hooks: SessionHooks
@@ -331,9 +353,48 @@ export class AcpSessionManager {
       sessionId,
       hooks.onPermission
     )
-    return [detachUpdate, detachPermission]
+    const detachProcessExit = this.processManager.registerProcessExitHandler(
+      agentId,
+      sessionId,
+      () => {
+        const remoteSessionId = toAcpRemoteSessionId(sessionId)
+        this.handleProcessExit(conversationId, agentId, remoteSessionId)
+        hooks.onProcessExit?.(remoteSessionId)
+      }
+    )
+    return [detachUpdate, detachPermission, detachProcessExit]
   }
 
+  private handleProcessExit(
+    conversationId: string,
+    agentId: string,
+    sessionId: AcpRemoteSessionId
+  ): void {
+    const current = this.sessionsByConversation.get(conversationId)
+    if (current?.agentId === agentId && current.sessionId === sessionId) {
+      this.sessionsByConversation.delete(conversationId)
+      this.sessionsById.delete(sessionId)
+      this.processManager.clearSession(sessionId)
+      this.disposeSessionHandlers(current)
+      return
+    }
+    if (this.pendingSessions.has(conversationId)) {
+      this.processManager.clearSession(sessionId)
+      this.exitedInitializingConversations.add(conversationId)
+    }
+  }
+
+  private disposeSessionHandlers(session: Pick<AcpSessionRecord, 'detachHandlers'>): void {
+    const handlers = session.detachHandlers
+    session.detachHandlers = []
+    handlers.forEach((dispose) => {
+      try {
+        dispose()
+      } catch (error) {
+        console.warn('[ACP] Failed to dispose session handler after process exit:', error)
+      }
+    })
+  }
   private async initializeSession(
     handle: AcpProcessHandle,
     conversationId: string,
@@ -406,7 +467,12 @@ export class AcpSessionManager {
             payload: resumeRequestSummary
           })
           this.processManager.registerSessionWorkdir(persistedSessionId, workdir, conversationId)
-          detachHandlers = this.attachSessionHooks(agent.id, persistedSessionId, hooks)
+          detachHandlers = this.attachSessionHooks(
+            conversationId,
+            agent.id,
+            persistedSessionId,
+            hooks
+          )
           const resumeResponse = await connection.unstable_resumeSession!({
             cwd: workdir,
             mcpServers,
@@ -475,7 +541,12 @@ export class AcpSessionManager {
             payload: loadRequestSummary
           })
           this.processManager.registerSessionWorkdir(persistedSessionId, workdir, conversationId)
-          detachHandlers = this.attachSessionHooks(agent.id, persistedSessionId, hooks)
+          detachHandlers = this.attachSessionHooks(
+            conversationId,
+            agent.id,
+            persistedSessionId,
+            hooks
+          )
           const loadResponse = await handle.connection.loadSession({
             cwd: workdir,
             mcpServers,
@@ -569,6 +640,8 @@ export class AcpSessionManager {
       if (!sessionId || !sessionResponse) {
         throw new Error('[ACP] Session initialization did not return a response payload')
       }
+
+      detachHandlers ??= this.attachSessionHooks(conversationId, agent.id, sessionId, hooks)
 
       const legacyModeState = getLegacyModeState(configState)
 

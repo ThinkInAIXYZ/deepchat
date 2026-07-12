@@ -32,6 +32,7 @@ import {
   AcpSessionManager,
   AcpSessionPersistence,
   AcpContentMapper,
+  mapAcpPromptStopReason,
   AcpMessageFormatter,
   getAcpConfigOption,
   getAcpConfigOptionByCategory,
@@ -1322,7 +1323,7 @@ export class AcpProvider extends BaseLLMProvider {
           completedAt: completedTurn.completedAt ?? Date.now()
         })
       }
-      queue.push(createStreamEvent.stop(this.mapStopReason(response.stopReason)))
+      queue.push(createStreamEvent.stop(mapAcpPromptStopReason(response.stopReason)))
     } catch (error) {
       if (timeoutMs && error instanceof Error && error.name === 'AbortError') {
         try {
@@ -1717,24 +1718,6 @@ export class AcpProvider extends BaseLLMProvider {
       }
     }
     return { content, reasoning }
-  }
-
-  private mapStopReason(
-    reason: schema.PromptResponse['stopReason']
-  ): 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' {
-    switch (reason) {
-      case 'max_tokens':
-        return 'max_tokens'
-      case 'max_turn_requests':
-        return 'stop_sequence'
-      case 'cancelled':
-        return 'error'
-      case 'refusal':
-        return 'error'
-      case 'end_turn':
-      default:
-        return 'complete'
-    }
   }
 
   private createEventQueue(): EventQueue {

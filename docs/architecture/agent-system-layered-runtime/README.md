@@ -28,6 +28,11 @@ ACP 又被包装成 LLM provider，穿过 DeepChat loop 后再进入 ACP 自己�
 - 现有 Tape 继续作为 append-only semantic ledger，不另建第二套 Tape，也不把 raw token stream
   伪装成可重放事实。
 
+当前实施边界：DeepChat loop extraction 已完成到 `ASLR-057`；`ASLR-070` 建立 direct ACP typed
+instance/prompt/permission/projection/trace slice，但 production `AgentManager` 仍选择 legacy ACP backend。
+ACP parity、router switch 与 provider compatibility retirement 分别留给 `ASLR-071..073`，因此当前代码
+不会改变任何上线 ACP route。
+
 ## 文档地图
 
 | 文档 | 单一职责 |

@@ -262,6 +262,8 @@ ACP-provider compatibility path.
 Deliverables:
 
 - implement `AcpAgentInstance` over the consolidated process/session/prompt/protocol module;
+- introduce that typed instance as an unselected slice first; production `AgentManager` routing does not
+  change until `ASLR-072`;
 - add an `AcpCompatibilityProjectionAdapter` over the existing message store, Tape facts/ViewManifest and
   renderer event writer; reproduce current create/update/finalize order so restart/search/export remain valid;
 - add `AcpRequestTracePort` over existing trace persistence, preserving endpoint/body correlation,
@@ -269,6 +271,8 @@ Deliverables:
 - keep `acp_turns` as protocol metadata only; do not treat it as transcript storage;
 - preserve first-system-prompt behavior, workdir sync, load/resume/new, MCP conversion, process cache and
   permission settlement;
+- keep `acp_turns.user_message_id=null`, successful provider-finally cancel and fire-and-forget active-session
+  metadata persistence; do not infer an `executeCommand` facet from advertised commands;
 - preserve regular ACP compatibility prompt/local-resource behavior and ACP subagent isolation until a separate
   behavior spec changes it;
 - add `AcpCompatibilityPromptBuilder` so the direct regular backend reproduces the current first system

@@ -713,4 +713,15 @@ describe('AcpProcessManager config cache fallback', () => {
 
     expect(newSession).not.toHaveBeenCalled()
   })
+
+  it('settles registered session exit handlers once when the process scope is cleared', () => {
+    const manager = createManager()
+    const onExit = vi.fn()
+    manager.registerProcessExitHandler('agent-1', 'remote-session', onExit)
+
+    ;(manager as any).clearSessionsForAgent('agent-1')
+    ;(manager as any).clearSessionsForAgent('agent-1')
+
+    expect(onExit).toHaveBeenCalledTimes(1)
+  })
 })

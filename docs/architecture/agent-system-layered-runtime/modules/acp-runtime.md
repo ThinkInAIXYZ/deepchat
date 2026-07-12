@@ -1,6 +1,7 @@
 # ACP 独立 Runtime
 
-> 状态：目标设计。`kind=acp` 是独立 backend；DeepChat 选择 ACP provider 的兼容路径仍保留。
+> 状态：实施中。`ASLR-070` 已建立尚未被 production router 选择的 typed direct slice；
+> `kind=acp` 切换属于 `ASLR-072`。DeepChat 选择 ACP provider 的兼容路径仍保留。
 
 ## 1. 模块目的
 
@@ -100,10 +101,13 @@ open app session
   -> publish initial mode/config/command capabilities
 
 send prompt
-  -> create current user/assistant message and Tape projection through compatibility adapter
-  -> persist/mark ACP turn metadata start
   -> for regular sessions, build the current runtime/env/tool/skill/local-resource compatibility system prompt
      (ACP-backed subagent keeps its current bypass)
+  -> create current user/assistant message and Tape projection through compatibility adapter
+  -> attempt the current ViewManifest write (fail-open)
+  -> pass rate admission and cancellation checks
+  -> open/reuse the ACP remote session
+  -> persist/mark ACP turn metadata start (`user_message_id` remains null)
   -> connection.prompt(remoteSessionId, prompt)
   -> map protocol events to existing stream/message/block types
   -> update current structured message/Tape/event projection
@@ -120,6 +124,11 @@ cancel/close
 load/resume/new 的判定、workdir、remote session id 复用和 process reuse 必须由现有 ACP tests/fixtures
 锁定后原样迁移。
 
+process exit 会立即驱逐 `AcpSessionManager` 的 live record 和 handlers，但保留 persisted remote
+session id；下一次 public `getOrCreateSession` 仍按 resume -> load -> new 恢复，不能复用已退出 process 的
+connection。request timeout 与 cancel/process exit 分开结算：timeout 取消 protocol request、turn/session
+进入 error；caller/process abort 的 turn 为 cancelled、session 回到 idle。
+
 ## 5. Backend 合同
 
 ```ts
@@ -133,12 +142,15 @@ interface AcpAgentInstance extends AgentSessionHandle {
 
   setMode(modeId: string): Promise<void>
   setConfigOption(optionId: string, value: unknown): Promise<void>
-  executeCommand(commandId: string, input?: string): Promise<void>
   getCapabilities(): AcpSessionCapabilities
 }
 ```
 
 这些 ACP-only methods 是 required facet，不加入公共 `AgentSessionHandle` 变成 optional。
+`ASLR-070` 只落地 prompt/send/cancel/close/permission continuation slice；mode/config/capability 的
+production parity 在 `ASLR-071` 补齐，不能把未接线 method 作为已完成能力。
+当前 route 与 ACP SDK 没有独立 `executeCommand` 操作证据；available commands 仍是 prompt 输入提示，
+因此本设计不发明该 facet。若协议/route 后续增加命令执行能力，另立合同。
 
 ## 6. MCP 与 tools
 
@@ -193,6 +205,10 @@ start prompt
 adapter 不运行 DeepChat provider/tool loop，也不发明新 transcript union；它只复现当前持久化/输出
 副作用。每种 protocol event 的 create/update/finalize 顺序由 golden fixture 锁定。
 
+terminal projection 复用当前 ACP stop-reason mapper 和 DeepChat accumulator/settlement：prompt reject 先
+写入 `ACP: ...` error event，空 `end_turn` 写现有 `common.error.noModelResponse`，再由同一 writer 一次性
+落 final blocks、message status、Tape fact 和 completed/failed event，不能另开 direct-only error path。
+
 direct backend 还必须调用 `AcpRequestTracePort`，它裁剪自当前 provider trace writer：
 
 ```text
@@ -207,6 +223,8 @@ ViewManifest attempt
 
 trace 继续使用现有 message/request correlation、redaction/truncation 和 opt-in context。persist failure
 只 warning、保持 fail-open，不能阻止 ACP prompt；不能把 raw trace body复制进 Tape。
+旧 provider-private mock 通过主动 reject 证明 trace failure 的测试不是 production writer 合同；真实基线是
+base trace emitter / direct trace adapter 捕获 persistence error 后 warning 并继续 prompt。
 
 ## 9. 兼容迁移
 
@@ -214,7 +232,8 @@ trace 继续使用现有 message/request correlation、redaction/truncation 和 
 
 1. 为 `AcpProvider` 输入、protocol event、transcript、permission、terminal status 建 golden fixtures。
 2. 把 ACP client/process/session/persistence 代码收拢到新的 ACP owner，旧 provider 先委托它。
-3. 引入 `AcpAgentInstance`，但继续由旧 `AgentRuntimePresenter` 触发，验证 parity。
+3. 引入尚不被 production `AgentManager` 选择的 typed `AcpAgentInstance` slice，以 causal fake、
+   prompt/projection/trace/permission golden fixture 验证边界；旧 `AgentRuntimePresenter` 路径保持原状。
 4. 收拢 Config/Provider/Lifecycle 中的 ACP registry/install/launch/alias/debug/model-refresh 边界。
 5. 建 `AcpCompatibilityPromptBuilder`、`AcpCompatibilityProjectionAdapter` 和 `AcpRequestTracePort`，
    分别锁定 regular/subagent prompt差异、现有 message/Tape/event projection 和 trace-before-prompt
@@ -262,3 +281,4 @@ trace 继续使用现有 message/request correlation、redaction/truncation 和 
 - 不合并 ACP remote session id 与 app session id；
 - 不在本次重构改变 ACP SDK、安装方式或协议语义；
 - 不因为拆分而修正已有 regular/subagent 行为差异。
+- 不实现没有 route/SDK 证据的 ACP `executeCommand` facet。

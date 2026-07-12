@@ -30,7 +30,7 @@ import type { OutputSink } from '@/agent/deepchat/loop/ports'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
-const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
+export const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 const deepChatLoopEngine = new DeepChatLoopEngine()
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
@@ -61,6 +61,24 @@ function stripTrailingErrorBlock(state: StreamState, message: string): void {
   if (lastBlock?.type === 'error' && lastBlock.content === message) {
     state.blocks.pop()
   }
+}
+
+export type ProviderTerminalDecision =
+  | { type: 'complete' }
+  | { type: 'error'; error: string; source: 'context' | 'empty' }
+
+export function resolveProviderTerminalDecision(state: StreamState): ProviderTerminalDecision {
+  if (state.stopReason === 'error') {
+    const streamErrorMessage = getLatestErrorMessage(state)
+    if (streamErrorMessage && isContextWindowErrorLike(streamErrorMessage)) {
+      stripTrailingErrorBlock(state, streamErrorMessage)
+      return { type: 'error', error: streamErrorMessage, source: 'context' }
+    }
+  }
+  if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
+    return { type: 'error', error: NO_MODEL_RESPONSE_ERROR, source: 'empty' }
+  }
+  return { type: 'complete' }
 }
 
 function parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
@@ -214,7 +232,7 @@ function toStreamingProviderPermission(
   }
 }
 
-function appendStreamingProviderPermissionBlock(
+export function appendStreamingProviderPermissionBlock(
   state: StreamState,
   permissionPayload: PermissionRequestPayload
 ): {
@@ -292,7 +310,7 @@ function replaceLeadingSystemMessage(messages: ChatMessage[], systemPrompt: stri
   messages.unshift({ role: 'system', content: systemPrompt })
 }
 
-function markStreamingProviderPermissionResolved(
+export function markStreamingProviderPermissionResolved(
   block: AssistantMessageBlock,
   granted: boolean,
   permissionType: 'read' | 'write' | 'all' | 'command'
@@ -402,34 +420,25 @@ function settleLoopOutcome(
       usage: buildUsageSnapshot(state)
     }
   }
-  if (state.stopReason === 'error') {
-    const streamErrorMessage = getLatestErrorMessage(state)
-    if (streamErrorMessage && isContextWindowErrorLike(streamErrorMessage)) {
-      stripTrailingErrorBlock(state, streamErrorMessage)
-      outputSink.fail({
-        runId: run.runId,
-        sessionId: run.sessionId,
-        messageId: run.messageId,
-        error: streamErrorMessage
-      })
-      return {
-        status: 'error',
-        terminalError: streamErrorMessage
-      }
-    }
-  }
-  if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
+  const terminalDecision = resolveProviderTerminalDecision(state)
+  if (terminalDecision.type === 'error') {
     outputSink.fail({
       runId: run.runId,
       sessionId: run.sessionId,
       messageId: run.messageId,
-      error: NO_MODEL_RESPONSE_ERROR
+      error: terminalDecision.error
     })
+    if (terminalDecision.source === 'context') {
+      return {
+        status: 'error',
+        terminalError: terminalDecision.error
+      }
+    }
     return {
       status: 'error',
-      terminalError: NO_MODEL_RESPONSE_ERROR,
+      terminalError: terminalDecision.error,
       stopReason: 'error',
-      errorMessage: NO_MODEL_RESPONSE_ERROR,
+      errorMessage: terminalDecision.error,
       usage: buildUsageSnapshot(state)
     }
   }

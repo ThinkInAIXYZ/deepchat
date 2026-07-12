@@ -4,7 +4,8 @@ export {
   AcpProcessManager,
   type AcpProcessHandle,
   type SessionNotificationHandler,
-  type PermissionResolver
+  type PermissionResolver,
+  type ProcessExitHandler
 } from './acpProcessManager'
 export { AcpSessionManager, type AcpSessionRecord } from './acpSessionManager'
 export { AcpSessionPersistence } from './acpSessionPersistence'
@@ -15,7 +16,12 @@ export {
   type AcpCapabilitySnapshot
 } from './acpCapabilities'
 export { AcpMessageFormatter } from './acpMessageFormatter'
-export { AcpContentMapper } from './acpContentMapper'
+export { AcpContentMapper, mapAcpPromptStopReason } from './acpContentMapper'
+export { AcpCompatibilityPromptBuilder } from './acpCompatibilityPromptBuilder'
+export {
+  AcpPermissionBridge,
+  type AcpPermissionBridgeOptions
+} from './acpPermissionBridge'
 export {
   LEGACY_MODEL_CONFIG_ID,
   LEGACY_MODE_CONFIG_ID,

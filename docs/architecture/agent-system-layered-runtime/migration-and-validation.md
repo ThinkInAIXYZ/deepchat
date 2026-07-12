@@ -96,6 +96,7 @@ Do not rename, merge or recreate these stores in this goal:
 - workdir is required/synchronized before send, with current reset/rollback behavior;
 - system prompt is marked sent only after a successful ACP prompt;
 - session load/resume/new fallback, modes, config options and commands remain compatible;
+- advertised commands do not imply a direct `executeCommand` route/SDK facet;
 - protocol permission promises settle on decision, timeout, cancel, clear and shutdown;
 - transfer into ACP remains rejected; supported ACP -> DeepChat transfer clears the ACP binding at the current
   commit point;
@@ -106,6 +107,8 @@ Do not rename, merge or recreate these stores in this goal:
   compatible; `acp_turns` remains metadata-only.
 - direct `kind=acp` writes the same fail-open `acp://session/prompt` request trace with current
   message/request correlation, redaction/truncation and trace-before-prompt order;
+- trace persistence failure is characterized at the real fail-open emitter/adapter boundary, not by a
+  provider-private mock that injects a rejecting persistence implementation;
 - DeepChat descriptors selecting `providerId=acp` keep the DeepChat outer loop, regular compatibility
   system-prompt/resource descriptions and ACP-as-provider adapter.
 

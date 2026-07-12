@@ -84,6 +84,8 @@ export type PermissionResolver = (
   request: schema.RequestPermissionRequest
 ) => Promise<schema.RequestPermissionResponse>
 
+export type ProcessExitHandler = () => void
+
 interface SessionListenerEntry {
   agentId: string
   handlers: Set<SessionNotificationHandler>
@@ -206,6 +208,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
   private readonly bufferedSessionUpdates = new Map<string, BufferedSessionUpdate[]>()
   private readonly permissionResolvers = new Map<string, PermissionResolverEntry>()
+  private readonly processExitHandlers = new Map<
+    string,
+    { agentId: string; handler: ProcessExitHandler }
+  >()
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly terminalManager = new AcpTerminalManager()
   private readonly sessionWorkdirs = new Map<string, string>()
@@ -588,6 +594,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.boundHandles.clear()
     this.sessionListeners.clear()
     this.permissionResolvers.clear()
+    this.processExitHandlers.clear()
     this.pendingHandles.clear()
     this.sessionWorkdirs.clear()
     this.sessionConversations.clear()
@@ -744,9 +751,22 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   }
 
+  registerProcessExitHandler(
+    agentId: string,
+    sessionId: string,
+    handler: ProcessExitHandler
+  ): () => void {
+    this.processExitHandlers.set(sessionId, { agentId, handler })
+    return () => {
+      const entry = this.processExitHandlers.get(sessionId)
+      if (entry?.handler === handler) this.processExitHandlers.delete(sessionId)
+    }
+  }
+
   clearSession(sessionId: string): void {
     this.sessionListeners.delete(sessionId)
     this.permissionResolvers.delete(sessionId)
+    this.processExitHandlers.delete(sessionId)
     this.sessionWorkdirs.delete(sessionId)
     this.sessionConversations.delete(sessionId)
     this.fsHandlers.delete(sessionId)
@@ -1881,6 +1901,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     for (const [sessionId, entry] of this.permissionResolvers.entries()) {
       if (entry.agentId === agentId) {
         this.permissionResolvers.delete(sessionId)
+      }
+    }
+
+    for (const [sessionId, entry] of this.processExitHandlers.entries()) {
+      if (entry.agentId !== agentId) continue
+      this.processExitHandlers.delete(sessionId)
+      try {
+        entry.handler()
+      } catch (error) {
+        console.warn(`[ACP] Process-exit handler failed for session ${sessionId}:`, error)
       }
     }
 

@@ -40,6 +40,11 @@ const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
 ]
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const SHARED_SOURCE_ROOT = path.join(ROOT, 'src/shared')
+const ACP_DIRECT_INSTANCE_ROOT = path.join(ROOT, 'src/main/agent/acp/instance')
+const DEEPCHAT_LOOP_ROOT = path.join(ROOT, 'src/main/agent/deepchat/loop')
+const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
+const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
+const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
 const PHASE_ORDER = new Map([
   ['P0', 0],
   ['P1', 1],
@@ -626,6 +631,35 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
           specifier === '../../index'
         ) {
           violations.push(`[main-global-presenter] ${relativePath(filePath)} -> ${specifier}`)
+        }
+      }
+    }
+
+    if (isUnder(filePath, ACP_DIRECT_INSTANCE_ROOT)) {
+      for (const specifier of specifiers) {
+        const resolved = await resolveImport(
+          specifier,
+          filePath,
+          MAIN_SOURCE_ROOT,
+          normalizedVirtualFiles
+        )
+        if (!resolved) continue
+
+        if (isUnder(resolved, DEEPCHAT_LOOP_ROOT)) {
+          violations.push(
+            `[acp-direct-instance-deepchat-loop] ${relativePath(filePath)} -> ${specifier}`
+          )
+        }
+        if (isUnder(resolved, MEMORY_PRESENTER_ROOT)) {
+          violations.push(`[acp-direct-instance-memory] ${relativePath(filePath)} -> ${specifier}`)
+        }
+        if (path.resolve(resolved) === path.resolve(PRESENTER_ROOT_ENTRY)) {
+          violations.push(
+            `[acp-direct-instance-presenter-root] ${relativePath(filePath)} -> ${specifier}`
+          )
+        }
+        if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
+          violations.push(`[acp-direct-instance-sqlite] ${relativePath(filePath)} -> ${specifier}`)
         }
       }
     }

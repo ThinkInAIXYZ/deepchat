@@ -85,17 +85,28 @@ function buildTruncatedJson(originalJson: string, maxBytes: number): string {
     return 'null'
   }
 
-  const overhead = getBytes(JSON.stringify({ _truncated: true, preview: '' }))
-  if (overhead >= maxBytes) {
+  const emptyPreview = JSON.stringify({ _truncated: true, preview: '' })
+  if (getBytes(emptyPreview) >= maxBytes) {
     return minimal
   }
 
-  const previewBudget = maxBytes - overhead
-  const preview = truncateUtf8ByBytes(originalJson, previewBudget)
-  return JSON.stringify({
-    _truncated: true,
-    preview
-  })
+  let low = 0
+  let high = originalJson.length
+  let result = emptyPreview
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    const candidate = JSON.stringify({
+      _truncated: true,
+      preview: originalJson.slice(0, mid)
+    })
+    if (getBytes(candidate) <= maxBytes) {
+      result = candidate
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+  return result
 }
 
 function truncateUtf8ByBytes(input: string, maxBytes: number): string {

@@ -12,6 +12,20 @@ vi.mock('electron', () => ({
   }
 }))
 
+const createProcessManager = () =>
+  ({
+    registerSessionWorkdir: vi.fn(),
+    registerSessionListener: vi.fn().mockReturnValue(vi.fn()),
+    registerPermissionResolver: vi.fn().mockReturnValue(vi.fn()),
+    registerProcessExitHandler: vi.fn().mockReturnValue(vi.fn()),
+    clearSession: vi.fn()
+  }) as any
+
+const createSessionHooks = () => ({
+  onSessionUpdate: vi.fn(),
+  onPermission: vi.fn()
+})
+
 describe('ACP MCP passthrough helpers', () => {
   it('converts stdio MCP config to ACP format', () => {
     const server = convertMcpConfigToAcpFormat('test', {
@@ -87,7 +101,7 @@ describe('AcpSessionManager MCP server injection', () => {
 
     const manager = new AcpSessionManager({
       providerId: 'acp',
-      processManager: {} as any,
+      processManager: createProcessManager(),
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue(null)
       } as any,
@@ -107,7 +121,8 @@ describe('AcpSessionManager MCP server injection', () => {
       handle,
       'conv1',
       { id: 'agent1', name: 'Agent 1' },
-      '/tmp'
+      '/tmp',
+      createSessionHooks()
     )
 
     expect(handle.connection.newSession).toHaveBeenCalledWith({
@@ -123,17 +138,6 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       getAgentMcpSelections: vi.fn().mockResolvedValue([]),
       getMcpServers: vi.fn().mockResolvedValue({})
     }) as any
-  const createProcessManager = () =>
-    ({
-      registerSessionWorkdir: vi.fn(),
-      registerSessionListener: vi.fn().mockReturnValue(vi.fn()),
-      registerPermissionResolver: vi.fn().mockReturnValue(vi.fn()),
-      clearSession: vi.fn()
-    }) as any
-  const createSessionHooks = () => ({
-    onSessionUpdate: vi.fn(),
-    onPermission: vi.fn()
-  })
   const createWarmupConfigState = () => ({
     source: 'configOptions' as const,
     options: [
@@ -229,7 +233,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
   it('uses newSession when loadSession is not supported', async () => {
     const manager = new AcpSessionManager({
       providerId: 'acp',
-      processManager: {} as any,
+      processManager: createProcessManager(),
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-3' })
       } as any,
@@ -251,7 +255,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       handle,
       'conv-new',
       { id: 'agent1', name: 'Agent 1' },
-      '/tmp'
+      '/tmp',
+      createSessionHooks()
     )
 
     expect(handle.connection.loadSession).not.toHaveBeenCalled()
@@ -262,7 +267,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
   it('keeps warmup config when newSession returns no config payload', async () => {
     const manager = new AcpSessionManager({
       providerId: 'acp',
-      processManager: {} as any,
+      processManager: createProcessManager(),
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue(null)
       } as any,
@@ -286,7 +291,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       handle,
       'conv-warmup-config',
       { id: 'agent1', name: 'Agent 1' },
-      '/tmp'
+      '/tmp',
+      createSessionHooks()
     )
 
     expect(handle.connection.newSession).toHaveBeenCalledTimes(1)

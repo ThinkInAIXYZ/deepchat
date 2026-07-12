@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import { AcpContentMapper } from '@/agent/acp/runtime/acpContentMapper'
+import {
+  AcpContentMapper,
+  mapAcpPromptStopReason
+} from '@/agent/acp/runtime/acpContentMapper'
 
 const createNotification = <T extends schema.SessionNotification['update']>(
   sessionId: string,
@@ -8,6 +11,18 @@ const createNotification = <T extends schema.SessionNotification['update']>(
 ): schema.SessionNotification => ({
   sessionId,
   update
+})
+
+describe('ACP prompt stop reason mapping', () => {
+  it.each([
+    ['end_turn', 'complete'],
+    ['max_tokens', 'max_tokens'],
+    ['max_turn_requests', 'stop_sequence'],
+    ['cancelled', 'error'],
+    ['refusal', 'error']
+  ] as const)('maps %s to %s', (input, expected) => {
+    expect(mapAcpPromptStopReason(input)).toBe(expected)
+  })
 })
 
 describe('AcpContentMapper tool call handling', () => {

@@ -1104,9 +1104,9 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(queue.done).toHaveBeenCalledTimes(1)
   })
 
-  it('does not mark the system prompt when prompt dispatch fails first', async () => {
+  it('keeps prompt dispatch fail-open when trace persistence fails', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.emitRequestTrace = vi.fn().mockRejectedValue(new Error('trace failed'))
+    provider.provider = { id: 'acp' }
     provider.promptController = {
       begin: vi.fn().mockReturnValue({
         id: 'turn-trace',
@@ -1132,6 +1132,7 @@ describe('AcpProvider runDebugAction error handling', () => {
       done: vi.fn()
     }
     const onPromptSucceeded = vi.fn()
+    const persistTrace = vi.fn().mockRejectedValue(new Error('trace failed'))
 
     await provider['runPrompt'](
       {
@@ -1143,16 +1144,19 @@ describe('AcpProvider runDebugAction error handling', () => {
       },
       [{ type: 'text', text: 'System instructions:\nBe precise.' }],
       queue,
-      {},
+      {
+        requestTraceContext: {
+          enabled: true,
+          persist: persistTrace
+        }
+      },
       { onPromptSucceeded }
     )
 
-    expect(prompt).not.toHaveBeenCalled()
-    expect(onPromptSucceeded).not.toHaveBeenCalled()
-    expect(queue.push).toHaveBeenCalledWith({
-      type: 'error',
-      error_message: 'ACP: trace failed'
-    })
+    expect(persistTrace).toHaveBeenCalledTimes(1)
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(onPromptSucceeded).toHaveBeenCalledTimes(1)
+    expect(queue.push).toHaveBeenCalledWith({ type: 'stop', stop_reason: 'complete' })
     expect(queue.done).toHaveBeenCalledTimes(1)
   })
 
