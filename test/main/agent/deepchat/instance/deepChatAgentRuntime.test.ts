@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 
 const TOOL_DEFINITION: MCPToolDefinition = {
   type: 'function',
@@ -21,6 +22,23 @@ const createDelegate = () => ({
   snapshot: vi.fn().mockResolvedValue({ status: 'idle' }),
   close: vi.fn().mockResolvedValue(undefined)
 })
+
+function createRun(
+  sessionId: string,
+  runId: string,
+  messageId: string,
+  abortController: AbortController
+) {
+  return createLoopRun({
+    runId,
+    sessionId: toAppSessionId(sessionId),
+    messageId,
+    abortController,
+    messages: [],
+    streamState: {},
+    resources: { toolDefinitions: [], activeSkillNames: [] }
+  })
+}
 
 describe('DeepChatAgentRuntime', () => {
   it('hydrates one stable instance per app session', () => {
@@ -134,7 +152,9 @@ describe('DeepChatAgentRuntime', () => {
     instance.setAbortController(controller)
     expect(instance.getAbortSignal()).toBe(controller.signal)
 
-    const generation = instance.registerActiveGeneration('run-1', 'message-1', controller)
+    const run = createRun('session', 'run-1', 'message-1', controller)
+    const generation = instance.registerActiveGeneration(run)
+    expect(generation).toBe(run)
     expect(instance.getActiveGeneration()).toBe(generation)
     expect(instance.clearActiveGeneration('stale-run')).toBe(false)
     expect(instance.isActiveRun('run-1')).toBe(true)
@@ -155,7 +175,7 @@ describe('DeepChatAgentRuntime', () => {
     expect(preStreamController.signal.aborted).toBe(true)
     expect(first.getAbortController()).toBeUndefined()
 
-    first.registerActiveGeneration('run-1', 'message-1', activeController)
+    first.registerActiveGeneration(createRun('first', 'run-1', 'message-1', activeController))
     first.requestGenerationAbort()
     expect(activeController.signal.aborted).toBe(true)
     expect(first.getActiveGeneration()?.runId).toBe('run-1')

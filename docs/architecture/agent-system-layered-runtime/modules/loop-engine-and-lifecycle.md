@@ -2,6 +2,12 @@
 
 > 状态：目标设计。此 loop 只属于 `kind=deepchat` session；其中 provider 仍可按兼容合同选择 ACP。
 
+> Implementation progress: ASLR-050 introduced the per-turn `LoopRun` and narrow provider, tool,
+> Tape, output, and context port contracts. The legacy `processStream` control flow is unchanged; it
+> now updates run-local provider-round state, while provider-attempt sequencing and recovery flags
+> are owned by the same run object registered with the instance at the existing late
+> active-generation boundary.
+
 ## 1. 模块目的
 
 `LoopEngine` 把一个 DeepChat turn 的 prepare、context、provider round、tool batch、permission、persist

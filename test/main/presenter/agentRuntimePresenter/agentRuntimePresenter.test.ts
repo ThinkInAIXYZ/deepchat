@@ -19,6 +19,8 @@ import {
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import { createState } from '@/presenter/agentRuntimePresenter/types'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -1763,6 +1765,15 @@ describe('AgentRuntimePresenter', () => {
     })
 
     it('calls processStream with correct params', async () => {
+      let activeDuringStream: { eventId: string; runId: string } | null = null
+      let registeredRunMatches = false
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        activeDuringStream = agent.getActiveGeneration('s1')
+        registeredRunMatches =
+          agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).getActiveGeneration() ===
+          params.run
+        return { status: 'completed' }
+      })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
@@ -1770,12 +1781,29 @@ describe('AgentRuntimePresenter', () => {
         expect.objectContaining({
           providerId: 'openai',
           modelId: 'gpt-4',
-          io: expect.objectContaining({
+          run: expect.objectContaining({
             sessionId: 's1',
             messageId: 'mock-msg-id'
           })
         })
       )
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(activeDuringStream).toEqual({
+        eventId: 'mock-msg-id',
+        runId: callArgs.run.runId
+      })
+      expect(registeredRunMatches).toBe(true)
+      expect(callArgs.run).toMatchObject({
+        sessionId: 's1',
+        messageId: 'mock-msg-id',
+        requestSeq: 0,
+        providerRoundCount: 0
+      })
+      expect(
+        sqlitePresenter.deepchatMessagesTable.insert.mock.calls.some(
+          ([row]) => row.id === 'mock-msg-id' && row.role === 'assistant'
+        )
+      ).toBe(true)
     })
 
     it('resets agent plan state for each new assistant turn', async () => {
@@ -1845,6 +1873,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.steerActiveTurn('s1', 'Refine before stream')
       expect(processStream).not.toHaveBeenCalled()
+      expect(agent.getActiveGeneration('s1')).toBeNull()
 
       releaseTools?.()
       await firstProcess
@@ -1880,10 +1909,10 @@ describe('AgentRuntimePresenter', () => {
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
             await new Promise((resolve, reject) => {
-              firstAbortSignal = params.io.abortSignal
+              firstAbortSignal = params.run.abortController.signal
               // The active stream rejects with an AbortError as soon as it is interrupted, mirroring
               // a real provider stream reacting to the abort signal.
-              params.io.abortSignal.addEventListener('abort', () => {
+              params.run.abortController.signal.addEventListener('abort', () => {
                 const abortError = new Error('Aborted')
                 abortError.name = 'AbortError'
                 reject(abortError)
@@ -1945,8 +1974,8 @@ describe('AgentRuntimePresenter', () => {
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
             await new Promise((resolve, reject) => {
-              firstAbortSignal = params.io.abortSignal
-              params.io.abortSignal.addEventListener('abort', () => {
+              firstAbortSignal = params.run.abortController.signal
+              params.run.abortController.signal.addEventListener('abort', () => {
                 const abortError = new Error('Aborted')
                 abortError.name = 'AbortError'
                 reject(abortError)
@@ -2009,7 +2038,7 @@ describe('AgentRuntimePresenter', () => {
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
             await new Promise((_resolve, reject) => {
-              params.io.abortSignal.addEventListener('abort', () => {
+              params.run.abortController.signal.addEventListener('abort', () => {
                 const abortError = new Error('Aborted')
                 abortError.name = 'AbortError'
                 reject(abortError)
@@ -2267,10 +2296,10 @@ describe('AgentRuntimePresenter', () => {
 
       // processStream should receive messages with history
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].role).toBe('system')
-      expect(callArgs.messages[0].content).toContain('RUNTIME_CAPABILITIES')
-      expect(callArgs.messages[0].content).toContain('You are a helpful assistant.')
-      expect(callArgs.messages.slice(1)).toEqual([
+      expect(callArgs.run.messages[0].role).toBe('system')
+      expect(callArgs.run.messages[0].content).toContain('RUNTIME_CAPABILITIES')
+      expect(callArgs.run.messages[0].content).toContain('You are a helpful assistant.')
+      expect(callArgs.run.messages.slice(1)).toEqual([
         { role: 'user', content: 'First message' },
         { role: 'assistant', content: 'First reply' },
         { role: 'user', content: 'Second message' }
@@ -2409,7 +2438,7 @@ describe('AgentRuntimePresenter', () => {
       )
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].content).toContain('## Conversation Summary')
+      expect(callArgs.run.messages[0].content).toContain('## Conversation Summary')
     })
 
     it('keeps runtime and env sections when user system prompt is empty', async () => {
@@ -2419,10 +2448,10 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].role).toBe('system')
-      expect(callArgs.messages[0].content).toContain('RUNTIME_CAPABILITIES')
-      expect(callArgs.messages[0].content).toContain('ENV_BLOCK')
-      expect(callArgs.messages[1]).toEqual({ role: 'user', content: 'Hello' })
+      expect(callArgs.run.messages[0].role).toBe('system')
+      expect(callArgs.run.messages[0].content).toContain('RUNTIME_CAPABILITIES')
+      expect(callArgs.run.messages[0].content).toContain('ENV_BLOCK')
+      expect(callArgs.run.messages[1]).toEqual({ role: 'user', content: 'Hello' })
     })
 
     it('uses session generation settings for context and model config', async () => {
@@ -2442,9 +2471,9 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].role).toBe('system')
-      expect(callArgs.messages[0].content).toContain('Custom system prompt')
-      expect(callArgs.messages[0].content.trim().startsWith('Custom system prompt')).toBe(true)
+      expect(callArgs.run.messages[0].role).toBe('system')
+      expect(callArgs.run.messages[0].content).toContain('Custom system prompt')
+      expect(callArgs.run.messages[0].content.trim().startsWith('Custom system prompt')).toBe(true)
       expect(callArgs.temperature).toBe(1.3)
       expect(callArgs.maxTokens).toBe(2048)
       expect(callArgs.modelConfig.contextLength).toBe(8192)
@@ -2460,21 +2489,21 @@ describe('AgentRuntimePresenter', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2503,21 +2532,21 @@ describe('AgentRuntimePresenter', () => {
         sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mock.calls.length
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2566,12 +2595,12 @@ describe('AgentRuntimePresenter', () => {
       })
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2593,12 +2622,12 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
         void _event
       }
@@ -2636,12 +2665,12 @@ describe('AgentRuntimePresenter', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2752,21 +2781,23 @@ describe('AgentRuntimePresenter', () => {
             maxTokens: number,
             tools: any[]
           ) => AsyncGenerator<unknown>
-          messages: any[]
+          run: {
+            messages: any[]
+            resources: { toolDefinitions: any[] }
+          }
           modelId: string
           modelConfig: any
           temperature: number
           maxTokens: number
-          tools: any[]
         }) => {
           try {
             for await (const _event of params.coreStream(
-              params.messages,
+              params.run.messages,
               params.modelId,
               params.modelConfig,
               params.temperature,
               params.maxTokens,
-              params.tools
+              params.run.resources.toolDefinitions
             )) {
             }
 
@@ -2825,21 +2856,23 @@ describe('AgentRuntimePresenter', () => {
             maxTokens: number,
             tools: any[]
           ) => AsyncGenerator<unknown>
-          messages: any[]
+          run: {
+            messages: any[]
+            resources: { toolDefinitions: any[] }
+          }
           modelId: string
           modelConfig: any
           temperature: number
           maxTokens: number
-          tools: any[]
         }) => {
           try {
             for await (const _event of params.coreStream(
-              params.messages,
+              params.run.messages,
               params.modelId,
               params.modelConfig,
               params.temperature,
               params.maxTokens,
-              params.tools
+              params.run.resources.toolDefinitions
             )) {
             }
 
@@ -2895,7 +2928,7 @@ describe('AgentRuntimePresenter', () => {
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(firstCallArgs.messages[0].content).toBe(secondCallArgs.messages[0].content)
+      expect(firstCallArgs.run.messages[0].content).toBe(secondCallArgs.run.messages[0].content)
     })
 
     it('invalidates cached tools when the MCP client list changes', async () => {
@@ -2974,7 +3007,7 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('Updated user prompt')
+      expect(secondCallArgs.run.messages[0].content).toContain('Updated user prompt')
     })
 
     it('invalidates cached prompt after session project directory update', async () => {
@@ -2991,7 +3024,7 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('WORKDIR:/tmp/workspace')
+      expect(secondCallArgs.run.messages[0].content).toContain('WORKDIR:/tmp/workspace')
     })
 
     it('uses persisted project directory when runtime state was restored from DB', async () => {
@@ -3013,7 +3046,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s-restored', 'Restored session follow-up')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].content).toContain('WORKDIR:/tmp/restored-workspace')
+      expect(callArgs.run.messages[0].content).toContain('WORKDIR:/tmp/restored-workspace')
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({
           conversationId: 's-restored',
@@ -3037,8 +3070,8 @@ describe('AgentRuntimePresenter', () => {
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(firstCallArgs.messages[0].content).toContain('DATE:Thu Mar 05 2026')
-      expect(secondCallArgs.messages[0].content).toContain('DATE:Fri Mar 06 2026')
+      expect(firstCallArgs.run.messages[0].content).toContain('DATE:Thu Mar 05 2026')
+      expect(secondCallArgs.run.messages[0].content).toContain('DATE:Fri Mar 06 2026')
     })
 
     it('invalidates cached prompt when pinned skills change', async () => {
@@ -3063,9 +3096,9 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('## Active Skills')
-      expect(secondCallArgs.messages[0].content).toContain('### skill-a')
-      expect(secondCallArgs.messages[0].content).toContain('Skill A instructions')
+      expect(secondCallArgs.run.messages[0].content).toContain('## Active Skills')
+      expect(secondCallArgs.run.messages[0].content).toContain('### skill-a')
+      expect(secondCallArgs.run.messages[0].content).toContain('Skill A instructions')
     })
 
     it('does not load stale skill pins when the skill is absent from available metadata', async () => {
@@ -3082,7 +3115,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Click a native app button')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
+      const systemPrompt = String(callArgs.run.messages[0].content)
 
       expect(systemPrompt).not.toContain('## Active Skills')
       expect(skillPresenter.loadSkillContent).not.toHaveBeenCalled()
@@ -3141,10 +3174,10 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Check order')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
+      const systemPrompt = String(callArgs.run.messages[0].content)
 
       expect(
-        callArgs.messages.filter((message: { role: string }) => message.role === 'system')
+        callArgs.run.messages.filter((message: { role: string }) => message.role === 'system')
       ).toHaveLength(1)
       const runtimeIndex = systemPrompt.indexOf('RUNTIME_CAPABILITIES')
       const skillsIndex = systemPrompt.indexOf('## Skills')
@@ -3238,7 +3271,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'No skill tools')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
+      const systemPrompt = String(callArgs.run.messages[0].content)
 
       expect(systemPrompt).not.toContain('## Skills')
       expect(systemPrompt).not.toContain('- skill-a')
@@ -3369,7 +3402,7 @@ describe('AgentRuntimePresenter', () => {
       )
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual(tools)
+      expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
     })
 
     it('skips DeepChat runtime prompt layers and local tools for ACP-backed subagent sessions', async () => {
@@ -3419,8 +3452,8 @@ describe('AgentRuntimePresenter', () => {
       expect(buildSystemEnvPrompt).not.toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual([])
-      expect(callArgs.messages).toEqual([{ role: 'user', content: 'Delegated task' }])
+      expect(callArgs.run.resources.toolDefinitions).toEqual([])
+      expect(callArgs.run.messages).toEqual([{ role: 'user', content: 'Delegated task' }])
     })
 
     it('keeps local tool injection for regular ACP sessions', async () => {
@@ -3472,8 +3505,8 @@ describe('AgentRuntimePresenter', () => {
       expect(toolPresenter.buildToolSystemPrompt).toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual(tools)
-      expect(callArgs.messages[0].role).toBe('system')
+      expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
+      expect(callArgs.run.messages[0].role).toBe('system')
     })
 
     it('passes empty tools when no toolPresenter or no tools', async () => {
@@ -3483,7 +3516,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual([])
+      expect(callArgs.run.resources.toolDefinitions).toEqual([])
     })
 
     it('passes preserveInterleavedReasoning into next-turn compaction checks', async () => {
@@ -3654,12 +3687,12 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
         void _event
       }
@@ -4643,9 +4676,18 @@ describe('AgentRuntimePresenter', () => {
     it('cancels generation only when the event id matches the active assistant message', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const cancelSpy = vi.spyOn(agent, 'cancelGeneration').mockResolvedValue(undefined)
-      agent.deepChatRuntime
-        .getOrHydrate(toAppSessionId('s1'))
-        .registerActiveGeneration('run-1', 'msg-active', new AbortController())
+      const controller = new AbortController()
+      agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).registerActiveGeneration(
+        createLoopRun({
+          runId: 'run-1',
+          sessionId: toAppSessionId('s1'),
+          messageId: 'msg-active',
+          abortController: controller,
+          messages: [],
+          streamState: createState(),
+          resources: { toolDefinitions: [], activeSkillNames: [] }
+        })
+      )
 
       await expect(agent.cancelGenerationByEventId('s1', 'msg-other')).resolves.toBe(false)
       await expect(agent.cancelGenerationByEventId('s1', 'msg-active')).resolves.toBe(true)
@@ -4957,7 +4999,7 @@ describe('AgentRuntimePresenter', () => {
     async function collectProviderEvents(
       callArgs: any,
       requestMessages: any[],
-      tools = callArgs.tools
+      tools = callArgs.run.resources.toolDefinitions
     ) {
       const events: any[] = []
       for await (const event of callArgs.coreStream(
@@ -4976,7 +5018,7 @@ describe('AgentRuntimePresenter', () => {
     async function collectProviderErrorMessage(
       callArgs: any,
       requestMessages: any[],
-      tools = callArgs.tools
+      tools = callArgs.run.resources.toolDefinitions
     ) {
       try {
         await collectProviderEvents(callArgs, requestMessages, tools)
@@ -5022,7 +5064,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -5084,7 +5126,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'new prompt')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const messageText = JSON.stringify(callArgs.messages)
+      const messageText = JSON.stringify(callArgs.run.messages)
 
       expect(prepareSpy).not.toHaveBeenCalled()
       expect(messageText).toContain('U'.repeat(2400))
@@ -5267,7 +5309,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         4096,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -5685,7 +5727,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -5756,6 +5798,7 @@ describe('AgentRuntimePresenter', () => {
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
       expect(getContextOverflowAnchorCalls()).toHaveLength(1)
       expect(manifests.map((manifest: any) => manifest.requestSeq)).toEqual([1, 2])
+      expect(callArgs.run.requestSeq).toBe(2)
       expect(strictManifest).toMatchObject({
         requestSeq: 2,
         policy: 'context_pressure_recovery_shadow',
@@ -5839,7 +5882,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -6453,7 +6496,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -6744,7 +6787,7 @@ describe('AgentRuntimePresenter', () => {
 
       expect(result).toEqual({ resumed: true })
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const assistantMessage = callArgs.messages.find(
+      const assistantMessage = callArgs.run.messages.find(
         (message: any) => message.role === 'assistant'
       )
       expect(callArgs.interleavedReasoning.preserveReasoningContent).toBe(true)

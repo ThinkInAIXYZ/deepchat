@@ -12,6 +12,7 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
 import type { ToolOutputGuard } from './toolOutputGuard'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
+import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
@@ -63,6 +64,8 @@ export interface IoParams {
   messageStore: DeepChatMessageStore
   abortSignal: AbortSignal
 }
+
+export type ProcessIoParams = Pick<IoParams, 'messageStore'>
 
 export interface ProcessHooks {
   onPreToolUse?: (tool: { callId?: string; name?: string; params?: string }) => void
@@ -189,8 +192,7 @@ export interface ProcessResult {
 }
 
 export interface ProcessParams {
-  messages: ChatMessage[]
-  tools: MCPToolDefinition[]
+  run: LoopRun<StreamState>
   refreshTools?: (activeSkillNames?: string[]) => Promise<MCPToolDefinition[]>
   refreshSystemPrompt?: (
     activeSkillNames: string[] | undefined,
@@ -219,7 +221,7 @@ export interface ProcessParams {
   shouldYieldForPendingInput?: () => boolean
   maxProviderRounds?: number
   hooks?: ProcessHooks
-  io: IoParams
+  io: ProcessIoParams
 }
 
 export function createState(): StreamState {

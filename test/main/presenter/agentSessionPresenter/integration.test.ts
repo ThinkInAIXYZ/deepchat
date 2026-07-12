@@ -9,6 +9,7 @@ import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
 import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -954,6 +955,48 @@ describe('Integration: multi-turn context', () => {
     expect(secondCallMessages[secondCallMessages.length - 1]).toEqual({
       role: 'user',
       content: 'Follow up question'
+    })
+  })
+
+  it('keeps a strict overflow retry in one active provider round', async () => {
+    const sessionId = 's-loop-run'
+    const observedRuns: DeepChatActiveGeneration[] = []
+    let providerAttempt = 0
+    const providerInstance = {
+      coreStream: vi.fn(async function* () {
+        providerAttempt += 1
+        const run = deepchatAgent.deepChatRuntime
+          .getOrHydrate(toAppSessionId(sessionId))
+          .getActiveGeneration()
+        if (!run) throw new Error('Expected an active loop run')
+        observedRuns.push(run)
+
+        if (providerAttempt === 1) {
+          yield { type: 'error', error_message: 'input exceeds the context window' }
+          return
+        }
+        yield { type: 'text', content: 'Recovered by strict retry' }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    await deepchatAgent.initSession(sessionId, {
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      generationSettings: { contextLength: 8192, maxTokens: 4096 }
+    })
+    await deepchatAgent.processMessage(sessionId, 'Hello', { maxProviderRounds: 1 })
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    expect(observedRuns).toHaveLength(2)
+    expect(observedRuns[0]).toBe(observedRuns[1])
+    expect(observedRuns[1]).toMatchObject({
+      providerRoundCount: 1,
+      requestSeq: 2,
+      providerRecovery: {
+        strictProviderOverflowRetryUsed: true
+      }
     })
   })
 

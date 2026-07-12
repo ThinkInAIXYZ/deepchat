@@ -1,6 +1,7 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
   DeepChatSessionState,
   IAgentImplementation,
@@ -17,11 +18,7 @@ export interface DeepChatAgentInstanceDelegate {
   close(): Promise<void>
 }
 
-export interface DeepChatActiveGeneration {
-  readonly runId: string
-  readonly messageId: string
-  readonly abortController: AbortController
-}
+export type DeepChatActiveGeneration = LoopRun<unknown>
 
 export interface DeepChatPendingInteractionRef {
   readonly messageId: string
@@ -64,7 +61,7 @@ export class DeepChatAgentInstance {
   private firstTurnReady = false
   private readonly firstTurnReadyWaiters = new Set<(ready: boolean) => void>()
   private abortController?: AbortController
-  private activeGeneration?: DeepChatActiveGeneration
+  private activeRun?: DeepChatActiveGeneration
   private activeSteerPendingInputId?: string
   private pendingQueueDraining = false
   private pendingInteractions: DeepChatPendingInteractionRef[] = []
@@ -164,7 +161,7 @@ export class DeepChatAgentInstance {
   }
 
   getAbortSignal(): AbortSignal | undefined {
-    return this.activeGeneration?.abortController.signal ?? this.abortController?.signal
+    return this.activeRun?.abortController.signal ?? this.abortController?.signal
   }
 
   setAbortController(controller: AbortController): void {
@@ -180,37 +177,32 @@ export class DeepChatAgentInstance {
   }
 
   getActiveGeneration(): DeepChatActiveGeneration | undefined {
-    return this.activeGeneration
+    return this.activeRun
   }
 
-  registerActiveGeneration(
-    runId: string,
-    messageId: string,
-    abortController: AbortController
-  ): DeepChatActiveGeneration {
-    const generation = { runId, messageId, abortController }
-    this.activeGeneration = generation
-    this.abortController = abortController
-    return generation
+  registerActiveGeneration<TStreamState>(run: LoopRun<TStreamState>): LoopRun<TStreamState> {
+    this.activeRun = run
+    this.abortController = run.abortController
+    return run
   }
 
   clearActiveGeneration(runId: string): boolean {
-    if (!this.activeGeneration || this.activeGeneration.runId !== runId) {
+    if (!this.activeRun || this.activeRun.runId !== runId) {
       return false
     }
-    const { abortController } = this.activeGeneration
-    this.activeGeneration = undefined
+    const { abortController } = this.activeRun
+    this.activeRun = undefined
     this.clearAbortController(abortController)
     return true
   }
 
   isActiveRun(runId: string): boolean {
-    return this.activeGeneration?.runId === runId
+    return this.activeRun?.runId === runId
   }
 
   requestGenerationAbort(): void {
-    if (this.activeGeneration) {
-      this.activeGeneration.abortController.abort()
+    if (this.activeRun) {
+      this.activeRun.abortController.abort()
       return
     }
     if (this.abortController) {
@@ -220,10 +212,10 @@ export class DeepChatAgentInstance {
   }
 
   abortAndClearGeneration(): void {
-    const controller = this.activeGeneration?.abortController ?? this.abortController
+    const controller = this.activeRun?.abortController ?? this.abortController
     controller?.abort()
     this.abortController = undefined
-    this.activeGeneration = undefined
+    this.activeRun = undefined
   }
 
   getActiveSteerPendingInputId(): string | undefined {

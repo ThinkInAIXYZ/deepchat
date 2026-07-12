@@ -92,9 +92,9 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/agent/deepchat/resources/systemEnvPromptBuilder'
+import { advanceRequestSequence, createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type {
-  DeepChatActiveGeneration,
   DeepChatAgentInstance,
   DeepChatAgentInstanceDelegate,
   DeepChatMemorySessionHandle,
@@ -154,9 +154,11 @@ import type {
   InterleavedReasoningConfig,
   PendingToolInteraction,
   ProcessResult,
+  StreamState,
   ToolPermissionReviewRequest,
   ToolPermissionReviewResult
 } from './types'
+import { createState } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 import type {
@@ -3728,31 +3730,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const replaceLeadingSystemPromptInPlace = this.replaceLeadingSystemPromptInPlace.bind(this)
     const persistMessageTrace = this.persistMessageTrace.bind(this)
     const appendTapeViewManifest = this.appendTapeViewManifest.bind(this)
-    let requestSeq = Math.max(
+    const initialRequestSeq = Math.max(
       this.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0,
       this.messageStore.getMaxMessageTraceRequestSeq(messageId)
     )
-    if (traceEnabled) {
-      const traceAwareConfig = modelConfig as ModelConfig & {
-        requestTraceContext?: {
-          enabled: boolean
-          persist: (payload: ProviderRequestTracePayload) => Promise<void>
-        }
-      }
-      traceAwareConfig.requestTraceContext = {
-        enabled: true,
-        persist: async (payload: ProviderRequestTracePayload) => {
-          persistMessageTrace({
-            sessionId,
-            messageId,
-            providerId: state.providerId,
-            modelId: state.modelId,
-            payload,
-            requestSeq
-          })
-        }
-      }
-    }
 
     const temperature = generationSettings.temperature
     const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
@@ -3782,13 +3763,42 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
 
     const abortController = new AbortController()
-    const activeGeneration = this.registerActiveGeneration(
-      sessionId,
+    const loopRun = createLoopRun<StreamState>({
+      runId: `${sessionId}:${++this.nextRunSequence}`,
+      sessionId: toAppSessionId(sessionId),
       messageId,
       abortController,
-      resourceInstance
-    )
+      messages,
+      streamState: createState(),
+      resources: {
+        toolDefinitions: tools,
+        activeSkillNames: getEffectiveRuntimeSkillNames()
+      },
+      initialRequestSeq
+    })
+    const activeGeneration = this.registerActiveGeneration(sessionId, loopRun, resourceInstance)
     onRunRegistered?.(activeGeneration.runId)
+    if (traceEnabled) {
+      const traceAwareConfig = modelConfig as ModelConfig & {
+        requestTraceContext?: {
+          enabled: boolean
+          persist: (payload: ProviderRequestTracePayload) => Promise<void>
+        }
+      }
+      traceAwareConfig.requestTraceContext = {
+        enabled: true,
+        persist: async (payload: ProviderRequestTracePayload) => {
+          persistMessageTrace({
+            sessionId,
+            messageId,
+            providerId: state.providerId,
+            modelId: state.modelId,
+            payload,
+            requestSeq: loopRun.requestSeq
+          })
+        }
+      }
+    }
     const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
     const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
     const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
@@ -3812,12 +3822,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         projectDir
       })
 
-      let contextOverflowHandoffAttemptedForRun = false
-      let strictProviderOverflowRetryUsedForRun = false
       let reviewConversationMessages = messages
       const result = await processStream({
-        messages,
-        tools,
+        run: loopRun,
         onConversationMessagesChange: (nextMessages) => {
           reviewConversationMessages = nextMessages
         },
@@ -3891,7 +3898,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               if (!requestBypassesContextBudget) {
                 let requestedMaxTokens = requestMaxTokens
                 if (options?.strictProviderOverflowRetry) {
-                  strictProviderOverflowRetryUsedForRun = true
+                  loopRun.providerRecovery.strictProviderOverflowRetryUsed = true
                   requestedMaxTokens = getProviderOverflowRetryMaxTokens(requestMaxTokens)
                   strictExtraReserveTokens = getProviderOverflowRetryExtraReserve(
                     requestModelConfig.contextLength
@@ -3924,8 +3931,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 ) {
                   preflightContextRecoveryAttempted = true
                   recoveredFromContextPressure = true
-                  if (!contextOverflowHandoffAttemptedForRun) {
-                    contextOverflowHandoffAttemptedForRun = true
+                  if (!loopRun.providerRecovery.contextOverflowHandoffAttempted) {
+                    loopRun.providerRecovery.contextOverflowHandoffAttempted = true
                     const recovered = await recoverContextPressure({
                       sessionId,
                       providerId: state.providerId,
@@ -3979,7 +3986,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 toolReserveTokens: effectiveRequestToolReserveTokens
               }
 
-              requestSeq += 1
+              const requestSeq = advanceRequestSequence(loopRun)
               const isInitialViewRequest = requestSeq === 1 && Boolean(viewContext)
               const manifestPolicy = resolveTapeViewManifestPolicy({
                 recoveredFromContextPressure,
@@ -4016,7 +4023,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               providerMessages: ChatMessage[],
               providerMaxTokens: number
             ): Promise<void> => {
-              contextOverflowHandoffAttemptedForRun = true
+              loopRun.providerRecovery.contextOverflowHandoffAttempted = true
               providerOverflowRecoveryAttempted = true
               const recovered = await recoverContextPressure({
                 sessionId,
@@ -4063,7 +4070,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             }
 
             const scheduleStrictProviderOverflowRetry = (): boolean => {
-              if (strictProviderOverflowRetryUsedForRun || strictProviderOverflowRetryPending) {
+              if (
+                loopRun.providerRecovery.strictProviderOverflowRetryUsed ||
+                strictProviderOverflowRetryPending
+              ) {
                 return false
               }
               strictProviderOverflowRetryPending = true
@@ -4114,14 +4124,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                     isFirstProviderContextOverflowEvent(event)
                   ) {
                     if (
-                      strictProviderOverflowRetryUsedForRun ||
+                      loopRun.providerRecovery.strictProviderOverflowRetryUsed ||
                       providerOverflowRecoveryAttempted
                     ) {
                       throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
                     }
                     if (
                       preflightContextRecoveryAttempted ||
-                      contextOverflowHandoffAttemptedForRun
+                      loopRun.providerRecovery.contextOverflowHandoffAttempted
                     ) {
                       if (!scheduleStrictProviderOverflowRetry()) {
                         throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
@@ -4141,10 +4151,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   !requestBypassesContextBudget &&
                   isContextWindowErrorLike(error)
                 ) {
-                  if (strictProviderOverflowRetryUsedForRun || providerOverflowRecoveryAttempted) {
+                  if (
+                    loopRun.providerRecovery.strictProviderOverflowRetryUsed ||
+                    providerOverflowRecoveryAttempted
+                  ) {
                     throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
                   }
-                  if (preflightContextRecoveryAttempted || contextOverflowHandoffAttemptedForRun) {
+                  if (
+                    preflightContextRecoveryAttempted ||
+                    loopRun.providerRecovery.contextOverflowHandoffAttempted
+                  ) {
                     if (!scheduleStrictProviderOverflowRetry()) {
                       throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
                     }
@@ -4287,13 +4303,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           cacheImage: this.cacheImage
         },
         io: {
-          sessionId,
-          requestId: activeGeneration.runId,
-          messageId,
-          providerId: state.providerId,
-          modelId: state.modelId,
-          messageStore: this.messageStore,
-          abortSignal: abortController.signal
+          messageStore: this.messageStore
         }
       })
       return {
@@ -4629,16 +4639,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private registerActiveGeneration(
     sessionId: string,
-    messageId: string,
-    abortController: AbortController,
+    run: LoopRun<StreamState>,
     expectedInstance = this.getDeepChatInstance(sessionId)
-  ): DeepChatActiveGeneration {
+  ): LoopRun<StreamState> {
     this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
-    return expectedInstance.registerActiveGeneration(
-      `${sessionId}:${++this.nextRunSequence}`,
-      messageId,
-      abortController
-    )
+    return expectedInstance.registerActiveGeneration(run)
   }
 
   private clearActiveGeneration(sessionId: string, runId: string): void {

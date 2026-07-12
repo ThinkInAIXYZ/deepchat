@@ -1,5 +1,6 @@
 import logger from '@shared/logger'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type {
   IoParams,
@@ -8,7 +9,6 @@ import type {
   ProcessResult,
   StreamState
 } from './types'
-import { createState } from './types'
 import { accumulate, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
 import {
@@ -20,6 +20,7 @@ import {
   persistAbortExceptionPlanState
 } from './dispatch'
 import { isContextWindowErrorLike } from './contextWindowError'
+import { enterProviderRound } from '@/agent/deepchat/loop/loopRun'
 
 const MAX_TOOL_CALLS = 128
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
@@ -265,10 +266,7 @@ function appendStreamingProviderPermissionBlock(
   }
 }
 
-function replaceLeadingSystemMessage(
-  messages: ProcessParams['messages'],
-  systemPrompt: string
-): void {
+function replaceLeadingSystemMessage(messages: ChatMessage[], systemPrompt: string): void {
   if (!systemPrompt) {
     return
   }
@@ -303,8 +301,7 @@ function markStreamingProviderPermissionResolved(
  */
 export async function processStream(params: ProcessParams): Promise<ProcessResult> {
   const {
-    messages,
-    tools,
+    run,
     toolPresenter,
     coreStream,
     providerId,
@@ -315,22 +312,29 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     interleavedReasoning,
     permissionMode,
     initialBlocks,
-    hooks,
-    io
+    hooks
   } = params
+  const io: IoParams = {
+    sessionId: run.sessionId,
+    requestId: run.runId,
+    messageId: run.messageId,
+    providerId,
+    modelId,
+    messageStore: params.io.messageStore,
+    abortSignal: run.abortController.signal
+  }
 
-  const state = createState()
+  const state = run.streamState
   state.metadata.provider = providerId
   state.metadata.model = modelId
   if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
     state.blocks = JSON.parse(JSON.stringify(initialBlocks)) as typeof state.blocks
   }
   const echo = startEcho(state, io)
-  const conversationMessages = [...messages]
+  const conversationMessages = run.messages
   params.onConversationMessagesChange?.(conversationMessages)
-  let currentTools = [...tools]
+  let currentTools = run.resources.toolDefinitions
   let toolCallCount = 0
-  let providerRoundCount = 0
   const maxProviderRounds =
     Number.isInteger(params.maxProviderRounds) && params.maxProviderRounds! > 0
       ? params.maxProviderRounds!
@@ -342,8 +346,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
   try {
     while (true) {
-      providerRoundCount += 1
-      if (providerRoundCount > maxProviderRounds) {
+      if (enterProviderRound(run) > maxProviderRounds) {
         const errorMessage = `Maximum agent turns exceeded (${maxProviderRounds}).`
         logger.info(`[ProcessStream] ${errorMessage}`)
         finalizeError(state, io, errorMessage)
@@ -520,9 +523,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
       if (executed.toolsChanged) {
         const activeSkillNames = hooks?.getActiveSkillNames?.()
+        run.resources.activeSkillNames = [...(activeSkillNames ?? [])]
         if (params.refreshTools) {
           try {
-            currentTools = await params.refreshTools(activeSkillNames)
+            run.resources.toolDefinitions = await params.refreshTools(activeSkillNames)
+            currentTools = run.resources.toolDefinitions
           } catch (error) {
             console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
           }

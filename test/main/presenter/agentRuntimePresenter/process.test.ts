@@ -5,9 +5,13 @@ import path from 'path'
 import { app } from 'electron'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/presenter'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ProcessParams } from '@/presenter/agentRuntimePresenter/types'
+import { createState } from '@/presenter/agentRuntimePresenter/types'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
+import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -119,8 +123,20 @@ describe('processStream', () => {
     }
   })
 
-  function createParams(overrides: Partial<ProcessParams> = {}): ProcessParams {
-    const tools: MCPToolDefinition[] = []
+  function createParams(
+    overrides: Partial<ProcessParams> & {
+      messages?: ChatMessage[]
+      tools?: MCPToolDefinition[]
+      abortController?: AbortController
+    } = {}
+  ): ProcessParams {
+    const {
+      messages = [{ role: 'user' as const, content: 'Hello' }],
+      tools = [],
+      abortController = new AbortController(),
+      run: providedRun,
+      ...processOverrides
+    } = overrides
     const toolPresenter = createMockToolPresenter()
 
     const coreStream = vi.fn(function* () {
@@ -131,8 +147,17 @@ describe('processStream', () => {
     }) as unknown as ProcessParams['coreStream']
 
     return {
-      messages: [{ role: 'user', content: 'Hello' }],
-      tools,
+      run:
+        providedRun ??
+        createLoopRun({
+          runId: 'req-1',
+          sessionId: toAppSessionId('s1'),
+          messageId: 'm1',
+          abortController,
+          messages,
+          streamState: createState(),
+          resources: { toolDefinitions: tools, activeSkillNames: [] }
+        }),
       toolPresenter,
       coreStream,
       providerId: 'openai',
@@ -144,13 +169,9 @@ describe('processStream', () => {
       permissionMode: 'full_access',
       toolOutputGuard: new ToolOutputGuard(),
       io: {
-        sessionId: 's1',
-        requestId: 'req-1',
-        messageId: 'm1',
-        messageStore,
-        abortSignal: new AbortController().signal
+        messageStore
       },
-      ...overrides
+      ...processOverrides
     }
   }
 
@@ -161,6 +182,8 @@ describe('processStream', () => {
     await promise
 
     expect(params.coreStream).toHaveBeenCalledTimes(1)
+    expect(params.run.providerRoundCount).toBe(1)
+    expect(params.run.requestSeq).toBe(0)
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
     const finalMetadata = JSON.parse(
       (messageStore.finalizeAssistantMessage as ReturnType<typeof vi.fn>).mock.calls[0][2]
@@ -354,6 +377,7 @@ describe('processStream', () => {
     await promise
 
     expect(coreStream).toHaveBeenCalledTimes(2)
+    expect(params.run.providerRoundCount).toBe(2)
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
 
@@ -399,6 +423,7 @@ describe('processStream', () => {
       errorMessage: 'Maximum agent turns exceeded (1).'
     })
     expect(coreStream).toHaveBeenCalledTimes(1)
+    expect(params.run.providerRoundCount).toBe(2)
   })
 
   it('signals first provider round after flushing without blocking tool loop', async () => {
@@ -1180,19 +1205,15 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      io: {
-        sessionId: 's1',
-        requestId: 'req-1',
-        messageId: 'm1',
-        messageStore,
-        abortSignal: abortController.signal
-      }
+      abortController
     })
 
     const promise = processStream(params)
     await vi.runAllTimersAsync()
     await promise
 
+    expect(params.run.abortController).toBe(abortController)
+    expect(params.run.abortController.signal.aborted).toBe(true)
     expect(messageStore.setMessageError).toHaveBeenCalledWith(
       'm1',
       expect.any(Array),
@@ -1242,13 +1263,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      io: {
-        sessionId: 's1',
-        requestId: 'req-1',
-        messageId: 'm1',
-        messageStore,
-        abortSignal: abortController.signal
-      }
+      abortController
     })
 
     const promise = processStream(params)
@@ -1305,13 +1320,7 @@ describe('processStream', () => {
       coreStream,
       toolPresenter,
       tools: [makeTool('action')],
-      io: {
-        sessionId: 's1',
-        requestId: 'req-1',
-        messageId: 'm1',
-        messageStore,
-        abortSignal: abortController.signal
-      }
+      abortController
     })
 
     const promise = processStream(params)
