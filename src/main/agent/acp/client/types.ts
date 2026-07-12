@@ -1,7 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpAgentConfig, AgentSessionLifecycleStatus } from '@shared/presenter'
-import type { AssistantMessageBlock } from '@shared/chat'
-import type { DeepChatAgentEvent as SharedDeepChatAgentEvent } from '@shared/contracts/acp'
 
 export type AcpConnectionStatus = 'starting' | 'ready' | 'auth-required' | 'error' | 'disposed'
 
@@ -25,15 +23,6 @@ export interface AcpSessionRef {
   modelId?: string
   status: AgentSessionLifecycleStatus
 }
-
-export type DeepChatAgentEvent =
-  | SharedDeepChatAgentEvent
-  | {
-      type: 'tool.created' | 'tool.updated'
-      conversationId: string
-      toolCallId?: string
-      block: AssistantMessageBlock
-    }
 
 export interface StartAcpConnectionInput {
   agent: AcpAgentConfig

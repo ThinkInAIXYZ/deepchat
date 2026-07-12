@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..030 completed。
+> 状态：implementation in progress；ASLR-000..031 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -44,7 +44,7 @@
 
 - [x] `ASLR-030` Consolidate ACP process/session/persistence/protocol classes under one module owner.
   Depends on: `ASLR-020`.
-- [ ] `ASLR-031` Converge ACP live event/content mappers and retain one compatibility provider adapter.
+- [x] `ASLR-031` Converge ACP live event/content mappers and retain one compatibility provider adapter.
   Depends on: `ASLR-030`.
 - [ ] `ASLR-034` Assign ACP catalog/install/launch/alias/migration/debug/model-refresh/lifecycle paths to explicit ACP domain owners or boundary adapters.
   Depends on: `ASLR-030`.

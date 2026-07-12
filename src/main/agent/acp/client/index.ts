@@ -8,14 +8,12 @@ import type { ProviderMcpRuntimePort } from '@/presenter/llmProviderPresenter/ru
 import { AcpConnectionManager } from './connection/AcpConnectionManager'
 import { AcpSessionRuntime } from './session/AcpSessionRuntime'
 import { AcpPromptController } from './session/AcpPromptController'
-import { AcpEventMapper } from './mapper/AcpEventMapper'
 import type { AcpConnectionRef, CancelAcpPromptInput, StartAcpConnectionInput } from './types'
 
 export class AcpClientRuntime {
   readonly connectionManager: AcpConnectionManager
   readonly sessionRuntime: AcpSessionRuntime
   readonly promptController = new AcpPromptController()
-  readonly eventMapper = new AcpEventMapper()
   readonly sessionPersistence: AcpSessionPersistence
 
   constructor(input: {
