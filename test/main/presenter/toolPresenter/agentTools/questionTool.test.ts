@@ -3,7 +3,7 @@ import {
   parseQuestionToolArgs,
   QUESTION_TOOL_CONTRACT_HINT,
   QUESTION_TOOL_NAME
-} from '../../../../src/main/lib/agentRuntime/questionTool'
+} from '@/presenter/toolPresenter/agentTools/questionTool'
 
 describe('parseQuestionToolArgs', () => {
   it('normalizes valid question tool arguments and applies defaults', () => {

@@ -25,7 +25,7 @@ import {
   getShellEnvironment,
   mergeCommandEnvironment,
   setPathEntriesOnEnv
-} from '@/lib/agentRuntime/shellEnvHelper'
+} from '@/agent/shared/process/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import {
   buildCapabilitySnapshot,

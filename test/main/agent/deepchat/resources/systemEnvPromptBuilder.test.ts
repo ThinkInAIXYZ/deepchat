@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import logger from '@shared/logger'
-import { buildSystemEnvPrompt } from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import { buildSystemEnvPrompt } from '@/agent/deepchat/resources/systemEnvPromptBuilder'
 
 function fileError(code: string): NodeJS.ErrnoException {
   return Object.assign(new Error(`${code} mock error`), { code })

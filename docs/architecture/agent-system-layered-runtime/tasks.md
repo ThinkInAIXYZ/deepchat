@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..031、ASLR-034 completed。
+> 状态：implementation in progress；ASLR-000..032、ASLR-034 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -48,7 +48,7 @@
   Depends on: `ASLR-030`.
 - [x] `ASLR-034` Assign ACP catalog/install/launch/alias/migration/debug/model-refresh/lifecycle paths to explicit ACP domain owners or boundary adapters.
   Depends on: `ASLR-030`.
-- [ ] `ASLR-032` Move process/shell/search/question/path/prompt utilities out of `lib/agentRuntime`.
+- [x] `ASLR-032` Move process/shell/search/question/path/prompt utilities out of `lib/agentRuntime`.
   Depends on: `ASLR-021`; may be split by disjoint owner.
 - [ ] `ASLR-033` Verify composition startup/shutdown order after mechanical moves.
   Depends on: `ASLR-030`, `ASLR-032`.

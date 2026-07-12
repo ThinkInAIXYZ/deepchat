@@ -15,7 +15,7 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
-import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
+import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME

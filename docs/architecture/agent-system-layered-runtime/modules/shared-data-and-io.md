@@ -137,17 +137,17 @@ exact TypeScript port shape 在 Phase 0 从当前 writer call sites 裁剪；没
 - transcript projection 失败不能假装 backend fact 已经不存在，恢复策略沿用当前实现；
 - 不引入跨 SQLite owner 的分布式 transaction abstraction。
 
-## 8. `lib/agentRuntime` 的机械归属
+## 8. `lib/agentRuntime` 的机械归属（ASLR-032 已完成）
 
 迁移只纠正 ownership，不改变逻辑：
 
-| 当前内容 | 目标 owner |
+| 原内容 | 当前 owner |
 | --- | --- |
-| `backgroundExec*`、`shellEnvHelper`、`shellOutputEncoding`、`processTree`、`spawnGuard`、`rtk` | shared process/command runtime |
-| `fffSearchService` | shared workspace/search service |
-| `questionTool` | ToolPresenter 的 agent tool implementation |
-| `sessionPaths` | shared app-session storage/path service |
-| `systemEnvPromptBuilder` | DeepChat prompt resource contributor |
+| `backgroundExec*`、`shellEnvHelper`、`shellOutputEncoding`、`processTree`、`spawnGuard`、`rtk` | `src/main/agent/shared/process/` |
+| `fffSearchService` | `src/main/agent/shared/workspace/` |
+| `questionTool` | `src/main/presenter/toolPresenter/agentTools/questionTool.ts` |
+| `sessionPaths` | `src/main/agent/shared/storage/sessionPaths.ts` |
+| `systemEnvPromptBuilder` | `src/main/agent/deepchat/resources/systemEnvPromptBuilder.ts` |
 
 移动时在同一个机械 PR 内改完 imports/tests 并删除旧文件，不建立临时 compatibility 目录。机械 move
 PR 不允许同时修改行为或公共类型。
@@ -173,7 +173,7 @@ PR 不允许同时修改行为或公共类型。
    `AcpCompatibilityProjectionAdapter` / `AcpRequestTracePort` characterization tests；不新增 canonical
    event union。
 6. 把两个 backend 改为依赖 ports，而不是互相或 Presenter root。
-7. 逐项移动 `lib/agentRuntime` 文件，在同一 slice 更新 imports/tests 并删除旧路径。
+7. 逐项移动 `lib/agentRuntime` 文件，在同一 slice 更新 imports/tests 并删除旧路径。（已完成）
 8. 所有 import 收敛后删除旧 mixed repository API 和旧目录。
 
 ## 11. 验证

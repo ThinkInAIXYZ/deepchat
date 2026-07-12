@@ -12,7 +12,7 @@ import {
 } from './shellOutputEncoding'
 import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
 import { terminateProcessTree } from './processTree'
-import { resolveSessionDir } from './sessionPaths'
+import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 
 // Configuration with environment variable support
 const FOREGROUND_PREVIEW_CHARS = 12000

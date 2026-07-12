@@ -7,8 +7,8 @@ import type {
 } from '@shared/presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { PermissionMode } from '@shared/types/agent-interface'
-import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
-import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
+import { resolveToolOffloadTemplatePath } from '@/agent/shared/storage/sessionPaths'
+import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {

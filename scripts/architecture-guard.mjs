@@ -21,7 +21,7 @@ const SOURCE_EXTENSIONS = new Set([
 const MAIN_GUARD_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
-  path.join(ROOT, 'src/main/lib/agentRuntime')
+  path.join(ROOT, 'src/main/agent')
 ]
 
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
@@ -34,6 +34,7 @@ const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
   path.join(ROOT, 'src/renderer/src/composables/usePresenter.ts'),
   RENDERER_QUARANTINE_ROOT
 ]
+const RETIRED_MAIN_PATHS = [path.join(ROOT, 'src/main/lib/agentRuntime')]
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
@@ -491,6 +492,12 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       violations.push(
         `[renderer-retired-legacy-entry] ${relativePath(retiredEntryPath)} must remain deleted`
       )
+    }
+  }
+
+  for (const retiredPath of RETIRED_MAIN_PATHS) {
+    if (await pathExists(retiredPath)) {
+      violations.push(`[main-retired-path] ${relativePath(retiredPath)} must remain deleted`)
     }
   }
 

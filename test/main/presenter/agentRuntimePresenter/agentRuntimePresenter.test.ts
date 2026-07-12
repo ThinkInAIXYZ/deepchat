@@ -76,7 +76,7 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
+vi.mock('@/agent/deepchat/resources/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
   buildSystemEnvPrompt: vi.fn(
     async (options?: {
@@ -110,7 +110,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '@/lib/agentRuntime/systemEnvPromptBuilder'
+} from '@/agent/deepchat/resources/systemEnvPromptBuilder'
 
 function getPublishedPayloads(eventName: string): any[] {
   return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls

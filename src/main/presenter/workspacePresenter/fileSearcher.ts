@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { AsyncSemaphore } from '../../lib/asyncSemaphore'
 import { minimatch } from 'minimatch'
-import { FffSearchService } from '@/lib/agentRuntime/fffSearchService'
+import { FffSearchService } from '@/agent/shared/workspace/fffSearchService'
 
 export interface SearchOptions {
   maxResults?: number

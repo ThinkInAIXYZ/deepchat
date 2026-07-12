@@ -45,10 +45,10 @@
 
 依据：
 - `startRtkHealthCheck()` 直接转调 `rtkRuntimeService.startHealthCheck()`：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L1680-L1682)
-- `startHealthCheck()` 进入 `runHealthCheck(...)`：[`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L285-L290)
+- `startHealthCheck()` 进入 `runHealthCheck(...)`：[`rtkRuntimeService.ts`](../../../src/main/agent/shared/process/rtkRuntimeService.ts#L285-L290)
 - 该服务依赖 shell 环境探测、runtime 初始化、外部命令执行等 IO/子进程行为，而非纯内存计算：
-  - `getShellEnvironment` / `runCommand` / `RuntimeHelper` 注入：[`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L66-L79)
-  - `runCommandImpl(...)` 用于执行 `gain` / `rewrite` 等 runtime 命令：[`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L322-L330), [`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L413-L416)
+  - `getShellEnvironment` / `runCommand` / `RuntimeHelper` 注入：[`rtkRuntimeService.ts`](../../../src/main/agent/shared/process/rtkRuntimeService.ts#L66-L79)
+  - `runCommandImpl(...)` 用于执行 `gain` / `rewrite` 等 runtime 命令：[`rtkRuntimeService.ts`](../../../src/main/agent/shared/process/rtkRuntimeService.ts#L322-L330), [`rtkRuntimeService.ts`](../../../src/main/agent/shared/process/rtkRuntimeService.ts#L413-L416)
 
 所以该任务与 legacy import / 其余 backfill 一样，更符合 `background + io` 调度模型。
 

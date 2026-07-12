@@ -8,7 +8,7 @@ import {
   UsageStatsBackfillStatusSchema
 } from '@shared/contracts/domainSchemas'
 import { agentPlanItemSchema, normalizeAgentPlanEntry } from '@shared/types/agent-plan'
-import { questionToolSchema } from '../../../src/main/lib/agentRuntime/questionTool'
+import { questionToolSchema } from '@/presenter/toolPresenter/agentTools/questionTool'
 
 describe('Zod 4 migration contracts', () => {
   it('converts tool schemas through native Zod JSON Schema conversion', () => {

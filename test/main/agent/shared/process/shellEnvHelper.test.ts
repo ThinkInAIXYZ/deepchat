@@ -22,7 +22,7 @@ import {
   clearShellEnvironmentCache,
   getShellEnvironment,
   getUserShell
-} from '@/lib/agentRuntime/shellEnvHelper'
+} from '@/agent/shared/process/shellEnvHelper'
 
 class MockStream extends EventEmitter {}
 

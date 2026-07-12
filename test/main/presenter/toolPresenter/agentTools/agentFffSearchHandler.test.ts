@@ -6,7 +6,7 @@ import {
   AgentFffSearchHandler,
   GLOB_TOOL_NAME
 } from '@/presenter/toolPresenter/agentTools/agentFffSearchHandler'
-import { FffSearchUnavailableError } from '@/lib/agentRuntime/fffSearchService'
+import { FffSearchUnavailableError } from '@/agent/shared/workspace/fffSearchService'
 
 vi.mock('@shared/logger', () => ({
   default: {

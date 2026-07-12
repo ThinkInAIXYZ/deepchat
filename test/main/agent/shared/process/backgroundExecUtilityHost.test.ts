@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { getParentPortMessagePayload } from '@/lib/agentRuntime/backgroundExecUtilityHost'
-import type { BackgroundExecRpcRequest } from '@/lib/agentRuntime/backgroundExecSessionManager'
+import { getParentPortMessagePayload } from '@/agent/shared/process/backgroundExecUtilityHost'
+import type { BackgroundExecRpcRequest } from '@/agent/shared/process/backgroundExecSessionManager'
 
 describe('backgroundExecUtilityHost', () => {
   const request: BackgroundExecRpcRequest = {
@@ -22,7 +22,7 @@ describe('backgroundExecUtilityHost', () => {
   it('keeps shell environment helper on the utility-safe logger', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const source = readFileSync(
-      path.join(process.cwd(), 'src/main/lib/agentRuntime/shellEnvHelper.ts'),
+      path.join(process.cwd(), 'src/main/agent/shared/process/shellEnvHelper.ts'),
       'utf8'
     )
 

@@ -39,7 +39,7 @@ vi.mock('@shared/logger', () => ({
 import {
   BackgroundExecSessionManager,
   backgroundExecSessionManager
-} from '@/lib/agentRuntime/backgroundExecSessionManager'
+} from '@/agent/shared/process/backgroundExecSessionManager'
 
 class MockStream extends EventEmitter {}
 

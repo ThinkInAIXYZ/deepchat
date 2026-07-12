@@ -3,4 +3,4 @@ export {
   resolveSessionDir,
   resolveToolOffloadPath,
   resolveToolOffloadTemplatePath
-} from '@/lib/agentRuntime/sessionPaths'
+} from '@/agent/shared/storage/sessionPaths'

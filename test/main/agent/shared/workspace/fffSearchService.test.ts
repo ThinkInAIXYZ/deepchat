@@ -3,7 +3,10 @@ import { existsSync } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { FffSearchService, FffSearchUnavailableError } from '@/lib/agentRuntime/fffSearchService'
+import {
+  FffSearchService,
+  FffSearchUnavailableError
+} from '@/agent/shared/workspace/fffSearchService'
 
 function createMockModule(overrides: Record<string, unknown> = {}) {
   const finder = {

@@ -303,7 +303,8 @@ async function buildAgentSystemBaseline() {
     ...SQLITE_SCHEMA_ROOTS,
     ...MEMORY_SIDECAR_SCHEMA_FILES,
     ...COMPOSITION_LIFECYCLE_FILES,
-    'src/main/lib/agentRuntime'
+    'src/main/lib/agentRuntime',
+    'src/main/agent'
   ]
   const relevantDirtyFiles = await getRelevantDirtyFiles(relevantRoots)
 

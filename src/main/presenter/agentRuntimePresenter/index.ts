@@ -91,7 +91,7 @@ import { MCP_EVENTS } from '@/events'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '@/lib/agentRuntime/systemEnvPromptBuilder'
+} from '@/agent/deepchat/resources/systemEnvPromptBuilder'
 import type { ContextBuildMetadata } from './contextBuilder'
 import {
   buildTapeChatView,

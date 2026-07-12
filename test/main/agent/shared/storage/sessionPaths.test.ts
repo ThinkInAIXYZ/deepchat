@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import os from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
+import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 
 describe('sessionPaths offload path sanitization', () => {
   const homeDir = path.join('/Users', 'tester')

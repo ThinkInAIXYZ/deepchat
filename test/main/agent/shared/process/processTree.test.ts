@@ -6,7 +6,7 @@ vi.mock('child_process', () => ({
 }))
 
 import { spawn } from 'child_process'
-import { terminateProcessTree } from '../../../../src/main/lib/agentRuntime/processTree'
+import { terminateProcessTree } from '@/agent/shared/process/processTree'
 
 class MockSpawnedProcess extends EventEmitter {
   stdout = new EventEmitter()

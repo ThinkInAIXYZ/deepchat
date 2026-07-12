@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 import spawn from 'cross-spawn'
-import * as shellEnvHelper from '@/lib/agentRuntime/shellEnvHelper'
+import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
 import {
   AcpProcessManager,
   parseLoadSessionCapability
@@ -30,8 +30,8 @@ vi.mock('cross-spawn', () => ({
   default: vi.fn()
 }))
 
-vi.mock('@/lib/agentRuntime/shellEnvHelper', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/agentRuntime/shellEnvHelper')>()
+vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/agent/shared/process/shellEnvHelper')>()
   return {
     ...actual,
     getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' })

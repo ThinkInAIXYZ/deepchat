@@ -13,7 +13,7 @@ import type {
 } from '@shared/types/agent-interface'
 import logger from '@shared/logger'
 import { getShellEnvironment, mergeCommandEnvironment } from './shellEnvHelper'
-import { RuntimeHelper } from '../runtimeHelper'
+import { RuntimeHelper } from '@/lib/runtimeHelper'
 
 const RTK_ENABLED_SETTING_KEY = 'rtkEnabled'
 const RTK_HEALTH_TIMEOUT_MS = 12000

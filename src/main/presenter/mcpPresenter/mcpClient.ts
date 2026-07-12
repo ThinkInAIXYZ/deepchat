@@ -26,7 +26,7 @@ import { app } from 'electron'
 import { getInMemoryServer } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
+import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import {
   PromptListEntry,

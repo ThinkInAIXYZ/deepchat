@@ -85,7 +85,7 @@ import {
   resolveUsageModelId,
   resolveUsageProviderId
 } from '../usageStats'
-import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
+import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { ProviderSessionPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
 

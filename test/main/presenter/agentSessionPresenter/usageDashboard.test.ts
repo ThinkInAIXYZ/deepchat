@@ -38,7 +38,7 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-vi.mock('@/lib/agentRuntime/rtkRuntimeService', () => ({
+vi.mock('@/agent/shared/process/rtkRuntimeService', () => ({
   rtkRuntimeService: {
     startHealthCheck: vi.fn().mockResolvedValue(undefined),
     retryHealthCheck: vi.fn().mockResolvedValue(undefined),

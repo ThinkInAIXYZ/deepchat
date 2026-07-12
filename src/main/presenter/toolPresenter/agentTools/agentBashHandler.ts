@@ -5,21 +5,23 @@ import os from 'os'
 import { z } from 'zod'
 import logger from '@shared/logger'
 import type { IConfigPresenter } from '@shared/presenter'
-import { getBackgroundExecConfig } from '@/lib/agentRuntime/backgroundExecSessionManager'
-import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
-import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
-import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
+import {
+  backgroundExecSessionManager,
+  getBackgroundExecConfig
+} from '@/agent/shared/process/backgroundExecSessionManager'
+import { terminateProcessTree } from '@/agent/shared/process/processTree'
+import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import {
   getShellEnvironment,
   getUserShell,
   mergeCommandEnvironment
-} from '@/lib/agentRuntime/shellEnvHelper'
+} from '@/agent/shared/process/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
   prepareShellCommandForUtf8Output
-} from '@/lib/agentRuntime/shellOutputEncoding'
-import { resolveUsableSpawnCwd } from '@/lib/agentRuntime/spawnGuard'
-import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
+} from '@/agent/shared/process/shellOutputEncoding'
+import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
+import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 
 // Consider moving to a shared handlers location in future refactoring
 import {

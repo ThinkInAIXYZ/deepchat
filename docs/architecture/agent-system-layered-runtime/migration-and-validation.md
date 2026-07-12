@@ -271,6 +271,7 @@ the primary proof.
 ### Loop/tool/context
 
 - all tests under `test/main/presenter/agentRuntimePresenter/`
+- all tests under `test/main/agent/shared/` and `test/main/agent/deepchat/resources/`
 - relevant `test/main/presenter/toolPresenter/agentTools/` tests
 - focused lifecycle-order/golden integration fixtures added by Phase 0
 

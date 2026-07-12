@@ -9,19 +9,19 @@ import type {
   SkillRuntimePreference,
   SkillScriptDescriptor
 } from '@shared/types/skill'
-import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
-import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
+import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import {
   getShellEnvironment,
   getUserShell,
   mergeCommandEnvironment
-} from '@/lib/agentRuntime/shellEnvHelper'
+} from '@/agent/shared/process/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
   prepareProcessEnvForUtf8Output,
   prepareShellCommandForUtf8Output
-} from '@/lib/agentRuntime/shellOutputEncoding'
-import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
+} from '@/agent/shared/process/shellOutputEncoding'
+import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 
 const DEFAULT_TIMEOUT_MS = 120000

@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
+import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 import { preflightRequestContext } from './contextBudget'
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000

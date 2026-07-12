@@ -69,8 +69,10 @@ src/
 │   │   ├── mcpPresenter/             # MCP tools/runtime
 │   │   ├── sessionPresenter/         # legacy 数据兼容层
 │   │   └── ...
-│   ├── agent/acp/                    # ACP catalog/client/runtime owner
-│   ├── lib/agentRuntime/             # 共享 runtime helper
+│   ├── agent/
+│   │   ├── acp/                      # ACP catalog/client/runtime owner
+│   │   ├── deepchat/resources/       # DeepChat prompt resources
+│   │   └── shared/                   # process/workspace/session platform services
 │   ├── eventbus.ts
 │   └── events.ts
 ├── renderer/src/                     # Vue app

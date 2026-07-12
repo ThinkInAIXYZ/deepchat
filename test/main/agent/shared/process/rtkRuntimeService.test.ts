@@ -1,7 +1,7 @@
 import * as os from 'os'
 import * as path from 'path'
 import { describe, expect, it, vi } from 'vitest'
-import { RtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRuntimeService'
+import { RtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>()

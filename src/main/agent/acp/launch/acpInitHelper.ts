@@ -13,7 +13,7 @@ import {
   getShellEnvironment,
   mergeCommandEnvironment,
   setPathEntriesOnEnv
-} from '@/lib/agentRuntime/shellEnvHelper'
+} from '@/agent/shared/process/shellEnvHelper'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@/routes/publishDeepchatEvent'
 
