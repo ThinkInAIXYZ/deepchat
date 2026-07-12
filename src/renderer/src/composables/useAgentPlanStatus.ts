@@ -1,7 +1,4 @@
-import {
-  type AgentPlanItem,
-  type AgentPlanStepStatus
-} from '@shared/types/agent-plan'
+import { type AgentPlanItem, type AgentPlanStepStatus } from '@shared/types/agent-plan'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
 
