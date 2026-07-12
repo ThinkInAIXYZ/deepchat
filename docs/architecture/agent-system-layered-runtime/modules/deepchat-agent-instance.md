@@ -2,9 +2,10 @@
 
 > 状态：目标设计。一个 active/hydrated DeepChat app session 对应一个实例。
 
-> 实施进度：ASLR-040..041 已接入 lazy runtime/instance shell，并迁入 identity、project、effective
-> generation settings、status 与 first-turn readiness。generation/cancel、pending、interaction、skills、
-> compaction 和 Memory orchestration 仍由 legacy runtime 持有；Memory maps、schema、调用位置均未改变。
+> 实施进度：ASLR-040..042 已接入 lazy runtime/instance shell，并迁入 identity、project、effective
+> generation settings、status、first-turn readiness、pre-stream abort controller、active generation 与
+> stale-run guard。pending、interaction、skills、compaction 和 Memory orchestration 仍由 legacy runtime
+> 持有；Memory maps、schema、调用位置均未改变。
 
 ## 1. 模块目的
 
@@ -175,8 +176,9 @@ job 或旧 async callback 回写新 lineage。
 1. 列出并测试 singleton 中全部 session-keyed maps 的创建/读取/清理点。
 2. 引入 instance shell，但最初委托旧 runtime 方法。（ASLR-040 已完成）
 3. 先迁移 identity/config/status 等纯 session state。（ASLR-041 已完成；pending 属于 ASLR-043）
-4. 保留 pre-stream abort 与 active-generation 的当前注册边界，再引入 `LoopRun` 迁移
-   request/round/overflow 等 state。
+4. 保留 pre-stream abort 与 active-generation 的当前注册边界，将两者迁入 instance。（ASLR-042
+   已完成；全局 run-id sequence 暂留 compatibility runtime，`LoopRun` 与 request/round/overflow state
+   属于 ASLR-050）
 5. 把 permission/question/post-call/skill-draft continuation 收敛为 instance ordered interaction state，
    保留 fresh-run resume。
 6. 让 route/runtime cache 只通过 instance 操作 session。

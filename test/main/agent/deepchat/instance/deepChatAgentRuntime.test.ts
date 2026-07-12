@@ -113,4 +113,44 @@ describe('DeepChatAgentRuntime', () => {
     first.markFirstTurnReady()
     await expect(first.waitForFirstTurnReady()).resolves.toBe(true)
   })
+
+  it('owns pre-stream and active generation state without stale-run clears', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const instance = runtime.getOrHydrate(toAppSessionId('session'))
+    const controller = new AbortController()
+
+    instance.setAbortController(controller)
+    expect(instance.getAbortSignal()).toBe(controller.signal)
+
+    const generation = instance.registerActiveGeneration('run-1', 'message-1', controller)
+    expect(instance.getActiveGeneration()).toBe(generation)
+    expect(instance.clearActiveGeneration('stale-run')).toBe(false)
+    expect(instance.isActiveRun('run-1')).toBe(true)
+    expect(instance.clearActiveGeneration('run-1')).toBe(true)
+    expect(instance.getActiveGeneration()).toBeUndefined()
+    expect(instance.getAbortController()).toBeUndefined()
+  })
+
+  it('aborts pre-stream work immediately but retains an active run until settlement', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const first = runtime.getOrHydrate(toAppSessionId('first'))
+    const second = runtime.getOrHydrate(toAppSessionId('second'))
+    const preStreamController = new AbortController()
+    const activeController = new AbortController()
+
+    first.setAbortController(preStreamController)
+    first.requestGenerationAbort()
+    expect(preStreamController.signal.aborted).toBe(true)
+    expect(first.getAbortController()).toBeUndefined()
+
+    first.registerActiveGeneration('run-1', 'message-1', activeController)
+    first.requestGenerationAbort()
+    expect(activeController.signal.aborted).toBe(true)
+    expect(first.getActiveGeneration()?.runId).toBe('run-1')
+    expect(second.getAbortSignal()).toBeUndefined()
+
+    first.abortAndClearGeneration()
+    expect(first.getActiveGeneration()).toBeUndefined()
+    expect(first.getAbortController()).toBeUndefined()
+  })
 })

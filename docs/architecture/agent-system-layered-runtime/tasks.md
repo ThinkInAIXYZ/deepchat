@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..041 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..042 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -59,7 +59,7 @@
   Depends on: `ASLR-020`, `ASLR-021`.
 - [x] `ASLR-041` Move identity/project/effective settings and status/readiness state.
   Depends on: `ASLR-040`.
-- [ ] `ASLR-042` Move generation/cancel/abort/stale-run state.
+- [x] `ASLR-042` Move generation/cancel/abort/stale-run state.
   Depends on: `ASLR-041`.
 - [ ] `ASLR-043` Move pending input/queue/drain/steer state.
   Depends on: `ASLR-042`.

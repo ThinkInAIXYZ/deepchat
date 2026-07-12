@@ -4572,11 +4572,9 @@ describe('AgentRuntimePresenter', () => {
     it('cancels generation only when the event id matches the active assistant message', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const cancelSpy = vi.spyOn(agent, 'cancelGeneration').mockResolvedValue(undefined)
-      ;(agent as any).activeGenerations.set('s1', {
-        runId: 'run-1',
-        messageId: 'msg-active',
-        abortController: new AbortController()
-      })
+      agent.deepChatRuntime
+        .getOrHydrate(toAppSessionId('s1'))
+        .registerActiveGeneration('run-1', 'msg-active', new AbortController())
 
       await expect(agent.cancelGenerationByEventId('s1', 'msg-other')).resolves.toBe(false)
       await expect(agent.cancelGenerationByEventId('s1', 'msg-active')).resolves.toBe(true)
@@ -6512,7 +6510,7 @@ describe('AgentRuntimePresenter', () => {
         summaryUpdatedAt: null
       })
       vi.spyOn(agent as any, 'runStreamForMessage').mockImplementation(async () => {
-        ;(agent as any).abortControllers.get('s1')?.abort()
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.abort()
         throw new Error('late failure')
       })
 

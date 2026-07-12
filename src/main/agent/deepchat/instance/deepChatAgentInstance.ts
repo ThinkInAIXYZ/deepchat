@@ -15,6 +15,12 @@ export interface DeepChatAgentInstanceDelegate {
   close(): Promise<void>
 }
 
+export interface DeepChatActiveGeneration {
+  readonly runId: string
+  readonly messageId: string
+  readonly abortController: AbortController
+}
+
 export class DeepChatAgentInstance {
   readonly kind = 'deepchat' as const
   private runtimeState?: DeepChatSessionState
@@ -23,6 +29,8 @@ export class DeepChatAgentInstance {
   private projectDir?: string | null
   private firstTurnReady = false
   private readonly firstTurnReadyWaiters = new Set<(ready: boolean) => void>()
+  private abortController?: AbortController
+  private activeGeneration?: DeepChatActiveGeneration
 
   constructor(
     readonly sessionId: AppSessionId,
@@ -103,7 +111,75 @@ export class DeepChatAgentInstance {
     this.settleFirstTurnReadyWaiters(false)
   }
 
+  getAbortController(): AbortController | undefined {
+    return this.abortController
+  }
+
+  getAbortSignal(): AbortSignal | undefined {
+    return this.activeGeneration?.abortController.signal ?? this.abortController?.signal
+  }
+
+  setAbortController(controller: AbortController): void {
+    this.abortController = controller
+  }
+
+  clearAbortController(controller?: AbortController): boolean {
+    if (!this.abortController || (controller && this.abortController !== controller)) {
+      return false
+    }
+    this.abortController = undefined
+    return true
+  }
+
+  getActiveGeneration(): DeepChatActiveGeneration | undefined {
+    return this.activeGeneration
+  }
+
+  registerActiveGeneration(
+    runId: string,
+    messageId: string,
+    abortController: AbortController
+  ): DeepChatActiveGeneration {
+    const generation = { runId, messageId, abortController }
+    this.activeGeneration = generation
+    this.abortController = abortController
+    return generation
+  }
+
+  clearActiveGeneration(runId: string): boolean {
+    if (!this.activeGeneration || this.activeGeneration.runId !== runId) {
+      return false
+    }
+    const { abortController } = this.activeGeneration
+    this.activeGeneration = undefined
+    this.clearAbortController(abortController)
+    return true
+  }
+
+  isActiveRun(runId: string): boolean {
+    return this.activeGeneration?.runId === runId
+  }
+
+  requestGenerationAbort(): void {
+    if (this.activeGeneration) {
+      this.activeGeneration.abortController.abort()
+      return
+    }
+    if (this.abortController) {
+      this.abortController.abort()
+      this.abortController = undefined
+    }
+  }
+
+  abortAndClearGeneration(): void {
+    const controller = this.activeGeneration?.abortController ?? this.abortController
+    controller?.abort()
+    this.abortController = undefined
+    this.activeGeneration = undefined
+  }
+
   clearOwnedState(): void {
+    this.abortAndClearGeneration()
     this.runtimeState = undefined
     this.generationSettings = undefined
     this.agentId = undefined

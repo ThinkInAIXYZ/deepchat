@@ -94,6 +94,7 @@ import {
 } from '@/agent/deepchat/resources/systemEnvPromptBuilder'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type {
+  DeepChatActiveGeneration,
   DeepChatAgentInstance,
   DeepChatAgentInstanceDelegate
 } from '@/agent/deepchat/instance/deepChatAgentInstance'
@@ -572,12 +573,6 @@ type ToolProfileCacheEntry = {
   tools: MCPToolDefinition[]
 }
 
-type ActiveGeneration = {
-  runId: string
-  messageId: string
-  abortController: AbortController
-}
-
 type MemoryAdmissionWindow = {
   chunks: MemoryExtractionChunk[]
   hadToolUse: boolean
@@ -638,9 +633,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly tapeService: DeepChatTapeService
   private readonly pendingInputStore: DeepChatPendingInputStore
   private readonly pendingInputCoordinator: PendingInputCoordinator
-  private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
-  private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
   private readonly activeSteerPendingInputIds: Map<string, string> = new Map()
   readonly deepChatRuntime: DeepChatAgentRuntime
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
@@ -771,8 +764,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return this.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId))
   }
 
+  private getHydratedDeepChatInstance(sessionId: string): DeepChatAgentInstance | undefined {
+    return this.deepChatRuntime.getHydrated(toAppSessionId(sessionId))
+  }
+
   private getDeepChatRuntimeState(sessionId: string): DeepChatSessionState | undefined {
-    return this.deepChatRuntime.getHydrated(toAppSessionId(sessionId))?.getRuntimeState()
+    return this.getHydratedDeepChatInstance(sessionId)?.getRuntimeState()
   }
 
   private createDeepChatInstanceDelegate(sessionId: string): DeepChatAgentInstanceDelegate {
@@ -954,14 +951,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async destroySession(sessionId: string): Promise<void> {
     this.bumpMemoryExtractionEpoch(sessionId)
-    const controller =
-      this.activeGenerations.get(sessionId)?.abortController ?? this.abortControllers.get(sessionId)
-    if (controller) {
-      controller.abort()
-      this.abortControllers.delete(sessionId)
-    }
+    this.getHydratedDeepChatInstance(sessionId)?.abortAndClearGeneration()
     this.abortDeferredToolAbortControllers(sessionId)
-    this.activeGenerations.delete(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.activeSteerPendingInputIds.delete(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
@@ -1097,8 +1088,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return
     }
 
-    const activeGeneration = this.activeGenerations.get(sessionId)
-    const preStreamController = this.abortControllers.get(sessionId)
+    const instance = this.getHydratedDeepChatInstance(sessionId)
+    const activeGeneration = instance?.getActiveGeneration()
+    const preStreamController = instance?.getAbortController()
 
     if (activeGeneration) {
       // Enqueue the steer input first (it sorts ahead of queued items, and rapid successive steers
@@ -1189,8 +1181,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     // active turn exactly like steerActiveTurn so the abort settlement runs this item as the next turn.
     const record = this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
 
-    const activeGeneration = this.activeGenerations.get(sessionId)
-    const preStreamController = this.abortControllers.get(sessionId)
+    const instance = this.getHydratedDeepChatInstance(sessionId)
+    const activeGeneration = instance?.getActiveGeneration()
+    const preStreamController = instance?.getAbortController()
 
     if (activeGeneration) {
       // A stream is actively producing tokens: interrupt it while preserving its partial output.
@@ -2239,16 +2232,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     // in-flight processMessage / resumeAssistantMessage handler, which always observes the abort and
     // settles exactly once. cancelGeneration deliberately does NOT clear the active generation, write
     // the terminal block, dispatch hooks, or set status.
-    const activeGeneration = this.activeGenerations.get(sessionId)
-    if (activeGeneration) {
-      activeGeneration.abortController.abort()
-    } else {
-      const controller = this.abortControllers.get(sessionId)
-      if (controller) {
-        controller.abort()
-        this.abortControllers.delete(sessionId)
-      }
-    }
+    this.getHydratedDeepChatInstance(sessionId)?.requestGenerationAbort()
     this.abortDeferredToolAbortControllers(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
   }
@@ -2285,8 +2269,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       stopReason: 'user_stop',
       errorMessage: 'common.error.userCanceledGeneration'
     })
-    const activeGeneration = this.activeGenerations.get(sessionId)
-    const controller = this.abortControllers.get(sessionId)
+    const instance = this.getHydratedDeepChatInstance(sessionId)
+    const activeGeneration = instance?.getActiveGeneration()
+    const controller = instance?.getAbortController()
     const hasReplacementController = Boolean(
       controller && (!activeGeneration || controller !== activeGeneration.abortController)
     )
@@ -2299,7 +2284,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   getActiveGeneration(sessionId: string): { eventId: string; runId: string } | null {
-    const activeGeneration = this.activeGenerations.get(sessionId)
+    const activeGeneration = this.getHydratedDeepChatInstance(sessionId)?.getActiveGeneration()
     if (!activeGeneration) {
       return null
     }
@@ -2311,7 +2296,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async cancelGenerationByEventId(sessionId: string, eventId: string): Promise<boolean> {
-    const activeGeneration = this.activeGenerations.get(sessionId)
+    const activeGeneration = this.getHydratedDeepChatInstance(sessionId)?.getActiveGeneration()
     if (!activeGeneration || activeGeneration.messageId !== eventId) {
       return false
     }
@@ -3071,14 +3056,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private getAbortSignalForSession(sessionId: string): AbortSignal | undefined {
-    return (
-      this.activeGenerations.get(sessionId)?.abortController.signal ??
-      this.abortControllers.get(sessionId)?.signal
-    )
+    return this.getHydratedDeepChatInstance(sessionId)?.getAbortSignal()
   }
 
   private ensureSessionAbortController(sessionId: string): AbortController {
-    const activeGeneration = this.activeGenerations.get(sessionId)
+    const instance = this.getDeepChatInstance(sessionId)
+    const activeGeneration = instance.getActiveGeneration()
     if (activeGeneration) {
       if (!activeGeneration.abortController.signal.aborted) {
         return activeGeneration.abortController
@@ -3088,25 +3071,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.clearActiveGeneration(sessionId, activeGeneration.runId)
     }
 
-    const existing = this.abortControllers.get(sessionId)
+    const existing = instance.getAbortController()
     if (existing) {
       existing.abort()
     }
 
     const controller = new AbortController()
-    this.abortControllers.set(sessionId, controller)
+    instance.setAbortController(controller)
     return controller
   }
 
   private clearSessionAbortController(sessionId: string, controller?: AbortController): void {
-    const current = this.abortControllers.get(sessionId)
-    if (!current) {
-      return
-    }
-    if (controller && current !== controller) {
-      return
-    }
-    this.abortControllers.delete(sessionId)
+    this.getHydratedDeepChatInstance(sessionId)?.clearAbortController(controller)
   }
 
   private buildDeferredToolAbortKey(sessionId: string, toolCallId: string): string {
@@ -4532,31 +4508,22 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     messageId: string,
     abortController: AbortController
-  ): ActiveGeneration {
-    const generation: ActiveGeneration = {
-      runId: `${sessionId}:${++this.nextRunSequence}`,
+  ): DeepChatActiveGeneration {
+    return this.getDeepChatInstance(sessionId).registerActiveGeneration(
+      `${sessionId}:${++this.nextRunSequence}`,
       messageId,
       abortController
-    }
-    this.activeGenerations.set(sessionId, generation)
-    this.abortControllers.set(sessionId, abortController)
-    return generation
+    )
   }
 
   private clearActiveGeneration(sessionId: string, runId: string): void {
-    const activeGeneration = this.activeGenerations.get(sessionId)
-    if (!activeGeneration || activeGeneration.runId !== runId) {
-      return
-    }
-    this.activeGenerations.delete(sessionId)
-    this.clearActiveProviderPermissionsForSession(sessionId)
-    if (this.abortControllers.get(sessionId) === activeGeneration.abortController) {
-      this.abortControllers.delete(sessionId)
+    if (this.getHydratedDeepChatInstance(sessionId)?.clearActiveGeneration(runId)) {
+      this.clearActiveProviderPermissionsForSession(sessionId)
     }
   }
 
   private isActiveRun(sessionId: string, runId: string): boolean {
-    return this.activeGenerations.get(sessionId)?.runId === runId
+    return this.getHydratedDeepChatInstance(sessionId)?.isActiveRun(runId) ?? false
   }
 
   private buildRateLimitStreamMessageId(runId: string): string {
@@ -4611,7 +4578,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private resolveStreamRequestId(sessionId: string, messageId: string): string {
-    const activeGeneration = this.activeGenerations.get(sessionId)
+    const activeGeneration = this.getHydratedDeepChatInstance(sessionId)?.getActiveGeneration()
     if (activeGeneration?.messageId === messageId) {
       return activeGeneration.runId
     }
