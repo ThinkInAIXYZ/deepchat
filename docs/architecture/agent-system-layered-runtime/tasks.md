@@ -115,7 +115,7 @@
   Depends on: `ASLR-046`, `ASLR-054`, `ASLR-072`, `ASLR-081`.
 - [x] `ASLR-060` Add `MemoryPromptContributor` with injection/access/view-anchor parity.
   Depends on: `ASLR-053`, `ASLR-054`, `ASLR-059`.
-- [ ] `ASLR-061` Add `MemoryIngestionObserver` with extraction/projection/cursor parity and narrow
+- [x] `ASLR-061` Add `MemoryIngestionObserver` with extraction/projection/cursor parity and narrow
   `MEM-13` / `MEM-14` outcome contracts.
   Depends on: `ASLR-059`, `ASLR-060`.
 - [ ] `ASLR-062` Run Memory correctness/privacy/performance/native gates and prove no schema/config diff.

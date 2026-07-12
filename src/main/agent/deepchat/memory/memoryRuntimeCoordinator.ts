@@ -3,7 +3,6 @@ import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { appendMemorySectionWithManifest } from '@/presenter/memoryPresenter/injection'
 import type { MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
 import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
-import type { CompactionIntent } from '@/presenter/agentRuntimePresenter/compactionService'
 import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,
@@ -16,12 +15,17 @@ import {
   type MemoryExtractionChunk,
   type MemoryExtractionMessage
 } from './memoryExtractionChunks'
+import type {
+  MemoryIngestionDrainOutcome,
+  MemoryIngestionObserver
+} from './memoryIngestionObserver'
 import type { MemoryPromptContributor, MemorySessionHandle } from './memoryPromptContributor'
 
 const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
 const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
 const MEMORY_INGESTION_PROJECTION_RETRY_COOLDOWN_MS = 30_000
 const MEMORY_INGESTION_PROJECTION_FAILURE_CACHE_LIMIT = 256
+const MEMORY_INGESTION_DRAIN_TIMEOUT_MS = 5_000
 const MEMORY_FALLBACK_MIN_DELTA = 6
 const MEMORY_MIN_AGENTIC_TEXT_CHARS = 160
 
@@ -71,7 +75,7 @@ export interface MemoryRuntimeCoordinatorDependencies {
   getIngestionProjection(): MemoryIngestionProjection | undefined
 }
 
-export class MemoryRuntimeCoordinator implements MemoryPromptContributor {
+export class MemoryRuntimeCoordinator implements MemoryPromptContributor, MemoryIngestionObserver {
   private memoryPort?: MemoryRuntimePort
   private readonly extractionChains = new Map<string, Promise<void>>()
   private readonly extractionQueue = new Map<number, { sessionId: string; queuedAt: number }>()
@@ -79,6 +83,8 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor {
   private readonly extractionEpochs = new Map<string, number>()
   private readonly ingestionProjectionRetryAfter = new Map<string, number>()
   private readonly injectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
+  private acceptingIngestion = true
+  private ingestionAdmissionGeneration = 0
 
   constructor(private readonly deps: MemoryRuntimeCoordinatorDependencies) {
     this.memoryPort = deps.memoryPort
@@ -205,53 +211,60 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor {
     }
   }
 
-  triggerExtractionFromCompaction(
-    memorySession: MemorySessionHandle,
-    intent: CompactionIntent
-  ): void {
-    this.deps.assertCurrentSessionHandle(memorySession)
-    const sessionId = memorySession.sessionId
-    if (!this.memoryPort) return
-    const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
-    if (!this.memoryPort.isEnabled(agentId)) return
-    const toOrderSeq = Math.max(1, intent.targetCursorOrderSeq)
-    this.enqueueSessionExtraction(sessionId, async (epoch) => {
-      if (!this.isSessionEpochCurrent(sessionId, epoch)) return
-      const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
-      const window = this.buildExtractionWindow(sessionId, cursor, toOrderSeq)
-      if (!window || window.visibleTextChars <= 0) return
-      await this.runExtractionChunks(
-        sessionId,
-        { chunks: window.chunks, reason: 'compaction' },
-        epoch
-      )
-    })
+  afterTurnSettled(input: Parameters<MemoryIngestionObserver['afterTurnSettled']>[0]): void {
+    if (!this.acceptingIngestion || input.outcome.kind === 'thrown') return
+    const shouldExtract =
+      input.origin === 'initial'
+        ? input.outcome.status === 'completed'
+        : input.outcome.status === 'completed' || input.outcome.status === 'aborted'
+    if (!shouldExtract) return
+
+    try {
+      this.deps.assertCurrentSessionHandle(input.session)
+      this.enqueueFallbackExtraction(input.session.sessionId)
+    } catch (error) {
+      logger.warn(`[DeepChatAgent] memory turn ingestion skipped: ${String(error)}`)
+    }
   }
 
-  triggerExtractionFallback(sessionId: string): void {
-    if (!this.memoryPort) return
-    const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
-    if (!this.memoryPort.isEnabled(agentId)) return
+  afterCompactionApplyReturned(
+    input: Parameters<MemoryIngestionObserver['afterCompactionApplyReturned']>[0]
+  ): void {
+    if (!this.acceptingIngestion) return
+    try {
+      this.deps.assertCurrentSessionHandle(input.session)
+      const sessionId = input.session.sessionId
+      if (!this.isMemoryEnabled(sessionId)) return
+      const toOrderSeq = Math.max(1, input.targetCursorOrderSeq)
+      this.enqueueSessionExtraction(sessionId, async (epoch) => {
+        if (!this.isSessionEpochCurrent(sessionId, epoch)) return
+        const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
+        const window = this.buildExtractionWindow(sessionId, cursor, toOrderSeq)
+        if (!window || window.visibleTextChars <= 0) return
+        await this.runExtractionChunks(
+          sessionId,
+          { chunks: window.chunks, reason: 'compaction' },
+          epoch
+        )
+      })
+    } catch (error) {
+      logger.warn(`[DeepChatAgent] memory compaction ingestion skipped: ${String(error)}`)
+    }
+  }
 
-    this.enqueueSessionExtraction(sessionId, async (epoch) => {
-      if (!this.isSessionEpochCurrent(sessionId, epoch)) return
-      const tailOrderSeq = this.deps.getNextMessageOrderSeq(sessionId) - 1
-      const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
-      if (tailOrderSeq <= cursor) return
-      const window = this.buildExtractionWindow(sessionId, cursor, tailOrderSeq)
-      if (!window || window.visibleTextChars <= 0) return
-      const delta = tailOrderSeq - cursor
-      const admit =
-        window.hadToolUse ||
-        delta >= MEMORY_FALLBACK_MIN_DELTA ||
-        (delta >= 2 && window.visibleTextChars >= MEMORY_MIN_AGENTIC_TEXT_CHARS)
-      if (!admit) return
-      await this.runExtractionChunks(
-        sessionId,
-        { chunks: window.chunks, reason: 'fallback' },
-        epoch
-      )
-    })
+  async drainAndFence(): Promise<MemoryIngestionDrainOutcome> {
+    if (!this.acceptingIngestion) {
+      return await this.waitForExtractionDrain()
+    }
+
+    this.acceptingIngestion = false
+    this.ingestionAdmissionGeneration += 1
+    const activeSessionIds = new Set([
+      ...this.extractionChains.keys(),
+      ...[...this.extractionQueue.values()].map((entry) => entry.sessionId)
+    ])
+    for (const sessionId of activeSessionIds) this.bumpSessionEpoch(sessionId)
+    return await this.waitForExtractionDrain()
   }
 
   enqueueSessionExtraction(
@@ -259,12 +272,15 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor {
     task: (epoch: number) => Promise<void>,
     expectedEpoch?: number
   ): void {
+    if (!this.acceptingIngestion) return
+    const admissionGeneration = this.ingestionAdmissionGeneration
     const queueId = ++this.nextExtractionQueueId
     this.extractionQueue.set(queueId, { sessionId, queuedAt: Date.now() })
     this.observeExtractionQueue()
     const previous = this.extractionChains.get(sessionId) ?? Promise.resolve()
     const runTask = async () => {
       try {
+        if (admissionGeneration !== this.ingestionAdmissionGeneration) return
         const currentEpoch = this.ensureSessionEpoch(sessionId)
         if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
         await task(expectedEpoch ?? currentEpoch)
@@ -446,6 +462,53 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor {
   private observeExtractionQueue(): void {
     const oldestQueuedAt = this.extractionQueue.values().next().value?.queuedAt ?? null
     this.memoryPort?.observeExtractionQueue?.(this.extractionQueue.size, oldestQueuedAt)
+  }
+
+  private async waitForExtractionDrain(): Promise<MemoryIngestionDrainOutcome> {
+    const drain = Promise.allSettled(this.extractionChains.values())
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timedOut = await Promise.race([
+      drain.then(() => false),
+      new Promise<true>((resolve) => {
+        timer = setTimeout(() => resolve(true), MEMORY_INGESTION_DRAIN_TIMEOUT_MS)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+    ])
+    if (timer) clearTimeout(timer)
+    return {
+      timedOut,
+      pendingSessions: timedOut ? [...this.extractionChains.keys()].sort() : []
+    }
+  }
+
+  private enqueueFallbackExtraction(sessionId: string): void {
+    if (!this.isMemoryEnabled(sessionId)) return
+
+    this.enqueueSessionExtraction(sessionId, async (epoch) => {
+      if (!this.isSessionEpochCurrent(sessionId, epoch)) return
+      const tailOrderSeq = this.deps.getNextMessageOrderSeq(sessionId) - 1
+      const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
+      if (tailOrderSeq <= cursor) return
+      const window = this.buildExtractionWindow(sessionId, cursor, tailOrderSeq)
+      if (!window || window.visibleTextChars <= 0) return
+      const delta = tailOrderSeq - cursor
+      const admit =
+        window.hadToolUse ||
+        delta >= MEMORY_FALLBACK_MIN_DELTA ||
+        (delta >= 2 && window.visibleTextChars >= MEMORY_MIN_AGENTIC_TEXT_CHARS)
+      if (!admit) return
+      await this.runExtractionChunks(
+        sessionId,
+        { chunks: window.chunks, reason: 'fallback' },
+        epoch
+      )
+    })
+  }
+
+  private isMemoryEnabled(sessionId: string): boolean {
+    if (!this.memoryPort) return false
+    const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
+    return this.memoryPort.isEnabled(agentId)
   }
 
   private injectionAccessKey(sessionId: string, messageId: string): string {

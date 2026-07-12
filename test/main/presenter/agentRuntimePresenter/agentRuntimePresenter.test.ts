@@ -865,7 +865,11 @@ describe('AgentRuntimePresenter', () => {
     }
 
     async function triggerFallbackAndWait() {
-      getMemoryCoordinator().triggerExtractionFallback('s1')
+      agent.memoryIngestionObserver.afterTurnSettled({
+        session: agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).getMemorySessionHandle(),
+        origin: 'initial',
+        outcome: { kind: 'returned', status: 'completed' }
+      })
       await getMemoryCoordinator().waitForSession('s1')
     }
 
@@ -1087,7 +1091,7 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
-    it('keeps legacy Memory extraction behind stable instance handles', async () => {
+    it('keeps Memory ingestion behind stable instance handles', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       installRuntimeRecords([
         userRecord('u1', 1, 'Remember that Redis is preferred.'),
@@ -1101,9 +1105,11 @@ describe('AgentRuntimePresenter', () => {
       expect(instance.getMemorySessionHandle()).toBe(memorySession)
       expect(memorySession.sessionId).toBe(sessionId)
 
-      getMemoryCoordinator().triggerExtractionFromCompaction(memorySession, {
+      agent.memoryIngestionObserver.afterCompactionApplyReturned({
+        session: memorySession,
+        origin: 'initial',
         targetCursorOrderSeq: 2
-      } as any)
+      })
       await waitForExtractionChain()
 
       expect(extractAndStore).toHaveBeenCalledTimes(1)
@@ -1116,10 +1122,12 @@ describe('AgentRuntimePresenter', () => {
       const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
       expect(replacement.getMemorySessionHandle()).not.toBe(memorySession)
       expect(() =>
-        getMemoryCoordinator().triggerExtractionFromCompaction(memorySession, {
+        agent.memoryIngestionObserver.afterCompactionApplyReturned({
+          session: memorySession,
+          origin: 'initial',
           targetCursorOrderSeq: 2
-        } as any)
-      ).toThrow('DeepChat agent instance was replaced: s1')
+        })
+      ).not.toThrow()
       expect(extractAndStore).toHaveBeenCalledTimes(1)
     })
 

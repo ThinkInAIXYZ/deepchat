@@ -100,6 +100,7 @@ import type {
 } from '@/agent/deepchat/loop/ports'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
+import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryPromptContributor } from '@/agent/deepchat/memory/memoryPromptContributor'
 import type {
   DeepChatAgentInstance,
@@ -631,6 +632,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionUiPort?: SessionUiPort
   private readonly memoryCoordinator: MemoryRuntimeCoordinator
   private readonly memoryPromptContributor: MemoryPromptContributor
+  readonly memoryIngestionObserver: MemoryIngestionObserver
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
@@ -708,6 +710,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       getIngestionProjection: () => this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
     })
     this.memoryPromptContributor = this.memoryCoordinator
+    this.memoryIngestionObserver = this.memoryCoordinator
     this.postCompactionPromptAssembler = {
       assemble: async (input) => {
         const promptWithSummary = appendSummarySection(input.basePrompt, input.summaryText)
@@ -1668,10 +1671,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           ),
         readSummary: () => this.sessionStore.getSummaryState(sessionId),
         afterCompactionApplyReturned: (intent) =>
-          this.memoryCoordinator.triggerExtractionFromCompaction(
-            instance.getMemorySessionHandle(),
-            intent
-          ),
+          this.memoryIngestionObserver.afterCompactionApplyReturned({
+            session: instance.getMemorySessionHandle(),
+            origin: 'initial',
+            targetCursorOrderSeq: intent.targetCursorOrderSeq
+          }),
         checkpoints: {
           assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
         }
@@ -1834,18 +1838,29 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        this.memoryCoordinator.triggerExtractionFallback(sessionId)
       } else if (result?.status === 'aborted') {
         // Return-path abort: applyProcessResultStatus already dispatched terminal hooks + idle (guarded
         // by active run). Append the canceled block, then continue the queue with the next item.
         this.writeCanceledTerminalBlock(sessionId, assistantMessageId)
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
+      if (result) {
+        this.memoryIngestionObserver.afterTurnSettled({
+          session: instance.getMemorySessionHandle(),
+          origin: 'initial',
+          outcome: { kind: 'returned', status: result.status }
+        })
+      }
       return {
         requestId: assistantMessageId,
         messageId: assistantMessageId
       }
     } catch (err) {
+      this.memoryIngestionObserver.afterTurnSettled({
+        session: instance.getMemorySessionHandle(),
+        origin: 'initial',
+        outcome: { kind: 'thrown', error: err }
+      })
       if (this.isStaleDeepChatInstanceError(err)) {
         return {
           requestId: assistantMessageId,
@@ -3885,10 +3900,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             ),
           readSummary: () => this.sessionStore.getSummaryState(params.sessionId),
           afterCompactionApplyReturned: (intent) =>
-            this.memoryCoordinator.triggerExtractionFromCompaction(
-              params.expectedInstance.getMemorySessionHandle(),
-              intent
-            ),
+            this.memoryIngestionObserver.afterCompactionApplyReturned({
+              session: params.expectedInstance.getMemorySessionHandle(),
+              origin: 'context-pressure',
+              targetCursorOrderSeq: intent.targetCursorOrderSeq
+            }),
           checkpoints: {
             assertCurrent: () =>
               this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
@@ -4394,6 +4410,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             error: resumeBudget.message
           })
           this.setSessionStatus(sessionId, 'error')
+          this.memoryIngestionObserver.afterTurnSettled({
+            session: instance.getMemorySessionHandle(),
+            origin: 'resume',
+            outcome: { kind: 'returned', status: 'error' }
+          })
           return false
         }
       }
@@ -4437,10 +4458,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed' || result?.status === 'aborted') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        this.memoryCoordinator.triggerExtractionFallback(sessionId)
+      }
+      if (result) {
+        this.memoryIngestionObserver.afterTurnSettled({
+          session: instance.getMemorySessionHandle(),
+          origin: 'resume',
+          outcome: { kind: 'returned', status: result.status }
+        })
       }
       return true
     } catch (error) {
+      this.memoryIngestionObserver.afterTurnSettled({
+        session: instance.getMemorySessionHandle(),
+        origin: 'resume',
+        outcome: { kind: 'thrown', error }
+      })
       if (this.isStaleDeepChatInstanceError(error)) {
         return false
       }

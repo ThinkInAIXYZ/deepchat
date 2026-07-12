@@ -10,8 +10,11 @@
 > `MemoryPresenter` data orchestration 未迁移。AST architecture guard 以 class/property structure 固定唯一
 > owner，并拒绝 Presenter owner 回流；public seam tests 覆盖 128-turn access cap 与 256-session cooldown
 > cap。ASLR-060 已让 coordinator 直接实现最小 `MemoryPromptContributor`，PostCompaction 固定 slot 传入
-> captured stable handle；Presenter 不再拥有私有 Memory injection callback。typed ingestion port 仍属于
-> ASLR-061。
+> captured stable handle；Presenter 不再拥有私有 Memory injection callback。ASLR-061 已让同一 coordinator
+> 直接实现 discriminated `MemoryIngestionObserver`，按 `MEM-13/14` 接入 terminal/compaction，并在 composition
+> shutdown 先同步关闭 ingestion admission、fence epoch，再由 `MemoryPresenter.dispose()` abort provider-bound
+> work，再 bounded-await existing chains 后关闭 SQLite；timeout 返回 typed pending diagnostics，不冒充
+> settled。coordinator epoch 与 disposed Memory operation fence 共同禁止 late commit。
 
 ## 1. 模块目的
 
@@ -63,10 +66,25 @@ interface MemoryPromptContributor {
   }): Promise<string>
 }
 
+interface MemoryIngestionDrainOutcome {
+  timedOut: boolean
+  pendingSessions: readonly string[]
+}
+
 interface MemoryIngestionObserver {
-  afterTurnSettled(input: SettledTurnMemoryInput): void
-  afterCompactionApplyReturned(input: CompactionMemoryInput): void
-  drainAndFence(input: MemoryFenceInput): Promise<void>
+  afterTurnSettled(input: {
+    session: MemorySessionHandle
+    origin: 'initial' | 'resume'
+    outcome:
+      | { kind: 'returned'; status: 'completed' | 'paused' | 'aborted' | 'error' }
+      | { kind: 'thrown'; error: unknown }
+  }): void
+  afterCompactionApplyReturned(input: {
+    session: MemorySessionHandle
+    origin: 'initial' | 'context-pressure'
+    targetCursorOrderSeq: number
+  }): void
+  drainAndFence(): Promise<MemoryIngestionDrainOutcome>
 }
 ```
 
@@ -165,7 +183,10 @@ normal return 后调用。完整 outcome matrix 以 `MEM-13/14` 为准。
 - `ok: false`、throw、abort、fallback projection 或 stale epoch 都不得前移 cursor；
 - cooldown/queue/epoch/access-dedupe 由 `MemoryRuntimeCoordinator` 管理，LoopEngine/instance 不复制 maps；
 - clear/delete/destroy 先建立 fence，之后的 late job 不能回写已重建的同 id session；
-- shutdown 必须等待 required jobs settle 或被安全 fencing，随后才关闭 SQLite/vector resources。
+- shutdown 必须先永久关闭 coordinator admission、fence active epochs，再 dispose Memory 以 abort provider
+  work 并关闭 Memory operation fence，最后 bounded-await captured chains。timeout outcome 必须显式携带
+  pending session diagnostics；composition root 记录 warning 后才可继续关闭 SQLite，不能把 timeout 表述为
+  settled；late resolve/reject 仍不得写 row/audit/vector、触发 embedding/event 或前移 cursor/anchor。
 
 当前 start-time epoch 语义存在一个已知边界：旧 session 的普通 queued task 若在 destroy 后才首次开始，
 可能读取到复用后的同 session id epoch。ASLR-059 为保持 baseline 不改变该行为；session-id reuse 的产品
@@ -192,6 +213,12 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
 | vector cleanup | 不影响已完成 turn | 按当前 delete contract | compensation/maintenance 可见 |
 | shutdown timeout | 阻止 unsafe DB close or fence per current policy | 不错误提交 | 明确 shutdown reason |
 
+composition root 在调用 `drainAndFence()` 后立即持有其 rejection handler，避免 Memory dispose 期间出现
+unhandled rejection；随后独立记录 dispose failure、drain failure 或 typed timeout，并继续尝试 SQLite
+close。该 continue policy 的安全前提由生产实现固定：coordinator 在第一个 await 前永久关闭 admission 并
+fence epoch，`MemoryPresenter.dispose()` 也在第一个 await 前标记 disposed 与 abort provider。任一后续
+reject/timeout 都不能重新开放写入。
+
 ## 11. 迁移步骤
 
 1. 在任何代码移动前冻结 `MEM-01..14` 和两个 outcome matrix 的 fixture/test。
@@ -199,13 +226,16 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
    maps/cursor call sites 原样移动；instance 只取得 session handle。
 3. [ASLR-060 已完成] coordinator 直接实现 `MemoryPromptContributor`，以 stable session handle 接入现有
    PostCompaction slot，并对比 exact prompt/budget/sanitization/selection/accounting/anchor。
-4. 为 terminal/compaction 建只携带 trigger/origin/upper-bound 的 DTO；普通 task 在开始时 ensure epoch，
+4. [ASLR-061 已完成] 为 terminal/compaction 建只携带 trigger/origin/upper-bound 的 DTO；普通 task 在开始时 ensure epoch，
    只有同一 job continuation 携带 `expectedEpoch`；不要提前抓 cursor/tail/window。
-5. 接入 `afterTurnSettled`，分别验证 initial returned、resume returned 和 thrown paths。
-6. 只在 initial/context-pressure 接入 `afterCompactionApplyReturned`，覆盖 normal
+5. [ASLR-061 已完成] 接入 `afterTurnSettled`，分别验证 initial returned、resume returned 和 thrown paths。
+6. [ASLR-061 已完成] 只在 initial/context-pressure 接入 `afterCompactionApplyReturned`，覆盖 normal
    `succeeded=true|false` return；throw/no-intent 不调用，resume/manual 不接入该 observer。
-7. 迁移 edit/delete/retry/rollback/clear/destroy/shutdown fences。
-8. 连续运行完整 Memory parity suite 和 fault injection 后，才删除旧 runtime 接线。
+7. [ASLR-061 已完成] 保留 edit/delete/retry/rollback/clear/destroy fence，并将 shutdown 接到两阶段
+   fence/dispose/bounded-drain-outcome/SQLite close 顺序；timeout 记录 pending diagnostics，late work 由两层
+   operation fence 拒绝。
+8. [ASLR-061 已完成] 删除 legacy runtime ingestion trigger 接线；最终 Memory correctness/privacy/performance/
+   native gates 仍由 ASLR-062 统一收口。
 
 ## 12. 验证矩阵
 

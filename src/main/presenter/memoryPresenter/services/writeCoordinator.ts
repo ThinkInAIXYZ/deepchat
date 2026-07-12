@@ -352,27 +352,27 @@ export class WriteCoordinator {
       )
       llmCalls += batch.llmCalls
       casRetries += batch.casRetries
+      if (!this.ctx.canContinueOperation(operationFence)) {
+        extractionOutcome = 'cancelled'
+        return { ok: false }
+      }
       for (const outcome of batch.outcomes) {
-        if (this.ctx.isOperationGenerationCurrent(operationFence)) {
-          outcomes.push(outcome)
-          createdIds.push(...createdIdsFromOutcome(outcome))
-          if (outcomeTouched(outcome)) {
-            this.ctx.markDomainMutationCommitted(input.agentId)
-            this.ports.markWorkingMemoryDirty(input.agentId)
-            touched = true
-          }
+        outcomes.push(outcome)
+        createdIds.push(...createdIdsFromOutcome(outcome))
+        if (outcomeTouched(outcome)) {
+          this.ctx.markDomainMutationCommitted(input.agentId)
+          this.ports.markWorkingMemoryDirty(input.agentId)
+          touched = true
         }
       }
-      if (this.ctx.isOperationGenerationCurrent(operationFence)) {
-        this.writeExtractionAudit(input, model, {
-          parsedCount: parsed.candidates.length,
-          acceptedCount: candidateStats.candidates.length,
-          duplicateCandidateIndexes: candidateStats.duplicateCandidateIndexes,
-          rejectedCandidates: candidateStats.rejectedCandidates,
-          decisionBudgetFallbacks: batch.decisionBudgetFallbacks,
-          failed: batch.failed
-        })
-      }
+      this.writeExtractionAudit(input, model, {
+        parsedCount: parsed.candidates.length,
+        acceptedCount: candidateStats.candidates.length,
+        duplicateCandidateIndexes: candidateStats.duplicateCandidateIndexes,
+        rejectedCandidates: candidateStats.rejectedCandidates,
+        decisionBudgetFallbacks: batch.decisionBudgetFallbacks,
+        failed: batch.failed
+      })
       // If a non-empty extraction is disabled mid-batch, keep the cursor for retry; any rows
       // already written are picked up by the next embedding/backfill drain.
       if (batch.failed) return { ok: false }
@@ -391,7 +391,7 @@ export class WriteCoordinator {
         llmCalls,
         casRetries
       })
-      if (touched && this.ctx.isOperationGenerationCurrent(operationFence)) {
+      if (touched && this.ctx.canContinueOperation(operationFence)) {
         this.finalizeCommittedExtraction(input, outcomes)
       }
     }
@@ -1255,6 +1255,9 @@ export class WriteCoordinator {
           operationFence
         )
       : this.directAddMemory(options.agentId, candidate, options)
+    if (!this.ctx.canContinueOperation(operationFence)) {
+      return { action: 'noop', reason: 'disposed' }
+    }
     if (outcomeTouched(outcome)) {
       this.ctx.markDomainMutationCommitted(options.agentId)
       this.ports.markWorkingMemoryDirty(options.agentId)

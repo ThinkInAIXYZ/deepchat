@@ -135,6 +135,10 @@ const RETIRED_MEMORY_PRESENTER_INJECTION_NAMES = new Set([
   'appendMemoryInjection',
   'recordMemoryInjectionAccess'
 ])
+const RETIRED_MEMORY_PRESENTER_INGESTION_TRIGGER_NAMES = new Set([
+  'triggerExtractionFallback',
+  'triggerExtractionFromCompaction'
+])
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
@@ -341,6 +345,7 @@ function findRetiredMemoryPresenterMembers(source, filePath) {
   const sourceFile = sourceFileForAst(source, filePath)
   const owners = []
   const injection = []
+  const ingestionTriggers = []
   const visit = (node) => {
     if (ts.isPropertyDeclaration(node) && node.name) {
       const name = propertyNameText(node.name)
@@ -350,10 +355,14 @@ function findRetiredMemoryPresenterMembers(source, filePath) {
       const name = propertyNameText(node.name)
       if (name && RETIRED_MEMORY_PRESENTER_INJECTION_NAMES.has(name)) injection.push(name)
     }
+    const accessName = accessMemberName(node)
+    if (accessName && RETIRED_MEMORY_PRESENTER_INGESTION_TRIGGER_NAMES.has(accessName)) {
+      ingestionTriggers.push(accessName)
+    }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return { owners, injection }
+  return { owners, injection, ingestionTriggers }
 }
 
 function accessMemberName(node) {
@@ -888,6 +897,11 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         if (retiredMemory.injection.length > 0) {
           violations.push(
             `[memory-retired-presenter-injection] ${relativePath(filePath)} expected 0 private Memory injection callbacks, found ${retiredMemory.injection.join(', ')}`
+          )
+        }
+        if (retiredMemory.ingestionTriggers.length > 0) {
+          violations.push(
+            `[memory-retired-presenter-ingestion-trigger] ${relativePath(filePath)} expected 0 legacy Memory ingestion trigger calls, found ${retiredMemory.ingestionTriggers.join(', ')}`
           )
         }
       }

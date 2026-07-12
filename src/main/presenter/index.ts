@@ -78,6 +78,10 @@ import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import type { AcpAgentRuntime } from '@/agent/acp/instance'
+import type {
+  MemoryIngestionDrainOutcome,
+  MemoryIngestionObserver
+} from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { MemoryPresenter, isSafeAgentId } from './memoryPresenter'
 import { MemoryVectorStore } from './memoryPresenter/infra/memoryVectorStore'
 import { ProjectPresenter } from './projectPresenter'
@@ -156,6 +160,7 @@ export class Presenter implements IPresenter {
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
   memoryPresenter: MemoryPresenter
+  private memoryIngestionObserver: MemoryIngestionObserver
   projectPresenter: IProjectPresenter
   remoteControlPresenter: IRemoteControlPresenter
   pluginPresenter: PluginPresenter
@@ -660,6 +665,7 @@ export class Presenter implements IPresenter {
         skillPresenter: this.skillPresenter
       }
     )
+    this.memoryIngestionObserver = agentRuntimePresenter.memoryIngestionObserver
     this.acpAgentRuntime = agentRuntimePresenter.createAcpAgentRuntime(
       (this.llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner()
     )
@@ -1061,9 +1067,30 @@ export class Presenter implements IPresenter {
     await this.runDestroyStep('destroyRemoteControl', () => this.destroyRemoteControl())
     this.floatingButtonPresenter.destroy()
     this.tabPresenter.destroy()
-    // Drain in-flight memory consolidation before the shared SQLite connection closes, so a pass
-    // that already fired cannot write to a closed database during teardown.
+    // Fence new ingestion synchronously, then let Memory disposal abort provider-bound work before
+    // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
+    const memoryIngestionDrain = (() => {
+      try {
+        return this.memoryIngestionObserver.drainAndFence().then(
+          (outcome) => ({ outcome }) as const,
+          (error) => ({ error }) as const
+        )
+      } catch (error) {
+        return Promise.resolve({ error } as const)
+      }
+    })()
     await this.runDestroyStep('memoryPresenter.dispose', () => this.memoryPresenter.dispose())
+    let memoryIngestionDrainOutcome: MemoryIngestionDrainOutcome | undefined
+    await this.runDestroyStep('memoryIngestionObserver.drainAndFence', async () => {
+      const result = await memoryIngestionDrain
+      if ('error' in result) throw result.error
+      memoryIngestionDrainOutcome = result.outcome
+    })
+    if (memoryIngestionDrainOutcome?.timedOut) {
+      logger.warn(
+        `[Presenter] Memory ingestion drain timed out with ${memoryIngestionDrainOutcome.pendingSessions.length} pending session(s); late writes remain fenced.`
+      )
+    }
     await this.runDestroyStep('acpRuntime.shutdown', () =>
       (this.llmproviderPresenter as LLMProviderPresenter).shutdownAcpRuntime()
     )

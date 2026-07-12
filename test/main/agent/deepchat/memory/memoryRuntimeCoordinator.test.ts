@@ -1,19 +1,29 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
+import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type {
   MemoryPromptContributor,
   MemorySessionHandle
 } from '@/agent/deepchat/memory/memoryPromptContributor'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { MemoryPresenter } from '@/presenter/memoryPresenter'
+import {
+  createFakeRepository,
+  FakeAuditRepository,
+  FakeVectorStore,
+  textToVector
+} from '../../../presenter/fakes/memoryFakes'
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((next, nextReject) => {
     resolve = next
+    reject = nextReject
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -513,20 +523,373 @@ describe('MemoryRuntimeCoordinator', () => {
     }
   })
 
-  it('keeps stable instance handles and rejects a handle after replacement', () => {
+  it.each([
+    ['initial', { kind: 'returned', status: 'completed' }, true],
+    ['initial', { kind: 'returned', status: 'aborted' }, false],
+    ['initial', { kind: 'returned', status: 'paused' }, false],
+    ['initial', { kind: 'returned', status: 'error' }, false],
+    [
+      'initial',
+      { kind: 'thrown', error: Object.assign(new Error('aborted'), { name: 'AbortError' }) },
+      false
+    ],
+    ['initial', { kind: 'thrown', error: new Error('failed') }, false],
+    ['resume', { kind: 'returned', status: 'completed' }, true],
+    ['resume', { kind: 'returned', status: 'aborted' }, true],
+    ['resume', { kind: 'returned', status: 'paused' }, false],
+    ['resume', { kind: 'returned', status: 'error' }, false],
+    [
+      'resume',
+      { kind: 'thrown', error: Object.assign(new Error('aborted'), { name: 'AbortError' }) },
+      false
+    ],
+    ['resume', { kind: 'thrown', error: new Error('failed') }, false]
+  ] as const)('preserves MEM-13 for %s %j', async (origin, outcome, expectedExtraction) => {
+    const { coordinator, deps, memorySession, port, setRows } = createHarness()
+    const observer: MemoryIngestionObserver = coordinator
+    setRows(
+      Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+      )
+    )
+
+    observer.afterTurnSettled({ session: memorySession, origin, outcome })
+
+    expect(deps.getNextMessageOrderSeq).not.toHaveBeenCalled()
+    expect(deps.getMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    await coordinator.waitForSession('s1')
+    expect(port.extractAndStore).toHaveBeenCalledTimes(expectedExtraction ? 1 : 0)
+  })
+
+  it.each(['initial', 'context-pressure'] as const)(
+    'captures the MEM-14 upper bound for %s only after normal apply return',
+    async (origin) => {
+      const { coordinator, deps, memorySession, port, setRows } = createHarness()
+      const observer: MemoryIngestionObserver = coordinator
+      setRows(
+        Array.from({ length: 6 }, (_, index) =>
+          createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+        )
+      )
+
+      observer.afterCompactionApplyReturned({
+        session: memorySession,
+        origin,
+        targetCursorOrderSeq: 4
+      })
+
+      expect(deps.getMemoryCursorOrderSeq).not.toHaveBeenCalled()
+      await coordinator.waitForSession('s1')
+      expect(port.extractAndStore).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceEntryIds: [1, 2, 3, 4] })
+      )
+      expect(deps.updateMemoryCursorOrderSeq).toHaveBeenCalledWith('s1', 4)
+    }
+  )
+
+  it('starts consecutive jobs from the latest cursor without repeating source IDs', async () => {
+    const { coordinator, memorySession, port, setRows } = createHarness()
+    const observer: MemoryIngestionObserver = coordinator
+    const first = deferred<{ ok: true; createdIds: string[] }>()
+    port.extractAndStore
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValue({ ok: true, createdIds: [] })
+    const firstRows = Array.from({ length: 6 }, (_, index) =>
+      createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+    )
+    setRows(firstRows)
+
+    observer.afterTurnSettled({
+      session: memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    await tick()
+    expect(port.extractAndStore).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceEntryIds: [1, 2, 3, 4, 5, 6] })
+    )
+
+    setRows([
+      ...firstRows,
+      ...Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 7}`, index + 7, `memory ${index + 7}`)
+      )
+    ])
+    observer.afterTurnSettled({
+      session: memorySession,
+      origin: 'resume',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    first.resolve({ ok: true, createdIds: [] })
+    await coordinator.waitForSession('s1')
+
+    expect(port.extractAndStore).toHaveBeenCalledTimes(2)
+    expect(port.extractAndStore).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sourceEntryIds: [7, 8, 9, 10, 11, 12] })
+    )
+  })
+
+  it('fences new admission and drains queued and running jobs without late commits', async () => {
+    const { coordinator, deps, memorySession, port, setRows } = createHarness()
+    const observer: MemoryIngestionObserver = coordinator
+    const running = deferred<{ ok: true; createdIds: string[] }>()
+    port.extractAndStore.mockImplementationOnce(() => running.promise)
+    setRows(
+      Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+      )
+    )
+    const completed = () =>
+      observer.afterTurnSettled({
+        session: memorySession,
+        origin: 'initial',
+        outcome: { kind: 'returned', status: 'completed' }
+      })
+
+    completed()
+    await tick()
+    completed()
+    let drained = false
+    const drain = observer.drainAndFence().then((outcome) => {
+      expect(outcome).toEqual({ timedOut: false, pendingSessions: [] })
+      drained = true
+    })
+    completed()
+    await tick()
+
+    expect(drained).toBe(false)
+    expect(port.extractAndStore).toHaveBeenCalledTimes(1)
+    running.resolve({ ok: true, createdIds: ['late'] })
+    await drain
+    await coordinator.waitForSession('s1')
+
+    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+    expect(port.extractAndStore).toHaveBeenCalledTimes(1)
+    await expect(observer.drainAndFence()).resolves.toEqual({
+      timedOut: false,
+      pendingSessions: []
+    })
+  })
+
+  it('drains empty and failed chains and keeps ingestion fenced', async () => {
+    const empty = createHarness()
+    const emptyObserver: MemoryIngestionObserver = empty.coordinator
+
+    await expect(emptyObserver.drainAndFence()).resolves.toEqual({
+      timedOut: false,
+      pendingSessions: []
+    })
+    emptyObserver.afterTurnSettled({
+      session: empty.memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    await empty.coordinator.waitForSession('s1')
+    expect(empty.port.extractAndStore).not.toHaveBeenCalled()
+
+    const failed = createHarness()
+    const failedObserver: MemoryIngestionObserver = failed.coordinator
+    let rejectExtraction!: (error: unknown) => void
+    failed.port.extractAndStore.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectExtraction = reject
+        })
+    )
+    failed.setRows(
+      Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+      )
+    )
+    failedObserver.afterTurnSettled({
+      session: failed.memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    await tick()
+    const drain = failedObserver.drainAndFence()
+    rejectExtraction(new Error('failed'))
+    await expect(drain).resolves.toEqual({ timedOut: false, pendingSessions: [] })
+
+    expect(failed.port.extractAndStore).toHaveBeenCalledOnce()
+  })
+
+  it('finishes a safely fenced drain when provider work ignores cancellation', async () => {
+    vi.useFakeTimers()
+    try {
+      const { coordinator, deps, memorySession, port, setRows } = createHarness()
+      const observer: MemoryIngestionObserver = coordinator
+      port.extractAndStore.mockImplementationOnce(() => new Promise(() => undefined))
+      setRows(
+        Array.from({ length: 6 }, (_, index) =>
+          createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+        )
+      )
+      observer.afterTurnSettled({
+        session: memorySession,
+        origin: 'initial',
+        outcome: { kind: 'returned', status: 'completed' }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+
+      const drain = observer.drainAndFence()
+      await vi.advanceTimersByTimeAsync(5_000)
+      await expect(drain).resolves.toEqual({ timedOut: true, pendingSessions: ['s1'] })
+
+      expect(port.extractAndStore).toHaveBeenCalledOnce()
+      expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+      expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['resolve', 'reject'] as const)(
+    'reports and clears a real Memory write chain after late provider %s',
+    async (settlement) => {
+      vi.useFakeTimers()
+      try {
+        const { coordinator, deps, memorySession, setRows } = createHarness()
+        const provider = deferred<string>()
+        const decisionStarted = deferred()
+        const repository = createFakeRepository()
+        const auditRepository = new FakeAuditRepository()
+        const vectorStore = new FakeVectorStore()
+        repository.insert({
+          id: 'existing',
+          agentId: 'agent-a',
+          kind: 'semantic',
+          content: 'existing memory preference',
+          status: 'embedded'
+        })
+        const getEmbeddings = vi.fn(async (_providerId, _modelId, texts: string[]) =>
+          texts.map((text) => textToVector(text))
+        )
+        const onMemoryChanged = vi.fn()
+        const memoryPresenter = new MemoryPresenter({
+          repository,
+          auditRepository,
+          resolveAgentConfig: () => ({
+            memoryEnabled: true,
+            memoryExtractionModel: { providerId: 'provider', modelId: 'model' }
+          }),
+          executeWithRateLimit: vi.fn(async () => undefined),
+          getEmbeddings,
+          getDimensions: async () => ({
+            data: { dimensions: textToVector('').length, normalized: false }
+          }),
+          generateText: async (_providerId, _modelId, prompt) => {
+            if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+            if (prompt.includes('JSON array')) {
+              return '[{"kind":"semantic","content":"late memory preference","importance":0.9}]'
+            }
+            decisionStarted.resolve()
+            return await provider.promise
+          },
+          createVectorStore: async () => vectorStore,
+          resetVectorStore: async () => undefined,
+          onMemoryChanged
+        })
+        const realExtractAndStore = memoryPresenter.extractAndStore.bind(memoryPresenter)
+        vi.spyOn(memoryPresenter, 'extractAndStore').mockImplementation(async (input) => {
+          // Keep the runtime port pending after the real write coordinator observes disposal. This
+          // models an adapter/provider that ignores abort while retaining the real operation fence.
+          const result = realExtractAndStore(input)
+          await provider.promise
+          return await result
+        })
+        const observeQueue = vi.spyOn(memoryPresenter, 'observeExtractionQueue')
+        const insertRow = vi.spyOn(repository, 'insert')
+        const updateRow = vi.spyOn(repository, 'updateContent')
+        const supersedeRow = vi.spyOn(repository, 'markSuperseded')
+        const insertAudit = vi.spyOn(auditRepository, 'insert')
+        const upsertVector = vi.spyOn(vectorStore, 'upsert')
+        coordinator.setPort(memoryPresenter)
+        const observer: MemoryIngestionObserver = coordinator
+        setRows(
+          Array.from({ length: 6 }, (_, index) =>
+            createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+          )
+        )
+
+        observer.afterTurnSettled({
+          session: memorySession,
+          origin: 'initial',
+          outcome: { kind: 'returned', status: 'completed' }
+        })
+        await decisionStarted.promise
+        const drain = observer.drainAndFence()
+        let disposed = false
+        await memoryPresenter.dispose().then(() => {
+          disposed = true
+        })
+        expect(disposed).toBe(true)
+        await vi.advanceTimersByTimeAsync(5_000)
+        await expect(drain).resolves.toEqual({ timedOut: true, pendingSessions: ['s1'] })
+
+        expect(insertRow).not.toHaveBeenCalled()
+        expect(updateRow).not.toHaveBeenCalled()
+        expect(supersedeRow).not.toHaveBeenCalled()
+        expect(insertAudit).not.toHaveBeenCalled()
+        expect(upsertVector).not.toHaveBeenCalled()
+        expect(getEmbeddings).not.toHaveBeenCalled()
+        expect(onMemoryChanged).not.toHaveBeenCalled()
+        expect(repository.countByAgent('agent-a')).toBe(1)
+        expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+        expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+
+        if (settlement === 'resolve') {
+          provider.resolve(
+            '[{"candidateIndex":0,"decision":"ADD","targetIndex":null,"mergedContent":null}]'
+          )
+        } else {
+          provider.reject(new Error('late provider rejection'))
+        }
+        await coordinator.waitForSession('s1')
+
+        expect(insertRow).not.toHaveBeenCalled()
+        expect(insertAudit).not.toHaveBeenCalled()
+        expect(upsertVector).not.toHaveBeenCalled()
+        expect(onMemoryChanged).not.toHaveBeenCalled()
+        expect(repository.countByAgent('agent-a')).toBe(1)
+        expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+        expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+        expect(observeQueue).toHaveBeenLastCalledWith(0, null)
+        await expect(observer.drainAndFence()).resolves.toEqual({
+          timedOut: false,
+          pendingSessions: []
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('keeps stable instance handles and ignores a handle after replacement', () => {
     const { coordinator, handles, port } = createHarness()
+    const observer: MemoryIngestionObserver = coordinator
     port.isEnabled.mockReturnValue(false)
     const sessionId = toAppSessionId('s1')
     const handle = Object.freeze({ sessionId })
     handles.set(sessionId, handle)
 
     expect(() =>
-      coordinator.triggerExtractionFromCompaction(handle, { targetCursorOrderSeq: 2 } as any)
+      observer.afterCompactionApplyReturned({
+        session: handle,
+        origin: 'initial',
+        targetCursorOrderSeq: 2
+      })
     ).not.toThrow()
 
     handles.set(sessionId, Object.freeze({ sessionId }))
     expect(() =>
-      coordinator.triggerExtractionFromCompaction(handle, { targetCursorOrderSeq: 2 } as any)
-    ).toThrow('DeepChat agent instance was replaced: s1')
+      observer.afterCompactionApplyReturned({
+        session: handle,
+        origin: 'initial',
+        targetCursorOrderSeq: 2
+      })
+    ).not.toThrow()
   })
 })
