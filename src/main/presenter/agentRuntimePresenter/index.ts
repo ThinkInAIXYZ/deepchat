@@ -81,10 +81,6 @@ import {
 } from '@shared/videoGenerationSettings'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
-import type {
-  DeepChatMemoryIngestionProjectionInput,
-  DeepChatMemoryIngestionProjectionRow
-} from '../sqlitePresenter/tables/deepchatMemoryIngestionProjection'
 import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
@@ -103,10 +99,10 @@ import type {
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type {
   DeepChatAgentInstance,
   DeepChatAgentInstanceDelegate,
-  DeepChatMemorySessionHandle,
   DeepChatToolProfileKind
 } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -135,13 +131,6 @@ import {
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
 import { DeepChatTapeService } from './tapeService'
-import { buildEffectiveTapeView } from './tapeEffectiveView'
-import {
-  MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
-  buildMemoryExtractionChunks,
-  type MemoryExtractionChunk,
-  type MemoryExtractionMessage
-} from './memoryExtractionChunks'
 import {
   buildExcludedRefs,
   buildIncludedRefs,
@@ -155,10 +144,7 @@ import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInput
 import { processStream } from './process'
 import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
-import {
-  appendMemorySectionWithManifest,
-  type MemoryRuntimePort
-} from '../memoryPresenter/injection'
+import type { MemoryRuntimePort } from '../memoryPresenter/injection'
 import type {
   InterleavedReasoningConfig,
   PendingToolInteraction,
@@ -217,11 +203,6 @@ type PendingInteractionEntry = {
   blockIndex: number
 }
 
-type MemoryInjectionAccessTurnEntry = {
-  ids: Set<string>
-  touchedAt: number
-}
-
 type ProcessPendingInputSource = PendingInputEnqueueSource | 'steer'
 
 type PendingTapeViewContext = {
@@ -270,10 +251,6 @@ const PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP = 8_192
 const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
 const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
-const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
-const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
-const MEMORY_INGESTION_PROJECTION_RETRY_COOLDOWN_MS = 30_000
-const MEMORY_INGESTION_PROJECTION_FAILURE_CACHE_LIMIT = 256
 
 function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
   return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
@@ -579,12 +556,6 @@ type PersistedSessionGenerationRow = {
   force_interleaved_thinking_compat: number | null
 }
 
-type MemoryAdmissionWindow = {
-  chunks: MemoryExtractionChunk[]
-  hadToolUse: boolean
-  visibleTextChars: number
-}
-
 type SkillDraftStatus = 'pending' | 'viewed' | 'installed' | 'discarded' | 'error'
 
 type SkillDraftChoice = 'view' | 'install' | 'discard'
@@ -601,10 +572,6 @@ const SKILL_DRAFT_STATUS_BY_CHOICE: Record<Exclude<SkillDraftChoice, 'view'>, Sk
 }
 
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
-// Minimum new-message delta (since the memory cursor) before the fallback extracts.
-const MEMORY_FALLBACK_MIN_DELTA = 6
-// Minimum visible text for short non-tool fallback spans.
-const MEMORY_MIN_AGENTIC_TEXT_CHARS = 160
 const PRE_STREAM_SLOW_STEP_MS = 500
 const STALE_DEEPCHAT_INSTANCE_ERROR_NAME = 'StaleDeepChatAgentInstanceError'
 const createAbortError = (): Error => {
@@ -661,16 +628,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionPermissionPort?: SessionPermissionPort
   private readonly acpAsLlmProviderPermission?: AcpAsLlmProviderPermissionPort
   private readonly sessionUiPort?: SessionUiPort
-  private readonly memoryPort?: MemoryRuntimePort
-  private readonly memoryExtractionChains = new Map<string, Promise<void>>()
-  private readonly memoryExtractionQueue = new Map<
-    number,
-    { sessionId: string; queuedAt: number }
-  >()
-  private nextMemoryExtractionQueueId = 0
-  private readonly memoryExtractionEpochs = new Map<string, number>()
-  private readonly memoryIngestionProjectionRetryAfter = new Map<string, number>()
-  private readonly memoryInjectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
+  private readonly memoryCoordinator: MemoryRuntimeCoordinator
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
@@ -689,7 +647,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         promptWithSummary,
         input.reconstructionAnchor
       )
-      return await this.appendMemoryInjection(
+      return await this.memoryCoordinator.appendPrompt(
         input.sessionId,
         promptWithReconstruction,
         input.memoryQuery,
@@ -734,6 +692,33 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.deepChatRuntime = new DeepChatAgentRuntime((sessionId) =>
       this.createDeepChatInstanceDelegate(sessionId)
     )
+    this.memoryCoordinator = new MemoryRuntimeCoordinator({
+      memoryPort: runtimePorts?.memoryPort,
+      getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
+      getSessionRuntimeState: (sessionId) => this.getDeepChatRuntimeState(sessionId),
+      hasSessionRuntimeState: (sessionId) => Boolean(this.getDeepChatRuntimeState(sessionId)),
+      assertCurrentSessionHandle: (handle) => {
+        const sessionId = handle.sessionId
+        if (this.getHydratedDeepChatInstance(sessionId)?.getMemorySessionHandle() !== handle) {
+          throw createStaleDeepChatInstanceError(sessionId)
+        }
+      },
+      getNextMessageOrderSeq: (sessionId) => this.messageStore.getNextOrderSeq(sessionId),
+      getMessagesUpToOrderSeq: (sessionId, orderSeq) =>
+        this.messageStore.getMessagesUpToOrderSeq(sessionId, orderSeq),
+      getMemoryCursorOrderSeq: (sessionId) =>
+        this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId),
+      updateMemoryCursorOrderSeq: (sessionId, orderSeq) =>
+        this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq),
+      rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
+        this.sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
+      getTapeRows: (sessionId) =>
+        this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId),
+      appendTapeAnchor: (input) => {
+        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor(input)
+      },
+      getIngestionProjection: () => this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
+    })
     this.compactionService = new CompactionService(
       this.sessionStore,
       this.messageStore,
@@ -771,7 +756,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
     this.acpAsLlmProviderPermission = runtimePorts?.acpAsLlmProviderPermission
     this.sessionUiPort = runtimePorts?.sessionUiPort
-    this.memoryPort = runtimePorts?.memoryPort
     this.cacheImage = runtimePorts?.cacheImage
     this.skillPresenter = runtimePorts?.skillPresenter
 
@@ -1066,13 +1050,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return error instanceof Error && error.name === STALE_DEEPCHAT_INSTANCE_ERROR_NAME
   }
 
-  private throwIfStaleMemorySessionHandle(handle: DeepChatMemorySessionHandle): void {
-    const sessionId = handle.sessionId
-    if (this.getHydratedDeepChatInstance(sessionId)?.getMemorySessionHandle() !== handle) {
-      throw createStaleDeepChatInstanceError(sessionId)
-    }
-  }
-
   private createDeepChatInstanceDelegate(sessionId: string): DeepChatAgentInstanceDelegate {
     return {
       send: async (input) => {
@@ -1243,7 +1220,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       permissionMode
     })
     instance.setCompactionState(this.buildIdleCompactionState())
-    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
+    this.memoryCoordinator.initializeSession(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
@@ -1251,11 +1228,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async destroySession(sessionId: string): Promise<void> {
     const instance = this.getHydratedDeepChatInstance(sessionId)
-    this.bumpMemoryExtractionEpoch(sessionId)
-    for (const [queueId, entry] of this.memoryExtractionQueue) {
-      if (entry.sessionId === sessionId) this.memoryExtractionQueue.delete(queueId)
-    }
-    this.observeMemoryExtractionQueue()
+    this.memoryCoordinator.beginSessionDestroy(sessionId)
     instance?.abortAndClearGeneration()
     this.abortDeferredToolAbortControllers(sessionId)
     this.clearFirstTurnReady(sessionId)
@@ -1266,8 +1239,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.sessionStore.delete(sessionId)
     instance?.clearOwnedState()
     this.deepChatRuntime.evict(toAppSessionId(sessionId))
-    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
-    this.clearMemoryInjectionAccessForSession(sessionId)
+    this.memoryCoordinator.finishSessionDestroy(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
   }
 
@@ -1692,7 +1664,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           ),
         readSummary: () => this.sessionStore.getSummaryState(sessionId),
         afterCompactionApplyReturned: (intent) =>
-          this.triggerMemoryExtractionFromCompaction(instance.getMemorySessionHandle(), intent),
+          this.memoryCoordinator.triggerExtractionFromCompaction(
+            instance.getMemorySessionHandle(),
+            intent
+          ),
         checkpoints: {
           assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
         }
@@ -1855,7 +1830,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        this.triggerMemoryExtractionFallback(sessionId)
+        this.memoryCoordinator.triggerExtractionFallback(sessionId)
       } else if (result?.status === 'aborted') {
         // Return-path abort: applyProcessResultStatus already dispatched terminal hooks + idle (guarded
         // by active run). Append the canceled block, then continue the queue with the next item.
@@ -2790,610 +2765,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return undefined
   }
 
-  // Appends the memory section (self-model + recalled memories) to the system prompt.
-  // No-op when the agent has memory disabled; any failure falls back to the original prompt.
-  private async appendMemoryInjection(
-    sessionId: string,
-    systemPrompt: string,
-    query: string,
-    messageId?: string | null
-  ): Promise<string> {
-    if (!this.memoryPort) {
-      return systemPrompt
-    }
-    try {
-      const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
-      if (!this.memoryPort.isEnabled(agentId)) {
-        return systemPrompt
-      }
-      const injection = await this.memoryPort.buildInjection(agentId, query)
-      if (!this.memoryPort.isEnabled(agentId)) return systemPrompt
-      const assembled = appendMemorySectionWithManifest(systemPrompt, injection)
-      if (assembled.manifest) {
-        if (this.memoryPort.isEnabled(agentId)) {
-          this.recordMemoryInjectionAccess(
-            agentId,
-            sessionId,
-            assembled.manifest.selected,
-            messageId
-          )
-        }
-        if (this.memoryPort.isEnabled(agentId)) {
-          try {
-            this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
-              sessionId,
-              name: 'memory/view_assembled',
-              state: assembled.manifest as unknown as Record<string, unknown>,
-              meta: messageId ? { messageId } : undefined
-            })
-          } catch (error) {
-            logger.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
-          }
-        }
-      }
-      return assembled.prompt
-    } catch (error) {
-      logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
-      return systemPrompt
-    }
-  }
-
-  private recordMemoryInjectionAccess(
-    agentId: string,
-    sessionId: string,
-    selected: Array<{ id: string }>,
-    messageId?: string | null
-  ): void {
-    if (!this.memoryPort || selected.length === 0) return
-    const selectedIds = [...new Set(selected.map((item) => item.id).filter(Boolean))]
-    if (!selectedIds.length) return
-
-    let idsToRecord = selectedIds
-    let seen: Set<string> | undefined
-    if (messageId) {
-      const now = Date.now()
-      this.pruneMemoryInjectionAccessForSession(sessionId, now)
-      const key = this.memoryInjectionAccessKey(sessionId, messageId)
-      let entry = this.memoryInjectionAccessByTurn.get(key)
-      if (!entry) {
-        entry = { ids: new Set(), touchedAt: now }
-        this.memoryInjectionAccessByTurn.set(key, entry)
-        this.pruneMemoryInjectionAccessForSession(sessionId, now)
-      } else {
-        entry.touchedAt = now
-      }
-      seen = entry.ids
-      const trackedIds = seen
-      idsToRecord = selectedIds.filter((id) => !trackedIds.has(id))
-      if (!idsToRecord.length) return
-    }
-
-    try {
-      this.memoryPort.recordInjectionAccess(agentId, idsToRecord)
-      if (seen) {
-        for (const id of idsToRecord) seen.add(id)
-      }
-    } catch (error) {
-      logger.warn(`[DeepChatAgent] memory access accounting skipped: ${String(error)}`)
-    }
-  }
-
-  private memoryInjectionAccessKey(sessionId: string, messageId: string): string {
-    return `${sessionId}\u0000${messageId}`
-  }
-
-  private clearMemoryInjectionAccessForSession(sessionId: string): void {
-    const prefix = `${sessionId}\u0000`
-    for (const key of this.memoryInjectionAccessByTurn.keys()) {
-      if (key.startsWith(prefix)) this.memoryInjectionAccessByTurn.delete(key)
-    }
-  }
-
-  private pruneMemoryInjectionAccessForSession(sessionId: string, now: number = Date.now()): void {
-    const prefix = `${sessionId}\u0000`
-    const entries: Array<{ key: string; touchedAt: number }> = []
-    for (const [key, entry] of this.memoryInjectionAccessByTurn) {
-      if (!key.startsWith(prefix)) continue
-      if (now - entry.touchedAt > MEMORY_INJECTION_ACCESS_TURN_TTL_MS) {
-        this.memoryInjectionAccessByTurn.delete(key)
-        continue
-      }
-      entries.push({ key, touchedAt: entry.touchedAt })
-    }
-    if (entries.length <= MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION) return
-    entries.sort(
-      (left, right) => left.touchedAt - right.touchedAt || left.key.localeCompare(right.key)
-    )
-    const deleteCount = entries.length - MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION
-    for (const entry of entries.slice(0, deleteCount)) {
-      this.memoryInjectionAccessByTurn.delete(entry.key)
-    }
-  }
-
-  private triggerMemoryExtractionFromCompaction(
-    memorySession: DeepChatMemorySessionHandle,
-    intent: CompactionIntent
-  ): void {
-    this.throwIfStaleMemorySessionHandle(memorySession)
-    const sessionId = memorySession.sessionId
-    if (!this.memoryPort) return
-    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
-    if (!this.memoryPort.isEnabled(agentId)) return
-    const toOrderSeq = Math.max(1, intent.targetCursorOrderSeq)
-    this.enqueueSessionExtraction(sessionId, async (epoch) => {
-      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
-      const cursor =
-        this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-      const window = this.buildMemoryExtractionWindow(sessionId, cursor, toOrderSeq)
-      if (!window || window.visibleTextChars <= 0) return
-      await this.runMemoryExtractionChunks(
-        sessionId,
-        {
-          chunks: window.chunks,
-          reason: 'compaction'
-        },
-        epoch
-      )
-    })
-  }
-
-  // Serializes extraction per session; sibling sessions never block each other.
-  private enqueueSessionExtraction(
-    sessionId: string,
-    task: (epoch: number) => Promise<void>,
-    expectedEpoch?: number
-  ): void {
-    const queueId = ++this.nextMemoryExtractionQueueId
-    this.memoryExtractionQueue.set(queueId, { sessionId, queuedAt: Date.now() })
-    this.observeMemoryExtractionQueue()
-    const prev = this.memoryExtractionChains.get(sessionId) ?? Promise.resolve()
-    const runTask = async () => {
-      try {
-        const currentEpoch = this.ensureMemoryExtractionEpoch(sessionId)
-        if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
-        await task(expectedEpoch ?? currentEpoch)
-      } finally {
-        this.memoryExtractionQueue.delete(queueId)
-        this.observeMemoryExtractionQueue()
-      }
-    }
-    const next = prev.then(runTask, runTask).catch((error) => {
-      logger.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
-    })
-    this.memoryExtractionChains.set(sessionId, next)
-    void next.finally(() => {
-      if (this.memoryExtractionChains.get(sessionId) === next) {
-        this.memoryExtractionChains.delete(sessionId)
-        if (!this.getDeepChatRuntimeState(sessionId)) {
-          this.memoryExtractionEpochs.delete(sessionId)
-        }
-      }
-    })
-  }
-
-  private observeMemoryExtractionQueue(): void {
-    const oldestQueuedAt = this.memoryExtractionQueue.values().next().value?.queuedAt ?? null
-    this.memoryPort?.observeExtractionQueue?.(this.memoryExtractionQueue.size, oldestQueuedAt)
-  }
-
-  private getLatestUserQuery(sessionId: string): string {
-    const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
-    if (tailOrderSeq < 0) return ''
-    const records = this.messageStore.getMessagesUpToOrderSeq(sessionId, tailOrderSeq)
-    for (let i = records.length - 1; i >= 0; i -= 1) {
-      if (records[i].role === 'user') return this.extractPlainTextFromRecord(records[i])
-    }
-    return ''
-  }
-
-  // Fallback for sessions that never trigger compaction; cursor-gated so it is a no-op
-  // once the tail is caught up or the unseen delta is below the threshold.
-  private triggerMemoryExtractionFallback(sessionId: string): void {
-    if (!this.memoryPort) return
-    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
-    if (!this.memoryPort.isEnabled(agentId)) return
-
-    // Read the cursor and build the span inside the queued task so a later task sees the
-    // cursor a prior one advanced, instead of re-extracting the same stale span.
-    this.enqueueSessionExtraction(sessionId, async (epoch) => {
-      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
-      const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
-      const cursor =
-        this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-      if (tailOrderSeq <= cursor) return
-      const window = this.buildMemoryExtractionWindow(sessionId, cursor, tailOrderSeq)
-      if (!window || window.visibleTextChars <= 0) return
-      const delta = tailOrderSeq - cursor
-      const admit =
-        window.hadToolUse ||
-        delta >= MEMORY_FALLBACK_MIN_DELTA ||
-        (delta >= 2 && window.visibleTextChars >= MEMORY_MIN_AGENTIC_TEXT_CHARS)
-      if (!admit) return
-      await this.runMemoryExtractionChunks(
-        sessionId,
-        {
-          chunks: window.chunks,
-          reason: 'fallback'
-        },
-        epoch
-      )
-    })
-  }
-
-  private async runMemoryExtractionChunks(
-    sessionId: string,
-    options: {
-      chunks: readonly MemoryExtractionChunk[]
-      reason: 'compaction' | 'fallback'
-    },
-    epoch: number
-  ): Promise<void> {
-    if (!this.memoryPort) return
-    try {
-      const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
-      if (!this.memoryPort.isEnabled(agentId)) return
-      const state = this.getDeepChatRuntimeState(sessionId)
-      if (!state) return
-      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
-
-      const currentTaskChunks = options.chunks.slice(0, MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK)
-      for (const chunk of currentTaskChunks) {
-        if (!this.memoryPort.isEnabled(agentId)) return
-        if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
-        const cursor =
-          this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-        if (chunk.coveredThroughOrderSeq <= cursor) continue
-
-        const result = await this.memoryPort.extractAndStore({
-          agentId,
-          spanText: chunk.text,
-          model: { providerId: state.providerId, modelId: state.modelId },
-          sourceSession: sessionId,
-          sourceEntryIds: chunk.sourceEntryIds
-        })
-        if (!result.ok || !this.memoryPort.isEnabled(agentId)) return
-        if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
-
-        if (chunk.cursorCommitOrderSeq !== null) {
-          this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(
-            sessionId,
-            chunk.cursorCommitOrderSeq
-          )
-        }
-
-        if (result.createdIds.length > 0) {
-          this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
-            sessionId,
-            name: 'memory/extract',
-            state: {
-              memoryIds: result.createdIds,
-              count: result.createdIds.length,
-              reason: options.reason,
-              sourceEntryIds: chunk.sourceEntryIds,
-              coveredThroughOrderSeq: chunk.coveredThroughOrderSeq,
-              cursorCommitOrderSeq: chunk.cursorCommitOrderSeq,
-              fragments: chunk.fragments
-            }
-          })
-        }
-      }
-
-      const remaining = options.chunks.slice(MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK)
-      if (
-        remaining.length > 0 &&
-        this.memoryPort.isEnabled(agentId) &&
-        this.isMemoryExtractionEpochCurrent(sessionId, epoch)
-      ) {
-        this.enqueueSessionExtraction(
-          sessionId,
-          async (continuationEpoch) => {
-            await this.runMemoryExtractionChunks(
-              sessionId,
-              { chunks: remaining, reason: options.reason },
-              continuationEpoch
-            )
-          },
-          epoch
-        )
-      }
-    } catch (error) {
-      logger.warn(`[DeepChatAgent] memory extraction skipped: ${String(error)}`)
-    }
-  }
-
-  // Builds the extraction span from the effective tape view (retractions, replacements and
-  // tool-dedup already applied) over (from, to]. Span text and lineage are gathered from the
-  // same pass so a message that contributes no text never leaks into sourceEntryIds.
-  private buildMemoryExtractionWindow(
-    sessionId: string,
-    fromOrderSeqExclusive: number,
-    toOrderSeqInclusive: number
-  ): MemoryAdmissionWindow | null {
-    if (toOrderSeqInclusive <= fromOrderSeqExclusive) return null
-    const ingestionRange = this.listMemoryIngestionRange(
-      sessionId,
-      fromOrderSeqExclusive,
-      toOrderSeqInclusive
-    )
-    let selected: Array<{
-      messageId: string
-      orderSeq: number
-      entryId: number
-      role: 'user' | 'assistant'
-      content: string
-    }>
-    let hadToolUse: boolean
-
-    if (ingestionRange) {
-      selected = ingestionRange.rows.map((row) => ({
-        messageId: row.message_id,
-        orderSeq: row.order_seq,
-        entryId: row.entry_id,
-        role: row.role,
-        content: row.content
-      }))
-      hadToolUse = ingestionRange.rows.some((row) => row.had_tool_use === 1)
-    } else {
-      return null
-    }
-
-    if (selected.length === 0) return null
-    const messages: MemoryExtractionMessage[] = []
-    for (const entry of selected) {
-      const text = this.extractPlainTextFromRecord(entry)
-      if (!text) continue
-      messages.push({
-        orderSeq: entry.orderSeq,
-        entryId: entry.entryId,
-        role: entry.role,
-        text
-      })
-    }
-    const chunks = buildMemoryExtractionChunks(messages)
-    const selectedTailOrderSeq = selected.at(-1)?.orderSeq
-    const lastChunk = chunks.at(-1)
-    if (lastChunk && selectedTailOrderSeq !== undefined && ingestionRange.cursorCommitAllowed) {
-      lastChunk.cursorCommitOrderSeq = selectedTailOrderSeq
-      lastChunk.coveredThroughOrderSeq = selectedTailOrderSeq
-    }
-    if (!ingestionRange.cursorCommitAllowed) {
-      chunks.forEach((chunk) => {
-        chunk.cursorCommitOrderSeq = null
-      })
-    }
-    return {
-      chunks,
-      hadToolUse,
-      visibleTextChars: chunks.reduce((total, chunk) => total + chunk.text.length, 0)
-    }
-  }
-
-  private listMemoryIngestionRange(
-    sessionId: string,
-    fromOrderSeqExclusive: number,
-    toOrderSeqInclusive: number
-  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
-    const projectionTable = this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
-    if (
-      !projectionTable ||
-      typeof projectionTable.readCurrentRange !== 'function' ||
-      typeof projectionTable.replaceSession !== 'function' ||
-      typeof projectionTable.invalidateSession !== 'function'
-    ) {
-      return this.buildFullTapeIngestionRange(
-        sessionId,
-        fromOrderSeqExclusive,
-        toOrderSeqInclusive,
-        false
-      )
-    }
-
-    if (this.isMemoryIngestionProjectionCoolingDown(sessionId)) return null
-
-    try {
-      const current = projectionTable.readCurrentRange(
-        sessionId,
-        fromOrderSeqExclusive,
-        toOrderSeqInclusive
-      )
-      if (current.current) {
-        this.memoryIngestionProjectionRetryAfter.delete(sessionId)
-        return { rows: current.rows, cursorCommitAllowed: true }
-      }
-      return this.rebuildMemoryIngestionRange(
-        sessionId,
-        fromOrderSeqExclusive,
-        toOrderSeqInclusive,
-        current.maxEntryId
-      )
-    } catch (error) {
-      this.recordMemoryIngestionProjectionFailure(sessionId)
-      try {
-        projectionTable.invalidateSession(sessionId)
-      } catch {}
-      logger.warn(
-        `[DeepChatAgent] memory ingestion projection unavailable; falling back to Tape: ${String(error)}`
-      )
-      return this.buildFullTapeIngestionRange(
-        sessionId,
-        fromOrderSeqExclusive,
-        toOrderSeqInclusive,
-        false
-      )
-    }
-  }
-
-  private rebuildMemoryIngestionRange(
-    sessionId: string,
-    fromOrderSeqExclusive: number,
-    toOrderSeqInclusive: number,
-    maxEntryId: number
-  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
-    const tapeRows = this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
-    const projectionTable = this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
-    const view = buildEffectiveTapeView(tapeRows)
-    const projectionRows = this.projectionRowsFromEffectiveView(sessionId, view)
-    try {
-      projectionTable.replaceSession(sessionId, projectionRows, maxEntryId)
-      this.memoryIngestionProjectionRetryAfter.delete(sessionId)
-      return {
-        rows: this.filterMemoryIngestionRange(
-          projectionRows,
-          fromOrderSeqExclusive,
-          toOrderSeqInclusive
-        ),
-        cursorCommitAllowed: true
-      }
-    } catch (error) {
-      this.recordMemoryIngestionProjectionFailure(sessionId)
-      try {
-        projectionTable.invalidateSession(sessionId)
-      } catch {}
-      logger.warn(
-        `[DeepChatAgent] memory ingestion projection rebuild failed; using Tape without cursor commit: ${String(error)}`
-      )
-      return {
-        rows: this.filterMemoryIngestionRange(
-          projectionRows,
-          fromOrderSeqExclusive,
-          toOrderSeqInclusive
-        ),
-        cursorCommitAllowed: false
-      }
-    }
-  }
-
-  private isMemoryIngestionProjectionCoolingDown(sessionId: string): boolean {
-    const retryAfter = this.memoryIngestionProjectionRetryAfter.get(sessionId)
-    if (retryAfter === undefined) return false
-    if (Date.now() < retryAfter) return true
-    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
-    return false
-  }
-
-  private recordMemoryIngestionProjectionFailure(sessionId: string): void {
-    if (this.memoryIngestionProjectionRetryAfter.has(sessionId)) {
-      this.memoryIngestionProjectionRetryAfter.delete(sessionId)
-    } else if (
-      this.memoryIngestionProjectionRetryAfter.size >=
-      MEMORY_INGESTION_PROJECTION_FAILURE_CACHE_LIMIT
-    ) {
-      const oldestSessionId = this.memoryIngestionProjectionRetryAfter.keys().next().value
-      if (oldestSessionId !== undefined) {
-        this.memoryIngestionProjectionRetryAfter.delete(oldestSessionId)
-      }
-    }
-    this.memoryIngestionProjectionRetryAfter.set(
-      sessionId,
-      Date.now() + MEMORY_INGESTION_PROJECTION_RETRY_COOLDOWN_MS
-    )
-  }
-
-  private buildFullTapeIngestionRange(
-    sessionId: string,
-    fromOrderSeqExclusive: number,
-    toOrderSeqInclusive: number,
-    cursorCommitAllowed: boolean
-  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
-    try {
-      const view = buildEffectiveTapeView(
-        this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
-      )
-      const rows = this.projectionRowsFromEffectiveView(sessionId, view)
-      return {
-        rows: this.filterMemoryIngestionRange(rows, fromOrderSeqExclusive, toOrderSeqInclusive),
-        cursorCommitAllowed
-      }
-    } catch (error) {
-      logger.warn(`[DeepChatAgent] authoritative Tape fallback failed: ${String(error)}`)
-      return null
-    }
-  }
-
-  private projectionRowsFromEffectiveView(
-    sessionId: string,
-    view: ReturnType<typeof buildEffectiveTapeView>
-  ): DeepChatMemoryIngestionProjectionInput[] {
-    const messageIdsWithToolUse = new Set<string>()
-    for (const row of view.rows) {
-      const messageId = this.readToolCallMessageId(row)
-      if (messageId) messageIdsWithToolUse.add(messageId)
-    }
-    return view.messageEntries.map((entry) => {
-      if (entry.record.status !== 'sent' && entry.record.status !== 'error') {
-        throw new Error('Effective Tape view exposed a pending message during rebuild.')
-      }
-      return {
-        sessionId,
-        messageId: entry.record.id,
-        orderSeq: entry.record.orderSeq,
-        entryId: entry.entryId,
-        role: entry.record.role,
-        content: entry.record.content,
-        status: entry.record.status,
-        hadToolUse: messageIdsWithToolUse.has(entry.record.id)
-      }
-    })
-  }
-
-  private filterMemoryIngestionRange(
-    rows: readonly DeepChatMemoryIngestionProjectionInput[],
-    fromOrderSeqExclusive: number,
-    toOrderSeqInclusive: number
-  ): DeepChatMemoryIngestionProjectionRow[] {
-    return rows
-      .filter((row) => row.orderSeq > fromOrderSeqExclusive && row.orderSeq <= toOrderSeqInclusive)
-      .map((row) => ({
-        session_id: row.sessionId,
-        message_id: row.messageId,
-        order_seq: row.orderSeq,
-        entry_id: row.entryId,
-        role: row.role,
-        content: row.content,
-        status: row.status,
-        had_tool_use: row.hadToolUse ? 1 : 0
-      }))
-  }
-
-  private readToolCallMessageId(row: DeepChatTapeEntryRow): string | null {
-    if (row.kind !== 'tool_call') return null
-    try {
-      const payload = JSON.parse(row.payload_json) as { messageId?: unknown }
-      return typeof payload.messageId === 'string' && payload.messageId.length > 0
-        ? payload.messageId
-        : null
-    } catch {
-      return null
-    }
-  }
-
-  private extractPlainTextFromRecord(record: Pick<ChatMessageRecord, 'role' | 'content'>): string {
-    try {
-      const parsed = JSON.parse(record.content) as unknown
-      if (record.role === 'user') {
-        const text = (parsed as { text?: unknown })?.text
-        return typeof text === 'string' ? text.trim() : ''
-      }
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map((block) => {
-            const b = block as {
-              type?: string
-              content?: unknown
-            }
-            if (b?.type === 'content' && typeof b.content === 'string') return b.content
-            return ''
-          })
-          .filter(Boolean)
-          .join(' ')
-          .trim()
-      }
-      return ''
-    } catch {
-      return ''
-    }
-  }
-
   private isAcpBackedSubagentSession(sessionId: string, providerId?: string): boolean {
     const sessionRow = this.sqlitePresenter.newSessionsTable?.get(sessionId)
     if (!sessionRow || sessionRow.session_kind !== 'subagent') {
@@ -3825,8 +3196,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.throwIfStaleDeepChatInstance(sessionId, instance)
     this.pendingInputCoordinator.deleteBySession(sessionId)
     this.clearFirstTurnReady(sessionId)
-    this.resetMemoryExtractionCursor(sessionId)
-    this.memoryIngestionProjectionRetryAfter.delete(sessionId)
+    this.memoryCoordinator.resetExtractionCursor(sessionId)
+    this.memoryCoordinator.clearProjectionRetry(sessionId)
     this.messageStore.deleteBySession(sessionId)
     instance.replacePendingInteractions([])
     this.sessionStore.resetTape(sessionId)
@@ -3883,7 +3254,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     this.invalidateSummaryIfNeeded(sessionId, sourceUserMessage.orderSeq, instance)
-    this.invalidateMemoryExtractionFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
+    this.memoryCoordinator.invalidateFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     return {
       content: retryInput,
@@ -3905,7 +3276,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     await this.cancelGeneration(sessionId)
     this.throwIfStaleDeepChatInstance(sessionId, instance)
     this.invalidateSummaryIfNeeded(sessionId, target.orderSeq, instance)
-    this.invalidateMemoryExtractionFromOrderSeq(sessionId, target.orderSeq)
+    this.memoryCoordinator.invalidateFromOrderSeq(sessionId, target.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
     this.refreshPendingInteractionsFromStore(sessionId)
     this.setSessionStatus(sessionId, 'idle')
@@ -3936,7 +3307,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const nextContent = this.buildEditedUserContent(target.content, nextText)
     this.invalidateSummaryIfNeeded(sessionId, target.orderSeq, instance)
-    this.invalidateMemoryExtractionFromOrderSeq(sessionId, target.orderSeq)
+    this.memoryCoordinator.invalidateFromOrderSeq(sessionId, target.orderSeq)
     this.messageStore.updateMessageContent(messageId, nextContent)
 
     const updated = await this.messageStore.getMessage(messageId)
@@ -4510,7 +3881,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             ),
           readSummary: () => this.sessionStore.getSummaryState(params.sessionId),
           afterCompactionApplyReturned: (intent) =>
-            this.triggerMemoryExtractionFromCompaction(
+            this.memoryCoordinator.triggerExtractionFromCompaction(
               params.expectedInstance.getMemorySessionHandle(),
               intent
             ),
@@ -4529,7 +3900,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(
             params.sessionId
           ),
-          memoryQuery: this.getLatestUserQuery(params.sessionId),
+          memoryQuery: this.memoryCoordinator.getLatestUserQuery(params.sessionId),
           memoryMessageId: null
         }),
       getSummaryCursorOrderSeq: (summaryState) => summaryState.summaryCursorOrderSeq,
@@ -4668,7 +4039,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const userMessage = userMessageId ? this.messageStore.getMessage(userMessageId) : null
     if (userMessage) {
       this.invalidateSummaryIfNeeded(sessionId, userMessage.orderSeq, expectedInstance)
-      this.invalidateMemoryExtractionFromOrderSeq(sessionId, userMessage.orderSeq)
+      this.memoryCoordinator.invalidateFromOrderSeq(sessionId, userMessage.orderSeq)
       this.messageStore.deleteFromOrderSeq(sessionId, userMessage.orderSeq)
     }
     this.releaseClaimedPendingInput(sessionId, pendingQueueItemId, pendingInputSource)
@@ -4957,7 +4328,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             basePrompt: baseSystemPrompt,
             summaryText: summaryState.summaryText,
             reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-            memoryQuery: this.getLatestUserQuery(sessionId),
+            memoryQuery: this.memoryCoordinator.getLatestUserQuery(sessionId),
             memoryMessageId: messageId
           }),
         buildView: (systemPrompt) =>
@@ -5062,7 +4433,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed' || result?.status === 'aborted') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        this.triggerMemoryExtractionFallback(sessionId)
+        this.memoryCoordinator.triggerExtractionFallback(sessionId)
       }
       return true
     } catch (error) {
@@ -7749,39 +7120,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
     this.sessionStore.resetSummaryState(sessionId)
     this.emitCompactionState(sessionId, this.buildIdleCompactionState(), expectedInstance)
-  }
-
-  private ensureMemoryExtractionEpoch(sessionId: string): number {
-    if (!this.memoryExtractionEpochs.has(sessionId)) {
-      this.memoryExtractionEpochs.set(sessionId, 0)
-    }
-    return this.memoryExtractionEpochs.get(sessionId) ?? 0
-  }
-
-  private bumpMemoryExtractionEpoch(sessionId: string): void {
-    const epoch = this.memoryExtractionEpochs.get(sessionId) ?? 0
-    this.memoryExtractionEpochs.set(sessionId, epoch + 1)
-  }
-
-  private isMemoryExtractionEpochCurrent(sessionId: string, epoch: number): boolean {
-    return this.memoryExtractionEpochs.get(sessionId) === epoch
-  }
-
-  private resetMemoryExtractionCursor(sessionId: string): void {
-    this.bumpMemoryExtractionEpoch(sessionId)
-    this.sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, 0)
-  }
-
-  private invalidateMemoryExtractionFromOrderSeq(sessionId: string, orderSeq: number): void {
-    this.bumpMemoryExtractionEpoch(sessionId)
-    const memoryCursor =
-      this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-    if (orderSeq <= memoryCursor) {
-      this.sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq(
-        sessionId,
-        Math.max(0, Math.floor(orderSeq) - 1)
-      )
-    }
   }
 
   private invalidateSummaryIfNeeded(

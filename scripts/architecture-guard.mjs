@@ -42,6 +42,14 @@ const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const SHARED_SOURCE_ROOT = path.join(ROOT, 'src/shared')
 const ACP_DIRECT_INSTANCE_ROOT = path.join(ROOT, 'src/main/agent/acp/instance')
 const DEEPCHAT_LOOP_ROOT = path.join(ROOT, 'src/main/agent/deepchat/loop')
+const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
+  ROOT,
+  'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
+)
+const AGENT_RUNTIME_PRESENTER_ROOT = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter'
+)
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
@@ -115,6 +123,14 @@ const RETIRED_ACP_BACKEND_SYMBOL_PATTERN =
   /\b(?:LegacyAcpSessionBackend|LegacyAcpSessionHandle|compatibilityImplementation)\b/g
 const RETIRED_ACP_BACKEND_FACTORY_PATTERN =
   /\bcreateLegacyAgentBackend\s*\(\s*['"]acp['"]/g
+const RETIRED_MEMORY_ORCHESTRATION_OWNER_NAMES = new Set([
+  'memoryExtractionChains',
+  'memoryExtractionQueue',
+  'nextMemoryExtractionQueueId',
+  'memoryExtractionEpochs',
+  'memoryIngestionProjectionRetryAfter',
+  'memoryInjectionAccessByTurn'
+])
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
@@ -209,6 +225,128 @@ function propertyNameText(name) {
   return null
 }
 
+function sourceFileForAst(source, filePath, scriptKind = ts.ScriptKind.TS) {
+  return ts.createSourceFile(
+    filePath,
+    scriptSourceForAst(source, filePath),
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKind
+  )
+}
+
+function findNamedClassDeclarations(sourceFile, className) {
+  const declarations = []
+  const visit = (node) => {
+    if (ts.isClassDeclaration(node) && node.name?.text === className) {
+      declarations.push(node)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return declarations
+}
+
+function classPropertiesByName(classDeclaration) {
+  const properties = new Map()
+  for (const member of classDeclaration.members) {
+    if (!ts.isPropertyDeclaration(member) || !member.name) continue
+    const name = propertyNameText(member.name)
+    if (name) properties.set(name, member)
+  }
+  return properties
+}
+
+function newMapSignature(property, sourceFile) {
+  const initializer = property?.initializer
+  if (
+    !initializer ||
+    !ts.isNewExpression(initializer) ||
+    !ts.isIdentifier(initializer.expression) ||
+    initializer.expression.text !== 'Map' ||
+    initializer.typeArguments?.length !== 2
+  ) {
+    return null
+  }
+  return initializer.typeArguments.map((node) => node.getText(sourceFile).replaceAll(/\s/g, ''))
+}
+
+function analyzeMemoryRuntimeCoordinatorStructure(source, filePath) {
+  const sourceFile = sourceFileForAst(source, filePath)
+  const classes = findNamedClassDeclarations(sourceFile, 'MemoryRuntimeCoordinator')
+  if (classes.length === 0) {
+    return {
+      classCount: 0,
+      violations: [
+        `[memory-coordinator-missing-class] ${relativePath(filePath)} expected class MemoryRuntimeCoordinator`
+      ]
+    }
+  }
+
+  const properties = classPropertiesByName(classes[0])
+  const violations = []
+  const requiredMaps = [
+    [
+      'extractionChains',
+      ['string', 'Promise<void>'],
+      'memory-coordinator-missing-extraction-chain',
+      'expected per-session extraction chain Map<string, Promise<void>>'
+    ],
+    [
+      'extractionQueue',
+      ['number', '{sessionId:string;queuedAt:number}'],
+      'memory-coordinator-missing-queue-diagnostics',
+      'expected queue diagnostics Map<number, { sessionId: string; queuedAt: number }>'
+    ],
+    [
+      'extractionEpochs',
+      ['string', 'number'],
+      'memory-coordinator-missing-owned-state',
+      'expected extractionEpochs to remain a coordinator-owned Map'
+    ],
+    [
+      'ingestionProjectionRetryAfter',
+      ['string', 'number'],
+      'memory-coordinator-missing-owned-state',
+      'expected ingestionProjectionRetryAfter to remain a coordinator-owned Map'
+    ],
+    [
+      'injectionAccessByTurn',
+      ['string', 'MemoryInjectionAccessTurnEntry'],
+      'memory-coordinator-missing-owned-state',
+      'expected injectionAccessByTurn to remain a coordinator-owned Map'
+    ]
+  ]
+  for (const [name, signature, rule, message] of requiredMaps) {
+    if (JSON.stringify(newMapSignature(properties.get(name), sourceFile)) !== JSON.stringify(signature)) {
+      violations.push(`[${rule}] ${relativePath(filePath)} ${message}`)
+    }
+  }
+
+  const queueCounter = properties.get('nextExtractionQueueId')
+  if (!queueCounter?.initializer || !ts.isNumericLiteral(queueCounter.initializer) || queueCounter.initializer.text !== '0') {
+    violations.push(
+      `[memory-coordinator-missing-monotonic-counter] ${relativePath(filePath)} expected nextExtractionQueueId initialized to 0`
+    )
+  }
+
+  return { classCount: classes.length, violations }
+}
+
+function findRetiredMemoryPresenterOwners(source, filePath) {
+  const sourceFile = sourceFileForAst(source, filePath)
+  const owners = []
+  const visit = (node) => {
+    if (ts.isPropertyDeclaration(node) && node.name) {
+      const name = propertyNameText(node.name)
+      if (name && RETIRED_MEMORY_ORCHESTRATION_OWNER_NAMES.has(name)) owners.push(name)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return owners
+}
+
 function accessMemberName(node) {
   if (ts.isPropertyAccessExpression(node)) {
     return node.name.text
@@ -266,13 +404,7 @@ function expressionSegments(node) {
 }
 
 function findCausalObservationViolations(source, filePath) {
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS
-  )
+  const sourceFile = sourceFileForAst(source, filePath)
   const memoryRuntimeBindings = new Set()
   for (const statement of sourceFile.statements) {
     if (
@@ -405,13 +537,7 @@ function scriptSourceForAst(source, filePath) {
 function countDeprecatedMemoryClientCalls(source, filePath) {
   const astSource = scriptSourceForAst(source, filePath)
   if (!astSource.trim()) return 0
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    astSource,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX
-  )
+  const sourceFile = sourceFileForAst(source, filePath, ts.ScriptKind.TSX)
   const factoryNames = new Set(['createMemoryClient'])
   const routeNames = new Set(['memoryListRoute'])
   const clientNames = new Set()
@@ -674,6 +800,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
   const readSource = async (filePath) =>
     normalizedVirtualFiles.get(path.resolve(filePath)) ?? fs.readFile(filePath, 'utf8')
   const violations = []
+  const memoryCoordinatorOwners = []
   violations.push(
     ...(await analyzeMemoryArchitecture({
       root: ROOT,
@@ -711,6 +838,21 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     const specifiers = extractModuleSpecifiers(source)
 
     if (isUnder(filePath, MAIN_SOURCE_ROOT)) {
+      if (source.includes('MemoryRuntimeCoordinator')) {
+        const coordinatorClasses = findNamedClassDeclarations(
+          sourceFileForAst(source, filePath),
+          'MemoryRuntimeCoordinator'
+        )
+        memoryCoordinatorOwners.push(
+          ...coordinatorClasses.map(() => relativePath(filePath))
+        )
+      }
+
+      if (path.resolve(filePath) === path.resolve(MEMORY_RUNTIME_COORDINATOR_PATH)) {
+        const coordinatorStructure = analyzeMemoryRuntimeCoordinatorStructure(source, filePath)
+        violations.push(...coordinatorStructure.violations)
+      }
+
       const legacyListCalls = countMatches(source, LEGACY_MEMORY_PRESENTER_LIST_PATTERN)
       const allowedCalls = LEGACY_MEMORY_PRESENTER_LIST_ALLOWLIST.get(path.resolve(filePath)) ?? 0
       if (legacyListCalls > allowedCalls) {
@@ -725,6 +867,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         violations.push(
           `[acp-retired-legacy-backend] ${relativePath(filePath)} expected 0 retired symbols/factories, found ${retiredAcpSymbols + retiredAcpFactories}`
         )
+      }
+
+      if (isUnder(filePath, AGENT_RUNTIME_PRESENTER_ROOT)) {
+        const retiredMemoryOwners = findRetiredMemoryPresenterOwners(source, filePath)
+        if (retiredMemoryOwners.length > 0) {
+          violations.push(
+            `[memory-retired-presenter-owner] ${relativePath(filePath)} expected 0 retired orchestration owner fields, found ${retiredMemoryOwners.join(', ')}`
+          )
+        }
       }
 
       if (source.includes('readCausalObservationSlice')) {
@@ -888,6 +1039,12 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         violations.push(`[renderer-remove-all-listeners] ${relativePath(filePath)}`)
       }
     }
+  }
+
+  if (memoryCoordinatorOwners.length !== 1) {
+    violations.push(
+      `[memory-coordinator-owner-count] expected exactly 1 MemoryRuntimeCoordinator class, found ${memoryCoordinatorOwners.length}${memoryCoordinatorOwners.length ? `: ${memoryCoordinatorOwners.join(', ')}` : ''}`
+    )
   }
 
   const hotPathEdges = await collectHotPathDirectEdges()

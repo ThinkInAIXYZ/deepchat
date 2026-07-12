@@ -3,13 +3,13 @@
 > 状态：目标设计。Memory 在所有其他 ownership/lifecycle 稳定后最后迁移。  
 > 本模块只改变接线位置，不改变 `MemoryPresenter`、schema、retrieval、projection 或 maintenance。
 
-> 实施进度：ASLR-046 只在 instance 上建立 identity-only、per-instance stable Memory session handle，供
-> legacy compaction-to-Memory seam 绑定 captured owner。`memoryExtractionChains`、
-> `memoryExtractionEpochs`、`memoryIngestionProjectionRetryAfter`、`memoryInjectionAccessByTurn` 仍完整保留在
-> legacy Presenter；cursor 与 MemoryPresenter data orchestration 未迁移。ASLR-054 已把 `MEM-14` 的
-> existing entry-point asymmetry 固定在 typed input preparation seam：initial 与 context-pressure
-> normal return 调用 legacy trigger，resume/manual compaction 不调用；coordinator owner 提取仍属于
-> ASLR-059。
+> 实施进度：ASLR-046 在 instance 上建立 identity-only、per-instance stable Memory session handle；
+> ASLR-054 固定 `MEM-14` 的 existing entry-point asymmetry。ASLR-059 已将 prompt/accounting、
+> extraction queue/chains/counter、epoch/cursor、projection fallback/cooldown 与 injection-access dedupe
+> 机械提取到唯一 runtime-scoped `MemoryRuntimeCoordinator`。legacy Presenter 只保留构造接线和调用委托，
+> `MemoryPresenter` data orchestration 未迁移。AST architecture guard 以 class/property structure 固定唯一
+> owner，并拒绝 Presenter owner 回流；public seam tests 覆盖 128-turn access cap 与 256-session cooldown
+> cap。typed prompt/ingestion ports 仍分别属于 ASLR-060/061。
 
 ## 1. 模块目的
 
@@ -34,10 +34,11 @@ background queue 和 shutdown fencing。
 
 ## 3. AFTER 的唯一 orchestration owner 与两个端口
 
-一个 runtime-scoped `MemoryRuntimeCoordinator` 接收现有 runtime 中的四组 mutable state，成为唯一
-owner：
+一个 runtime-scoped `MemoryRuntimeCoordinator` 已接收现有 runtime 中的 mutable orchestration state，
+成为唯一 owner：
 
 - `memoryExtractionChains`；
+- extraction queue 与 monotonic queue counter；
 - `memoryExtractionEpochs`；
 - `memoryIngestionProjectionRetryAfter`；
 - `memoryInjectionAccessByTurn`。
@@ -94,9 +95,10 @@ assemble request
 ```text
 settled turn or eligible settled compaction attempt (initial/context-pressure only)
   -> evaluate current eligibility
-  -> enqueue trigger origin + current epoch
+  -> enqueue the trigger path without capturing an epoch
        compaction path additionally captures the existing targetCursorOrderSeq upper bound
   -> when this task reaches the head of the per-session serial queue:
+       ensure/read the current epoch
        read latest committed cursor
        read latest fallback tail, or use captured compaction upper bound
        build effective Tape projection/window + exact sourceEntryIds
@@ -143,7 +145,9 @@ normal return 后调用。完整 outcome matrix 以 `MEM-13/14` 为准。
 ## 8. Queue、cursor 与 epoch
 
 - queue key 使用 app session id；同 session 严格串行，不同 session 可按当前限制并发；
-- enqueue 时捕获 trigger origin、epoch；compaction 额外捕获 current intent upper bound；
+- enqueue 时只保留 trigger path；compaction 额外捕获 current intent upper bound；
+- task 到达 per-session queue 头部时才 ensure 当前 epoch；同一 job 的 chunk continuation 显式传递
+  `expectedEpoch`，epoch 不在普通 enqueue 时冻结；
 - task 真正开始时读取最新 cursor；fallback 同时读取最新 tail，compaction 使用已捕获 upper bound；
 - task 在此时构建并冻结 effective Tape chunks/sourceEntryIds；后续 queued task 因最新 cursor 不会重复；
 - 开始执行和提交前都重新验证 fence；
@@ -151,6 +155,10 @@ normal return 后调用。完整 outcome matrix 以 `MEM-13/14` 为准。
 - cooldown/queue/epoch/access-dedupe 由 `MemoryRuntimeCoordinator` 管理，LoopEngine/instance 不复制 maps；
 - clear/delete/destroy 先建立 fence，之后的 late job 不能回写已重建的同 id session；
 - shutdown 必须等待 required jobs settle 或被安全 fencing，随后才关闭 SQLite/vector resources。
+
+当前 start-time epoch 语义存在一个已知边界：旧 session 的普通 queued task 若在 destroy 后才首次开始，
+可能读取到复用后的同 session id epoch。ASLR-059 为保持 baseline 不改变该行为；session-id reuse 的产品
+语义与修复必须另写 behavior spec，不能隐含塞入 ownership refactor。
 
 ## 9. 删除与 lineage 变化
 
@@ -176,10 +184,11 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
 ## 11. 迁移步骤
 
 1. 在任何代码移动前冻结 `MEM-01..14` 和两个 outcome matrix 的 fixture/test。
-2. 从 runtime 机械提取唯一 `MemoryRuntimeCoordinator` owner，四组 maps/cursor call sites 原样移动；
-   instance 只取得 session handle。
+2. [ASLR-059 已完成] 从 runtime 机械提取唯一 `MemoryRuntimeCoordinator` owner，queue/counter、四组
+   maps/cursor call sites 原样移动；instance 只取得 session handle。
 3. 为 query/injection 建 `MemoryPromptContributor` port，对比 exact section/budget/sanitization/selection。
-4. 为 terminal/compaction 建只携带 trigger/origin/epoch/upper-bound 的 DTO；不要提前抓 cursor/tail/window。
+4. 为 terminal/compaction 建只携带 trigger/origin/upper-bound 的 DTO；普通 task 在开始时 ensure epoch，
+   只有同一 job continuation 携带 `expectedEpoch`；不要提前抓 cursor/tail/window。
 5. 接入 `afterTurnSettled`，分别验证 initial returned、resume returned 和 thrown paths。
 6. 只在 initial/context-pressure 接入 `afterCompactionApplyReturned`，覆盖 normal
    `succeeded=true|false` return；throw/no-intent 不调用，resume/manual 不接入该 observer。
@@ -191,14 +200,15 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
 - Memory disabled/enabled、无 persona、一个/多个 persona、active 切换；
 - working memory empty/present/oversized/malicious content；
 - retrieval success/throw/timeout、anchor write failure；
-- repeated null-messageId pressure recovery access accounting 与 non-null message dedupe/TTL/cap；
+- repeated null-messageId pressure recovery access accounting，以及 130 个 non-null turns 对 128 cap 的
+  dedupe/eviction/TTL parity；
 - initial/resume returned completed、returned aborted、thrown AbortError、thrown non-abort error；
 - initial/resume returned paused、returned error；
 - turn with 0/1/N tools、duplicate renderer/message callbacks；
 - initial/context-pressure compaction no intent、normal return succeeded=true、normal return
   succeeded=false、thrown AbortError、thrown non-abort error；resume/manual 各 outcome 均无 compaction
   extraction；
-- projection primary/fallback/cooldown；
+- projection primary/fallback/cooldown，以及 257 个 failed sessions 对 256 cap 的 oldest eviction；
 - cursor success/failure/stale epoch；
 - concurrent sessions 与 same-session serialized jobs；
 - first job 尚未完成时连续触发第二 job并落入新 turn；验证第二 job 在执行时看见第一 job 推进后的

@@ -20,6 +20,7 @@ import {
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
@@ -700,6 +701,13 @@ describe('AgentRuntimePresenter', () => {
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
+  const getMemoryCoordinator = () =>
+    (agent as unknown as { memoryCoordinator: MemoryRuntimeCoordinator }).memoryCoordinator
+
+  const setMemoryPort = (port: any) => {
+    getMemoryCoordinator().setPort(port)
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     ;(processStream as ReturnType<typeof vi.fn>).mockReset()
@@ -757,7 +765,7 @@ describe('AgentRuntimePresenter', () => {
   describe('memory injection', () => {
     it('keeps the injected prompt when the view anchor write fails', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         recordInjectionAccess: vi.fn(),
         buildInjection: vi.fn(async () => ({
@@ -775,12 +783,12 @@ describe('AgentRuntimePresenter', () => {
             queryHash: 'query-hash'
           }
         }))
-      }
+      })
       sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockImplementation(() => {
         throw new Error('anchor failed')
       })
 
-      const prompt = await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis')
+      const prompt = await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis')
 
       expect(prompt).toContain('base prompt')
       expect(prompt).toContain('## Relevant Memories')
@@ -793,7 +801,7 @@ describe('AgentRuntimePresenter', () => {
     it('records access only for selected injected memories and dedupes by message', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
       const recordInjectionAccess = vi.fn()
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         recordInjectionAccess,
         buildInjection: vi.fn(async () => ({
@@ -815,12 +823,12 @@ describe('AgentRuntimePresenter', () => {
             queryHash: 'query-hash'
           }
         }))
-      }
+      })
 
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', 'user-message-1')
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', 'user-message-1')
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', null)
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', null)
+      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', 'user-message-1')
+      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', 'user-message-1')
+      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', null)
+      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', null)
 
       expect(recordInjectionAccess.mock.calls).toEqual([
         ['a', ['selected']],
@@ -828,66 +836,25 @@ describe('AgentRuntimePresenter', () => {
         ['a', ['selected']]
       ])
     })
-
-    it('bounds injection access dedupe state per session and clears it on destroy', async () => {
-      const recordInjectionAccess = vi.fn()
-      ;(agent as any).memoryPort = {
-        recordInjectionAccess
-      }
-
-      for (let index = 0; index < 130; index += 1) {
-        ;(agent as any).recordMemoryInjectionAccess(
-          'a',
-          's1',
-          [{ id: `selected-${index}` }],
-          `message-${index}`
-        )
-      }
-
-      const accessByTurn = (agent as any).memoryInjectionAccessByTurn as Map<string, unknown>
-      const sessionKeys = [...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))
-      expect(sessionKeys).toHaveLength(128)
-      expect(recordInjectionAccess).toHaveBeenCalledTimes(130)
-
-      await agent.destroySession('s1')
-      expect([...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))).toHaveLength(0)
-    })
-
-    it('expires old injection access dedupe turns for active sessions', () => {
-      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
-      ;(agent as any).memoryPort = {
-        recordInjectionAccess: vi.fn()
-      }
-
-      ;(agent as any).recordMemoryInjectionAccess('a', 's1', [{ id: 'old' }], 'old-message')
-      nowSpy.mockReturnValue(31 * 60 * 1000)
-      ;(agent as any).recordMemoryInjectionAccess('a', 's1', [{ id: 'new' }], 'new-message')
-
-      const accessByTurn = (agent as any).memoryInjectionAccessByTurn as Map<string, unknown>
-      expect([...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))).toEqual([
-        's1\u0000new-message'
-      ])
-      nowSpy.mockRestore()
-    })
   })
 
   describe('memory extraction lifecycle', () => {
     function installDeferredExtraction() {
       const extraction = deferred<{ ok: true; createdIds: string[] }>()
       const extractAndStore = vi.fn(() => extraction.promise)
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         extractAndStore
-      }
+      })
       return { extraction, extractAndStore }
     }
 
     function installResolvedExtraction() {
       const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: [] })
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         extractAndStore
-      }
+      })
       return extractAndStore
     }
 
@@ -974,14 +941,13 @@ describe('AgentRuntimePresenter', () => {
     }
 
     async function triggerFallbackAndWait() {
-      ;(agent as any).triggerMemoryExtractionFallback('s1')
-      const chain = (agent as any).memoryExtractionChains.get('s1') as Promise<void> | undefined
-      await chain
+      getMemoryCoordinator().triggerExtractionFallback('s1')
+      await getMemoryCoordinator().waitForSession('s1')
     }
 
     function startExtraction(toOrderSeq = 10) {
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
-      return (agent as any).runMemoryExtractionChunks(
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
+      return getMemoryCoordinator().runExtractionChunks(
         's1',
         {
           chunks: [
@@ -1024,12 +990,7 @@ describe('AgentRuntimePresenter', () => {
     }
 
     async function waitForExtractionChain() {
-      while (true) {
-        const chain = (agent as any).memoryExtractionChains.get('s1') as Promise<void> | undefined
-        if (!chain) return
-        await chain
-        await Promise.resolve()
-      }
+      await getMemoryCoordinator().waitForSession('s1')
     }
 
     it('admits a short single-turn span when the window used a tool', async () => {
@@ -1113,10 +1074,10 @@ describe('AgentRuntimePresenter', () => {
     it('keeps the cursor unchanged when extraction returns ok:false', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = vi.fn().mockResolvedValue({ ok: false })
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         extractAndStore
-      }
+      })
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
       sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
 
@@ -1132,10 +1093,10 @@ describe('AgentRuntimePresenter', () => {
     it('continues after four chunks on the same session extraction chain', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = installResolvedExtraction()
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
 
-      await (agent as any).runMemoryExtractionChunks(
+      await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [1, 2, 3, 4, 5].map(extractionChunk), reason: 'fallback' },
         epoch
@@ -1156,11 +1117,11 @@ describe('AgentRuntimePresenter', () => {
         .fn()
         .mockResolvedValueOnce({ ok: true, createdIds: [] })
         .mockResolvedValueOnce({ ok: false })
-      ;(agent as any).memoryPort = { isEnabled: vi.fn(() => true), extractAndStore }
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      setMemoryPort({ isEnabled: vi.fn(() => true), extractAndStore })
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
 
-      await (agent as any).runMemoryExtractionChunks(
+      await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [1, 2, 3].map(extractionChunk), reason: 'fallback' },
         epoch
@@ -1179,11 +1140,11 @@ describe('AgentRuntimePresenter', () => {
     it('writes only the completed chunk lineage into the extraction anchor', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: ['memory-2'] })
-      ;(agent as any).memoryPort = { isEnabled: vi.fn(() => true), extractAndStore }
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      setMemoryPort({ isEnabled: vi.fn(() => true), extractAndStore })
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
       sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
 
-      await (agent as any).runMemoryExtractionChunks(
+      await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [extractionChunk(2)], reason: 'compaction' },
         epoch
@@ -1216,9 +1177,9 @@ describe('AgentRuntimePresenter', () => {
       expect(instance.getMemorySessionHandle()).toBe(memorySession)
       expect(memorySession.sessionId).toBe(sessionId)
 
-      ;(agent as any).triggerMemoryExtractionFromCompaction(memorySession, {
+      getMemoryCoordinator().triggerExtractionFromCompaction(memorySession, {
         targetCursorOrderSeq: 2
-      })
+      } as any)
       await waitForExtractionChain()
 
       expect(extractAndStore).toHaveBeenCalledTimes(1)
@@ -1231,9 +1192,9 @@ describe('AgentRuntimePresenter', () => {
       const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
       expect(replacement.getMemorySessionHandle()).not.toBe(memorySession)
       expect(() =>
-        (agent as any).triggerMemoryExtractionFromCompaction(memorySession, {
+        getMemoryCoordinator().triggerExtractionFromCompaction(memorySession, {
           targetCursorOrderSeq: 2
-        })
+        } as any)
       ).toThrow('DeepChat agent instance was replaced: s1')
       expect(extractAndStore).toHaveBeenCalledTimes(1)
     })
@@ -1245,7 +1206,7 @@ describe('AgentRuntimePresenter', () => {
       ])
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-      const window = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+      const window = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
 
       expect(window).toEqual(
         expect.objectContaining({
@@ -1297,7 +1258,7 @@ describe('AgentRuntimePresenter', () => {
         invalidateSession: vi.fn()
       }
 
-      const rebuiltWindow = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+      const rebuiltWindow = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
       expect(rebuiltWindow).toEqual(
         expect.objectContaining({
           hadToolUse: true,
@@ -1308,7 +1269,7 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
-      const rangeWindow = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+      const rangeWindow = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
 
       expect(rangeWindow).toEqual(rebuiltWindow)
       expect(replaceSession).toHaveBeenCalledTimes(1)
@@ -1328,7 +1289,7 @@ describe('AgentRuntimePresenter', () => {
       }
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-      const window = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+      const window = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
 
       expect(window).toEqual(
         expect.objectContaining({
@@ -1339,7 +1300,7 @@ describe('AgentRuntimePresenter', () => {
       expect(invalidateSession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
-      expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toBeNull()
+      expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toBeNull()
       expect(
         sqlitePresenter.deepchatMemoryIngestionProjectionTable.readCurrentRange
       ).toHaveBeenCalledTimes(1)
@@ -1391,53 +1352,30 @@ describe('AgentRuntimePresenter', () => {
         }
         sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-        const fallback = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+        const fallback = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
         expect(fallback.chunks.every((chunk: any) => chunk.cursorCommitOrderSeq === null)).toBe(
           true
         )
         expect(replaceSession).toHaveBeenCalledTimes(1)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
-        expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toBeNull()
+        expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toBeNull()
         expect(readCurrentRange).toHaveBeenCalledTimes(1)
         expect(replaceSession).toHaveBeenCalledTimes(1)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
         now.mockReturnValue(31_000)
         failReplacement = false
-        const recovered = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+        const recovered = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
         expect(recovered.chunks.at(-1)?.cursorCommitOrderSeq).toBe(1)
         expect(replaceSession).toHaveBeenCalledTimes(2)
 
-        expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toEqual(recovered)
+        expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toEqual(recovered)
         expect(readCurrentRange).toHaveBeenCalledTimes(3)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(2)
       } finally {
         now.mockRestore()
       }
-    })
-
-    it('bounds projection failure cooldown state and clears it with session lifecycle', async () => {
-      const internals = agent as any
-      internals.recordMemoryIngestionProjectionFailure('s1')
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(true)
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
-
-      internals.recordMemoryIngestionProjectionFailure('s1')
-      await agent.clearMessages('s1')
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
-
-      for (let index = 0; index < 257; index += 1) {
-        internals.recordMemoryIngestionProjectionFailure(`session-${index}`)
-      }
-      expect(internals.memoryIngestionProjectionRetryAfter.size).toBe(256)
-      expect(internals.memoryIngestionProjectionRetryAfter.has('session-0')).toBe(false)
-
-      internals.recordMemoryIngestionProjectionFailure('s1')
-      await agent.destroySession('s1')
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
     })
 
     it('drops an in-flight extraction commit after clearMessages resets the session', async () => {
@@ -3524,11 +3462,11 @@ describe('AgentRuntimePresenter', () => {
           }
         }
       })
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         buildInjection,
         recordInjectionAccess: vi.fn()
-      }
+      })
 
       const buildBasePrompt = (agent as any).buildSystemPromptWithSkills.bind(agent)
       vi.spyOn(agent as any, 'buildSystemPromptWithSkills').mockImplementation(
@@ -3607,11 +3545,11 @@ describe('AgentRuntimePresenter', () => {
         const buildInjection = rejects
           ? vi.fn().mockRejectedValue(new Error('memory unavailable'))
           : vi.fn()
-        ;(agent as any).memoryPort = {
+        setMemoryPort({
           isEnabled: vi.fn(() => enabled),
           buildInjection,
           recordInjectionAccess: vi.fn()
-        }
+        })
 
         await agent.processMessage('s1', 'no intent')
 
@@ -3647,11 +3585,11 @@ describe('AgentRuntimePresenter', () => {
       const postAssembler = (agent as any).postCompactionPromptAssembler
       const postSpy = vi.spyOn(postAssembler, 'assemble')
       const buildInjection = vi.fn()
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         buildInjection,
         recordInjectionAccess: vi.fn()
-      }
+      })
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -5794,11 +5732,11 @@ describe('AgentRuntimePresenter', () => {
     it('recovers when the first provider event is context overflow with memory disabled', async () => {
       const buildInjection = vi.fn()
       const extractAndStore = vi.fn()
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => false),
         buildInjection,
         extractAndStore
-      }
+      })
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -6236,11 +6174,11 @@ describe('AgentRuntimePresenter', () => {
           queryHash: 'pressure-query'
         }
       }))
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         buildInjection,
         recordInjectionAccess: vi.fn()
-      }
+      })
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -7214,11 +7152,11 @@ describe('AgentRuntimePresenter', () => {
           }
         }
       })
-      ;(agent as any).memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         buildInjection,
         recordInjectionAccess: vi.fn()
-      }
+      })
       const postAssembler = (agent as any).postCompactionPromptAssembler
       const assemblePostCompaction = postAssembler.assemble.bind(postAssembler)
       vi.spyOn(postAssembler, 'assemble').mockImplementation(async (input: unknown) => {

@@ -367,8 +367,9 @@ event. Request correlation is exact by session/message/request sequence; output 
 when a caller supplies a non-hydrating peek. Injected-port and native-table fixtures now prove repeated, explicit,
 latest, trace-only and payload-opt-in reads leave Tape order, ViewManifest rows, message/trace rows, effective view,
 replay hashes, Memory ingestion projection/cursor state and complete user schema unchanged. TapeService does not
-own or expose the runtime projection-retry cooldown, so its observable contract and migration remain assigned to
-`ASLR-059`. The historical renderer event gap remains; the proof does not manufacture event history.
+own or expose the runtime projection-retry cooldown. ASLR-059 has since moved that cooldown and its behavioral
+contract into `MemoryRuntimeCoordinator`. The historical renderer event gap remains; the proof does not
+manufacture event history.
 
 Deliverables:
 
@@ -395,15 +396,23 @@ Rollback: remove the read/observation adapter; no persisted data needs rollback.
 Objective: after control plane, both backends, loop lifecycle and Tape boundaries are stable, connect Memory
 without changing Memory internals.
 
+Progress after `ASLR-059`: the sole runtime-scoped coordinator now owns queue/counter, chains/epochs,
+projection retry cooldown, injection-access dedupe, cursor/window/extraction and prompt/accounting orchestration.
+`AgentRuntimePresenter` retains only construction wiring and thin delegates. Public coordinator tests replace the
+handwritten serialization mirror and prove the historical 128-turn access and 256-session cooldown caps through
+public seams. An AST architecture guard requires exactly one structurally valid coordinator owner and rejects
+retired Presenter owner fields. Prompt/ingestion port extraction remains ASLR-060/061.
+
 Deliverables:
 
 - extract one runtime-scoped `MemoryRuntimeCoordinator` as the sole owner of the current extraction chains,
   epochs, projection retry cooldown and injection-access dedupe maps;
 - expose `MemoryPromptContributor` and `MemoryIngestionObserver` ports from that coordinator; instances keep
   only a session handle;
-- preserve current queue timing: enqueue captures trigger/epoch and the current compaction upper bound where
-  applicable; each serialized task reads the latest cursor/tail and builds its effective Tape window when it
-  begins, then treats that built window as immutable;
+- preserve current queue timing: enqueue keeps the trigger path and current compaction upper bound where
+  applicable; each serialized task ensures the current epoch, reads the latest cursor/tail and builds its
+  effective Tape window when it begins, then treats that built window as immutable; only same-job chunk
+  continuations carry `expectedEpoch`;
 - preserve the current initial-turn/resume and compaction-attempt asymmetries as characterization behavior,
   including compaction extraction only for initial/context-pressure normal returns and none for resume/manual;
 - leave `MemoryPresenter`, schemas, vector store, retrieval, write coordinator and maintenance services

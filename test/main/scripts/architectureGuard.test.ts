@@ -51,6 +51,18 @@ const RETIRED_ACP_BACKEND_FIXTURE = path.join(
   ROOT,
   'src/main/agent/__architecture_guard_retired_acp_backend_fixture__.ts'
 )
+const RETIRED_MEMORY_OWNER_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_retired_memory_owner_fixture__.ts'
+)
+const MEMORY_COORDINATOR_PATH = path.join(
+  ROOT,
+  'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
+)
+const DUPLICATE_MEMORY_COORDINATOR_FIXTURE = path.join(
+  ROOT,
+  'src/main/agent/deepchat/memory/__architecture_guard_duplicate_coordinator_fixture__.ts'
+)
 const CAUSAL_OBSERVATION_SAFE_FIXTURE = path.join(
   ROOT,
   'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_safe_fixture__.ts'
@@ -239,6 +251,14 @@ const virtualFiles = new Map<string, string>([
     `
   ],
   [
+    RETIRED_MEMORY_OWNER_FIXTURE,
+    `
+      export class RetiredMemoryOwner {
+        private readonly memoryExtractionChains = new Map<string, Promise<void>>()
+      }
+    `
+  ],
+  [
     CAUSAL_OBSERVATION_SAFE_FIXTURE,
     `
       import type { DeepChatTapeReplaySlice as MemoryStore } from '@shared/types/tape-replay'
@@ -316,6 +336,32 @@ function forFile(violations: string[], filePath: string): string[] {
   return violations.filter((violation) => violation.includes(relative))
 }
 
+const VALID_MEMORY_COORDINATOR_FIXTURE = `
+  interface MemoryInjectionAccessTurnEntry {}
+  export class MemoryRuntimeCoordinator {
+    private readonly extractionChains = new Map<string, Promise<void>>()
+    private readonly extractionQueue = new Map<
+      number,
+      { sessionId: string; queuedAt: number }
+    >()
+    private nextExtractionQueueId = 0
+    private readonly extractionEpochs = new Map<string, number>()
+    private readonly ingestionProjectionRetryAfter = new Map<string, number>()
+    private readonly injectionAccessByTurn =
+      new Map<string, MemoryInjectionAccessTurnEntry>()
+  }
+`
+
+async function memoryCoordinatorFixtureViolations(
+  source: string,
+  additionalVirtualFiles: Map<string, string> = new Map()
+): Promise<string[]> {
+  const violations = await runArchitectureGuard({
+    virtualFiles: new Map([[MEMORY_COORDINATOR_PATH, source], ...additionalVirtualFiles])
+  })
+  return violations.filter((violation) => violation.includes('[memory-coordinator-'))
+}
+
 async function invalidCompilerViolations(memoryCompiler: Record<string, unknown>) {
   return analyzeMemoryArchitecture({
     root: ROOT,
@@ -351,6 +397,59 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[renderer-business-direct-ipc-listener]')
     expect(fixtureViolations).toContain('[memory-legacy-list-caller]')
   })
+
+  it('keeps Memory orchestration state out of the runtime presenter', () => {
+    expect(forFile(violations, RETIRED_MEMORY_OWNER_FIXTURE).join('\n')).toContain(
+      '[memory-retired-presenter-owner]'
+    )
+  })
+
+  it(
+    'requires the coordinator owner structure without locking method bodies',
+    async () => {
+      const emptyFixture = 'export class MemoryRuntimeCoordinator {}'
+      const missingQueueFixture = VALID_MEMORY_COORDINATOR_FIXTURE.replace(
+        /\s+private readonly extractionQueue = new Map<[\s\S]*?>\(\)/,
+        ''
+      )
+      const missingCounterFixture = VALID_MEMORY_COORDINATOR_FIXTURE.replace(
+        '\n    private nextExtractionQueueId = 0',
+        ''
+      )
+      const [valid, empty, missingQueue, missingCounter, duplicate] = await Promise.all([
+        memoryCoordinatorFixtureViolations(VALID_MEMORY_COORDINATOR_FIXTURE),
+        memoryCoordinatorFixtureViolations(emptyFixture),
+        memoryCoordinatorFixtureViolations(missingQueueFixture),
+        memoryCoordinatorFixtureViolations(missingCounterFixture),
+        memoryCoordinatorFixtureViolations(
+          VALID_MEMORY_COORDINATOR_FIXTURE,
+          new Map([
+            [
+              DUPLICATE_MEMORY_COORDINATOR_FIXTURE,
+              'export class MemoryRuntimeCoordinator {}'
+            ]
+          ])
+        )
+      ])
+
+      expect(valid).toEqual([])
+      expect(empty.join('\n')).toContain('[memory-coordinator-missing-extraction-chain]')
+      expect(empty.join('\n')).toContain('[memory-coordinator-missing-queue-diagnostics]')
+      expect(empty.join('\n')).toContain('[memory-coordinator-missing-monotonic-counter]')
+      expect(missingQueue).toEqual([
+        expect.stringContaining('[memory-coordinator-missing-queue-diagnostics]')
+      ])
+      expect(missingCounter).toEqual([
+        expect.stringContaining('[memory-coordinator-missing-monotonic-counter]')
+      ])
+      expect(duplicate).toEqual([
+        expect.stringContaining(
+          '[memory-coordinator-owner-count] expected exactly 1 MemoryRuntimeCoordinator class, found 2'
+        )
+      ])
+    },
+    20_000
+  )
 
   it('enforces domain, core, infra, service, and root dependency directions', () => {
     expect(forFile(violations, DOMAIN_FIXTURE).join('\n')).toContain(

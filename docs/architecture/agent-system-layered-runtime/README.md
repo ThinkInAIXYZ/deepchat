@@ -380,8 +380,9 @@ user message fact
 `ASLR-081` 已用 injected storage seams 与可用时的 native SQLite tables 固化 non-interference：所有 read
 模式前后的 Tape order/ViewManifest、message/trace、effective view、replay hash、Memory ingestion
 projection/cursor 与完整 user schema 相同，现有 table/projection/cursor write seams 为零调用；AST guard
-禁止 reader 引入 Memory runtime value import/call。cooldown 不属于 `DeepChatTapeService` 且当前没有 public
-observable seam，其迁移与公共合同仍由 `ASLR-059` 负责。该证明没有填补历史 renderer event 缺口；
+禁止 reader 引入 Memory runtime value import/call。cooldown 不属于 `DeepChatTapeService`；ASLR-059 已将其
+迁移到唯一 `MemoryRuntimeCoordinator` 并用 public coordinator contract 覆盖。该证明没有填补历史
+renderer event 缺口；
 `eventHistory=not_persisted` 仍是 read model 的真实边界。
 
 - `deepchat_tape_entries.entry_id` 继续提供 per-session monotonic order。

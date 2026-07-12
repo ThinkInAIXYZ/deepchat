@@ -136,7 +136,7 @@ wording; module and task documents reference them without redefining them.
 | `MEM-04` | Injection access is recorded only for final selected manifest IDs. With a non-null messageId it is deduped by session/message under the current TTL/cap; null-messageId pressure-recovery calls keep current non-deduped accounting. This is not extraction dedupe. |
 | `MEM-05` | `memory/view_assembled` failure does not remove an already assembled prompt. |
 | `MEM-06` | Extraction input comes from the effective Tape/projection with the exact lineage of the window built inside the serialized task. |
-| `MEM-07` | Extraction stays background and per-session serial; sibling sessions may progress independently. Enqueue captures trigger/epoch and the existing compaction upper bound only; the task reads the latest cursor/tail when it starts. |
+| `MEM-07` | Extraction stays background and per-session serial; sibling sessions may progress independently. Enqueue keeps the trigger path and existing compaction upper bound only. The serialized task ensures the current epoch and reads the latest cursor/tail when it starts; only same-job chunk continuations carry `expectedEpoch`. |
 | `MEM-08` | Cursor advances only after `ok: true`; failed/disabled work cannot consume the range. |
 | `MEM-09` | Projection validation/rebuild failure falls back to authoritative Tape without committing cursor and keeps the retry cooldown. |
 | `MEM-10` | Edit/delete/retry/pending rollback/clear/destroy invalidate stale epochs and rewind/rebuild at the current boundary. |
@@ -168,9 +168,10 @@ Compaction trigger matrix:
 | initial input or context-pressure recovery | apply throws AbortError or another error | no | none |
 | resume or manual compaction | any intent/apply outcome | no | none |
 
-Memory service internals are out of scope. The one runtime-scoped `MemoryRuntimeCoordinator` moves the current
-chains/epochs/cooldown/access-dedupe orchestration and exposes prompt/ingestion ports; instances only keep a
-session handle.
+Memory service internals are out of scope. ASLR-059 moved the current queue/counter, chains/epochs,
+cooldown/access-dedupe and cursor orchestration into one runtime-scoped `MemoryRuntimeCoordinator`; instances
+only keep a session handle. Prompt/ingestion ports remain ASLR-060/061 work. The existing start-time epoch leaves
+session-id reuse behavior intentionally unchanged; any change requires a separate behavior spec.
 
 ## 5. Golden causal fixtures
 
@@ -348,7 +349,8 @@ republication, and stale expected-handle cleanup preserves the replacement bound
 
 - all `test/main/**` Memory tests, including runtime integration;
 - `memoryInjectionPort.test.ts` for budget/sanitization;
-- `memoryExtraction.test.ts` and `memorySessionExtractionLock.test.ts` for cursor/serialization;
+- `memoryExtraction.test.ts`, `agent/deepchat/memory/memoryRuntimeCoordinator.test.ts` and
+  `agent/deepchat/memory/memoryExtractionChunks.test.ts` for cursor/serialization/chunking;
 - `sqlitePresenter/deepchatMemoryIngestionProjection.test.ts` for projection/Tape/transaction behavior;
 - `pnpm run test:main:memory-perf`;
 - the dedicated native Memory CI job.
