@@ -363,6 +363,9 @@ function createMockSqlitePresenter() {
           .filter((m) => m.session_id === sessionId)
           .sort((a: any, b: any) => a.order_seq - b.order_seq)
       }),
+      hasBySession: vi.fn((sessionId: string) =>
+        messagesList.some((message) => message.session_id === sessionId)
+      ),
       getBySessionUpToOrderSeq: vi.fn((sessionId: string, maxOrderSeq: number) => {
         return messagesList
           .filter((m) => m.session_id === sessionId && m.order_seq <= maxOrderSeq)
@@ -1193,8 +1196,8 @@ describe('Integration: multi-turn context', () => {
       (message: any) => message.role === 'user'
     )
 
-    expect(secondCallContents).not.toContain(firstPrompt)
-    expect(secondCallContents).not.toContain(firstResponse)
+    expect(secondCallContents).toContain(firstPrompt)
+    expect(secondCallContents).toContain(firstResponse)
     expect(estimateMessagesTokens(secondCallMessages) + 128).toBeLessThanOrEqual(2048)
     expect(secondCallUserMessages[secondCallUserMessages.length - 1].content).toEqual(
       expect.stringContaining('[Attached File 1]')

@@ -1,9 +1,72 @@
+import { createHash } from 'node:crypto'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { promisify } from 'node:util'
 
 const ROOT = process.cwd()
 const REPORT_DIR = path.join(ROOT, 'docs/architecture/baselines')
+const execFileAsync = promisify(execFile)
+const AGENT_SYSTEM_BASELINE_PATH = path.join(
+  REPORT_DIR,
+  'agent-system-layered-runtime-baseline.json'
+)
+const AGENT_SYSTEM_OWNER_PATHS = [
+  'src/main/presenter/agentRepository/index.ts',
+  'src/main/presenter/agentSessionPresenter/agentRegistry.ts',
+  'src/main/presenter/agentSessionPresenter/index.ts',
+  'src/main/presenter/agentRuntimePresenter/index.ts',
+  'src/main/presenter/agentRuntimePresenter/process.ts',
+  'src/main/presenter/agentRuntimePresenter/dispatch.ts',
+  'src/main/presenter/llmProviderPresenter/providers/acpProvider.ts',
+  'src/main/presenter/acpClientPresenter/index.ts'
+]
+const AGENT_SYSTEM_CONTRACT_ROOTS = [
+  'src/shared/contracts/routes',
+  'src/shared/contracts/events'
+]
+const SQLITE_SCHEMA_ROOTS = [
+  'src/main/presenter/sqlitePresenter/schemaCatalog.ts',
+  'src/main/presenter/sqlitePresenter/schemaCatalogMetadata.ts',
+  'src/main/presenter/sqlitePresenter/schemaTypes.ts',
+  'src/main/presenter/sqlitePresenter/tables'
+]
+const MEMORY_SIDECAR_SCHEMA_FILES = [
+  'src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts'
+]
+const COMPOSITION_LIFECYCLE_FILES = [
+  'src/main/presenter/index.ts',
+  'src/main/presenter/lifecyclePresenter/index.ts',
+  'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/mcpShutdownHook.ts',
+  'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts'
+]
+const AGENT_SYSTEM_SESSION_MAP_FIELDS = [
+  'runtimeState',
+  'sessionGenerationSettings',
+  'abortControllers',
+  'deferredToolAbortControllers',
+  'activeGenerations',
+  'firstTurnReadySessions',
+  'firstTurnReadyWaiters',
+  'activeSteerPendingInputIds',
+  'sessionAgentIds',
+  'sessionProjectDirs',
+  'systemPromptCache',
+  'toolProfileCache',
+  'runtimeActivatedSkillsBySession',
+  'sessionCompactionStates',
+  'interactionLocks',
+  'resumingMessages',
+  'drainingPendingQueues',
+  'activeProviderPermissions'
+]
+const AGENT_SYSTEM_MEMORY_MAP_FIELDS = [
+  'memoryExtractionChains',
+  'memoryExtractionEpochs',
+  'memoryIngestionProjectionRetryAfter',
+  'memoryInjectionAccessByTurn'
+]
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])
 const PHASE_ORDER = new Map([
@@ -135,6 +198,173 @@ async function pathExists(targetPath) {
     return true
   } catch {
     return false
+  }
+}
+
+async function hashFiles(relativeFiles) {
+  const hash = createHash('sha256')
+  for (const file of [...relativeFiles].sort()) {
+    const source = await fs.readFile(path.join(ROOT, file), 'utf8')
+    hash.update(`${file}\0${source.replaceAll('\r\n', '\n')}\0`)
+  }
+  return hash.digest('hex')
+}
+
+async function collectRelativeSourceFiles(relativeRoots) {
+  const files = []
+  for (const root of relativeRoots) {
+    const absoluteRoot = path.join(ROOT, root)
+    for (const file of await walk(absoluteRoot)) files.push(relativePath(file))
+  }
+  return [...new Set(files)].sort()
+}
+
+async function getHeadCommit() {
+  const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: ROOT })
+  return stdout.trim()
+}
+
+async function getRelevantDirtyFiles(relativeRoots) {
+  const { stdout } = await execFileAsync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+    cwd: ROOT
+  })
+  const candidates = stdout
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => line.slice(3).split(' -> ').at(-1))
+    .filter((file) => typeof file === 'string')
+  return candidates
+    .filter((file) =>
+      relativeRoots.some((root) => file === root || file.startsWith(`${root.replace(/\/$/, '')}/`))
+    )
+    .sort()
+}
+
+function countCollectionFieldDeclarations(source, fields) {
+  return Object.fromEntries(
+    [...fields].sort().map((field) => {
+      const declaration = source
+        .split('\n')
+        .find((line) => new RegExp(`\\b${field}\\b`).test(line) && line.includes('= new '))
+      return [field, declaration && /new (?:Map|Set)[<(]/.test(declaration) ? 1 : 0]
+    })
+  )
+}
+
+function collectSqlTableIdentifiers(sources) {
+  const identifiers = new Set()
+  for (const source of sources) {
+    for (const match of source.matchAll(/CREATE (?:VIRTUAL )?TABLE IF NOT EXISTS ([a-z][a-z0-9_]*)/g)) {
+      identifiers.add(match[1])
+    }
+  }
+  return [...identifiers].sort()
+}
+
+async function buildAgentSystemBaseline() {
+  const ownerPaths = Object.fromEntries(
+    await Promise.all(
+      [...AGENT_SYSTEM_OWNER_PATHS].sort().map(async (file) => [file, await pathExists(path.join(ROOT, file))])
+    )
+  )
+  const runtimePath = 'src/main/presenter/agentRuntimePresenter/index.ts'
+  const runtimeSource = await fs.readFile(path.join(ROOT, runtimePath), 'utf8')
+  const ownerSources = await Promise.all(
+    AGENT_SYSTEM_OWNER_PATHS.filter((file) => ownerPaths[file]).map((file) =>
+      fs.readFile(path.join(ROOT, file), 'utf8')
+    )
+  )
+  const ownerSource = ownerSources.join('\n')
+  const loopFiles = [
+    'src/main/presenter/agentRuntimePresenter/process.ts',
+    'src/main/presenter/agentRuntimePresenter/dispatch.ts'
+  ]
+  const loopSpecifiers = []
+  for (const file of loopFiles) {
+    const source = await fs.readFile(path.join(ROOT, file), 'utf8')
+    for (const specifier of extractSpecifiers(source)) {
+      loopSpecifiers.push({ file, specifier })
+    }
+  }
+  const contractFiles = await collectRelativeSourceFiles(AGENT_SYSTEM_CONTRACT_ROOTS)
+  const agentRuntimeLibFiles = await collectRelativeSourceFiles(['src/main/lib/agentRuntime'])
+  const sqliteSchemaFiles = await collectRelativeSourceFiles(SQLITE_SCHEMA_ROOTS)
+  const sqliteSchemaSources = await Promise.all(
+    sqliteSchemaFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8'))
+  )
+  const memorySidecarSchemaFiles = [...MEMORY_SIDECAR_SCHEMA_FILES].sort()
+  const memorySidecarSchemaSources = await Promise.all(
+    memorySidecarSchemaFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8'))
+  )
+  const compositionLifecycleFiles = [...COMPOSITION_LIFECYCLE_FILES].sort()
+  const relevantRoots = [
+    ...AGENT_SYSTEM_OWNER_PATHS,
+    ...AGENT_SYSTEM_CONTRACT_ROOTS,
+    ...SQLITE_SCHEMA_ROOTS,
+    ...MEMORY_SIDECAR_SCHEMA_FILES,
+    ...COMPOSITION_LIFECYCLE_FILES,
+    'src/main/lib/agentRuntime'
+  ]
+  const relevantDirtyFiles = await getRelevantDirtyFiles(relevantRoots)
+
+  return {
+    schemaVersion: 1,
+    goal: 'agent-system-layered-runtime',
+    headCommit: await getHeadCommit(),
+    relevantWorkingTree: {
+      dirty: relevantDirtyFiles.length > 0,
+      files: relevantDirtyFiles
+    },
+    sourceRoots: ['src/main', 'src/shared/contracts'],
+    currentOwners: {
+      paths: ownerPaths,
+      agentRuntimeLibFiles,
+      symbols: {
+        AgentRegistry: ownerSource.includes('AgentRegistry') ? 1 : 0,
+        IAgentImplementation: ownerSource.includes('IAgentImplementation') ? 1 : 0
+      }
+    },
+    runtimeState: {
+      owner: runtimePath,
+      sessionKeyedCollectionFields: countCollectionFieldDeclarations(
+        runtimeSource,
+        AGENT_SYSTEM_SESSION_MAP_FIELDS
+      ),
+      memoryOrchestrationMapFields: countCollectionFieldDeclarations(
+        runtimeSource,
+        AGENT_SYSTEM_MEMORY_MAP_FIELDS
+      )
+    },
+    contracts: {
+      files: contractFiles,
+      sha256: await hashFiles(contractFiles)
+    },
+    storage: {
+      sqlite: {
+        files: sqliteSchemaFiles,
+        tableIdentifiers: collectSqlTableIdentifiers(sqliteSchemaSources),
+        sha256: await hashFiles(sqliteSchemaFiles)
+      },
+      memoryDuckDbSidecar: {
+        files: memorySidecarSchemaFiles,
+        tableIdentifiers: ['embedding_meta', 'memory_vector'],
+        versionContract: 'embedding identity stored in embedding_meta; no numeric schema version',
+        sha256: await hashFiles(memorySidecarSchemaFiles)
+      }
+    },
+    compositionAndShutdown: {
+      files: compositionLifecycleFiles,
+      sha256: await hashFiles(compositionLifecycleFiles)
+    },
+    dependencyMetrics: {
+      loopFiles,
+      loopToPresenterRoot: loopSpecifiers.filter(({ specifier }) =>
+        ['@/presenter', '@/presenter/index', '../index', '../../index'].includes(specifier)
+      ).length,
+      loopToElectronOrRoutes: loopSpecifiers.filter(({ specifier }) =>
+        /(^electron$|electron\/|\/routes(?:\/|$)|^@\/routes(?:\/|$))/.test(specifier)
+      ).length
+    }
   }
 }
 
@@ -905,6 +1135,7 @@ async function main() {
   const hotPathEdges = await collectHotPathDirectEdges()
   const bridgeRegister = await loadBridgeRegister()
   const bridgeSummary = summarizeBridges(bridgeRegister)
+  const agentSystemBaseline = await buildAgentSystemBaseline()
   const p2PresenterCounts = await collectPresenterFamilyCounts(
     rendererBusinessFiles,
     PRESENTER_PHASE_GATES.P2
@@ -1050,6 +1281,7 @@ async function main() {
   }
 
   await Promise.all([
+    fs.writeFile(AGENT_SYSTEM_BASELINE_PATH, `${JSON.stringify(agentSystemBaseline, null, 2)}\n`),
     fs.writeFile(
       path.join(REPORT_DIR, 'dependency-report.md'),
       `${renderDependencyReport(scopes)}\n`

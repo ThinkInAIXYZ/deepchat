@@ -47,26 +47,30 @@ Objective: freeze current facts before any owner moves.
 Deliverables:
 
 - land this SDD set and mark the old presenter-split proposal superseded;
-- record current route/event/schema tables and composition/shutdown order;
-- capture malformed agent-row behavior for config/state JSON, manual command, source×kind and source/id
-  collisions separately for catalog list and backend execution;
-- add a golden DeepChat flow covering:
-  `pre-stream cancel registration -> base prompt -> compaction intent -> user fact -> compaction apply ->
-  context -> assistant placeholder -> active generation -> manifest attempt -> tool facts -> final projection`;
-- add direct lifecycle-order tests for initial, resume, permission pause, question pause, cancel, overflow retry
-  and compaction attempt;
-- distinguish provider outer-round count from per-attempt request sequence, including strict retry within one
-  round;
-- add fixtures for post-call permission, post-success skill-draft interaction, multiple ordered interactions,
-  ViewManifest write failure and fresh-run resume;
-- pin current Memory trigger asymmetries and ACP regular/subagent differences as compatibility behavior;
-- pin `kind=deepchat + providerId=acp` as a separate compatibility row from `kind=acp`;
-- capture architecture baseline before paths change.
+- build the coverage map in [migration-and-validation.md](./migration-and-validation.md), reusing existing
+  long-lived contract tests before adding characterization;
+- record current route/event/schema tables and composition/shutdown order in a compact machine-readable
+  architecture baseline;
+- add focused, long-lived tests only where a stable public/port seam exists and the coverage map identifies a
+  high-value gap, including malformed agent-row catalog/executable behavior and provider outer-round versus
+  per-attempt request sequence;
+- keep the following compatibility rows explicit in the coverage map even when existing tests already cover
+  them: initial/resume/pause/cancel/compaction lifecycle order, post-call permission, post-success skill draft,
+  multiple ordered interactions, ViewManifest failure, fresh-run resume, Memory trigger asymmetries, ACP
+  regular/subagent differences, and `kind=deepchat + providerId=acp` versus `kind=acp`;
+- do not expose private state, build a large presenter fake graph, add one test per proposed stage, duplicate a
+  lower-level contract with E2E, or dual-run provider/tool side effects merely to characterize the baseline;
+- defer the complete causal-order, typed interaction-outcome and `MEM-13`/`MEM-14` narrow contract fixtures to
+  Phases 6 and 9, where the stable typed seams exist and those fixtures become phase exit gates;
+- delete migration-only parity, import-path and private-shape tests after they have served their comparison;
+  permanent tests must assert behavior, ordering, error policy or persisted contracts.
 
 Exit gate:
 
 - no production code behavior diff;
-- focused baseline tests and `pnpm run test:main` pass;
+- the coverage map names the existing proof or owning future typed-seam task for every compatibility row above;
+- focused high-value baseline tests, the machine-readable architecture baseline and `pnpm run test:main` pass;
+- no migration-only test or generated audit report remains unless it is an explicit long-lived contract;
 - no unresolved `[NEEDS CLARIFICATION]` marker.
 
 Rollback: documentation/test-only revert.
@@ -241,7 +245,10 @@ Rules:
 
 Exit gate:
 
-- lifecycle order tests assert exact call/commit order;
+- narrow lifecycle tests over the new typed seams assert the complete initial/tool/resume causal call/commit
+  order without presenter-private-state assertions;
+- typed interaction-outcome tests cover pre-check, question, post-call permission and post-success skill draft,
+  including multiple ordered interactions, no side-effect replay and final-item-only fresh resume;
 - prompt/request drafts are semantically equivalent at every provider request;
 - permission deferred-tool continuation and compaction CAS remain unchanged.
 
@@ -327,6 +334,8 @@ Deliverables:
 Exit gate:
 
 - all invariants in [memory-integration.md](./modules/memory-integration.md) pass;
+- narrow tests over `MemoryPromptContributor` / `MemoryIngestionObserver` cover the complete `MEM-13` turn
+  outcome matrix and `MEM-14` compaction return/throw matrix without calling presenter-private helpers;
 - `pnpm run test:main:memory-perf` and the native CI contract remain at baseline;
 - no Memory table/version/config/wire diff.
 

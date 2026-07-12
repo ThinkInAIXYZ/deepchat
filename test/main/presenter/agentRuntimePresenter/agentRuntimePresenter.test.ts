@@ -5637,7 +5637,7 @@ describe('AgentRuntimePresenter', () => {
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
     })
 
-    it('uses strict trim retry after local preflight compaction and provider overflow', async () => {
+    it('keeps strict overflow retry within one provider round while advancing request sequence', async () => {
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -5646,7 +5646,7 @@ describe('AgentRuntimePresenter', () => {
           maxTokens: 4096
         }
       })
-      await agent.processMessage('s1', 'Hello')
+      await agent.processMessage('s1', 'Hello', { maxProviderRounds: 1 })
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
       llmProvider.generateText.mockClear()
 
@@ -5673,10 +5673,11 @@ describe('AgentRuntimePresenter', () => {
       const strictRetryExtraReserve = Math.max(256, Math.min(Math.floor(contextLength * 0.1), 8192))
 
       expect(events).toEqual([{ type: 'text', content: 'Recovered by strict trim' }])
+      expect(callArgs.maxProviderRounds).toBe(1)
       expect(providerCoreStream).toHaveBeenCalledTimes(2)
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
       expect(getContextOverflowAnchorCalls()).toHaveLength(1)
-      expect(manifests).toHaveLength(2)
+      expect(manifests.map((manifest: any) => manifest.requestSeq)).toEqual([1, 2])
       expect(strictManifest).toMatchObject({
         requestSeq: 2,
         policy: 'context_pressure_recovery_shadow',

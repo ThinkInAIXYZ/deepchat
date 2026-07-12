@@ -228,7 +228,35 @@ ACP promise settles once
 action/turn terminal state persists
 ```
 
-## 6. Test gates by boundary
+## 6. Characterization coverage policy and map
+
+Phase 0 does not translate every behavior row into a new presenter-level test. It first maps existing durable
+proof, adds only high-value gaps that can be asserted through a stable public/port seam, and assigns contracts
+that require a new typed seam to the phase that introduces that seam. This scheduling does not weaken any
+behavior matrix in this document; the assigned phase cannot pass until its narrow contract fixture exists.
+
+Permanent tests assert behavior, ordering, failure policy, persistence or compatibility. Do not retain tests that
+only inspect presenter-private maps, mirror the complete internal mock call graph, prove a file was temporarily
+moved, assert each proposed stage was called, or dual-run provider/tool side effects. Migration-only parity,
+import-path and private-shape tests must be removed after their comparison; final import ownership belongs in the
+architecture guard.
+
+| Compatibility row | Phase 0 proof | Owning narrow-seam gate |
+| --- | --- | --- |
+| malformed agent config/state, missing manual command, invalid source×kind, source/id collision, legacy DTO | repository characterization over current public reads/writes | typed tolerant/strict codec contracts in `ASLR-010` and repository ownership contracts in `ASLR-011` |
+| initial/tool/multi-round loop, max rounds, skill refresh, rate wait, cancel and stale run | existing `agentRuntimePresenter/process` contract suites plus focused strict-retry outer-round/request-sequence characterization | complete typed lifecycle causal order in `ASLR-052..056` / Phase 6 |
+| prompt order, compaction, overflow recovery and ViewManifest success/failure | existing runtime, compaction and Tape/ViewManifest suites | typed input/context/request lifecycle order in `ASLR-052..054` / Phase 6 |
+| pre-check permission, question, skill draft, multiple ordered interactions and fresh-run resume | existing dispatch/runtime interaction suites | typed batch outcome, post-call no-replay and final-item-only resume in `ASLR-056` / Phase 6 |
+| ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; the direct backend remains absent in Phase 0 | direct regular/subagent/routing parity in `ASLR-070..072` / Phase 7 |
+| Tape facts, effective view, manifest, replay/privacy | existing Tape fact/view/replay suites | recorder/output causal order in `ASLR-052`, observation non-interference in `ASLR-080..081` |
+| Memory injection, extraction, cursor, lineage, fencing and current trigger asymmetries | existing Memory and runtime integration suites plus the authoritative `MEM-01..14` matrices below | complete `MEM-13` returned/thrown turn matrix and `MEM-14` compaction return/throw matrix over `MemoryPromptContributor` / `MemoryIngestionObserver` in `ASLR-060..061` / Phase 9 |
+| route/event/schema and composition/shutdown facts | compact machine-readable architecture baseline | per-slice integration gates and final architecture guard/baseline in `ASLR-091..092` |
+
+A large presenter fake created only to restate this table is not an acceptable substitute for the assigned typed
+contract. E2E remains limited to user-observable smoke coverage; module and real-boundary integration tests are
+the primary proof.
+
+## 7. Test gates by boundary
 
 ### Control plane/data
 
@@ -277,7 +305,7 @@ ACP compatibility branches and stale-run cancellation.
 - `pnpm run test:main:memory-perf`;
 - the dedicated native Memory CI job.
 
-## 7. Command gates
+## 8. Command gates
 
 Focused PR gate:
 
@@ -313,7 +341,7 @@ pnpm run e2e:smoke:ci
 If a local native binding prevents the native Memory job, CI remains required; the skipped local result is not
 treated as a pass.
 
-## 8. Rollback policy
+## 9. Rollback policy
 
 - Each slice keeps one active owner; no long-lived dual writers.
 - New facades/adapters may delegate backward, so rollback is code-only.
@@ -324,7 +352,7 @@ treated as a pass.
 - A discovered behavior defect is recorded separately and the refactor preserves the baseline until that fix is
   approved.
 
-## 9. Final architecture audit
+## 10. Final architecture audit
 
 Before retirement completes, verify mechanically:
 
