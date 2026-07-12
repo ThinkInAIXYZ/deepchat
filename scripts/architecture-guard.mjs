@@ -199,6 +199,159 @@ function countMatches(source, pattern) {
   return count
 }
 
+function propertyNameText(name) {
+  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) {
+    return name.text
+  }
+  if (ts.isComputedPropertyName(name) && ts.isStringLiteralLike(name.expression)) {
+    return name.expression.text
+  }
+  return null
+}
+
+function accessMemberName(node) {
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text
+  }
+  if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) {
+    return node.argumentExpression.text
+  }
+  return null
+}
+
+function forbiddenObservationMember(name) {
+  if (/^(?:ensure|bootstrap|backfill)(?:$|[A-Z])/.test(name)) {
+    return `bootstrap/lifecycle member "${name}"`
+  }
+  if (/^(?:append|insert|update|delete|rebuild)(?:$|[A-Z])/.test(name)) {
+    return `mutation member "${name}"`
+  }
+  if (/^(?:publish|emit|dispatchEvent)(?:$|[A-Z])/.test(name)) {
+    return `event publication member "${name}"`
+  }
+  if (
+    /^(?:subscribe|unsubscribe|addListener|removeListener|addEventListener|removeEventListener|on|once)(?:$|[A-Z])/.test(
+      name
+    )
+  ) {
+    return `event subscription member "${name}"`
+  }
+  if (/^(?:exec|execute|run|prepare|transaction|createTable)$/.test(name)) {
+    return `SQL execution member "${name}"`
+  }
+  return null
+}
+
+function expressionSegments(node) {
+  if (ts.isIdentifier(node)) return [node.text]
+  if (ts.isPropertyAccessExpression(node)) {
+    return [...expressionSegments(node.expression), node.name.text]
+  }
+  if (ts.isElementAccessExpression(node)) {
+    const member = accessMemberName(node)
+    return [...expressionSegments(node.expression), ...(member ? [member] : [])]
+  }
+  if (
+    ts.isParenthesizedExpression(node) ||
+    ts.isNonNullExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isTypeAssertionExpression(node)
+  ) {
+    return expressionSegments(node.expression)
+  }
+  return []
+}
+
+function findCausalObservationViolations(source, filePath) {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  )
+  const bodies = []
+  const findImplementations = (node) => {
+    const name = 'name' in node && node.name ? propertyNameText(node.name) : null
+    if (
+      ts.isMethodDeclaration(node) &&
+      node.body &&
+      name === 'readCausalObservationSlice'
+    ) {
+      bodies.push(node.body)
+    } else if (
+      (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) &&
+      name === 'readCausalObservationSlice' &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+    ) {
+      bodies.push(node.initializer.body)
+    }
+    ts.forEachChild(node, findImplementations)
+  }
+  findImplementations(sourceFile)
+
+  const findings = []
+  const seen = new Set()
+  const addFinding = (node, reason) => {
+    const key = `${node.pos}:${node.end}`
+    if (seen.has(key)) return
+    seen.add(key)
+    findings.push(reason)
+  }
+
+  for (const body of bodies) {
+    const inspect = (node) => {
+      if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+        const callee = node.expression
+        const member = accessMemberName(callee)
+        const forbiddenMember = member ? forbiddenObservationMember(member) : null
+        if (forbiddenMember) {
+          addFinding(callee, forbiddenMember)
+        } else if (ts.isIdentifier(callee)) {
+          const forbiddenCall = forbiddenObservationMember(callee.text)
+          if (forbiddenCall) addFinding(callee, forbiddenCall)
+        }
+
+        const segments = expressionSegments(callee)
+        if (segments.some((segment) => /memory/i.test(segment))) {
+          addFinding(callee, `Memory API call "${segments.join('.')}"`)
+        } else if (
+          ts.isNewExpression(node) &&
+          segments.some((segment) => /(?:database|sqlite|sql)/i.test(segment))
+        ) {
+          addFinding(callee, `SQL runtime construction "${segments.join('.')}"`)
+        }
+      } else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+        const member = accessMemberName(node)
+        const forbiddenMember = member ? forbiddenObservationMember(member) : null
+        if (forbiddenMember) {
+          addFinding(node, forbiddenMember)
+        } else {
+          const parentOwnsAccess =
+            (ts.isPropertyAccessExpression(node.parent) ||
+              ts.isElementAccessExpression(node.parent)) &&
+            node.parent.expression === node
+          const segments = expressionSegments(node)
+          if (!parentOwnsAccess && segments.some((segment) => /memory/i.test(segment))) {
+            addFinding(node, `Memory API member "${segments.join('.')}"`)
+          }
+        }
+      } else if (ts.isBindingElement(node) && ts.isIdentifier(node.name)) {
+        const member = node.propertyName
+          ? propertyNameText(node.propertyName)
+          : propertyNameText(node.name)
+        const forbiddenMember = member ? forbiddenObservationMember(member) : null
+        if (forbiddenMember) addFinding(node, forbiddenMember)
+      }
+      ts.forEachChild(node, inspect)
+    }
+    inspect(body)
+  }
+
+  return findings
+}
+
 function scriptSourceForAst(source, filePath) {
   if (path.extname(filePath) !== '.vue') return source
   return [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
@@ -529,6 +682,14 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         violations.push(
           `[acp-retired-legacy-backend] ${relativePath(filePath)} expected 0 retired symbols/factories, found ${retiredAcpSymbols + retiredAcpFactories}`
         )
+      }
+
+      if (source.includes('readCausalObservationSlice')) {
+        for (const finding of findCausalObservationViolations(source, filePath)) {
+          violations.push(
+            `[causal-observation-write-edge] ${relativePath(filePath)} readCausalObservationSlice forbids ${finding}`
+          )
+        }
       }
     }
 

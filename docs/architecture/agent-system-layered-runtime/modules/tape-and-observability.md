@@ -1,6 +1,6 @@
 # Tape 与可观测性
 
-> 状态：目标设计。继续使用现有 Tape；不新建 event store 或 entry kind。
+> 状态：已实施到 `ASLR-080`。继续使用现有 Tape；不新建 event store 或 entry kind。
 
 > Implementation progress: ASLR-052 placed the existing tool-round snapshot behind the fixed
 > `afterRoundPersisted` callback. The transitional `LegacyToolFactsSnapshotPort` still delegates to
@@ -10,6 +10,8 @@
 > ViewManifest attempt into the typed provider-attempt coordinator: each actual request sequence
 > synchronously attempts its matching manifest before rate admission/provider streaming, and a
 > persistence failure remains fail-open.
+> ASLR-080 added a pure-read causal observation slice in the existing Tape service. It joins only persisted
+> facts and reports the renderer event-history gap explicitly; ASLR-081 owns the full non-interference proof.
 
 ## 1. 模块目的
 
@@ -62,12 +64,13 @@ user message fact
   -> assistant content/tool-call facts
   -> tool result facts
   -> optional compaction/handoff/memory audit anchors
-  -> message/status/event terminal projection
+  -> current terminal message status + optional current runtime status
 ```
 
 因果 observation 通过现有 `sessionId`、message/tool provenance、request sequence 联结 Tape、message、
-status/event 与 trace。本目标不增加 interaction/terminal/trace-reference Tape entry；若以后证明有缺口，
-单独建立 data/behavior SDD。
+status 与 trace。renderer event history 当前没有 durable store，因此 read model 只能返回
+`eventHistory=not_persisted`，不得从 message status 推断 event。本目标不增加
+interaction/terminal/trace-reference Tape entry；若以后证明有缺口，单独建立 data/behavior SDD。
 
 ## 5. `TapeRecorder` 合同
 
@@ -124,13 +127,27 @@ update 伪造已经发生的历史，也不能因为 Tape append-only 就禁止�
 
 ## 9. Replay 范围
 
-支持的是 audit/replay slice：给定 session/message/request，联结 input view、assistant/tool facts 与当前
-interaction/terminal projection。明确不支持：
+支持的是 audit/replay slice：给定 session/message/request，联结 input view、effective assistant/tool facts
+与当前 terminal message projection；interaction/runtime event history 不持久化。明确不支持：
 
 - 自动重放 provider 网络请求；
 - 重做 tool side effect；
 - 从逐 token log 恢复 UI 动画；
 - 在缺少旧 trace retention 时凭空还原 raw request。
+
+### ASLR-080 causal observation read model
+
+- request 是 `manifest_bound`、`manifest_missing`、`manifest_malformed` 或 `request_unavailable`；
+- explicit `requestSeq` 优先，否则取 raw ViewManifest `source_seq` 与 positive trace `request_seq` 的最大值，
+  忽略 interleaved-reasoning 的 `request_seq=0` sentinel；
+- `manifest_bound` 复用现有 replay slice；missing/malformed 只返回同 sequence 的 metadata-only trace，
+  不伪造 manifest，hash integrity invalid 仍保留 readable invalid record；
+- assistant message/tool facts 没有 request sequence，output 固定声明 `message_only` correlation；terminal
+  assistant projection 只暴露 status/order/timestamps 和 content/metadata hashes；
+- 默认不暴露 Tape payload/meta、trace headers/body 或 message content/metadata/blocks/errors；显式 opt-in
+  只复用现有 `includeTapePayloads` / `includeTracePayload`；
+- old sessions、pending messages 与未 hydrate runtime 分别返回 unavailable/partial、无 terminal message、
+  current runtime unavailable，且读取不触发 bootstrap/backfill/projection/Memory/event side effect。
 
 ## 10. Memory 与 Tape
 

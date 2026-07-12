@@ -4,6 +4,7 @@ import { buildContext } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeService'
 import { createTapeViewManifest } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 import {
+  appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
   appendToolFactsToTape
@@ -244,13 +245,70 @@ function createTraceRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function createTapeService(table: unknown, traceRows: Array<Record<string, unknown>> = []) {
+function createMessageRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'a1',
+    session_id: 's1',
+    order_seq: 2,
+    role: 'assistant',
+    content: '[{"type":"content","content":"done","status":"success"}]',
+    status: 'sent',
+    is_context_edge: 0,
+    metadata: '{"totalTokens":10}',
+    created_at: 200,
+    updated_at: 300,
+    ...overrides
+  }
+}
+
+function createObservationManifest(
+  overrides: Partial<Parameters<typeof createTapeViewManifest>[0]> = {}
+) {
+  return createTapeViewManifest({
+    sessionId: 's1',
+    messageId: 'a1',
+    requestSeq: 1,
+    taskType: 'chat',
+    policy: 'legacy_context_v1',
+    policyVersion: 1,
+    messages: [{ role: 'user', content: 'hello' }],
+    tools: [],
+    latestEntryId: 0,
+    anchorEntryIds: [],
+    included: [],
+    excluded: [],
+    tokenBudget: {
+      contextLength: 1000,
+      requestedMaxTokens: 100,
+      effectiveMaxTokens: 100,
+      reserveTokens: 100,
+      toolReserveTokens: 0
+    },
+    providerId: 'openai',
+    modelId: 'gpt-4o',
+    summaryCursorOrderSeq: 1,
+    supportsVision: true,
+    supportsAudioInput: false,
+    traceDebugEnabled: true,
+    assembledAt: 200,
+    ...overrides
+  })
+}
+
+function createTapeService(
+  table: unknown,
+  traceRows: Array<Record<string, unknown>> = [],
+  messageRows: Array<Record<string, unknown>> = []
+) {
   return new DeepChatTapeService({
     deepchatTapeEntriesTable: table,
     deepchatMessageTracesTable: {
       listByMessageId: vi.fn((messageId: string) =>
         traceRows.filter((row) => row.message_id === messageId)
       )
+    },
+    deepchatMessagesTable: {
+      get: vi.fn((messageId: string) => messageRows.find((row) => row.id === messageId))
     },
     deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
   } as any)
@@ -2905,6 +2963,308 @@ describe('DeepChatTapeService', () => {
     expect(() => service.exportReplaySlice('s1', 'a1', { requestSeq: 0 })).toThrow(
       'requestSeq must be a positive integer.'
     )
+  })
+
+  it('joins an exact manifest and trace into a causal observation slice', () => {
+    const { table } = createTapeTableMock()
+    const assistant = createRecord({
+      id: 'a1',
+      orderSeq: 2,
+      role: 'assistant',
+      content: '[{"type":"content","content":"done","status":"success"}]',
+      status: 'sent',
+      metadata: '{"totalTokens":10}',
+      createdAt: 200,
+      updatedAt: 300
+    })
+    appendMessageRecordToTape(table as any, assistant, 'live')
+    const service = createTapeService(
+      table,
+      [createTraceRow(), createTraceRow({ id: 'other-session', session_id: 's2', request_seq: 9 })],
+      [createMessageRow()]
+    )
+    service.appendViewManifest(createObservationManifest())
+
+    const slice = service.readCausalObservationSlice('s1', 'a1', {
+      currentRuntimeStatus: 'idle'
+    })
+
+    expect(slice).toMatchObject({
+      schemaVersion: 1,
+      sessionId: 's1',
+      messageId: 'a1',
+      request: {
+        state: 'manifest_bound',
+        requestSeq: 1,
+        replay: {
+          requestSeq: 1,
+          mode: 'trace_bound',
+          trace: { id: 'trace-1', requestSeq: 1 }
+        }
+      },
+      output: {
+        correlation: 'message_only',
+        terminalMessage: {
+          status: 'sent',
+          orderSeq: 2,
+          createdAt: 200,
+          updatedAt: 300
+        }
+      },
+      runtime: { scope: 'current_only', status: 'idle', eventHistory: 'not_persisted' }
+    })
+    expect(slice.output.entries.map((entry) => entry.kind)).toContain('message')
+    expect(slice.output.terminalMessage?.contentHash).toHaveLength(64)
+    expect(slice.output.terminalMessage?.metadataHash).toHaveLength(64)
+  })
+
+  it('prefers an explicit causal request sequence and otherwise selects the latest raw sequence', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    service.appendViewManifest(createObservationManifest({ requestSeq: 1, assembledAt: 100 }))
+    service.appendViewManifest(
+      createObservationManifest({
+        requestSeq: 2,
+        taskType: 'tool_loop',
+        policy: 'tool_loop_shadow',
+        policyVersion: null,
+        assembledAt: 200
+      })
+    )
+
+    expect(service.readCausalObservationSlice('s1', 'a1').request).toMatchObject({
+      state: 'manifest_bound',
+      requestSeq: 2
+    })
+    expect(service.readCausalObservationSlice('s1', 'a1', { requestSeq: 1 }).request).toMatchObject(
+      { state: 'manifest_bound', requestSeq: 1 }
+    )
+  })
+
+  it('does not fall back to an older manifest when a later traced request has no manifest', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table, [
+      createTraceRow({ id: 'trace-1', request_seq: 1 }),
+      createTraceRow({ id: 'trace-2', request_seq: 2 })
+    ])
+    service.appendViewManifest(createObservationManifest({ requestSeq: 1 }))
+
+    expect(service.readCausalObservationSlice('s1', 'a1').request).toMatchObject({
+      state: 'manifest_missing',
+      requestSeq: 2,
+      trace: { id: 'trace-2', requestSeq: 2 }
+    })
+  })
+
+  it('returns a trace-only request without manufacturing a view manifest', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table, [createTraceRow({ request_seq: 4 })])
+
+    const request = service.readCausalObservationSlice('s1', 'a1').request
+
+    expect(request).toMatchObject({
+      state: 'manifest_missing',
+      requestSeq: 4,
+      trace: { requestSeq: 4 }
+    })
+    expect(
+      request.state === 'manifest_missing' ? request.trace?.bodyJson : undefined
+    ).toBeUndefined()
+  })
+
+  it('distinguishes malformed manifests from hash-invalid but readable manifests', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'bad', seq: 2 },
+      data: { manifest: { schemaVersion: 99, requestSeq: 2 } }
+    })
+    const tamperedManifest = createObservationManifest({ messageId: 'a1', requestSeq: 1 })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'a1', seq: 1 },
+      data: { manifest: { ...tamperedManifest, latestEntryId: 1 } }
+    })
+
+    expect(service.readCausalObservationSlice('s1', 'bad').request).toEqual({
+      state: 'manifest_malformed',
+      requestSeq: 2,
+      trace: null
+    })
+    const invalid = service.readCausalObservationSlice('s1', 'a1').request
+    expect(invalid.state).toBe('manifest_bound')
+    expect(invalid.state === 'manifest_bound' ? invalid.replay.integrity : undefined).toBe(
+      'invalid'
+    )
+  })
+
+  it('ignores request sequence zero interleaved-reasoning sentinels', () => {
+    const { table } = createTapeTableMock()
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'a1', seq: 0 },
+      data: { manifest: { schemaVersion: 99, requestSeq: 0 } }
+    })
+    const service = createTapeService(table, [
+      createTraceRow({
+        id: 'trace-gap',
+        request_seq: 0,
+        endpoint: 'deepchat://interleaved-reasoning-gap'
+      })
+    ])
+
+    expect(service.readCausalObservationSlice('s1', 'a1').request).toEqual({
+      state: 'request_unavailable',
+      requestSeq: null,
+      trace: null
+    })
+  })
+
+  it('keeps multi-round assistant and tool output correlated at message scope only', () => {
+    const { table } = createTapeTableMock()
+    const assistant = createRecord({
+      id: 'a1',
+      orderSeq: 2,
+      role: 'assistant',
+      content: JSON.stringify([
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 220,
+          tool_call: {
+            id: 'tc1',
+            name: 'search',
+            params: '{"q":"x"}',
+            response: 'result'
+          }
+        }
+      ]),
+      status: 'sent',
+      createdAt: 200,
+      updatedAt: 300
+    })
+    appendMessageRecordToTape(table as any, assistant, 'live')
+    const service = createTapeService(table, [], [createMessageRow({ content: assistant.content })])
+    service.appendViewManifest(createObservationManifest({ requestSeq: 1 }))
+    service.appendViewManifest(
+      createObservationManifest({
+        requestSeq: 2,
+        taskType: 'tool_loop',
+        policy: 'tool_loop_shadow',
+        policyVersion: null
+      })
+    )
+
+    const firstOutput = service.readCausalObservationSlice('s1', 'a1', { requestSeq: 1 }).output
+    const latestOutput = service.readCausalObservationSlice('s1', 'a1').output
+
+    expect(latestOutput.correlation).toBe('message_only')
+    expect(latestOutput.entries.map((entry) => entry.kind)).toEqual([
+      'message',
+      'tool_call',
+      'tool_result'
+    ])
+    expect(latestOutput.entries.map((entry) => entry.entryId)).toEqual(
+      firstOutput.entries.map((entry) => entry.entryId)
+    )
+  })
+
+  it('does not infer a completed event from a paused pending assistant message', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(
+      table,
+      [],
+      [createMessageRow({ status: 'pending', content: '[{"type":"action","status":"pending"}]' })]
+    )
+
+    const slice = service.readCausalObservationSlice('s1', 'a1', {
+      currentRuntimeStatus: 'generating'
+    })
+
+    expect(slice.output.entries).toEqual([])
+    expect(slice.output.terminalMessage).toBeNull()
+    expect(slice.runtime).toEqual({
+      scope: 'current_only',
+      status: 'generating',
+      eventHistory: 'not_persisted'
+    })
+    expect(JSON.stringify(slice)).not.toContain('completed')
+  })
+
+  it('reads an old message without bootstrapping or backfilling Tape', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table, [], [createMessageRow()])
+
+    const slice = service.readCausalObservationSlice('s1', 'a1')
+
+    expect(slice.request).toEqual({
+      state: 'request_unavailable',
+      requestSeq: null,
+      trace: null
+    })
+    expect(slice.output.terminalMessage?.status).toBe('sent')
+    expect(slice.runtime).toEqual({
+      scope: 'unavailable',
+      status: null,
+      eventHistory: 'not_persisted'
+    })
+    expect(entries).toEqual([])
+    expect(table.ensureBootstrapAnchor).not.toHaveBeenCalled()
+    expect(table.append).not.toHaveBeenCalled()
+    expect(table.appendEvent).not.toHaveBeenCalled()
+  })
+
+  it('keeps causal observations metadata-only by default and reuses replay payload opt-ins', () => {
+    const { table } = createTapeTableMock()
+    const assistant = createRecord({
+      id: 'a1',
+      orderSeq: 2,
+      role: 'assistant',
+      content: 'secret-output',
+      status: 'sent',
+      metadata: '{"secret":"message-metadata"}',
+      createdAt: 200,
+      updatedAt: 300
+    })
+    appendMessageRecordToTape(table as any, assistant, 'live')
+    const service = createTapeService(
+      table,
+      [
+        createTraceRow({
+          headers_json: '{"authorization":"secret-header"}',
+          body_json: '{"prompt":"secret-request"}'
+        })
+      ],
+      [
+        createMessageRow({
+          content: assistant.content,
+          metadata: assistant.metadata
+        })
+      ]
+    )
+    service.appendViewManifest(createObservationManifest())
+
+    const metadataOnly = service.readCausalObservationSlice('s1', 'a1')
+    const withPayloads = service.readCausalObservationSlice('s1', 'a1', {
+      includeTapePayloads: true,
+      includeTracePayload: true
+    })
+
+    expect(JSON.stringify(metadataOnly)).not.toContain('secret-output')
+    expect(JSON.stringify(metadataOnly)).not.toContain('message-metadata')
+    expect(JSON.stringify(metadataOnly)).not.toContain('secret-header')
+    expect(JSON.stringify(metadataOnly)).not.toContain('secret-request')
+    expect(withPayloads.output.entries.some((entry) => entry.payload?.record)).toBe(true)
+    expect(withPayloads.request.state).toBe('manifest_bound')
+    expect(
+      withPayloads.request.state === 'manifest_bound'
+        ? withPayloads.request.replay.trace?.headersJson
+        : undefined
+    ).toContain('secret-header')
   })
 
   it('keeps pending message records for resume but hides pending tool facts from search', () => {

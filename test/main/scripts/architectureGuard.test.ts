@@ -51,6 +51,26 @@ const RETIRED_ACP_BACKEND_FIXTURE = path.join(
   ROOT,
   'src/main/agent/__architecture_guard_retired_acp_backend_fixture__.ts'
 )
+const CAUSAL_OBSERVATION_SAFE_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_safe_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_METHOD_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_method_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_BRACKET_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_bracket_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_ALIAS_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_alias_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_arrow_fixture__.ts'
+)
 
 const virtualFiles = new Map<string, string>([
   [
@@ -217,6 +237,69 @@ const virtualFiles = new Map<string, string>([
         compatibilityImplementation as never
       )
     `
+  ],
+  [
+    CAUSAL_OBSERVATION_SAFE_FIXTURE,
+    `
+      import type { DeepChatTapeReplaySlice as MemoryStore } from '@shared/types/tape-replay'
+      // MemoryStore append publish CREATE are documentation terms, not executable edges.
+      const CREATE_DOCUMENTATION = 'CREATE is documentation, not SQL execution'
+      const hash = (value: string) => value
+      export class SafeObservationReader {
+        readCausalObservationSlice() {
+          const metadata = {} as MemoryStore
+          return [
+            this.table.get('session'),
+            this.table.list(),
+            hash(CREATE_DOCUMENTATION),
+            metadata.sliceId
+          ]
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_METHOD_FIXTURE,
+    `
+      export class UnsafeMethodObservationReader {
+        readCausalObservationSlice() {
+          this.ensureSessionTapeReady('session')
+          this.publish('completed')
+          this.events.subscribe(() => {})
+          this.db.exec('CREATE TABLE observation_cache')
+          return new MemoryRuntime()
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_BRACKET_FIXTURE,
+    `
+      export class UnsafeBracketObservationReader {
+        readCausalObservationSlice() {
+          return this.table['append']({})
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_ALIAS_FIXTURE,
+    `
+      export class UnsafeAliasObservationReader {
+        readCausalObservationSlice() {
+          const write = this.table.update
+          return write({})
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_ARROW_FIXTURE,
+    `
+      export class UnsafeArrowObservationReader {
+        readCausalObservationSlice = () => this.table.delete('session')
+      }
+    `
   ]
 ])
 
@@ -302,6 +385,37 @@ describe('architecture guard', () => {
     expect(forFile(violations, RETIRED_ACP_BACKEND_FIXTURE).join('\n')).toContain(
       '[acp-retired-legacy-backend]'
     )
+  })
+
+  it('allows read-only causal observation code despite Memory types and CREATE documentation', () => {
+    expect(forFile(violations, CAUSAL_OBSERVATION_SAFE_FIXTURE)).toEqual([])
+  })
+
+  it('reports precise causal observation violations across method and property implementations', () => {
+    const causalViolations = (filePath: string) =>
+      forFile(violations, filePath).filter((violation) =>
+        violation.includes('[causal-observation-write-edge]')
+      )
+
+    const methodViolations = causalViolations(CAUSAL_OBSERVATION_METHOD_FIXTURE)
+    expect(methodViolations).toHaveLength(5)
+    expect(methodViolations.join('\n')).toContain('bootstrap/lifecycle member "ensureSessionTapeReady"')
+    expect(methodViolations.join('\n')).toContain('event publication member "publish"')
+    expect(methodViolations.join('\n')).toContain('event subscription member "subscribe"')
+    expect(methodViolations.join('\n')).toContain('SQL execution member "exec"')
+    expect(methodViolations.join('\n')).toContain('Memory API call "MemoryRuntime"')
+
+    const bracketViolations = causalViolations(CAUSAL_OBSERVATION_BRACKET_FIXTURE)
+    expect(bracketViolations).toHaveLength(1)
+    expect(bracketViolations[0]).toContain('mutation member "append"')
+
+    const aliasViolations = causalViolations(CAUSAL_OBSERVATION_ALIAS_FIXTURE)
+    expect(aliasViolations).toHaveLength(1)
+    expect(aliasViolations[0]).toContain('mutation member "update"')
+
+    const arrowViolations = causalViolations(CAUSAL_OBSERVATION_ARROW_FIXTURE)
+    expect(arrowViolations).toHaveLength(1)
+    expect(arrowViolations[0]).toContain('mutation member "delete"')
   })
 
   it('restricts composites by resolved symbol and file-specific allowlists', () => {

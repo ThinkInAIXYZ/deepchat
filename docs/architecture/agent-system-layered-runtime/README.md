@@ -361,15 +361,21 @@ streaming permission、skill activation/cache 是独立 control collaborators，
 
 ## Tape 语义
 
-目标可观测链由现有 Tape 与 message/status/event projection 共同组成，不逐 token 记日志：
+目标可观测链由现有 Tape、trace 与 message terminal projection 共同组成，不逐 token 记日志：
 
 ```text
 user message fact
   -> context/view manifest
   -> assistant/tool call/tool result facts
   -> compaction/handoff/memory audit anchors
-  -> message/status/event terminal projection
+  -> current terminal message status + optional current runtime status
 ```
+
+`ASLR-080` 已在现有 replay reader 上增加 pure-read causal observation slice：request 通过
+`sessionId/messageId/requestSeq` 精确联结 ViewManifest 与 trace，assistant/tool output 只能声明
+`message_only` correlation。renderer terminal event history 当前没有持久化事实，read model 明确返回
+`eventHistory=not_persisted`，不能从 pending/terminal message 反推历史事件；runtime status 也只接受调用方
+从已 hydrate instance 非物化 peek 得到的当前值，否则为 unavailable。
 
 - `deepchat_tape_entries.entry_id` 继续提供 per-session monotonic order。
 - mutable streaming block 继续保存在 message projection；final/replacement/retraction 进入 Tape。
@@ -381,6 +387,7 @@ user message fact
 - session clear/delete 仍可按当前合同删除 Tape；“append-only”描述的是存续 session 内的修改模型，
   不是永久不可删除。
 - live replay 不能重放外部 provider/tool side effect；本目标只保证 audit/replay slice 可解释。
+- old session 即使没有 Tape/ViewManifest 也只返回 partial/unavailable read model，不触发 bootstrap/backfill。
 
 ## 状态所有权
 
