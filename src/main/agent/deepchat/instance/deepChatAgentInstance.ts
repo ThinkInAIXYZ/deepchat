@@ -9,6 +9,10 @@ import type {
   SessionCompactionState,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import type {
+  PendingToolInteractionOrigin,
+  PersistedToolBatchState
+} from '@/agent/deepchat/loop/ports'
 
 export interface DeepChatAgentInstanceDelegate {
   readonly compatibilityImplementation: IAgentImplementation
@@ -23,6 +27,8 @@ export type DeepChatActiveGeneration = LoopRun<unknown>
 export interface DeepChatPendingInteractionRef {
   readonly messageId: string
   readonly toolCallId: string
+  readonly origin: PendingToolInteractionOrigin | 'acp-permission'
+  readonly order: number
 }
 
 export interface DeepChatActiveProviderPermission {
@@ -65,6 +71,7 @@ export class DeepChatAgentInstance {
   private activeSteerPendingInputId?: string
   private pendingQueueDraining = false
   private pendingInteractions: DeepChatPendingInteractionRef[] = []
+  private pendingToolBatchState?: PersistedToolBatchState
   private readonly interactionLocks = new Set<string>()
   private readonly resumingMessages = new Set<string>()
   private readonly deferredToolAbortControllers = new Map<string, AbortController>()
@@ -251,11 +258,91 @@ export class DeepChatAgentInstance {
 
   replacePendingInteractions(interactions: readonly DeepChatPendingInteractionRef[]): void {
     this.pendingInteractions = interactions.map((interaction) => ({ ...interaction }))
+    const pendingToolBatchCallIds = this.pendingInteractions
+      .filter((interaction) => interaction.origin !== 'acp-permission')
+      .map((interaction) => interaction.toolCallId)
+    if (pendingToolBatchCallIds.length === 0) {
+      this.pendingToolBatchState = undefined
+    } else if (this.pendingToolBatchState) {
+      this.pendingToolBatchState = {
+        ...this.pendingToolBatchState,
+        pendingInteractionCallIds: pendingToolBatchCallIds
+      }
+    }
+  }
+
+  replacePendingToolBatch(
+    interactions: readonly DeepChatPendingInteractionRef[],
+    state: PersistedToolBatchState
+  ): void {
+    this.pendingInteractions = interactions.map((interaction) => ({ ...interaction }))
+    this.pendingToolBatchState = {
+      callOrder: [...state.callOrder],
+      invokedCallIds: [...state.invokedCallIds],
+      committedResultCallIds: [...state.committedResultCallIds],
+      pendingInteractionCallIds: [...state.pendingInteractionCallIds]
+    }
+  }
+
+  getPendingToolBatchState(): PersistedToolBatchState | undefined {
+    const state = this.pendingToolBatchState
+    return state
+      ? {
+          callOrder: [...state.callOrder],
+          invokedCallIds: [...state.invokedCallIds],
+          committedResultCallIds: [...state.committedResultCallIds],
+          pendingInteractionCallIds: [...state.pendingInteractionCallIds]
+        }
+      : undefined
+  }
+
+  advancePendingToolBatch(input: { invokedCallId?: string; committedResultCallId?: string }): void {
+    const state = this.pendingToolBatchState
+    if (!state) {
+      return
+    }
+    const invokedCallIds = [...state.invokedCallIds]
+    const committedResultCallIds = [...state.committedResultCallIds]
+    if (input.invokedCallId && !invokedCallIds.includes(input.invokedCallId)) {
+      invokedCallIds.push(input.invokedCallId)
+    }
+    if (
+      input.committedResultCallId &&
+      !committedResultCallIds.includes(input.committedResultCallId)
+    ) {
+      committedResultCallIds.push(input.committedResultCallId)
+    }
+    this.pendingToolBatchState = {
+      ...state,
+      invokedCallIds,
+      committedResultCallIds
+    }
   }
 
   getFirstPendingInteraction(): DeepChatPendingInteractionRef | undefined {
     const first = this.pendingInteractions[0]
     return first ? { ...first } : undefined
+  }
+
+  getPendingInteractions(): DeepChatPendingInteractionRef[] {
+    return this.pendingInteractions.map((interaction) => ({ ...interaction }))
+  }
+
+  transitionPendingInteractionOrigin(
+    messageId: string,
+    toolCallId: string,
+    origin: PendingToolInteractionOrigin
+  ): boolean {
+    const interaction = this.pendingInteractions.find(
+      (candidate) => candidate.messageId === messageId && candidate.toolCallId === toolCallId
+    )
+    if (!interaction) {
+      return false
+    }
+    this.pendingInteractions = this.pendingInteractions.map((candidate) =>
+      candidate === interaction ? { ...candidate, origin } : candidate
+    )
+    return true
   }
 
   hasPendingInteractions(): boolean {
@@ -420,6 +507,7 @@ export class DeepChatAgentInstance {
     this.activeSteerPendingInputId = undefined
     this.pendingQueueDraining = false
     this.pendingInteractions = []
+    this.pendingToolBatchState = undefined
     this.interactionLocks.clear()
     this.resumingMessages.clear()
     this.abortDeferredToolCalls()

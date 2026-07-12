@@ -190,7 +190,8 @@ job 或旧 async callback 回写新 lineage。
 5. 迁移 pending drain/steer merge state，并将持久 queue store/coordinator 归入 DeepChat pending
    模块。（ASLR-043 已完成）
 6. 把 permission/question/post-call/skill-draft continuation 收敛为 instance ordered interaction state，
-   保留 fresh-run resume。（ASLR-044 已完成 state ownership；typed batch outcome 仍属于 ASLR-056）
+   保留 fresh-run resume。（ASLR-044 已完成基础 state ownership；ASLR-056 已完成 typed batch outcome、
+   origin/order 与 persisted execution-state ownership）
 7. 迁移 message-scoped runtime skill selection 与 prompt/tool snapshot caches；resource owner revision
    只使对应 snapshot 失效，不复制 Skill/Tool/MCP owner 内部状态。（ASLR-045 已完成）
 8. 迁移 compaction in-flight projection；persisted summary 继续作为事实源，并只给 instance 一个 stable

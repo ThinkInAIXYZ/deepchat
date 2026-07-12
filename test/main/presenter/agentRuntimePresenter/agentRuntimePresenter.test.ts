@@ -7726,7 +7726,7 @@ describe('AgentRuntimePresenter', () => {
       expect(processStream).not.toHaveBeenCalled()
       expect(
         agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getFirstPendingInteraction()
-      ).toEqual({ messageId: 'm1', toolCallId: 'tc2' })
+      ).toEqual({ messageId: 'm1', toolCallId: 'tc2', origin: 'question', order: 1 })
 
       const finalResult = await agent.respondToolInteraction('s1', 'm1', 'tc2', {
         kind: 'question_option',
@@ -7738,6 +7738,290 @@ describe('AgentRuntimePresenter', () => {
       expect(
         agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
       ).toBe(false)
+    })
+
+    it('does not replay a post-call permission side effect while later interactions remain', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const blocks: AssistantMessageBlock[] = [
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 1,
+          tool_call: { id: 'tc-post', name: 'write_file', params: '{}', response: '' }
+        },
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          timestamp: 2,
+          content: 'Need pre-check permission',
+          tool_call: { id: 'tc-post', name: 'write_file', params: '{}' },
+          extra: {
+            needsUserAction: true,
+            permissionType: 'write',
+            permissionRequest: JSON.stringify({
+              permissionType: 'write',
+              description: 'Need pre-check permission',
+              toolName: 'write_file',
+              serverName: 'agent-filesystem',
+              paths: ['a.txt']
+            })
+          }
+        },
+        {
+          type: 'tool_call',
+          status: 'pending',
+          timestamp: 3,
+          tool_call: { id: 'tc-question', name: 'ask_question', params: '{}', response: '' }
+        },
+        {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: 4,
+          content: 'Continue?',
+          tool_call: { id: 'tc-question', name: 'ask_question', params: '{}' },
+          extra: { needsUserAction: true, questionText: 'Continue?' }
+        },
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 5,
+          tool_call: {
+            id: 'tc-skill',
+            name: 'skill_manage',
+            params: '{"action":"create"}',
+            response: 'draft created'
+          }
+        },
+        {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: 6,
+          content: '',
+          tool_call: {
+            id: 'tc-skill',
+            name: 'skill_manage',
+            params: '{"action":"create"}'
+          },
+          extra: {
+            needsUserAction: true,
+            questionText: 'chat.skillDraft.confirmationQuestion',
+            questionOptions: [{ label: 'chat.skillDraft.actions.discard' }],
+            questionCustom: false,
+            skillDraftAction: 'confirm',
+            skillDraftId: 'draft-1',
+            skillDraftName: 'draft-skill',
+            skillDraftStatus: 'pending'
+          }
+        }
+      ]
+      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      let row: ReturnType<typeof makeAssistantRow> | undefined
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        row = makeAssistantRow({ id: params.run.messageId, blocks: [] })
+        sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+          (id: string, content: string) => {
+            if (id === row?.id) row.content = content
+          }
+        )
+        params.io.messageStore.updateAssistantContent(params.run.messageId, blocks)
+        return {
+          status: 'paused',
+          pendingInteractions: [
+            {
+              type: 'permission',
+              origin: 'pre-check-permission',
+              order: 0,
+              messageId: params.run.messageId,
+              toolCallId: 'tc-post',
+              toolName: 'write_file',
+              toolArgs: '{}',
+              permission: {
+                permissionType: 'write',
+                description: 'Need pre-check permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                paths: ['a.txt']
+              }
+            },
+            {
+              type: 'question',
+              origin: 'question',
+              order: 1,
+              messageId: params.run.messageId,
+              toolCallId: 'tc-question',
+              toolName: 'ask_question',
+              toolArgs: '{}',
+              question: {
+                question: 'Continue?',
+                options: [],
+                custom: true,
+                multiple: false
+              }
+            },
+            {
+              type: 'question',
+              origin: 'skill-draft-confirmation',
+              order: 2,
+              messageId: params.run.messageId,
+              toolCallId: 'tc-skill',
+              toolName: 'skill_manage',
+              toolArgs: '{"action":"create"}',
+              question: {
+                question: 'chat.skillDraft.confirmationQuestion',
+                options: [{ label: 'chat.skillDraft.actions.discard' }],
+                custom: false,
+                multiple: false
+              }
+            }
+          ],
+          toolBatchExecutionState: {
+            callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+            invokedCallIds: ['tc-skill'],
+            committedResultCallIds: ['tc-skill'],
+            pendingInteractionCallIds: ['tc-post', 'tc-question', 'tc-skill']
+          }
+        }
+      })
+
+      const started = await agent.processMessage('s1', 'Start the interaction batch')
+      expect(row?.id).toBe(started.messageId)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill'],
+        committedResultCallIds: ['tc-skill'],
+        pendingInteractionCallIds: ['tc-post', 'tc-question', 'tc-skill']
+      })
+      toolPresenter.callTool
+        .mockResolvedValueOnce({
+          content: 'post-call permission required',
+          rawData: {
+            content: 'post-call permission required',
+            isError: true,
+            requiresPermission: true,
+            permissionRequest: {
+              permissionType: 'write',
+              description: 'Need post-call permission',
+              toolName: 'write_file',
+              serverName: 'agent-filesystem',
+              paths: ['a.txt']
+            }
+          }
+        })
+        .mockResolvedValueOnce({
+          content: 'side effect committed',
+          rawData: { content: 'side effect committed', isError: false }
+        })
+
+      const preCheckResult = await agent.respondToolInteraction(
+        's1',
+        started.messageId,
+        'tc-post',
+        {
+          kind: 'permission',
+          granted: true
+        }
+      )
+
+      expect(preCheckResult).toEqual({ resumed: false })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      await agent.getSessionState('s1')
+      expect(instance?.getFirstPendingInteraction()).toEqual({
+        messageId: started.messageId,
+        toolCallId: 'tc-post',
+        origin: 'post-call-permission',
+        order: 0
+      })
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill'],
+        pendingInteractionCallIds: ['tc-post', 'tc-question', 'tc-skill']
+      })
+
+      const permissionResult = await agent.respondToolInteraction(
+        's1',
+        started.messageId,
+        'tc-post',
+        {
+          kind: 'permission',
+          granted: true
+        }
+      )
+
+      expect(permissionResult).toEqual({ resumed: false })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(instance?.getFirstPendingInteraction()).toEqual({
+        messageId: started.messageId,
+        toolCallId: 'tc-question',
+        origin: 'question',
+        order: 1
+      })
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill', 'tc-post'],
+        pendingInteractionCallIds: ['tc-question', 'tc-skill']
+      })
+
+      const questionResult = await agent.respondToolInteraction(
+        's1',
+        started.messageId,
+        'tc-question',
+        {
+          kind: 'question_option',
+          optionLabel: 'Yes'
+        }
+      )
+
+      expect(questionResult).toEqual({ resumed: false })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(instance?.getFirstPendingInteraction()).toEqual({
+        messageId: started.messageId,
+        toolCallId: 'tc-skill',
+        origin: 'skill-draft-confirmation',
+        order: 2
+      })
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill', 'tc-post', 'tc-question'],
+        pendingInteractionCallIds: ['tc-skill']
+      })
+
+      getSkillPresenterMock().discardDraftSkill.mockResolvedValueOnce({
+        success: true,
+        action: 'discard',
+        draftId: 'draft-1',
+        skillName: 'draft-skill'
+      })
+      const finalResult = await agent.respondToolInteraction('s1', started.messageId, 'tc-skill', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.discard'
+      })
+
+      expect(finalResult).toEqual({ resumed: true })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(processStream).toHaveBeenCalledTimes(2)
+      expect(instance?.getPendingToolBatchState()).toBeUndefined()
     })
 
     it('handles permission grant by executing deferred tool and resuming', async () => {
@@ -8034,9 +8318,9 @@ describe('AgentRuntimePresenter', () => {
       }
     })
 
-    it('handles permission deny and resumes with denial result', async () => {
+    it('commits a denied permission before the final pending interaction resumes', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      makeAssistantRow({
+      const row = makeAssistantRow({
         blocks: [
           {
             type: 'tool_call',
@@ -8052,16 +8336,54 @@ describe('AgentRuntimePresenter', () => {
             content: 'Need permission',
             tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}' },
             extra: { needsUserAction: true, permissionType: 'command' }
+          },
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 3,
+            tool_call: { id: 'tc2', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 4,
+            content: 'Continue?',
+            tool_call: { id: 'tc2', name: 'ask_question', params: '{}' },
+            extra: { needsUserAction: true, questionText: 'Continue?' }
           }
         ]
       })
+      sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+        (id: string, content: string) => {
+          if (id === row.id) row.content = content
+        }
+      )
+      const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      instance?.replacePendingToolBatch(
+        [
+          {
+            messageId: 'm1',
+            toolCallId: 'tc1',
+            origin: 'pre-check-permission',
+            order: 0
+          },
+          { messageId: 'm1', toolCallId: 'tc2', origin: 'question', order: 1 }
+        ],
+        {
+          callOrder: ['tc1', 'tc2'],
+          invokedCallIds: [],
+          committedResultCallIds: [],
+          pendingInteractionCallIds: ['tc1', 'tc2']
+        }
+      )
 
       const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'permission',
         granted: false
       })
 
-      expect(result).toEqual({ resumed: true })
+      expect(result).toEqual({ resumed: false })
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
@@ -8085,6 +8407,20 @@ describe('AgentRuntimePresenter', () => {
           })
         })
       )
+      expect(processStream).not.toHaveBeenCalled()
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc1', 'tc2'],
+        invokedCallIds: [],
+        committedResultCallIds: ['tc1'],
+        pendingInteractionCallIds: ['tc2']
+      })
+
+      const finalResult = await agent.respondToolInteraction('s1', 'm1', 'tc2', {
+        kind: 'question_option',
+        optionLabel: 'Yes'
+      })
+
+      expect(finalResult).toEqual({ resumed: true })
       expect(processStream).toHaveBeenCalledTimes(1)
     })
 

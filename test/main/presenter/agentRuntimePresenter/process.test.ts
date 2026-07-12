@@ -398,6 +398,19 @@ describe('processStream', () => {
       )
 
       expect(result.status).toBe('paused')
+      expect(result.pendingInteractions).toEqual([
+        expect.objectContaining({
+          origin: 'question',
+          order: 0,
+          toolCallId: 'question-1'
+        })
+      ])
+      expect(result.toolBatchExecutionState).toEqual({
+        callOrder: ['question-1'],
+        invokedCallIds: [],
+        committedResultCallIds: [],
+        pendingInteractionCallIds: ['question-1']
+      })
       expect(order).toEqual([
         'renderer:update',
         'message:update',

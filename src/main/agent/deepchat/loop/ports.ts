@@ -46,6 +46,40 @@ export interface ToolExecutionPort {
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 }
 
+export type PendingToolInteractionOrigin =
+  | 'pre-check-permission'
+  | 'question'
+  | 'post-call-permission'
+  | 'skill-draft-confirmation'
+
+export interface PersistedToolBatchState {
+  readonly callOrder: readonly string[]
+  readonly invokedCallIds: readonly string[]
+  readonly committedResultCallIds: readonly string[]
+  readonly pendingInteractionCallIds: readonly string[]
+}
+
+export type ToolBatchOutcome<
+  TInteraction extends {
+    readonly origin: PendingToolInteractionOrigin
+    readonly order: number
+  }
+> =
+  | {
+      type: 'completed'
+      executed: number
+      toolsChanged: boolean
+      executionState: PersistedToolBatchState
+      terminalError?: string
+    }
+  | {
+      type: 'paused'
+      executed: number
+      toolsChanged: boolean
+      interactions: readonly TInteraction[]
+      executionState: PersistedToolBatchState
+    }
+
 export interface ToolBatchOutputCandidate {
   toolCallId: string
   toolName: string

@@ -20,11 +20,15 @@ import type {
   IoParams,
   PendingToolInteraction,
   ProcessHooks,
-  StreamState
+  StreamState,
+  ToolBatchInteraction
 } from './types'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type {
+  PendingToolInteractionOrigin,
+  PersistedToolBatchState,
+  ToolBatchOutcome,
   ToolBatchOutputFitItem,
   ToolExecutionPort,
   ToolResultPort
@@ -129,8 +133,66 @@ type PermissionRequestLike = {
 
 type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 
+type MutableToolBatchState = {
+  callOrder: string[]
+  invokedCallIds: Set<string>
+  committedResultCallIds: Set<string>
+}
+
 const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
+
+function createToolBatchState(state: StreamState): MutableToolBatchState {
+  return {
+    callOrder: state.completedToolCalls.map((toolCall) => toolCall.id),
+    invokedCallIds: new Set(),
+    committedResultCallIds: new Set()
+  }
+}
+
+function snapshotToolBatchState(
+  state: MutableToolBatchState,
+  interactions: readonly ToolBatchInteraction[]
+): PersistedToolBatchState {
+  return {
+    callOrder: [...state.callOrder],
+    invokedCallIds: [...state.invokedCallIds],
+    committedResultCallIds: [...state.committedResultCallIds],
+    pendingInteractionCallIds: interactions.map((interaction) => interaction.toolCallId)
+  }
+}
+
+function buildToolBatchOutcome(
+  executionStateSource: MutableToolBatchState,
+  interactions: ToolBatchInteraction[],
+  executed: number,
+  toolsChanged: boolean,
+  terminalError?: string
+): ToolBatchOutcome<ToolBatchInteraction> {
+  const orderedInteractions = [...interactions]
+    .sort((left, right) => left.order - right.order)
+    .map((interaction, order) => ({ ...interaction, order }))
+  const executionState = snapshotToolBatchState(executionStateSource, orderedInteractions)
+  if (terminalError) {
+    return {
+      type: 'completed',
+      executed,
+      toolsChanged,
+      executionState,
+      terminalError
+    }
+  }
+  if (orderedInteractions.length > 0) {
+    return {
+      type: 'paused',
+      executed,
+      toolsChanged,
+      interactions: orderedInteractions,
+      executionState
+    }
+  }
+  return { type: 'completed', executed, toolsChanged, executionState }
+}
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -638,9 +700,19 @@ function applyFinalizedToolResults(params: {
   io: IoParams
   hooks?: ProcessHooks
   appendToConversation: boolean
-}): void {
-  const { stagedResults, fittedResults, conversation, state, io, hooks, appendToConversation } =
-    params
+  takeInteractionOrder: () => number
+}): ToolBatchInteraction[] {
+  const {
+    stagedResults,
+    fittedResults,
+    conversation,
+    state,
+    io,
+    hooks,
+    appendToConversation,
+    takeInteractionOrder
+  } = params
+  const interactions: ToolBatchInteraction[] = []
 
   for (let index = 0; index < stagedResults.length; index += 1) {
     const stagedResult = stagedResults[index]
@@ -709,9 +781,10 @@ function applyFinalizedToolResults(params: {
           args: stagedResult.toolArgs,
           serverName: stagedResult.serverName
         },
-        stagedResult.skillDraftPrompt
+        stagedResult.skillDraftPrompt,
+        takeInteractionOrder()
       )
-      state.pendingInteractions = [...(state.pendingInteractions ?? []), interaction]
+      interactions.push(interaction)
     }
 
     if (fittedResult.isError) {
@@ -732,6 +805,7 @@ function applyFinalizedToolResults(params: {
   }
 
   state.dirty = true
+  return interactions
 }
 
 function isPermissionType(value: unknown): value is PermissionType {
@@ -976,8 +1050,10 @@ function appendPermissionActionBlock(
     serverIcons?: string
     serverDescription?: string
   },
-  permission: NonNullable<PendingToolInteraction['permission']>
-): PendingToolInteraction {
+  permission: NonNullable<PendingToolInteraction['permission']>,
+  origin: Extract<PendingToolInteractionOrigin, 'pre-check-permission' | 'post-call-permission'>,
+  order: number
+): ToolBatchInteraction {
   state.blocks.push({
     type: 'action',
     content: permission.description,
@@ -1007,6 +1083,8 @@ function appendPermissionActionBlock(
   state.dirty = true
   return {
     type: 'permission',
+    origin,
+    order,
     messageId: io.messageId,
     toolCallId: toolCall.id,
     toolName: toolCall.name,
@@ -1030,8 +1108,10 @@ function appendQuestionActionBlock(
     serverDescription?: string
   },
   question: NonNullable<PendingToolInteraction['question']>,
+  origin: Extract<PendingToolInteractionOrigin, 'question' | 'skill-draft-confirmation'>,
+  order: number,
   extra?: Record<string, unknown>
-): PendingToolInteraction {
+): ToolBatchInteraction {
   state.blocks.push({
     type: 'action',
     content: '',
@@ -1060,6 +1140,8 @@ function appendQuestionActionBlock(
   state.dirty = true
   return {
     type: 'question',
+    origin,
+    order,
     messageId: io.messageId,
     toolCallId: toolCall.id,
     toolName: toolCall.name,
@@ -1100,16 +1182,25 @@ function appendSkillDraftQuestionActionBlock(
   state: StreamState,
   io: IoParams,
   toolContext: ToolExecutionContext['toolContext'],
-  payload: SkillDraftPromptPayload
-): PendingToolInteraction {
+  payload: SkillDraftPromptPayload,
+  order: number
+): ToolBatchInteraction {
   const question = buildSkillDraftQuestion(payload)
-  return appendQuestionActionBlock(state, io, toolContext, question, {
-    skillDraftAction: 'confirm',
-    skillDraftId: payload.draftId,
-    skillDraftName: payload.skillName,
-    skillDraftPreview: '',
-    skillDraftStatus: 'pending'
-  })
+  return appendQuestionActionBlock(
+    state,
+    io,
+    toolContext,
+    question,
+    'skill-draft-confirmation',
+    order,
+    {
+      skillDraftAction: 'confirm',
+      skillDraftId: payload.draftId,
+      skillDraftName: payload.skillName,
+      skillDraftPreview: '',
+      skillDraftStatus: 'pending'
+    }
+  )
 }
 
 function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
@@ -1359,19 +1450,13 @@ export async function executeTools(
   rendererFlushHandle: RendererFlushHandle,
   hooks?: ProcessHooks,
   providerId?: string
-): Promise<{
-  executed: number
-  pendingInteractions: PendingToolInteraction[]
-  toolsChanged: boolean
-  terminalError?: string
-}> {
+): Promise<ToolBatchOutcome<ToolBatchInteraction>> {
   finalizePendingNarrativeBeforeToolExecution(state)
   persistToolExecutionState(io, state, rendererFlushHandle)
   const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
-
-  if (state.pendingInteractions?.length) {
-    state.pendingInteractions = []
-  }
+  const batchState = createToolBatchState(state)
+  let nextInteractionOrder = 0
+  const takeInteractionOrder = () => nextInteractionOrder++
 
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
@@ -1430,7 +1515,7 @@ export async function executeTools(
 
   let executed = 0
   let toolsChanged = false
-  const pendingInteractions: PendingToolInteraction[] = []
+  const pendingInteractions: ToolBatchInteraction[] = []
   const stagedResults: StagedToolResult[] = []
 
   const canRunReadOnlyBatchInParallel =
@@ -1487,6 +1572,9 @@ export async function executeTools(
     )
 
     for (const outcome of outcomes) {
+      batchState.invokedCallIds.add(
+        outcome.kind === 'permission' ? outcome.toolContext.id : outcome.stagedResult.toolCallId
+      )
       if (outcome.kind === 'permission') {
         hooks?.onPermissionRequest?.(outcome.permission, {
           callId: outcome.toolContext.id,
@@ -1497,7 +1585,9 @@ export async function executeTools(
           state,
           io,
           outcome.toolContext,
-          outcome.permission
+          outcome.permission,
+          'post-call-permission',
+          takeInteractionOrder()
         )
         pendingInteractions.push(interaction)
         updateToolCallBlock(state.blocks, outcome.toolContext.id, '', false)
@@ -1525,33 +1615,35 @@ export async function executeTools(
         maxTokens
       })
 
-      applyFinalizedToolResults({
+      const finalizedInteractions = applyFinalizedToolResults({
         stagedResults,
         fittedResults: fittedResults.results,
         conversation,
         state,
         io,
         hooks,
-        appendToConversation: fittedResults.kind === 'ok'
+        appendToConversation: fittedResults.kind === 'ok',
+        takeInteractionOrder
       })
-      if (state.pendingInteractions?.length) {
-        pendingInteractions.push(...state.pendingInteractions)
-        state.pendingInteractions = []
+      pendingInteractions.push(...finalizedInteractions)
+      for (const result of stagedResults) {
+        batchState.committedResultCallIds.add(result.toolCallId)
       }
       persistToolExecutionState(io, state, rendererFlushHandle)
 
       if (fittedResults.kind === 'terminal_error') {
-        return {
-          executed,
+        return buildToolBatchOutcome(
+          batchState,
           pendingInteractions,
+          executed,
           toolsChanged,
-          terminalError: fittedResults.message
-        }
+          fittedResults.message
+        )
       }
     }
 
     persistToolExecutionState(io, state, rendererFlushHandle)
-    return { executed, pendingInteractions, toolsChanged }
+    return buildToolBatchOutcome(batchState, pendingInteractions, executed, toolsChanged)
   }
 
   for (const tc of state.completedToolCalls) {
@@ -1572,18 +1664,26 @@ export async function executeTools(
           })
           updateToolCallBlock(state.blocks, tc.id, errorText, true)
           state.dirty = true
+          batchState.committedResultCallIds.add(tc.id)
           executed += 1
           persistToolExecutionState(io, state, rendererFlushHandle)
           continue
         }
 
-        const interaction = appendQuestionActionBlock(state, io, toolContext, {
-          header: parsedQuestion.data.header,
-          question: parsedQuestion.data.question,
-          options: parsedQuestion.data.options,
-          custom: parsedQuestion.data.custom !== false,
-          multiple: Boolean(parsedQuestion.data.multiple)
-        })
+        const interaction = appendQuestionActionBlock(
+          state,
+          io,
+          toolContext,
+          {
+            header: parsedQuestion.data.header,
+            question: parsedQuestion.data.question,
+            options: parsedQuestion.data.options,
+            custom: parsedQuestion.data.custom !== false,
+            multiple: Boolean(parsedQuestion.data.multiple)
+          },
+          'question',
+          takeInteractionOrder()
+        )
         pendingInteractions.push(interaction)
         updateToolCallBlock(state.blocks, tc.id, '', false)
         rescheduleRendererFlush(state, rendererFlushHandle)
@@ -1629,7 +1729,9 @@ export async function executeTools(
               state,
               io,
               toolContext,
-              preCheckedPermission
+              preCheckedPermission,
+              'pre-check-permission',
+              takeInteractionOrder()
             )
             pendingInteractions.push(interaction)
             updateToolCallBlock(state.blocks, tc.id, '', false)
@@ -1646,7 +1748,9 @@ export async function executeTools(
             state,
             io,
             toolContext,
-            preCheckedPermission
+            preCheckedPermission,
+            'pre-check-permission',
+            takeInteractionOrder()
           )
           pendingInteractions.push(interaction)
           updateToolCallBlock(state.blocks, tc.id, '', false)
@@ -1676,7 +1780,14 @@ export async function executeTools(
             name: tc.name,
             params: tc.arguments
           })
-          const interaction = appendPermissionActionBlock(state, io, toolContext, reviewPermission)
+          const interaction = appendPermissionActionBlock(
+            state,
+            io,
+            toolContext,
+            reviewPermission,
+            'pre-check-permission',
+            takeInteractionOrder()
+          )
           pendingInteractions.push(interaction)
           updateToolCallBlock(state.blocks, tc.id, '', false)
           rescheduleRendererFlush(state, rendererFlushHandle)
@@ -1702,6 +1813,7 @@ export async function executeTools(
         rendererFlushHandle,
         allowProgressUpdates: true
       })
+      batchState.invokedCallIds.add(tc.id)
 
       if (outcome.kind === 'permission') {
         hooks?.onPermissionRequest?.(outcome.permission, {
@@ -1709,7 +1821,14 @@ export async function executeTools(
           name: tc.name,
           params: tc.arguments
         })
-        const interaction = appendPermissionActionBlock(state, io, toolContext, outcome.permission)
+        const interaction = appendPermissionActionBlock(
+          state,
+          io,
+          toolContext,
+          outcome.permission,
+          'post-call-permission',
+          takeInteractionOrder()
+        )
         pendingInteractions.push(interaction)
         updateToolCallBlock(state.blocks, tc.id, '', false)
         rescheduleRendererFlush(state, rendererFlushHandle)
@@ -1749,33 +1868,35 @@ export async function executeTools(
       maxTokens
     })
 
-    applyFinalizedToolResults({
+    const finalizedInteractions = applyFinalizedToolResults({
       stagedResults,
       fittedResults: fittedResults.results,
       conversation,
       state,
       io,
       hooks,
-      appendToConversation: fittedResults.kind === 'ok'
+      appendToConversation: fittedResults.kind === 'ok',
+      takeInteractionOrder
     })
-    if (state.pendingInteractions?.length) {
-      pendingInteractions.push(...state.pendingInteractions)
-      state.pendingInteractions = []
+    pendingInteractions.push(...finalizedInteractions)
+    for (const result of stagedResults) {
+      batchState.committedResultCallIds.add(result.toolCallId)
     }
     persistToolExecutionState(io, state, rendererFlushHandle)
 
     if (fittedResults.kind === 'terminal_error') {
-      return {
-        executed,
+      return buildToolBatchOutcome(
+        batchState,
         pendingInteractions,
+        executed,
         toolsChanged,
-        terminalError: fittedResults.message
-      }
+        fittedResults.message
+      )
     }
   }
 
   persistToolExecutionState(io, state, rendererFlushHandle)
-  return { executed, pendingInteractions, toolsChanged }
+  return buildToolBatchOutcome(batchState, pendingInteractions, executed, toolsChanged)
 }
 
 export function finalizePaused(state: StreamState, io: IoParams): void {

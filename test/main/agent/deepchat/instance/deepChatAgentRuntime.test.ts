@@ -210,16 +210,46 @@ describe('DeepChatAgentRuntime', () => {
     const first = runtime.getOrHydrate(toAppSessionId('first'))
     const second = runtime.getOrHydrate(toAppSessionId('second'))
 
-    first.replacePendingInteractions([
-      { messageId: 'message', toolCallId: 'tool-1' },
-      { messageId: 'message', toolCallId: 'tool-2' }
-    ])
+    first.replacePendingToolBatch(
+      [
+        {
+          messageId: 'message',
+          toolCallId: 'tool-1',
+          origin: 'pre-check-permission',
+          order: 0
+        },
+        {
+          messageId: 'message',
+          toolCallId: 'tool-2',
+          origin: 'pre-check-permission',
+          order: 1
+        }
+      ],
+      {
+        callOrder: ['tool-1', 'tool-2'],
+        invokedCallIds: [],
+        committedResultCallIds: [],
+        pendingInteractionCallIds: ['tool-1', 'tool-2']
+      }
+    )
 
     expect(first.getFirstPendingInteraction()).toEqual({
       messageId: 'message',
-      toolCallId: 'tool-1'
+      toolCallId: 'tool-1',
+      origin: 'pre-check-permission',
+      order: 0
     })
     expect(first.hasPendingInteractions()).toBe(true)
+    expect(first.getPendingToolBatchState()).toEqual({
+      callOrder: ['tool-1', 'tool-2'],
+      invokedCallIds: [],
+      committedResultCallIds: [],
+      pendingInteractionCallIds: ['tool-1', 'tool-2']
+    })
+    expect(
+      first.transitionPendingInteractionOrigin('message', 'tool-1', 'post-call-permission')
+    ).toBe(true)
+    expect(first.getFirstPendingInteraction()?.origin).toBe('post-call-permission')
     expect(second.hasPendingInteractions()).toBe(false)
     expect(first.tryLockInteraction('message', 'tool-1')).toBe(true)
     expect(first.tryLockInteraction('message', 'tool-1')).toBe(false)
@@ -231,6 +261,12 @@ describe('DeepChatAgentRuntime', () => {
     first.finishResume('message')
     expect(first.tryLockInteraction('message', 'tool-1')).toBe(true)
     expect(first.tryBeginResume('message')).toBe(true)
+
+    first.replacePendingInteractions([
+      { messageId: 'message', toolCallId: 'acp-tool', origin: 'acp-permission', order: 0 }
+    ])
+    expect(first.hasPendingInteractions()).toBe(true)
+    expect(first.getPendingToolBatchState()).toBeUndefined()
   })
 
   it('owns deferred tool cancellation and live provider permissions', () => {

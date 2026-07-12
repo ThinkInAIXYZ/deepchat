@@ -226,6 +226,7 @@ type PendingTapeViewContext = {
 type DeferredToolExecutionResult = {
   responseText: string
   isError: boolean
+  invoked?: boolean
   toolSource?: 'mcp' | 'agent'
   serverName?: string
   offloadPath?: string
@@ -1932,7 +1933,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
 
       const blocks = this.parseAssistantBlocks(message.content)
-      const pendingEntries = this.collectPendingInteractionEntries(messageId, blocks)
+      const pendingEntries = this.reconcilePendingInteractionEntries(
+        instance,
+        this.collectPendingInteractionEntries(messageId, blocks)
+      )
       this.replacePendingInteractions(instance, pendingEntries)
       if (pendingEntries.length === 0) {
         throw new Error('No pending interaction found in target message.')
@@ -1981,10 +1985,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             this.setSessionStatus(sessionId, 'generating')
             return { resumed: false, handledInline: result.handledInline === true }
           }
+          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
         } else if (response.kind === 'question_other') {
           const deferredResult = 'User chose to answer with a follow-up message.'
           this.markQuestionResolved(actionBlock, '')
           this.updateToolCallResponse(blocks, toolCall.id, deferredResult, false)
+          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
           waitingForUserMessage = true
         } else {
           const answerText =
@@ -1995,6 +2001,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           }
           this.markQuestionResolved(actionBlock, normalizedAnswer)
           this.updateToolCallResponse(blocks, toolCall.id, normalizedAnswer, false)
+          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
         }
       } else if (actionBlock.action_type === 'tool_call_permission') {
         if (response.kind !== 'permission') {
@@ -2035,7 +2042,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             }
           })
           const execution = await this.executeDeferredToolCall(sessionId, messageId, toolCall)
+          if (execution.invoked) {
+            instance.advancePendingToolBatch({ invokedCallId: toolCall.id })
+          }
           if (execution.terminalError) {
+            instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
             this.dispatchHook('PostToolUseFailure', {
               sessionId,
               messageId,
@@ -2078,7 +2089,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             this.setSessionStatus(sessionId, 'error')
             this.replacePendingInteractions(
               instance,
-              this.collectPendingInteractionEntries(messageId, blocks)
+              this.reconcilePendingInteractionEntries(
+                instance,
+                this.collectPendingInteractionEntries(messageId, blocks)
+              )
             )
             return { resumed: false }
           }
@@ -2111,6 +2125,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           }
 
           if (execution.requiresPermission && execution.permissionRequest) {
+            instance.transitionPendingInteractionOrigin(
+              messageId,
+              toolCall.id,
+              'post-call-permission'
+            )
             this.dispatchHook('PermissionRequest', {
               sessionId,
               messageId,
@@ -2133,11 +2152,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               permissionRequest: JSON.stringify(execution.permissionRequest)
             }
           } else {
+            instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
             shouldDispatchResolvedToolHook = true
           }
         } else {
           this.markPermissionResolved(actionBlock, false, permissionType)
           this.updateToolCallResponse(blocks, toolCall.id, 'User denied the request.', true)
+          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
           shouldDispatchResolvedToolHook = true
         }
 
@@ -2159,7 +2180,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
 
       this.messageStore.updateAssistantContent(messageId, blocks)
-      const remainingPending = this.collectPendingInteractionEntries(messageId, blocks)
+      const remainingPending = this.reconcilePendingInteractionEntries(
+        instance,
+        this.collectPendingInteractionEntries(messageId, blocks)
+      )
       this.replacePendingInteractions(instance, remainingPending)
       this.emitMessageRefresh(sessionId, messageId)
 
@@ -4550,9 +4574,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     if (result.status === 'paused') {
       if (isActive) {
-        this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions(
-          result.pendingInteractions ?? []
-        )
+        const instance = this.getHydratedDeepChatInstance(sessionId)
+        if (instance && result.toolBatchExecutionState) {
+          instance.replacePendingToolBatch(
+            result.pendingInteractions ?? [],
+            result.toolBatchExecutionState
+          )
+        } else {
+          instance?.replacePendingInteractions(result.pendingInteractions ?? [])
+        }
         this.setSessionStatus(sessionId, 'generating')
       }
       return
@@ -6170,7 +6200,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private collectPendingInteractionEntries(
     messageId: string,
-    blocks: AssistantMessageBlock[]
+    blocks: AssistantMessageBlock[],
+    orderOffset = 0
   ): PendingInteractionEntry[] {
     const entries: PendingInteractionEntry[] = []
 
@@ -6199,6 +6230,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           blockIndex: index,
           interaction: {
             type: 'question',
+            origin: this.isSkillDraftConfirmationBlock(block)
+              ? 'skill-draft-confirmation'
+              : 'question',
+            order: orderOffset + entries.length,
             messageId,
             toolCallId,
             toolName,
@@ -6224,6 +6259,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         blockIndex: index,
         interaction: {
           type: 'permission',
+          origin:
+            this.parsePermissionPayload(block)?.providerId?.trim() === 'acp'
+              ? 'acp-permission'
+              : 'pre-check-permission',
+          order: orderOffset + entries.length,
           messageId,
           toolCallId,
           toolName,
@@ -6246,9 +6286,30 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     instance.replacePendingInteractions(
       entries.map(({ interaction }) => ({
         messageId: interaction.messageId,
-        toolCallId: interaction.toolCallId
+        toolCallId: interaction.toolCallId,
+        origin: interaction.origin,
+        order: interaction.order
       }))
     )
+  }
+
+  private reconcilePendingInteractionEntries(
+    instance: DeepChatAgentInstance,
+    entries: PendingInteractionEntry[]
+  ): PendingInteractionEntry[] {
+    const knownInteractions = instance.getPendingInteractions()
+    for (const entry of entries) {
+      const known = knownInteractions.find(
+        (interaction) =>
+          interaction.messageId === entry.interaction.messageId &&
+          interaction.toolCallId === entry.interaction.toolCallId
+      )
+      if (known) {
+        entry.interaction.origin = known.origin
+        entry.interaction.order = known.order
+      }
+    }
+    return entries.sort((left, right) => left.interaction.order - right.interaction.order)
   }
 
   private parseQuestionOptions(raw: unknown): Array<{ label: string; description?: string }> {
@@ -6700,9 +6761,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       : null
     const deferredAbortSignal =
       deferredAbortController?.signal ?? this.getAbortSignalForSession(sessionId)
+    let invoked = false
 
     try {
       const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
+      invoked = true
       const result = await this.toolExecutionPort.execute(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
         enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
@@ -6729,6 +6792,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         return {
           responseText: this.toolContentToText(rawData.content),
           isError: true,
+          invoked,
           requiresPermission: true,
           permissionRequest: rawData.permissionRequest as PendingToolInteraction['permission']
         }
@@ -6785,12 +6849,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (prepared.kind === 'tool_error') {
         return {
           responseText: prepared.message,
-          isError: true
+          isError: true,
+          invoked
         }
       }
       return {
         responseText: prepared.content,
         isError: Boolean(rawData.isError),
+        invoked,
         toolSource: toolDefinition.source,
         serverName: toolDefinition.server.name,
         offloadPath: prepared.offloadPath,
@@ -6803,7 +6869,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const errorText = error instanceof Error ? error.message : String(error)
       return {
         responseText: `Error: ${errorText}`,
-        isError: true
+        isError: true,
+        invoked
       }
     } finally {
       if (toolCall.id) {
@@ -7271,11 +7338,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     for (const message of messages) {
       if (message.role !== 'assistant') continue
       const blocks = this.parseAssistantBlocks(message.content)
-      pendingEntries.push(...this.collectPendingInteractionEntries(message.id, blocks))
+      pendingEntries.push(
+        ...this.collectPendingInteractionEntries(message.id, blocks, pendingEntries.length)
+      )
     }
     const instance = this.getHydratedDeepChatInstance(sessionId)
     if (instance) {
-      this.replacePendingInteractions(instance, pendingEntries)
+      this.replacePendingInteractions(
+        instance,
+        this.reconcilePendingInteractionEntries(instance, pendingEntries)
+      )
       return instance.hasPendingInteractions()
     }
     return pendingEntries.length > 0

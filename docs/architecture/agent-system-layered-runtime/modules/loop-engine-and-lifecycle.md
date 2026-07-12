@@ -30,8 +30,11 @@
 > at their existing late boundary. ASLR-055 connected the session-scoped `ToolCatalogPort`,
 > `ToolExecutionPort`, and `ToolResultPort`: `processStream` and legacy dispatch now consume those
 > capabilities instead of `IToolPresenter`, a normalization callback, or concrete `ToolOutputGuard`.
-> ToolPresenter remains the sole merged/collision-resolved catalog and execution owner. Interaction
-> decisions remain in the legacy batch until ASLR-056.
+> ToolPresenter remains the sole merged/collision-resolved catalog and execution owner. ASLR-056
+> made the legacy dispatcher return a discriminated `ToolBatchOutcome`: only pre-check permission,
+> question interception, post-call permission, and post-success skill-draft confirmation can pause a
+> batch. The outcome carries ordered interactions plus the persisted call/invocation/result state;
+> the instance owns that state until the final response creates one fresh resume run.
 
 ## 1. 模块目的
 

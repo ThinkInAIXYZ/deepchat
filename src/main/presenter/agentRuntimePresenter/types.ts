@@ -12,6 +12,8 @@ import type { DeepChatMessageStore } from './messageStore'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
+  PendingToolInteractionOrigin,
+  PersistedToolBatchState,
   ToolCatalogPort,
   ToolExecutionPort,
   ToolResultPort
@@ -51,7 +53,6 @@ export interface StreamState {
     }
   >
   completedToolCalls: ToolCallResult[]
-  pendingInteractions?: PendingToolInteraction[]
   stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens'
   latestAgentPlanSnapshot?: AgentPlanSnapshot
   planTerminalReason?: AgentPlanTerminalReason
@@ -142,6 +143,8 @@ export interface ToolPermissionReviewResult {
 
 export interface PendingToolInteraction {
   type: 'question' | 'permission'
+  origin: PendingToolInteractionOrigin | 'acp-permission'
+  order: number
   messageId: string
   toolCallId: string
   toolName: string
@@ -177,9 +180,14 @@ export interface PendingToolInteraction {
   }
 }
 
+export type ToolBatchInteraction = Omit<PendingToolInteraction, 'origin'> & {
+  origin: PendingToolInteractionOrigin
+}
+
 export interface ProcessResult {
   status: 'completed' | 'paused' | 'aborted' | 'error'
-  pendingInteractions?: PendingToolInteraction[]
+  pendingInteractions?: ToolBatchInteraction[]
+  toolBatchExecutionState?: PersistedToolBatchState
   terminalError?: string
   stopReason?: string
   usage?: Record<string, number>

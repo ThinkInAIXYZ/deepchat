@@ -7,7 +7,7 @@ export type ProviderRoundOutcome<TToolBatch, THalted> =
   | { type: 'tool_batch'; batch: TToolBatch; toolCallCount: number }
   | { type: 'halted'; result: THalted }
 
-export type ToolBatchOutcome<THalted> =
+export type LoopToolBatchOutcome<THalted> =
   | { type: 'continue'; executedToolCount: number }
   | { type: 'halted'; result: THalted }
 
@@ -28,7 +28,7 @@ export interface DeepChatLoopDependencies<TStreamState, TToolBatch, THalted> {
     run: LoopRun<TStreamState>
     providerRound: number
     batch: TToolBatch
-  }): Promise<ToolBatchOutcome<THalted>>
+  }): Promise<LoopToolBatchOutcome<THalted>>
 }
 
 export interface DeepChatLoopCommitCallbacks<TStreamState, THalted, TResult> {
@@ -40,7 +40,7 @@ export interface DeepChatLoopCommitCallbacks<TStreamState, THalted, TResult> {
   afterRoundPersisted(input: {
     run: LoopRun<TStreamState>
     providerRound: number
-    outcome: ToolBatchOutcome<unknown>['type']
+    outcome: LoopToolBatchOutcome<unknown>['type']
   }): Promise<void> | void
   settleTurn(input: {
     run: LoopRun<TStreamState>

@@ -8,7 +8,8 @@
 > loop/process/dispatch：catalog cache 仍按 profile fingerprint 和 registry revision 失效，最终 definitions
 > 只来自 `ToolPresenter.getAllToolDefinitions()`；execution/result adapters 等价委托现有 pre-check、call、
 > screenshot normalization 和 output guard。SkillPresenter、ToolPresenter、McpPresenter、configured
-> selection 与 collision policy 的 owner 均未移动；ordered interaction outcome 仍属于 ASLR-056。
+> selection 与 collision policy 的 owner 均未移动。ASLR-056 已把四种合法 pause origin 映射为
+> ordered typed batch outcome，并由 instance 持有当前 batch execution state。
 
 ## 1. 模块目的
 
@@ -86,9 +87,10 @@ normalize identity/arguments
 ```
 
 `processStream` 和 legacy `dispatch` 只持有 `ToolCatalogPort`、`ToolExecutionPort` 与 `ToolResultPort`，
-不再直接持有 `IToolPresenter`、normalization callback 或 concrete `ToolOutputGuard`。ASLR-056 前，
-permission/question/post-call/skill-draft decision 仍按原顺序留在 legacy batch dispatcher；本层 adapter
-不决定 pause，也不重放 side effect。
+不再直接持有 `IToolPresenter`、normalization callback 或 concrete `ToolOutputGuard`。ASLR-056 后，
+legacy batch dispatcher 把 permission/question/post-call/skill-draft decision 映射成 ordered typed
+outcome；adapter 不决定 pause。已调用与已提交 result 的 call ids 随 outcome 交给 instance，逐项响应期间
+不会重新运行整个 batch 或重放已提交 side effect。
 
 tool collision priority、parallel eligibility、argument repair、result fitting 和 renderer payload 均保持当前
 行为。
@@ -171,6 +173,11 @@ ASLR-055 的 typed-port 与 real-boundary proof 位于
 `toolOutputGuard.test.ts` 和 `test/main/presenter/toolPresenter/toolPresenter.test.ts`。它们锁定
 zero/one/many、collision、policy/cache/revision、parallel/sequential ordering、exact call options、
 normalization/offload/failure、skill refresh 和 abort forwarding。
+
+ASLR-056 的 ordered-outcome proof 位于 `dispatch.test.ts`、`process.test.ts`、
+`agentRuntimePresenter.test.ts` 与 `deepChatAgentRuntime.test.ts`。它锁定现有 persisted action 顺序、
+四种 origin、live-store refresh、逐项 execution-state 演进、post-call no-replay，以及 final-item-only
+fresh resume。
 
 ## 12. 明确不做
 

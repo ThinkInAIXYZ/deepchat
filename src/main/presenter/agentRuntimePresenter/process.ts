@@ -660,7 +660,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             providerId
           )
 
-          if (executed.terminalError) {
+          if (executed.type === 'completed' && executed.terminalError) {
             return {
               type: 'halted',
               result: {
@@ -673,15 +673,16 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             }
           }
 
-          if (executed.pendingInteractions.length > 0) {
+          if (executed.type === 'paused') {
             logger.info(
-              `[ProcessStream] paused for user interaction count=${executed.pendingInteractions.length}`
+              `[ProcessStream] paused for user interaction count=${executed.interactions.length}`
             )
             return {
               type: 'halted',
               result: {
                 status: 'paused',
-                pendingInteractions: executed.pendingInteractions
+                pendingInteractions: [...executed.interactions],
+                toolBatchExecutionState: executed.executionState
               }
             }
           }

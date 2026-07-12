@@ -976,8 +976,9 @@ describe('dispatch', () => {
         1024
       )
 
-      expect(result.pendingInteractions).toHaveLength(1)
-      expect(result.pendingInteractions[0]).toEqual(
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
+      expect(result.type === 'paused' ? result.interactions[0] : null).toEqual(
         expect.objectContaining({
           type: 'question',
           messageId: 'm1',
@@ -1011,6 +1012,121 @@ describe('dispatch', () => {
         'chat.skillDraft.actions.install',
         'chat.skillDraft.actions.discard'
       ])
+    })
+
+    it('returns all interaction origins in persisted action order with execution state', async () => {
+      const toolPresenter = createMockToolPresenter() as IToolPresenter & {
+        preCheckToolPermission: ReturnType<typeof vi.fn>
+      }
+      toolPresenter.preCheckToolPermission = vi.fn(async (request) =>
+        request.function.name === 'precheck_tool'
+          ? {
+              needsPermission: true,
+              permissionType: 'write' as const,
+              description: 'Need pre-check permission'
+            }
+          : null
+      )
+      toolPresenter.callTool = vi.fn(async (request) => {
+        if (request.function.name === 'skill_manage') {
+          return {
+            content: 'draft created',
+            rawData: {
+              content: 'draft created',
+              isError: false,
+              toolResult: {
+                skillDraft: {
+                  status: 'created',
+                  draftId: 'draft-1',
+                  skillName: 'draft-skill'
+                }
+              }
+            }
+          }
+        }
+        if (request.function.name === 'post_permission_tool') {
+          return {
+            content: 'permission required',
+            rawData: {
+              content: 'permission required',
+              isError: true,
+              requiresPermission: true,
+              permissionRequest: {
+                permissionType: 'write',
+                description: 'Need post-call permission'
+              }
+            }
+          }
+        }
+        throw new Error(`Unexpected tool execution: ${request.function.name}`)
+      })
+
+      const calls = [
+        { id: 'tc-skill', name: 'skill_manage', arguments: '{"action":"create"}' },
+        {
+          id: 'tc-question',
+          name: QUESTION_TOOL_NAME,
+          arguments: '{"question":"Continue?","options":[{"label":"Yes"}]}'
+        },
+        { id: 'tc-post', name: 'post_permission_tool', arguments: '{}' },
+        { id: 'tc-pre', name: 'precheck_tool', arguments: '{}' }
+      ]
+      state.completedToolCalls = calls
+      state.blocks.push(
+        ...calls.map((call) => ({
+          type: 'tool_call' as const,
+          content: '',
+          status: 'pending' as const,
+          timestamp: Date.now(),
+          tool_call: {
+            id: call.id,
+            name: call.name,
+            params: call.arguments,
+            response: ''
+          }
+        }))
+      )
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        calls.map((call) => makeTool(call.name)),
+        toolPresenter,
+        'gpt-4',
+        io,
+        'default',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(result.type).toBe('paused')
+      if (result.type !== 'paused') throw new Error('Expected paused tool batch')
+      expect(
+        result.interactions.map(({ origin, order, toolCallId }) => ({
+          origin,
+          order,
+          toolCallId
+        }))
+      ).toEqual([
+        { origin: 'question', order: 0, toolCallId: 'tc-question' },
+        { origin: 'post-call-permission', order: 1, toolCallId: 'tc-post' },
+        { origin: 'pre-check-permission', order: 2, toolCallId: 'tc-pre' },
+        { origin: 'skill-draft-confirmation', order: 3, toolCallId: 'tc-skill' }
+      ])
+      expect(result.executionState).toEqual({
+        callOrder: ['tc-skill', 'tc-question', 'tc-post', 'tc-pre'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill'],
+        pendingInteractionCallIds: ['tc-question', 'tc-post', 'tc-pre', 'tc-skill']
+      })
+      expect(
+        state.blocks
+          .filter((block) => block.type === 'action' && block.status === 'pending')
+          .map((block) => block.tool_call?.id)
+      ).toEqual(['tc-question', 'tc-post', 'tc-pre', 'tc-skill'])
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
     })
 
     it('does not emit PreToolUse for question interactions that pause execution', async () => {
@@ -1063,7 +1179,8 @@ describe('dispatch', () => {
         rendererFlushHandle
       )
 
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
@@ -1121,7 +1238,8 @@ describe('dispatch', () => {
         rendererFlushHandle
       )
 
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
@@ -1173,7 +1291,7 @@ describe('dispatch', () => {
         hooks
       )
 
-      expect(result.pendingInteractions).toHaveLength(0)
+      expect(result.type).toBe('completed')
       expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 's1',
@@ -1251,7 +1369,8 @@ describe('dispatch', () => {
         })
       )
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
     })
 
     it('marks tool calls as reviewing while auto approve reviewer is pending', async () => {
@@ -1369,7 +1488,8 @@ describe('dispatch', () => {
 
       expect(rendererFlushHandle.flush).not.toHaveBeenCalled()
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(
         state.blocks.find((block) => block.tool_call?.id === 'tc-read')?.extra
           ?.autoApproveReviewStatus
@@ -1424,8 +1544,9 @@ describe('dispatch', () => {
 
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
       expect(result.executed).toBe(0)
-      expect(result.pendingInteractions).toHaveLength(1)
-      expect(result.pendingInteractions[0].permission).toEqual(
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
+      expect(result.type === 'paused' ? result.interactions[0].permission : null).toEqual(
         expect.objectContaining({
           permissionType: 'write',
           serverName: 'agent-filesystem',
@@ -1552,7 +1673,8 @@ describe('dispatch', () => {
       )
 
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
     })
 
@@ -1637,7 +1759,7 @@ describe('dispatch', () => {
         expect.objectContaining({ permissionMode: 'full_access' })
       )
       expect(result.executed).toBe(1)
-      expect(result.pendingInteractions).toHaveLength(0)
+      expect(result.type).toBe('completed')
     })
 
     it('enriches tool_call blocks with server info', async () => {
