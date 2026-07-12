@@ -7,6 +7,8 @@ import { approximateTokenSize } from 'tokenx'
 import type {
   InterleavedReasoningConfig,
   IoParams,
+  ProcessControlCollaborators,
+  ProcessInternalDiagnostics,
   StreamState
 } from '@/presenter/agentRuntimePresenter/types'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
@@ -19,7 +21,7 @@ import {
   createToolExecutionPort,
   createToolResultPort
 } from '@/presenter/agentRuntimePresenter/toolAdapters'
-import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
+import type { DeepChatLoopToolNotification, ToolResultPort } from '@/agent/deepchat/loop/ports'
 import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
 import {
   IMAGE_GENERATE_TOOL_NAME,
@@ -150,6 +152,17 @@ const DEFAULT_INTERLEAVED_REASONING: InterleavedReasoningConfig = {
   providerDbSourceUrl: 'https://example.com/provider-db.json'
 }
 
+type TestHooks = Partial<ProcessControlCollaborators & ProcessInternalDiagnostics> & {
+  onPreToolUse?: (tool: DeepChatLoopToolNotification) => void
+  onPostToolUse?: (tool: DeepChatLoopToolNotification) => void
+  onPostToolUseFailure?: (tool: DeepChatLoopToolNotification) => void
+  onPermissionRequest?: (
+    permission: Readonly<Record<string, unknown>>,
+    tool: DeepChatLoopToolNotification
+  ) => void
+  resultNormalizer?: ToolResultPort['normalize']
+}
+
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
 }
@@ -166,9 +179,7 @@ async function executeTools(
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
-  hooks?: NonNullable<Parameters<typeof executeToolsInternal>[13]> & {
-    resultNormalizer?: ToolResultPort['normalize']
-  },
+  hooks?: TestHooks,
   providerId?: string,
   interleavedReasoning: InterleavedReasoningConfig = DEFAULT_INTERLEAVED_REASONING,
   rendererFlushHandle?: Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
@@ -230,7 +241,25 @@ async function executeTools(
     contextLength,
     maxTokens,
     flushHandle,
-    hooks,
+    {
+      notificationObserver: hooks
+        ? {
+            notify: (notification) => {
+              if (notification.event === 'PreToolUse') {
+                hooks.onPreToolUse?.(notification.tool)
+              } else if (notification.event === 'PostToolUse') {
+                hooks.onPostToolUse?.(notification.tool)
+              } else if (notification.event === 'PostToolUseFailure') {
+                hooks.onPostToolUseFailure?.(notification.tool)
+              } else {
+                hooks.onPermissionRequest?.(notification.permission, notification.tool)
+              }
+            }
+          }
+        : undefined,
+      controls: hooks,
+      diagnostics: hooks
+    },
     providerId
   )
 }

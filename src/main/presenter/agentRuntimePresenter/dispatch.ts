@@ -19,13 +19,15 @@ import type {
   InterleavedReasoningConfig,
   IoParams,
   PendingToolInteraction,
-  ProcessHooks,
+  ProcessControlCollaborators,
   StreamState,
-  ToolBatchInteraction
+  ToolBatchInteraction,
+  ToolDispatchCollaborators
 } from './types'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type {
+  DeepChatLoopNotificationObserver,
   PendingToolInteractionOrigin,
   PersistedToolBatchState,
   ToolBatchOutcome,
@@ -33,6 +35,7 @@ import type {
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
+import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
 import { buildTerminalErrorBlocks } from './messageStore'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
@@ -698,7 +701,7 @@ function applyFinalizedToolResults(params: {
   conversation: ChatMessage[]
   state: StreamState
   io: IoParams
-  hooks?: ProcessHooks
+  notificationObserver?: DeepChatLoopNotificationObserver
   appendToConversation: boolean
   takeInteractionOrder: () => number
 }): ToolBatchInteraction[] {
@@ -708,7 +711,7 @@ function applyFinalizedToolResults(params: {
     conversation,
     state,
     io,
-    hooks,
+    notificationObserver,
     appendToConversation,
     takeInteractionOrder
   } = params
@@ -788,18 +791,24 @@ function applyFinalizedToolResults(params: {
     }
 
     if (fittedResult.isError) {
-      hooks?.onPostToolUseFailure?.({
-        callId: stagedResult.toolCallId,
-        name: stagedResult.toolName,
-        params: stagedResult.toolArgs,
-        error: fittedResult.responseText
+      emitDeepChatLoopNotification(notificationObserver, {
+        event: 'PostToolUseFailure',
+        tool: {
+          callId: stagedResult.toolCallId,
+          name: stagedResult.toolName,
+          params: stagedResult.toolArgs,
+          error: fittedResult.responseText
+        }
       })
     } else if (stagedResult.postHookKind === 'success') {
-      hooks?.onPostToolUse?.({
-        callId: stagedResult.toolCallId,
-        name: stagedResult.toolName,
-        params: stagedResult.toolArgs,
-        response: fittedResult.responseText
+      emitDeepChatLoopNotification(notificationObserver, {
+        event: 'PostToolUse',
+        tool: {
+          callId: stagedResult.toolCallId,
+          name: stagedResult.toolName,
+          params: stagedResult.toolArgs,
+          response: fittedResult.responseText
+        }
       })
     }
   }
@@ -850,12 +859,12 @@ function normalizePermissionRequest(
 }
 
 async function autoGrantPermission(
-  hooks: ProcessHooks | undefined,
+  controls: ProcessControlCollaborators | undefined,
   _conversationId: string,
   permission: NonNullable<PendingToolInteraction['permission']>
 ): Promise<void> {
-  if (hooks?.autoGrantPermission) {
-    await hooks.autoGrantPermission(permission)
+  if (controls?.autoGrantPermission) {
+    await controls.autoGrantPermission(permission)
   }
 }
 
@@ -989,7 +998,7 @@ function buildSyntheticPermissionForReview(
 }
 
 async function reviewAutoApproveAction(params: {
-  hooks: ProcessHooks | undefined
+  controls: ProcessControlCollaborators | undefined
   io: IoParams
   state: StreamState
   rendererFlushHandle: RendererFlushHandle
@@ -997,8 +1006,8 @@ async function reviewAutoApproveAction(params: {
   permission: NonNullable<PendingToolInteraction['permission']>
   reason: 'tool_call' | 'precheck' | 'requires_permission'
 }): Promise<'auto_allow' | 'ask_user'> {
-  const { hooks, io, state, rendererFlushHandle, execution, permission, reason } = params
-  const reviewToolPermission = hooks?.reviewToolPermission
+  const { controls, io, state, rendererFlushHandle, execution, permission, reason } = params
+  const reviewToolPermission = controls?.reviewToolPermission
   if (!reviewToolPermission) {
     return 'ask_user'
   }
@@ -1234,7 +1243,7 @@ async function runToolCall(params: {
   toolResults: ToolResultPort
   permissionMode: PermissionMode
   toolPermissionMode: PermissionMode
-  hooks?: ProcessHooks
+  controls?: ProcessControlCollaborators
   io: IoParams
   state: StreamState
   rendererFlushHandle: RendererFlushHandle
@@ -1246,7 +1255,7 @@ async function runToolCall(params: {
     toolResults,
     permissionMode,
     toolPermissionMode,
-    hooks,
+    controls,
     io,
     state,
     rendererFlushHandle,
@@ -1298,8 +1307,8 @@ async function runToolCall(params: {
         onProgress: applyProgressUpdate,
         signal: io.abortSignal,
         permissionMode: toolPermissionMode,
-        activeSkillNames: hooks?.getActiveSkillNames?.(),
-        enabledSkillNames: hooks?.getEnabledSkillNames?.()
+        activeSkillNames: controls?.getActiveSkillNames?.(),
+        enabledSkillNames: controls?.getEnabledSkillNames?.()
       })
 
     let toolCallResult = await callTool()
@@ -1317,12 +1326,12 @@ async function runToolCall(params: {
 
       if (pendingPermission) {
         if (permissionMode === 'full_access') {
-          await autoGrantPermission(hooks, io.sessionId, pendingPermission)
+          await autoGrantPermission(controls, io.sessionId, pendingPermission)
           toolCallResult = await callTool()
           toolRawData = toolCallResult.rawData
         } else if (permissionMode === 'auto_approve') {
           const review = await reviewAutoApproveAction({
-            hooks,
+            controls,
             io,
             state,
             rendererFlushHandle,
@@ -1331,7 +1340,7 @@ async function runToolCall(params: {
             reason: 'requires_permission'
           })
           if (review === 'auto_allow') {
-            await autoGrantPermission(hooks, io.sessionId, pendingPermission)
+            await autoGrantPermission(controls, io.sessionId, pendingPermission)
             toolCallResult = await callTool()
             toolRawData = toolCallResult.rawData
           } else {
@@ -1370,7 +1379,7 @@ async function runToolCall(params: {
         toolName: completedToolCall.name,
         toolArgs: completedToolCall.arguments,
         content: toolRawData.content,
-        cacheImage: hooks?.cacheImage
+        cacheImage: controls?.cacheImage
       }))
 
     toolRawData = {
@@ -1405,7 +1414,7 @@ async function runToolCall(params: {
 
     const activatedSkill = extractActivatedSkillAfterCall(completedToolCall.name, toolRawData)
     if (activatedSkill) {
-      await hooks?.activateSkill?.(activatedSkill)
+      await controls?.activateSkill?.(activatedSkill)
     }
 
     return {
@@ -1448,9 +1457,10 @@ export async function executeTools(
   contextLength: number,
   maxTokens: number,
   rendererFlushHandle: RendererFlushHandle,
-  hooks?: ProcessHooks,
+  collaborators?: ToolDispatchCollaborators,
   providerId?: string
 ): Promise<ToolBatchOutcome<ToolBatchInteraction>> {
+  const { notificationObserver, controls, diagnostics } = collaborators ?? {}
   finalizePendingNarrativeBeforeToolExecution(state)
   persistToolExecutionState(io, state, rendererFlushHandle)
   const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
@@ -1505,8 +1515,8 @@ export async function executeTools(
       reasoningContentLength: reasoning.length,
       toolCallCount: state.completedToolCalls.length
     }
-    hooks?.onInterleavedReasoningGap?.(gapPayload)
-    if (!hooks?.onInterleavedReasoningGap) {
+    diagnostics?.onInterleavedReasoningGap?.(gapPayload)
+    if (!diagnostics?.onInterleavedReasoningGap) {
       console.warn('[DeepChatDispatch] Missing interleaved reasoning portrait:', gapPayload)
     }
   }
@@ -1542,15 +1552,18 @@ export async function executeTools(
                 description: `Permission required for ${execution.toolContext.name}`
               })
               if (permission) {
-                await autoGrantPermission(hooks, io.sessionId, permission)
+                await autoGrantPermission(controls, io.sessionId, permission)
               }
             }
           }
 
-          hooks?.onPreToolUse?.({
-            callId: execution.completedToolCall.id,
-            name: execution.completedToolCall.name,
-            params: execution.completedToolCall.arguments
+          emitDeepChatLoopNotification(notificationObserver, {
+            event: 'PreToolUse',
+            tool: {
+              callId: execution.completedToolCall.id,
+              name: execution.completedToolCall.name,
+              params: execution.completedToolCall.arguments
+            }
           })
 
           return await runToolCall({
@@ -1559,7 +1572,7 @@ export async function executeTools(
             toolResults,
             permissionMode,
             toolPermissionMode,
-            hooks,
+            controls,
             io,
             state,
             rendererFlushHandle,
@@ -1576,10 +1589,14 @@ export async function executeTools(
         outcome.kind === 'permission' ? outcome.toolContext.id : outcome.stagedResult.toolCallId
       )
       if (outcome.kind === 'permission') {
-        hooks?.onPermissionRequest?.(outcome.permission, {
-          callId: outcome.toolContext.id,
-          name: outcome.toolContext.name,
-          params: outcome.toolContext.args
+        emitDeepChatLoopNotification(notificationObserver, {
+          event: 'PermissionRequest',
+          permission: outcome.permission,
+          tool: {
+            callId: outcome.toolContext.id,
+            name: outcome.toolContext.name,
+            params: outcome.toolContext.args
+          }
         })
         const interaction = appendPermissionActionBlock(
           state,
@@ -1621,7 +1638,7 @@ export async function executeTools(
         conversation,
         state,
         io,
-        hooks,
+        notificationObserver,
         appendToConversation: fittedResults.kind === 'ok',
         takeInteractionOrder
       })
@@ -1706,10 +1723,10 @@ export async function executeTools(
 
       if (preCheckedPermission) {
         if (permissionMode === 'full_access') {
-          await autoGrantPermission(hooks, io.sessionId, preCheckedPermission)
+          await autoGrantPermission(controls, io.sessionId, preCheckedPermission)
         } else if (permissionMode === 'auto_approve') {
           const review = await reviewAutoApproveAction({
-            hooks,
+            controls,
             io,
             state,
             rendererFlushHandle,
@@ -1718,12 +1735,16 @@ export async function executeTools(
             reason: 'precheck'
           })
           if (review === 'auto_allow') {
-            await autoGrantPermission(hooks, io.sessionId, preCheckedPermission)
+            await autoGrantPermission(controls, io.sessionId, preCheckedPermission)
           } else {
-            hooks?.onPermissionRequest?.(preCheckedPermission, {
-              callId: tc.id,
-              name: tc.name,
-              params: tc.arguments
+            emitDeepChatLoopNotification(notificationObserver, {
+              event: 'PermissionRequest',
+              permission: preCheckedPermission,
+              tool: {
+                callId: tc.id,
+                name: tc.name,
+                params: tc.arguments
+              }
             })
             const interaction = appendPermissionActionBlock(
               state,
@@ -1739,10 +1760,14 @@ export async function executeTools(
             continue
           }
         } else {
-          hooks?.onPermissionRequest?.(preCheckedPermission, {
-            callId: tc.id,
-            name: tc.name,
-            params: tc.arguments
+          emitDeepChatLoopNotification(notificationObserver, {
+            event: 'PermissionRequest',
+            permission: preCheckedPermission,
+            tool: {
+              callId: tc.id,
+              name: tc.name,
+              params: tc.arguments
+            }
           })
           const interaction = appendPermissionActionBlock(
             state,
@@ -1766,7 +1791,7 @@ export async function executeTools(
       ) {
         const reviewPermission = buildSyntheticPermissionForReview(execution)
         const review = await reviewAutoApproveAction({
-          hooks,
+          controls,
           io,
           state,
           rendererFlushHandle,
@@ -1775,10 +1800,14 @@ export async function executeTools(
           reason: 'tool_call'
         })
         if (review !== 'auto_allow') {
-          hooks?.onPermissionRequest?.(reviewPermission, {
-            callId: tc.id,
-            name: tc.name,
-            params: tc.arguments
+          emitDeepChatLoopNotification(notificationObserver, {
+            event: 'PermissionRequest',
+            permission: reviewPermission,
+            tool: {
+              callId: tc.id,
+              name: tc.name,
+              params: tc.arguments
+            }
           })
           const interaction = appendPermissionActionBlock(
             state,
@@ -1795,10 +1824,13 @@ export async function executeTools(
         }
       }
 
-      hooks?.onPreToolUse?.({
-        callId: tc.id,
-        name: tc.name,
-        params: tc.arguments
+      emitDeepChatLoopNotification(notificationObserver, {
+        event: 'PreToolUse',
+        tool: {
+          callId: tc.id,
+          name: tc.name,
+          params: tc.arguments
+        }
       })
 
       const outcome = await runToolCall({
@@ -1807,7 +1839,7 @@ export async function executeTools(
         toolResults,
         permissionMode,
         toolPermissionMode,
-        hooks,
+        controls,
         io,
         state,
         rendererFlushHandle,
@@ -1816,10 +1848,14 @@ export async function executeTools(
       batchState.invokedCallIds.add(tc.id)
 
       if (outcome.kind === 'permission') {
-        hooks?.onPermissionRequest?.(outcome.permission, {
-          callId: tc.id,
-          name: tc.name,
-          params: tc.arguments
+        emitDeepChatLoopNotification(notificationObserver, {
+          event: 'PermissionRequest',
+          permission: outcome.permission,
+          tool: {
+            callId: tc.id,
+            name: tc.name,
+            params: tc.arguments
+          }
         })
         const interaction = appendPermissionActionBlock(
           state,
@@ -1874,7 +1910,7 @@ export async function executeTools(
       conversation,
       state,
       io,
-      hooks,
+      notificationObserver,
       appendToConversation: fittedResults.kind === 'ok',
       takeInteractionOrder
     })

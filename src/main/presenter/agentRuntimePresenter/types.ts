@@ -12,6 +12,7 @@ import type { DeepChatMessageStore } from './messageStore'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
+  DeepChatLoopNotificationObserver,
   PendingToolInteractionOrigin,
   PersistedToolBatchState,
   ToolCatalogPort,
@@ -71,35 +72,7 @@ export interface IoParams {
 
 export type ProcessIoParams = Pick<IoParams, 'messageStore'>
 
-export interface ProcessHooks {
-  onPreToolUse?: (tool: { callId?: string; name?: string; params?: string }) => void
-  onPostToolUse?: (tool: {
-    callId?: string
-    name?: string
-    params?: string
-    response?: string
-  }) => void
-  onPostToolUseFailure?: (tool: {
-    callId?: string
-    name?: string
-    params?: string
-    error?: string
-  }) => void
-  onPermissionRequest?: (
-    permission: Record<string, unknown>,
-    tool: {
-      callId?: string
-      name?: string
-      params?: string
-    }
-  ) => void
-  onInterleavedReasoningGap?: (gap: {
-    providerId: string
-    modelId: string
-    providerDbSourceUrl: string
-    reasoningContentLength: number
-    toolCallCount: number
-  }) => void
+export interface ProcessControlCollaborators {
   autoGrantPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>
   ) => Promise<void>
@@ -119,6 +92,22 @@ export interface ProcessHooks {
   getEnabledSkillNames?: () => string[] | null | undefined
   activateSkill?: (skillName: string) => Promise<string[]>
   cacheImage?: (data: string) => Promise<string>
+}
+
+export interface ProcessInternalDiagnostics {
+  onInterleavedReasoningGap?: (gap: {
+    providerId: string
+    modelId: string
+    providerDbSourceUrl: string
+    reasoningContentLength: number
+    toolCallCount: number
+  }) => void
+}
+
+export interface ToolDispatchCollaborators {
+  notificationObserver?: DeepChatLoopNotificationObserver
+  controls?: ProcessControlCollaborators
+  diagnostics?: ProcessInternalDiagnostics
 }
 
 export interface ToolPermissionReviewRequest {
@@ -223,7 +212,9 @@ export interface ProcessParams {
   onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean
   maxProviderRounds?: number
-  hooks?: ProcessHooks
+  notificationObserver?: DeepChatLoopNotificationObserver
+  controls?: ProcessControlCollaborators
+  diagnostics?: ProcessInternalDiagnostics
   io: ProcessIoParams
 }
 

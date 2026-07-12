@@ -181,7 +181,7 @@ import type {
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
-import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
+import type { NewSessionHookNotificationObserver } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
 import type { ProviderCatalogPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
@@ -641,7 +641,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly toolExecutionPort: ToolExecutionPort | null
   private readonly toolResultPort: ToolResultPort
-  private readonly hooksBridge?: NewSessionHooksBridge
+  private readonly hookNotificationObserver?: NewSessionHookNotificationObserver
   private readonly providerCatalogPort: Pick<
     ProviderCatalogPort,
     'getProviderModels' | 'getCustomModels'
@@ -690,7 +690,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
     toolPresenter?: IToolPresenter,
-    hooksBridge?: NewSessionHooksBridge,
+    hookNotificationObserver?: NewSessionHookNotificationObserver,
     runtimePorts?: {
       providerCatalogPort?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
       sessionPermissionPort?: SessionPermissionPort
@@ -749,7 +749,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           abortSignal: tool.signal
         })
     })
-    this.hooksBridge = hooksBridge
+    this.hookNotificationObserver = hookNotificationObserver
     this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
       getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
       getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
@@ -2530,9 +2530,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   ): void {
     try {
-      this.hooksBridge?.dispatch(event, {
-        ...context,
-        agentId: this.getSessionAgentId(context.sessionId) ?? 'deepchat'
+      this.hookNotificationObserver?.notify({
+        event,
+        context: {
+          ...context,
+          agentId: this.getSessionAgentId(context.sessionId) ?? 'deepchat'
+        }
       })
     } catch (error) {
       console.warn(`[DeepChatAgent] Failed to dispatch ${event} hook:`, error)
@@ -4076,7 +4079,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         },
         shouldYieldForPendingInput: () =>
           Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
-        hooks: {
+        notificationObserver: {
+          notify: (notification) => {
+            this.dispatchHook(notification.event, {
+              sessionId,
+              messageId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              projectDir,
+              tool: { ...notification.tool },
+              permission:
+                notification.event === 'PermissionRequest' ? { ...notification.permission } : null
+            })
+          }
+        },
+        controls: {
           getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
           getEnabledSkillNames: () =>
             this.normalizeNullablePolicyList(streamExtensionPolicy.enabledSkillNames),
@@ -4088,47 +4105,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             resourceInstance.activateRuntimeSkill(skillName)
             return getEffectiveRuntimeSkillNames()
           },
-          onPreToolUse: (tool) => {
-            this.dispatchHook('PreToolUse', {
-              sessionId,
-              messageId,
-              providerId: state.providerId,
-              modelId: state.modelId,
-              projectDir,
-              tool
-            })
-          },
-          onPostToolUse: (tool) => {
-            this.dispatchHook('PostToolUse', {
-              sessionId,
-              messageId,
-              providerId: state.providerId,
-              modelId: state.modelId,
-              projectDir,
-              tool
-            })
-          },
-          onPostToolUseFailure: (tool) => {
-            this.dispatchHook('PostToolUseFailure', {
-              sessionId,
-              messageId,
-              providerId: state.providerId,
-              modelId: state.modelId,
-              projectDir,
-              tool
-            })
-          },
-          onPermissionRequest: (permission, tool) => {
-            this.dispatchHook('PermissionRequest', {
-              sessionId,
-              messageId,
-              providerId: state.providerId,
-              modelId: state.modelId,
-              projectDir,
-              permission,
-              tool
-            })
-          },
           onStreamingProviderPermission: (permission, tool, commitDecision) => {
             this.registerActiveProviderPermission(
               sessionId,
@@ -4138,6 +4114,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               commitDecision
             )
           },
+          autoGrantPermission: async (permission) => {
+            await this.requireSessionPermissionPort().approvePermission(sessionId, permission)
+          },
+          reviewToolPermission: async (request) =>
+            await this.reviewToolPermissionForAutoApprove(request, {
+              providerId: state.providerId,
+              modelId: state.modelId,
+              messages: reviewConversationMessages.slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES),
+              signal: abortController.signal
+            }),
+          cacheImage: this.cacheImage
+        },
+        diagnostics: {
           onInterleavedReasoningGap: (gap) => {
             console.warn(
               `[DeepChatAgent] Interleaved reasoning gap detected for ${gap.providerId}/${gap.modelId}. Update provider DB metadata at ${gap.providerDbSourceUrl}.`
@@ -4157,18 +4146,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 body: gap
               }
             })
-          },
-          autoGrantPermission: async (permission) => {
-            await this.requireSessionPermissionPort().approvePermission(sessionId, permission)
-          },
-          reviewToolPermission: async (request) =>
-            await this.reviewToolPermissionForAutoApprove(request, {
-              providerId: state.providerId,
-              modelId: state.modelId,
-              messages: reviewConversationMessages.slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES),
-              signal: abortController.signal
-            }),
-          cacheImage: this.cacheImage
+          }
         },
         io: {
           messageStore: this.messageStore

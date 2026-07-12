@@ -9,6 +9,7 @@ import {
   normalizeHooksNotificationsConfig
 } from '../../../src/main/presenter/hooksNotifications/config'
 import { DEFAULT_IMPORTANT_HOOK_EVENTS } from '../../../src/shared/hooksNotifications'
+import { NewSessionHooksBridge } from '../../../src/main/presenter/hooksNotifications/newSessionBridge'
 
 vi.mock('electron-log', () => ({
   default: {
@@ -168,5 +169,92 @@ describe('hooksNotifications', () => {
       })
     )
     expect(normalized.hooks[1].id).toBeTruthy()
+  })
+})
+
+describe('NewSessionHooksBridge', () => {
+  it('forwards ordered detached snapshots to the notification dispatcher', () => {
+    const dispatchEvent = vi.fn()
+    const bridge = new NewSessionHooksBridge({ dispatchEvent })
+    const context = {
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      tool: {
+        callId: 'tool-1',
+        name: 'write_file',
+        params: '{"path":"before.txt"}'
+      },
+      permission: {
+        permissionType: 'write',
+        metadata: { path: 'before.txt' }
+      }
+    }
+
+    bridge.notify({ event: 'PermissionRequest', context })
+    context.tool.name = 'mutated_tool'
+    context.permission.metadata.path = 'after.txt'
+    bridge.notify({ event: 'PreToolUse', context })
+
+    expect(dispatchEvent.mock.calls.map(([event]) => event)).toEqual([
+      'PermissionRequest',
+      'PreToolUse'
+    ])
+    expect(dispatchEvent.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        conversationId: 'session-1',
+        agentId: 'agent-1',
+        tool: expect.objectContaining({ name: 'write_file' }),
+        permission: expect.objectContaining({
+          metadata: { path: 'before.txt' }
+        })
+      })
+    )
+    expect(dispatchEvent.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        tool: expect.objectContaining({ name: 'mutated_tool' }),
+        permission: expect.objectContaining({
+          metadata: { path: 'after.txt' }
+        })
+      })
+    )
+  })
+
+  it('isolates synchronous, rejected and never-settling dispatchers', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const neverSettles = new Promise<void>(() => undefined)
+    const rejectedThenable = {
+      then: (_resolve: unknown, reject?: (reason: unknown) => unknown) => {
+        reject?.(new Error('thenable failure'))
+      }
+    } as unknown as PromiseLike<void>
+    const dispatchEvent = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('sync failure')
+      })
+      .mockRejectedValueOnce(new Error('async failure'))
+      .mockReturnValueOnce(neverSettles)
+      .mockReturnValueOnce(rejectedThenable)
+    const bridge = new NewSessionHooksBridge({ dispatchEvent })
+
+    expect(() =>
+      bridge.notify({ event: 'SessionStart', context: { sessionId: 'session-1' } })
+    ).not.toThrow()
+    expect(() =>
+      bridge.notify({ event: 'Stop', context: { sessionId: 'session-1' } })
+    ).not.toThrow()
+    expect(() =>
+      bridge.notify({ event: 'SessionEnd', context: { sessionId: 'session-1' } })
+    ).not.toThrow()
+    expect(() =>
+      bridge.notify({ event: 'UserPromptSubmit', context: { sessionId: 'session-1' } })
+    ).not.toThrow()
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(dispatchEvent).toHaveBeenCalledTimes(4)
+    expect(warning).toHaveBeenCalledTimes(3)
+    warning.mockRestore()
   })
 })

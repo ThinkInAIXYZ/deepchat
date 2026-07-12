@@ -46,6 +46,29 @@ export interface ToolExecutionPort {
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 }
 
+export interface DeepChatLoopToolNotification {
+  readonly callId?: string
+  readonly name?: string
+  readonly params?: string
+  readonly response?: string
+  readonly error?: string
+}
+
+export type DeepChatLoopNotification =
+  | {
+      readonly event: 'PreToolUse' | 'PostToolUse' | 'PostToolUseFailure'
+      readonly tool: DeepChatLoopToolNotification
+    }
+  | {
+      readonly event: 'PermissionRequest'
+      readonly permission: Readonly<Record<string, unknown>>
+      readonly tool: DeepChatLoopToolNotification
+    }
+
+export interface DeepChatLoopNotificationObserver {
+  notify(notification: DeepChatLoopNotification): void | PromiseLike<void>
+}
+
 export type PendingToolInteractionOrigin =
   | 'pre-check-permission'
   | 'question'

@@ -1,6 +1,7 @@
 # Permission 与可恢复交互
 
-> 状态：DeepChat ordered batch 已由 ASLR-056 接入；ACP direct continuation 仍属于 Phase 7。
+> 状态：DeepChat ordered batch 已由 ASLR-056 接入；external notification observer 已由 ASLR-057
+> 隔离；ACP direct continuation 仍属于 Phase 7。
 > 两者共享 decision UI，不共享 continuation 实现。
 
 ## 1. 模块目的
@@ -127,6 +128,14 @@ notification。规则：
 - 不能更改 Tape 或当前 run terminal outcome。
 
 需要控制 loop 的内部逻辑必须是 typed lifecycle port，不能借 external hook 实现。
+
+ASLR-057 的 production seam 是 `DeepChatLoopNotificationObserver`。`processStream`/dispatcher 只投递
+`PreToolUse`、`PostToolUse`、`PostToolUseFailure` 与 `PermissionRequest` 的 detached snapshot；observer
+的 sync throw、Promise/thenable reject 或 never-settling wait 都不会被 loop await，也不能改变 terminal
+outcome。auto-grant、auto-review、streaming permission continuation、skill activation 与 image cache 位于
+单独的 control collaborators；interleaved-reasoning trace 位于 internal diagnostics。现有
+`HooksNotificationsService` 仍是唯一 shell-command owner，route/config、agentId fallback、payload、顺序、
+`queueMicrotask` 和 30 秒 command timeout 均未改变。
 
 ## 9. 取消、关闭与 stale decision
 

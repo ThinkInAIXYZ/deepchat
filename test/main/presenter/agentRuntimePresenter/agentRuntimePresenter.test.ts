@@ -2166,27 +2166,34 @@ describe('AgentRuntimePresenter', () => {
 
     it('dispatches tool and permission hooks through process callbacks', async () => {
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
-        params.hooks?.onPreToolUse?.({
-          callId: 'tool-1',
-          name: 'write_file',
-          params: '{"path":"a.txt"}'
-        })
-        params.hooks?.onPermissionRequest?.(
-          {
-            permissionType: 'write',
-            description: 'Need permission'
-          },
-          {
+        params.notificationObserver?.notify({
+          event: 'PreToolUse',
+          tool: {
             callId: 'tool-1',
             name: 'write_file',
             params: '{"path":"a.txt"}'
           }
-        )
-        params.hooks?.onPostToolUseFailure?.({
-          callId: 'tool-1',
-          name: 'write_file',
-          params: '{"path":"a.txt"}',
-          error: 'permission denied'
+        })
+        params.notificationObserver?.notify({
+          event: 'PermissionRequest',
+          permission: {
+            permissionType: 'write',
+            description: 'Need permission'
+          },
+          tool: {
+            callId: 'tool-1',
+            name: 'write_file',
+            params: '{"path":"a.txt"}'
+          }
+        })
+        params.notificationObserver?.notify({
+          event: 'PostToolUseFailure',
+          tool: {
+            callId: 'tool-1',
+            name: 'write_file',
+            params: '{"path":"a.txt"}',
+            error: 'permission denied'
+          }
         })
         return {
           status: 'error',
@@ -2241,7 +2248,7 @@ describe('AgentRuntimePresenter', () => {
 
       const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
       await expect(
-        params.hooks?.autoGrantPermission?.({
+        params.controls?.autoGrantPermission?.({
           permissionType: 'write',
           description: 'Need permission',
           toolName: 'write_file',
@@ -3866,7 +3873,7 @@ describe('AgentRuntimePresenter', () => {
         key === 'traceDebugEnabled' ? true : undefined
       )
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (args) => {
-        args.hooks?.onInterleavedReasoningGap?.({
+        args.diagnostics?.onInterleavedReasoningGap?.({
           providerId: 'zenmux',
           modelId: 'moonshotai/kimi-k2.5',
           providerDbSourceUrl: 'https://example.com/dist/all.json',

@@ -25,6 +25,7 @@ import {
   type DeepChatLoopCommitCallbacks,
   type DeepChatLoopOutcome
 } from '@/agent/deepchat/loop/deepChatLoopEngine'
+import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
 import type { OutputSink } from '@/agent/deepchat/loop/ports'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
@@ -466,7 +467,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     interleavedReasoning,
     permissionMode,
     initialBlocks,
-    hooks
+    notificationObserver,
+    controls,
+    diagnostics
   } = params
   const io: IoParams = {
     sessionId: run.sessionId,
@@ -584,8 +587,12 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 state,
                 event.permission
               )
-              hooks?.onPermissionRequest?.(permission, tool)
-              hooks?.onStreamingProviderPermission?.(permission, tool, (granted) => {
+              emitDeepChatLoopNotification(notificationObserver, {
+                event: 'PermissionRequest',
+                permission,
+                tool
+              })
+              controls?.onStreamingProviderPermission?.(permission, tool, (granted) => {
                 markStreamingProviderPermissionResolved(
                   actionBlock,
                   granted,
@@ -656,7 +663,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 : UNKNOWN_CONTEXT_LIMIT,
             maxTokens,
             echo,
-            hooks,
+            {
+              notificationObserver,
+              controls,
+              diagnostics
+            },
             providerId
           )
 
@@ -711,7 +722,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           }
 
           if (executed.toolsChanged) {
-            const activeSkillNames = hooks?.getActiveSkillNames?.()
+            const activeSkillNames = controls?.getActiveSkillNames?.()
             run.resources.activeSkillNames = [...(activeSkillNames ?? [])]
             try {
               run.resources.toolDefinitions = await toolCatalog.resolve({ activeSkillNames })

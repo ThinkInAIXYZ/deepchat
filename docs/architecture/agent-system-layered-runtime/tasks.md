@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..056 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -88,7 +88,7 @@
   ordered batch; add narrow typed-outcome ordering/no-replay/final-item-resume contracts;
   intermediate responses stay paused.
   Depends on: `ASLR-055`, `ASLR-044`.
-- [ ] `ASLR-057` Adapt external hook notifications as non-blocking observers.
+- [x] `ASLR-057` Adapt external hook notifications as non-blocking observers.
   Depends on: `ASLR-052`.
 
 ## ACP direct backend

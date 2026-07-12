@@ -15,6 +15,7 @@ import {
   createToolResultPort
 } from '@/presenter/agentRuntimePresenter/toolAdapters'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import type { DeepChatLoopNotification } from '@/agent/deepchat/loop/ports'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -208,6 +209,32 @@ describe('processStream', () => {
         order.push('renderer:error')
       }
     })
+  }
+
+  function createToolThenCompleteStream(toolName: string): ProcessParams['coreStream'] {
+    let callCount = 0
+    return vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        return (async function* () {
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc1',
+            tool_call_name: toolName
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+      return (async function* () {
+        yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
   }
 
   it('no tools → single stream, finalize', async () => {
@@ -675,7 +702,7 @@ describe('processStream', () => {
       providerId: 'acp',
       modelId: 'claude-code-acp',
       coreStream,
-      hooks: { onStreamingProviderPermission }
+      controls: { onStreamingProviderPermission }
     })
 
     const promise = processStream(params)
@@ -812,6 +839,127 @@ describe('processStream', () => {
     expect(liveMessages).toBe(secondCallMessages)
     expect(toolResultMsg).toBeDefined()
     expect(toolResultMsg.content).toBe('Sunny, 72F')
+  })
+
+  it('notifies in tool order with detached committed snapshots', async () => {
+    const notifications: DeepChatLoopNotification[] = []
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const params = createParams({
+      coreStream: createToolThenCompleteStream('get_weather'),
+      toolExecution: createToolExecutionPort(toolPresenter),
+      tools: [makeTool('get_weather')],
+      notificationObserver: {
+        notify: (notification) => {
+          notifications.push(structuredClone(notification))
+          ;(notification.tool as { name?: string; response?: string }).name = 'observer-mutated'
+          ;(notification.tool as { name?: string; response?: string }).response = 'observer-mutated'
+        }
+      }
+    })
+
+    const result = await processStream(params)
+
+    expect(result.status).toBe('completed')
+    expect(notifications).toEqual([
+      {
+        event: 'PreToolUse',
+        tool: { callId: 'tc1', name: 'get_weather', params: '{}' }
+      },
+      {
+        event: 'PostToolUse',
+        tool: {
+          callId: 'tc1',
+          name: 'get_weather',
+          params: '{}',
+          response: 'Sunny, 72F'
+        }
+      }
+    ])
+    expect(params.run.streamState.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'tool_call',
+          tool_call: expect.objectContaining({
+            name: 'get_weather',
+            response: 'Sunny, 72F'
+          })
+        })
+      ])
+    )
+  })
+
+  it('keeps the terminal outcome when a notification observer throws synchronously', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+
+    try {
+      const result = await processStream(
+        createParams({
+          coreStream: createToolThenCompleteStream('get_weather'),
+          toolExecution: createToolExecutionPort(toolPresenter),
+          tools: [makeTool('get_weather')],
+          notificationObserver: {
+            notify: () => {
+              throw new Error('observer failed')
+            }
+          }
+        })
+      )
+
+      expect(result.status).toBe('completed')
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(warning).toHaveBeenCalledTimes(2)
+    } finally {
+      warning.mockRestore()
+    }
+  })
+
+  it('does not await rejected or never-settling notification observers', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let releaseObserver!: () => void
+    const neverSettlingUntilReleased = new Promise<void>((resolve) => {
+      releaseObserver = resolve
+    })
+    const rejectedThenable = {
+      then: (_resolve: unknown, reject?: (reason: unknown) => unknown) => {
+        reject?.(new Error('observer rejected'))
+      }
+    } as unknown as PromiseLike<void>
+    const notify = vi.fn((notification: DeepChatLoopNotification) =>
+      notification.event === 'PreToolUse' ? neverSettlingUntilReleased : rejectedThenable
+    )
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const processPromise = processStream(
+      createParams({
+        coreStream: createToolThenCompleteStream('get_weather'),
+        toolExecution: createToolExecutionPort(toolPresenter),
+        tools: [makeTool('get_weather')],
+        notificationObserver: { notify }
+      })
+    )
+    let settled = false
+    void processPromise.then(() => {
+      settled = true
+    })
+
+    try {
+      await vi.runAllTimersAsync()
+      await Promise.resolve()
+
+      expect(notify.mock.calls.map(([notification]) => notification.event)).toEqual([
+        'PreToolUse',
+        'PostToolUse'
+      ])
+      expect(settled).toBe(true)
+    } finally {
+      releaseObserver()
+    }
+
+    const result = await processPromise
+    await Promise.resolve()
+    expect(result.status).toBe('completed')
+    expect(warning).toHaveBeenCalledTimes(1)
+    warning.mockRestore()
   })
 
   it('stops before exceeding max provider rounds', async () => {
@@ -1052,7 +1200,7 @@ describe('processStream', () => {
       toolCatalog: { resolve: resolveTools },
       tools: [makeTool('skill_view')],
       refreshSystemPrompt,
-      hooks: {
+      controls: {
         activateSkill,
         getActiveSkillNames
       }

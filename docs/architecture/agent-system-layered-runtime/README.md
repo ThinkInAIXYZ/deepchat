@@ -337,6 +337,12 @@ prepareTurn
 外部 `HooksNotificationsService` 继续是 fire-and-forget observer。让用户 shell command 阻塞 agent
 loop 会改变现有性能、超时和取消语义，因此明确禁止。
 
+ASLR-057 已把这条边界落实为 typed notification observer。loop 只交付 detached snapshot，且不 await
+observer Promise/thenable；同步异常、异步拒绝与悬挂均不改变 terminal outcome。auto-grant、review、
+streaming permission、skill activation/cache 是独立 control collaborators，interleaved-reasoning trace
+属于 internal diagnostics。现有 hook payload、调用顺序、agentId fallback、route/config、`queueMicrotask`
+与 command timeout 不变。
+
 ## Tape 语义
 
 目标可观测链由现有 Tape 与 message/status/event projection 共同组成，不逐 token 记日志：
