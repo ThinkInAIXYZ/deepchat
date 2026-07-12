@@ -25,6 +25,14 @@ const createImplementation = () =>
   }) as unknown as IAgentImplementation
 
 describe('legacy agent backends', () => {
+  it('routes DeepChat opens through the lazy instance runtime', () => {
+    const backend = createLegacyAgentBackend('deepchat', createImplementation())
+    const sessionId = toAppSessionId('session')
+
+    expect(backend.open(sessionId)).toBe(backend.open(sessionId))
+    expect(backend.open(toAppSessionId('other'))).not.toBe(backend.open(sessionId))
+  })
+
   it('preserves direct and queued send results', async () => {
     const implementation = createImplementation()
     const handle = createLegacyAgentBackend('deepchat', implementation).open(

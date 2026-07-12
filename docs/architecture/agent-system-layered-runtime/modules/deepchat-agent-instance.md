@@ -2,6 +2,9 @@
 
 > 状态：目标设计。一个 active/hydrated DeepChat app session 对应一个实例。
 
+> 实施进度：ASLR-040 已接入 lazy runtime/instance shell。当前实例只委托 legacy runtime，尚未迁移
+> session state；Memory maps、schema、调用位置均未改变。
+
 ## 1. 模块目的
 
 `DeepChatAgentInstance` 把当前 singleton 中按 `sessionId` 分散保存的状态收回到真实实例。它管理
@@ -167,7 +170,7 @@ job 或旧 async callback 回写新 lineage。
 ## 10. 迁移步骤
 
 1. 列出并测试 singleton 中全部 session-keyed maps 的创建/读取/清理点。
-2. 引入 instance shell，但最初委托旧 runtime 方法。
+2. 引入 instance shell，但最初委托旧 runtime 方法。（ASLR-040 已完成）
 3. 先迁移 identity/config/status/pending 等纯 session state。
 4. 保留 pre-stream abort 与 active-generation 的当前注册边界，再引入 `LoopRun` 迁移
    request/round/overflow 等 state。

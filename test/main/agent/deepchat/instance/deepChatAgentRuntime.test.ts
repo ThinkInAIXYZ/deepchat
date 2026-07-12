@@ -1,0 +1,67 @@
+import { describe, expect, it, vi } from 'vitest'
+import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+
+const createDelegate = () => ({
+  compatibilityImplementation: {} as never,
+  send: vi.fn().mockResolvedValue({ requestId: 'request', messageId: 'message' }),
+  cancel: vi.fn().mockResolvedValue(undefined),
+  snapshot: vi.fn().mockResolvedValue({ status: 'idle' }),
+  close: vi.fn().mockResolvedValue(undefined)
+})
+
+describe('DeepChatAgentRuntime', () => {
+  it('hydrates one stable instance per app session', () => {
+    const hydrate = vi.fn(() => createDelegate())
+    const runtime = new DeepChatAgentRuntime(hydrate)
+    const sessionId = toAppSessionId('session')
+
+    const first = runtime.getOrHydrate(sessionId)
+    const second = runtime.getOrHydrate(sessionId)
+    const other = runtime.getOrHydrate(toAppSessionId('other'))
+
+    expect(first).toBe(second)
+    expect(other).not.toBe(first)
+    expect(hydrate).toHaveBeenCalledTimes(2)
+  })
+
+  it('delegates the legacy façade and rehydrates only after close', async () => {
+    const delegates: ReturnType<typeof createDelegate>[] = []
+    const runtime = new DeepChatAgentRuntime(() => {
+      const delegate = createDelegate()
+      delegates.push(delegate)
+      return delegate
+    })
+    const sessionId = toAppSessionId('session')
+    const instance = runtime.getOrHydrate(sessionId)
+
+    await expect(instance.send({ content: 'hello' })).resolves.toEqual({
+      requestId: 'request',
+      messageId: 'message'
+    })
+    await instance.cancel()
+    await expect(instance.snapshot({ lightweight: true })).resolves.toEqual({ status: 'idle' })
+    await instance.close()
+
+    expect(delegates[0].send).toHaveBeenCalledWith({ content: 'hello' })
+    expect(delegates[0].cancel).toHaveBeenCalledTimes(1)
+    expect(delegates[0].snapshot).toHaveBeenCalledWith({ lightweight: true })
+    expect(delegates[0].close).toHaveBeenCalledTimes(1)
+    expect(runtime.getOrHydrate(sessionId)).not.toBe(instance)
+    expect(delegates).toHaveLength(2)
+  })
+
+  it('supports explicit eviction and disposal without creating an instance', async () => {
+    const delegate = createDelegate()
+    const hydrate = vi.fn(() => delegate)
+    const runtime = new DeepChatAgentRuntime(hydrate)
+    const sessionId = toAppSessionId('session')
+
+    await runtime.dispose(sessionId)
+    expect(hydrate).not.toHaveBeenCalled()
+
+    runtime.getOrHydrate(sessionId)
+    expect(runtime.evict(sessionId)).toBe(true)
+    expect(delegate.close).not.toHaveBeenCalled()
+  })
+})

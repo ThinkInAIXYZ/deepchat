@@ -1,26 +1,16 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
+import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type {
   DeepChatSessionState,
   IAgentImplementation,
   MessageStartResult,
-  PendingInputEnqueueSource,
   PendingSessionInputRecord,
-  SendMessageInput,
   SessionAgentContextUpdate
 } from '@shared/types/agent-interface'
 
-export interface LegacyAgentSendInput {
-  content: string | SendMessageInput
-  context?: {
-    projectDir?: string | null
-    emitRefreshBeforeStream?: boolean
-    maxProviderRounds?: number
-  }
-  queue?: {
-    source: PendingInputEnqueueSource
-    projectDir?: string | null
-  }
-}
+export type LegacyAgentSendInput = AgentSessionSendInput
 
 export interface LegacyAgentSessionHandle {
   readonly sessionId: AppSessionId
@@ -80,11 +70,12 @@ export interface LegacyGenerationControlFacet {
 export interface LegacyDeepChatSessionBackend {
   readonly kind: 'deepchat'
   readonly implementation: IAgentImplementation
+  readonly runtime: DeepChatAgentRuntime
   readonly transferSource: LegacyTransferSourceFacet
   readonly transferTarget: LegacyDeepChatTransferTargetFacet
   readonly subagent: LegacyDeepChatSubagentFacet
   readonly generationControl: LegacyGenerationControlFacet
-  open(sessionId: AppSessionId): LegacyAgentSessionHandle
+  open(sessionId: AppSessionId): DeepChatAgentInstance
 }
 
 export interface LegacyAcpSessionBackend {
@@ -167,46 +158,50 @@ export function createLegacyAgentBackend(
     getActiveGeneration: (sessionId) => getActiveGeneration(sessionId),
     cancelGenerationByEventId: (sessionId, eventId) => cancelGenerationByEventId(sessionId, eventId)
   }
+  const openLegacyHandle = (
+    sessionId: AppSessionId,
+    handleKind: 'deepchat' | 'acp'
+  ): LegacyAgentSessionHandle => ({
+    sessionId,
+    kind: handleKind,
+    compatibilityImplementation: implementation,
+    async send(input) {
+      if (implementation.queuePendingInput && input.queue) {
+        await implementation.queuePendingInput(sessionId, input.content, input.queue)
+        return { requestId: null, messageId: null }
+      }
+      return await implementation.processMessage(sessionId, input.content, input.context)
+    },
+    async cancel() {
+      await implementation.cancelGeneration(sessionId)
+    },
+    async snapshot(options) {
+      if (options?.lightweight && implementation.getSessionListState) {
+        return await implementation.getSessionListState(sessionId)
+      }
+      return await implementation.getSessionState(sessionId)
+    },
+    async close() {
+      await implementation.destroySession(sessionId)
+    }
+  })
   const common = {
     kind,
     implementation,
     transferSource,
-    generationControl,
-    open(sessionId: AppSessionId): LegacyAgentSessionHandle {
-      return {
-        sessionId,
-        kind,
-        compatibilityImplementation: implementation,
-        async send(input) {
-          if (implementation.queuePendingInput && input.queue) {
-            await implementation.queuePendingInput(sessionId, input.content, input.queue)
-            return { requestId: null, messageId: null }
-          }
-          return await implementation.processMessage(sessionId, input.content, input.context)
-        },
-        async cancel() {
-          await implementation.cancelGeneration(sessionId)
-        },
-        async snapshot(options) {
-          if (options?.lightweight && implementation.getSessionListState) {
-            return await implementation.getSessionListState(sessionId)
-          }
-          return await implementation.getSessionState(sessionId)
-        },
-        async close() {
-          await implementation.destroySession(sessionId)
-        }
-      }
-    }
+    generationControl
   }
 
   if (kind === 'deepchat') {
     const setSessionAgentContext = requireMethod<
       NonNullable<IAgentImplementation['setSessionAgentContext']>
     >(implementation, 'setSessionAgentContext')
+    const runtime = new DeepChatAgentRuntime((sessionId) => openLegacyHandle(sessionId, 'deepchat'))
     return {
       ...common,
       kind,
+      runtime,
+      open: (sessionId) => runtime.getOrHydrate(sessionId),
       transferTarget: {
         setSessionAgentContext: (sessionId, config) => setSessionAgentContext(sessionId, config)
       },
@@ -214,5 +209,10 @@ export function createLegacyAgentBackend(
     }
   }
 
-  return { ...common, kind, subagent }
+  return {
+    ...common,
+    kind,
+    open: (sessionId) => openLegacyHandle(sessionId, 'acp'),
+    subagent
+  }
 }
