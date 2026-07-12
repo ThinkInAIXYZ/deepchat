@@ -25,7 +25,7 @@
 
 ## AgentManager and existing session façade
 
-- [ ] `ASLR-020` Create `AgentManager` catalog lookup and explicit kind router with legacy backends.
+- [x] `ASLR-020` Create `AgentManager` catalog lookup and explicit kind router with legacy backends.
   Depends on: `ASLR-011`, `ASLR-013`.
 - [ ] `ASLR-021` Add a thin existing app-session data port for CRUD/binding/list; do not split services by noun.
   Depends on: `ASLR-020`.

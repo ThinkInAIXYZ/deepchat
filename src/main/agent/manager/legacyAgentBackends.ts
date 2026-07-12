@@ -1,0 +1,195 @@
+import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type {
+  DeepChatSessionState,
+  IAgentImplementation,
+  MessageStartResult,
+  PendingInputEnqueueSource,
+  PendingSessionInputRecord,
+  SendMessageInput,
+  SessionAgentContextUpdate
+} from '@shared/types/agent-interface'
+
+export interface LegacyAgentSendInput {
+  content: string | SendMessageInput
+  context?: {
+    projectDir?: string | null
+    emitRefreshBeforeStream?: boolean
+    maxProviderRounds?: number
+  }
+  queue?: {
+    source: PendingInputEnqueueSource
+    projectDir?: string | null
+  }
+}
+
+export interface LegacyAgentSessionHandle {
+  readonly sessionId: AppSessionId
+  readonly kind: 'deepchat' | 'acp'
+  readonly compatibilityImplementation: IAgentImplementation
+  send(input: LegacyAgentSendInput): Promise<MessageStartResult>
+  cancel(): Promise<void>
+  snapshot(options?: { lightweight?: boolean }): Promise<DeepChatSessionState | null>
+  close(): Promise<void>
+}
+
+export interface LegacyTransferSourceFacet {
+  hasMessages(sessionId: AppSessionId): Promise<boolean>
+  listPendingInputs(sessionId: AppSessionId): Promise<PendingSessionInputRecord[]>
+}
+
+export interface LegacyDeepChatTransferTargetFacet {
+  setSessionAgentContext(sessionId: AppSessionId, config: SessionAgentContextUpdate): Promise<void>
+}
+
+export interface LegacyDeepChatSubagentFacet {
+  mergeTape(
+    parentSessionId: AppSessionId,
+    childSessionId: AppSessionId,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+  discardTape(
+    parentSessionId: AppSessionId,
+    childSessionId: AppSessionId,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+}
+
+export interface LegacyAcpSubagentFacet {
+  mergeTape(
+    parentSessionId: AppSessionId,
+    childSessionId: AppSessionId,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+  discardTape(
+    parentSessionId: AppSessionId,
+    childSessionId: AppSessionId,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+}
+
+export interface LegacyDeepChatSessionBackend {
+  readonly kind: 'deepchat'
+  readonly implementation: IAgentImplementation
+  readonly transferSource: LegacyTransferSourceFacet
+  readonly transferTarget: LegacyDeepChatTransferTargetFacet
+  readonly subagent: LegacyDeepChatSubagentFacet
+  open(sessionId: AppSessionId): LegacyAgentSessionHandle
+}
+
+export interface LegacyAcpSessionBackend {
+  readonly kind: 'acp'
+  readonly implementation: IAgentImplementation
+  readonly transferSource: LegacyTransferSourceFacet
+  readonly subagent: LegacyAcpSubagentFacet
+  open(sessionId: AppSessionId): LegacyAgentSessionHandle
+}
+
+export type LegacyAgentSessionBackend = LegacyDeepChatSessionBackend | LegacyAcpSessionBackend
+
+export interface LegacyAgentBackendSet {
+  readonly deepchat: LegacyDeepChatSessionBackend
+  readonly acp: LegacyAcpSessionBackend
+}
+
+function requireMethod<T extends (...args: never[]) => unknown>(
+  implementation: IAgentImplementation,
+  methodName: keyof IAgentImplementation
+): T {
+  const method = implementation[methodName]
+  if (typeof method !== 'function') {
+    throw new Error(`Legacy agent implementation is missing required method: ${String(methodName)}`)
+  }
+  return method.bind(implementation) as T
+}
+
+export function createLegacyAgentBackend(
+  kind: 'deepchat',
+  implementation: IAgentImplementation
+): LegacyDeepChatSessionBackend
+export function createLegacyAgentBackend(
+  kind: 'acp',
+  implementation: IAgentImplementation
+): LegacyAcpSessionBackend
+export function createLegacyAgentBackend(
+  kind: 'deepchat' | 'acp',
+  implementation: IAgentImplementation
+): LegacyAgentSessionBackend {
+  const hasMessages = requireMethod<IAgentImplementation['hasMessages']>(
+    implementation,
+    'hasMessages'
+  )
+  const listPendingInputs = requireMethod<NonNullable<IAgentImplementation['listPendingInputs']>>(
+    implementation,
+    'listPendingInputs'
+  )
+  const mergeSubagentTape = requireMethod<NonNullable<IAgentImplementation['mergeSubagentTape']>>(
+    implementation,
+    'mergeSubagentTape'
+  )
+  const discardSubagentTape = requireMethod<
+    NonNullable<IAgentImplementation['discardSubagentTape']>
+  >(implementation, 'discardSubagentTape')
+  const transferSource: LegacyTransferSourceFacet = {
+    hasMessages: (sessionId) => hasMessages(sessionId),
+    listPendingInputs: (sessionId) => listPendingInputs(sessionId)
+  }
+  const subagent = {
+    mergeTape: (
+      parentSessionId: AppSessionId,
+      childSessionId: AppSessionId,
+      meta?: Record<string, unknown>
+    ) => mergeSubagentTape(parentSessionId, childSessionId, meta),
+    discardTape: (
+      parentSessionId: AppSessionId,
+      childSessionId: AppSessionId,
+      meta?: Record<string, unknown>
+    ) => discardSubagentTape(parentSessionId, childSessionId, meta)
+  }
+  const common = {
+    kind,
+    implementation,
+    transferSource,
+    open(sessionId: AppSessionId): LegacyAgentSessionHandle {
+      return {
+        sessionId,
+        kind,
+        compatibilityImplementation: implementation,
+        async send(input) {
+          if (implementation.queuePendingInput && input.queue) {
+            await implementation.queuePendingInput(sessionId, input.content, input.queue)
+            return { requestId: null, messageId: null }
+          }
+          return await implementation.processMessage(sessionId, input.content, input.context)
+        },
+        async cancel() {
+          await implementation.cancelGeneration(sessionId)
+        },
+        async snapshot(options) {
+          if (options?.lightweight && implementation.getSessionListState) {
+            return await implementation.getSessionListState(sessionId)
+          }
+          return await implementation.getSessionState(sessionId)
+        },
+        async close() {
+          await implementation.destroySession(sessionId)
+        }
+      }
+    }
+  }
+
+  if (kind === 'deepchat') {
+    const setSessionAgentContext = requireMethod<
+      NonNullable<IAgentImplementation['setSessionAgentContext']>
+    >(implementation, 'setSessionAgentContext')
+    return {
+      ...common,
+      kind,
+      transferTarget: {
+        setSessionAgentContext: (sessionId, config) => setSessionAgentContext(sessionId, config)
+      },
+      subagent
+    }
+  }
+
+  return { ...common, kind, subagent }
+}
