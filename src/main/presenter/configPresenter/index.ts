@@ -78,8 +78,10 @@ import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { AgentCatalogEventSink } from '@/agent/shared/agentCatalogEventSink'
 import {
-  emitAcpAgentsChanged,
+  emitAcpAgentModelsChanged,
+  emitAgentCatalogChanged,
   emitCustomPromptsChanged,
   emitDefaultProjectPathChanged,
   emitDefaultSystemPromptChanged,
@@ -447,7 +449,11 @@ export class ConfigPresenter implements IConfigPresenter {
   private systemPromptHelper: SystemPromptHelper
   private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
-  private pendingAcpAgentsChanged = false
+  private readonly agentCatalogEventSink: AgentCatalogEventSink = {
+    publishChanged: (agentIds) => emitAgentCatalogChanged(this, agentIds)
+  }
+  private pendingAgentCatalogChanged = false
+  private pendingAcpAgentModelsChanged = false
   private isAttachingAgentRepository = false
   private deepChatAgentDeleteCleanup: ((agentId: string) => Promise<void>) | null = null
   private deepChatAgentMemoryMaintenanceConfigChanged: ((agentId: string) => void) | null = null
@@ -630,10 +636,16 @@ export class ConfigPresenter implements IConfigPresenter {
       this.cleanupDeprecatedBuiltinAgentSelections()
     } finally {
       this.isAttachingAgentRepository = false
-      if (this.pendingAcpAgentsChanged) {
-        this.pendingAcpAgentsChanged = false
+      if (this.pendingAgentCatalogChanged) {
+        const publishAcpModels = this.pendingAcpAgentModelsChanged
+        this.pendingAgentCatalogChanged = false
+        this.pendingAcpAgentModelsChanged = false
         queueMicrotask(() => {
-          this.notifyAcpAgentsChanged()
+          if (publishAcpModels) {
+            this.notifyAcpAgentsChanged()
+            return
+          }
+          this.notifyAgentCatalogChanged()
         })
       }
     }
@@ -1041,7 +1053,7 @@ export class ConfigPresenter implements IConfigPresenter {
     if (updated && hasMemoryMaintenanceTriggerConfigUpdate(updates)) {
       this.notifyDeepChatAgentMemoryMaintenanceConfigChanged(BUILTIN_DEEPCHAT_AGENT_ID)
     }
-    this.notifyAcpAgentsChanged()
+    this.notifyAgentCatalogChanged()
   }
 
   private cleanupDeprecatedBuiltinAgentSelections(): void {
@@ -2763,7 +2775,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   async createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent> {
     const created = this.getAgentRepositoryOrThrow().createDeepChatAgent(input)
-    this.notifyAcpAgentsChanged()
+    this.notifyAgentCatalogChanged()
     return created
   }
 
@@ -2776,7 +2788,7 @@ export class ConfigPresenter implements IConfigPresenter {
       if (hasMemoryMaintenanceTriggerConfigUpdate(updates.config)) {
         this.notifyDeepChatAgentMemoryMaintenanceConfigChanged(agentId)
       }
-      this.notifyAcpAgentsChanged()
+      this.notifyAgentCatalogChanged()
     }
     return updated
   }
@@ -2790,7 +2802,7 @@ export class ConfigPresenter implements IConfigPresenter {
       })
     }
     if (removed) {
-      this.notifyAcpAgentsChanged()
+      this.notifyAgentCatalogChanged()
     }
     return removed
   }
@@ -2881,16 +2893,30 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private notifyAcpAgentsChanged(agentIds?: string[]) {
     if (!this.agentRepository || this.isAttachingAgentRepository) {
-      this.pendingAcpAgentsChanged = true
-      logger.info(
-        '[ACP] notifyAcpAgentsChanged: deferred until unified agent repository is attached'
-      )
+      this.pendingAgentCatalogChanged = true
+      this.pendingAcpAgentModelsChanged = true
+      logger.info('[ACP] agent changes deferred until unified agent repository is attached')
       return
     }
 
-    logger.info('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
     emitModelsChanged('acp')
-    emitAcpAgentsChanged(this, agentIds)
+    this.agentCatalogEventSink.publishChanged(agentIds)
+    emitAcpAgentModelsChanged()
+    this.publishAgentSessionListRefreshed()
+  }
+
+  private notifyAgentCatalogChanged(agentIds?: string[]) {
+    if (!this.agentRepository || this.isAttachingAgentRepository) {
+      this.pendingAgentCatalogChanged = true
+      logger.info('Agent catalog change deferred until unified agent repository is attached')
+      return
+    }
+
+    this.agentCatalogEventSink.publishChanged(agentIds)
+    this.publishAgentSessionListRefreshed()
+  }
+
+  private publishAgentSessionListRefreshed(): void {
     publishDeepchatEvent('sessions.updated', {
       sessionIds: [],
       reason: 'list-refreshed'

@@ -70,7 +70,10 @@ export function emitDefaultProjectPathChanged(path: string | null): void {
   })
 }
 
-export function emitAcpAgentsChanged(configPresenter: IConfigPresenter, agentIds?: string[]): void {
+export function emitAgentCatalogChanged(
+  configPresenter: IConfigPresenter,
+  agentIds?: string[]
+): void {
   eventBus.sendToMain(CONFIG_EVENTS.AGENTS_CHANGED, { agentIds })
   void readAcpState(configPresenter)
     .then((state) => {
@@ -81,8 +84,11 @@ export function emitAcpAgentsChanged(configPresenter: IConfigPresenter, agentIds
       })
     })
     .catch((error) => {
-      console.error('Failed to publish typed ACP agents changed event:', error)
+      console.error('Failed to publish typed agents changed event:', error)
     })
+}
+
+export function emitAcpAgentModelsChanged(): void {
   publishDeepchatEvent('models.changed', {
     reason: 'agents',
     providerId: 'acp',

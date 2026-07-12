@@ -7,6 +7,9 @@ const eventBusMocks = vi.hoisted(() => ({
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+const presenterMocks = vi.hoisted(() => ({
+  getProviderInstance: vi.fn()
+}))
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
@@ -21,12 +24,25 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 }))
 
 vi.mock('@/presenter', () => ({
-  presenter: {}
+  presenter: {
+    llmproviderPresenter: {
+      getProviderInstance: presenterMocks.getProviderInstance
+    }
+  }
 }))
 
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { ConfigPresenter } from '@/presenter/configPresenter'
+import { emitAgentCatalogChanged } from '@/presenter/configPresenter/eventPublishers'
+
+function attachCatalogSink(presenter: ConfigPresenter): void {
+  Object.assign(presenter, {
+    agentCatalogEventSink: {
+      publishChanged: (agentIds?: string[]) => emitAgentCatalogChanged(presenter, agentIds)
+    }
+  })
+}
 
 describe('ConfigPresenter font size settings', () => {
   beforeEach(() => {
@@ -93,6 +109,40 @@ describe('ConfigPresenter ACP agent notifications', () => {
     vi.clearAllMocks()
   })
 
+  it('publishes DeepChat catalog changes without ACP model refresh', async () => {
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      agentRepository: {
+        createDeepChatAgent: vi.fn(() => ({
+          id: 'writer',
+          name: 'Writer',
+          type: 'deepchat',
+          enabled: true
+        }))
+      },
+      isAttachingAgentRepository: false,
+      getAcpEnabled: vi.fn(async () => true),
+      getAcpAgents: vi.fn(async () => [])
+    }) as ConfigPresenter
+    attachCatalogSink(presenter)
+
+    await presenter.createDeepChatAgent({ name: 'Writer' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.AGENTS_CHANGED, {
+      agentIds: undefined
+    })
+    expect(eventBus.sendToMain).not.toHaveBeenCalledWith(CONFIG_EVENTS.MODEL_LIST_CHANGED, 'acp')
+    expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+      'models.changed',
+      expect.objectContaining({ providerId: 'acp' })
+    )
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.updated', {
+      sessionIds: [],
+      reason: 'list-refreshed'
+    })
+  })
+
   it('publishes typed session refresh instead of the retired raw session list event', async () => {
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       agentRepository: {},
@@ -100,6 +150,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       getAcpEnabled: vi.fn(async () => true),
       getAcpAgents: vi.fn(async () => [])
     }) as ConfigPresenter
+    attachCatalogSink(presenter)
 
     ;(presenter as any).notifyAcpAgentsChanged(['agent-1'])
     await Promise.resolve()
@@ -119,12 +170,63 @@ describe('ConfigPresenter ACP agent notifications', () => {
       reason: 'list-refreshed'
     })
     expect(eventBus.send).not.toHaveBeenCalled()
+    expect(presenterMocks.getProviderInstance).not.toHaveBeenCalled()
+  })
+
+  it('preserves ACP model, catalog, and process refresh order', async () => {
+    const sequence: string[] = []
+    const refreshAgents = vi.fn(async () => {
+      sequence.push('process-refresh')
+    })
+    presenterMocks.getProviderInstance.mockReturnValue({ refreshAgents })
+    eventBusMocks.sendToMain.mockImplementation((event, payload) => {
+      if (event === CONFIG_EVENTS.MODEL_LIST_CHANGED && payload === 'acp') {
+        sequence.push('model-list')
+      }
+      if (event === CONFIG_EVENTS.AGENTS_CHANGED) {
+        sequence.push('agent-catalog')
+      }
+    })
+    publishDeepchatEventMock.mockImplementation((event, payload) => {
+      if (event === 'models.changed' && payload.reason === 'runtime-refresh') {
+        sequence.push('model-runtime')
+      }
+      if (event === 'models.changed' && payload.reason === 'agents') {
+        sequence.push('model-agents')
+      }
+      if (event === 'sessions.updated') {
+        sequence.push('sessions')
+      }
+    })
+
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      agentRepository: {},
+      isAttachingAgentRepository: false,
+      clearProviderModelStatusCache: vi.fn(() => sequence.push('cache-clear')),
+      getAcpEnabled: vi.fn(async () => true),
+      getAcpAgents: vi.fn(async () => [])
+    }) as ConfigPresenter
+    attachCatalogSink(presenter)
+
+    ;(presenter as any).handleAcpAgentsMutated(['agent-1'])
+    await vi.waitFor(() => expect(refreshAgents).toHaveBeenCalledWith(['agent-1']))
+
+    expect(sequence).toEqual([
+      'cache-clear',
+      'model-list',
+      'model-runtime',
+      'agent-catalog',
+      'model-agents',
+      'sessions',
+      'process-refresh'
+    ])
   })
 
   it('defers ACP startup notification until the agent repository is attached', async () => {
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       agentRepository: null,
-      pendingAcpAgentsChanged: false,
+      pendingAgentCatalogChanged: false,
+      pendingAcpAgentModelsChanged: false,
       isAttachingAgentRepository: false,
       initializeUnifiedAgents: vi.fn(),
       reconcileLegacyBuiltinAgentSelections: vi.fn(),
@@ -132,6 +234,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       getAcpEnabled: vi.fn(async () => true),
       getAcpAgents: vi.fn(async () => [])
     }) as ConfigPresenter
+    attachCatalogSink(presenter)
 
     ;(presenter as any).notifyAcpAgentsChanged()
 
