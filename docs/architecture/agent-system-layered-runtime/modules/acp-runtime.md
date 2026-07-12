@@ -68,9 +68,22 @@ AcpAgentInstance
 `AcpAgentRuntime` 是 instance factory/cache 和 shutdown coordinator；协议运行状态由
 `AcpAgentInstance` 持有。实例不 import DeepChat Tape、compaction、Memory 或 `LoopEngine`。
 
-“一个 ACP domain owner”不表示一个 God class。`acpConfHelper`、registry/install/launch-spec、alias、
-debug route、provider model catalog/enable refresh 和 lifecycle helper 分别保留窄 sub-owner，但不能继续
-散落成互不知情的第二实现。
+“一个 ACP domain owner”不表示一个 God class。`AcpCatalogConfigAdapter`、
+registry/install/launch-spec、alias、debug route、provider model catalog/enable refresh 和 lifecycle
+helper 分别保留窄 sub-owner，但不能继续散落成互不知情的第二实现。
+
+Phase 3 收拢后的过渡所有权如下；后续 direct backend 只能替换 adapter 背后的实现，不能重新把这些
+职责搬回 generic presenter：
+
+| Concern | Transitional owner |
+| --- | --- |
+| ACP catalog、registry cache/icon、catalog migration | `src/main/agent/acp/catalog/` |
+| install、launch spec、interactive setup terminal | `src/main/agent/acp/launch/` |
+| agent-id alias compatibility | `src/shared/utils/acpAgentAlias.ts` |
+| legacy config-store bridge | `ConfigPresenter/AcpCatalogConfigAdapter` boundary adapter |
+| process、remote session、persistence、protocol mapping | `src/main/agent/acp/runtime/` + `client/` |
+| debug actions、provider model refresh | `AcpProvider` compatibility adapter, delegated by `LLMProviderPresenter` |
+| startup migration、shutdown cleanup | narrow `LifecyclePresenter` hooks delegating to ACP owners/adapters |
 
 ## 4. Session 生命周期
 

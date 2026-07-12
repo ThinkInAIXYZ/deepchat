@@ -40,7 +40,7 @@ vi.mock('../../../../src/main/presenter/configPresenter/mcpConfHelper', () => ({
   }
 }))
 
-describe('AcpConfHelper registry-first migration', () => {
+describe('AcpCatalogConfigAdapter registry-first migration', () => {
   beforeEach(() => {
     mockStores.clear()
     vi.resetModules()
@@ -88,9 +88,9 @@ describe('AcpConfHelper registry-first migration', () => {
       ]
     })
 
-    const { AcpConfHelper } =
-      await import('../../../../src/main/presenter/configPresenter/acpConfHelper')
-    const helper = new AcpConfHelper()
+    const { AcpCatalogConfigAdapter } =
+      await import('@/presenter/configPresenter/acpCatalogConfigAdapter')
+    const helper = new AcpCatalogConfigAdapter()
 
     expect(helper.getAgentState('kimi')).toEqual(
       expect.objectContaining({
@@ -114,9 +114,9 @@ describe('AcpConfHelper registry-first migration', () => {
   })
 
   it('persists registry env overrides and validates shared MCP selections', async () => {
-    const { AcpConfHelper } =
-      await import('../../../../src/main/presenter/configPresenter/acpConfHelper')
-    const helper = new AcpConfHelper()
+    const { AcpCatalogConfigAdapter } =
+      await import('@/presenter/configPresenter/acpCatalogConfigAdapter')
+    const helper = new AcpCatalogConfigAdapter()
 
     helper.setAgentEnvOverride('claude-code-acp', {
       ANTHROPIC_AUTH_TOKEN: 'token',
@@ -167,9 +167,9 @@ describe('AcpConfHelper registry-first migration', () => {
       }
     })
 
-    const { AcpConfHelper } =
-      await import('../../../../src/main/presenter/configPresenter/acpConfHelper')
-    const helper = new AcpConfHelper()
+    const { AcpCatalogConfigAdapter } =
+      await import('@/presenter/configPresenter/acpCatalogConfigAdapter')
+    const helper = new AcpCatalogConfigAdapter()
 
     expect(helper.getSharedMcpSelections()).toEqual(['github', 'legacy-extra'])
     expect(helper.getAgentState('claude-acp')).toEqual(

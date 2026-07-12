@@ -47,7 +47,7 @@ import {
 import { AcpClientRuntime, AcpPromptController } from '@/agent/acp/client'
 import { nanoid } from 'nanoid'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
-import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void

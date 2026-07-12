@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AcpRegistryMigrationService } from '../../../../src/main/presenter/configPresenter/acpRegistryMigrationService'
+import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 
 describe('AcpRegistryMigrationService', () => {
   it('migrates legacy ACP ids in settings and sqlite references once', async () => {

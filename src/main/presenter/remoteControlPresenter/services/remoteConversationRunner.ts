@@ -32,7 +32,7 @@ import {
   type TelegramAgentOption,
   type TelegramModelProviderOption
 } from '../types'
-import { resolveAcpAgentAlias } from '../../configPresenter/acpRegistryConstants'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
   REMOTE_NO_RESPONSE_TEXT,

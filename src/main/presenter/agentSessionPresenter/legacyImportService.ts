@@ -10,7 +10,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import { isReasoningEffort } from '@shared/types/model-db'
-import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { DeepChatMessageStore } from '../agentRuntimePresenter/messageStore'
 
 type LegacyRow = Record<string, unknown>

@@ -11,7 +11,7 @@ import type {
   AcpManualAgent
 } from '@shared/presenter'
 import { McpConfHelper } from './mcpConfHelper'
-import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from './acpRegistryConstants'
+import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { StoreLike } from './storeLike'
 
 const ACP_STORE_VERSION = '4'
@@ -164,7 +164,7 @@ const getActiveLegacyProfile = (agent: AcpBuiltinAgent): AcpAgentProfile | null 
   )
 }
 
-export class AcpConfHelper {
+export class AcpCatalogConfigAdapter {
   private store: StoreLike<InternalStore & Record<string, unknown>>
   private readonly mcpConfHelper: McpConfHelper
 

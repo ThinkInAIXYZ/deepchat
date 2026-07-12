@@ -431,7 +431,7 @@ import type { AgentMemoryAuditRow } from '@/presenter/memoryPresenter/domain/aud
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { CronJobsService } from '@/presenter/cronJobs'
-import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
+import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
 type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]

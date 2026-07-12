@@ -15,8 +15,6 @@ export const ACP_REGISTRY_ICON_CACHE_DIRNAME = 'icons'
 
 const ACP_REGISTRY_FILE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
 
-export { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-
 export const isAcpRegistryIconUrl = (iconUrl: string): boolean =>
   iconUrl.startsWith(ACP_REGISTRY_ICON_PREFIX) && iconUrl.endsWith('.svg')
 

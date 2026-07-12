@@ -6,7 +6,7 @@
 - 技能库由 `SkillPresenter` 管理，主目录和启停状态是全局的；会话级 active skills 通过 `conversationId/sessionId` 保存。
 - 运行时构建 prompt/tools 时会读取 `skillPresenter.getMetadataList()`、`getActiveSkills(sessionId)`、`loadSkillContent()`，并按 active skills 注入 prompt。
 - 插件由 `PluginPresenter` 管理，全局安装/启用，插件贡献 MCP server、skills、settings、tool policy 等资源。
-- MCP server 定义与全局 MCP 开关由 `McpPresenter` / `useMcpStore` 管理；`agent_mcp_selections` 当前经 `AcpConfHelper` 退化为 shared selections，主要服务 ACP/shared 语义，不是 DeepChat agent scope。
+- MCP server 定义与全局 MCP 开关由 `McpPresenter` / `useMcpStore` 管理；`agent_mcp_selections` 当前经 `AcpCatalogConfigAdapter` 退化为 shared selections，主要服务 ACP/shared 语义，不是 DeepChat agent scope。
 - 设置页中技能已有“外部 agent”Tab（Claude/Codex 等技能目录扫描），但这不是 DeepChat agent 级配置。
 - commit `eb81a612df06f93c5407cdf3bbb8c5c6e5fc3a5b` 将 Official Plugins、MCP、Skills 放入主窗口 `/plugins` hub，但其规格明确“不重写 MCP、Skill、Remote、Plugin presenter / 不新增统一持久化表 / 不改变 MCP schema”，所以该提交完成的是入口与视图归集，不是 agent-scoped 数据拆分。
 - 当前临时修复把 `/plugins/skills` 与 `/plugins/mcp` 替换成 `AgentExtensionPolicyPanel`，会丢失添加 skill/server、市场和详情等原有管理能力；需要改为“视图不变、启停语义按 agent”。

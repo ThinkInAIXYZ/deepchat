@@ -281,7 +281,7 @@ ACP compatibility branches and stale-run cancellation.
 ### ACP
 
 - `test/main/presenter/acpProvider.test.ts`
-- `test/main/agent/acp/runtime/**`
+- `test/main/agent/acp/**`
 - `test/main/presenter/sqlitePresenter/acpSessions.test.ts`
 - agent-session ACP draft/subagent/transfer tests
 

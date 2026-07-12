@@ -47,7 +47,7 @@ describe('AcpRegistryService', () => {
   let userDataRoot: string
 
   const importService = async () => {
-    const mod = await import('../../../../src/main/presenter/configPresenter/acpRegistryService')
+    const mod = await import('@/agent/acp/catalog/acpRegistryService')
     return mod.AcpRegistryService
   }
 

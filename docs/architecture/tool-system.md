@@ -118,7 +118,9 @@ ACP provider 仍然是活跃兼容能力，但 ACP helper 已经收拢到独立 
 
 ```text
 src/main/agent/acp/
+├── catalog/                 # registry/catalog cache and migration
 ├── client/                  # connection/prompt/workspace client runtime
+├── launch/                  # install/launch spec and setup terminal
 └── runtime/                 # process/session/persistence/protocol mapping
 ```
 

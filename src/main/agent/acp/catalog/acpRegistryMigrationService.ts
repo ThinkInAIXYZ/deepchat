@@ -1,5 +1,5 @@
 import type { IConfigPresenter, ISQLitePresenter } from '@shared/presenter'
-import { ACP_LEGACY_AGENT_ID_ALIASES } from './acpRegistryConstants'
+import { ACP_LEGACY_AGENT_ID_ALIASES } from '@shared/utils/acpAgentAlias'
 
 const ACP_REGISTRY_MIGRATION_VERSION = 1
 

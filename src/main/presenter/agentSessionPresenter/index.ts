@@ -86,7 +86,7 @@ import {
   resolveUsageProviderId
 } from '../usageStats'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
-import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { ProviderSessionPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
 
 type SearchableSessionRow = {

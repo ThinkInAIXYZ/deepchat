@@ -29,9 +29,9 @@ import {
 } from '@shared/contracts/routes'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
-import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
+import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
-vi.mock('@/presenter/configPresenter/acpInitHelper', () => ({
+vi.mock('@/agent/acp/launch/acpInitHelper', () => ({
   writeToTerminal: vi.fn(),
   killTerminal: vi.fn()
 }))
