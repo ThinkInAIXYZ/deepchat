@@ -2,6 +2,12 @@
 
 > 状态：目标设计。继续使用现有 Tape；不新建 event store 或 entry kind。
 
+> Implementation progress: ASLR-052 placed the existing tool-round snapshot behind the fixed
+> `afterRoundPersisted` callback. The transitional `LegacyToolFactsSnapshotPort` still delegates to
+> `DeepChatMessageStore.appendAssistantToolFactsSnapshot`; the stable per-fact `TapeRecorder`
+> contract remains unchanged until individual assistant/tool fact writes migrate. No Tape schema,
+> entry kind, provenance field, or per-token write was added.
+
 ## 1. 模块目的
 
 Tape 是当前 agent transcript pipeline 的 append-only semantic ledger：在存续 lineage 内，以有序事实解释一个 turn

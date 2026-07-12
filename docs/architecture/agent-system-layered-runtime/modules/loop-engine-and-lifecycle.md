@@ -8,8 +8,13 @@
 > the same run object registered with the instance at the existing late
 > active-generation boundary. ASLR-051 extracted the outer provider-round/tool-batch loop into
 > `DeepChatLoopEngine`: it owns round and tool limits plus terminal/next-round decisions, while the
-> compatibility `processStream` adapter still owns the existing accumulator, dispatch, persistence,
-> interaction, skill-refresh, and settlement details in their original order.
+> compatibility `processStream` adapter still owns the existing accumulator, dispatch, interaction,
+> and skill-refresh details in their original order. ASLR-052 added fixed `updateOutput`,
+> `afterRoundPersisted`, and `settleTurn` callbacks. The engine now controls those commit points while
+> the compatibility adapter continues to use the existing echo, message projection, tool-fact
+> snapshot, and terminal writers. The engine invokes `settleTurn` exactly once. Within that adapter,
+> a normal settlement write failure still enters the legacy error/abort fallback; a settlement
+> failure while already handling a thrown round error is not replayed.
 
 ## 1. 模块目的
 

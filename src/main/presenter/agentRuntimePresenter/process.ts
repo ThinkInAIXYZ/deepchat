@@ -20,7 +20,12 @@ import {
   persistAbortExceptionPlanState
 } from './dispatch'
 import { isContextWindowErrorLike } from './contextWindowError'
-import { DeepChatLoopEngine } from '@/agent/deepchat/loop/deepChatLoopEngine'
+import {
+  DeepChatLoopEngine,
+  type DeepChatLoopCommitCallbacks,
+  type DeepChatLoopOutcome
+} from '@/agent/deepchat/loop/deepChatLoopEngine'
+import type { OutputSink } from '@/agent/deepchat/loop/ports'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
@@ -29,6 +34,12 @@ const deepChatLoopEngine = new DeepChatLoopEngine()
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
 type LegacyToolBatch = { prevBlockCount: number }
+
+// Transitional compatibility port. Retire with the snapshot path in ASLR-090 after per-fact
+// TapeRecorder writes replace the existing MessageStore capability.
+interface LegacyToolFactsSnapshotPort {
+  appendToolFactsSnapshot(input: { messageId: string; reason: string }): void
+}
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -296,6 +307,146 @@ function markStreamingProviderPermissionResolved(
   }
 }
 
+function settleLoopOutcome(
+  outcome: DeepChatLoopOutcome<ProcessResult>,
+  state: StreamState,
+  io: IoParams,
+  eventCount: number,
+  run: ProcessParams['run'],
+  outputSink: OutputSink
+): ProcessResult {
+  if (outcome.type === 'thrown') {
+    if (io.abortSignal.aborted || isAbortError(outcome.error)) {
+      logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
+      persistAbortExceptionPlanState(state, io)
+      return {
+        status: 'aborted',
+        stopReason: 'user_stop',
+        errorMessage: USER_CANCELED_GENERATION_ERROR,
+        usage: buildUsageSnapshot(state)
+      }
+    }
+
+    console.error(`[ProcessStream] exception after ${eventCount} events:`, outcome.error)
+    outputSink.fail({
+      runId: run.runId,
+      sessionId: run.sessionId,
+      messageId: run.messageId,
+      error: outcome.error
+    })
+    return {
+      status: 'error',
+      stopReason: 'error',
+      errorMessage: outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
+      usage: buildUsageSnapshot(state)
+    }
+  }
+
+  if (outcome.type === 'halted') {
+    const result = outcome.result
+    if (result.status === 'paused') {
+      finalizePaused(state, io)
+    } else if (result.status === 'aborted') {
+      finalizeUserCanceledErrorIfNeeded(state, io)
+    } else if (result.status === 'error') {
+      outputSink.fail({
+        runId: run.runId,
+        sessionId: run.sessionId,
+        messageId: run.messageId,
+        error: result.terminalError ?? result.errorMessage ?? 'Unknown error'
+      })
+    } else {
+      outputSink.complete({
+        runId: run.runId,
+        sessionId: run.sessionId,
+        messageId: run.messageId,
+        blocks: state.blocks,
+        metadata: { ...state.metadata }
+      })
+    }
+    return result
+  }
+
+  if (outcome.type === 'max_provider_rounds') {
+    const errorMessage = `Maximum agent turns exceeded (${outcome.limit}).`
+    logger.info(`[ProcessStream] ${errorMessage}`)
+    outputSink.fail({
+      runId: run.runId,
+      sessionId: run.sessionId,
+      messageId: run.messageId,
+      error: errorMessage
+    })
+    return {
+      status: 'error',
+      terminalError: errorMessage,
+      stopReason: 'max_turns',
+      errorMessage,
+      usage: buildUsageSnapshot(state)
+    }
+  }
+
+  if (outcome.type === 'max_tool_calls') {
+    logger.info(
+      `[ProcessStream] max tool calls reached (${outcome.attemptedToolCount} > ${outcome.limit}), stopping`
+    )
+    state.planTerminalReason = 'max_steps'
+  }
+
+  if (io.abortSignal.aborted) {
+    finalizeUserCanceledErrorIfNeeded(state, io)
+    return {
+      status: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: USER_CANCELED_GENERATION_ERROR,
+      usage: buildUsageSnapshot(state)
+    }
+  }
+  if (state.stopReason === 'error') {
+    const streamErrorMessage = getLatestErrorMessage(state)
+    if (streamErrorMessage && isContextWindowErrorLike(streamErrorMessage)) {
+      stripTrailingErrorBlock(state, streamErrorMessage)
+      outputSink.fail({
+        runId: run.runId,
+        sessionId: run.sessionId,
+        messageId: run.messageId,
+        error: streamErrorMessage
+      })
+      return {
+        status: 'error',
+        terminalError: streamErrorMessage
+      }
+    }
+  }
+  if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
+    outputSink.fail({
+      runId: run.runId,
+      sessionId: run.sessionId,
+      messageId: run.messageId,
+      error: NO_MODEL_RESPONSE_ERROR
+    })
+    return {
+      status: 'error',
+      terminalError: NO_MODEL_RESPONSE_ERROR,
+      stopReason: 'error',
+      errorMessage: NO_MODEL_RESPONSE_ERROR,
+      usage: buildUsageSnapshot(state)
+    }
+  }
+
+  outputSink.complete({
+    runId: run.runId,
+    sessionId: run.sessionId,
+    messageId: run.messageId,
+    blocks: state.blocks,
+    metadata: { ...state.metadata }
+  })
+  return {
+    status: 'completed',
+    stopReason: 'complete',
+    usage: buildUsageSnapshot(state)
+  }
+}
+
 /**
  * Unified stream processor. Handles both simple completions and multi-turn
  * tool-calling loops in a single code path.
@@ -336,12 +487,62 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   params.onConversationMessagesChange?.(conversationMessages)
   let currentTools = run.resources.toolDefinitions
   let firstProviderRoundReady = false
+  const outputSink: OutputSink = {
+    update: () => echo.flush(),
+    complete: () => finalize(state, io),
+    fail: ({ error }) => finalizeError(state, io, error)
+  }
+  const legacyTapeAdapter: LegacyToolFactsSnapshotPort = {
+    appendToolFactsSnapshot: ({ messageId, reason }) =>
+      io.messageStore.appendAssistantToolFactsSnapshot(messageId, reason)
+  }
+  const updateOutput = (): void => {
+    outputSink.update({
+      runId: run.runId,
+      sessionId: run.sessionId,
+      messageId: run.messageId,
+      blocks: state.blocks
+    })
+  }
 
   logger.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
   let eventCount = 0
+  const commits: DeepChatLoopCommitCallbacks<StreamState, ProcessResult, ProcessResult> = {
+    updateOutput: ({ outcome }) => {
+      if (outcome === 'halted' || firstProviderRoundReady || state.blocks.length === 0) {
+        return
+      }
+
+      firstProviderRoundReady = true
+      updateOutput()
+      try {
+        params.onFirstProviderRoundReady?.()
+      } catch (error) {
+        console.warn('[ProcessStream] first provider round readiness callback failed:', error)
+      }
+    },
+    afterRoundPersisted: () => {
+      updateOutput()
+      legacyTapeAdapter.appendToolFactsSnapshot({
+        messageId: run.messageId,
+        reason: 'tool_loop'
+      })
+    },
+    settleTurn: ({ outcome }) => {
+      if (outcome.type === 'thrown') {
+        return settleLoopOutcome(outcome, state, io, eventCount, run, outputSink)
+      }
+
+      try {
+        return settleLoopOutcome(outcome, state, io, eventCount, run, outputSink)
+      } catch (error) {
+        return settleLoopOutcome({ type: 'thrown', error }, state, io, eventCount, run, outputSink)
+      }
+    }
+  }
 
   try {
-    const loopOutcome = await deepChatLoopEngine.run<StreamState, LegacyToolBatch, ProcessResult>(
+    return await deepChatLoopEngine.run<StreamState, LegacyToolBatch, ProcessResult, ProcessResult>(
       run,
       {
         maxProviderRounds: params.maxProviderRounds,
@@ -365,7 +566,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             if (io.abortSignal.aborted) {
               logger.info(`[ProcessStream] aborted after ${eventCount} events`)
               echo.stop()
-              finalizeUserCanceledErrorIfNeeded(state, io)
               return {
                 type: 'halted',
                 result: {
@@ -390,9 +590,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                   permission.permissionType
                 )
                 state.dirty = true
-                echo.flush()
+                updateOutput()
               })
-              echo.flush()
+              updateOutput()
               continue
             }
 
@@ -413,7 +613,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           )
 
           if (io.abortSignal.aborted) {
-            finalizeUserCanceledErrorIfNeeded(state, io)
             return {
               type: 'halted',
               result: {
@@ -422,15 +621,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 errorMessage: USER_CANCELED_GENERATION_ERROR,
                 usage: buildUsageSnapshot(state)
               }
-            }
-          }
-          if (!firstProviderRoundReady && state.blocks.length > 0) {
-            firstProviderRoundReady = true
-            echo.flush()
-            try {
-              params.onFirstProviderRoundReady?.()
-            } catch (error) {
-              console.warn('[ProcessStream] first provider round readiness callback failed:', error)
             }
           }
 
@@ -467,11 +657,8 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             hooks,
             providerId
           )
-          echo.flush()
-          io.messageStore.appendAssistantToolFactsSnapshot(io.messageId, 'tool_loop')
 
           if (executed.terminalError) {
-            finalizeError(state, io, executed.terminalError)
             return {
               type: 'halted',
               result: {
@@ -488,7 +675,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             logger.info(
               `[ProcessStream] paused for user interaction count=${executed.pendingInteractions.length}`
             )
-            finalizePaused(state, io)
             return {
               type: 'halted',
               result: {
@@ -499,7 +685,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           }
 
           if (io.abortSignal.aborted) {
-            finalizeUserCanceledErrorIfNeeded(state, io)
             return {
               type: 'halted',
               result: {
@@ -512,7 +697,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           }
 
           if (params.shouldYieldForPendingInput?.()) {
-            finalize(state, io)
             return {
               type: 'halted',
               result: {
@@ -555,87 +739,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
           return { type: 'continue', executedToolCount: executed.executed }
         }
-      }
+      },
+      commits
     )
-
-    if (loopOutcome.type === 'halted') {
-      return loopOutcome.result
-    }
-    if (loopOutcome.type === 'max_provider_rounds') {
-      const errorMessage = `Maximum agent turns exceeded (${loopOutcome.limit}).`
-      logger.info(`[ProcessStream] ${errorMessage}`)
-      finalizeError(state, io, errorMessage)
-      return {
-        status: 'error',
-        terminalError: errorMessage,
-        stopReason: 'max_turns',
-        errorMessage,
-        usage: buildUsageSnapshot(state)
-      }
-    }
-    if (loopOutcome.type === 'max_tool_calls') {
-      logger.info(
-        `[ProcessStream] max tool calls reached (${loopOutcome.attemptedToolCount} > ${loopOutcome.limit}), stopping`
-      )
-      state.planTerminalReason = 'max_steps'
-    }
-
-    // Finalize
-    if (io.abortSignal.aborted) {
-      finalizeUserCanceledErrorIfNeeded(state, io)
-      return {
-        status: 'aborted' as const,
-        stopReason: 'user_stop',
-        errorMessage: USER_CANCELED_GENERATION_ERROR,
-        usage: buildUsageSnapshot(state)
-      }
-    }
-    if (state.stopReason === 'error') {
-      const streamErrorMessage = getLatestErrorMessage(state)
-      if (streamErrorMessage && isContextWindowErrorLike(streamErrorMessage)) {
-        stripTrailingErrorBlock(state, streamErrorMessage)
-        finalizeError(state, io, streamErrorMessage)
-        return {
-          status: 'error' as const,
-          terminalError: streamErrorMessage
-        }
-      }
-    }
-    if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
-      finalizeError(state, io, NO_MODEL_RESPONSE_ERROR)
-      return {
-        status: 'error' as const,
-        terminalError: NO_MODEL_RESPONSE_ERROR,
-        stopReason: 'error',
-        errorMessage: NO_MODEL_RESPONSE_ERROR,
-        usage: buildUsageSnapshot(state)
-      }
-    }
-    finalize(state, io)
-    return {
-      status: 'completed' as const,
-      stopReason: 'complete',
-      usage: buildUsageSnapshot(state)
-    }
-  } catch (err) {
-    if (io.abortSignal.aborted || isAbortError(err)) {
-      logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
-      persistAbortExceptionPlanState(state, io)
-      return {
-        status: 'aborted' as const,
-        stopReason: 'user_stop',
-        errorMessage: USER_CANCELED_GENERATION_ERROR,
-        usage: buildUsageSnapshot(state)
-      }
-    }
-    console.error(`[ProcessStream] exception after ${eventCount} events:`, err)
-    finalizeError(state, io, err)
-    return {
-      status: 'error' as const,
-      stopReason: 'error',
-      errorMessage: err instanceof Error ? err.message : String(err),
-      usage: buildUsageSnapshot(state)
-    }
   } finally {
     echo.stop()
   }

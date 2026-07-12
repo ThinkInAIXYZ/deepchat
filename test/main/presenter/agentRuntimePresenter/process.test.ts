@@ -175,6 +175,30 @@ describe('processStream', () => {
     }
   }
 
+  function observeCommitOrder(order: string[]): void {
+    messageStore.updateAssistantContent.mockImplementation(() => {
+      order.push('message:update')
+    })
+    messageStore.finalizeAssistantMessage.mockImplementation(() => {
+      order.push('message:complete')
+    })
+    messageStore.setMessageError.mockImplementation(() => {
+      order.push('message:error')
+    })
+    messageStore.appendAssistantToolFactsSnapshot.mockImplementation(() => {
+      order.push('tape:tool-snapshot')
+    })
+    publishDeepchatEventMock.mockImplementation((eventName: string) => {
+      if (eventName === 'chat.stream.updated') {
+        order.push('renderer:update')
+      } else if (eventName === 'chat.stream.completed') {
+        order.push('renderer:complete')
+      } else if (eventName === 'chat.stream.failed') {
+        order.push('renderer:error')
+      }
+    })
+  }
+
   it('no tools → single stream, finalize', async () => {
     const params = createParams()
     const promise = processStream(params)
@@ -194,6 +218,379 @@ describe('processStream', () => {
       sessionId: 's1',
       messageId: 'm1',
       requestId: 'req-1'
+    })
+  })
+
+  describe('fixed lifecycle commits', () => {
+    const TOOL_ROUND_COMMIT_ORDER = [
+      'renderer:update',
+      'message:update',
+      'renderer:update',
+      'message:update',
+      'renderer:update',
+      'message:update',
+      'tape:tool-snapshot'
+    ]
+    const ERROR_TERMINAL_COMMIT_ORDER = ['message:error', 'renderer:update', 'renderer:error']
+    const COMPLETED_TERMINAL_COMMIT_ORDER = [
+      'message:complete',
+      'renderer:update',
+      'renderer:complete'
+    ]
+
+    function createToolRoundStream(toolName: string, args = '{}'): ProcessParams['coreStream'] {
+      return vi.fn(async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'tc1',
+          tool_call_name: toolName
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'tc1',
+          tool_call_arguments_complete: args
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      }) as unknown as ProcessParams['coreStream']
+    }
+
+    it('keeps the normal output and terminal commit order without tool Tape snapshots', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const coreStream = vi.fn(async function* () {
+        yield { type: 'text', content: 'One' } as LLMCoreStreamEvent
+        yield { type: 'text', content: ' two' } as LLMCoreStreamEvent
+        yield { type: 'text', content: ' three' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(createParams({ coreStream }))
+
+      expect(result.status).toBe('completed')
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        'message:complete',
+        'renderer:update',
+        'renderer:complete'
+      ])
+      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('keeps the legacy error fallback inside one settlement stage invocation', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      messageStore.finalizeAssistantMessage.mockImplementation(() => {
+        order.push('message:complete')
+        throw new Error('final write failed')
+      })
+
+      const result = await processStream(createParams())
+
+      expect(result).toMatchObject({
+        status: 'error',
+        errorMessage: 'final write failed'
+      })
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        'message:complete',
+        ...ERROR_TERMINAL_COMMIT_ORDER
+      ])
+      expect(messageStore.finalizeAssistantMessage).toHaveBeenCalledTimes(1)
+      expect(messageStore.setMessageError).toHaveBeenCalledTimes(1)
+      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('persists each tool round before entering the next provider round', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      let providerRound = 0
+      const coreStream = vi.fn(() => {
+        providerRound += 1
+        if (providerRound <= 2) {
+          const toolCallId = `tc${providerRound}`
+          return (async function* () {
+            yield {
+              type: 'tool_call_start',
+              tool_call_id: toolCallId,
+              tool_call_name: 'action'
+            } as LLMCoreStreamEvent
+            yield {
+              type: 'tool_call_end',
+              tool_call_id: toolCallId,
+              tool_call_arguments_complete: '{}'
+            } as LLMCoreStreamEvent
+            yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+          })()
+        }
+
+        return (async function* () {
+          yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolPresenter: createMockToolPresenter({ action: 'ok' }),
+          tools: [makeTool('action')]
+        })
+      )
+
+      expect(result.status).toBe('completed')
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        'tape:tool-snapshot',
+        'renderer:update',
+        'message:update',
+        'tape:tool-snapshot',
+        'message:complete',
+        'renderer:update',
+        'renderer:complete'
+      ])
+      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(2)
+    })
+
+    it('persists a paused tool round before its terminal projection', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const coreStream = vi.fn(async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'question-1',
+          tool_call_name: 'deepchat_question'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'question-1',
+          tool_call_arguments_complete: JSON.stringify({
+            question: 'Continue?',
+            options: [{ label: 'Yes' }, { label: 'No' }]
+          })
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(
+        createParams({ coreStream, tools: [makeTool('deepchat_question')] })
+      )
+
+      expect(result.status).toBe('paused')
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        'tape:tool-snapshot',
+        'message:update',
+        'renderer:update',
+        'renderer:complete'
+      ])
+    })
+
+    it('settles a thrown provider error without a tool Tape snapshot', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const coreStream = vi.fn(async function* () {
+        yield { type: 'text', content: 'Partial' } as LLMCoreStreamEvent
+        throw new Error('Connection lost')
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(createParams({ coreStream }))
+
+      expect(result.status).toBe('error')
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'message:error',
+        'renderer:update',
+        'renderer:error'
+      ])
+      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('settles an in-stream abort without a tool Tape snapshot', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const abortController = new AbortController()
+      const coreStream = vi.fn(async function* () {
+        yield { type: 'text', content: 'Partial' } as LLMCoreStreamEvent
+        abortController.abort()
+        yield { type: 'text', content: 'Ignored' } as LLMCoreStreamEvent
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(createParams({ coreStream, abortController }))
+
+      expect(result.status).toBe('aborted')
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'message:error',
+        'renderer:update',
+        'renderer:error'
+      ])
+      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('persists the executed batch before a max-provider-round terminal error', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const coreStream = createToolRoundStream('action')
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolPresenter: createMockToolPresenter({ action: 'ok' }),
+          tools: [makeTool('action')],
+          maxProviderRounds: 1
+        })
+      )
+
+      expect(result).toMatchObject({
+        status: 'error',
+        stopReason: 'max_turns'
+      })
+      expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not snapshot an oversized tool batch that never executes', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const toolPresenter = createMockToolPresenter({ action: 'ok' })
+      const coreStream = vi.fn(async function* () {
+        for (let index = 0; index < 129; index += 1) {
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: `tc${index}`,
+            tool_call_name: 'action'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: `tc${index}`,
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+        }
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(
+        createParams({ coreStream, toolPresenter, tools: [makeTool('action')] })
+      )
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'complete' })
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        ...COMPLETED_TERMINAL_COMMIT_ORDER
+      ])
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('persists a terminal tool-output error before the failed projection', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const longOutput = JSON.stringify({ data: 'x'.repeat(7000) })
+      const coreStream = createToolRoundStream('cdp_send', '{"method":"Page.captureScreenshot"}')
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolPresenter: createMockToolPresenter({ cdp_send: longOutput }),
+          tools: [makeTool('cdp_send')],
+          modelConfig: { contextLength: 1 } as any,
+          maxTokens: 1
+        })
+      )
+
+      expect(result.status).toBe('error')
+      expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
+      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    it('settles a post-stream abort without a tool Tape snapshot', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const abortController = new AbortController()
+      const coreStream = vi.fn(async function* () {
+        yield { type: 'text', content: 'Partial' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        abortController.abort()
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(createParams({ coreStream, abortController }))
+
+      expect(result.status).toBe('aborted')
+      expect(order).toEqual(['renderer:update', 'message:update', ...ERROR_TERMINAL_COMMIT_ORDER])
+      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('persists the completed tool batch before a post-tool abort', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const abortController = new AbortController()
+      const toolPresenter = createMockToolPresenter()
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        abortController.abort()
+        return {
+          content: 'ok',
+          rawData: { toolCallId: 'tc1', content: 'ok', isError: false }
+        }
+      })
+
+      const result = await processStream(
+        createParams({
+          coreStream: createToolRoundStream('action'),
+          toolPresenter,
+          tools: [makeTool('action')],
+          abortController
+        })
+      )
+
+      expect(result.status).toBe('aborted')
+      expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
+      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    it('persists the completed batch before settling for pending input', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const shouldYieldForPendingInput = vi.fn(() => true)
+      const coreStream = createToolRoundStream('action')
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolPresenter: createMockToolPresenter({ action: 'ok' }),
+          tools: [makeTool('action')],
+          shouldYieldForPendingInput
+        })
+      )
+
+      expect(result).toMatchObject({
+        status: 'completed',
+        stopReason: 'pending_input'
+      })
+      expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...COMPLETED_TERMINAL_COMMIT_ORDER])
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
     })
   })
 
