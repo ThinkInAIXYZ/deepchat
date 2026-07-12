@@ -67,6 +67,9 @@ import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { CronJobsService } from './cronJobs'
+import { AgentManager } from '@/agent/manager/agentManager'
+import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
+import { AppSessionService } from '@/agent/shared/appSessionService'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { MemoryPresenter, isSafeAgentId } from './memoryPresenter'
@@ -654,8 +657,22 @@ export class Presenter implements IPresenter {
         skillPresenter: this.skillPresenter
       }
     )
+    const sqlitePresenter = this
+      .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+    const appSessionService = new AppSessionService({
+      newSessionsTable: sqlitePresenter.newSessionsTable,
+      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+    })
+    const agentManager = new AgentManager(agentRepository, appSessionService, {
+      deepchat: createLegacyAgentBackend('deepchat', agentRuntimePresenter),
+      acp: createLegacyAgentBackend('acp', agentRuntimePresenter)
+    })
     this.agentSessionPresenter = new AgentSessionPresenter(
       agentRuntimePresenter,
+      agentManager,
+      appSessionService,
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,

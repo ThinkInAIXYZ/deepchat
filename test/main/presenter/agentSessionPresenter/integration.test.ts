@@ -1,3 +1,4 @@
+import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
@@ -6,6 +7,7 @@ import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSession
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
+import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -632,6 +634,18 @@ function createMockToolPresenter() {
   } as any
 }
 
+function createLegacyManager(deepchatAgent: AgentRuntimePresenter, sqlitePresenter: any) {
+  const backend = createLegacyAgentBackend('deepchat', deepchatAgent as never)
+  return {
+    resolveBackend: () => ({ backend }),
+    resolveSessionHandle: (sessionId: string) => {
+      const session = sqlitePresenter.newSessionsTable.get(sessionId)
+      if (!session) throw new Error(`Session not found: ${sessionId}`)
+      return { handle: backend.open(sessionId) }
+    }
+  }
+}
+
 describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
@@ -652,6 +666,13 @@ describe('Integration: createSession end-to-end', () => {
     )
     agentPresenter = new AgentSessionPresenter(
       deepchatAgent as any,
+      createLegacyManager(deepchatAgent, sqlitePresenter) as any,
+      new AppSessionService({
+        newSessionsTable: sqlitePresenter.newSessionsTable,
+        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+      }),
       llmProvider,
       configPresenter,
       sqlitePresenter
@@ -803,6 +824,13 @@ describe('Integration: ACP hooks bridge', () => {
     )
     agentPresenter = new AgentSessionPresenter(
       deepchatAgent as any,
+      createLegacyManager(deepchatAgent, sqlitePresenter) as any,
+      new AppSessionService({
+        newSessionsTable: sqlitePresenter.newSessionsTable,
+        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+      }),
       llmProvider,
       configPresenter,
       sqlitePresenter
@@ -882,6 +910,13 @@ describe('Integration: multi-turn context', () => {
     )
     agentPresenter = new AgentSessionPresenter(
       deepchatAgent as any,
+      createLegacyManager(deepchatAgent, sqlitePresenter) as any,
+      new AppSessionService({
+        newSessionsTable: sqlitePresenter.newSessionsTable,
+        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+      }),
       llmProvider,
       configPresenter,
       sqlitePresenter

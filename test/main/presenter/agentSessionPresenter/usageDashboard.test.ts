@@ -1,7 +1,9 @@
+import { AppSessionService } from '@/agent/shared/appSessionService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
+import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToMain: vi.fn(), on: vi.fn() }
@@ -445,8 +447,20 @@ describe('AgentSessionPresenter usage dashboard', () => {
   function createPresenter() {
     const sqlitePresenter = createMockSqlitePresenter()
     const configPresenter = createMockConfigPresenter()
+    const deepChatAgent = createMockDeepChatAgent()
     const presenter = new AgentSessionPresenter(
-      createMockDeepChatAgent() as any,
+      deepChatAgent as any,
+      {
+        resolveBackend: () => ({
+          backend: createLegacyAgentBackend('deepchat', deepChatAgent as never)
+        })
+      } as any,
+      new AppSessionService({
+        newSessionsTable: sqlitePresenter.newSessionsTable,
+        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+      }),
       createMockLlmProviderPresenter() as any,
       configPresenter as any,
       sqlitePresenter

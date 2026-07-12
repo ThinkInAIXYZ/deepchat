@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import type { AgentManager } from '@/agent/manager/agentManager'
 import type {
   Agent,
   AgentTapeAnchorResult,
@@ -64,7 +65,8 @@ import type {
   DeepChatMessageUsageCandidateRow
 } from '../sqlitePresenter/tables/deepchatMessages'
 import { AgentRegistry } from './agentRegistry'
-import { NewSessionManager } from './sessionManager'
+import { AppSessionService } from '@/agent/shared/appSessionService'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { NewMessageManager } from './messageManager'
 import { LegacyChatImportService } from './legacyImportService'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -263,7 +265,8 @@ const extractSearchableMessageContent = (rawContent: string): string => {
 
 export class AgentSessionPresenter {
   private agentRegistry: AgentRegistry
-  private sessionManager: NewSessionManager
+  private agentManager: AgentManager
+  private sessionManager: AppSessionService
   private messageManager: NewMessageManager
   private sqlitePresenter: SQLitePresenter
   private llmProviderPresenter: ILlmProviderPresenter
@@ -280,6 +283,8 @@ export class AgentSessionPresenter {
 
   constructor(
     agentRuntimeAgent: IAgentImplementation,
+    agentManager: AgentManager,
+    appSessionService: AppSessionService,
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
@@ -291,13 +296,14 @@ export class AgentSessionPresenter {
       sessionUiPort?: SessionUiPort
     }
   ) {
+    this.agentManager = agentManager
     this.sqlitePresenter = sqlitePresenter
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.skillPresenter = skillPresenter
     this.agentRegistry = new AgentRegistry()
-    this.sessionManager = new NewSessionManager(sqlitePresenter)
-    this.messageManager = new NewMessageManager(this.agentRegistry)
+    this.sessionManager = appSessionService
+    this.messageManager = new NewMessageManager(this.agentRegistry, appSessionService)
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
     this.providerSessionPort = runtimePorts?.providerSessionPort
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort ?? sessionRuntimePort
@@ -402,7 +408,7 @@ export class AgentSessionPresenter {
     logger.info(`[AgentSessionPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
-    this.sessionManager.bindWindow(webContentsId, sessionId)
+    this.sessionManager.bindWindow(webContentsId, toAppSessionId(sessionId))
     this.emitSessionListUpdated({
       sessionIds: [sessionId],
       reason: 'created',
@@ -1867,7 +1873,7 @@ export class AgentSessionPresenter {
   }
 
   async activateSession(webContentsId: number, sessionId: string): Promise<void> {
-    this.sessionManager.bindWindow(webContentsId, sessionId)
+    this.sessionManager.bindWindow(webContentsId, toAppSessionId(sessionId))
     publishDeepchatEvent('sessions.updated', {
       sessionIds: [sessionId],
       reason: 'activated',
@@ -2682,17 +2688,7 @@ export class AgentSessionPresenter {
 
   private async resolveAgentImplementation(agentId: string): Promise<IAgentImplementation> {
     const resolvedAgentId = resolveAcpAgentAlias(agentId)
-
-    if (this.agentRegistry.has(resolvedAgentId)) {
-      return this.agentRegistry.resolve(resolvedAgentId)
-    }
-
-    const agentType = await this.getAgentType(resolvedAgentId)
-    if (agentType === 'deepchat' || agentType === 'acp') {
-      return this.agentRegistry.resolve('deepchat')
-    }
-
-    throw new Error(`Agent not found: ${agentId}`)
+    return this.agentManager.resolveBackend(resolvedAgentId).backend.implementation
   }
 
   private async assertAcpAgent(agentId: string): Promise<void> {

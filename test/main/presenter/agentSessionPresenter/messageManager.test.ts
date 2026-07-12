@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NewMessageManager } from '@/presenter/agentSessionPresenter/messageManager'
 import type { AgentRegistry } from '@/presenter/agentSessionPresenter/agentRegistry'
-import type { NewSessionManager } from '@/presenter/agentSessionPresenter/sessionManager'
+import type { AppSessionReadPort } from '@/agent/shared/appSessionService'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
 const mockMessage: ChatMessageRecord = {
@@ -46,7 +46,7 @@ function createMocks() {
       createdAt: 1000,
       updatedAt: 1000
     })
-  } as unknown as NewSessionManager
+  } as unknown as AppSessionReadPort
 
   return { mockAgent, agentRegistry, sessionManager }
 }

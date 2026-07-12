@@ -1,12 +1,12 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { AgentRegistry } from './agentRegistry'
-import type { NewSessionManager } from './sessionManager'
+import type { AppSessionReadPort } from '@/agent/shared/appSessionService'
 
 export class NewMessageManager {
   private agentRegistry: AgentRegistry
-  private sessionManager?: Pick<NewSessionManager, 'get'>
+  private sessionManager?: AppSessionReadPort
 
-  constructor(agentRegistry: AgentRegistry, sessionManager?: Pick<NewSessionManager, 'get'>) {
+  constructor(agentRegistry: AgentRegistry, sessionManager?: AppSessionReadPort) {
     this.agentRegistry = agentRegistry
     this.sessionManager = sessionManager
   }

@@ -1,5 +1,9 @@
+import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { nanoid } from 'nanoid'
+import { AgentManager } from '@/agent/manager/agentManager'
+import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
+import { AgentRepository } from '@/presenter/agentRepository'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
@@ -89,6 +93,9 @@ function createMockDeepChatAgent() {
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
     hasMessages: vi.fn().mockResolvedValue(false),
+    listPendingInputs: vi.fn().mockResolvedValue([]),
+    mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
+    discardSubagentTape: vi.fn().mockResolvedValue(undefined),
     getSessionCompactionState: vi.fn().mockResolvedValue({
       status: 'idle',
       cursorOrderSeq: 1,
@@ -325,6 +332,14 @@ describe('AgentSessionPresenter', () => {
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let skillPresenter: ReturnType<typeof createMockSkillPresenter>
+  let agentManager: {
+    resolveBackend: ReturnType<typeof vi.fn>
+    resolveSessionBackend: ReturnType<typeof vi.fn>
+    resolveSessionHandle: ReturnType<typeof vi.fn>
+    resolveTransferSource: ReturnType<typeof vi.fn>
+    resolveDeepChatTransferTarget: ReturnType<typeof vi.fn>
+    resolveSubagentFacet: ReturnType<typeof vi.fn>
+  }
   let presenter: AgentSessionPresenter
 
   beforeEach(() => {
@@ -334,13 +349,230 @@ describe('AgentSessionPresenter', () => {
     configPresenter = createMockConfigPresenter()
     sqlitePresenter = createMockSqlitePresenter()
     skillPresenter = createMockSkillPresenter()
+    const resolveBackend = vi.fn((agentId: string) => {
+      if (agentId === 'disabled-agent') throw new Error(`Agent not found: ${agentId}`)
+      const kind = agentId.includes('acp') || agentId === 'kimi' ? 'acp' : 'deepchat'
+      const backend = createLegacyAgentBackend(kind, deepChatAgent as never)
+      const descriptor =
+        kind === 'acp'
+          ? { id: agentId, kind, source: 'manual' }
+          : { id: agentId, kind, source: 'manual', config: {} }
+      return { descriptor, backend }
+    })
+    const resolveSessionBackend = vi.fn((sessionId: string) => {
+      if (sessionId === 'missing-agent' || sessionId === 's-disabled') {
+        throw new Error('Agent not found: disabled-agent')
+      }
+      const session = sqlitePresenter.newSessionsTable.get(sessionId)
+      if (!session) throw new Error(`Session not found: ${sessionId}`)
+      return resolveBackend(session.agent_id ?? session.agentId)
+    })
+    agentManager = {
+      resolveBackend,
+      resolveSessionBackend,
+      resolveSessionHandle: vi.fn((sessionId: string) => {
+        const { descriptor, backend } = resolveSessionBackend(sessionId)
+        return { descriptor, handle: backend.open(sessionId) }
+      }),
+      resolveTransferSource: vi.fn((sessionId: string) => {
+        const { descriptor, backend } = resolveSessionBackend(sessionId)
+        return {
+          descriptor,
+          handle: backend.open(sessionId),
+          facet: backend.transferSource
+        }
+      }),
+      resolveDeepChatTransferTarget: vi.fn((agentId: string) => {
+        const { descriptor, backend } = resolveBackend(agentId)
+        if (descriptor.kind !== 'deepchat' || backend.kind !== 'deepchat') {
+          throw new Error(`Agent ${agentId} does not support session transfer.`)
+        }
+        return { descriptor, facet: backend.transferTarget }
+      }),
+      resolveSubagentFacet: vi.fn((sessionId: string) => {
+        const { descriptor, backend } = resolveSessionBackend(sessionId)
+        return { kind: descriptor.kind, descriptor, facet: backend.subagent }
+      })
+    }
     presenter = new AgentSessionPresenter(
       deepChatAgent as any,
+      agentManager as any,
+      new AppSessionService({
+        newSessionsTable: sqlitePresenter.newSessionsTable,
+        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+      }),
       llmProviderPresenter,
       configPresenter,
       sqlitePresenter,
       skillPresenter
     )
+  })
+
+  it('routes public session operations through the real catalog and manager chain', async () => {
+    const now = Date.now()
+    const agentRows = new Map<string, any>([
+      [
+        'deepchat',
+        {
+          id: 'deepchat',
+          agent_type: 'deepchat',
+          source: 'builtin',
+          name: 'DeepChat',
+          enabled: 1,
+          protected: 1,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: '{}',
+          state_json: null,
+          created_at: now,
+          updated_at: now
+        }
+      ],
+      [
+        'claude-acp',
+        {
+          id: 'claude-acp',
+          agent_type: 'acp',
+          source: 'manual',
+          name: 'Claude ACP',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: JSON.stringify({ command: 'claude-acp' }),
+          state_json: '{}',
+          created_at: now,
+          updated_at: now
+        }
+      ],
+      [
+        'broken-acp',
+        {
+          id: 'broken-acp',
+          agent_type: 'acp',
+          source: 'manual',
+          name: 'Broken ACP',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: '{}',
+          state_json: '{}',
+          created_at: now,
+          updated_at: now
+        }
+      ]
+    ])
+    const sessions = new Map(
+      [
+        ['deepchat-session', 'deepchat'],
+        ['acp-session', 'claude-code-acp'],
+        ['missing-session', 'missing-agent'],
+        ['broken-session', 'broken-acp']
+      ].map(([id, agentId]) => [
+        id,
+        {
+          id,
+          agent_id: agentId,
+          title: id,
+          project_dir: null,
+          is_pinned: 0,
+          is_draft: 0,
+          session_kind: 'regular',
+          parent_session_id: null,
+          subagent_enabled: 0,
+          subagent_meta_json: null,
+          created_at: now,
+          updated_at: now
+        }
+      ])
+    )
+    const sqliteWithAgents = {
+      ...sqlitePresenter,
+      agentsTable: {
+        get: (id: string) => agentRows.get(id),
+        list: () => [...agentRows.values()]
+      },
+      newSessionsTable: {
+        ...sqlitePresenter.newSessionsTable,
+        get: (id: string) => sessions.get(id),
+        list: () => [...sessions.values()]
+      }
+    } as any
+    const repository = new AgentRepository(sqliteWithAgents)
+    const deepchatImplementation = {
+      getSessionState: vi.fn().mockResolvedValue({ providerId: 'openai', modelId: 'gpt-4' }),
+      hasMessages: vi.fn().mockResolvedValue(true),
+      listPendingInputs: vi.fn().mockResolvedValue([]),
+      setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
+      mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
+      discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+      processMessage: vi
+        .fn()
+        .mockResolvedValue({ requestId: 'deepchat-request', messageId: 'deepchat-message' })
+    } as any
+    const acpImplementation = {
+      getSessionState: vi.fn().mockResolvedValue({ providerId: 'openai', modelId: 'gpt-4' }),
+      hasMessages: vi.fn().mockResolvedValue(true),
+      listPendingInputs: vi.fn().mockResolvedValue([]),
+      mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
+      discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+      processMessage: vi
+        .fn()
+        .mockResolvedValue({ requestId: 'acp-request', messageId: 'acp-message' })
+    } as any
+    const appSessionService = new AppSessionService({
+      newSessionsTable: sqliteWithAgents.newSessionsTable,
+      deepchatSessionMetadataTable: sqliteWithAgents.deepchatSessionMetadataTable,
+      deepchatSearchDocumentsTable: sqliteWithAgents.deepchatSearchDocumentsTable,
+      newEnvironmentsTable: sqliteWithAgents.newEnvironmentsTable
+    })
+    const realManager = new AgentManager(repository, appSessionService, {
+      deepchat: createLegacyAgentBackend('deepchat', deepchatImplementation),
+      acp: createLegacyAgentBackend('acp', acpImplementation)
+    })
+    const integratedPresenter = new AgentSessionPresenter(
+      deepchatImplementation,
+      realManager,
+      appSessionService,
+      llmProviderPresenter,
+      configPresenter,
+      sqliteWithAgents,
+      skillPresenter
+    )
+
+    await expect(integratedPresenter.sendMessage('deepchat-session', 'Hello')).resolves.toEqual({
+      requestId: 'deepchat-request',
+      messageId: 'deepchat-message'
+    })
+    await expect(integratedPresenter.sendMessage('acp-session', 'Hello')).resolves.toEqual({
+      requestId: 'acp-request',
+      messageId: 'acp-message'
+    })
+    expect(deepchatImplementation.processMessage).toHaveBeenCalledWith(
+      'deepchat-session',
+      { text: 'Hello', files: [] },
+      expect.objectContaining({ projectDir: null })
+    )
+    expect(acpImplementation.processMessage).toHaveBeenCalledWith(
+      'acp-session',
+      { text: 'Hello', files: [] },
+      expect.objectContaining({ projectDir: null })
+    )
+    await expect(integratedPresenter.sendMessage('missing-session', 'Hello')).rejects.toMatchObject(
+      {
+        code: 'AGENT_NOT_FOUND'
+      }
+    )
+    await expect(integratedPresenter.sendMessage('broken-session', 'Hello')).rejects.toMatchObject({
+      code: 'AGENT_UNAVAILABLE',
+      reason: 'missing-manual-command'
+    })
   })
 
   describe('createSession', () => {

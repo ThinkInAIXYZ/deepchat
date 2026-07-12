@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NewSessionManager } from '@/presenter/agentSessionPresenter/sessionManager'
+import { AppSessionService } from '@/agent/shared/appSessionService'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-id-123') }))
 
@@ -32,13 +33,13 @@ function createMockSqlitePresenter() {
   } as any
 }
 
-describe('NewSessionManager', () => {
+describe('AppSessionService', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
-  let manager: NewSessionManager
+  let manager: AppSessionService
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    manager = new NewSessionManager(sqlitePresenter)
+    manager = new AppSessionService(sqlitePresenter)
   })
 
   describe('create', () => {
@@ -269,19 +270,19 @@ describe('NewSessionManager', () => {
   describe('window bindings', () => {
     it('bindWindow and getActiveSessionId', () => {
       expect(manager.getActiveSessionId(1)).toBeNull()
-      manager.bindWindow(1, 's1')
+      manager.bindWindow(1, toAppSessionId('s1'))
       expect(manager.getActiveSessionId(1)).toBe('s1')
     })
 
     it('unbindWindow sets null', () => {
-      manager.bindWindow(1, 's1')
+      manager.bindWindow(1, toAppSessionId('s1'))
       manager.unbindWindow(1)
       expect(manager.getActiveSessionId(1)).toBeNull()
     })
 
     it('multiple windows track independently', () => {
-      manager.bindWindow(1, 's1')
-      manager.bindWindow(2, 's2')
+      manager.bindWindow(1, toAppSessionId('s1'))
+      manager.bindWindow(2, toAppSessionId('s2'))
       expect(manager.getActiveSessionId(1)).toBe('s1')
       expect(manager.getActiveSessionId(2)).toBe('s2')
     })
