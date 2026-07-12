@@ -454,7 +454,9 @@ function settleLoopOutcome(
 export async function processStream(params: ProcessParams): Promise<ProcessResult> {
   const {
     run,
-    toolPresenter,
+    toolCatalog,
+    toolExecution,
+    toolResults,
     coreStream,
     providerId,
     modelId,
@@ -641,12 +643,12 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             conversationMessages,
             batch.prevBlockCount,
             currentTools,
-            toolPresenter!,
+            toolExecution!,
             modelId,
             interleavedReasoning,
             io,
             permissionMode,
-            params.toolOutputGuard,
+            toolResults,
             providerId === 'acp'
               ? Number.MAX_SAFE_INTEGER
               : modelConfig.contextLength > 0
@@ -710,16 +712,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           if (executed.toolsChanged) {
             const activeSkillNames = hooks?.getActiveSkillNames?.()
             run.resources.activeSkillNames = [...(activeSkillNames ?? [])]
-            if (params.refreshTools) {
-              try {
-                run.resources.toolDefinitions = await params.refreshTools(activeSkillNames)
-                currentTools = run.resources.toolDefinitions
-              } catch (error) {
-                console.warn(
-                  '[ProcessStream] failed to refresh tools after skill activation:',
-                  error
-                )
-              }
+            try {
+              run.resources.toolDefinitions = await toolCatalog.resolve({ activeSkillNames })
+              currentTools = run.resources.toolDefinitions
+            } catch (error) {
+              console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
             }
             if (params.refreshSystemPrompt) {
               try {

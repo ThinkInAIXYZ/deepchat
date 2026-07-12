@@ -10,6 +10,10 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ProcessParams } from '@/presenter/agentRuntimePresenter/types'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
+import {
+  createToolExecutionPort,
+  createToolResultPort
+} from '@/presenter/agentRuntimePresenter/toolAdapters'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
@@ -138,6 +142,7 @@ describe('processStream', () => {
       ...processOverrides
     } = overrides
     const toolPresenter = createMockToolPresenter()
+    const toolOutputGuard = new ToolOutputGuard()
 
     const coreStream = vi.fn(function* () {
       yield* makeStreamEvents(
@@ -158,7 +163,14 @@ describe('processStream', () => {
           streamState: createState(),
           resources: { toolDefinitions: tools, activeSkillNames: [] }
         }),
-      toolPresenter,
+      toolCatalog: {
+        resolve: vi.fn().mockResolvedValue(tools)
+      },
+      toolExecution: createToolExecutionPort(toolPresenter),
+      toolResults: createToolResultPort({
+        outputGuard: toolOutputGuard,
+        normalize: async ({ content }) => content
+      }),
       coreStream,
       providerId: 'openai',
       modelId: 'gpt-4',
@@ -167,7 +179,6 @@ describe('processStream', () => {
       maxTokens: 4096,
       interleavedReasoning: DEFAULT_INTERLEAVED_REASONING,
       permissionMode: 'full_access',
-      toolOutputGuard: new ToolOutputGuard(),
       io: {
         messageStore
       },
@@ -338,7 +349,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolPresenter: createMockToolPresenter({ action: 'ok' }),
+          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
           tools: [makeTool('action')]
         })
       )
@@ -453,7 +464,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolPresenter: createMockToolPresenter({ action: 'ok' }),
+          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
           tools: [makeTool('action')],
           maxProviderRounds: 1
         })
@@ -489,7 +500,11 @@ describe('processStream', () => {
       }) as unknown as ProcessParams['coreStream']
 
       const result = await processStream(
-        createParams({ coreStream, toolPresenter, tools: [makeTool('action')] })
+        createParams({
+          coreStream,
+          toolExecution: createToolExecutionPort(toolPresenter),
+          tools: [makeTool('action')]
+        })
       )
 
       expect(result).toMatchObject({ status: 'completed', stopReason: 'complete' })
@@ -513,7 +528,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolPresenter: createMockToolPresenter({ cdp_send: longOutput }),
+          toolExecution: createToolExecutionPort(createMockToolPresenter({ cdp_send: longOutput })),
           tools: [makeTool('cdp_send')],
           modelConfig: { contextLength: 1 } as any,
           maxTokens: 1
@@ -558,7 +573,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream: createToolRoundStream('action'),
-          toolPresenter,
+          toolExecution: createToolExecutionPort(toolPresenter),
           tools: [makeTool('action')],
           abortController
         })
@@ -578,7 +593,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolPresenter: createMockToolPresenter({ action: 'ok' }),
+          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
           tools: [makeTool('action')],
           shouldYieldForPendingInput
         })
@@ -762,7 +777,7 @@ describe('processStream', () => {
     const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('get_weather')],
       onConversationMessagesChange: (messages) => {
         liveMessages = messages
@@ -805,7 +820,7 @@ describe('processStream', () => {
     const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('get_weather')],
       maxProviderRounds: 1
     })
@@ -872,7 +887,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('get_weather')],
       onFirstProviderRoundReady
     })
@@ -907,7 +922,7 @@ describe('processStream', () => {
     const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('get_weather')],
       shouldYieldForPendingInput
     })
@@ -967,7 +982,7 @@ describe('processStream', () => {
       return [...activeSkillNames]
     })
     const getActiveSkillNames = vi.fn(() => [...activeSkillNames])
-    const refreshTools = vi
+    const resolveTools = vi
       .fn()
       .mockResolvedValue([makeTool('skill_view'), makeTool('deepchat_settings_set_theme')])
     const refreshSystemPrompt = vi.fn().mockResolvedValue('refreshed skill prompt')
@@ -1020,9 +1035,9 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
+      toolCatalog: { resolve: resolveTools },
       tools: [makeTool('skill_view')],
-      refreshTools,
       refreshSystemPrompt,
       hooks: {
         activateSkill,
@@ -1036,8 +1051,8 @@ describe('processStream', () => {
 
     expect(activateSkill).toHaveBeenCalledWith('deepchat-settings')
     expect(getActiveSkillNames).toHaveBeenCalled()
-    expect(refreshTools).toHaveBeenCalledTimes(1)
-    expect(refreshTools).toHaveBeenCalledWith(['deepchat-settings'])
+    expect(resolveTools).toHaveBeenCalledTimes(1)
+    expect(resolveTools).toHaveBeenCalledWith({ activeSkillNames: ['deepchat-settings'] })
     expect(refreshSystemPrompt).toHaveBeenCalledTimes(1)
     expect(refreshSystemPrompt).toHaveBeenCalledWith(
       ['deepchat-settings'],
@@ -1071,7 +1086,7 @@ describe('processStream', () => {
         }
       })
     } as unknown as IToolPresenter
-    const refreshTools = vi.fn().mockResolvedValue([makeTool('deepchat_settings_set_theme')])
+    const resolveTools = vi.fn().mockResolvedValue([makeTool('deepchat_settings_set_theme')])
 
     const coreStream = vi.fn(
       function (_messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
@@ -1103,16 +1118,16 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
-      tools: [makeTool('skill_view')],
-      refreshTools
+      toolExecution: createToolExecutionPort(toolPresenter),
+      toolCatalog: { resolve: resolveTools },
+      tools: [makeTool('skill_view')]
     })
 
     const promise = processStream(params)
     await vi.runAllTimersAsync()
     await promise
 
-    expect(refreshTools).not.toHaveBeenCalled()
+    expect(resolveTools).not.toHaveBeenCalled()
     expect(coreStream).toHaveBeenCalledTimes(2)
   })
 
@@ -1148,7 +1163,7 @@ describe('processStream', () => {
     const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('cdp_send')]
     })
 
@@ -1207,7 +1222,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('get_weather'), makeTool('get_time')]
     })
 
@@ -1269,7 +1284,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('read')],
       modelConfig: { contextLength: 260 } as any,
       maxTokens: 32
@@ -1318,7 +1333,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('get_weather')]
     })
 
@@ -1365,7 +1380,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('get_weather')],
       interleavedReasoning: {
         ...DEFAULT_INTERLEAVED_REASONING,
@@ -1418,7 +1433,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('action')]
     })
 
@@ -1503,7 +1518,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('action')]
     })
 
@@ -1715,7 +1730,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('action')],
       abortController
     })
@@ -1789,7 +1804,7 @@ describe('processStream', () => {
     const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
     const params = createParams({
       coreStream,
-      toolPresenter,
+      toolExecution: createToolExecutionPort(toolPresenter),
       tools: [makeTool('cdp_send')],
       modelConfig: { contextLength: 1 } as any,
       maxTokens: 1

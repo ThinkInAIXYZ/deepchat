@@ -4,8 +4,11 @@
 
 > 实施进度：ASLR-045 已把 message-scoped runtime skill selection、prompt snapshot 和 final tool-definition
 > snapshot cache 迁入 `DeepChatAgentInstance`，全局 tool registry revision 由 `DeepChatAgentRuntime`
-> 广播失效。SkillPresenter、ToolPresenter、McpPresenter、configured selection 与 collision policy 的 owner
-> 均未移动；typed resource ports 与 LoopEngine 接线仍属于 ASLR-050..055。
+> 广播失效。ASLR-055 已把 session-scoped catalog、execution 和 result-normalization ports 接入现有
+> loop/process/dispatch：catalog cache 仍按 profile fingerprint 和 registry revision 失效，最终 definitions
+> 只来自 `ToolPresenter.getAllToolDefinitions()`；execution/result adapters 等价委托现有 pre-check、call、
+> screenshot normalization 和 output guard。SkillPresenter、ToolPresenter、McpPresenter、configured
+> selection 与 collision policy 的 owner 均未移动；ordered interaction outcome 仍属于 ASLR-056。
 
 ## 1. 模块目的
 
@@ -82,6 +85,11 @@ normalize identity/arguments
   -> refresh before next provider round when current rule requires
 ```
 
+`processStream` 和 legacy `dispatch` 只持有 `ToolCatalogPort`、`ToolExecutionPort` 与 `ToolResultPort`，
+不再直接持有 `IToolPresenter`、normalization callback 或 concrete `ToolOutputGuard`。ASLR-056 前，
+permission/question/post-call/skill-draft decision 仍按原顺序留在 legacy batch dispatcher；本层 adapter
+不决定 pause，也不重放 side effect。
+
 tool collision priority、parallel eligibility、argument repair、result fitting 和 renderer payload 均保持当前
 行为。
 
@@ -127,6 +135,8 @@ collision 和 refresh 行为必须保持。
 - resource owner 查询失败按现有 required/optional policy 处理；
 - 单个 disabled/disconnected MCP server 不得改变其他 server 的稳定顺序；
 - tool execution 使用当前 `AbortSignal`，late result 通过 run/interaction epoch 拒绝；
+- `ToolExecutionPort` 不另造 cancel channel；现有 owner 只支持把同一个 `AbortSignal` 传入 `callTool`，
+  deferred tool 也沿用该合同；
 - skill refresh 失败不能使用未验证的半新 revision；
 - tool 输出 normalization/fitting 失败按当前 tool error fact 处理；
 - ACP MCP delivery 失败由 ACP backend 映射，不能落入 DeepChat tool error 分支。
@@ -155,6 +165,12 @@ collision 和 refresh 行为必须保持。
 - pre-check、question、post-call permission、skill-draft 和同批 multiple interactions；
 - ACP MCP config snapshot 与 current baseline；
 - owner shutdown/reconnect 时 session 不保留 stale callable object。
+
+ASLR-055 的 typed-port 与 real-boundary proof 位于
+`test/main/presenter/agentRuntimePresenter/toolAdapters.test.ts`、`process.test.ts`、`dispatch.test.ts`、
+`toolOutputGuard.test.ts` 和 `test/main/presenter/toolPresenter/toolPresenter.test.ts`。它们锁定
+zero/one/many、collision、policy/cache/revision、parallel/sequential ordering、exact call options、
+normalization/offload/failure、skill refresh 和 abort forwarding。
 
 ## 12. 明确不做
 

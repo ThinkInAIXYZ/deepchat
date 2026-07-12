@@ -1,12 +1,12 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type {
-  AssistantMessageBlock,
-  ChatMessageRecord,
-  PermissionMode
-} from '@shared/types/agent-interface'
+import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolCall, MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
+import type {
+  ToolCallOptions,
+  ToolPermissionPreCheckResult
+} from '@shared/types/presenters/tool.presenter'
 import type { ModelConfig } from '@shared/presenter'
 import type { DeepChatTapeViewManifest } from '@shared/types/tape-view-manifest'
 
@@ -30,23 +30,81 @@ export interface ProviderPort {
 }
 
 export interface ToolCatalogPort {
-  resolve(input: {
-    sessionId: AppSessionId
-    projectDir: string | null
-    activeSkillNames: readonly string[]
-  }): Promise<MCPToolDefinition[]>
+  resolve(input?: { activeSkillNames?: string[] }): Promise<MCPToolDefinition[]>
 }
 
+export type ToolExecutionOptions = ToolCallOptions
+
 export interface ToolExecutionPort {
-  execute(input: {
-    sessionId: AppSessionId
-    messageId: string
-    call: MCPToolCall
-    permissionMode: PermissionMode
-    activeSkillNames: readonly string[]
-    signal: AbortSignal
-  }): Promise<{ content: unknown; rawData: MCPToolResponse }>
-  cancel(input: { toolCallId: string; abortController: AbortController }): void
+  preCheck?(
+    call: MCPToolCall,
+    options?: Pick<ToolExecutionOptions, 'permissionMode'>
+  ): Promise<ToolPermissionPreCheckResult | null>
+  execute(
+    call: MCPToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<{ content: unknown; rawData: MCPToolResponse }>
+}
+
+export interface ToolBatchOutputCandidate {
+  toolCallId: string
+  toolName: string
+  responseText: string
+  isError: boolean
+  offloadPath?: string
+}
+
+export interface ToolBatchOutputFitItem extends ToolBatchOutputCandidate {
+  contextResponseText: string
+  downgraded: boolean
+}
+
+export type PreparedToolOutput =
+  | {
+      kind: 'ok'
+      content: string
+      offloaded: boolean
+      offloadPath?: string
+    }
+  | {
+      kind: 'tool_error'
+      message: string
+    }
+
+export type ToolBatchOutputFit =
+  | {
+      kind: 'ok'
+      results: ToolBatchOutputFitItem[]
+    }
+  | {
+      kind: 'terminal_error'
+      message: string
+      results: ToolBatchOutputFitItem[]
+    }
+
+export interface ToolResultPort {
+  normalize(input: {
+    sessionId: string
+    toolCallId: string
+    toolName: string
+    toolArgs: string
+    content: MCPToolResponse['content']
+    isError: boolean
+    signal?: AbortSignal
+  }): Promise<MCPToolResponse['content']>
+  prepare(input: {
+    sessionId: string
+    toolCallId: string
+    toolName: string
+    rawContent: string
+  }): Promise<PreparedToolOutput>
+  fitBatch(input: {
+    conversationMessages: ChatMessage[]
+    toolDefinitions: MCPToolDefinition[]
+    contextLength: number
+    maxTokens: number
+    results: ToolBatchOutputCandidate[]
+  }): Promise<ToolBatchOutputFit>
 }
 
 export interface TapeEntryRef {

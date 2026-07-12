@@ -15,6 +15,11 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
+import {
+  createToolExecutionPort,
+  createToolResultPort
+} from '@/presenter/agentRuntimePresenter/toolAdapters'
+import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
 import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
 import {
   IMAGE_GENERATE_TOOL_NAME,
@@ -161,11 +166,18 @@ async function executeTools(
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
-  hooks?: Parameters<typeof executeToolsInternal>[13],
+  hooks?: NonNullable<Parameters<typeof executeToolsInternal>[13]> & {
+    resultNormalizer?: ToolResultPort['normalize']
+  },
   providerId?: string,
   interleavedReasoning: InterleavedReasoningConfig = DEFAULT_INTERLEAVED_REASONING,
   rendererFlushHandle?: Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 ) {
+  const toolExecution = createToolExecutionPort(toolPresenter)!
+  const toolResults = createToolResultPort({
+    outputGuard: toolOutputGuard,
+    normalize: hooks?.resultNormalizer ?? (async ({ content }) => content)
+  })
   const flushHandle =
     rendererFlushHandle ??
     ({
@@ -209,12 +221,12 @@ async function executeTools(
     conversation,
     prevBlockCount,
     tools,
-    toolPresenter,
+    toolExecution,
     modelId,
     interleavedReasoning,
     io,
     permissionMode,
-    toolOutputGuard,
+    toolResults,
     contextLength,
     maxTokens,
     flushHandle,
@@ -2581,13 +2593,13 @@ describe('dispatch', () => {
       expect(state.blocks[0].status).toBe('success')
     })
 
-    it('normalizes tool output before offload when a hook rewrites screenshot content', async () => {
+    it('normalizes tool output through the result port before offload', async () => {
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
       const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
       const conversation: any[] = []
       const hooks = {
-        normalizeToolResult: vi.fn().mockResolvedValue('English screenshot summary')
+        resultNormalizer: vi.fn().mockResolvedValue('English screenshot summary')
       }
 
       state.blocks.push({
@@ -2627,7 +2639,7 @@ describe('dispatch', () => {
       )
 
       expect(executed.terminalError).toBeUndefined()
-      expect(hooks.normalizeToolResult).toHaveBeenCalledWith(
+      expect(hooks.resultNormalizer).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 's1',
           toolCallId: 'tc-normalized',

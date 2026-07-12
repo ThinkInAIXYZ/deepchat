@@ -6,13 +6,16 @@ import type {
 } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/presenter'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
-import type { ToolOutputGuard } from './toolOutputGuard'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
+import type {
+  ToolCatalogPort,
+  ToolExecutionPort,
+  ToolResultPort
+} from '@/agent/deepchat/loop/ports'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
@@ -114,14 +117,6 @@ export interface ProcessHooks {
   getActiveSkillNames?: () => string[]
   getEnabledSkillNames?: () => string[] | null | undefined
   activateSkill?: (skillName: string) => Promise<string[]>
-  normalizeToolResult?: (tool: {
-    sessionId: string
-    toolCallId: string
-    toolName: string
-    toolArgs: string
-    content: MCPToolResponse['content']
-    isError: boolean
-  }) => Promise<MCPToolResponse['content']>
   cacheImage?: (data: string) => Promise<string>
 }
 
@@ -193,12 +188,13 @@ export interface ProcessResult {
 
 export interface ProcessParams {
   run: LoopRun<StreamState>
-  refreshTools?: (activeSkillNames?: string[]) => Promise<MCPToolDefinition[]>
+  toolCatalog: ToolCatalogPort
   refreshSystemPrompt?: (
     activeSkillNames: string[] | undefined,
     toolDefinitions: MCPToolDefinition[]
   ) => Promise<string>
-  toolPresenter: IToolPresenter | null
+  toolExecution: ToolExecutionPort | null
+  toolResults: ToolResultPort
   coreStream: (
     messages: ChatMessage[],
     modelId: string,
@@ -214,7 +210,6 @@ export interface ProcessParams {
   maxTokens: number
   interleavedReasoning: InterleavedReasoningConfig
   permissionMode: PermissionMode
-  toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
   onFirstProviderRoundReady?: () => void
   onConversationMessagesChange?: (messages: ChatMessage[]) => void

@@ -27,7 +27,11 @@
 > post-compaction view assembly and actual provider-attempt preflight, recovery, strict retry,
 > request-sequence, ViewManifest, rate-gate and stream order. Presenter code supplies narrow legacy
 > algorithm/data adapters, while assistant placeholder creation and active-run registration remain
-> at their existing late boundary.
+> at their existing late boundary. ASLR-055 connected the session-scoped `ToolCatalogPort`,
+> `ToolExecutionPort`, and `ToolResultPort`: `processStream` and legacy dispatch now consume those
+> capabilities instead of `IToolPresenter`, a normalization callback, or concrete `ToolOutputGuard`.
+> ToolPresenter remains the sole merged/collision-resolved catalog and execution owner. Interaction
+> decisions remain in the legacy batch until ASLR-056.
 
 ## 1. 模块目的
 
@@ -216,7 +220,9 @@ LoopEngine 只依赖以下能力类型：
 
 - `ProviderPort`：prepare/stream/cancel provider request；
 - `ToolCatalogPort`：只从 ToolPresenter aggregate 获取最终 merged/collision-resolved definitions；
-- `ToolExecutionPort`：execute/cancel tool call and return current raw result；
+- `ToolExecutionPort`：optional pre-check + execute，传递 exact options/current `AbortSignal` 并返回 raw
+  result；没有 owner 不支持的第二条 cancel channel；
+- `ToolResultPort`：screenshot/result normalization、output preparation/offload 和 batch fitting；
 - `BasePromptAssembler` 与 post-compaction context contributors：两个固定时点；
 - `InputPreparationCoordinator` / `ContextCoordinator`：Tape view、budget、compaction；
 - `TapeRecorder`：semantic fact/manifest/anchor；

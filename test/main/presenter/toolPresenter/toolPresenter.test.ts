@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
+import { createToolCatalogPort } from '@/presenter/agentRuntimePresenter/toolAdapters'
 import {
   CronJobToolHandler,
   TAPE_TOOL_NAMES,
@@ -187,7 +188,7 @@ describe('ToolPresenter', () => {
     expect(mcpPresenter.callTool).not.toHaveBeenCalled()
   })
 
-  it('deduplicates agent tools when MCP tool names overlap', async () => {
+  it('keeps ToolPresenter collision resolution behind the DeepChat catalog port', async () => {
     const mcpDefs = [buildToolDefinition('shared', 'mcp')]
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue(mcpDefs),
@@ -214,11 +215,20 @@ describe('ToolPresenter', () => {
       })
     })
 
-    const defs = await toolPresenter.getAllToolDefinitions({
-      chatMode: 'agent',
-      supportsVision: false,
-      agentWorkspacePath: 'C:\\\\workspace'
+    const catalog = createToolCatalogPort({
+      toolPresenter,
+      resolveContext: async () => ({
+        profile: 'code' as const,
+        fingerprint: 'revision:1',
+        context: {
+          chatMode: 'agent' as const,
+          supportsVision: false,
+          agentWorkspacePath: 'C:\\\\workspace'
+        }
+      }),
+      commitCache: vi.fn()
     })
+    const defs = await catalog.resolve()
     const sharedDefs = defs.filter((def) => def.function.name === 'shared')
 
     expect(sharedDefs).toHaveLength(1)

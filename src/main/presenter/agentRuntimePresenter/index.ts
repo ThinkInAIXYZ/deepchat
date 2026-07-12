@@ -97,7 +97,10 @@ import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparat
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import type {
   BasePromptAssembler,
-  PostCompactionPromptAssembler
+  PostCompactionPromptAssembler,
+  ToolCatalogPort,
+  ToolExecutionPort,
+  ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type {
@@ -166,6 +169,11 @@ import type {
 } from './types'
 import { createState } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
+import {
+  createToolCatalogPort as createPresenterToolCatalogPort,
+  createToolExecutionPort,
+  createToolResultPort
+} from './toolAdapters'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 import type {
   DeepChatTapeViewPolicy,
@@ -630,6 +638,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly inputPreparationCoordinator = new InputPreparationCoordinator()
   private readonly contextCoordinator = new DeepChatContextCoordinator()
   private readonly toolOutputGuard: ToolOutputGuard
+  private readonly toolExecutionPort: ToolExecutionPort | null
+  private readonly toolResultPort: ToolResultPort
   private readonly hooksBridge?: NewSessionHooksBridge
   private readonly providerCatalogPort: Pick<
     ProviderCatalogPort,
@@ -724,6 +734,20 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     )
     this.toolOutputGuard = new ToolOutputGuard()
+    this.toolExecutionPort = createToolExecutionPort(this.toolPresenter)
+    this.toolResultPort = createToolResultPort({
+      outputGuard: this.toolOutputGuard,
+      normalize: async (tool) =>
+        await this.normalizeToolResultContent({
+          sessionId: tool.sessionId,
+          toolCallId: tool.toolCallId,
+          toolName: tool.toolName,
+          toolArgs: tool.toolArgs,
+          content: tool.content,
+          isError: tool.isError,
+          abortSignal: tool.signal
+        })
+    })
     this.hooksBridge = hooksBridge
     this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
       getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
@@ -3795,14 +3819,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
     const getEffectiveRuntimeSkillNames = (baseSkillNames = streamSessionActiveSkillNames) =>
       this.resolveEffectiveActiveSkillNames(baseSkillNames, resourceInstance)
+    const toolCatalog = this.createSessionToolCatalogPort(sessionId, projectDir, resourceInstance)
     const tools =
       providedTools ??
-      (await this.loadToolDefinitionsForSession(
-        sessionId,
-        projectDir,
-        getEffectiveRuntimeSkillNames(),
-        resourceInstance
-      ))
+      (await toolCatalog.resolve({ activeSkillNames: getEffectiveRuntimeSkillNames() }))
     this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
     const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
@@ -3874,13 +3894,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           reviewConversationMessages = nextMessages
         },
         maxProviderRounds,
-        refreshTools: async (activeSkillNames) =>
-          await this.loadToolDefinitionsForSession(
-            sessionId,
-            projectDir,
-            getEffectiveRuntimeSkillNames(activeSkillNames),
-            resourceInstance
-          ),
+        toolCatalog,
         refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
           if (refreshSystemPrompt) {
             return await refreshSystemPrompt(
@@ -3895,7 +3909,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             activeSkillNames: getEffectiveRuntimeSkillNames(activeSkillNames)
           })
         },
-        toolPresenter: this.toolPresenter,
+        toolExecution: this.toolExecutionPort,
+        toolResults: this.toolResultPort,
         coreStream: async function* (
           requestMessages,
           requestModelId,
@@ -4026,7 +4041,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         maxTokens,
         interleavedReasoning,
         permissionMode: state.permissionMode,
-        toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
         onFirstProviderRoundReady: () => {
           if (
@@ -4129,16 +4143,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               modelId: state.modelId,
               messages: reviewConversationMessages.slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES),
               signal: abortController.signal
-            }),
-          normalizeToolResult: async (tool) =>
-            await this.normalizeToolResultContent({
-              sessionId: tool.sessionId,
-              toolCallId: tool.toolCallId,
-              toolName: tool.toolName,
-              toolArgs: tool.toolArgs,
-              content: tool.content,
-              isError: tool.isError,
-              abortSignal: abortController.signal
             }),
           cacheImage: this.cacheImage
         },
@@ -6636,7 +6640,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     messageId: string,
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>
   ): Promise<DeferredToolExecutionResult> {
-    if (!this.toolPresenter) {
+    if (!this.toolExecutionPort) {
       return {
         responseText: 'Tool presenter is not available.',
         isError: true
@@ -6699,7 +6703,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     try {
       const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
-      const result = await this.toolPresenter.callTool(request, {
+      const result = await this.toolExecutionPort.execute(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
         enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
         onProgress: (update) => {
@@ -6762,17 +6766,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           content: rawData.content,
           cacheImage: this.cacheImage
         }))
-      const normalizedContent = await this.normalizeToolResultContent({
+      const normalizedContent = await this.toolResultPort.normalize({
         sessionId,
         toolCallId: toolCall.id || '',
         toolName,
         toolArgs: toolCall.params || '{}',
         content: rawData.content,
         isError: rawData.isError === true,
-        abortSignal: deferredAbortSignal
+        signal: deferredAbortSignal
       })
       const responseText = this.toolContentToText(normalizedContent)
-      const prepared = await this.toolOutputGuard.prepareToolOutput({
+      const prepared = await this.toolResultPort.prepare({
         sessionId,
         toolCallId: toolCall.id || '',
         toolName,
@@ -6823,62 +6827,79 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const resourceInstance = providedResourceInstance ?? this.getDeepChatInstance(sessionId)
-    this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-    const providerId = resourceInstance.getRuntimeState()?.providerId?.trim()
-    if (this.isAcpBackedSubagentSession(sessionId, providerId)) {
-      return []
-    }
+    const catalog = this.createSessionToolCatalogPort(sessionId, projectDir, resourceInstance)
+    return await catalog.resolve(
+      activeSkillNamesOverride === undefined
+        ? undefined
+        : { activeSkillNames: activeSkillNamesOverride }
+    )
+  }
 
-    try {
-      const agentId =
-        resourceInstance.getAgentId()?.trim() || this.getSessionAgentId(sessionId) || 'deepchat'
-      const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
-      const effectiveActiveSkillNames =
-        activeSkillNamesOverride === undefined
-          ? await this.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance)
-          : this.filterSkillNamesByPolicy(activeSkillNamesOverride, policy)
-      const profile = await this.resolveToolProfile(
-        sessionId,
-        projectDir,
-        effectiveActiveSkillNames,
-        policy,
-        resourceInstance
-      )
-      this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-      const cachedProfile = resourceInstance.getToolProfileCache()
-      if (
-        cachedProfile &&
-        cachedProfile.profile === profile.kind &&
-        cachedProfile.fingerprint === profile.fingerprint
-      ) {
-        this.toolPresenter.syncAgentToolContext?.({
-          chatMode: 'agent',
-          agentWorkspacePath: projectDir
-        })
-        return cachedProfile.tools
+  private createSessionToolCatalogPort(
+    sessionId: string,
+    projectDir: string | null,
+    resourceInstance: DeepChatAgentInstance
+  ): ToolCatalogPort {
+    const catalog = createPresenterToolCatalogPort<DeepChatToolProfileKind>({
+      toolPresenter: this.toolPresenter,
+      resolveContext: async (activeSkillNamesOverride) => {
+        this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
+        const agentId =
+          resourceInstance.getAgentId()?.trim() || this.getSessionAgentId(sessionId) || 'deepchat'
+        const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
+        const effectiveActiveSkillNames =
+          activeSkillNamesOverride === undefined
+            ? await this.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance)
+            : this.filterSkillNamesByPolicy(activeSkillNamesOverride, policy)
+        const profile = await this.resolveToolProfile(
+          sessionId,
+          projectDir,
+          effectiveActiveSkillNames,
+          policy,
+          resourceInstance
+        )
+        this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
+
+        return {
+          profile: profile.kind,
+          fingerprint: profile.fingerprint,
+          cached: resourceInstance.getToolProfileCache(),
+          context: {
+            agentId,
+            disabledAgentTools: this.getDisabledAgentTools(sessionId),
+            chatMode: 'agent',
+            conversationId: sessionId,
+            agentWorkspacePath: projectDir,
+            activeSkillNames: effectiveActiveSkillNames
+          }
+        }
+      },
+      commitCache: (entry) => {
+        this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
+        resourceInstance.setToolProfileCache(entry)
       }
+    })
 
-      const tools = await this.toolPresenter.getAllToolDefinitions({
-        agentId,
-        disabledAgentTools: this.getDisabledAgentTools(sessionId),
-        chatMode: 'agent',
-        conversationId: sessionId,
-        agentWorkspacePath: projectDir,
-        activeSkillNames: effectiveActiveSkillNames
-      })
+    return {
+      resolve: async (request) => {
+        if (!this.toolPresenter) {
+          return []
+        }
 
-      this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-      resourceInstance.setToolProfileCache({
-        profile: profile.kind,
-        fingerprint: profile.fingerprint,
-        tools
-      })
+        this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
+        const providerId = resourceInstance.getRuntimeState()?.providerId?.trim()
+        if (this.isAcpBackedSubagentSession(sessionId, providerId)) {
+          return []
+        }
 
-      return tools
-    } catch (error) {
-      if (this.isStaleDeepChatInstanceError(error)) throw error
-      console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
-      return []
+        try {
+          return await catalog.resolve(request)
+        } catch (error) {
+          if (this.isStaleDeepChatInstanceError(error)) throw error
+          console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
+          return []
+        }
+      }
     }
   }
 

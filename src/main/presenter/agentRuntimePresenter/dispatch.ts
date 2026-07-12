@@ -7,7 +7,6 @@ import type {
 } from '@shared/types/core/mcp'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { SearchResult } from '@shared/types/core/search'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
@@ -25,7 +24,11 @@ import type {
 } from './types'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
-import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
+import type {
+  ToolBatchOutputFitItem,
+  ToolExecutionPort,
+  ToolResultPort
+} from '@/agent/deepchat/loop/ports'
 import { buildTerminalErrorBlocks } from './messageStore'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
@@ -1136,26 +1139,26 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
 
 async function runToolCall(params: {
   execution: ToolExecutionContext
-  toolPresenter: IToolPresenter
+  toolExecution: ToolExecutionPort
+  toolResults: ToolResultPort
   permissionMode: PermissionMode
   toolPermissionMode: PermissionMode
   hooks?: ProcessHooks
   io: IoParams
   state: StreamState
   rendererFlushHandle: RendererFlushHandle
-  toolOutputGuard: ToolOutputGuard
   allowProgressUpdates: boolean
 }): Promise<ToolRunOutcome> {
   const {
     execution,
-    toolPresenter,
+    toolExecution,
+    toolResults,
     permissionMode,
     toolPermissionMode,
     hooks,
     io,
     state,
     rendererFlushHandle,
-    toolOutputGuard,
     allowProgressUpdates
   } = params
   const { completedToolCall, toolCall, toolContext } = execution
@@ -1200,7 +1203,7 @@ async function runToolCall(params: {
     }
 
     const callTool = async () =>
-      await toolPresenter.callTool(toolCall, {
+      await toolExecution.execute(toolCall, {
         onProgress: applyProgressUpdate,
         signal: io.abortSignal,
         permissionMode: toolPermissionMode,
@@ -1279,18 +1282,17 @@ async function runToolCall(params: {
         cacheImage: hooks?.cacheImage
       }))
 
-    if (hooks?.normalizeToolResult) {
-      toolRawData = {
-        ...toolRawData,
-        content: await hooks.normalizeToolResult({
-          sessionId: io.sessionId,
-          toolCallId: completedToolCall.id,
-          toolName: completedToolCall.name,
-          toolArgs: completedToolCall.arguments,
-          content: toolRawData.content,
-          isError: toolRawData.isError === true
-        })
-      }
+    toolRawData = {
+      ...toolRawData,
+      content: await toolResults.normalize({
+        sessionId: io.sessionId,
+        toolCallId: completedToolCall.id,
+        toolName: completedToolCall.name,
+        toolArgs: completedToolCall.arguments,
+        content: toolRawData.content,
+        isError: toolRawData.isError === true,
+        signal: io.abortSignal
+      })
     }
 
     const searchPayload = extractSearchPayload(
@@ -1300,7 +1302,7 @@ async function runToolCall(params: {
     )
 
     const responseText = toolResponseToText(toolRawData.content)
-    const preparedResult = await toolOutputGuard.prepareToolOutput({
+    const preparedResult = await toolResults.prepare({
       sessionId: io.sessionId,
       toolCallId: completedToolCall.id,
       toolName: toolContext.name,
@@ -1346,12 +1348,12 @@ export async function executeTools(
   conversation: ChatMessage[],
   prevBlockCount: number,
   tools: MCPToolDefinition[],
-  toolPresenter: IToolPresenter,
+  toolExecution: ToolExecutionPort,
   modelId: string,
   interleavedReasoning: InterleavedReasoningConfig,
   io: IoParams,
   permissionMode: PermissionMode,
-  toolOutputGuard: ToolOutputGuard,
+  toolResults: ToolResultPort,
   contextLength: number,
   maxTokens: number,
   rendererFlushHandle: RendererFlushHandle,
@@ -1444,8 +1446,8 @@ export async function executeTools(
     const outcomes = await Promise.all(
       executions.map(async (execution) => {
         try {
-          if (toolPresenter.preCheckToolPermission) {
-            const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall, {
+          if (toolExecution.preCheck) {
+            const preChecked = await toolExecution.preCheck(execution.toolCall, {
               permissionMode: toolPermissionMode
             })
             if (preChecked?.needsPermission) {
@@ -1468,14 +1470,14 @@ export async function executeTools(
 
           return await runToolCall({
             execution,
-            toolPresenter,
+            toolExecution,
+            toolResults,
             permissionMode,
             toolPermissionMode,
             hooks,
             io,
             state,
             rendererFlushHandle,
-            toolOutputGuard,
             allowProgressUpdates: false
           })
         } catch (error) {
@@ -1509,7 +1511,7 @@ export async function executeTools(
     }
 
     if (stagedResults.length > 0) {
-      const fittedResults = await toolOutputGuard.fitToolBatchOutputs({
+      const fittedResults = await toolResults.fitBatch({
         conversationMessages: conversation,
         results: stagedResults.map((result) => ({
           toolCallId: result.toolCallId,
@@ -1589,8 +1591,8 @@ export async function executeTools(
       }
 
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
-      if (toolPresenter.preCheckToolPermission) {
-        const preChecked = await toolPresenter.preCheckToolPermission(toolCall, {
+      if (toolExecution.preCheck) {
+        const preChecked = await toolExecution.preCheck(toolCall, {
           permissionMode: toolPermissionMode
         })
         if (preChecked?.needsPermission) {
@@ -1690,14 +1692,14 @@ export async function executeTools(
 
       const outcome = await runToolCall({
         execution,
-        toolPresenter,
+        toolExecution,
+        toolResults,
         permissionMode,
         toolPermissionMode,
         hooks,
         io,
         state,
         rendererFlushHandle,
-        toolOutputGuard,
         allowProgressUpdates: true
       })
 
@@ -1733,7 +1735,7 @@ export async function executeTools(
   }
 
   if (stagedResults.length > 0) {
-    const fittedResults = await toolOutputGuard.fitToolBatchOutputs({
+    const fittedResults = await toolResults.fitBatch({
       conversationMessages: conversation,
       results: stagedResults.map((result) => ({
         toolCallId: result.toolCallId,

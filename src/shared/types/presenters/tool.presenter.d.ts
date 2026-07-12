@@ -20,6 +20,54 @@ export type AgentToolProgressUpdate =
       snapshot: AgentPlanSnapshot
     }
 
+export interface ToolDefinitionContext {
+  enabledMcpTools?: string[]
+  enabledMcpServerIds?: string[]
+  agentId?: string
+  disabledAgentTools?: string[]
+  chatMode?: 'agent' | 'acp agent'
+  supportsVision?: boolean
+  agentWorkspacePath?: string | null
+  conversationId?: string
+  activeSkillNames?: string[]
+}
+
+export interface ToolCallOptions {
+  onProgress?: (update: AgentToolProgressUpdate) => void
+  signal?: AbortSignal
+  permissionMode?: PermissionMode
+  activeSkillNames?: string[]
+  enabledSkillNames?: string[] | null
+  agentId?: string
+  enabledMcpServerIds?: string[]
+}
+
+export interface ToolPermissionPreCheckResult {
+  needsPermission: true
+  toolName: string
+  serverName: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  description: string
+  paths?: string[]
+  command?: string
+  commandSignature?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+  [key: string]: unknown
+}
+
 /**
  * Tool Presenter interface
  * Unified interface for managing all tool sources (MCP, Agent)
@@ -29,17 +77,7 @@ export interface IToolPresenter {
    * Get all tool definitions from all sources
    * @param context Context for tool definition retrieval
    */
-  getAllToolDefinitions(context: {
-    enabledMcpTools?: string[]
-    enabledMcpServerIds?: string[]
-    agentId?: string
-    disabledAgentTools?: string[]
-    chatMode?: 'agent' | 'acp agent'
-    supportsVision?: boolean
-    agentWorkspacePath?: string | null
-    conversationId?: string
-    activeSkillNames?: string[]
-  }): Promise<MCPToolDefinition[]>
+  getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
 
   /**
    * Synchronize agent-tool runtime state without rebuilding tool schemas.
@@ -55,15 +93,7 @@ export interface IToolPresenter {
    */
   callTool(
     request: MCPToolCall,
-    options?: {
-      onProgress?: (update: AgentToolProgressUpdate) => void
-      signal?: AbortSignal
-      permissionMode?: PermissionMode
-      activeSkillNames?: string[]
-      enabledSkillNames?: string[] | null
-      agentId?: string
-      enabledMcpServerIds?: string[]
-    }
+    options?: ToolCallOptions
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 
   /**
@@ -74,31 +104,7 @@ export interface IToolPresenter {
     options?: {
       permissionMode?: PermissionMode
     }
-  ): Promise<{
-    needsPermission: true
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    paths?: string[]
-    command?: string
-    commandSignature?: string
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-    providerId?: string
-    requestId?: string
-    sessionId?: string
-    agentId?: string
-    agentName?: string
-    conversationId?: string
-    rememberable?: boolean
-    [key: string]: unknown
-  } | null>
+  ): Promise<ToolPermissionPreCheckResult | null>
 
   /**
    * Release any cached tool mapping for a conversation.
