@@ -271,6 +271,38 @@ describe('DeepChatAgentRuntime', () => {
     expect(first.getToolProfileCache()).toBeUndefined()
   })
 
+  it('owns isolated compaction projections and stable legacy memory handles', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const sessionId = toAppSessionId('first')
+    const first = runtime.getOrHydrate(sessionId)
+    const second = runtime.getOrHydrate(toAppSessionId('second'))
+
+    first.setCompactionState({
+      status: 'compacting',
+      cursorOrderSeq: 5,
+      summaryUpdatedAt: 123
+    })
+    const firstSnapshot = first.getCompactionState()
+    if (firstSnapshot) firstSnapshot.status = 'idle'
+
+    expect(first.getCompactionState()).toEqual({
+      status: 'compacting',
+      cursorOrderSeq: 5,
+      summaryUpdatedAt: 123
+    })
+    expect(second.getCompactionState()).toBeUndefined()
+    expect(first.getMemorySessionHandle()).toBe(first.getMemorySessionHandle())
+    expect(second.getMemorySessionHandle()).not.toBe(first.getMemorySessionHandle())
+
+    runtime.evict(sessionId)
+    const replacement = runtime.getOrHydrate(sessionId)
+    expect(replacement.getMemorySessionHandle()).not.toBe(first.getMemorySessionHandle())
+    expect(replacement.getMemorySessionHandle().sessionId).toBe(sessionId)
+
+    first.clearOwnedState()
+    expect(first.getCompactionState()).toBeUndefined()
+  })
+
   it('invalidates tool revisions and clears only the owning instance lifecycle', () => {
     const runtime = new DeepChatAgentRuntime(() => createDelegate())
     const sessionId = toAppSessionId('session')

@@ -3,6 +3,12 @@
 > 状态：目标设计。Memory 在所有其他 ownership/lifecycle 稳定后最后迁移。  
 > 本模块只改变接线位置，不改变 `MemoryPresenter`、schema、retrieval、projection 或 maintenance。
 
+> 实施进度：ASLR-046 只在 instance 上建立 identity-only、per-instance stable Memory session handle，供
+> legacy compaction-to-Memory seam 绑定 captured owner。`memoryExtractionChains`、
+> `memoryExtractionEpochs`、`memoryIngestionProjectionRetryAfter`、`memoryInjectionAccessByTurn` 仍完整保留在
+> legacy Presenter；cursor、MEM-13/MEM-14 trigger timing 与 MemoryPresenter 调用未迁移。coordinator 提取仍
+> 属于 ASLR-059。
+
 ## 1. 模块目的
 
 Memory 对 DeepChat loop 有两个方向完全不同的参与点：

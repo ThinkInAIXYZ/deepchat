@@ -2,6 +2,10 @@
 
 > 状态：目标设计。顺序与 budget policy 是兼容合同，不在重构中优化。
 
+> 实施进度：ASLR-046 已把 session-scoped compaction in-flight projection 迁入
+> `DeepChatAgentInstance`，persisted summary 仍是事实源，`compacting` projection 仍优先；本任务未提取
+> compaction coordinator，也未改变 prompt/context/Memory 顺序。
+
 ## 1. 模块目的
 
 这个模块把 prompt contributors、Tape effective view、context budget、provider preflight/recovery 和

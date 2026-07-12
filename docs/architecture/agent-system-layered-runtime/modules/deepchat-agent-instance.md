@@ -2,13 +2,14 @@
 
 > 状态：目标设计。一个 active/hydrated DeepChat app session 对应一个实例。
 
-> 实施进度：ASLR-040..045 已接入 lazy runtime/instance shell，并迁入 identity、project、effective
+> 实施进度：ASLR-040..046 已接入 lazy runtime/instance shell，并迁入 identity、project、effective
 > generation settings、status、first-turn readiness、pre-stream abort controller、active generation 与
 > stale-run guard、pending drain/steer merge state，以及 ordered interaction projection、response/resume
 > guards、deferred-tool cancellation、live provider-permission continuation、message-scoped runtime skill
-> selection 和 prompt/tool snapshot caches。持久 pending rows 已归入 `agent/deepchat/pending`，持久
-> interaction blocks、Skill/Tool/MCP owners 与 configured selections 仍是事实源；compaction 和 Memory
-> orchestration 仍由 legacy runtime 持有。Memory maps、schema、调用位置均未改变。
+> selection、prompt/tool snapshot caches 和 compaction in-flight projection。持久 pending rows 已归入
+> `agent/deepchat/pending`，持久 interaction blocks、Skill/Tool/MCP owners、configured selections 和
+> persisted summary 仍是事实源。instance 只持有 stable Memory session handle；legacy Memory maps、schema、
+> cursor、trigger timing 和 `MemoryPresenter` 调用均未迁移。
 
 ## 1. 模块目的
 
@@ -192,9 +193,11 @@ job 或旧 async callback 回写新 lineage。
    保留 fresh-run resume。（ASLR-044 已完成 state ownership；typed batch outcome 仍属于 ASLR-056）
 7. 迁移 message-scoped runtime skill selection 与 prompt/tool snapshot caches；resource owner revision
    只使对应 snapshot 失效，不复制 Skill/Tool/MCP owner 内部状态。（ASLR-045 已完成）
-8. 让 route/runtime cache 只通过 instance 操作 session。
-9. 对每个旧 Map 做“无读写引用”检查后逐个删除。
-10. 最后把 loop orchestration 迁入 `LoopEngine`；Memory 接线在其他状态稳定后迁移。
+8. 迁移 compaction in-flight projection；persisted summary 继续作为事实源，并只给 instance 一个 stable
+   legacy Memory session handle，不迁移四组 Memory maps。（ASLR-046 已完成）
+9. 让 route/runtime cache 只通过 instance 操作 session。
+10. 对每个旧 Map 做“无读写引用”检查后逐个删除。
+11. 最后把 loop orchestration 迁入 `LoopEngine`；Memory 接线在其他状态稳定后迁移。
 
 ## 11. 验证
 

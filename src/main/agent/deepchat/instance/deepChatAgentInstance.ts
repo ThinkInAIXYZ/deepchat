@@ -5,6 +5,7 @@ import type {
   DeepChatSessionState,
   IAgentImplementation,
   MessageStartResult,
+  SessionCompactionState,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 
@@ -50,6 +51,10 @@ export interface DeepChatToolProfileCacheEntry {
   readonly tools: MCPToolDefinition[]
 }
 
+export interface DeepChatMemorySessionHandle {
+  readonly sessionId: AppSessionId
+}
+
 export class DeepChatAgentInstance {
   readonly kind = 'deepchat' as const
   private runtimeState?: DeepChatSessionState
@@ -70,12 +75,16 @@ export class DeepChatAgentInstance {
   private readonly runtimeActivatedSkills = new Set<string>()
   private systemPromptCache?: DeepChatSystemPromptCacheEntry
   private toolProfileCache?: DeepChatToolProfileCacheEntry
+  private compactionState?: SessionCompactionState
+  private readonly memorySessionHandle: DeepChatMemorySessionHandle
 
   constructor(
     readonly sessionId: AppSessionId,
     private readonly delegate: DeepChatAgentInstanceDelegate,
     private readonly onClosed: (instance: DeepChatAgentInstance) => void
-  ) {}
+  ) {
+    this.memorySessionHandle = Object.freeze({ sessionId })
+  }
 
   get compatibilityImplementation(): IAgentImplementation {
     return this.delegate.compatibilityImplementation
@@ -393,6 +402,22 @@ export class DeepChatAgentInstance {
     this.invalidateToolProfileCache()
   }
 
+  getCompactionState(): SessionCompactionState | undefined {
+    return this.compactionState ? { ...this.compactionState } : undefined
+  }
+
+  setCompactionState(state: SessionCompactionState): void {
+    this.compactionState = { ...state }
+  }
+
+  clearCompactionState(): void {
+    this.compactionState = undefined
+  }
+
+  getMemorySessionHandle(): DeepChatMemorySessionHandle {
+    return this.memorySessionHandle
+  }
+
   clearOwnedState(): void {
     this.abortAndClearGeneration()
     this.runtimeState = undefined
@@ -409,6 +434,7 @@ export class DeepChatAgentInstance {
     this.activeProviderPermissions.clear()
     this.runtimeActivatedSkills.clear()
     this.invalidateResourceCaches()
+    this.clearCompactionState()
   }
 
   async send(input: AgentSessionSendInput): Promise<MessageStartResult> {

@@ -1191,6 +1191,42 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('keeps legacy Memory extraction behind stable instance handles', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installRuntimeRecords([
+        userRecord('u1', 1, 'Remember that Redis is preferred.'),
+        assistantRecord('a1', 2, [contentBlock('Noted.')])
+      ])
+      const extractAndStore = installResolvedExtraction()
+      const sessionId = toAppSessionId('s1')
+      const instance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      const memorySession = instance.getMemorySessionHandle()
+
+      expect(instance.getMemorySessionHandle()).toBe(memorySession)
+      expect(memorySession.sessionId).toBe(sessionId)
+
+      ;(agent as any).triggerMemoryExtractionFromCompaction(memorySession, {
+        targetCursorOrderSeq: 2
+      })
+      await waitForExtractionChain()
+
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        2
+      )
+
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(replacement.getMemorySessionHandle()).not.toBe(memorySession)
+      expect(() =>
+        (agent as any).triggerMemoryExtractionFromCompaction(memorySession, {
+          targetCursorOrderSeq: 2
+        })
+      ).toThrow('DeepChat agent instance was replaced: s1')
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+    })
+
     it('computes tool admission signals from one tape read', async () => {
       installRuntimeRecords([
         userRecord('u1', 1, 'Read package metadata.'),
@@ -6032,6 +6068,11 @@ describe('AgentRuntimePresenter', () => {
         fingerprint: 'replacement tool fingerprint',
         tools: []
       })
+      replacement.setCompactionState({
+        status: 'compacted',
+        cursorOrderSeq: 11,
+        summaryUpdatedAt: 444
+      })
 
       preparation.resolve(null)
       await expect(compaction).rejects.toMatchObject({
@@ -6042,6 +6083,78 @@ describe('AgentRuntimePresenter', () => {
       expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
       expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
       expect(replacement.getActiveGeneration()).toBeUndefined()
+      expect(replacement.getCompactionState()).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 11,
+        summaryUpdatedAt: 444
+      })
+    })
+
+    it('does not let a stale manual compaction completion update the replacement projection', async () => {
+      const application = deferred<{
+        succeeded: true
+        summaryState: {
+          summaryText: string
+          summaryCursorOrderSeq: number
+          summaryUpdatedAt: number
+        }
+      }>()
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockReturnValue(6)
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockImplementationOnce(
+        async () => await application.promise
+      )
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+
+      const sessionId = toAppSessionId('s1')
+      const staleInstance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      const compaction = agent.compactSession('s1')
+      await vi.waitFor(() =>
+        expect((agent as any).compactionService.applyCompaction).toHaveBeenCalledTimes(1)
+      )
+      expect(staleInstance.getCompactionState()?.status).toBe('compacting')
+
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setCompactionState({
+        status: 'compacted',
+        cursorOrderSeq: 17,
+        summaryUpdatedAt: 777
+      })
+
+      application.resolve({
+        succeeded: true,
+        summaryState: {
+          summaryText: 'stale summary',
+          summaryCursorOrderSeq: 7,
+          summaryUpdatedAt: 555
+        }
+      })
+
+      await expect(compaction).rejects.toMatchObject({
+        name: 'StaleDeepChatAgentInstanceError'
+      })
+      expect(replacement.getCompactionState()).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 17,
+        summaryUpdatedAt: 777
+      })
+      expect(getPublishedPayloads('sessions.compaction.changed')).toEqual([
+        expect.objectContaining({ sessionId: 's1', status: 'compacting' })
+      ])
     })
 
     it('preserves the missing-session error when manual compaction hydration finds no row', async () => {
@@ -6183,6 +6296,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('emits idle when clearMessages resets compaction state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
         summaryText: 'summary',
         summaryCursorOrderSeq: 3,
@@ -6197,6 +6311,27 @@ describe('AgentRuntimePresenter', () => {
         cursorOrderSeq: 1,
         summaryUpdatedAt: null
       })
+      expect(instance.getCompactionState()).toEqual({
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+    })
+
+    it('clears the owned compaction projection when the session is destroyed', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const sessionId = toAppSessionId('s1')
+      const instance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      instance.setCompactionState({
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123
+      })
+
+      await agent.destroySession('s1')
+
+      expect(instance.getCompactionState()).toBeUndefined()
+      expect(agent.deepChatRuntime.getHydrated(sessionId)).toBeUndefined()
     })
 
     it('returns persisted compacted state for reopened sessions', async () => {
@@ -6246,6 +6381,38 @@ describe('AgentRuntimePresenter', () => {
         status: 'compacted',
         cursorOrderSeq: 3,
         summaryUpdatedAt: 333
+      })
+    })
+
+    it('prioritizes in-flight compaction before refreshing from persisted summary state', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+        summaryText: 'persisted summary',
+        summaryCursorOrderSeq: 7,
+        summaryUpdatedAt: 555
+      })
+      instance.setCompactionState({
+        status: 'compacting',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 111
+      })
+
+      await expect(agent.getSessionCompactionState('s1')).resolves.toEqual({
+        status: 'compacting',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 111
+      })
+
+      instance.setCompactionState({
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+      await expect(agent.getSessionCompactionState('s1')).resolves.toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 7,
+        summaryUpdatedAt: 555
       })
     })
   })

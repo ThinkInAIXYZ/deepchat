@@ -97,6 +97,7 @@ import type {
   DeepChatActiveGeneration,
   DeepChatAgentInstance,
   DeepChatAgentInstanceDelegate,
+  DeepChatMemorySessionHandle,
   DeepChatToolProfileKind
 } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -618,7 +619,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly pendingInputStore: DeepChatPendingInputStore
   private readonly pendingInputCoordinator: PendingInputCoordinator
   readonly deepChatRuntime: DeepChatAgentRuntime
-  private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
@@ -764,6 +764,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private isStaleDeepChatInstanceError(error: unknown): boolean {
     return error instanceof Error && error.name === STALE_DEEPCHAT_INSTANCE_ERROR_NAME
+  }
+
+  private throwIfStaleMemorySessionHandle(handle: DeepChatMemorySessionHandle): void {
+    const sessionId = handle.sessionId
+    if (this.getHydratedDeepChatInstance(sessionId)?.getMemorySessionHandle() !== handle) {
+      throw createStaleDeepChatInstanceError(sessionId)
+    }
   }
 
   private createDeepChatInstanceDelegate(sessionId: string): DeepChatAgentInstanceDelegate {
@@ -936,7 +943,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       modelId: config.modelId,
       permissionMode
     })
-    this.sessionCompactionStates.set(sessionId, this.buildIdleCompactionState())
+    instance.setCompactionState(this.buildIdleCompactionState())
     this.memoryIngestionProjectionRetryAfter.delete(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.invalidateSystemPromptCache(sessionId)
@@ -944,8 +951,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async destroySession(sessionId: string): Promise<void> {
+    const instance = this.getHydratedDeepChatInstance(sessionId)
     this.bumpMemoryExtractionEpoch(sessionId)
-    this.getHydratedDeepChatInstance(sessionId)?.abortAndClearGeneration()
+    instance?.abortAndClearGeneration()
     this.abortDeferredToolAbortControllers(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
@@ -953,9 +961,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.delete(sessionId)
-    this.deepChatRuntime.getHydrated(toAppSessionId(sessionId))?.clearOwnedState()
+    instance?.clearOwnedState()
     this.deepChatRuntime.evict(toAppSessionId(sessionId))
-    this.sessionCompactionStates.delete(sessionId)
     this.memoryIngestionProjectionRetryAfter.delete(sessionId)
     this.clearMemoryInjectionAccessForSession(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
@@ -1354,18 +1361,30 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           this.messageStore.getNextOrderSeq(sessionId),
           userContent
         )
-        this.emitCompactionState(sessionId, {
-          status: 'compacting',
-          cursorOrderSeq: compactionIntent.targetCursorOrderSeq,
-          summaryUpdatedAt: compactionIntent.previousState.summaryUpdatedAt
-        })
-        summaryState = await this.applyCompactionIntent(sessionId, compactionIntent, {
-          compactionMessageId,
-          startedExternally: true,
-          signal: preStreamAbortSignal
-        })
+        this.emitCompactionState(
+          sessionId,
+          {
+            status: 'compacting',
+            cursorOrderSeq: compactionIntent.targetCursorOrderSeq,
+            summaryUpdatedAt: compactionIntent.previousState.summaryUpdatedAt
+          },
+          instance
+        )
+        summaryState = await this.applyCompactionIntent(
+          sessionId,
+          compactionIntent,
+          {
+            compactionMessageId,
+            startedExternally: true,
+            signal: preStreamAbortSignal
+          },
+          instance
+        )
         this.throwIfStaleDeepChatInstance(sessionId, instance)
-        this.triggerMemoryExtractionFromCompaction(sessionId, compactionIntent)
+        this.triggerMemoryExtractionFromCompaction(
+          instance.getMemorySessionHandle(),
+          compactionIntent
+        )
       } else {
         summaryState = this.sessionStore.getSummaryState(sessionId)
         userMessageId = this.messageStore.createUserMessage(
@@ -1506,7 +1525,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               sessionId,
               context.pendingQueueItemId,
               pendingInputSource,
-              userMessageId
+              userMessageId,
+              instance
             )
             consumedPendingQueueItem = true
           }
@@ -1558,7 +1578,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 sessionId,
                 context.pendingQueueItemId,
                 pendingInputSource,
-                userMessageId
+                userMessageId,
+                instance
               )
             }
           } else {
@@ -2550,7 +2571,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
-  private triggerMemoryExtractionFromCompaction(sessionId: string, intent: CompactionIntent): void {
+  private triggerMemoryExtractionFromCompaction(
+    memorySession: DeepChatMemorySessionHandle,
+    intent: CompactionIntent
+  ): void {
+    this.throwIfStaleMemorySessionHandle(memorySession)
+    const sessionId = memorySession.sessionId
     if (!this.memoryPort) return
     const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
     if (!this.memoryPort.isEnabled(agentId)) return
@@ -3308,28 +3334,38 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
-    const runtimeState = this.getDeepChatRuntimeState(sessionId)
+    return await this.getSessionCompactionStateForInstance(sessionId)
+  }
+
+  private async getSessionCompactionStateForInstance(
+    sessionId: string,
+    expectedInstance?: DeepChatAgentInstance
+  ): Promise<SessionCompactionState> {
+    const hydratedInstance = expectedInstance ?? this.getHydratedDeepChatInstance(sessionId)
+    const runtimeState = hydratedInstance?.getRuntimeState()
     const session = this.sessionStore.get(sessionId)
     if (!runtimeState && !session) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    const instance = hydratedInstance ?? this.getDeepChatInstance(sessionId)
+    this.throwIfStaleDeepChatInstance(sessionId, instance)
 
     const persistedState = this.summaryStateToCompactionState(
       this.sessionStore.getSummaryState(sessionId)
     )
-    const currentCompactionState = this.sessionCompactionStates.get(sessionId)
+    const currentCompactionState = instance.getCompactionState()
     if (currentCompactionState?.status === 'compacting') {
-      return { ...currentCompactionState }
+      return currentCompactionState
     }
 
     if (
       currentCompactionState &&
       this.isSameCompactionState(currentCompactionState, persistedState)
     ) {
-      return { ...currentCompactionState }
+      return currentCompactionState
     }
 
-    this.sessionCompactionStates.set(sessionId, persistedState)
+    instance.setCompactionState(persistedState)
     return { ...persistedState }
   }
 
@@ -3410,16 +3446,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (!intent) {
         return {
           compacted: false,
-          state: await this.getSessionCompactionState(sessionId)
+          state: await this.getSessionCompactionStateForInstance(sessionId, instance)
         }
       }
 
-      const summaryState = await this.applyCompactionIntent(sessionId, intent)
+      const summaryState = await this.applyCompactionIntent(sessionId, intent, undefined, instance)
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       const compacted = summaryState.summaryUpdatedAt !== intent.previousState.summaryUpdatedAt
       return {
         compacted,
-        state: await this.getSessionCompactionState(sessionId)
+        state: await this.getSessionCompactionStateForInstance(sessionId, instance)
       }
     } finally {
       this.setSessionStatusForInstance(sessionId, instance, 'idle')
@@ -3427,28 +3463,33 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async clearMessages(sessionId: string): Promise<void> {
+    const instance = this.getDeepChatInstance(sessionId)
     const state = await this.getSessionState(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    this.throwIfStaleDeepChatInstance(sessionId, instance)
 
     await this.cancelGeneration(sessionId)
+    this.throwIfStaleDeepChatInstance(sessionId, instance)
     this.pendingInputCoordinator.deleteBySession(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.resetMemoryExtractionCursor(sessionId)
     this.memoryIngestionProjectionRetryAfter.delete(sessionId)
     this.messageStore.deleteBySession(sessionId)
-    this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions([])
+    instance.replacePendingInteractions([])
     this.sessionStore.resetTape(sessionId)
-    this.resetSummaryState(sessionId)
-    this.setSessionStatus(sessionId, 'idle')
+    this.resetSummaryState(sessionId, instance)
+    this.setSessionStatusForInstance(sessionId, instance, 'idle')
   }
 
   async retryMessage(sessionId: string, messageId: string): Promise<void> {
+    const instance = this.getDeepChatInstance(sessionId)
     const state = await this.getSessionState(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    this.throwIfStaleDeepChatInstance(sessionId, instance)
     if (state.status === 'generating') {
       throw new Error('Cannot retry while session is generating.')
     }
@@ -3472,17 +3513,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!sourceUserMessage) {
       throw new Error('No user message found for retry.')
     }
+    this.throwIfStaleDeepChatInstance(sessionId, instance)
 
     const retryInput = this.extractUserMessageInput(sourceUserMessage.content)
     if (!retryInput.text.trim()) {
       throw new Error('Cannot retry an empty user message.')
     }
 
-    this.invalidateSummaryIfNeeded(sessionId, sourceUserMessage.orderSeq)
+    this.invalidateSummaryIfNeeded(sessionId, sourceUserMessage.orderSeq, instance)
     this.invalidateMemoryExtractionFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     await this.processMessage(sessionId, retryInput, {
-      projectDir: this.resolveProjectDir(sessionId),
+      projectDir: this.resolveProjectDir(sessionId, undefined, instance),
       emitRefreshBeforeStream: true
     })
   }
@@ -3496,9 +3538,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (target.sessionId !== sessionId) {
       throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
     }
+    const instance = this.getDeepChatInstance(sessionId)
 
     await this.cancelGeneration(sessionId)
-    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
+    this.throwIfStaleDeepChatInstance(sessionId, instance)
+    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq, instance)
     this.invalidateMemoryExtractionFromOrderSeq(sessionId, target.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
     this.refreshPendingInteractionsFromStore(sessionId)
@@ -3526,9 +3570,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!nextText) {
       throw new Error('Edited message cannot be empty.')
     }
+    const instance = this.getDeepChatInstance(sessionId)
 
     const nextContent = this.buildEditedUserContent(target.content, nextText)
-    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
+    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq, instance)
     this.invalidateMemoryExtractionFromOrderSeq(sessionId, target.orderSeq)
     this.messageStore.updateMessageContent(messageId, nextContent)
 
@@ -3552,8 +3597,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       throw new Error(`Message ${targetMessageId} does not belong to session ${sourceSessionId}`)
     }
 
+    const targetInstance = this.getDeepChatInstance(targetSessionId)
     this.messageStore.cloneSentMessagesToSession(sourceSessionId, targetSessionId, target.orderSeq)
-    this.resetSummaryState(targetSessionId)
+    this.resetSummaryState(targetSessionId, targetInstance)
   }
 
   private async runStreamForMessage(args: {
@@ -3872,7 +3918,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                       supportsAudioInput,
                       interleavedReasoning,
                       minimumProtectedTailCount: 0,
-                      signal: abortController.signal
+                      signal: abortController.signal,
+                      expectedInstance: resourceInstance
                     })
                     if (recovered.summaryCursorOrderSeq !== undefined) {
                       manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
@@ -3963,7 +4010,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 supportsAudioInput,
                 interleavedReasoning,
                 minimumProtectedTailCount: 0,
-                signal: abortController.signal
+                signal: abortController.signal,
+                expectedInstance: resourceInstance
               })
               if (recovered.summaryCursorOrderSeq !== undefined) {
                 manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
@@ -4311,7 +4359,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     interleavedReasoning: InterleavedReasoningConfig
     minimumProtectedTailCount: number
     signal: AbortSignal
+    expectedInstance: DeepChatAgentInstance
   }): Promise<{ messages: ChatMessage[]; systemPrompt?: string; summaryCursorOrderSeq?: number }> {
+    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
     let messages = params.requestMessages
     const systemPromptBase =
       params.baseSystemPrompt ?? this.getLeadingSystemPrompt(params.requestMessages) ?? ''
@@ -4333,15 +4383,25 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       historyRecords: tapeReady.historyRecords,
       signal: params.signal
     })
+    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
 
     if (!intent) {
       return { messages }
     }
 
-    const summaryState = await this.applyCompactionIntent(params.sessionId, intent, {
-      signal: params.signal
-    })
-    this.triggerMemoryExtractionFromCompaction(params.sessionId, intent)
+    const summaryState = await this.applyCompactionIntent(
+      params.sessionId,
+      intent,
+      {
+        signal: params.signal
+      },
+      params.expectedInstance
+    )
+    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
+    this.triggerMemoryExtractionFromCompaction(
+      params.expectedInstance.getMemorySessionHandle(),
+      intent
+    )
     const systemPrompt = await this.appendMemoryInjection(
       params.sessionId,
       appendReconstructionAnchorStateSection(
@@ -4351,6 +4411,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.getLatestUserQuery(params.sessionId),
       null
     )
+    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
     messages = this.replaceLeadingSystemPrompt(messages, systemPrompt)
 
     return {
@@ -4510,11 +4571,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     pendingQueueItemId: string,
     pendingInputSource: ProcessPendingInputSource,
-    userMessageId: string | null
+    userMessageId: string | null,
+    expectedInstance = this.getDeepChatInstance(sessionId)
   ): void {
+    this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
     const userMessage = userMessageId ? this.messageStore.getMessage(userMessageId) : null
     if (userMessage) {
-      this.invalidateSummaryIfNeeded(sessionId, userMessage.orderSeq)
+      this.invalidateSummaryIfNeeded(sessionId, userMessage.orderSeq, expectedInstance)
       this.invalidateMemoryExtractionFromOrderSeq(sessionId, userMessage.orderSeq)
       this.messageStore.deleteFromOrderSeq(sessionId, userMessage.orderSeq)
     }
@@ -4749,24 +4812,27 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         tapeReady.historyRecords.find((record) => record.id === messageId)?.orderSeq ??
         this.messageStore.getMessage(messageId)?.orderSeq
       const summaryState = useContextBudget
-        ? await this.resolveCompactionStateForResumeTurn({
-            sessionId,
-            messageId,
-            providerId: state.providerId,
-            modelId: state.modelId,
-            systemPrompt: baseSystemPrompt,
-            contextLength: generationSettings.contextLength,
-            reserveTokens: maxTokens,
-            extraReserveTokens: toolReserveTokens,
-            supportsVision: this.supportsVision(state.providerId, state.modelId),
-            supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
-            preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-            preserveEmptyInterleavedReasoning:
-              interleavedReasoning.preserveEmptyReasoningContent === true,
-            historyRecords: tapeReady.historyRecords,
-            compactionMessageOrderSeq: resumeTargetOrderSeq,
-            signal: preStreamAbortSignal
-          })
+        ? await this.resolveCompactionStateForResumeTurn(
+            {
+              sessionId,
+              messageId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              systemPrompt: baseSystemPrompt,
+              contextLength: generationSettings.contextLength,
+              reserveTokens: maxTokens,
+              extraReserveTokens: toolReserveTokens,
+              supportsVision: this.supportsVision(state.providerId, state.modelId),
+              supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
+              preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+              preserveEmptyInterleavedReasoning:
+                interleavedReasoning.preserveEmptyReasoningContent === true,
+              historyRecords: tapeReady.historyRecords,
+              compactionMessageOrderSeq: resumeTargetOrderSeq,
+              signal: preStreamAbortSignal
+            },
+            instance
+          )
         : this.sessionStore.getSummaryState(sessionId)
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       this.throwIfAbortRequested(preStreamAbortSignal)
@@ -7372,29 +7438,38 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     })
   }
 
-  private async resolveCompactionStateForResumeTurn(params: {
-    sessionId: string
-    messageId: string
-    providerId: string
-    modelId: string
-    systemPrompt: string
-    contextLength: number
-    reserveTokens: number
-    extraReserveTokens?: number
-    supportsVision: boolean
-    supportsAudioInput: boolean
-    preserveInterleavedReasoning: boolean
-    preserveEmptyInterleavedReasoning?: boolean
-    historyRecords?: ChatMessageRecord[]
-    compactionMessageOrderSeq?: number
-    signal?: AbortSignal
-  }): Promise<SessionSummaryState> {
+  private async resolveCompactionStateForResumeTurn(
+    params: {
+      sessionId: string
+      messageId: string
+      providerId: string
+      modelId: string
+      systemPrompt: string
+      contextLength: number
+      reserveTokens: number
+      extraReserveTokens?: number
+      supportsVision: boolean
+      supportsAudioInput: boolean
+      preserveInterleavedReasoning: boolean
+      preserveEmptyInterleavedReasoning?: boolean
+      historyRecords?: ChatMessageRecord[]
+      compactionMessageOrderSeq?: number
+      signal?: AbortSignal
+    },
+    expectedInstance = this.getDeepChatInstance(params.sessionId)
+  ): Promise<SessionSummaryState> {
     const intent = await this.compactionService.prepareForResumeTurn(params)
-    return await this.applyCompactionIntent(params.sessionId, intent, {
-      compactionMessageOrderSeq: params.compactionMessageOrderSeq,
-      shiftMessagesFromCompactionOrderSeq: params.compactionMessageOrderSeq !== undefined,
-      signal: params.signal
-    })
+    this.throwIfStaleDeepChatInstance(params.sessionId, expectedInstance)
+    return await this.applyCompactionIntent(
+      params.sessionId,
+      intent,
+      {
+        compactionMessageOrderSeq: params.compactionMessageOrderSeq,
+        shiftMessagesFromCompactionOrderSeq: params.compactionMessageOrderSeq !== undefined,
+        signal: params.signal
+      },
+      expectedInstance
+    )
   }
 
   private async applyCompactionIntent(
@@ -7406,8 +7481,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       shiftMessagesFromCompactionOrderSeq?: boolean
       startedExternally?: boolean
       signal?: AbortSignal
-    }
+    },
+    expectedInstance = this.getDeepChatInstance(sessionId)
   ): Promise<SessionSummaryState> {
+    this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
     if (!intent) {
       return this.sessionStore.getSummaryState(sessionId)
     }
@@ -7433,27 +7510,34 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     if (!options?.startedExternally) {
       this.emitMessageRefresh(sessionId, compactionMessageId)
-      this.emitCompactionState(sessionId, {
-        status: 'compacting',
-        cursorOrderSeq: intent.targetCursorOrderSeq,
-        summaryUpdatedAt: intent.previousState.summaryUpdatedAt
-      })
+      this.emitCompactionState(
+        sessionId,
+        {
+          status: 'compacting',
+          cursorOrderSeq: intent.targetCursorOrderSeq,
+          summaryUpdatedAt: intent.previousState.summaryUpdatedAt
+        },
+        expectedInstance
+      )
     }
 
     let result: Awaited<ReturnType<CompactionService['applyCompaction']>>
     try {
       result = await this.compactionService.applyCompaction(intent, options?.signal)
     } catch (error) {
+      this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
       if (this.isAbortError(error) || options?.signal?.aborted) {
         this.messageStore.deleteMessage(compactionMessageId)
         this.emitMessageRefresh(sessionId, compactionMessageId)
         this.emitCompactionState(
           sessionId,
-          this.summaryStateToCompactionState(intent.previousState)
+          this.summaryStateToCompactionState(intent.previousState),
+          expectedInstance
         )
       }
       throw error
     }
+    this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
     if (result.succeeded) {
       this.messageStore.updateCompactionMessage(
         compactionMessageId,
@@ -7468,7 +7552,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       sessionId,
       result.succeeded
         ? this.summaryStateToCompactionState(result.summaryState, 'compacted')
-        : this.summaryStateToCompactionState(result.summaryState)
+        : this.summaryStateToCompactionState(result.summaryState),
+      expectedInstance
     )
     return result.summaryState
   }
@@ -7508,8 +7593,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     )
   }
 
-  private emitCompactionState(sessionId: string, state: SessionCompactionState): void {
-    this.sessionCompactionStates.set(sessionId, { ...state })
+  private emitCompactionState(
+    sessionId: string,
+    state: SessionCompactionState,
+    expectedInstance = this.getDeepChatInstance(sessionId)
+  ): void {
+    this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
+    expectedInstance.setCompactionState(state)
     publishDeepchatEvent('sessions.compaction.changed', {
       sessionId,
       status: state.status,
@@ -7519,9 +7609,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     })
   }
 
-  private resetSummaryState(sessionId: string): void {
+  private resetSummaryState(
+    sessionId: string,
+    expectedInstance = this.getDeepChatInstance(sessionId)
+  ): void {
+    this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
     this.sessionStore.resetSummaryState(sessionId)
-    this.emitCompactionState(sessionId, this.buildIdleCompactionState())
+    this.emitCompactionState(sessionId, this.buildIdleCompactionState(), expectedInstance)
   }
 
   private ensureMemoryExtractionEpoch(sessionId: string): number {
@@ -7557,10 +7651,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
-  private invalidateSummaryIfNeeded(sessionId: string, orderSeq: number): void {
+  private invalidateSummaryIfNeeded(
+    sessionId: string,
+    orderSeq: number,
+    expectedInstance = this.getDeepChatInstance(sessionId)
+  ): void {
+    this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
     const summaryState = this.sessionStore.getSummaryState(sessionId)
     if (orderSeq < summaryState.summaryCursorOrderSeq) {
-      this.resetSummaryState(sessionId)
+      this.resetSummaryState(sessionId, expectedInstance)
     }
   }
 
