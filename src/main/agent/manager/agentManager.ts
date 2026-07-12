@@ -4,18 +4,18 @@ import type {
   DeepChatAgentDescriptor
 } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type { ChatMessageRecord, SessionRecord } from '@shared/types/agent-interface'
+import type { SessionRecord } from '@shared/types/agent-interface'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import type { DirectAcpSessionBackend } from './directAcpAgentBackend'
+import type { LegacyAcpSessionBackend, LegacyDeepChatSessionBackend } from './legacyAgentBackends'
 import type {
-  LegacyAcpSubagentFacet,
-  LegacyAgentBackendSet,
-  LegacyActiveGeneration,
-  LegacyAgentSessionBackend,
-  LegacyAgentSessionHandle,
-  LegacyDeepChatSubagentFacet,
-  LegacyDeepChatTransferTargetFacet,
-  LegacyTransferSourceFacet
-} from './legacyAgentBackends'
+  AcpSessionHandle,
+  AgentActiveGeneration,
+  AgentSubagentFacet,
+  AgentTransferSourceFacet,
+  DeepChatSessionHandle,
+  DeepChatTransferTargetFacet
+} from './sessionHandles'
 
 export interface ExecutableAgentCatalog {
   resolveExecutableDescriptor(agentId: string): AgentDescriptor
@@ -26,7 +26,7 @@ export interface AppSessionLookupPort {
 }
 
 export interface AgentManagerGenerationPort {
-  getActiveGeneration(sessionId: AppSessionId): LegacyActiveGeneration | null
+  getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
 }
 
@@ -51,114 +51,128 @@ export class AgentCapabilityUnavailableError extends Error {
   }
 }
 
-export interface ResolvedLegacyAgentBackend {
-  descriptor: AgentDescriptor
-  backend: LegacyAgentSessionBackend
+export type AcpSessionBackend = LegacyAcpSessionBackend | DirectAcpSessionBackend
+
+export interface AgentBackendSet {
+  readonly deepchat: LegacyDeepChatSessionBackend
+  readonly acp: AcpSessionBackend
 }
 
-export interface ResolvedLegacyAgentSession {
-  descriptor: AgentDescriptor
-  handle: LegacyAgentSessionHandle
-}
+export type ResolvedAgentBackend =
+  | {
+      kind: 'deepchat'
+      descriptor: DeepChatAgentDescriptor
+      backend: LegacyDeepChatSessionBackend
+    }
+  | { kind: 'acp'; descriptor: AcpAgentDescriptor; backend: AcpSessionBackend }
 
-export interface ResolvedTransferSource extends ResolvedLegacyAgentSession {
-  facet: LegacyTransferSourceFacet
+export type ResolvedAgentSession =
+  | { kind: 'deepchat'; descriptor: DeepChatAgentDescriptor; handle: DeepChatSessionHandle }
+  | { kind: 'acp'; descriptor: AcpAgentDescriptor; handle: AcpSessionHandle }
+
+export interface ResolvedTransferSource {
+  descriptor: AgentDescriptor
+  handle: DeepChatSessionHandle | AcpSessionHandle
+  facet: AgentTransferSourceFacet
+  closeRuntime?: () => Promise<void>
 }
 
 export interface ResolvedDeepChatTransferTarget {
   descriptor: DeepChatAgentDescriptor
-  facet: LegacyDeepChatTransferTargetFacet
+  facet: DeepChatTransferTargetFacet
 }
 
 export type ResolvedSubagentFacet =
-  | {
-      kind: 'deepchat'
-      descriptor: DeepChatAgentDescriptor
-      facet: LegacyDeepChatSubagentFacet
-    }
-  | {
-      kind: 'acp'
-      descriptor: AcpAgentDescriptor
-      facet: LegacyAcpSubagentFacet
-    }
+  | { kind: 'deepchat'; descriptor: DeepChatAgentDescriptor; facet: AgentSubagentFacet }
+  | { kind: 'acp'; descriptor: AcpAgentDescriptor; facet: AgentSubagentFacet }
 
 export class AgentManager implements AgentManagerGenerationPort {
   constructor(
     private readonly catalog: ExecutableAgentCatalog,
     private readonly appSessions: AppSessionLookupPort,
-    private readonly backends: LegacyAgentBackendSet
+    private readonly backends: AgentBackendSet
   ) {}
 
-  resolveBackend(agentId: string): ResolvedLegacyAgentBackend {
+  resolveBackend(agentId: string): ResolvedAgentBackend {
     const descriptor = this.catalog.resolveExecutableDescriptor(resolveAcpAgentAlias(agentId))
-    switch (descriptor.kind) {
-      case 'deepchat':
-        return { descriptor, backend: this.backends.deepchat }
-      case 'acp':
-        return { descriptor, backend: this.backends.acp }
-    }
+    return descriptor.kind === 'deepchat'
+      ? { kind: descriptor.kind, descriptor, backend: this.backends.deepchat }
+      : { kind: descriptor.kind, descriptor, backend: this.backends.acp }
   }
 
-  resolveSessionBackend(sessionId: AppSessionId): ResolvedLegacyAgentBackend {
+  resolveSessionBackend(sessionId: AppSessionId): ResolvedAgentBackend {
     const session = this.appSessions.get(sessionId)
-    if (!session) {
-      throw new AppSessionNotFoundError(sessionId)
-    }
+    if (!session) throw new AppSessionNotFoundError(sessionId)
     return this.resolveBackend(session.agentId)
   }
 
-  resolveSessionHandle(sessionId: AppSessionId): ResolvedLegacyAgentSession {
-    const { descriptor, backend } = this.resolveSessionBackend(sessionId)
-    return { descriptor, handle: backend.open(sessionId) }
+  resolveSessionHandle(sessionId: AppSessionId): ResolvedAgentSession {
+    const resolved = this.resolveSessionBackend(sessionId)
+    if (resolved.kind === 'deepchat') {
+      return {
+        kind: resolved.kind,
+        descriptor: resolved.descriptor,
+        handle: resolved.backend.open(sessionId)
+      }
+    }
+    const handle =
+      resolved.backend.runtimeKind === 'direct'
+        ? resolved.backend.open(sessionId, resolved.descriptor)
+        : resolved.backend.open(sessionId)
+    return { kind: resolved.kind, descriptor: resolved.descriptor, handle }
   }
 
-  getActiveGeneration(sessionId: AppSessionId): LegacyActiveGeneration | null {
+  getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null {
     return this.resolveSessionBackend(sessionId).backend.generationControl.getActiveGeneration(
       sessionId
     )
   }
 
   async cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean> {
-    const { backend } = this.resolveSessionBackend(sessionId)
-    return await backend.generationControl.cancelGenerationByEventId(sessionId, eventId)
+    return await this.resolveSessionBackend(
+      sessionId
+    ).backend.generationControl.cancelGenerationByEventId(sessionId, eventId)
   }
 
-  async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
-    const visited = new Set<object>()
-    for (const backend of [this.backends.deepchat, this.backends.acp]) {
-      if (visited.has(backend.implementation)) continue
-      visited.add(backend.implementation)
-      const message = await backend.implementation.getMessage(messageId)
-      if (message) return message
-    }
-    return null
+  async cleanupSessionBackends(sessionId: AppSessionId): Promise<void> {
+    const results = await Promise.allSettled([
+      this.backends.deepchat.cleanupSession(sessionId),
+      this.backends.acp.cleanupSession(sessionId)
+    ])
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    )
+    if (failure) throw failure.reason
   }
 
   resolveTransferSource(sessionId: AppSessionId): ResolvedTransferSource {
-    const { descriptor, backend } = this.resolveSessionBackend(sessionId)
+    const resolved = this.resolveSessionBackend(sessionId)
+    const session = this.resolveSessionHandle(sessionId)
+    let closeRuntime: (() => Promise<void>) | undefined
+    if (session.handle.kind === 'acp' && session.handle.runtimeKind === 'direct') {
+      const directHandle = session.handle
+      closeRuntime = () => directHandle.acp.closeRuntime()
+    }
     return {
-      descriptor,
-      handle: backend.open(sessionId),
-      facet: backend.transferSource
+      descriptor: resolved.descriptor,
+      handle: session.handle,
+      facet: resolved.backend.transferSource,
+      ...(closeRuntime ? { closeRuntime } : {})
     }
   }
 
   resolveDeepChatTransferTarget(agentId: string): ResolvedDeepChatTransferTarget {
-    const { descriptor, backend } = this.resolveBackend(agentId)
-    if (descriptor.kind !== 'deepchat' || backend.kind !== 'deepchat') {
-      throw new AgentCapabilityUnavailableError(descriptor.id, 'transfer-target')
+    const resolved = this.resolveBackend(agentId)
+    if (resolved.kind !== 'deepchat') {
+      throw new AgentCapabilityUnavailableError(resolved.descriptor.id, 'transfer-target')
     }
-    return { descriptor, facet: backend.transferTarget }
+    return { descriptor: resolved.descriptor, facet: resolved.backend.transferTarget }
   }
 
   resolveSubagentFacet(sessionId: AppSessionId): ResolvedSubagentFacet {
-    const { descriptor, backend } = this.resolveSessionBackend(sessionId)
-    if (descriptor.kind === 'deepchat' && backend.kind === 'deepchat') {
-      return { kind: 'deepchat', descriptor, facet: backend.subagent }
-    }
-    if (descriptor.kind === 'acp' && backend.kind === 'acp') {
-      return { kind: 'acp', descriptor, facet: backend.subagent }
-    }
-    throw new Error(`Agent backend kind mismatch for "${descriptor.id}"`)
+    const resolved = this.resolveSessionBackend(sessionId)
+    return resolved.kind === 'deepchat'
+      ? { kind: resolved.kind, descriptor: resolved.descriptor, facet: resolved.backend.subagent }
+      : { kind: resolved.kind, descriptor: resolved.descriptor, facet: resolved.backend.subagent }
   }
 }

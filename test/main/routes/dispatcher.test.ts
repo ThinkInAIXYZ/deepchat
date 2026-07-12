@@ -1532,6 +1532,64 @@ describe('dispatchDeepchatRoute', () => {
     )
   })
 
+  it('routes ACP Cron Job prompts through the agent-session direct-routing facade', async () => {
+    const { cronJobs, configPresenter, agentSessionPresenter } = createRuntime()
+    vi.mocked(configPresenter.getAgentType).mockResolvedValue('acp')
+    vi.mocked(agentSessionPresenter.createDetachedSession).mockResolvedValue({
+      id: 'acp-session-1',
+      agentId: 'manual-acp',
+      title: 'ACP job',
+      projectDir: '/workspace',
+      isPinned: false,
+      isDraft: false,
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled: false,
+      subagentMeta: null,
+      createdAt: 1,
+      updatedAt: 2,
+      status: 'idle',
+      providerId: 'acp',
+      modelId: 'manual-acp'
+    })
+    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
+      | CronJobRunSessionStarter
+      | undefined
+    const job = {
+      id: 'cron-acp',
+      name: 'ACP job',
+      agentId: 'manual-acp',
+      agentSnapshot: null,
+      modelPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      taskSystemInstruction: null,
+      taskPrompt: 'Review the workspace',
+      runtime: { maxTurns: 7 }
+    } as CronJob
+    const run = { id: 'run-acp', scheduledAt: 123 } as CronJobRun
+
+    await expect(starter!.createSessionForRun({ job, run })).resolves.toEqual({
+      sessionId: 'acp-session-1'
+    })
+    await expect(
+      starter!.startSessionRun({ job, run, sessionId: 'acp-session-1' })
+    ).resolves.toEqual({ outputMessageId: 'message-2' })
+
+    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'manual-acp',
+        providerId: 'acp',
+        modelId: 'manual-acp'
+      })
+    )
+    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith(
+      'acp-session-1',
+      'Review the workspace',
+      { maxProviderRounds: 7 }
+    )
+  })
+
   it('reconciles Cron Jobs after agent mutation routes', async () => {
     const { runtime, cronJobs } = createRuntime()
     const context = {

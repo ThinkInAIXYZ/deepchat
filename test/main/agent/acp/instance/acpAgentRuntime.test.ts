@@ -435,7 +435,28 @@ describe('AcpAgentRuntime', () => {
     expect(harness.createClient).toHaveBeenCalledTimes(1)
   })
 
-  it('does not reuse an in-flight instance when descriptor identity changes', async () => {
+  it('cleans live owner session state without hydrating a direct instance', async () => {
+    const harness = createHarness()
+    const sessionId = toAppSessionId('session')
+    harness.owner.getOrCreate()
+
+    await harness.runtime.cleanupSession(sessionId)
+
+    expect(harness.runtime.getHydrated(sessionId)).toBeUndefined()
+    expect(harness.sessions.clear).toHaveBeenCalledWith(sessionId)
+    expect(harness.createClient).toHaveBeenCalledOnce()
+  })
+
+  it('does not materialize the owner while cleaning an unhydrated session', async () => {
+    const harness = createHarness()
+
+    await harness.runtime.cleanupSession(toAppSessionId('orphan'))
+
+    expect(harness.createClient).not.toHaveBeenCalled()
+    expect(harness.sessions.clear).not.toHaveBeenCalled()
+  })
+
+  it('rejects an in-flight descriptor identity mismatch without replacing the instance', async () => {
     const harness = createHarness()
     const firstInput = createInput()
     const secondInput = createInput({
@@ -443,26 +464,39 @@ describe('AcpAgentRuntime', () => {
       agent: { ...agent, name: 'Agent v2' }
     })
 
-    const [first, second] = await Promise.all([
-      harness.runtime.getOrHydrate(firstInput),
-      harness.runtime.getOrHydrate(secondInput)
-    ])
+    const first = harness.runtime.getOrHydrate(firstInput)
+    await expect(harness.runtime.getOrHydrate(secondInput)).rejects.toThrow(
+      'ACP session identity mismatch for session'
+    )
 
-    expect(second).not.toBe(first)
-    expect(harness.runtime.getHydrated(secondInput.sessionId)).toBe(second)
-    expect(harness.calls).toContain('session.clear')
+    expect(harness.runtime.getHydrated(secondInput.sessionId)).toBe(await first)
+    expect(harness.calls).not.toContain('session.clear')
   })
 
-  it('closes and replaces a cached instance when descriptor identity changes', async () => {
+  it('rejects a cached descriptor identity mismatch without clearing the binding', async () => {
     const harness = createHarness()
     const first = await harness.runtime.getOrHydrate(createInput())
     const changedDescriptor = { ...descriptor, name: 'Agent v2' }
-    const second = await harness.runtime.getOrHydrate(
-      createInput({ descriptor: changedDescriptor, agent: { ...agent, name: 'Agent v2' } })
-    )
+    await expect(
+      harness.runtime.getOrHydrate(
+        createInput({ descriptor: changedDescriptor, agent: { ...agent, name: 'Agent v2' } })
+      )
+    ).rejects.toThrow('ACP session identity mismatch for session')
 
-    expect(second).not.toBe(first)
-    expect(harness.calls).toContain('session.clear')
+    expect(harness.runtime.getHydrated(createInput().sessionId)).toBe(first)
+    expect(harness.calls).not.toContain('session.clear')
+  })
+
+  it('rejects malformed descriptor/config identity before hydration', async () => {
+    const harness = createHarness()
+
+    await expect(
+      harness.runtime.getOrHydrate(createInput({ agent: { ...agent, id: 'other' } }))
+    ).rejects.toThrow('ACP descriptor/config mismatch: agent != other')
+    await expect(
+      harness.runtime.getOrHydrate(createInput({ agent: { ...agent, source: 'registry' } }))
+    ).rejects.toThrow('ACP descriptor/config mismatch for agent "agent"')
+    expect(harness.createClient).not.toHaveBeenCalled()
   })
 
   it('evicts a failed draft preparation without sending a prompt or creating a projection', async () => {
@@ -560,7 +594,7 @@ describe('AcpAgentRuntime', () => {
     await expect(harness.runtime.getOrHydrate(input)).rejects.toThrow('Direct runtime is closed')
   })
 
-  it('waits for identity hydration and prevents replacement after shutdown', async () => {
+  it('keeps the cached identity after a rejected replacement until shutdown', async () => {
     let resolveClear!: () => void
     const clearPromise = new Promise<void>((resolve) => {
       resolveClear = resolve
@@ -568,20 +602,20 @@ describe('AcpAgentRuntime', () => {
     const harness = createHarness({ clearPromise })
     const input = createInput()
     await harness.runtime.getOrHydrate(input)
-    const replacement = harness.runtime
-      .getOrHydrate(
+    await expect(
+      harness.runtime.getOrHydrate(
         createInput({
           descriptor: { ...descriptor, name: 'Agent v2' },
           agent: { ...agent, name: 'Agent v2' }
         })
       )
-      .catch((error) => error as Error)
-    await vi.waitFor(() => expect(harness.sessions.clear).toHaveBeenCalledTimes(1))
+    ).rejects.toThrow('ACP session identity mismatch for session')
+    expect(harness.sessions.clear).not.toHaveBeenCalled()
 
     const shutdown = harness.owner.shutdown()
+    await vi.waitFor(() => expect(harness.sessions.clear).toHaveBeenCalledTimes(1))
     resolveClear()
 
-    await expect(replacement).resolves.toMatchObject({ message: '[ACP] Direct runtime is closed' })
     await shutdown
     expect(harness.runtime.getHydrated(input.sessionId)).toBeUndefined()
     expect(harness.createClient).toHaveBeenCalledTimes(1)

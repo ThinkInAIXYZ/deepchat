@@ -3821,6 +3821,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async retryMessage(sessionId: string, messageId: string): Promise<void> {
+    const prepared = await this.prepareRetryMessage(sessionId, messageId)
+    await this.processMessage(sessionId, prepared.content, {
+      projectDir: prepared.projectDir,
+      emitRefreshBeforeStream: true
+    })
+  }
+
+  async prepareRetryMessage(
+    sessionId: string,
+    messageId: string
+  ): Promise<{ content: SendMessageInput; projectDir: string | null }> {
     const instance = this.getDeepChatInstance(sessionId)
     const state = await this.getSessionState(sessionId)
     if (!state) {
@@ -3860,10 +3871,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.invalidateSummaryIfNeeded(sessionId, sourceUserMessage.orderSeq, instance)
     this.invalidateMemoryExtractionFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
-    await this.processMessage(sessionId, retryInput, {
-      projectDir: this.resolveProjectDir(sessionId, undefined, instance),
-      emitRefreshBeforeStream: true
-    })
+    return {
+      content: retryInput,
+      projectDir: this.resolveProjectDir(sessionId, undefined, instance)
+    }
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {

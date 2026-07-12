@@ -1,6 +1,7 @@
 # Shared Data / IO 边界
 
-> 状态：目标设计。共享的是物理数据与投影能力，不是两个 runtime 的领域实现。
+> 状态：已实施到 `ASLR-072`。共享的是物理数据与投影能力，不是两个 runtime 的领域实现；
+> Memory coordinator extraction 仍待后续 phase。
 
 ## 1. 模块目的
 
@@ -99,6 +100,32 @@ type GenerationId = string & { readonly __brand: 'GenerationId' }
 binding、agent identity 和 session 清理的应用层事务。`session_kind` 仍只表示 `regular | subagent`；
 backend kind 每次由 `agent_id -> AgentDescriptor` 解析。backend 不能复制一套 session table owner。
 
+### ASLR-072 shared data ports
+
+production switch 没有把 shared data methods 塞进 `AgentManager`。`AgentSessionPresenter` 与 direct ACP
+backend 通过四个独立 facet 访问现有 owner：
+
+```ts
+interface AgentSharedDataPorts {
+  sessionState: AgentSessionStatePort
+  transcript: AgentTranscriptReadPort
+  transcriptMutation: AgentTranscriptMutationPort
+  tape: AgentTapePort
+}
+```
+
+- `AgentSessionStatePort` 保留 init/destroy、full/lightweight state、permission、generation settings 和
+  project-dir persistence；
+- `AgentTranscriptReadPort` 服务 title/history/export/message lookup；
+- `AgentTranscriptMutationPort` 服务 clear/edit/delete/fork/retry preparation，retry preparation 继续执行原
+  summary 与 Memory invalidation，再把合法 input 交给当前 backend；
+- `AgentTapePort` 服务 query/handoff/replay 与 subagent merge/discard。
+
+当前这些 port 由 `AgentRuntimePresenter` 作为过渡 adapter 实现，但 direct ACP 的网络 prompt、pending、
+permission、generation 和 ACP control 不通过该 presenter 执行。后续 ownership slice 可以替换 adapter，
+无需修改 `AgentManager` 或 public route。Memory 的 data/state owner、schema 与触发规则在 `ASLR-072`
+没有移动。
+
 ## 6. Transcript 与 output ports
 
 本目标不发明第四套 `TranscriptEvent` / message union。共享的是对当前 writer 的窄 adapter，类型直接
@@ -130,7 +157,8 @@ exact TypeScript port shape 在 Phase 0 从当前 writer call sites 裁剪；没
 ## 7. 事务与一致性
 
 - agent catalog write 和对应 catalog revision/notification 在一个明确 application operation 中完成；
-- app session delete/clear 继续调用 backend-specific cleanup，再完成 shared metadata 清理；
+- app session delete/clear 继续调用 backend-specific cleanup，再完成 shared metadata 清理；delete cleanup
+  不要求 catalog descriptor 仍可执行，direct ACP durable metadata 通过独立 data port 删除；
 - DeepChat Tape/message/trace 的事务边界保持现状，由 DeepChat data ports 管理；
 - ACP session/turn metadata 持久化保持 ACP owner；direct ACP 的 transcript 仍写当前 structured
   message/Tape projection；
@@ -172,7 +200,8 @@ PR 不允许同时修改行为或公共类型。
 5. 对现有 message/Tape/event/trace writers 裁剪窄 ports，并为 direct ACP 建
    `AcpCompatibilityProjectionAdapter` / `AcpRequestTracePort` characterization tests；不新增 canonical
    event union。
-6. 把两个 backend 改为依赖 ports，而不是互相或 Presenter root。
+6. 把两个 backend 改为依赖 ports，而不是互相或 Presenter root。（direct ACP shared-data slice 已由
+   `ASLR-072` 完成；legacy DeepChat retirement 仍待后续 task）
 7. 逐项移动 `lib/agentRuntime` 文件，在同一 slice 更新 imports/tests 并删除旧路径。（已完成）
 8. 所有 import 收敛后删除旧 mixed repository API 和旧目录。
 

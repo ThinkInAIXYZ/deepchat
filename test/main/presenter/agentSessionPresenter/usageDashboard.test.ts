@@ -451,6 +451,8 @@ describe('AgentSessionPresenter usage dashboard', () => {
     const presenter = new AgentSessionPresenter(
       {
         resolveBackend: () => ({
+          kind: 'deepchat',
+          descriptor: { id: 'deepchat', kind: 'deepchat', source: 'builtin', config: {} },
           backend: createLegacyAgentBackend('deepchat', deepChatAgent as never)
         })
       } as any,
@@ -462,7 +464,13 @@ describe('AgentSessionPresenter usage dashboard', () => {
       }),
       createMockLlmProviderPresenter() as any,
       configPresenter as any,
-      sqlitePresenter
+      sqlitePresenter,
+      {
+        sessionState: deepChatAgent,
+        transcript: deepChatAgent,
+        transcriptMutation: deepChatAgent,
+        tape: deepChatAgent
+      } as any
     )
 
     return {

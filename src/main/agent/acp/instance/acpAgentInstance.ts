@@ -351,6 +351,19 @@ export class AcpAgentInstance
     await active.settled
   }
 
+  getActiveGeneration(): { eventId: string; runId: string } | null {
+    const projection = this.active?.projection
+    if (!projection) return null
+    return { eventId: projection.messageId, runId: projection.requestId }
+  }
+
+  async cancelGenerationByEventId(eventId: string): Promise<boolean> {
+    const active = this.getActiveGeneration()
+    if (!active || active.eventId !== eventId) return false
+    await this.cancel()
+    return true
+  }
+
   resolvePermissionRequest(requestId: string, granted: boolean): boolean {
     return this.permissionBridge.resolve(requestId, granted)
   }

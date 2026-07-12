@@ -40,6 +40,17 @@ export class DeepChatAgentRuntime {
     await this.instances.get(sessionId)?.close()
   }
 
+  async cleanupSession(sessionId: AppSessionId): Promise<void> {
+    const instance = this.instances.get(sessionId)
+    if (!instance) return
+    try {
+      await instance.cancel()
+    } finally {
+      instance.clearOwnedState()
+      if (this.instances.get(sessionId) === instance) this.instances.delete(sessionId)
+    }
+  }
+
   getToolRegistryRevision(): number {
     return this.toolRegistryRevision
   }

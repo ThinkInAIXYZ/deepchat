@@ -642,13 +642,28 @@ function createLegacyManager(deepchatAgent: AgentRuntimePresenter, sqlitePresent
     deepchatAgent as never,
     deepchatAgent.deepChatRuntime
   )
+  const descriptor = (agentId: string) => ({
+    id: agentId,
+    kind: 'deepchat' as const,
+    source: 'manual' as const,
+    config: {}
+  })
   return {
-    resolveBackend: () => ({ backend }),
+    resolveBackend: (agentId: string) => ({
+      kind: 'deepchat',
+      descriptor: descriptor(agentId),
+      backend
+    }),
     resolveSessionHandle: (sessionId: string) => {
       const session = sqlitePresenter.newSessionsTable.get(sessionId)
       if (!session) throw new Error(`Session not found: ${sessionId}`)
-      return { handle: backend.open(sessionId) }
-    }
+      return {
+        kind: 'deepchat',
+        descriptor: descriptor(session.agent_id ?? session.agentId),
+        handle: backend.open(sessionId)
+      }
+    },
+    cleanupSessionBackends: (sessionId: string) => backend.cleanupSession(toAppSessionId(sessionId))
   }
 }
 
@@ -680,7 +695,13 @@ describe('Integration: createSession end-to-end', () => {
       }),
       llmProvider,
       configPresenter,
-      sqlitePresenter
+      sqlitePresenter,
+      {
+        sessionState: deepchatAgent,
+        transcript: deepchatAgent,
+        transcriptMutation: deepchatAgent,
+        tape: deepchatAgent
+      }
     )
   })
 
@@ -837,7 +858,13 @@ describe('Integration: ACP hooks bridge', () => {
       }),
       llmProvider,
       configPresenter,
-      sqlitePresenter
+      sqlitePresenter,
+      {
+        sessionState: deepchatAgent,
+        transcript: deepchatAgent,
+        transcriptMutation: deepchatAgent,
+        tape: deepchatAgent
+      }
     )
   })
 
@@ -922,7 +949,13 @@ describe('Integration: multi-turn context', () => {
       }),
       llmProvider,
       configPresenter,
-      sqlitePresenter
+      sqlitePresenter,
+      {
+        sessionState: deepchatAgent,
+        transcript: deepchatAgent,
+        transcriptMutation: deepchatAgent,
+        tape: deepchatAgent
+      }
     )
   })
 

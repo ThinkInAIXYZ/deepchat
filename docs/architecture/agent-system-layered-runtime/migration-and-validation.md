@@ -98,8 +98,9 @@ Do not rename, merge or recreate these stores in this goal:
 - session load/resume/new fallback, modes, config options and commands remain compatible;
 - advertised commands do not imply a direct `executeCommand` route/SDK facet;
 - protocol permission promises settle on decision, timeout, cancel, clear and shutdown;
-- transfer into ACP remains rejected; supported ACP -> DeepChat transfer clears the ACP binding at the current
-  commit point;
+- transfer into ACP remains rejected before mutation; supported ACP -> DeepChat transfer closes the direct ACP
+  runtime at the current post-ownership commit point (legacy DeepChat + ACP-provider keeps compatibility
+  binding cleanup there);
 - regular ACP keeps its current compatibility prompt/local-resource behavior;
 - ACP-backed subagent keeps current isolation/bypass/retry behavior;
 - remote ACP sync's legacy conversation behavior is not silently unified with `new_sessions`.
@@ -253,7 +254,7 @@ architecture guard.
 | tool catalog order/collision/policy/cache/revision, exact execution options/order, normalization/output fitting and abort | existing ToolPresenter, process, dispatch and output-guard suites | typed adapter contracts plus real ToolPresenter collision boundary in `ASLR-055` / Phase 6 |
 | pre-check permission, question, skill draft, multiple ordered interactions and fresh-run resume | existing dispatch/runtime interaction suites plus ASLR-056 four-origin order/execution-state and explicit execute-count fixtures | typed batch outcome, post-call no-replay and final-item-only resume completed in `ASLR-056` / Phase 6 |
 | external hook payload/order, snapshot isolation and non-blocking failure policy | existing hooks/runtime suites plus ASLR-057 observer order, snapshot, sync-throw, rejected/never-settling contracts | typed notification observer separated from control collaborators and internal diagnostics in `ASLR-057` / Phase 6 |
-| ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; Phase 0 had no direct backend | direct instance/composition parity completed in `ASLR-070..071`; route/title/subagent-retry parity remains `ASLR-072` / Phase 7 |
+| ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; Phase 0 had no direct backend | direct instance/composition parity completed in `ASLR-070..071`; route/title/subagent-retry/pending/remote/cron/no-fallback switch completed in `ASLR-072` / Phase 7 |
 | Tape facts, effective view, manifest, replay/privacy | existing Tape fact/view/replay suites | recorder/output causal order in `ASLR-052`, observation non-interference in `ASLR-080..081` |
 | Memory injection, extraction, cursor, lineage, fencing and current trigger asymmetries | existing Memory and runtime integration suites plus the authoritative `MEM-01..14` matrices below | complete `MEM-13` returned/thrown turn matrix and `MEM-14` compaction return/throw matrix over `MemoryPromptContributor` / `MemoryIngestionObserver` in `ASLR-060..061` / Phase 9 |
 | route/event/schema and composition/shutdown facts | compact machine-readable architecture baseline | per-slice integration gates and final architecture guard/baseline in `ASLR-091..092` |
@@ -306,9 +307,24 @@ aborts all callers sharing a conversation-scoped initialization, owner shutdown 
 stuck session-open RPC, and late SDK resolve/reject cannot publish, persist, restore a live map, leak handlers or
 raise an unhandled rejection. Process-manager fixtures must also prove shutdown synchronously fences new
 warmup/connection work without waiting for an unresolved spawn, late handles are disposed exactly once without
-republication, and stale expected-handle cleanup preserves the replacement bound handle. This is not route proof:
-app title generation, ACP-backed subagent initialization retry and app-level queue/steer dispatch move with the
-`AgentManager` switch in `ASLR-072`.
+republication, and stale expected-handle cleanup preserves the replacement bound handle.
+
+`ASLR-072` route proof additionally covers:
+
+- real repository -> app-session lookup -> manager -> direct backend -> façade composition, including strict
+  missing/source-mismatched ACP config failure with zero DeepChat/provider fallback;
+- ACP title projection invoking `summaryTitles` once without re-dispatching the primary turn through the
+  compatibility provider;
+- exactly one ACP-backed subagent initialization retry with a new app-session id and failed-id runtime/shared
+  state/row cleanup;
+- app-level pending queue/steer selection, remote active-generation cancel through manager generation facets,
+  and Cron detached-session/send wiring;
+- lightweight list state without direct runtime hydration, direct transfer post-commit close, ACP target
+  pre-mutation rejection and direct-before-shared-owner shutdown order;
+- descriptor-independent delete across missing agent rows, malformed/manual-commandless ACP rows, missing or
+  disabled registry rows and descriptor-valid/current-config-missing rows, with zero input resolution/process
+  launch/DeepChat message processing; malformed child recursion, normal DeepChat/direct deletion, durable ACP
+  metadata cleanup and runtime-error ordering are also locked by fixtures.
 
 ### Tape
 

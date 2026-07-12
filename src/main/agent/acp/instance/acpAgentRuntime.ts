@@ -94,8 +94,7 @@ export class AcpAgentRuntime {
       return current.instance
     }
     if (current) {
-      await current.instance.close()
-      this.assertAccepting()
+      throw new Error(`ACP session identity mismatch for ${input.sessionId}`)
     }
 
     const runtime = this.owner.getOrCreate()
@@ -173,6 +172,29 @@ export class AcpAgentRuntime {
 
   async close(sessionId: AppSessionId): Promise<void> {
     await this.instances.get(sessionId)?.instance.close()
+  }
+
+  async cleanupSession(sessionId: AppSessionId): Promise<void> {
+    let instance = this.instances.get(sessionId)?.instance
+    if (!instance) {
+      try {
+        instance = await this.hydrations.get(sessionId)?.promise
+      } catch {
+        // Failed hydration leaves no live instance to close.
+      }
+    }
+    try {
+      if (instance) {
+        await instance.close()
+      } else {
+        await this.owner.peek()?.sessionController.clear(sessionId)
+      }
+    } finally {
+      const current = this.instances.get(sessionId)
+      if (!instance || current?.instance === instance) this.instances.delete(sessionId)
+      this.draining.delete(sessionId)
+      this.steering.delete(sessionId)
+    }
   }
 
   async closeByAgent(agentId: string): Promise<void> {
@@ -270,6 +292,10 @@ export class AcpAgentRuntime {
     toIndex: number
   ): PendingSessionInputRecord[] {
     return this.requirePendingInputs().moveQueuedInput(sessionId, itemId, toIndex)
+  }
+
+  convertPendingInputToSteer(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord {
+    return this.requirePendingInputs().convertPendingInputToSteer(sessionId, itemId)
   }
 
   async steerPendingInput(
@@ -431,11 +457,20 @@ export class AcpAgentRuntime {
   }
 
   private assertInput(input: AcpAgentRuntimeSessionInput): void {
+    if (!input.sessionId.trim()) {
+      throw new Error('ACP session id is required')
+    }
     if (input.descriptor.kind !== 'acp') {
       throw new Error(`Agent "${input.descriptor.id}" is not an ACP descriptor`)
     }
     if (input.descriptor.id !== input.agent.id) {
       throw new Error(`ACP descriptor/config mismatch: ${input.descriptor.id} != ${input.agent.id}`)
+    }
+    if (input.descriptor.source !== input.agent.source || !input.agent.command.trim()) {
+      throw new Error(`ACP descriptor/config mismatch for agent "${input.descriptor.id}"`)
+    }
+    if (input.scope !== 'regular' && input.scope !== 'subagent') {
+      throw new Error(`Invalid ACP session scope: ${String(input.scope)}`)
     }
   }
 

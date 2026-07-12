@@ -8,13 +8,31 @@ import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 const implementation = (name: string) =>
   ({
     name,
+    initSession: vi.fn(),
     processMessage: vi.fn(),
     cancelGeneration: vi.fn(),
     destroySession: vi.fn(),
     getSessionState: vi.fn(),
     hasMessages: vi.fn(),
     listPendingInputs: vi.fn(),
+    steerActiveTurn: vi.fn(),
+    queuePendingInput: vi.fn(),
+    updateQueuedInput: vi.fn(),
+    moveQueuedInput: vi.fn(),
+    convertPendingInputToSteer: vi.fn(),
+    steerPendingInput: vi.fn(),
+    deletePendingInput: vi.fn(),
+    getPermissionMode: vi.fn(),
+    setPermissionMode: vi.fn(),
+    getGenerationSettings: vi.fn(),
+    updateGenerationSettings: vi.fn(),
+    setSessionProjectDir: vi.fn(),
+    respondToolInteraction: vi.fn(),
     setSessionAgentContext: vi.fn(),
+    setSessionModel: vi.fn(),
+    getSessionCompactionState: vi.fn(),
+    compactSession: vi.fn(),
+    invalidateSessionSystemPromptCache: vi.fn(),
     mergeSubagentTape: vi.fn(),
     discardSubagentTape: vi.fn(),
     getActiveGeneration: vi.fn().mockReturnValue(null),
@@ -113,23 +131,6 @@ describe('AgentManager', () => {
     }
   )
 
-  it('deduplicates global message lookup when legacy backends share one implementation', async () => {
-    const shared = implementation('shared')
-    const message = { id: 'message', sessionId: 'session', role: 'assistant' }
-    shared.getMessage.mockResolvedValue(message)
-    const manager = new AgentManager(
-      { resolveExecutableDescriptor: vi.fn(() => descriptor('deepchat')) },
-      { get: vi.fn(() => null) },
-      {
-        deepchat: createLegacyAgentBackend('deepchat', shared),
-        acp: createLegacyAgentBackend('acp', shared)
-      }
-    )
-
-    await expect(manager.getMessage('message')).resolves.toBe(message)
-    expect(shared.getMessage).toHaveBeenCalledTimes(1)
-  })
-
   it.each(['deepchat', 'acp'] as const)(
     'routes remote generation control through the %s session backend',
     async (kind) => {
@@ -222,5 +223,30 @@ describe('AgentManager', () => {
     )
 
     expect(() => manager.resolveBackend('broken')).toThrow(error)
+  })
+
+  it('cleans both backend caches without resolving a descriptor or app session', async () => {
+    const cleanupDeepChat = vi.fn().mockResolvedValue(undefined)
+    const cleanupAcp = vi.fn().mockResolvedValue(undefined)
+    const resolveExecutableDescriptor = vi.fn(() => {
+      throw new Error('catalog must not be read')
+    })
+    const getSession = vi.fn(() => {
+      throw new Error('session lookup must not be read')
+    })
+    const manager = new AgentManager(
+      { resolveExecutableDescriptor },
+      { get: getSession },
+      {
+        deepchat: { cleanupSession: cleanupDeepChat } as never,
+        acp: { cleanupSession: cleanupAcp } as never
+      }
+    )
+
+    await expect(manager.cleanupSessionBackends(toAppSessionId('orphan'))).resolves.toBeUndefined()
+    expect(cleanupDeepChat).toHaveBeenCalledWith('orphan')
+    expect(cleanupAcp).toHaveBeenCalledWith('orphan')
+    expect(resolveExecutableDescriptor).not.toHaveBeenCalled()
+    expect(getSession).not.toHaveBeenCalled()
   })
 })

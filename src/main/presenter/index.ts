@@ -69,7 +69,12 @@ import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { CronJobsService } from './cronJobs'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
+import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import { AppSessionService } from '@/agent/shared/appSessionService'
+import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import type { AcpAgentRuntime } from '@/agent/acp/instance'
@@ -671,13 +676,46 @@ export class Presenter implements IPresenter {
       deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
       newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
     })
+    const agentSharedData: AgentSharedDataPorts = {
+      sessionState: agentRuntimePresenter,
+      transcript: agentRuntimePresenter,
+      transcriptMutation: agentRuntimePresenter,
+      tape: agentRuntimePresenter
+    }
     this.agentManager = new AgentManager(agentRepository, appSessionService, {
       deepchat: createLegacyAgentBackend(
         'deepchat',
         agentRuntimePresenter,
         agentRuntimePresenter.deepChatRuntime
       ),
-      acp: createLegacyAgentBackend('acp', agentRuntimePresenter)
+      acp: createDirectAcpAgentBackend({
+        runtime: this.acpAgentRuntime,
+        sessionState: agentSharedData.sessionState,
+        transcript: agentSharedData.transcript,
+        tape: agentSharedData.tape,
+        deleteDurableSession: async (sessionId) => {
+          await sqlitePresenter.deleteAcpSessions(sessionId)
+        },
+        resolveInput: async (sessionId, descriptor) => {
+          const session = appSessionService.get(sessionId)
+          if (!session || resolveAcpAgentAlias(session.agentId) !== descriptor.id) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          const agent = (await this.configPresenter.getAcpAgents()).find(
+            (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
+          )
+          if (!agent || !agent.command.trim()) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          return {
+            sessionId: toAppSessionId(session.id),
+            descriptor,
+            agent,
+            scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
+            workdir: session.projectDir?.trim() ?? ''
+          }
+        }
+      })
     })
     this.agentSessionPresenter = new AgentSessionPresenter(
       this.agentManager,
@@ -685,6 +723,7 @@ export class Presenter implements IPresenter {
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      agentSharedData,
       this.skillPresenter,
       undefined,
       {

@@ -259,11 +259,14 @@ Rollback: each collaborator adapter delegates to the legacy method until its sli
 Objective: stop routing `kind=acp` sessions through DeepChat LoopEngine without removing the DeepChat +
 ACP-provider compatibility path.
 
-Progress after `ASLR-071`: the typed direct runtime is production-composed with shared ACP
-client/session/process ownership and regular/subagent collaborator parity, but remains unselected. The legacy
-ACP backend still owns every app route until `ASLR-072`; this prevents double dispatch while the title,
-ACP-backed subagent initialization retry and app-level queue/steer route fixtures move with the router switch.
-`ASLR-073` remains responsible for compatibility contract retirement. No Memory behavior is changed here.
+Progress after `ASLR-072`: production composition now selects the typed direct backend only for `kind=acp`.
+`kind=deepchat + providerId=acp` remains on the DeepChat LoopEngine and ACP-provider compatibility adapter, so
+the switch has no dual-run window. `AgentManager` stays a small descriptor/session router; common lifecycle,
+pending input, settings, interaction and generation behavior lives on discriminated handles, while session
+state, transcript mutation and Tape access remain separate shared data ports injected into the façade/backend.
+Title projection, ACP-backed subagent initialization retry, app/remote/cron dispatch, transfer commit and
+permission-by-request-id are covered at their route boundaries. `ASLR-073` remains responsible for generic
+provider-contract retirement. No Memory behavior is changed here.
 
 Deliverables:
 
@@ -308,6 +311,26 @@ Delivered by `ASLR-070..071` before routing changes:
 - focused regular/subagent, timeout/cancel/process-exit, prompt-once, queue/steer, workdir/capability,
   provider-lifetime, shutdown-fence/in-flight drain, stuck/late session-open cancellation, fallback-attempt update
   isolation and composition-order fixtures.
+
+Delivered by `ASLR-072` at the atomic routing switch:
+
+- production root composition maps `kind=acp` to `AcpAgentRuntime` and keeps DeepChat descriptors, including
+  `providerId=acp`, on `DeepChatAgentRuntime`;
+- strict catalog/alias/config/source/command and cached-identity validation fails closed without DeepChat
+  fallback; lightweight session-list snapshots do not hydrate the direct runtime;
+- `AgentSessionPresenter` no longer resolves ACP through `IAgentImplementation` or compatibility provider
+  orchestration; typed handles cover lifecycle, pending/steer, permission, settings, generation, ACP controls,
+  transfer and subagent operations;
+- direct title generation reads the shared transcript projection and invokes the existing ACP provider
+  `summaryTitles` path once; the primary turn is not re-dispatched through the compatibility backend;
+- failed ACP subagent initialization gets exactly one retry with a new app-session id after runtime/shared-state
+  cleanup; direct ACP -> DeepChat closes the old runtime only after the existing ownership commit, while ACP
+  targets are rejected before mutation;
+- session deletion uses a descriptor-independent backend cleanup seam: both backend caches are inspected without
+  hydrating or launching, direct ACP durable remote bindings are deleted, then shared state, permission, skills and
+  the app-session row are removed in the existing order; missing, disabled or malformed agent rows cannot block it;
+- route fixtures cover app pending/steer, remote active-generation cancel, Cron send, no-fallback composition and
+  direct-before-shared-owner shutdown ordering.
 
 Exit gate:
 

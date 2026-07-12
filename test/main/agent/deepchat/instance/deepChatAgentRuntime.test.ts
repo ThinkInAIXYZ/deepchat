@@ -95,6 +95,30 @@ describe('DeepChatAgentRuntime', () => {
     expect(delegate.close).not.toHaveBeenCalled()
   })
 
+  it('cleans only an already hydrated instance without invoking its shared-state close', async () => {
+    const delegate = createDelegate()
+    const hydrate = vi.fn(() => delegate)
+    const runtime = new DeepChatAgentRuntime(hydrate)
+    const sessionId = toAppSessionId('session')
+
+    await runtime.cleanupSession(sessionId)
+    expect(hydrate).not.toHaveBeenCalled()
+
+    const instance = runtime.getOrHydrate(sessionId)
+    instance.setRuntimeState({
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      permissionMode: 'full_access'
+    })
+    await runtime.cleanupSession(sessionId)
+
+    expect(delegate.cancel).toHaveBeenCalledOnce()
+    expect(delegate.close).not.toHaveBeenCalled()
+    expect(instance.getRuntimeState()).toBeUndefined()
+    expect(runtime.getHydrated(sessionId)).toBeUndefined()
+  })
+
   it('reads only already hydrated instances without creating a shell', () => {
     const runtime = new DeepChatAgentRuntime(() => createDelegate())
     const sessionId = toAppSessionId('session')

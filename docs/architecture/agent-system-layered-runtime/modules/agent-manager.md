@@ -1,6 +1,7 @@
 # AgentManager 与顶层控制面
 
-> 状态：目标设计；不描述已经落地的代码。  
+> 状态：已实施到 `ASLR-072`；production `kind=acp` direct switch 已完成，legacy contract retirement
+> 属于 `ASLR-073` / `ASLR-090`。
 > 上位合同：[总体设计](../README.md) · [规格](../spec.md) ·
 > [迁移与验证](../migration-and-validation.md)
 
@@ -43,25 +44,24 @@ route -> AgentSessionPresenter
 
 ```text
 AgentManager
-├─ AgentCatalog
-│  ├─ DeepChatAgentRepository
-│  └─ AcpAgentRepository
-├─ AppSessionService
-├─ DeepChatAgentBackend
-└─ AcpAgentBackend
+├─ ExecutableAgentCatalog (strict lookup only)
+├─ AppSessionLookupPort
+└─ AgentBackendSet
+   ├─ DeepChatSessionBackend
+   └─ AcpSessionBackend
 ```
 
 `AgentManager` 负责：
 
-- 查询、创建、更新和删除 agent descriptor；
-- 将 legacy route DTO 转换为内部 discriminated descriptor；
+- 按 canonical alias 查询 capability-strict executable descriptor；
 - 根据 app session 持久化的 agent identity 解析明确 kind；
-- 显式路由公共 session 操作；
-- 为 kind-specific route 返回 required capability，而不是 optional method；
-- 维持 façade 兼容期内的旧 route/event contract。
+- 显式选择 backend 并返回 discriminated session handle；
+- 暴露 transfer source/target、subagent 和 generation 等 required facet。
 
 `AgentManager` 不负责：
 
+- agent CRUD、legacy DTO 映射或 catalog notification；这些属于 repository/config boundary；
+- transcript、Tape、session state 或 Memory data access；这些是独立 shared ports；
 - DeepChat provider/tool round；
 - ACP process/protocol loop；
 - prompt 拼装、Tape、compaction、Memory 策略；
@@ -116,27 +116,42 @@ codec。catalog list 对 malformed legacy row 保持当前宽容/null/default/fi
 
 ```ts
 interface AgentSessionHandle {
-  readonly sessionId: string
+  readonly sessionId: AppSessionId
   readonly kind: 'deepchat' | 'acp'
+  readonly runtimeKind: 'legacy' | 'direct'
+  readonly lifecycle: AgentSessionLifecycleFacet
+  readonly pending: AgentPendingInputFacet
+  readonly settings: AgentSessionSettingsFacet
+  readonly toolInteractions: AgentToolInteractionFacet
 
-  send(input: AgentInput): Promise<MessageStartResult>
-  cancel(reason?: string): Promise<void>
-  snapshot(): Promise<AgentSessionSnapshot>
+  send(input: AgentSessionSendInput): Promise<MessageStartResult>
+  cancel(): Promise<void>
+  snapshot(options?: { lightweight?: boolean }): Promise<DeepChatSessionState | null>
+  waitForFirstTurnReady(options?: { timeoutMs?: number }): Promise<boolean>
   close(): Promise<void>
 }
 ```
 
-`open()` 属于 backend factory。draft、retry、steer、compaction、remote ACP mode 等不是公共能力：
+公共 facet 只收纳两边已经存在且 route 需要的共同操作；kind-specific 能力继续通过 discriminated
+required facet 暴露：
 
 ```ts
-interface DeepChatAgentBackend {
-  open(input: OpenDeepChatSession): Promise<DeepChatAgentInstance>
+interface DeepChatSessionHandle extends AgentSessionHandle {
+  kind: 'deepchat'
+  runtimeKind: 'legacy'
+  deepchat: DeepChatControlFacet
 }
 
-interface AcpAgentBackend {
-  open(input: OpenAcpSession): Promise<AcpAgentInstance>
+interface DirectAcpSessionHandle extends AgentSessionHandle {
+  kind: 'acp'
+  runtimeKind: 'direct'
+  acp: DirectAcpControlFacet
 }
 ```
+
+`AgentManager` 本身不 proxy transcript/Tape，也不做 method-name lookup。legacy adapter 只在 composition
+时一次性 capture required methods；production ACP backend 则直接组合 `AcpAgentRuntime`。这避免 manager
+重新长成 `IAgentImplementation` façade。
 
 ## 5. 路由规则
 
@@ -182,9 +197,10 @@ backend 负责。
 ### Transfer
 
 `new_sessions` 没有 backend kind column。ACP -> DeepChat transfer 在一个明确 application operation 中：
-先验证目标 descriptor，再按当前 commit point 清理 ACP binding/remote mapping并更新 `agent_id`，最后让旧
-ACP instance 失效、下次 hydrate 进入 DeepChat backend。顺序由现有 transfer tests 锁定，不新增
-`session_kind` 含义。
+先验证 target descriptor/provider/model 并拒绝所有 ACP target；然后在当前 DeepChat state owner 写入 target
+context、更新 `agent_id`/project/tool policy 并重建可读 state。只有这些 commit steps 全部成功后，才关闭
+旧 direct ACP runtime；commit 前失败保留旧 runtime。legacy DeepChat + ACP-provider source 仍在相同
+post-commit 位置清 compatibility binding。该顺序由 transfer fixtures 锁定，不新增 `session_kind` 含义。
 
 ### Catalog 通知
 
@@ -203,7 +219,12 @@ catalog 的变更通知按 domain 发送：
 - manager 不吞掉 backend 错误，只在 boundary 做当前 route 需要的错误映射；
 - `cancel()` 委托当前 session instance，不能靠 manager 扫描不同 backend 的内部 Map；
 - `close()` 是幂等操作，先阻止新输入，再由 backend 完成 run/process/drain 清理；
-- app shutdown 由 manager 枚举已打开 handle 并发起有界关闭，但 backend 决定内部顺序。
+- delete 是 descriptor-independent cleanup，不是普通 routed `close()`：manager 不读 app session/catalog，
+  而是对 DeepChat 与 ACP backend 各调用一次 non-hydrating cleanup，并等待两者 settle。direct ACP cleanup
+  无论 live instance 是否存在都删除 durable remote binding；façade 随后按 shared state、permission、skills、
+  app row 的顺序清理。runtime cleanup 失败时仍尝试 durable/shared cleanup，再保留原错误策略；
+- app shutdown 不由 manager 枚举 handle；composition-owned runtime owner 关闭 direct instances，再清
+  shared ACP sessions/processes，DeepChat/runtime/Memory 各由现有 owner 关闭。
 
 ## 8. 迁移步骤
 
@@ -211,10 +232,13 @@ catalog 的变更通知按 domain 发送：
 2. 引入 discriminated `AgentDescriptor`，先不删除旧 route types。
 3. 从 `AgentRepository` 提取两个 typed repository view，物理表不变。
 4. 引入 `AgentCatalog`，让旧 `ConfigPresenter` 委托给它。
-5. 引入 `AgentManager`，仅接管 catalog 和 backend resolution。
-6. 让 `AgentSessionPresenter` 的公共 open/send/cancel/close/snapshot 委托 manager。
-7. 按能力组迁移 kind-specific routes，删除 optional capability checks。
-8. 两个 backend 均独立后删除 fake `AgentRegistry` 和 `IAgentImplementation`。
+5. 引入 `AgentManager`，仅接管 catalog 和 backend resolution。（`ASLR-020` 已完成）
+6. 让 `AgentSessionPresenter` 的公共 open/send/cancel/close/snapshot 委托 typed handle。（`ASLR-022`
+   已完成）
+7. 按能力组迁移 kind-specific routes，删除 façade 内 optional capability checks。（`ASLR-023..026`、
+   `ASLR-072` 已完成）
+8. 两个 backend 均独立后删除 generic provider ACP methods、legacy backend 和
+   `IAgentImplementation`。（待 `ASLR-073` / `ASLR-090`）
 9. façade 全部变成薄 adapter 后，再单独评估命名和目录移动。
 
 每一步都必须保持旧 route、event、DTO 和数据库 schema 可用。
