@@ -6912,9 +6912,30 @@ describe('AgentRuntimePresenter', () => {
           return await buildBasePrompt(...args)
         }
       )
-      vi.spyOn(agent as any, 'resolveCompactionStateForResumeTurn').mockImplementation(async () => {
-        order.push('resume-compaction')
-        return {
+      vi.spyOn((agent as any).compactionService, 'prepareForResumeTurn').mockImplementation(
+        async () => {
+          order.push('resume-compaction')
+          return {
+            sessionId: 's1',
+            previousState: {
+              summaryText: null,
+              summaryCursorOrderSeq: 1,
+              summaryUpdatedAt: null
+            },
+            targetCursorOrderSeq: 2,
+            summaryBlocks: ['resume turn'],
+            currentModel: {
+              providerId: 'openai',
+              modelId: 'gpt-4',
+              contextLength: 128000
+            },
+            reserveTokens: 4096
+          }
+        }
+      )
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockResolvedValue({
+        succeeded: true,
+        summaryState: {
           summaryText: 'RESUME_SUMMARY_CONTENT',
           summaryCursorOrderSeq: 1,
           summaryUpdatedAt: 321
@@ -7222,11 +7243,7 @@ describe('AgentRuntimePresenter', () => {
     it('treats an aborted resume signal as cancellation even for non-abort errors', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({ blocks: [] })
-      vi.spyOn(agent as any, 'resolveCompactionStateForResumeTurn').mockResolvedValue({
-        summaryText: null,
-        summaryCursorOrderSeq: 1,
-        summaryUpdatedAt: null
-      })
+      vi.spyOn((agent as any).compactionService, 'prepareForResumeTurn').mockResolvedValue(null)
       vi.spyOn(agent as any, 'runStreamForMessage').mockImplementation(async () => {
         agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.abort()
         throw new Error('late failure')

@@ -6,8 +6,10 @@
 > 实施进度：ASLR-046 只在 instance 上建立 identity-only、per-instance stable Memory session handle，供
 > legacy compaction-to-Memory seam 绑定 captured owner。`memoryExtractionChains`、
 > `memoryExtractionEpochs`、`memoryIngestionProjectionRetryAfter`、`memoryInjectionAccessByTurn` 仍完整保留在
-> legacy Presenter；cursor、MEM-13/MEM-14 trigger timing 与 MemoryPresenter 调用未迁移。coordinator 提取仍
-> 属于 ASLR-059。
+> legacy Presenter；cursor 与 MemoryPresenter data orchestration 未迁移。ASLR-054 已把 `MEM-14` 的
+> existing entry-point asymmetry 固定在 typed input preparation seam：initial 与 context-pressure
+> normal return 调用 legacy trigger，resume/manual compaction 不调用；coordinator owner 提取仍属于
+> ASLR-059。
 
 ## 1. 模块目的
 
@@ -90,7 +92,7 @@ assemble request
 一次 ingestion job 分两段冻结，不能在 enqueue 时提前读取 cursor/tail：
 
 ```text
-settled turn or settled compaction attempt
+settled turn or eligible settled compaction attempt (initial/context-pressure only)
   -> evaluate current eligibility
   -> enqueue trigger origin + current epoch
        compaction path additionally captures the existing targetCursorOrderSeq upper bound
@@ -129,8 +131,9 @@ cursor/tail”是当前防重复语义，不能改成 enqueue-time snapshot；wi
 | initial returns aborted/paused/error or any throw | explicit outcome/error path | no enqueue |
 | resume returns completed or aborted | `afterTurnSettled(origin=resume, returnedOutcome=...)` | enqueue |
 | resume returns paused/error or throws | explicit outcome/error path | no enqueue |
-| non-null compaction apply normally returns (`succeeded=true|false`) | `afterCompactionApplyReturned` | enqueue with intent target upper bound |
-| no intent or compaction apply throws | explicit no-op/error path | no enqueue |
+| initial/context-pressure non-null compaction apply normally returns (`succeeded=true|false`) | `afterCompactionApplyReturned` | enqueue with intent target upper bound |
+| initial/context-pressure has no intent or compaction apply throws | explicit no-op/error path | no enqueue |
+| resume/manual compaction with any outcome | no compaction observer | no enqueue; resume terminal fallback remains under `MEM-13` |
 | edit/delete/retry/rollback | instance/data operation | rewind + epoch fence |
 | clear/destroy/shutdown | instance/runtime close | drain/fence before data close |
 
@@ -178,7 +181,8 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
 3. 为 query/injection 建 `MemoryPromptContributor` port，对比 exact section/budget/sanitization/selection。
 4. 为 terminal/compaction 建只携带 trigger/origin/epoch/upper-bound 的 DTO；不要提前抓 cursor/tail/window。
 5. 接入 `afterTurnSettled`，分别验证 initial returned、resume returned 和 thrown paths。
-6. 接入 `afterCompactionApplyReturned`，只覆盖 normal `succeeded=true|false` return；throw/no-intent 不调用。
+6. 只在 initial/context-pressure 接入 `afterCompactionApplyReturned`，覆盖 normal
+   `succeeded=true|false` return；throw/no-intent 不调用，resume/manual 不接入该 observer。
 7. 迁移 edit/delete/retry/rollback/clear/destroy/shutdown fences。
 8. 连续运行完整 Memory parity suite 和 fault injection 后，才删除旧 runtime 接线。
 
@@ -191,8 +195,9 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
 - initial/resume returned completed、returned aborted、thrown AbortError、thrown non-abort error；
 - initial/resume returned paused、returned error；
 - turn with 0/1/N tools、duplicate renderer/message callbacks；
-- compaction no intent、normal return succeeded=true、normal return succeeded=false、thrown AbortError、
-  thrown non-abort error；
+- initial/context-pressure compaction no intent、normal return succeeded=true、normal return
+  succeeded=false、thrown AbortError、thrown non-abort error；resume/manual 各 outcome 均无 compaction
+  extraction；
 - projection primary/fallback/cooldown；
 - cursor success/failure/stale epoch；
 - concurrent sessions 与 same-session serialized jobs；

@@ -18,8 +18,16 @@
 > `BasePromptAssembler` and `PostCompactionPromptAssembler` seams. The first is scoped to the
 > captured DeepChat instance and remains before compaction intent preparation; the second fixes
 > summary, reconstruction, and the awaited fail-open legacy Memory call after normal compaction
-> completion. Context building, compaction coordination, provider preflight, and budget recovery
-> remain in the compatibility presenter until ASLR-054.
+> completion. ASLR-054 extracted typed input-preparation and context coordinators. Initial input now
+> has a source-level history -> nullable intent -> compaction projection/user fact -> apply ->
+> normal-return Memory-trigger order; resume passes the stale/abort checkpoint before refreshing
+> history after its optional compaction seam and does not call that trigger; pressure recovery uses
+> the extraction-enabled return/throw boundary. Manual
+> compaction also remains outside compaction extraction. The context coordinator owns
+> post-compaction view assembly and actual provider-attempt preflight, recovery, strict retry,
+> request-sequence, ViewManifest, rate-gate and stream order. Presenter code supplies narrow legacy
+> algorithm/data adapters, while assistant placeholder creation and active-run registration remain
+> at their existing late boundary.
 
 ## 1. 模块目的
 
@@ -76,11 +84,14 @@ registration 或第三方 stage insertion。
 - prepare optional compaction intent using the already assembled base prompt；
 - no intent: append user message fact；
 - with intent: create compaction projection, append user fact, then await compaction apply；
-- only after a normal compaction return, run the current compaction-to-Memory trigger；
+- only after a normal initial compaction return, run the current compaction-to-Memory trigger；
 - emit user refresh and fire `UserPromptSubmit` notification，绝不 await。
 
 这个顺序是兼容合同：user fact 在 compaction apply 前，AbortError/throw 不触发 compaction Memory
 extraction。
+
+context-pressure recovery 同样是 extraction-enabled path；resume/manual compaction 不调用该 trigger，
+resume terminal fallback 继续由 `MEM-13` 决定。
 
 ### `assembleRequest`
 

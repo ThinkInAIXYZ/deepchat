@@ -326,7 +326,8 @@ Deliverables:
 - preserve current queue timing: enqueue captures trigger/epoch and the current compaction upper bound where
   applicable; each serialized task reads the latest cursor/tail and builds its effective Tape window when it
   begins, then treats that built window as immutable;
-- preserve the current initial-turn/resume and compaction-attempt asymmetries as characterization behavior;
+- preserve the current initial-turn/resume and compaction-attempt asymmetries as characterization behavior,
+  including compaction extraction only for initial/context-pressure normal returns and none for resume/manual;
 - leave `MemoryPresenter`, schemas, vector store, retrieval, write coordinator and maintenance services
   unchanged;
 - preserve shutdown/delete fencing and composition-root order.

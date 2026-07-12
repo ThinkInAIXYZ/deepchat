@@ -95,7 +95,7 @@ AgentSessionPresenter (4210 lines)
 `deepchat` 或 `acp` agent id 都返回这个 implementation。UI catalog 反而来自
 `ConfigPresenter -> AgentRepository`。
 
-### 当前 DeepChat turn 顺序
+### 当前 DeepChat initial turn 顺序
 
 下列顺序属于兼容合同，不允许在目录整理时顺手调整：
 
@@ -109,7 +109,7 @@ accept input / claim pending item
        create compaction projection
        -> append user message fact
        -> apply compaction
-       -> trigger current compaction-to-Memory path only after a normal return
+       -> trigger current compaction-to-Memory path only after a normal initial-path return
      else:
        append user message fact
   -> emit user refresh and dispatch UserPromptSubmit notification (fire-and-forget)
@@ -328,7 +328,7 @@ prepareTurn
 | `executeToolBatch` | awaited operation + typed outcome | 是，只有合法 tool interaction origin 可返回 ordered pause outcome | pre-check permission、question、post-call permission、skill draft |
 | `afterRoundPersisted` | awaited commit callback | 否 | Tape/output state |
 | `afterTurnSettled` | commit callback + observers | 只有内部 commit awaited | pending drain、Memory ingestion、notifications |
-| `afterCompactionApplyReturned` | normal-return callback | 否 | current Memory ingestion trigger；throw/no-intent 不调用 |
+| `afterCompactionApplyReturned` | normal-return callback | 否 | only initial/context-pressure current Memory ingestion trigger；throw/no-intent 以及 resume/manual 不调用 |
 
 `pause` 会结束当前 provider run；用户逐项处理 ordered interactions，中间项不会创建 run，只有最后一项
 解决后才按现状从持久 projection/context 创建一个新的 resume run，不是恢复旧 call stack。raw

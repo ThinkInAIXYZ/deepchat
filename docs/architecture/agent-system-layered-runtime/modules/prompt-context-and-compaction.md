@@ -9,8 +9,14 @@
 > verification 组合；normal initial/resume/pressure paths 在 compaction 后固定按
 > summary -> reconstruction -> awaited fail-open legacy Memory 顺序组合。initial tool-skill refresh
 > 重用两个 phase；resume later-round refresh 继续保留原有 base-only 差异。manual compaction 仍只消费
-> base prompt，不新增 post-compaction request assembly。本任务未提取 context/compaction coordinator，
-> 未改变 prompt 文案、缓存、budget、request 或 Memory owner/trigger。
+> base prompt，不新增 post-compaction request assembly。ASLR-054 introduced typed
+> `InputPreparationCoordinator` and `DeepChatContextCoordinator` seams. They now own the existing
+> initial/resume/pressure compaction order, post-compaction Tape view assembly, provider preflight,
+> pressure recovery, strict retry, request sequence and synchronous fail-open ViewManifest attempt.
+> Existing `CompactionService`, `buildTape*View`, context-budget, message/Tape and legacy Memory
+> adapters remain the algorithms and data owners. Only initial and context-pressure normal compaction
+> returns call the legacy extraction trigger; resume/manual compaction retain their no-trigger baseline.
+> No prompt, budget, schema, cache or Memory-map policy changed.
 
 ## 1. 模块目的
 
@@ -142,6 +148,9 @@ pressure recovery 没有新的 user fact，但同样只在 non-null intent 正�
 仍是正常返回并触发；no intent 或 throw 不触发。权威矩阵见
 [MEM-14](../migration-and-validation.md#4-memory-no-regression-contract)。
 
+resume 与 manual compaction 仍不触发 compaction extraction；resume 完成后的 terminal fallback extraction
+由 `MEM-13` 单独决定，不能与 `MEM-14` 合并。
+
 ## 8. Memory 参与
 
 Memory prompt contributor 是 awaited、read-only、hard-budgeted、fail-open 的 section source。它不控制
@@ -165,7 +174,8 @@ Memory ingestion 是 turn/compaction settle 后的 background observer，不属�
 
 - Memory query 失败：按现有 fail-open，不阻塞 request；
 - required base/config/provider mapping 失败：fail-closed，产生兼容 error projection；
-- compaction `succeeded=false`：执行当前 fallback并仍触发现有 compaction Memory path；
+- initial/context-pressure compaction `succeeded=false`：执行当前 fallback并仍触发现有 compaction
+  Memory path；resume/manual 维持不触发；
 - budget 无法 fit：沿用 provider preflight/overflow recovery 和 terminal error；
 - abort：所有 awaited contributors/compaction/recovery 尽快终止，late result 通过 run/lineage fence 丢弃；
 - ViewManifest 在 request 前同步尝试；写入失败记录 warning 并继续发送，不异步补写。

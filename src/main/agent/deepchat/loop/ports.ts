@@ -114,39 +114,6 @@ export interface OutputSink {
   fail(input: { runId: string; sessionId: AppSessionId; messageId: string; error: unknown }): void
 }
 
-export type EffectiveViewProvenance = Pick<
-  DeepChatTapeViewManifest,
-  | 'policy'
-  | 'policyVersion'
-  | 'latestEntryId'
-  | 'anchorEntryIds'
-  | 'reconstructionAnchorEntryId'
-  | 'included'
-  | 'excluded'
->
-
-export interface PreparedProviderRequest {
-  messages: ChatMessage[]
-  tools: MCPToolDefinition[]
-  maxTokens: number
-  effectiveView: EffectiveViewProvenance
-}
-
-export interface ContextRequestInput {
-  sessionId: AppSessionId
-  messageId: string
-  messages: readonly ChatMessage[]
-  tools: readonly MCPToolDefinition[]
-  modelConfig: ModelConfig
-  requestedMaxTokens: number
-  signal: AbortSignal
-}
-
-export interface ContextCoordinator {
-  prepare(input: ContextRequestInput): Promise<PreparedProviderRequest>
-  recoverFromPressure(input: ContextRequestInput): Promise<PreparedProviderRequest>
-}
-
 export interface BasePromptAssemblyInput {
   sessionId: AppSessionId
   configuredPrompt: string

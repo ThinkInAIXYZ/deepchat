@@ -139,7 +139,7 @@ wording; module and task documents reference them without redefining them.
 | `MEM-11` | Agent delete clears Memory rows/audit transactionally before best-effort vector sidecar cleanup. |
 | `MEM-12` | App shutdown aborts and drains Memory before SQLite closes; late writes remain fenced. |
 | `MEM-13` | Initial and resume terminal triggers preserve the outcome matrix below; returned abort and thrown AbortError are distinct. |
-| `MEM-14` | A non-null compaction intent triggers extraction after any normal `applyCompactionIntent` return, including `succeeded=false`; any throw, including AbortError, triggers nothing. No intent triggers nothing. |
+| `MEM-14` | At the existing extraction-enabled compaction entry points only—initial input and context-pressure recovery—a non-null intent triggers extraction after any normal `applyCompactionIntent` return, including `succeeded=false`; any throw, including AbortError, triggers nothing, and no intent triggers nothing. Resume and manual compaction do not enqueue compaction extraction; resume terminal fallback remains governed by `MEM-13`. |
 
 Terminal trigger matrix:
 
@@ -156,12 +156,13 @@ Terminal trigger matrix:
 
 Compaction trigger matrix:
 
-| Intent/apply outcome | Enqueue compaction extraction | Upper bound |
-| --- | --- | --- |
-| no intent | no | none |
-| `applyCompactionIntent` returns with `succeeded=true` | yes | intent target cursor |
-| `applyCompactionIntent` returns with `succeeded=false` | yes | intent target cursor |
-| apply throws AbortError or another error | no | none |
+| Entry point | Intent/apply outcome | Enqueue compaction extraction | Upper bound |
+| --- | --- | --- | --- |
+| initial input or context-pressure recovery | no intent | no | none |
+| initial input or context-pressure recovery | `applyCompactionIntent` returns with `succeeded=true` | yes | intent target cursor |
+| initial input or context-pressure recovery | `applyCompactionIntent` returns with `succeeded=false` | yes | intent target cursor |
+| initial input or context-pressure recovery | apply throws AbortError or another error | no | none |
+| resume or manual compaction | any intent/apply outcome | no | none |
 
 Memory service internals are out of scope. The one runtime-scoped `MemoryRuntimeCoordinator` moves the current
 chains/epochs/cooldown/access-dedupe orchestration and exposes prompt/ingestion ports; instances only keep a

@@ -92,7 +92,9 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/agent/deepchat/resources/systemEnvPromptBuilder'
-import { advanceRequestSequence, createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
+import { createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
+import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
+import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import type {
   BasePromptAssembler,
   PostCompactionPromptAssembler
@@ -625,6 +627,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly pendingInputCoordinator: PendingInputCoordinator
   readonly deepChatRuntime: DeepChatAgentRuntime
   private readonly compactionService: CompactionService
+  private readonly inputPreparationCoordinator = new InputPreparationCoordinator()
+  private readonly contextCoordinator = new DeepChatContextCoordinator()
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
   private readonly providerCatalogPort: Pick<
@@ -1352,8 +1356,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       })
       this.logSlowPreStreamStep(sessionId, 'system-prompt', stepStartedAt)
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-      const historyRecords = getTapeContextHistoryRecords(tapeReady.historyRecords)
       const userContent: UserMessageContent = {
         text: normalizedInput.text,
         files: normalizedInput.files || [],
@@ -1366,75 +1368,81 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         ...(normalizedInput.inlineItems?.length ? { inlineItems: normalizedInput.inlineItems } : {})
       }
 
-      let compactionIntent: CompactionIntent | null = null
-      if (useContextBudget) {
-        stepStartedAt = Date.now()
-        compactionIntent = await this.compactionService.prepareForNextUserTurn({
-          sessionId,
-          providerId: state.providerId,
-          modelId: state.modelId,
-          systemPrompt: baseSystemPrompt,
-          contextLength: generationSettings.contextLength,
-          reserveTokens: maxTokens,
-          extraReserveTokens: toolReserveTokens,
-          supportsVision,
-          supportsAudioInput,
-          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-          preserveEmptyInterleavedReasoning:
-            interleavedReasoning.preserveEmptyReasoningContent === true,
-          newUserContent: normalizedInput,
-          historyRecords,
-          signal: preStreamAbortSignal
-        })
-        this.logSlowPreStreamStep(sessionId, 'compaction-prepare', stepStartedAt)
-      }
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      let summaryState: SessionSummaryState
-
-      if (compactionIntent) {
-        const compactionMessageId = this.messageStore.createCompactionMessage(
-          sessionId,
-          this.messageStore.getNextOrderSeq(sessionId),
-          'compacting',
-          compactionIntent.previousState.summaryUpdatedAt
-        )
-        userMessageId = this.messageStore.createUserMessage(
-          sessionId,
-          this.messageStore.getNextOrderSeq(sessionId),
-          userContent
-        )
-        this.emitCompactionState(
-          sessionId,
-          {
-            status: 'compacting',
-            cursorOrderSeq: compactionIntent.targetCursorOrderSeq,
-            summaryUpdatedAt: compactionIntent.previousState.summaryUpdatedAt
-          },
-          instance
-        )
-        summaryState = await this.applyCompactionIntent(
-          sessionId,
-          compactionIntent,
-          {
-            compactionMessageId,
-            startedExternally: true,
+      const preparedInput = await this.inputPreparationCoordinator.prepareInitial({
+        ensureHistory: () =>
+          getTapeContextHistoryRecords(
+            this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
+          ),
+        prepareIntent: async (historyRecords) => {
+          if (!useContextBudget) {
+            return null
+          }
+          stepStartedAt = Date.now()
+          const intent = await this.compactionService.prepareForNextUserTurn({
+            sessionId,
+            providerId: state.providerId,
+            modelId: state.modelId,
+            systemPrompt: baseSystemPrompt,
+            contextLength: generationSettings.contextLength,
+            reserveTokens: maxTokens,
+            extraReserveTokens: toolReserveTokens,
+            supportsVision,
+            supportsAudioInput,
+            preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+            preserveEmptyInterleavedReasoning:
+              interleavedReasoning.preserveEmptyReasoningContent === true,
+            newUserContent: normalizedInput,
+            historyRecords,
             signal: preStreamAbortSignal
-          },
-          instance
-        )
-        this.throwIfStaleDeepChatInstance(sessionId, instance)
-        this.triggerMemoryExtractionFromCompaction(
-          instance.getMemorySessionHandle(),
-          compactionIntent
-        )
-      } else {
-        summaryState = this.sessionStore.getSummaryState(sessionId)
-        userMessageId = this.messageStore.createUserMessage(
-          sessionId,
-          this.messageStore.getNextOrderSeq(sessionId),
-          userContent
-        )
-      }
+          })
+          this.logSlowPreStreamStep(sessionId, 'compaction-prepare', stepStartedAt)
+          return intent
+        },
+        createCompactionProjection: (intent) =>
+          this.messageStore.createCompactionMessage(
+            sessionId,
+            this.messageStore.getNextOrderSeq(sessionId),
+            'compacting',
+            intent.previousState.summaryUpdatedAt
+          ),
+        appendUserFact: () =>
+          this.messageStore.createUserMessage(
+            sessionId,
+            this.messageStore.getNextOrderSeq(sessionId),
+            userContent
+          ),
+        beginCompaction: (intent) => {
+          this.emitCompactionState(
+            sessionId,
+            {
+              status: 'compacting',
+              cursorOrderSeq: intent.targetCursorOrderSeq,
+              summaryUpdatedAt: intent.previousState.summaryUpdatedAt
+            },
+            instance
+          )
+        },
+        applyCompaction: async (intent, compactionMessageId) =>
+          await this.applyCompactionIntent(
+            sessionId,
+            intent,
+            {
+              compactionMessageId,
+              startedExternally: true,
+              signal: preStreamAbortSignal
+            },
+            instance
+          ),
+        readSummary: () => this.sessionStore.getSummaryState(sessionId),
+        afterCompactionApplyReturned: (intent) =>
+          this.triggerMemoryExtractionFromCompaction(instance.getMemorySessionHandle(), intent),
+        checkpoints: {
+          assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
+        }
+      })
+      const historyRecords = preparedInput.history
+      const summaryState = preparedInput.summary
+      userMessageId = preparedInput.userMessageId
       if (!userMessageId) {
         throw new Error('Failed to create user message.')
       }
@@ -1451,36 +1459,45 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       })
 
       stepStartedAt = Date.now()
-      const systemPrompt = await this.postCompactionPromptAssembler.assemble({
-        sessionId: toAppSessionId(sessionId),
-        basePrompt: baseSystemPrompt,
-        summaryText: summaryState.summaryText,
-        reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-        memoryQuery: normalizedInput.text,
-        memoryMessageId: userMessageId
+      const preparedContext = await this.contextCoordinator.assemble({
+        assemblePostCompactionPrompt: async () => {
+          const systemPrompt = await this.postCompactionPromptAssembler.assemble({
+            sessionId: toAppSessionId(sessionId),
+            basePrompt: baseSystemPrompt,
+            summaryText: summaryState.summaryText,
+            reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
+            memoryQuery: normalizedInput.text,
+            memoryMessageId: userMessageId
+          })
+          this.logSlowPreStreamStep(sessionId, 'memory-injection', stepStartedAt)
+          stepStartedAt = Date.now()
+          return systemPrompt
+        },
+        buildView: (systemPrompt) => {
+          const contextBuild = buildTapeChatView({
+            sessionId,
+            newUserContent: normalizedInput,
+            systemPrompt,
+            contextLength: contextBudgetLength,
+            reserveTokens: maxTokens,
+            messageStore: this.messageStore,
+            supportsVision,
+            historyRecords,
+            options: {
+              summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+              supportsAudioInput,
+              extraReserveTokens: toolReserveTokens,
+              preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+              preserveEmptyInterleavedReasoning:
+                interleavedReasoning.preserveEmptyReasoningContent === true
+            }
+          })
+          this.logSlowPreStreamStep(sessionId, 'context-build', stepStartedAt)
+          return contextBuild
+        },
+        assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
       })
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      this.logSlowPreStreamStep(sessionId, 'memory-injection', stepStartedAt)
-      stepStartedAt = Date.now()
-      const contextBuild = buildTapeChatView({
-        sessionId,
-        newUserContent: normalizedInput,
-        systemPrompt,
-        contextLength: contextBudgetLength,
-        reserveTokens: maxTokens,
-        messageStore: this.messageStore,
-        supportsVision,
-        historyRecords,
-        options: {
-          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-          supportsAudioInput,
-          extraReserveTokens: toolReserveTokens,
-          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-          preserveEmptyInterleavedReasoning:
-            interleavedReasoning.preserveEmptyReasoningContent === true
-        }
-      })
-      this.logSlowPreStreamStep(sessionId, 'context-build', stepStartedAt)
+      const contextBuild = preparedContext.view
       const messages = contextBuild.messages
 
       const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
@@ -3755,7 +3772,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const llmProviderPresenter = this.llmProviderPresenter
     const shouldBypassContextBudget = this.shouldBypassDeepChatContextBudget.bind(this)
     const recoverContextPressure = this.recoverRequestContextPressure.bind(this)
-    const replaceLeadingSystemPromptInPlace = this.replaceLeadingSystemPromptInPlace.bind(this)
+    const contextCoordinator = this.contextCoordinator
     const persistMessageTrace = this.persistMessageTrace.bind(this)
     const appendTapeViewManifest = this.appendTapeViewManifest.bind(this)
     const initialRequestSeq = Math.max(
@@ -3892,318 +3909,115 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             requestModelConfig,
             requestModelId
           )
+          const isTtsRequest = isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
+          const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
           let queuedForRateLimit = false
-
-          try {
-            let preflightContextRecoveryAttempted = false
-            let providerOverflowRecoveryAttempted = false
-            let providerContextOverflowRecoveryApplied = false
-            let strictProviderOverflowRetryPending = false
-            let manifestSummaryCursorOrderSeq = viewContext?.summaryCursorOrderSeq ?? 1
-            const isTtsRequest =
-              isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
-            const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
-            const effectiveRequestToolReserveTokens =
-              estimateToolReserveTokens(effectiveRequestTools)
-
-            const prepareProviderAttempt = async (options?: {
-              strictProviderOverflowRetry?: boolean
-            }): Promise<{
-              providerMessages: ChatMessage[]
-              providerMaxTokens: number
-            }> => {
-              let providerMessages = requestMessages
-              let providerMaxTokens = requestMaxTokens
-              let manifestRequestedMaxTokens = requestMaxTokens
-              let manifestReserveTokens = requestMaxTokens
-              let strictExtraReserveTokens = 0
-              let recoveredFromContextPressure =
-                providerContextOverflowRecoveryApplied ||
-                options?.strictProviderOverflowRetry === true
-
-              if (!requestBypassesContextBudget) {
-                let requestedMaxTokens = requestMaxTokens
-                if (options?.strictProviderOverflowRetry) {
-                  loopRun.providerRecovery.strictProviderOverflowRetryUsed = true
-                  requestedMaxTokens = getProviderOverflowRetryMaxTokens(requestMaxTokens)
-                  strictExtraReserveTokens = getProviderOverflowRetryExtraReserve(
-                    requestModelConfig.contextLength
-                  )
-                  requestMessages.splice(
-                    0,
-                    requestMessages.length,
-                    ...fitRequestMessagesToContextWindow({
-                      messages: requestMessages,
-                      contextLength: requestModelConfig.contextLength,
-                      reserveTokens:
-                        requestedMaxTokens +
-                        effectiveRequestToolReserveTokens +
-                        strictExtraReserveTokens,
-                      minimumProtectedTailCount: 0
-                    })
-                  )
-                }
-
-                let requestPreflight = preflightRequestContext({
-                  messages: requestMessages,
-                  tools: effectiveRequestTools,
+          yield* contextCoordinator.streamProviderAttempts({
+            run: loopRun,
+            requestMessages,
+            modelId: requestModelId,
+            modelConfig: requestModelConfig,
+            temperature: requestTemperature,
+            maxTokens: requestMaxTokens,
+            tools: effectiveRequestTools,
+            bypassContextBudget: requestBypassesContextBudget,
+            fallbackContextLength: contextBudgetLength,
+            supportsVision,
+            supportsAudioInput,
+            traceDebugEnabled: traceEnabled,
+            viewContext,
+            budget: {
+              estimateToolReserveTokens,
+              preflight: ({ messages, tools, requestedMaxTokens }) =>
+                preflightRequestContext({
+                  messages,
+                  tools,
                   contextLength: requestModelConfig.contextLength,
                   requestedMaxTokens
+                }),
+              fitStrictRetry: ({ messages, reserveTokens }) =>
+                fitRequestMessagesToContextWindow({
+                  messages,
+                  contextLength: requestModelConfig.contextLength,
+                  reserveTokens,
+                  minimumProtectedTailCount: 0
+                }),
+              getStrictRetryMaxTokens: getProviderOverflowRetryMaxTokens,
+              getStrictRetryExtraReserve: () =>
+                getProviderOverflowRetryExtraReserve(requestModelConfig.contextLength),
+              buildOverflowError: (preflight) =>
+                new Error(buildRequestContextOverflowErrorMessage(preflight)),
+              buildOverflowAfterRecoveryError: (preflight) =>
+                new Error(buildProviderContextOverflowAfterRecoveryErrorMessage(preflight))
+            },
+            recovery: {
+              recover: async ({ requestMessages, requestedMaxTokens, tools }) =>
+                await recoverContextPressure({
+                  sessionId,
+                  providerId: state.providerId,
+                  modelId: requestModelId,
+                  requestMessages,
+                  baseSystemPrompt,
+                  contextLength: requestModelConfig.contextLength,
+                  requestedMaxTokens,
+                  tools,
+                  supportsVision,
+                  supportsAudioInput,
+                  interleavedReasoning,
+                  minimumProtectedTailCount: 0,
+                  signal: abortController.signal,
+                  expectedInstance: resourceInstance
                 })
-                if (
-                  !options?.strictProviderOverflowRetry &&
-                  (requestPreflight.requiresContextPressureRecovery ||
-                    !requestPreflight.fitsWithinContext)
-                ) {
-                  preflightContextRecoveryAttempted = true
-                  recoveredFromContextPressure = true
-                  if (!loopRun.providerRecovery.contextOverflowHandoffAttempted) {
-                    loopRun.providerRecovery.contextOverflowHandoffAttempted = true
-                    const recovered = await recoverContextPressure({
+            },
+            manifest: {
+              resolvePolicy: resolveTapeViewManifestPolicy,
+              append: (manifest) =>
+                appendTapeViewManifest({
+                  sessionId,
+                  messageId,
+                  ...manifest,
+                  providerId: state.providerId,
+                  modelId: requestModelId
+                }),
+              onAppendError: (error) =>
+                logger.warn(
+                  `[DeepChatAgent] Failed to persist tape view manifest: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`
+                )
+            },
+            rateGate: {
+              wait: async (signal) => {
+                await llmProviderPresenter.executeWithRateLimit(state.providerId, {
+                  signal,
+                  onQueued: (snapshot) => {
+                    queuedForRateLimit = true
+                    emitRateLimitWaitingMessage(
                       sessionId,
-                      providerId: state.providerId,
-                      modelId: requestModelId,
-                      requestMessages: requestPreflight.messages,
-                      baseSystemPrompt,
-                      contextLength: requestModelConfig.contextLength,
-                      requestedMaxTokens: requestPreflight.requestedMaxTokens,
-                      tools: effectiveRequestTools,
-                      supportsVision,
-                      supportsAudioInput,
-                      interleavedReasoning,
-                      minimumProtectedTailCount: 0,
-                      signal: abortController.signal,
-                      expectedInstance: resourceInstance
-                    })
-                    if (recovered.summaryCursorOrderSeq !== undefined) {
-                      manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
-                    }
-                    requestMessages.splice(0, requestMessages.length, ...recovered.messages)
-                    if (recovered.systemPrompt) {
-                      replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
-                    }
-                    requestPreflight = preflightRequestContext({
-                      messages: requestMessages,
-                      tools: effectiveRequestTools,
-                      contextLength: requestModelConfig.contextLength,
-                      requestedMaxTokens
-                    })
-                    requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
+                      rateLimitMessageId,
+                      activeGeneration.runId,
+                      snapshot
+                    )
                   }
+                })
+              },
+              clearWaiting: () => {
+                if (!queuedForRateLimit) {
+                  return
                 }
-                if (!requestPreflight.fitsWithinContext) {
-                  throw new Error(buildRequestContextOverflowErrorMessage(requestPreflight))
-                }
-                providerMessages = requestPreflight.messages
-                providerMaxTokens = requestPreflight.effectiveMaxTokens
-                manifestRequestedMaxTokens = requestPreflight.requestedMaxTokens
-                manifestReserveTokens =
-                  requestPreflight.requestedMaxTokens + strictExtraReserveTokens
-              }
-              if (providerMessages.length === 0) {
-                throw new Error('Request was not sent because the prompt became empty.')
-              }
-
-              const manifestTokenBudget = {
-                contextLength: requestModelConfig.contextLength ?? contextBudgetLength,
-                requestedMaxTokens: manifestRequestedMaxTokens,
-                effectiveMaxTokens: providerMaxTokens,
-                reserveTokens: manifestReserveTokens,
-                toolReserveTokens: effectiveRequestToolReserveTokens
-              }
-
-              const requestSeq = advanceRequestSequence(loopRun)
-              const isInitialViewRequest = requestSeq === 1 && Boolean(viewContext)
-              const manifestPolicy = resolveTapeViewManifestPolicy({
-                recoveredFromContextPressure,
-                isInitialViewRequest,
-                viewPolicy: viewContext?.policy,
-                viewPolicyVersion: viewContext?.policyVersion
-              })
-              appendTapeViewManifest({
-                sessionId,
-                messageId,
-                requestSeq,
-                taskType: isInitialViewRequest ? viewContext!.taskType : 'tool_loop',
-                policy: manifestPolicy.policy,
-                policyVersion: manifestPolicy.policyVersion,
-                messages: providerMessages,
-                tools: effectiveRequestTools,
-                tokenBudget: manifestTokenBudget,
-                providerId: state.providerId,
-                modelId: requestModelId,
-                selection:
-                  isInitialViewRequest && !recoveredFromContextPressure
-                    ? viewContext!.selection
-                    : undefined,
-                summaryCursorOrderSeq: manifestSummaryCursorOrderSeq,
-                supportsVision: viewContext?.supportsVision ?? supportsVision,
-                supportsAudioInput: viewContext?.supportsAudioInput ?? supportsAudioInput,
-                traceDebugEnabled: viewContext?.traceDebugEnabled ?? traceEnabled
-              })
-
-              return { providerMessages, providerMaxTokens }
-            }
-
-            const recoverProviderContextOverflow = async (
-              providerMessages: ChatMessage[],
-              providerMaxTokens: number
-            ): Promise<void> => {
-              loopRun.providerRecovery.contextOverflowHandoffAttempted = true
-              providerOverflowRecoveryAttempted = true
-              const recovered = await recoverContextPressure({
-                sessionId,
-                providerId: state.providerId,
-                modelId: requestModelId,
-                requestMessages: providerMessages,
-                baseSystemPrompt,
-                contextLength: requestModelConfig.contextLength,
-                requestedMaxTokens: providerMaxTokens,
-                tools: effectiveRequestTools,
-                supportsVision,
-                supportsAudioInput,
-                interleavedReasoning,
-                minimumProtectedTailCount: 0,
-                signal: abortController.signal,
-                expectedInstance: resourceInstance
-              })
-              if (recovered.summaryCursorOrderSeq !== undefined) {
-                manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
-              }
-              providerContextOverflowRecoveryApplied = true
-              strictProviderOverflowRetryPending = recovered.summaryCursorOrderSeq === undefined
-              requestMessages.splice(0, requestMessages.length, ...recovered.messages)
-              if (recovered.systemPrompt) {
-                replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
-              }
-            }
-
-            const buildProviderOverflowRetryFailure = (
-              providerMessages: ChatMessage[],
-              providerMaxTokens: number
-            ): Error => {
-              const retryPreflight = preflightRequestContext({
-                messages: providerMessages,
-                tools: effectiveRequestTools,
-                contextLength: requestModelConfig.contextLength,
-                requestedMaxTokens: providerMaxTokens
-              })
-              return new Error(
-                retryPreflight.fitsWithinContext
-                  ? buildProviderContextOverflowAfterRecoveryErrorMessage(retryPreflight)
-                  : buildRequestContextOverflowErrorMessage(retryPreflight)
-              )
-            }
-
-            const scheduleStrictProviderOverflowRetry = (): boolean => {
-              if (
-                loopRun.providerRecovery.strictProviderOverflowRetryUsed ||
-                strictProviderOverflowRetryPending
-              ) {
-                return false
-              }
-              strictProviderOverflowRetryPending = true
-              return true
-            }
-
-            providerAttemptLoop: for (;;) {
-              const strictProviderOverflowRetry = strictProviderOverflowRetryPending
-              strictProviderOverflowRetryPending = false
-              const { providerMessages, providerMaxTokens } = await prepareProviderAttempt({
-                strictProviderOverflowRetry
-              })
-
-              await llmProviderPresenter.executeWithRateLimit(state.providerId, {
-                signal: abortController.signal,
-                onQueued: (snapshot) => {
-                  queuedForRateLimit = true
-                  emitRateLimitWaitingMessage(
-                    sessionId,
-                    rateLimitMessageId,
-                    activeGeneration.runId,
-                    snapshot
-                  )
-                }
-              })
-              if (queuedForRateLimit) {
                 clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
                 queuedForRateLimit = false
               }
-              if (abortController.signal.aborted) {
-                throw createAbortError()
-              }
-
-              logPreStreamBoundary()
-              let yieldedProviderEvent = false
-              try {
-                for await (const event of provider.coreStream(
-                  providerMessages,
-                  requestModelId,
-                  requestModelConfig,
-                  requestTemperature,
-                  providerMaxTokens,
-                  effectiveRequestTools
-                )) {
-                  if (
-                    !yieldedProviderEvent &&
-                    !requestBypassesContextBudget &&
-                    isFirstProviderContextOverflowEvent(event)
-                  ) {
-                    if (
-                      loopRun.providerRecovery.strictProviderOverflowRetryUsed ||
-                      providerOverflowRecoveryAttempted
-                    ) {
-                      throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
-                    }
-                    if (
-                      preflightContextRecoveryAttempted ||
-                      loopRun.providerRecovery.contextOverflowHandoffAttempted
-                    ) {
-                      if (!scheduleStrictProviderOverflowRetry()) {
-                        throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
-                      }
-                      continue providerAttemptLoop
-                    }
-                    await recoverProviderContextOverflow(providerMessages, providerMaxTokens)
-                    continue providerAttemptLoop
-                  }
-                  yieldedProviderEvent = true
-                  yield event
-                }
-                break
-              } catch (error) {
-                if (
-                  !yieldedProviderEvent &&
-                  !requestBypassesContextBudget &&
-                  isContextWindowErrorLike(error)
-                ) {
-                  if (
-                    loopRun.providerRecovery.strictProviderOverflowRetryUsed ||
-                    providerOverflowRecoveryAttempted
-                  ) {
-                    throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
-                  }
-                  if (
-                    preflightContextRecoveryAttempted ||
-                    loopRun.providerRecovery.contextOverflowHandoffAttempted
-                  ) {
-                    if (!scheduleStrictProviderOverflowRetry()) {
-                      throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
-                    }
-                    continue providerAttemptLoop
-                  }
-                  await recoverProviderContextOverflow(providerMessages, providerMaxTokens)
-                  continue providerAttemptLoop
-                }
-                throw error
-              }
-            }
-          } catch (error) {
-            if (queuedForRateLimit) {
-              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
-            }
-            throw error
-          }
+            },
+            provider: {
+              stream: ({ messages, modelId, modelConfig, temperature, maxTokens, tools }) =>
+                provider.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools),
+              beforeStream: logPreStreamBoundary
+            },
+            isContextOverflowEvent: isFirstProviderContextOverflowEvent,
+            isContextOverflowError: isContextWindowErrorLike,
+            createAbortError
+          })
         },
         providerId: state.providerId,
         modelId: state.modelId,
@@ -4360,44 +4174,36 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     supportsAudioInput: boolean
     traceDebugEnabled: boolean
   }): void {
-    try {
-      const sourceMaps = this.tapeService.getViewManifestSourceMaps(
-        params.sessionId,
-        params.messageId
-      )
-      const manifest = createTapeViewManifest({
-        sessionId: params.sessionId,
-        messageId: params.messageId,
-        requestSeq: params.requestSeq,
-        taskType: params.taskType,
-        policy: params.policy,
-        policyVersion: params.policyVersion ?? null,
-        messages: params.messages,
-        tools: params.tools,
-        latestEntryId: sourceMaps.latestEntryId,
-        anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
-        reconstructionAnchorEntryId: sourceMaps.reconstructionAnchorEntryId,
-        included: params.selection
-          ? buildIncludedRefs(params.selection, sourceMaps)
-          : buildRequestRefs(params.messages, sourceMaps),
-        excluded: params.selection ? buildExcludedRefs(params.selection, sourceMaps) : [],
-        summaryCursor: params.selection?.summaryCursor,
-        tokenBudget: params.tokenBudget,
-        providerId: params.providerId,
-        modelId: params.modelId,
-        summaryCursorOrderSeq: params.summaryCursorOrderSeq,
-        supportsVision: params.supportsVision,
-        supportsAudioInput: params.supportsAudioInput,
-        traceDebugEnabled: params.traceDebugEnabled
-      })
-      this.tapeService.appendViewManifest(manifest)
-    } catch (error) {
-      logger.warn(
-        `[DeepChatAgent] Failed to persist tape view manifest: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      )
-    }
+    const sourceMaps = this.tapeService.getViewManifestSourceMaps(
+      params.sessionId,
+      params.messageId
+    )
+    const manifest = createTapeViewManifest({
+      sessionId: params.sessionId,
+      messageId: params.messageId,
+      requestSeq: params.requestSeq,
+      taskType: params.taskType,
+      policy: params.policy,
+      policyVersion: params.policyVersion ?? null,
+      messages: params.messages,
+      tools: params.tools,
+      latestEntryId: sourceMaps.latestEntryId,
+      anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
+      reconstructionAnchorEntryId: sourceMaps.reconstructionAnchorEntryId,
+      included: params.selection
+        ? buildIncludedRefs(params.selection, sourceMaps)
+        : buildRequestRefs(params.messages, sourceMaps),
+      excluded: params.selection ? buildExcludedRefs(params.selection, sourceMaps) : [],
+      summaryCursor: params.selection?.summaryCursor,
+      tokenBudget: params.tokenBudget,
+      providerId: params.providerId,
+      modelId: params.modelId,
+      summaryCursorOrderSeq: params.summaryCursorOrderSeq,
+      supportsVision: params.supportsVision,
+      supportsAudioInput: params.supportsAudioInput,
+      traceDebugEnabled: params.traceDebugEnabled
+    })
+    this.tapeService.appendViewManifest(manifest)
   }
 
   private async recoverRequestContextPressure(params: {
@@ -4416,101 +4222,82 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     signal: AbortSignal
     expectedInstance: DeepChatAgentInstance
   }): Promise<{ messages: ChatMessage[]; systemPrompt?: string; summaryCursorOrderSeq?: number }> {
-    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
-    let messages = params.requestMessages
-    const systemPromptBase =
-      params.baseSystemPrompt ?? this.getLeadingSystemPrompt(params.requestMessages) ?? ''
-    const tapeReady = this.tapeService.ensureSessionTapeReady(params.sessionId, this.messageStore)
-    const intent = await this.compactionService.prepareForContextPressureRecovery({
-      sessionId: params.sessionId,
-      providerId: params.providerId,
-      modelId: params.modelId,
-      systemPrompt: systemPromptBase,
-      contextLength: params.contextLength,
-      reserveTokens: params.requestedMaxTokens,
-      extraReserveTokens: estimateToolReserveTokens(params.tools),
-      supportsVision: params.supportsVision,
-      supportsAudioInput: params.supportsAudioInput,
-      preserveInterleavedReasoning: params.interleavedReasoning.preserveReasoningContent,
-      preserveEmptyInterleavedReasoning:
-        params.interleavedReasoning.preserveEmptyReasoningContent === true,
-      projectedMessages: this.withoutLeadingSystemMessage(params.requestMessages),
-      historyRecords: tapeReady.historyRecords,
-      signal: params.signal
-    })
-    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
-
-    if (!intent) {
-      return { messages }
-    }
-
-    const summaryState = await this.applyCompactionIntent(
-      params.sessionId,
-      intent,
-      {
-        signal: params.signal
+    const toolReserveTokens = estimateToolReserveTokens(params.tools)
+    return await this.contextCoordinator.recoverFromPressure<SessionSummaryState>({
+      requestMessages: params.requestMessages,
+      baseSystemPrompt: params.baseSystemPrompt,
+      requestedMaxTokens: params.requestedMaxTokens,
+      toolReserveTokens,
+      minimumProtectedTailCount: params.minimumProtectedTailCount,
+      prepareCompaction: async (systemPrompt) => {
+        const prepared = await this.inputPreparationCoordinator.prepareExisting({
+          ensureHistory: () =>
+            this.tapeService.ensureSessionTapeReady(params.sessionId, this.messageStore)
+              .historyRecords,
+          prepareIntent: async (historyRecords) =>
+            await this.compactionService.prepareForContextPressureRecovery({
+              sessionId: params.sessionId,
+              providerId: params.providerId,
+              modelId: params.modelId,
+              systemPrompt,
+              contextLength: params.contextLength,
+              reserveTokens: params.requestedMaxTokens,
+              extraReserveTokens: toolReserveTokens,
+              supportsVision: params.supportsVision,
+              supportsAudioInput: params.supportsAudioInput,
+              preserveInterleavedReasoning: params.interleavedReasoning.preserveReasoningContent,
+              preserveEmptyInterleavedReasoning:
+                params.interleavedReasoning.preserveEmptyReasoningContent === true,
+              projectedMessages: this.withoutLeadingSystemMessage(params.requestMessages),
+              historyRecords,
+              signal: params.signal
+            }),
+          applyCompaction: async (intent) =>
+            await this.applyCompactionIntent(
+              params.sessionId,
+              intent,
+              { signal: params.signal },
+              params.expectedInstance
+            ),
+          readSummary: () => this.sessionStore.getSummaryState(params.sessionId),
+          afterCompactionApplyReturned: (intent) =>
+            this.triggerMemoryExtractionFromCompaction(
+              params.expectedInstance.getMemorySessionHandle(),
+              intent
+            ),
+          checkpoints: {
+            assertCurrent: () =>
+              this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
+          }
+        })
+        return prepared.intent ? { applied: true, summary: prepared.summary } : { applied: false }
       },
-      params.expectedInstance
-    )
-    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
-    this.triggerMemoryExtractionFromCompaction(
-      params.expectedInstance.getMemorySessionHandle(),
-      intent
-    )
-    const systemPrompt = await this.postCompactionPromptAssembler.assemble({
-      sessionId: toAppSessionId(params.sessionId),
-      basePrompt: systemPromptBase,
-      summaryText: summaryState.summaryText,
-      reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(params.sessionId),
-      memoryQuery: this.getLatestUserQuery(params.sessionId),
-      memoryMessageId: null
+      assemblePostCompactionPrompt: async (summaryState, systemPrompt) =>
+        await this.postCompactionPromptAssembler.assemble({
+          sessionId: toAppSessionId(params.sessionId),
+          basePrompt: systemPrompt,
+          summaryText: summaryState.summaryText,
+          reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(
+            params.sessionId
+          ),
+          memoryQuery: this.getLatestUserQuery(params.sessionId),
+          memoryMessageId: null
+        }),
+      getSummaryCursorOrderSeq: (summaryState) => summaryState.summaryCursorOrderSeq,
+      fit: ({ messages, reserveTokens, minimumProtectedTailCount }) =>
+        fitRequestMessagesToContextWindow({
+          messages,
+          contextLength: params.contextLength,
+          reserveTokens,
+          minimumProtectedTailCount
+        }),
+      assertCurrent: () =>
+        this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
     })
-    this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
-    messages = this.replaceLeadingSystemPrompt(messages, systemPrompt)
-
-    return {
-      messages: fitRequestMessagesToContextWindow({
-        messages,
-        contextLength: params.contextLength,
-        reserveTokens: params.requestedMaxTokens + estimateToolReserveTokens(params.tools),
-        minimumProtectedTailCount: params.minimumProtectedTailCount
-      }),
-      systemPrompt,
-      summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq
-    }
-  }
-
-  private getLeadingSystemPrompt(messages: ChatMessage[]): string | null {
-    const first = messages[0]
-    return first?.role === 'system' && typeof first.content === 'string' ? first.content : null
   }
 
   private withoutLeadingSystemMessage(messages: ChatMessage[]): ChatMessage[] {
     return messages[0]?.role === 'system' ? messages.slice(1) : messages
-  }
-
-  private replaceLeadingSystemPrompt(messages: ChatMessage[], systemPrompt: string): ChatMessage[] {
-    if (!systemPrompt) {
-      return this.withoutLeadingSystemMessage(messages)
-    }
-    if (messages[0]?.role === 'system') {
-      return [{ ...messages[0], content: systemPrompt }, ...messages.slice(1)]
-    }
-    return [{ role: 'system', content: systemPrompt }, ...messages]
-  }
-
-  private replaceLeadingSystemPromptInPlace(messages: ChatMessage[], systemPrompt: string): void {
-    if (!systemPrompt) {
-      if (messages[0]?.role === 'system') {
-        messages.shift()
-      }
-      return
-    }
-    if (messages[0]?.role === 'system') {
-      messages[0] = { ...messages[0], content: systemPrompt }
-      return
-    }
-    messages.unshift({ role: 'system', content: systemPrompt })
   }
 
   private async drainPendingQueueIfPossible(
@@ -4855,64 +4642,92 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         activeSkillNames
       })
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-      const resumeTargetOrderSeq =
-        tapeReady.historyRecords.find((record) => record.id === messageId)?.orderSeq ??
-        this.messageStore.getMessage(messageId)?.orderSeq
-      const summaryState = useContextBudget
-        ? await this.resolveCompactionStateForResumeTurn(
+      let resumeTargetOrderSeq: number | undefined
+      const preparedInput = await this.inputPreparationCoordinator.prepareExisting({
+        ensureHistory: () =>
+          this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords,
+        refreshHistory: () =>
+          this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords,
+        prepareIntent: async (historyRecords) => {
+          resumeTargetOrderSeq =
+            historyRecords.find((record) => record.id === messageId)?.orderSeq ??
+            this.messageStore.getMessage(messageId)?.orderSeq
+          if (!useContextBudget) {
+            return null
+          }
+          return await this.compactionService.prepareForResumeTurn({
+            sessionId,
+            messageId,
+            providerId: state.providerId,
+            modelId: state.modelId,
+            systemPrompt: baseSystemPrompt,
+            contextLength: generationSettings.contextLength,
+            reserveTokens: maxTokens,
+            extraReserveTokens: toolReserveTokens,
+            supportsVision: this.supportsVision(state.providerId, state.modelId),
+            supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
+            preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+            preserveEmptyInterleavedReasoning:
+              interleavedReasoning.preserveEmptyReasoningContent === true,
+            historyRecords,
+            signal: preStreamAbortSignal
+          })
+        },
+        applyCompaction: async (intent) =>
+          await this.applyCompactionIntent(
+            sessionId,
+            intent,
             {
-              sessionId,
-              messageId,
-              providerId: state.providerId,
-              modelId: state.modelId,
-              systemPrompt: baseSystemPrompt,
-              contextLength: generationSettings.contextLength,
-              reserveTokens: maxTokens,
-              extraReserveTokens: toolReserveTokens,
-              supportsVision: this.supportsVision(state.providerId, state.modelId),
-              supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
-              preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-              preserveEmptyInterleavedReasoning:
-                interleavedReasoning.preserveEmptyReasoningContent === true,
-              historyRecords: tapeReady.historyRecords,
               compactionMessageOrderSeq: resumeTargetOrderSeq,
+              shiftMessagesFromCompactionOrderSeq: resumeTargetOrderSeq !== undefined,
               signal: preStreamAbortSignal
             },
             instance
-          )
-        : this.sessionStore.getSummaryState(sessionId)
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const resumeTapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-      const systemPrompt = await this.postCompactionPromptAssembler.assemble({
-        sessionId: toAppSessionId(sessionId),
-        basePrompt: baseSystemPrompt,
-        summaryText: summaryState.summaryText,
-        reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-        memoryQuery: this.getLatestUserQuery(sessionId),
-        memoryMessageId: messageId
-      })
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const resumeContextBuild = buildTapeResumeView({
-        sessionId,
-        assistantMessageId: messageId,
-        systemPrompt,
-        contextLength: contextBudgetLength,
-        reserveTokens: maxTokens,
-        messageStore: this.messageStore,
-        supportsVision: this.supportsVision(state.providerId, state.modelId),
-        historyRecords: resumeTapeReady.historyRecords,
-        options: {
-          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-          fallbackProtectedTurnCount: 1,
-          supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
-          extraReserveTokens: toolReserveTokens,
-          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-          preserveEmptyInterleavedReasoning:
-            interleavedReasoning.preserveEmptyReasoningContent === true
+          ),
+        readSummary: () => this.sessionStore.getSummaryState(sessionId),
+        checkpoints: {
+          assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance),
+          beforeHistoryRefresh: () => {
+            this.throwIfStaleDeepChatInstance(sessionId, instance)
+            this.throwIfAbortRequested(preStreamAbortSignal)
+          }
         }
       })
+      const summaryState = preparedInput.summary
+      this.throwIfAbortRequested(preStreamAbortSignal)
+      const preparedContext = await this.contextCoordinator.assemble({
+        assemblePostCompactionPrompt: async () =>
+          await this.postCompactionPromptAssembler.assemble({
+            sessionId: toAppSessionId(sessionId),
+            basePrompt: baseSystemPrompt,
+            summaryText: summaryState.summaryText,
+            reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
+            memoryQuery: this.getLatestUserQuery(sessionId),
+            memoryMessageId: messageId
+          }),
+        buildView: (systemPrompt) =>
+          buildTapeResumeView({
+            sessionId,
+            assistantMessageId: messageId,
+            systemPrompt,
+            contextLength: contextBudgetLength,
+            reserveTokens: maxTokens,
+            messageStore: this.messageStore,
+            supportsVision: this.supportsVision(state.providerId, state.modelId),
+            historyRecords: preparedInput.history,
+            options: {
+              summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+              fallbackProtectedTurnCount: 1,
+              supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
+              extraReserveTokens: toolReserveTokens,
+              preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+              preserveEmptyInterleavedReasoning:
+                interleavedReasoning.preserveEmptyReasoningContent === true
+            }
+          }),
+        assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
+      })
+      const resumeContextBuild = preparedContext.view
       let resumeContext = resumeContextBuild.messages
       if (budgetToolCall?.id && budgetToolCall.name && useContextBudget) {
         const resumeBudget = this.fitResumeBudgetForToolCall({
@@ -7470,40 +7285,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           typeof block.extra?.answerText !== 'string'
       )
     })
-  }
-
-  private async resolveCompactionStateForResumeTurn(
-    params: {
-      sessionId: string
-      messageId: string
-      providerId: string
-      modelId: string
-      systemPrompt: string
-      contextLength: number
-      reserveTokens: number
-      extraReserveTokens?: number
-      supportsVision: boolean
-      supportsAudioInput: boolean
-      preserveInterleavedReasoning: boolean
-      preserveEmptyInterleavedReasoning?: boolean
-      historyRecords?: ChatMessageRecord[]
-      compactionMessageOrderSeq?: number
-      signal?: AbortSignal
-    },
-    expectedInstance = this.getDeepChatInstance(params.sessionId)
-  ): Promise<SessionSummaryState> {
-    const intent = await this.compactionService.prepareForResumeTurn(params)
-    this.throwIfStaleDeepChatInstance(params.sessionId, expectedInstance)
-    return await this.applyCompactionIntent(
-      params.sessionId,
-      intent,
-      {
-        compactionMessageOrderSeq: params.compactionMessageOrderSeq,
-        shiftMessagesFromCompactionOrderSeq: params.compactionMessageOrderSeq !== undefined,
-        signal: params.signal
-      },
-      expectedInstance
-    )
   }
 
   private async applyCompactionIntent(

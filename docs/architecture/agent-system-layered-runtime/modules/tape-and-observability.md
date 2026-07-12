@@ -6,7 +6,10 @@
 > `afterRoundPersisted` callback. The transitional `LegacyToolFactsSnapshotPort` still delegates to
 > `DeepChatMessageStore.appendAssistantToolFactsSnapshot`; the stable per-fact `TapeRecorder`
 > contract remains unchanged until individual assistant/tool fact writes migrate. No Tape schema,
-> entry kind, provenance field, or per-token write was added.
+> entry kind, provenance field, or per-token write was added. ASLR-054 moved the existing
+> ViewManifest attempt into the typed provider-attempt coordinator: each actual request sequence
+> synchronously attempts its matching manifest before rate admission/provider streaming, and a
+> persistence failure remains fail-open.
 
 ## 1. 模块目的
 
