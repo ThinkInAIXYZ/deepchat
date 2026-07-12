@@ -2,10 +2,11 @@
 
 > 状态：目标设计。一个 active/hydrated DeepChat app session 对应一个实例。
 
-> 实施进度：ASLR-040..042 已接入 lazy runtime/instance shell，并迁入 identity、project、effective
+> 实施进度：ASLR-040..043 已接入 lazy runtime/instance shell，并迁入 identity、project、effective
 > generation settings、status、first-turn readiness、pre-stream abort controller、active generation 与
-> stale-run guard。pending、interaction、skills、compaction 和 Memory orchestration 仍由 legacy runtime
-> 持有；Memory maps、schema、调用位置均未改变。
+> stale-run guard，以及 pending drain/steer merge state。持久 pending rows 与队列语义已归入
+> `agent/deepchat/pending`；interaction、skills、compaction 和 Memory orchestration 仍由 legacy runtime
+> 持有。Memory maps、schema、调用位置均未改变。
 
 ## 1. 模块目的
 
@@ -69,6 +70,10 @@ window。
 | Tape/message/trace data | stores through ports | 不复制到实例作为事实源 |
 | Memory rows/vector/maintenance | `MemoryPresenter` | instance 不拥有 |
 | Memory chains/epochs/cooldown/access dedupe/cursor orchestration | runtime-scoped `MemoryRuntimeCoordinator` | instance 只保留 session handle |
+
+pending input 的事实源仍是现有 SQLite rows。`agent/deepchat/pending` 中的 store/coordinator 负责持久化、
+claim/order/recovery 与通知；instance 只持有 drain single-flight 和 rapid-steer merge id，避免把 rows
+复制成第二份内存状态。
 
 ## 5. Hydration 与缓存
 
@@ -175,15 +180,17 @@ job 或旧 async callback 回写新 lineage。
 
 1. 列出并测试 singleton 中全部 session-keyed maps 的创建/读取/清理点。
 2. 引入 instance shell，但最初委托旧 runtime 方法。（ASLR-040 已完成）
-3. 先迁移 identity/config/status 等纯 session state。（ASLR-041 已完成；pending 属于 ASLR-043）
+3. 先迁移 identity/config/status 等纯 session state。（ASLR-041 已完成）
 4. 保留 pre-stream abort 与 active-generation 的当前注册边界，将两者迁入 instance。（ASLR-042
    已完成；全局 run-id sequence 暂留 compatibility runtime，`LoopRun` 与 request/round/overflow state
    属于 ASLR-050）
-5. 把 permission/question/post-call/skill-draft continuation 收敛为 instance ordered interaction state，
+5. 迁移 pending drain/steer merge state，并将持久 queue store/coordinator 归入 DeepChat pending
+   模块。（ASLR-043 已完成）
+6. 把 permission/question/post-call/skill-draft continuation 收敛为 instance ordered interaction state，
    保留 fresh-run resume。
-6. 让 route/runtime cache 只通过 instance 操作 session。
-7. 对每个旧 Map 做“无读写引用”检查后逐个删除。
-8. 最后把 loop orchestration 迁入 `LoopEngine`；Memory 接线在其他状态稳定后迁移。
+7. 让 route/runtime cache 只通过 instance 操作 session。
+8. 对每个旧 Map 做“无读写引用”检查后逐个删除。
+9. 最后把 loop orchestration 迁入 `LoopEngine`；Memory 接线在其他状态稳定后迁移。
 
 ## 11. 验证
 

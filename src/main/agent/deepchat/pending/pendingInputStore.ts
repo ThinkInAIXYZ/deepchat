@@ -4,8 +4,8 @@ import type {
   PendingSessionInputState,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type { SQLitePresenter } from '../sqlitePresenter'
-import type { DeepChatPendingInputRow } from '../sqlitePresenter/tables/deepchatPendingInputs'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { DeepChatPendingInputRow } from '@/presenter/sqlitePresenter/tables/deepchatPendingInputs'
 
 type InlineItem = NonNullable<SendMessageInput['inlineItems']>[number]
 

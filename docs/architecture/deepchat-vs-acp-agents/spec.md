@@ -27,7 +27,7 @@ Main files:
 - `src/main/presenter/agentRuntimePresenter/process.ts`
 - `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 - `src/main/presenter/agentRuntimePresenter/messageStore.ts`
-- `src/main/presenter/agentRuntimePresenter/pendingInputCoordinator.ts`
+- `src/main/agent/deepchat/pending/pendingInputCoordinator.ts`
 
 Flow:
 

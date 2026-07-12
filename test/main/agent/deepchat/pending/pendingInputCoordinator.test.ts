@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PendingInputCoordinator } from '@/presenter/agentRuntimePresenter/pendingInputCoordinator'
+import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 
 vi.mock('@/eventbus', () => ({

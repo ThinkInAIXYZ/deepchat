@@ -86,8 +86,6 @@ agentRuntimePresenter/
 ├── contextBuilder.ts
 ├── sessionStore.ts
 ├── messageStore.ts
-├── pendingInputStore.ts
-├── pendingInputCoordinator.ts
 ├── compactionService.ts
 ├── echo.ts
 └── toolOutputGuard.ts
@@ -112,7 +110,7 @@ agentRuntimePresenter/
 | Context build | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
 | Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化、分页读取、结构化内容重组与故障恢复 |
 | Compaction | `src/main/presenter/agentRuntimePresenter/compactionService.ts` | 手动/自动上下文压缩与压缩状态消息 |
-| Pending input | `src/main/presenter/agentRuntimePresenter/pendingInputStore.ts` | queued input、steer、重排与恢复 |
+| Pending input | `src/main/agent/deepchat/pending/` | queued input、steer、重排与恢复 |
 
 ## 持久化热路径
 

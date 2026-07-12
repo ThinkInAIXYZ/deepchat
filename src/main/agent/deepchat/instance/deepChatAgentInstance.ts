@@ -31,6 +31,8 @@ export class DeepChatAgentInstance {
   private readonly firstTurnReadyWaiters = new Set<(ready: boolean) => void>()
   private abortController?: AbortController
   private activeGeneration?: DeepChatActiveGeneration
+  private activeSteerPendingInputId?: string
+  private pendingQueueDraining = false
 
   constructor(
     readonly sessionId: AppSessionId,
@@ -178,6 +180,37 @@ export class DeepChatAgentInstance {
     this.activeGeneration = undefined
   }
 
+  getActiveSteerPendingInputId(): string | undefined {
+    return this.activeSteerPendingInputId
+  }
+
+  setActiveSteerPendingInputId(itemId: string): void {
+    this.activeSteerPendingInputId = itemId
+  }
+
+  clearActiveSteerPendingInputId(expectedItemId?: string): boolean {
+    if (
+      !this.activeSteerPendingInputId ||
+      (expectedItemId && this.activeSteerPendingInputId !== expectedItemId)
+    ) {
+      return false
+    }
+    this.activeSteerPendingInputId = undefined
+    return true
+  }
+
+  isPendingQueueDraining(): boolean {
+    return this.pendingQueueDraining
+  }
+
+  markPendingQueueDrainStarted(): void {
+    this.pendingQueueDraining = true
+  }
+
+  markPendingQueueDrainFinished(): void {
+    this.pendingQueueDraining = false
+  }
+
   clearOwnedState(): void {
     this.abortAndClearGeneration()
     this.runtimeState = undefined
@@ -185,6 +218,8 @@ export class DeepChatAgentInstance {
     this.agentId = undefined
     this.projectDir = undefined
     this.clearFirstTurnReady()
+    this.activeSteerPendingInputId = undefined
+    this.pendingQueueDraining = false
   }
 
   async send(input: AgentSessionSendInput): Promise<MessageStartResult> {

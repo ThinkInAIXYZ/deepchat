@@ -78,7 +78,7 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 | 主循环 | `src/main/presenter/agentRuntimePresenter/process.ts` | stream + tool loop |
 | 工具调度 | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | tool call / paused interaction |
 | 流式 echo | `src/main/presenter/agentRuntimePresenter/echo.ts` | typed `chat.stream.*` 事件与增量回显 |
-| runtime store | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` / `messageStore.ts` / `pendingInputStore.ts` | session/message/pending input persistence |
+| runtime store | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` / `messageStore.ts`; `src/main/agent/deepchat/pending/pendingInputStore.ts` | session/message/pending input persistence |
 
 ### Tool system / provider internals
 

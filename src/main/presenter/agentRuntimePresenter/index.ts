@@ -139,8 +139,8 @@ import {
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
 } from './tapeViewManifest'
-import { PendingInputCoordinator } from './pendingInputCoordinator'
-import { DeepChatPendingInputStore } from './pendingInputStore'
+import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
+import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInputStore'
 import { processStream } from './process'
 import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
@@ -634,7 +634,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly pendingInputStore: DeepChatPendingInputStore
   private readonly pendingInputCoordinator: PendingInputCoordinator
   private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
-  private readonly activeSteerPendingInputIds: Map<string, string> = new Map()
   readonly deepChatRuntime: DeepChatAgentRuntime
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
   private readonly toolProfileCache: Map<string, ToolProfileCacheEntry> = new Map()
@@ -642,7 +641,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
-  private readonly drainingPendingQueues: Set<string> = new Set()
   private readonly activeProviderPermissions: Map<string, ActiveProviderPermission> = new Map()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
@@ -954,7 +952,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.getHydratedDeepChatInstance(sessionId)?.abortAndClearGeneration()
     this.abortDeferredToolAbortControllers(sessionId)
     this.clearFirstTurnReady(sessionId)
-    this.activeSteerPendingInputIds.delete(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
 
     this.pendingInputCoordinator.deleteBySession(sessionId)
@@ -967,7 +964,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.runtimeActivatedSkillsBySession.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
     this.memoryIngestionProjectionRetryAfter.delete(sessionId)
-    this.drainingPendingQueues.delete(sessionId)
     this.clearMemoryInjectionAccessForSession(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
   }
@@ -1110,7 +1106,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (!this.canStartPendingQueueDrain(sessionId, state.status, 'enqueue')) {
-      if (this.drainingPendingQueues.has(sessionId) || state.status === 'generating') {
+      if (instance?.isPendingQueueDraining() || state.status === 'generating') {
         this.queueVisibleSteerInput(sessionId, normalizedInput)
         return
       }
@@ -1124,15 +1120,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const latestState = await this.getSessionState(sessionId)
-    if (this.drainingPendingQueues.has(sessionId) || latestState?.status === 'generating') {
+    if (instance?.isPendingQueueDraining() || latestState?.status === 'generating') {
       return
     }
 
     try {
       this.pendingInputCoordinator.deletePendingInput(sessionId, record.id)
-      if (this.activeSteerPendingInputIds.get(sessionId) === record.id) {
-        this.activeSteerPendingInputIds.delete(sessionId)
-      }
+      instance?.clearActiveSteerPendingInputId(record.id)
     } catch (deleteError) {
       console.error('[AgentRuntime] Failed to delete unstarted steer input:', deleteError)
     }
@@ -4369,6 +4363,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state || !this.canStartPendingQueueDrain(sessionId, state.status, reason)) {
       return false
     }
+    const instance = this.getHydratedDeepChatInstance(sessionId)
+    if (!instance) {
+      return false
+    }
 
     const nextSteerInput = this.pendingInputCoordinator.getNextSteerInput(sessionId)
     const nextQueuedInput = nextSteerInput
@@ -4382,20 +4380,20 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const pendingInputSource: ProcessPendingInputSource = nextSteerInput ? 'steer' : 'queue'
     let claimedInput: PendingSessionInputRecord
 
-    this.drainingPendingQueues.add(sessionId)
+    instance.markPendingQueueDrainStarted()
     try {
       claimedInput =
         pendingInputSource === 'steer'
           ? this.pendingInputCoordinator.claimSteerInput(sessionId, nextPendingInput.id)
           : this.pendingInputCoordinator.claimQueuedInput(sessionId, nextPendingInput.id)
     } catch (error) {
-      this.drainingPendingQueues.delete(sessionId)
+      instance.markPendingQueueDrainFinished()
       console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
       return false
     }
 
     if (pendingInputSource === 'steer') {
-      this.activeSteerPendingInputIds.delete(sessionId)
+      instance.clearActiveSteerPendingInputId()
     }
 
     void this.processMessage(sessionId, claimedInput.payload, {
@@ -4407,7 +4405,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
       })
       .finally(async () => {
-        this.drainingPendingQueues.delete(sessionId)
+        instance.markPendingQueueDrainFinished()
         try {
           if (
             this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
@@ -4448,7 +4446,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (this.hasPendingInteractions(sessionId)) {
       return false
     }
-    if (this.drainingPendingQueues.has(sessionId)) {
+    if (this.getHydratedDeepChatInstance(sessionId)?.isPendingQueueDraining()) {
       return false
     }
     return true
@@ -6116,20 +6114,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     input: SendMessageInput
   ): PendingSessionInputRecord {
-    const mergeItemId = this.activeSteerPendingInputIds.get(sessionId) ?? null
+    const instance = this.getDeepChatInstance(sessionId)
+    const mergeItemId = instance.getActiveSteerPendingInputId() ?? null
     try {
       const record = this.pendingInputCoordinator.queueSteerInput(sessionId, input, {
         mergeItemId
       })
-      this.activeSteerPendingInputIds.set(sessionId, record.id)
+      instance.setActiveSteerPendingInputId(record.id)
       return record
     } catch (error) {
       if (!mergeItemId) {
         throw error
       }
-      this.activeSteerPendingInputIds.delete(sessionId)
+      instance.clearActiveSteerPendingInputId()
       const record = this.pendingInputCoordinator.queueSteerInput(sessionId, input)
-      this.activeSteerPendingInputIds.set(sessionId, record.id)
+      instance.setActiveSteerPendingInputId(record.id)
       return record
     }
   }

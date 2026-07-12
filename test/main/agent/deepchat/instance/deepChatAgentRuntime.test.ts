@@ -153,4 +153,37 @@ describe('DeepChatAgentRuntime', () => {
     expect(first.getActiveGeneration()).toBeUndefined()
     expect(first.getAbortController()).toBeUndefined()
   })
+
+  it('isolates pending drain and steer merge state by instance', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const first = runtime.getOrHydrate(toAppSessionId('first'))
+    const second = runtime.getOrHydrate(toAppSessionId('second'))
+
+    first.setActiveSteerPendingInputId('steer-1')
+    first.markPendingQueueDrainStarted()
+
+    expect(first.getActiveSteerPendingInputId()).toBe('steer-1')
+    expect(first.isPendingQueueDraining()).toBe(true)
+    expect(second.getActiveSteerPendingInputId()).toBeUndefined()
+    expect(second.isPendingQueueDraining()).toBe(false)
+    expect(first.clearActiveSteerPendingInputId('stale-steer')).toBe(false)
+    expect(first.clearActiveSteerPendingInputId('steer-1')).toBe(true)
+
+    first.clearOwnedState()
+    expect(first.isPendingQueueDraining()).toBe(false)
+  })
+
+  it('does not let a stale drain completion clear a rehydrated instance', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const sessionId = toAppSessionId('session')
+    const staleInstance = runtime.getOrHydrate(sessionId)
+    staleInstance.markPendingQueueDrainStarted()
+
+    runtime.evict(sessionId)
+    const currentInstance = runtime.getOrHydrate(sessionId)
+    currentInstance.markPendingQueueDrainStarted()
+    staleInstance.markPendingQueueDrainFinished()
+
+    expect(currentInstance.isPendingQueueDraining()).toBe(true)
+  })
 })
