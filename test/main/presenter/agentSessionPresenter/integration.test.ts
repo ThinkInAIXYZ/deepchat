@@ -864,7 +864,10 @@ describe('Integration: ACP hooks bridge', () => {
         transcript: deepchatAgent,
         transcriptMutation: deepchatAgent,
         tape: deepchatAgent
-      }
+      },
+      undefined,
+      undefined,
+      { acpAsLlmProviderSessionControl: llmProvider }
     )
   })
 

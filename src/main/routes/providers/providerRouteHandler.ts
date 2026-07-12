@@ -1,4 +1,5 @@
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
 import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
@@ -29,6 +30,7 @@ export async function dispatchProviderRoute(
   deps: {
     configPresenter: IConfigPresenter
     llmProviderPresenter: ILlmProviderPresenter
+    acpProviderAdminPort: AcpProviderAdminPort
     providerImportService: ProviderImportService
   },
   routeName: string,
@@ -37,7 +39,8 @@ export async function dispatchProviderRoute(
     webContentsId: number
   }
 ): Promise<unknown> {
-  const { configPresenter, llmProviderPresenter, providerImportService } = deps
+  const { configPresenter, llmProviderPresenter, acpProviderAdminPort, providerImportService } =
+    deps
   const toProviderSummary = (provider: ReturnType<typeof configPresenter.getProviders>[number]) => {
     const {
       models: _models,
@@ -154,7 +157,7 @@ export async function dispatchProviderRoute(
     case providersRunAcpDebugActionRoute.name: {
       const input = providersRunAcpDebugActionRoute.input.parse(rawInput)
       return providersRunAcpDebugActionRoute.output.parse({
-        result: await llmProviderPresenter.runAcpDebugAction({
+        result: await acpProviderAdminPort.runAcpDebugAction({
           ...input,
           webContentsId: context?.webContentsId
         })
@@ -195,7 +198,7 @@ export async function dispatchProviderRoute(
 
     case providersWarmupAcpProcessRoute.name: {
       const input = providersWarmupAcpProcessRoute.input.parse(rawInput)
-      await llmProviderPresenter.warmupAcpProcess(input.agentId, input.workdir)
+      await acpProviderAdminPort.warmupAcpProcess(input.agentId, input.workdir)
       return providersWarmupAcpProcessRoute.output.parse({
         warmedUp: true
       })
@@ -204,7 +207,7 @@ export async function dispatchProviderRoute(
     case providersGetAcpProcessConfigOptionsRoute.name: {
       const input = providersGetAcpProcessConfigOptionsRoute.input.parse(rawInput)
       return providersGetAcpProcessConfigOptionsRoute.output.parse({
-        state: await llmProviderPresenter.getAcpProcessConfigOptions(input.agentId, input.workdir)
+        state: await acpProviderAdminPort.getAcpProcessConfigOptions(input.agentId, input.workdir)
       })
     }
 

@@ -47,6 +47,10 @@ const ACP_INSTANCE_FIXTURE = path.join(
   ROOT,
   'src/main/agent/acp/instance/__architecture_guard_fixture__.ts'
 )
+const RETIRED_ACP_BACKEND_FIXTURE = path.join(
+  ROOT,
+  'src/main/agent/__architecture_guard_retired_acp_backend_fixture__.ts'
+)
 
 const virtualFiles = new Map<string, string>([
   [
@@ -201,6 +205,18 @@ const virtualFiles = new Map<string, string>([
       import type { SQLitePresenter } from '../../../presenter/sqlitePresenter'
       export type Fixture = LoopRun<unknown> | MemoryPresenter | Presenter | SQLitePresenter
     `
+  ],
+  [
+    RETIRED_ACP_BACKEND_FIXTURE,
+    `
+      import type { LegacyAcpSessionBackend } from './manager/legacyAgentBackends'
+      import { createLegacyAgentBackend } from './manager/legacyAgentBackends'
+      const compatibilityImplementation = {}
+      export const fixture: LegacyAcpSessionBackend = createLegacyAgentBackend(
+        'acp',
+        compatibilityImplementation as never
+      )
+    `
   ]
 ])
 
@@ -280,6 +296,12 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[acp-direct-instance-memory]')
     expect(fixtureViolations).toContain('[acp-direct-instance-presenter-root]')
     expect(fixtureViolations).toContain('[acp-direct-instance-sqlite]')
+  })
+
+  it('keeps retired legacy ACP backend symbols and factories out of main source', () => {
+    expect(forFile(violations, RETIRED_ACP_BACKEND_FIXTURE).join('\n')).toContain(
+      '[acp-retired-legacy-backend]'
+    )
   })
 
   it('restricts composites by resolved symbol and file-specific allowlists', () => {

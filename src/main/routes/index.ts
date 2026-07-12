@@ -431,6 +431,7 @@ import type { AgentMemoryAuditRow } from '@/presenter/memoryPresenter/domain/aud
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { CronJobsService } from '@/presenter/cronJobs'
+import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
@@ -440,6 +441,7 @@ const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STA
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
+  acpProviderAdminPort: AcpProviderAdminPort
   agentSessionPresenter: IAgentSessionPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
@@ -717,6 +719,7 @@ function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, m
 export function createMainKernelRouteRuntime(deps: {
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
+  acpProviderAdminPort: AcpProviderAdminPort
   agentSessionPresenter: IAgentSessionPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
@@ -854,6 +857,7 @@ export function createMainKernelRouteRuntime(deps: {
   return {
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter,
+    acpProviderAdminPort: deps.acpProviderAdminPort,
     agentSessionPresenter: deps.agentSessionPresenter,
     skillPresenter: deps.skillPresenter,
     skillSyncPresenter: deps.skillSyncPresenter,
@@ -1535,6 +1539,7 @@ export async function dispatchDeepchatRoute(
       {
         configPresenter: runtime.configPresenter,
         llmProviderPresenter: runtime.llmProviderPresenter,
+        acpProviderAdminPort: runtime.acpProviderAdminPort,
         providerImportService: runtime.providerImportService
       },
       routeName,

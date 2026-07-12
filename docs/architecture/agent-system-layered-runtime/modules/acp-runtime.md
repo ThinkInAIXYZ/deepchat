@@ -1,8 +1,8 @@
 # ACP 独立 Runtime
 
-> 状态：已实施到 `ASLR-072`。production router 已仅将 `kind=acp` 选择到 typed direct runtime；
-> DeepChat 选择 ACP provider 的兼容路径仍保留。generic provider contract retirement 属于
-> `ASLR-073`。
+> 状态：已实施到 `ASLR-073`。production router 仅将 `kind=acp` 选择到 typed direct runtime；
+> DeepChat 选择 ACP provider 的兼容路径仍保留，并通过显式 session-control、permission 和 admin ports
+> 使用 ACP-only 能力，不再扩张 generic LLM provider contract。
 
 ## 1. 模块目的
 
@@ -217,7 +217,9 @@ ports，不被塞回公共 handle 或 `AgentManager`。
 - ACP -> DeepChat 在 target validation、target context、app-session ownership update 和 state rebuild 成功后
   才关闭旧 direct runtime；ACP target 在任何 mutation 前拒绝；
 - `kind=deepchat + providerId=acp` 的 workdir、commands/config、permission、clear 和 prompt/resource branches
-  继续使用 compatibility provider，留待 `ASLR-073` 只做合同收窄。
+  继续使用 compatibility provider；`ASLR-073` 已将前述 session operations 迁到显式
+  `AcpAsLlmProviderSessionControlPort` / `AcpAsLlmProviderPermissionPort`，admin routes 使用独立
+  `AcpProviderAdminPort`。generic `ILlmProviderPresenter` 只保留普通 provider 能力。
 
 ## 6. MCP 与 tools
 
@@ -306,8 +308,10 @@ base trace emitter / direct trace adapter 捕获 persistence error 后 warning �
    分别锁定 regular/subagent prompt差异、现有 message/Tape/event projection 和 trace-before-prompt
    parity。
 6. 让 `AgentManager` 仅对 `kind=acp` session 直接调用 `AcpAgentRuntime`。（`ASLR-072` 已完成）
-7. 在 compatibility adapter 中继续生成旧 route/event DTO。
-8. 从 DeepChat runtime 删除 ACP-agent-session state/permission branches，但保留 generic ProviderPort 到
+7. 从 generic provider contract 迁出 ACP-only session/permission/admin operations，并删除不可达的 legacy
+   ACP backend glue。（`ASLR-073` 已完成）
+8. 在 compatibility adapter 中继续生成旧 route/event DTO。
+9. 从 DeepChat runtime 删除 ACP-agent-session state/permission branches，但保留 generic ProviderPort 到
    `AcpAsLlmProviderAdapter` 的 DeepChat + ACP-provider 路径。
 
 任何阶段都不能同时改变 ACP protocol SDK 版本、process policy 或 UI schema。

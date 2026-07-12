@@ -7,12 +7,12 @@ import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionRecord } from '@shared/types/agent-interface'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { DirectAcpSessionBackend } from './directAcpAgentBackend'
-import type { LegacyAcpSessionBackend, LegacyDeepChatSessionBackend } from './legacyAgentBackends'
+import type { LegacyDeepChatSessionBackend } from './legacyAgentBackends'
 import type {
-  AcpSessionHandle,
   AgentActiveGeneration,
   AgentSubagentFacet,
   AgentTransferSourceFacet,
+  DirectAcpSessionHandle,
   DeepChatSessionHandle,
   DeepChatTransferTargetFacet
 } from './sessionHandles'
@@ -51,11 +51,9 @@ export class AgentCapabilityUnavailableError extends Error {
   }
 }
 
-export type AcpSessionBackend = LegacyAcpSessionBackend | DirectAcpSessionBackend
-
 export interface AgentBackendSet {
   readonly deepchat: LegacyDeepChatSessionBackend
-  readonly acp: AcpSessionBackend
+  readonly acp: DirectAcpSessionBackend
 }
 
 export type ResolvedAgentBackend =
@@ -64,15 +62,15 @@ export type ResolvedAgentBackend =
       descriptor: DeepChatAgentDescriptor
       backend: LegacyDeepChatSessionBackend
     }
-  | { kind: 'acp'; descriptor: AcpAgentDescriptor; backend: AcpSessionBackend }
+  | { kind: 'acp'; descriptor: AcpAgentDescriptor; backend: DirectAcpSessionBackend }
 
 export type ResolvedAgentSession =
   | { kind: 'deepchat'; descriptor: DeepChatAgentDescriptor; handle: DeepChatSessionHandle }
-  | { kind: 'acp'; descriptor: AcpAgentDescriptor; handle: AcpSessionHandle }
+  | { kind: 'acp'; descriptor: AcpAgentDescriptor; handle: DirectAcpSessionHandle }
 
 export interface ResolvedTransferSource {
   descriptor: AgentDescriptor
-  handle: DeepChatSessionHandle | AcpSessionHandle
+  handle: DeepChatSessionHandle | DirectAcpSessionHandle
   facet: AgentTransferSourceFacet
   closeRuntime?: () => Promise<void>
 }
@@ -115,10 +113,7 @@ export class AgentManager implements AgentManagerGenerationPort {
         handle: resolved.backend.open(sessionId)
       }
     }
-    const handle =
-      resolved.backend.runtimeKind === 'direct'
-        ? resolved.backend.open(sessionId, resolved.descriptor)
-        : resolved.backend.open(sessionId)
+    const handle = resolved.backend.open(sessionId, resolved.descriptor)
     return { kind: resolved.kind, descriptor: resolved.descriptor, handle }
   }
 

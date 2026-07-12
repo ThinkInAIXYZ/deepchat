@@ -254,7 +254,7 @@ architecture guard.
 | tool catalog order/collision/policy/cache/revision, exact execution options/order, normalization/output fitting and abort | existing ToolPresenter, process, dispatch and output-guard suites | typed adapter contracts plus real ToolPresenter collision boundary in `ASLR-055` / Phase 6 |
 | pre-check permission, question, skill draft, multiple ordered interactions and fresh-run resume | existing dispatch/runtime interaction suites plus ASLR-056 four-origin order/execution-state and explicit execute-count fixtures | typed batch outcome, post-call no-replay and final-item-only resume completed in `ASLR-056` / Phase 6 |
 | external hook payload/order, snapshot isolation and non-blocking failure policy | existing hooks/runtime suites plus ASLR-057 observer order, snapshot, sync-throw, rejected/never-settling contracts | typed notification observer separated from control collaborators and internal diagnostics in `ASLR-057` / Phase 6 |
-| ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; Phase 0 had no direct backend | direct instance/composition parity completed in `ASLR-070..071`; route/title/subagent-retry/pending/remote/cron/no-fallback switch completed in `ASLR-072` / Phase 7 |
+| ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; Phase 0 had no direct backend | direct instance/composition parity completed in `ASLR-070..071`; route/title/subagent-retry/pending/remote/cron/no-fallback switch completed in `ASLR-072`; generic provider contract and legacy ACP backend retirement completed in `ASLR-073` / Phase 7 |
 | Tape facts, effective view, manifest, replay/privacy | existing Tape fact/view/replay suites | recorder/output causal order in `ASLR-052`, observation non-interference in `ASLR-080..081` |
 | Memory injection, extraction, cursor, lineage, fencing and current trigger asymmetries | existing Memory and runtime integration suites plus the authoritative `MEM-01..14` matrices below | complete `MEM-13` returned/thrown turn matrix and `MEM-14` compaction return/throw matrix over `MemoryPromptContributor` / `MemoryIngestionObserver` in `ASLR-060..061` / Phase 9 |
 | route/event/schema and composition/shutdown facts | compact machine-readable architecture baseline | per-slice integration gates and final architecture guard/baseline in `ASLR-091..092` |
@@ -325,6 +325,15 @@ republication, and stale expected-handle cleanup preserves the replacement bound
   disabled registry rows and descriptor-valid/current-config-missing rows, with zero input resolution/process
   launch/DeepChat message processing; malformed child recursion, normal DeepChat/direct deletion, durable ACP
   metadata cleanup and runtime-error ordering are also locked by fixtures.
+
+`ASLR-073` contract proof additionally covers:
+
+- compile-time absence of migrated ACP runtime methods from `ILlmProviderPresenter` and explicit ownership by
+  session-control, permission and admin ports;
+- zero compatibility-provider session-control calls for direct `kind=acp` routes;
+- positive DeepChat + ACP-provider workdir, config/commands, permission and clear paths;
+- provider admin warmup/process-config/debug routes through their explicit port;
+- architecture rejection of retired legacy ACP backend symbols and factory overloads.
 
 ### Tape
 

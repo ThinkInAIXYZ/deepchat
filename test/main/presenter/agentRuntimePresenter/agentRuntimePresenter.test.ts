@@ -736,7 +736,10 @@ describe('AgentRuntimePresenter', () => {
       new NewSessionHooksBridge(hookDispatcher),
       {
         skillPresenter,
-        sessionPermissionPort
+        sessionPermissionPort,
+        acpAsLlmProviderPermission: {
+          resolveAgentPermission: llmProvider.resolveAgentPermission
+        }
       }
     )
   })

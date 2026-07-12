@@ -184,7 +184,12 @@ import type {
 import type { NewSessionHookNotificationObserver } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
-import type { ProviderCatalogPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
+import type {
+  AcpAsLlmProviderPermissionPort,
+  ProviderCatalogPort,
+  SessionPermissionPort,
+  SessionUiPort
+} from '../runtimePorts'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import {
@@ -654,6 +659,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     'getProviderModels' | 'getCustomModels'
   >
   private readonly sessionPermissionPort?: SessionPermissionPort
+  private readonly acpAsLlmProviderPermission?: AcpAsLlmProviderPermissionPort
   private readonly sessionUiPort?: SessionUiPort
   private readonly memoryPort?: MemoryRuntimePort
   private readonly memoryExtractionChains = new Map<string, Promise<void>>()
@@ -701,6 +707,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     runtimePorts?: {
       providerCatalogPort?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
       sessionPermissionPort?: SessionPermissionPort
+      acpAsLlmProviderPermission?: AcpAsLlmProviderPermissionPort
       sessionUiPort?: SessionUiPort
       memoryPort?: MemoryRuntimePort
       cacheImage?: (data: string) => Promise<string>
@@ -762,6 +769,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
     }
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
+    this.acpAsLlmProviderPermission = runtimePorts?.acpAsLlmProviderPermission
     this.sessionUiPort = runtimePorts?.sessionUiPort
     this.memoryPort = runtimePorts?.memoryPort
     this.cacheImage = runtimePorts?.cacheImage
@@ -1006,6 +1014,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     throw new Error('Session permission port is not available.')
   }
 
+  private requireAcpAsLlmProviderPermission(): AcpAsLlmProviderPermissionPort {
+    if (this.acpAsLlmProviderPermission) {
+      return this.acpAsLlmProviderPermission
+    }
+    throw new Error('ACP-as-LLM provider permission control is not available.')
+  }
+
   private getDeepChatInstance(sessionId: string): DeepChatAgentInstance {
     return this.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId))
   }
@@ -1060,7 +1075,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private createDeepChatInstanceDelegate(sessionId: string): DeepChatAgentInstanceDelegate {
     return {
-      compatibilityImplementation: this,
       send: async (input) => {
         if (input.queue) {
           await this.queuePendingInput(sessionId, input.content, input.queue)
@@ -6624,7 +6638,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       providerId,
       permissionType: permission.permissionType,
       resolve: async (granted: boolean) => {
-        await this.llmProviderPresenter.resolveAgentPermission(requestId, granted)
+        await this.requireAcpAsLlmProviderPermission().resolveAgentPermission(requestId, granted)
         commitDecision(granted)
       }
     })
@@ -6641,7 +6655,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       resolution = await this.resolveProviderPermissionSafely(
         active
           ? () => active.resolve(input.granted)
-          : () => this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
+          : () =>
+              this.requireAcpAsLlmProviderPermission().resolveAgentPermission(
+                input.requestId,
+                input.granted
+              )
       )
     } finally {
       instance?.clearActiveProviderPermission(input.requestId, active)

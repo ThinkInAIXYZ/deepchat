@@ -259,14 +259,15 @@ Rollback: each collaborator adapter delegates to the legacy method until its sli
 Objective: stop routing `kind=acp` sessions through DeepChat LoopEngine without removing the DeepChat +
 ACP-provider compatibility path.
 
-Progress after `ASLR-072`: production composition now selects the typed direct backend only for `kind=acp`.
+Progress after `ASLR-073`: production composition selects the typed direct backend only for `kind=acp`.
 `kind=deepchat + providerId=acp` remains on the DeepChat LoopEngine and ACP-provider compatibility adapter, so
 the switch has no dual-run window. `AgentManager` stays a small descriptor/session router; common lifecycle,
 pending input, settings, interaction and generation behavior lives on discriminated handles, while session
 state, transcript mutation and Tape access remain separate shared data ports injected into the façade/backend.
 Title projection, ACP-backed subagent initialization retry, app/remote/cron dispatch, transfer commit and
-permission-by-request-id are covered at their route boundaries. `ASLR-073` remains responsible for generic
-provider-contract retirement. No Memory behavior is changed here.
+permission-by-request-id are covered at their route boundaries. Compatibility-only ACP session control,
+permission and admin operations now use explicit ports instead of the generic LLM provider contract. No Memory
+behavior is changed here.
 
 Deliverables:
 
@@ -332,6 +333,19 @@ Delivered by `ASLR-072` at the atomic routing switch:
 - route fixtures cover app pending/steer, remote active-generation cancel, Cron send, no-fallback composition and
   direct-before-shared-owner shutdown ordering.
 
+Delivered by `ASLR-073` after the routing switch:
+
+- `ILlmProviderPresenter` and the core presenter contract no longer expose ACP workdir, prepare, mode,
+  config, command, permission, debug or cleanup methods;
+- DeepChat descriptors selecting `providerId=acp` reach compatibility session control and permission through
+  explicit ACP-provider ports, while provider admin routes use a separate admin port;
+- the direct `kind=acp` route has zero compatibility-provider session-control calls, while workdir,
+  config/commands, permission and clear behavior remain covered on the DeepChat + ACP-provider path;
+- unreachable `SessionPresenter` ACP wrappers, prepare/session-mode provider wrappers, legacy ACP backend
+  overloads/handles and compatibility implementation aliases are removed;
+- architecture and compile-contract guards prevent the retired generic methods and legacy ACP backend symbols
+  from returning. DeepChat legacy backend/`IAgentImplementation` retirement remains assigned to `ASLR-090`.
+
 Exit gate:
 
 - `kind=acp` parity matrix passes without invoking DeepChat LoopEngine;
@@ -339,7 +353,7 @@ Exit gate:
 - no unresolved ACP permission promise on timeout/cancel/close;
 - outer/remote session id mapping and current legacy remote sync behavior remain intact.
 
-Rollback: AgentManager selects `LegacyAcpSessionBackend`; no stored data conversion is needed.
+Rollback: revert the direct routing and explicit-port slices together; no stored data conversion is needed.
 
 ### Phase 8 — Observability convergence over existing stores
 

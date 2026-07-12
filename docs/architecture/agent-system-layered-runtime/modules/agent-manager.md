@@ -1,7 +1,7 @@
 # AgentManager 与顶层控制面
 
-> 状态：已实施到 `ASLR-072`；production `kind=acp` direct switch 已完成，legacy contract retirement
-> 属于 `ASLR-073` / `ASLR-090`。
+> 状态：已实施到 `ASLR-073`；production `kind=acp` direct switch 与 legacy ACP contract retirement
+> 已完成，DeepChat legacy backend/`IAgentImplementation` retirement 属于 `ASLR-090`。
 > 上位合同：[总体设计](../README.md) · [规格](../spec.md) ·
 > [迁移与验证](../migration-and-validation.md)
 
@@ -237,9 +237,10 @@ catalog 的变更通知按 domain 发送：
    已完成）
 7. 按能力组迁移 kind-specific routes，删除 façade 内 optional capability checks。（`ASLR-023..026`、
    `ASLR-072` 已完成）
-8. 两个 backend 均独立后删除 generic provider ACP methods、legacy backend 和
-   `IAgentImplementation`。（待 `ASLR-073` / `ASLR-090`）
-9. façade 全部变成薄 adapter 后，再单独评估命名和目录移动。
+8. 两个 backend 均独立后删除 generic provider ACP methods 和 legacy ACP backend glue。（`ASLR-073`
+   已完成）
+9. 删除 DeepChat legacy backend 和 `IAgentImplementation`。（待 `ASLR-090`）
+10. façade 全部变成薄 adapter 后，再单独评估命名和目录移动。
 
 每一步都必须保持旧 route、event、DTO 和数据库 schema 可用。
 

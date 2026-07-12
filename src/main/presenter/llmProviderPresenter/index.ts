@@ -17,7 +17,6 @@ import {
   ISQLitePresenter,
   AcpConfigState,
   RateLimitQueueSnapshot,
-  AcpWorkdirInfo,
   AcpDebugRequest,
   AcpDebugRunResult
 } from '@shared/presenter'
@@ -33,6 +32,11 @@ import {
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
+import type {
+  AcpAsLlmProviderPermissionPort,
+  AcpAsLlmProviderSessionControlPort,
+  AcpProviderAdminPort
+} from '../runtimePorts'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
@@ -96,7 +100,13 @@ const AUDIO_TRANSCRIPTION_PROMPT = [
   '如果没有可辨识的语音，请返回空字符串。'
 ].join(' ')
 
-export class LLMProviderPresenter implements ILlmProviderPresenter {
+export class LLMProviderPresenter
+  implements
+    ILlmProviderPresenter,
+    AcpAsLlmProviderSessionControlPort,
+    AcpAsLlmProviderPermissionPort,
+    AcpProviderAdminPort
+{
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
   private readonly modelRefreshPromises: Map<string, Promise<void>> = new Map()
@@ -873,13 +883,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.modelScopeSyncManager.syncModelScopeMcpServers(providerId, syncOptions)
   }
 
-  async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
-    const record = await this.acpSessionPersistence.getSessionData(conversationId, agentId)
-    const path = this.acpSessionPersistence.resolveWorkdir(record?.workdir)
-    const isCustom = this.acpSessionPersistence.isWorkdirUsable(record?.workdir)
-    return { path, isCustom }
-  }
-
   async setAcpWorkdir(
     conversationId: string,
     agentId: string,
@@ -921,23 +924,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
   }
 
-  async getAcpProcessModes(
-    agentId: string,
-    workdir?: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  > {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return undefined
-    }
-    return provider.getProcessModes(agentId, workdir)
-  }
-
   async getAcpProcessConfigOptions(
     agentId: string,
     workdir?: string
@@ -947,40 +933,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return null
     }
     return provider.getProcessConfigOptions(agentId, workdir)
-  }
-
-  async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) return
-
-    await provider.setPreferredProcessMode(agentId, workdir, modeId)
-  }
-
-  async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('[ACP] ACP provider not found')
-    }
-    await provider.setSessionMode(conversationId, modeId)
-  }
-
-  async prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('[ACP] ACP provider not found')
-    }
-    await provider.prepareSession(conversationId, agentId, workdir)
-  }
-
-  async getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return null
-    }
-    return await provider.getSessionModes(conversationId)
   }
 
   async getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null> {

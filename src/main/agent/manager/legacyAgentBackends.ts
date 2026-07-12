@@ -8,17 +8,8 @@ import type {
   AgentSubagentFacet,
   AgentTransferSourceFacet,
   DeepChatSessionHandle,
-  DeepChatTransferTargetFacet,
-  LegacyAcpSessionHandle
+  DeepChatTransferTargetFacet
 } from './sessionHandles'
-
-export type LegacyActiveGeneration = AgentActiveGeneration
-export type LegacyTransferSourceFacet = AgentTransferSourceFacet
-export type LegacyDeepChatTransferTargetFacet = DeepChatTransferTargetFacet
-export type LegacyDeepChatSubagentFacet = AgentSubagentFacet
-export type LegacyAcpSubagentFacet = AgentSubagentFacet
-export type LegacyGenerationControlFacet = AgentGenerationControlFacet
-export type LegacyAgentSessionHandle = LegacyAcpSessionHandle
 
 export interface LegacyDeepChatSessionBackend {
   readonly kind: 'deepchat'
@@ -31,24 +22,6 @@ export interface LegacyDeepChatSessionBackend {
   readonly generationControl: AgentGenerationControlFacet
   cleanupSession(sessionId: AppSessionId): Promise<void>
   open(sessionId: AppSessionId): DeepChatSessionHandle
-}
-
-export interface LegacyAcpSessionBackend {
-  readonly kind: 'acp'
-  readonly runtimeKind: 'legacy'
-  readonly implementation: IAgentImplementation
-  readonly transferSource: AgentTransferSourceFacet
-  readonly subagent: AgentSubagentFacet
-  readonly generationControl: AgentGenerationControlFacet
-  cleanupSession(sessionId: AppSessionId): Promise<void>
-  open(sessionId: AppSessionId): LegacyAcpSessionHandle
-}
-
-export type LegacyAgentSessionBackend = LegacyDeepChatSessionBackend | LegacyAcpSessionBackend
-
-export interface LegacyAgentBackendSet {
-  readonly deepchat: LegacyDeepChatSessionBackend
-  readonly acp: LegacyAcpSessionBackend
 }
 
 const deepChatHandles = new WeakMap<
@@ -73,15 +46,10 @@ export function createLegacyAgentBackend(
   deepChatRuntime?: DeepChatAgentRuntime
 ): LegacyDeepChatSessionBackend
 export function createLegacyAgentBackend(
-  kind: 'acp',
-  implementation: IAgentImplementation,
-  deepChatRuntime?: undefined
-): LegacyAcpSessionBackend
-export function createLegacyAgentBackend(
-  kind: 'deepchat' | 'acp',
+  kind: 'deepchat',
   implementation: IAgentImplementation,
   deepChatRuntime?: DeepChatAgentRuntime
-): LegacyAgentSessionBackend {
+): LegacyDeepChatSessionBackend {
   const initSession = requireMethod<IAgentImplementation['initSession']>(
     implementation,
     'initSession'
@@ -188,12 +156,9 @@ export function createLegacyAgentBackend(
     cancelGenerationByEventId: (sessionId, eventId) => cancelGenerationByEventId(sessionId, eventId)
   }
 
-  const createCommonHandle = (
-    sessionId: AppSessionId,
-    handleKind: 'deepchat' | 'acp'
-  ): AgentSessionHandle => ({
+  const createCommonHandle = (sessionId: AppSessionId): AgentSessionHandle => ({
     sessionId,
-    kind: handleKind,
+    kind: 'deepchat',
     runtimeKind: 'legacy',
     lifecycle: {
       initialize: (config) => initSession(sessionId, config),
@@ -247,14 +212,6 @@ export function createLegacyAgentBackend(
     cleanupSession: async (_sessionId: AppSessionId) => undefined
   }
 
-  if (kind === 'acp') {
-    return {
-      ...common,
-      kind,
-      open: (sessionId) => createCommonHandle(sessionId, kind) as LegacyAcpSessionHandle
-    }
-  }
-
   const setSessionAgentContext = requireMethod<
     NonNullable<IAgentImplementation['setSessionAgentContext']>
   >(implementation, 'setSessionAgentContext')
@@ -274,11 +231,7 @@ export function createLegacyAgentBackend(
     'invalidateSessionSystemPromptCache'
   )
   const runtime =
-    deepChatRuntime ??
-    new DeepChatAgentRuntime((sessionId) => ({
-      ...createCommonHandle(sessionId, 'deepchat'),
-      compatibilityImplementation: implementation
-    }))
+    deepChatRuntime ?? new DeepChatAgentRuntime((sessionId) => createCommonHandle(sessionId))
   let handles = deepChatHandles.get(runtime)
   if (!handles) {
     handles = new Map<AppSessionId, DeepChatSessionHandle>()
@@ -288,7 +241,7 @@ export function createLegacyAgentBackend(
     const current = handles.get(sessionId)
     if (current) return current
     const instance = runtime.getOrHydrate(sessionId)
-    const commonHandle = createCommonHandle(sessionId, 'deepchat')
+    const commonHandle = createCommonHandle(sessionId)
     const handle: DeepChatSessionHandle = {
       ...commonHandle,
       kind: 'deepchat',

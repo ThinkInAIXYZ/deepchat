@@ -90,8 +90,10 @@ import { DatabaseSecurityPresenter } from './databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type {
+  AcpAsLlmProviderPermissionPort,
+  AcpAsLlmProviderSessionControlPort,
+  AcpProviderAdminPort,
   ProviderCatalogPort,
-  ProviderSessionPort,
   SessionPermissionPort,
   SessionUiPort
 } from './runtimePorts'
@@ -126,6 +128,7 @@ export class Presenter implements IPresenter {
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
+  acpProviderAdminPort: AcpProviderAdminPort
   configPresenter: IConfigPresenter
 
   exporter: IConversationExporter
@@ -165,6 +168,8 @@ export class Presenter implements IPresenter {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   private sessionMessageManager: MessageManager
   private sessionPresenterInternal?: SessionPresenter
+  private acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
+  private acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   private hasInitialized = false
   #remoteControlPresenter: RemoteControlPresenterLike
 
@@ -199,7 +204,7 @@ export class Presenter implements IPresenter {
       this.startupWorkloadCoordinator
     )
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(
+    const llmProviderPresenter = new LLMProviderPresenter(
       this.configPresenter,
       this.sqlitePresenter,
       {
@@ -207,6 +212,10 @@ export class Presenter implements IPresenter {
         getUvRegistry: () => this.mcpPresenter.getUvRegistry?.() ?? null
       }
     )
+    this.llmproviderPresenter = llmProviderPresenter
+    this.acpProviderAdminPort = llmProviderPresenter
+    this.acpAsLlmProviderSessionControl = llmProviderPresenter
+    this.acpAsLlmProviderPermission = llmProviderPresenter
     const commandPermissionHandler = new CommandPermissionService()
     this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
@@ -560,21 +569,6 @@ export class Presenter implements IPresenter {
         }
       }
     }
-    const providerSessionPort: ProviderSessionPort = {
-      setAcpWorkdir: async (conversationId, agentId, workdir) =>
-        await this.llmproviderPresenter.setAcpWorkdir(conversationId, agentId, workdir),
-      prepareAcpSession: async (conversationId, agentId, workdir) =>
-        await this.llmproviderPresenter.prepareAcpSession(conversationId, agentId, workdir),
-      getAcpSessionConfigOptions: async (conversationId) =>
-        await this.llmproviderPresenter.getAcpSessionConfigOptions(conversationId),
-      setAcpSessionConfigOption: async (conversationId, configId, value) =>
-        await this.llmproviderPresenter.setAcpSessionConfigOption(conversationId, configId, value),
-      getAcpSessionCommands: async (conversationId) =>
-        await this.llmproviderPresenter.getAcpSessionCommands(conversationId),
-      clearAcpSession: async (conversationId) =>
-        await this.llmproviderPresenter.clearAcpSession(conversationId)
-    }
-
     // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
     const memoryDbDir = path.join(dbDir, 'AgentMemory')
     const memoryVectorDbPath = (agentId: string) => path.join(memoryDbDir, `${agentId}.duckdb`)
@@ -659,6 +653,7 @@ export class Presenter implements IPresenter {
       {
         providerCatalogPort,
         sessionPermissionPort,
+        acpAsLlmProviderPermission: this.acpAsLlmProviderPermission,
         sessionUiPort,
         memoryPort: this.memoryPresenter,
         cacheImage: (data) => this.devicePresenter.cacheImage(data),
@@ -727,7 +722,7 @@ export class Presenter implements IPresenter {
       this.skillPresenter,
       undefined,
       {
-        providerSessionPort,
+        acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
         sessionPermissionPort,
         sessionUiPort
       }
@@ -767,7 +762,7 @@ export class Presenter implements IPresenter {
 
   async cleanupConversationRuntimeArtifacts(conversationId: string): Promise<void> {
     try {
-      await this.llmproviderPresenter.clearAcpSession(conversationId)
+      await this.acpAsLlmProviderSessionControl.clearAcpSession(conversationId)
     } catch (error) {
       console.warn('[Presenter] Failed to clear ACP session:', error)
     }
@@ -779,6 +774,7 @@ export class Presenter implements IPresenter {
         messageManager: this.sessionMessageManager,
         sqlitePresenter: this.sqlitePresenter,
         llmProviderPresenter: this.llmproviderPresenter,
+        acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
         configPresenter: this.configPresenter,
         exporter: this.exporter,
         commandPermissionService: this.commandPermissionService
@@ -1120,6 +1116,7 @@ const buildMainKernelRouteRuntime = () =>
   createMainKernelRouteRuntime({
     configPresenter: presenter.configPresenter,
     llmProviderPresenter: presenter.llmproviderPresenter,
+    acpProviderAdminPort: presenter.acpProviderAdminPort,
     agentSessionPresenter: presenter.agentSessionPresenter,
     skillPresenter: presenter.skillPresenter,
     skillSyncPresenter: presenter.skillSyncPresenter,

@@ -40,6 +40,36 @@ const implementation = (name: string) =>
     getMessage: vi.fn().mockResolvedValue(null)
   }) as never
 
+const directBackend = (selected: ReturnType<typeof implementation>) => ({
+  kind: 'acp' as const,
+  runtimeKind: 'direct' as const,
+  runtime: selected,
+  cleanupSession: vi.fn().mockResolvedValue(undefined),
+  open: vi.fn(() => ({
+    kind: 'acp',
+    runtimeKind: 'direct',
+    acp: { closeRuntime: vi.fn().mockResolvedValue(undefined) }
+  })),
+  transferSource: {
+    hasMessages: (sessionId: string) => selected.hasMessages(sessionId),
+    listPendingInputs: (sessionId: string) => selected.listPendingInputs(sessionId)
+  },
+  subagent: {
+    mergeTape: (parentSessionId: string, childSessionId: string, meta?: Record<string, unknown>) =>
+      selected.mergeSubagentTape(parentSessionId, childSessionId, meta),
+    discardTape: (
+      parentSessionId: string,
+      childSessionId: string,
+      meta?: Record<string, unknown>
+    ) => selected.discardSubagentTape(parentSessionId, childSessionId, meta)
+  },
+  generationControl: {
+    getActiveGeneration: (sessionId: string) => selected.getActiveGeneration(sessionId),
+    cancelGenerationByEventId: (sessionId: string, eventId: string) =>
+      selected.cancelGenerationByEventId(sessionId, eventId)
+  }
+})
+
 const descriptor = (kind: 'deepchat' | 'acp'): AgentDescriptor =>
   kind === 'deepchat'
     ? {
@@ -71,12 +101,14 @@ describe('AgentManager', () => {
   it.each(['deepchat', 'acp'] as const)('routes %s descriptors to the explicit backend', (kind) => {
     const deepchat = implementation('deepchat')
     const acp = implementation('acp')
+    const deepchatBackend = createLegacyAgentBackend('deepchat', deepchat)
+    const acpBackend = directBackend(acp)
     const manager = new AgentManager(
       { resolveExecutableDescriptor: vi.fn(() => descriptor(kind)) },
       { get: vi.fn(() => null) },
       {
-        deepchat: createLegacyAgentBackend('deepchat', deepchat),
-        acp: createLegacyAgentBackend('acp', acp)
+        deepchat: deepchatBackend,
+        acp: acpBackend as never
       }
     )
 
@@ -84,7 +116,7 @@ describe('AgentManager', () => {
 
     expect(resolved.descriptor.kind).toBe(kind)
     expect(resolved.backend.kind).toBe(kind)
-    expect(resolved.backend.implementation).toBe(kind === 'deepchat' ? deepchat : acp)
+    expect(resolved.backend).toBe(kind === 'deepchat' ? deepchatBackend : acpBackend)
   })
 
   it.each([
@@ -98,7 +130,7 @@ describe('AgentManager', () => {
       },
       {
         deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
-        acp: createLegacyAgentBackend('acp', implementation('acp'))
+        acp: directBackend(implementation('acp')) as never
       }
     )
 
@@ -115,7 +147,7 @@ describe('AgentManager', () => {
         { get: vi.fn(() => ({ agentId: 'agent', sessionKind: 'regular' }) as never) },
         {
           deepchat: createLegacyAgentBackend('deepchat', deepchat),
-          acp: createLegacyAgentBackend('acp', acp)
+          acp: directBackend(acp) as never
         }
       )
       const sessionId = toAppSessionId('session')
@@ -145,7 +177,7 @@ describe('AgentManager', () => {
             'deepchat',
             kind === 'deepchat' ? selected : implementation('deepchat')
           ),
-          acp: createLegacyAgentBackend('acp', kind === 'acp' ? selected : implementation('acp'))
+          acp: directBackend(kind === 'acp' ? selected : implementation('acp')) as never
         }
       )
       const sessionId = toAppSessionId('session')
@@ -165,7 +197,7 @@ describe('AgentManager', () => {
       { get: vi.fn(() => null) },
       {
         deepchat: createLegacyAgentBackend('deepchat', deepchat),
-        acp: createLegacyAgentBackend('acp', implementation('acp'))
+        acp: directBackend(implementation('acp')) as never
       }
     )
 
@@ -180,7 +212,7 @@ describe('AgentManager', () => {
       { get: vi.fn(() => null) },
       {
         deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
-        acp: createLegacyAgentBackend('acp', implementation('acp'))
+        acp: directBackend(implementation('acp')) as never
       }
     )
 
@@ -198,7 +230,7 @@ describe('AgentManager', () => {
       { get: vi.fn(() => null) },
       {
         deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
-        acp: createLegacyAgentBackend('acp', implementation('acp'))
+        acp: directBackend(implementation('acp')) as never
       }
     )
 
@@ -218,7 +250,7 @@ describe('AgentManager', () => {
       { get: vi.fn(() => null) },
       {
         deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
-        acp: createLegacyAgentBackend('acp', implementation('acp'))
+        acp: directBackend(implementation('acp')) as never
       }
     )
 

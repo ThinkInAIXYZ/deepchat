@@ -400,10 +400,6 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
-  public async getAcpWorkdir(conversationId: string, agentId: string): Promise<string> {
-    return this.sessionPersistence.getWorkdir(conversationId, agentId)
-  }
-
   public async updateAcpWorkdir(
     conversationId: string,
     agentId: string,
@@ -414,19 +410,6 @@ export class AcpProvider extends BaseLLMProvider {
       agentId,
       workdir
     )
-  }
-
-  public async prepareSession(
-    conversationId: string,
-    agentId: string,
-    workdir: string
-  ): Promise<void> {
-    const agent = await this.getAgentById(agentId)
-    if (!agent) {
-      throw new Error(`[ACP] ACP agent not found: ${agentId}`)
-    }
-
-    await this.acpRuntime.sessionController.prepare(toAppSessionId(conversationId), agent, workdir)
   }
 
   public async warmupProcess(agentId: string, workdir?: string): Promise<void> {
@@ -448,34 +431,8 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
-  public getProcessModes(
-    agentId: string,
-    workdir?: string
-  ):
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined {
-    return this.processManager.getProcessModes(resolveAcpAgentAlias(agentId), workdir) ?? undefined
-  }
-
   public getProcessConfigOptions(agentId: string, workdir?: string): AcpConfigState | null {
     return this.processManager.getProcessConfigState(resolveAcpAgentAlias(agentId), workdir) ?? null
-  }
-
-  public async setPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
-    const agent = await this.getAgentById(agentId)
-    if (!agent) return
-
-    try {
-      await this.processManager.setPreferredMode(agent, workdir, modeId)
-    } catch (error) {
-      console.warn(
-        `[ACP] Failed to set preferred mode "${modeId}" for agent ${agentId} in workdir "${workdir}":`,
-        error
-      )
-    }
   }
 
   public async runDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
@@ -1509,23 +1466,6 @@ export class AcpProvider extends BaseLLMProvider {
     if (!enabled) return
     // Call this.init() instead of super.init() to use the overridden method
     await this.init()
-  }
-
-  /**
-   * Set the session mode for an ACP conversation
-   */
-  async setSessionMode(conversationId: string, modeId: string): Promise<void> {
-    await this.acpRuntime.sessionController.setMode(toAppSessionId(conversationId), modeId)
-  }
-
-  /**
-   * Get available session modes and current mode for a conversation
-   */
-  async getSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null> {
-    return this.acpRuntime.sessionController.getModes(toAppSessionId(conversationId))
   }
 
   async getSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null> {

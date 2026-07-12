@@ -16,7 +16,6 @@ const TOOL_DEFINITION: MCPToolDefinition = {
 }
 
 const createDelegate = () => ({
-  compatibilityImplementation: {} as never,
   send: vi.fn().mockResolvedValue({ requestId: 'request', messageId: 'message' }),
   cancel: vi.fn().mockResolvedValue(undefined),
   snapshot: vi.fn().mockResolvedValue({ status: 'idle' }),

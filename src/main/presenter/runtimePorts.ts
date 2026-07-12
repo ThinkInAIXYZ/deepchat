@@ -1,4 +1,4 @@
-import type { AcpConfigState } from '@shared/presenter'
+import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/presenter'
 
 type ModelIdentity = {
   id: string
@@ -27,9 +27,8 @@ export interface ProviderCatalogPort {
   getAgentType(agentId: string): Promise<'deepchat' | 'acp' | null>
 }
 
-export interface ProviderSessionPort {
+export interface AcpAsLlmProviderSessionControlPort {
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>
   getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null>
   setAcpSessionConfigOption(
     conversationId: string,
@@ -44,6 +43,16 @@ export interface ProviderSessionPort {
     }>
   >
   clearAcpSession(conversationId: string): Promise<void>
+}
+
+export interface AcpAsLlmProviderPermissionPort {
+  resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
+}
+
+export interface AcpProviderAdminPort {
+  warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
+  getAcpProcessConfigOptions(agentId: string, workdir?: string): Promise<AcpConfigState | null>
+  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
 }
 
 export interface SessionPermissionPort {

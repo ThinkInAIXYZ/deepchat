@@ -82,14 +82,16 @@ describe('legacy agent backends', () => {
 
   it('uses lightweight snapshots and delegates cancel and close exactly once', async () => {
     const implementation = createImplementation()
-    const handle = createLegacyAgentBackend('acp', implementation).open(toAppSessionId('session'))
+    const handle = createLegacyAgentBackend('deepchat', implementation).open(
+      toAppSessionId('session')
+    )
 
     expect((await handle.snapshot({ lightweight: true }))?.status).toBe('generating')
     expect((await handle.snapshot())?.status).toBe('idle')
     await handle.cancel()
     await handle.close()
 
-    expect(handle.kind).toBe('acp')
+    expect(handle.kind).toBe('deepchat')
     expect(implementation.getSessionListState).toHaveBeenCalledWith('session')
     expect(implementation.getSessionState).toHaveBeenCalledWith('session')
     expect(implementation.cancelGeneration).toHaveBeenCalledTimes(1)
@@ -99,7 +101,6 @@ describe('legacy agent backends', () => {
   it('exposes required transfer and kind-specific subagent facets', async () => {
     const implementation = createImplementation()
     const deepchat = createLegacyAgentBackend('deepchat', implementation)
-    const acp = createLegacyAgentBackend('acp', implementation)
     const parent = toAppSessionId('parent')
     const child = toAppSessionId('child')
 
@@ -110,12 +111,12 @@ describe('legacy agent backends', () => {
       modelId: 'model'
     })
     await deepchat.subagent.mergeTape(parent, child, { outcome: 'merged' })
-    await acp.subagent.discardTape(parent, child, { outcome: 'discarded' })
+    await deepchat.subagent.discardTape(parent, child, { outcome: 'discarded' })
     expect(deepchat.generationControl.getActiveGeneration(parent)).toEqual({
       eventId: 'message',
       runId: 'run'
     })
-    await acp.generationControl.cancelGenerationByEventId(parent, 'message')
+    await deepchat.generationControl.cancelGenerationByEventId(parent, 'message')
 
     expect(implementation.hasMessages).toHaveBeenCalledWith('parent')
     expect(implementation.listPendingInputs).toHaveBeenCalledWith('parent')
@@ -131,14 +132,13 @@ describe('legacy agent backends', () => {
     })
     expect(implementation.getActiveGeneration).toHaveBeenCalledWith('parent')
     expect(implementation.cancelGenerationByEventId).toHaveBeenCalledWith('parent', 'message')
-    expect('transferTarget' in acp).toBe(false)
   })
 
   it('fails fast when a required facet method is missing', () => {
     const implementation = createImplementation()
     implementation.mergeSubagentTape = undefined
 
-    expect(() => createLegacyAgentBackend('acp', implementation)).toThrow(
+    expect(() => createLegacyAgentBackend('deepchat', implementation)).toThrow(
       'Legacy agent implementation is missing required method: mergeSubagentTape'
     )
   })

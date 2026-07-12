@@ -4,7 +4,6 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
   DeepChatSessionState,
-  IAgentImplementation,
   MessageStartResult,
   SessionCompactionState,
   SessionGenerationSettings
@@ -15,7 +14,6 @@ import type {
 } from '@/agent/deepchat/loop/ports'
 
 export interface DeepChatAgentInstanceDelegate {
-  readonly compatibilityImplementation: IAgentImplementation
   send(input: AgentSessionSendInput): Promise<MessageStartResult>
   cancel(): Promise<void>
   snapshot(options?: { lightweight?: boolean }): Promise<DeepChatSessionState | null>
@@ -88,10 +86,6 @@ export class DeepChatAgentInstance {
     private readonly onClosed: (instance: DeepChatAgentInstance) => void
   ) {
     this.memorySessionHandle = Object.freeze({ sessionId })
-  }
-
-  get compatibilityImplementation(): IAgentImplementation {
-    return this.delegate.compatibilityImplementation
   }
 
   getRuntimeState(): DeepChatSessionState | undefined {

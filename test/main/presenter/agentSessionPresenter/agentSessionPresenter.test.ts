@@ -196,7 +196,6 @@ function createMockLlmProviderPresenter() {
       content: ['## Current Goal', '- Continue the conversation'].join('\n')
     }),
     setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
-    prepareAcpSession: vi.fn().mockResolvedValue(undefined),
     clearAcpSession: vi.fn().mockResolvedValue(undefined),
     getAcpSessionCommands: vi
       .fn()
@@ -240,6 +239,52 @@ function createMockLlmProviderPresenter() {
         })
       )
   } as any
+}
+
+function createMockDirectAcpControl() {
+  return {
+    prepare: vi.fn().mockResolvedValue(undefined),
+    updateWorkdir: vi.fn(async (workdir: string | null) => workdir ?? ''),
+    getModes: vi.fn().mockResolvedValue(null),
+    setMode: vi.fn().mockResolvedValue(undefined),
+    getConfigOptions: vi.fn().mockResolvedValue({
+      source: 'configOptions',
+      options: [
+        {
+          id: 'model',
+          label: 'Model',
+          type: 'select',
+          category: 'model',
+          currentValue: 'gpt-5',
+          options: [
+            { value: 'gpt-5', label: 'gpt-5' },
+            { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+          ]
+        }
+      ]
+    }),
+    setConfigOption: vi.fn(async (configId: string, value: string | boolean) => ({
+      source: 'configOptions',
+      options: [
+        {
+          id: configId,
+          label: 'Model',
+          type: 'select',
+          category: 'model',
+          currentValue: value,
+          options: [
+            { value: 'gpt-5', label: 'gpt-5' },
+            { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+          ]
+        }
+      ]
+    })),
+    getCommands: vi
+      .fn()
+      .mockResolvedValue([
+        { name: 'review', description: 'run review', input: { hint: 'ticket id' } }
+      ])
+  }
 }
 
 function createMockSkillPresenter() {
@@ -512,6 +557,7 @@ describe('AgentSessionPresenter', () => {
   let skillPresenter: ReturnType<typeof createMockSkillPresenter>
   let closeDirectAcpSession: ReturnType<typeof vi.fn>
   let closeDirectAcpRuntime: ReturnType<typeof vi.fn>
+  let directAcpControl: ReturnType<typeof createMockDirectAcpControl>
   let agentManager: {
     resolveBackend: ReturnType<typeof vi.fn>
     resolveSessionBackend: ReturnType<typeof vi.fn>
@@ -532,14 +578,11 @@ describe('AgentSessionPresenter', () => {
     skillPresenter = createMockSkillPresenter()
     closeDirectAcpSession = vi.fn().mockResolvedValue(undefined)
     closeDirectAcpRuntime = vi.fn().mockResolvedValue(undefined)
-    const backends = {
-      deepchat: createLegacyAgentBackend('deepchat', deepChatAgent as never),
-      acp: createLegacyAgentBackend('acp', deepChatAgent as never)
-    }
+    directAcpControl = createMockDirectAcpControl()
+    const backend = createLegacyAgentBackend('deepchat', deepChatAgent as never)
     const resolveBackend = vi.fn((agentId: string) => {
       if (agentId === 'disabled-agent') throw new Error(`Agent not found: ${agentId}`)
       const kind = agentId.includes('acp') || agentId === 'kimi' ? 'acp' : 'deepchat'
-      const backend = kind === 'acp' ? backends.acp : backends.deepchat
       const descriptor =
         kind === 'acp'
           ? { id: agentId, kind, source: 'manual' }
@@ -564,29 +607,14 @@ describe('AgentSessionPresenter', () => {
           kind === 'acp'
             ? {
                 ...legacyHandle,
+                kind: 'acp',
                 runtimeKind: 'direct',
                 close: async () => {
                   await closeDirectAcpSession(sessionId)
                   await legacyHandle.close()
                 },
                 acp: {
-                  prepare: () =>
-                    llmProviderPresenter.prepareAcpSession(
-                      sessionId,
-                      descriptor.id,
-                      sqlitePresenter.newSessionsTable.get(sessionId)?.project_dir ?? null
-                    ),
-                  updateWorkdir: async (workdir: string | null) => {
-                    await llmProviderPresenter.setAcpWorkdir(sessionId, descriptor.id, workdir)
-                    return workdir ?? ''
-                  },
-                  getModes: vi.fn().mockResolvedValue(null),
-                  setMode: vi.fn().mockResolvedValue(undefined),
-                  getConfigOptions: () =>
-                    llmProviderPresenter.getAcpSessionConfigOptions(sessionId),
-                  setConfigOption: (configId: string, value: string | boolean) =>
-                    llmProviderPresenter.setAcpSessionConfigOption(sessionId, configId, value),
-                  getCommands: () => llmProviderPresenter.getAcpSessionCommands(sessionId),
+                  ...directAcpControl,
                   closeRuntime: vi.fn().mockResolvedValue(undefined)
                 }
               }
@@ -634,7 +662,9 @@ describe('AgentSessionPresenter', () => {
         transcriptMutation: deepChatAgent,
         tape: deepChatAgent
       } as any,
-      skillPresenter
+      skillPresenter,
+      undefined,
+      { acpAsLlmProviderSessionControl: llmProviderPresenter }
     )
   })
 
@@ -918,7 +948,6 @@ describe('AgentSessionPresenter', () => {
     expect(directAcpRuntime.cleanupSession).toHaveBeenCalledWith('unconfigured-session')
     expect(deepchatImplementation.queuePendingInput).toHaveBeenCalledTimes(1)
     expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
-    expect(llmProviderPresenter.prepareAcpSession).not.toHaveBeenCalled()
     await expect(integratedPresenter.sendMessage('missing-session', 'Hello')).rejects.toMatchObject(
       {
         code: 'AGENT_NOT_FOUND'
@@ -1672,7 +1701,7 @@ describe('AgentSessionPresenter', () => {
       }
     })
 
-    it('syncs ACP workdir persistence before the first ACP message runs', async () => {
+    it('syncs ACP-as-LLM workdir persistence before the first provider message runs', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
@@ -1699,6 +1728,7 @@ describe('AgentSessionPresenter', () => {
         'acp-coder',
         '/tmp/workspace'
       )
+      expect(directAcpControl.updateWorkdir).not.toHaveBeenCalled()
       await new Promise((r) => setTimeout(r, 0))
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
@@ -1710,7 +1740,7 @@ describe('AgentSessionPresenter', () => {
       )
     })
 
-    it('aborts ACP session creation when workdir sync fails', async () => {
+    it('aborts ACP-as-LLM session creation when workdir sync fails', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
@@ -1736,6 +1766,7 @@ describe('AgentSessionPresenter', () => {
       ).rejects.toThrow('sync failed')
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
+      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
     })
@@ -1909,11 +1940,8 @@ describe('AgentSessionPresenter', () => {
           projectDir: '/tmp/workspace'
         }
       )
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
-        's-draft',
-        'acp-coder',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.updateWorkdir).toHaveBeenCalledWith('/tmp/workspace')
+      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
     })
 
     it('routes to correct agent', async () => {
@@ -2091,11 +2119,7 @@ describe('AgentSessionPresenter', () => {
           permissionMode: 'full_access'
         })
       )
-      expect(llmProviderPresenter.prepareAcpSession).toHaveBeenCalledWith(
-        'mock-session-id',
-        'acp-coder',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.prepare).toHaveBeenCalledOnce()
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
       expect(session.isDraft).toBe(true)
       expect(session.providerId).toBe('acp')
@@ -2132,11 +2156,7 @@ describe('AgentSessionPresenter', () => {
       })
 
       expect(sqlitePresenter.newSessionsTable.create).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.prepareAcpSession).toHaveBeenCalledWith(
-        'draft-1',
-        'acp-coder',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.prepare).toHaveBeenCalledOnce()
       expect(session.id).toBe('draft-1')
       expect(session.isDraft).toBe(true)
     })
@@ -2229,11 +2249,8 @@ describe('AgentSessionPresenter', () => {
         })
       )
       expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
-        'child-session-acp',
-        'kimi',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.updateWorkdir).toHaveBeenCalledWith('/tmp/workspace')
+      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
       expect(session.id).toBe('child-session-acp')
       expect(session.providerId).toBe('acp')
       expect(session.modelId).toBe('kimi')
@@ -2274,9 +2291,9 @@ describe('AgentSessionPresenter', () => {
         sessionRows.delete(id)
       })
 
-      llmProviderPresenter.setAcpWorkdir
+      directAcpControl.updateWorkdir
         .mockRejectedValueOnce(new Error('warmup failed'))
-        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce('/tmp/workspace')
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',
@@ -2303,18 +2320,9 @@ describe('AgentSessionPresenter', () => {
 
       expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledTimes(2)
       expect(deepChatAgent.initSession).toHaveBeenCalledTimes(2)
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenNthCalledWith(
-        1,
-        'child-session-1',
-        'acp-reviewer',
-        '/tmp/workspace'
-      )
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenNthCalledWith(
-        2,
-        'child-session-2',
-        'acp-reviewer',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.updateWorkdir).toHaveBeenNthCalledWith(1, '/tmp/workspace')
+      expect(directAcpControl.updateWorkdir).toHaveBeenNthCalledWith(2, '/tmp/workspace')
+      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
       expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
       expect(deepChatAgent.destroySession).toHaveBeenCalledTimes(1)
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('child-session-1')
@@ -3826,8 +3834,33 @@ describe('AgentSessionPresenter', () => {
 
       const commands = await presenter.getAcpSessionCommands('s-acp')
 
-      expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-acp')
+      expect(directAcpControl.getCommands).toHaveBeenCalledOnce()
+      expect(llmProviderPresenter.getAcpSessionCommands).not.toHaveBeenCalled()
       expect(commands).toHaveLength(1)
+      expect(commands[0].name).toBe('review')
+    })
+
+    it('keeps commands available for DeepChat sessions selecting the ACP provider', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-compat',
+        agent_id: 'deepchat',
+        title: 'ACP compatibility',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const commands = await presenter.getAcpSessionCommands('s-compat')
+
+      expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-compat')
+      expect(directAcpControl.getCommands).not.toHaveBeenCalled()
       expect(commands[0].name).toBe('review')
     })
   })
@@ -3872,11 +3905,12 @@ describe('AgentSessionPresenter', () => {
 
       const result = await presenter.getAcpSessionConfigOptions('s-acp')
 
-      expect(llmProviderPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-acp')
+      expect(directAcpControl.getConfigOptions).toHaveBeenCalledOnce()
+      expect(llmProviderPresenter.getAcpSessionConfigOptions).not.toHaveBeenCalled()
       expect(result?.options[0].currentValue).toBe('gpt-5')
     })
 
-    it('writes ACP session config options through llmProviderPresenter', async () => {
+    it('writes direct ACP session config options through the typed handle', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-acp',
         agent_id: 'acp-coder',
@@ -3898,12 +3932,41 @@ describe('AgentSessionPresenter', () => {
 
       const result = await presenter.setAcpSessionConfigOption('s-acp', 'model', 'gpt-5-mini')
 
+      expect(directAcpControl.setConfigOption).toHaveBeenCalledWith('model', 'gpt-5-mini')
+      expect(llmProviderPresenter.setAcpSessionConfigOption).not.toHaveBeenCalled()
+      expect(result?.options[0].currentValue).toBe('gpt-5-mini')
+    })
+
+    it('keeps config controls available for DeepChat sessions selecting the ACP provider', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-compat',
+        agent_id: 'deepchat',
+        title: 'ACP compatibility',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const state = await presenter.getAcpSessionConfigOptions('s-compat')
+      const updated = await presenter.setAcpSessionConfigOption('s-compat', 'model', 'gpt-5-mini')
+
+      expect(llmProviderPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-compat')
       expect(llmProviderPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
-        's-acp',
+        's-compat',
         'model',
         'gpt-5-mini'
       )
-      expect(result?.options[0].currentValue).toBe('gpt-5-mini')
+      expect(directAcpControl.getConfigOptions).not.toHaveBeenCalled()
+      expect(directAcpControl.setConfigOption).not.toHaveBeenCalled()
+      expect(state?.options[0].currentValue).toBe('gpt-5')
+      expect(updated?.options[0].currentValue).toBe('gpt-5-mini')
     })
   })
 

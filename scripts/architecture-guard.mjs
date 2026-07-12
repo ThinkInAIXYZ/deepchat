@@ -111,6 +111,10 @@ const LEGACY_PRESENTER_IMPORT_PATTERN =
   /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]|\bimport\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]/g
 const LEGACY_RUNTIME_IMPORT_PATTERN =
   /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*legacy\/runtime['"]|\bimport\s*['"][^'"]*legacy\/runtime['"]/g
+const RETIRED_ACP_BACKEND_SYMBOL_PATTERN =
+  /\b(?:LegacyAcpSessionBackend|LegacyAcpSessionHandle|compatibilityImplementation)\b/g
+const RETIRED_ACP_BACKEND_FACTORY_PATTERN =
+  /\bcreateLegacyAgentBackend\s*\(\s*['"]acp['"]/g
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
@@ -516,6 +520,14 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       if (legacyListCalls > allowedCalls) {
         violations.push(
           `[memory-legacy-list-caller] ${relativePath(filePath)} expected <= ${allowedCalls}, found ${legacyListCalls}; use memory.page or an owner-scoped lookup`
+        )
+      }
+
+      const retiredAcpSymbols = countMatches(source, RETIRED_ACP_BACKEND_SYMBOL_PATTERN)
+      const retiredAcpFactories = countMatches(source, RETIRED_ACP_BACKEND_FACTORY_PATTERN)
+      if (retiredAcpSymbols > 0 || retiredAcpFactories > 0) {
+        violations.push(
+          `[acp-retired-legacy-backend] ${relativePath(filePath)} expected 0 retired symbols/factories, found ${retiredAcpSymbols + retiredAcpFactories}`
         )
       }
     }

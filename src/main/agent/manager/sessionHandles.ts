@@ -85,11 +85,6 @@ export interface DeepChatSessionHandle extends AgentSessionHandle {
   readonly deepchat: DeepChatControlFacet
 }
 
-export interface LegacyAcpSessionHandle extends AgentSessionHandle {
-  readonly kind: 'acp'
-  readonly runtimeKind: 'legacy'
-}
-
 export interface DirectAcpControlFacet {
   prepare(): Promise<void>
   updateWorkdir(workdir: string | null): Promise<string>
@@ -106,8 +101,6 @@ export interface DirectAcpSessionHandle extends AgentSessionHandle {
   readonly runtimeKind: 'direct'
   readonly acp: DirectAcpControlFacet
 }
-
-export type AcpSessionHandle = LegacyAcpSessionHandle | DirectAcpSessionHandle
 
 export interface AgentTransferSourceFacet {
   hasMessages(sessionId: AppSessionId): Promise<boolean>

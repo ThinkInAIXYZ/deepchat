@@ -637,6 +637,11 @@ function createRuntime() {
       skipped: 0,
       errors: []
     }),
+    refreshModels: vi.fn().mockResolvedValue(undefined)
+  } as unknown as ILlmProviderPresenter
+  const acpProviderAdminPort = {
+    warmupAcpProcess: vi.fn().mockResolvedValue(undefined),
+    getAcpProcessConfigOptions: vi.fn().mockResolvedValue(null),
     runAcpDebugAction: vi.fn().mockResolvedValue({
       status: 'ok',
       sessionId: 'debug-session',
@@ -650,9 +655,8 @@ function createRuntime() {
           payload: { ok: true }
         }
       ]
-    }),
-    refreshModels: vi.fn().mockResolvedValue(undefined)
-  } as unknown as ILlmProviderPresenter
+    })
+  }
 
   const mcpRouterItem = {
     uuid: 'router-item-1',
@@ -1267,6 +1271,7 @@ function createRuntime() {
     runtime: createMainKernelRouteRuntime({
       configPresenter,
       llmProviderPresenter,
+      acpProviderAdminPort,
       agentSessionPresenter,
       skillPresenter,
       skillSyncPresenter,
@@ -1288,6 +1293,7 @@ function createRuntime() {
     }),
     configPresenter,
     llmProviderPresenter,
+    acpProviderAdminPort,
     agentSessionPresenter,
     skillPresenter,
     skillSyncPresenter,
@@ -3802,8 +3808,13 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {
-    const { runtime, configPresenter, llmProviderPresenter, agentSessionPresenter } =
-      createRuntime()
+    const {
+      runtime,
+      configPresenter,
+      llmProviderPresenter,
+      acpProviderAdminPort,
+      agentSessionPresenter
+    } = createRuntime()
 
     const modelsResult = await dispatchDeepchatRoute(
       runtime,
@@ -3911,6 +3922,19 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
+    const acpWarmupResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.warmupAcpProcess',
+      { agentId: 'codex-acp', workdir: '/repo' },
+      { webContentsId: 88, windowId: 3 }
+    )
+    const acpConfigResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.getAcpProcessConfigOptions',
+      { agentId: 'codex-acp', workdir: '/repo' },
+      { webContentsId: 88, windowId: 3 }
+    )
+
     const interactionResult = await dispatchDeepchatRoute(
       runtime,
       'chat.respondToolInteraction',
@@ -3942,12 +3966,17 @@ describe('dispatchDeepchatRoute', () => {
       page_number: 1,
       page_size: 50
     })
-    expect(llmProviderPresenter.runAcpDebugAction).toHaveBeenCalledWith({
+    expect(acpProviderAdminPort.runAcpDebugAction).toHaveBeenCalledWith({
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},
       webContentsId: 88
     })
+    expect(acpProviderAdminPort.warmupAcpProcess).toHaveBeenCalledWith('codex-acp', '/repo')
+    expect(acpProviderAdminPort.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'codex-acp',
+      '/repo'
+    )
     expect(agentSessionPresenter.respondToolInteraction).toHaveBeenCalledWith(
       'session-1',
       'message-1',
@@ -4032,6 +4061,8 @@ describe('dispatchDeepchatRoute', () => {
         ]
       }
     })
+    expect(acpWarmupResult).toEqual({ warmedUp: true })
+    expect(acpConfigResult).toEqual({ state: null })
     expect(interactionResult).toEqual({
       accepted: true,
       resumed: true

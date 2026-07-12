@@ -37,8 +37,9 @@ session-state、transcript-mutation、Tape ports 工作，不再把 ACP route �
 identity 均严格校验，失败不会 fallback 到 DeepChat。direct runtime 和 ACP-provider compatibility adapter
 仍共享 composition-owned client/session/process runtime；`kind=deepchat + providerId=acp` 继续进入 DeepChat
 LoopEngine 与 `AcpProvider`。owner shutdown 使用不可逆 lifecycle fence，并在 shared session/process 前等待
-direct hydration、prepare/send terminal 与 instance close。`ASLR-073` 只负责迁出 generic provider contract
-中的旧 ACP runtime methods；`ASLR-090` 才删除 legacy backend/`IAgentImplementation`。Memory seam 未接入
+direct hydration、prepare/send terminal 与 instance close。`ASLR-073` 已把 compatibility-only ACP session
+control、permission 和 admin operations 从 generic provider contract 迁到显式 ports，并删除不再可达的
+legacy ACP backend glue；DeepChat 的 legacy backend/`IAgentImplementation` 仍留到 `ASLR-090`。Memory seam 未接入
 direct ACP，现有 Memory 注入、失效、提取与 shutdown 行为在本阶段未改动。session delete 不再依赖
 当前 catalog row 可执行：manager 无 descriptor/session routing 地清理两个 backend 的已存在状态，direct
 ACP 同时删除 durable remote binding；随后 façade 依次清理 shared state、permission、skills 和 app row。

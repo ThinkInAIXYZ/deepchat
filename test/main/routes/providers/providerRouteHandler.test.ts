@@ -28,6 +28,7 @@ describe('dispatchProviderRoute providers.listSummaries', () => {
       {
         configPresenter: configPresenter as any,
         llmProviderPresenter: {} as any,
+        acpProviderAdminPort: {} as any,
         providerImportService: {} as any
       },
       'providers.listSummaries',
@@ -79,6 +80,7 @@ describe('dispatchProviderRoute provider import routes', () => {
       {
         configPresenter: {} as any,
         llmProviderPresenter: {} as any,
+        acpProviderAdminPort: {} as any,
         providerImportService: providerImportService as any
       },
       providersImportScanRoute.name,
@@ -102,6 +104,7 @@ describe('dispatchProviderRoute provider import routes', () => {
       {
         configPresenter: {} as any,
         llmProviderPresenter: {} as any,
+        acpProviderAdminPort: {} as any,
         providerImportService: providerImportService as any
       },
       providersImportApplyRoute.name,
