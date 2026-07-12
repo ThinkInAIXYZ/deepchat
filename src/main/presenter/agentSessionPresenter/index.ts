@@ -417,7 +417,8 @@ export class AgentSessionPresenter {
     })
 
     // Return enriched session first
-    const state = await agent.getSessionState(sessionId)
+    const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
+    const state = await handle.snapshot()
     const sessionResult: SessionWithState = {
       id: sessionId,
       agentId,
@@ -440,33 +441,16 @@ export class AgentSessionPresenter {
     const hasInitialTurn =
       normalizedInput.text.trim().length > 0 || (normalizedInput.files?.length ?? 0) > 0
     if (hasInitialTurn) {
-      logger.info(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
-      if (agent.queuePendingInput) {
-        agent
-          .queuePendingInput(
-            sessionId,
-            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
-            {
-              source: 'send',
-              projectDir
-            }
-          )
-          .catch((err) => {
-            console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
-          })
-      } else {
-        agent
-          .processMessage(
-            sessionId,
-            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
-            {
-              projectDir
-            }
-          )
-          .catch((err) => {
-            console.error('[AgentSessionPresenter] processMessage failed:', err)
-          })
-      }
+      logger.info(`[AgentSessionPresenter] firing initial send (non-blocking)`)
+      handle
+        .send({
+          content: this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
+          context: { projectDir },
+          queue: { source: 'send', projectDir }
+        })
+        .catch((err) => {
+          console.error('[AgentSessionPresenter] initial send failed:', err)
+        })
       void this.generateSessionTitle(sessionId, title, providerId, modelId)
     }
 
@@ -552,7 +536,9 @@ export class AgentSessionPresenter {
       reason: 'created'
     })
 
-    const state = await agent.getSessionState(sessionId)
+    const state = await this.agentManager
+      .resolveSessionHandle(toAppSessionId(sessionId))
+      .handle.snapshot()
     return {
       id: sessionId,
       agentId,
@@ -730,7 +716,9 @@ export class AgentSessionPresenter {
       reason: createdDraftSession ? 'created' : 'updated'
     })
 
-    const state = await agent.getSessionState(record.id)
+    const state = await this.agentManager
+      .resolveSessionHandle(toAppSessionId(record.id))
+      .handle.snapshot()
     return {
       ...record,
       status: state?.status ?? 'idle',
@@ -760,8 +748,9 @@ export class AgentSessionPresenter {
       if (!session) throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    const state = await agent.getSessionState(sessionId)
+    const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
+    const agent = handle.compatibilityImplementation
+    const state = await handle.snapshot()
     const hadMessages = await agent.hasMessages(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId) {
@@ -776,23 +765,16 @@ export class AgentSessionPresenter {
       session.agentId,
       session.projectDir ?? null
     )
-    if (agent.queuePendingInput) {
-      await agent.queuePendingInput(sessionId, normalizedInput, {
+    const result = await handle.send({
+      content: normalizedInput,
+      context: {
+        projectDir: session.projectDir ?? null,
+        maxProviderRounds: options?.maxProviderRounds
+      },
+      queue: {
         source: 'send',
         projectDir: session.projectDir ?? null
-      })
-      if (!hadMessages && !wasDraft) {
-        void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
       }
-      return {
-        requestId: null,
-        messageId: null
-      }
-    }
-
-    const result = await agent.processMessage(sessionId, normalizedInput, {
-      projectDir: session.projectDir ?? null,
-      maxProviderRounds: options?.maxProviderRounds
     })
     if (!hadMessages && !wasDraft) {
       void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
@@ -2210,8 +2192,7 @@ export class AgentSessionPresenter {
   async cancelGeneration(sessionId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    await agent.cancelGeneration(sessionId)
+    await this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle.cancel()
   }
 
   clearSessionPermissions(sessionId: string): void {
@@ -2616,11 +2597,9 @@ export class AgentSessionPresenter {
     record: SessionRecord,
     mode: 'full' | 'list' = 'full'
   ): Promise<SessionWithState> {
-    const agent = await this.resolveAgentImplementation(record.agentId)
-    const state =
-      mode === 'list' && agent.getSessionListState
-        ? await agent.getSessionListState(record.id)
-        : await agent.getSessionState(record.id)
+    const state = await this.agentManager
+      .resolveSessionHandle(toAppSessionId(record.id))
+      .handle.snapshot({ lightweight: mode === 'list' })
     const status = state?.status ?? 'idle'
     this.sessionStatusSnapshots.set(record.id, status)
     return {
@@ -3045,8 +3024,8 @@ export class AgentSessionPresenter {
       }
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    const state = await agent.getSessionState(sessionId)
+    const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
+    const state = await handle.snapshot()
     let providerId = state?.providerId ?? ''
     if (!providerId && (await this.getAgentType(session.agentId)) === 'acp') {
       providerId = 'acp'
@@ -3055,7 +3034,7 @@ export class AgentSessionPresenter {
       await (this.providerSessionPort?.clearAcpSession?.(sessionId) ??
         this.llmProviderPresenter.clearAcpSession(sessionId))
     }
-    await agent.destroySession(sessionId)
+    await handle.close()
     this.sessionPermissionPort?.clearSessionPermissions(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)

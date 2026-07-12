@@ -1367,6 +1367,7 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await presenter.sendMessage('s1', 'Follow-up')
+      expect(agentManager.resolveSessionHandle).toHaveBeenCalledWith('s1')
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         's1',
         { text: 'Follow-up', files: [] },
@@ -2144,6 +2145,13 @@ describe('AgentSessionPresenter', () => {
 
       expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('s-acp')
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('s-acp')
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s-acp')
+      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeLessThan(
+        deepChatAgent.destroySession.mock.invocationCallOrder[0]
+      )
+      expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
+        sqlitePresenter.newSessionsTable.delete.mock.invocationCallOrder[0]
+      )
     })
   })
 

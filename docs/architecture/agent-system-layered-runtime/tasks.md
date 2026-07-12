@@ -29,7 +29,7 @@
   Depends on: `ASLR-011`, `ASLR-013`.
 - [x] `ASLR-021` Add a thin existing app-session data port for CRUD/binding/list; do not split services by noun.
   Depends on: `ASLR-020`.
-- [ ] `ASLR-022` Route common send/cancel/close/snapshot calls through typed legacy backend handles and preserve `MessageStartResult`.
+- [x] `ASLR-022` Route common send/cancel/close/snapshot calls through typed legacy backend handles and preserve `MessageStartResult`.
   Depends on: `ASLR-021`.
 - [ ] `ASLR-023` Replace transfer/subagent optional-method routing in place with required kind facets.
   Depends on: `ASLR-021`.
