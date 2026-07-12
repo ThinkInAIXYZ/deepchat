@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import * as fs from 'fs'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type {
@@ -45,7 +46,7 @@ export class AcpSessionPersistence {
   async saveSessionData(
     conversationId: string,
     agentId: string,
-    sessionId: string | null,
+    sessionId: AcpRemoteSessionId | null,
     workdir: string | null,
     status: AgentSessionLifecycleStatus,
     metadata: Record<string, unknown> | null
@@ -97,7 +98,7 @@ export class AcpSessionPersistence {
       await this.saveSessionData(
         conversationId,
         agentId,
-        existing?.sessionId ?? null,
+        existing?.sessionId ? toAcpRemoteSessionId(existing.sessionId) : null,
         existing?.workdir ?? null,
         existing?.status ?? 'idle',
         {
@@ -174,7 +175,7 @@ export class AcpSessionPersistence {
       await this.saveSessionData(
         conversationId,
         input.agentId,
-        remoteSession.sessionId,
+        toAcpRemoteSessionId(remoteSession.sessionId),
         sessionWorkdir,
         'idle',
         {
@@ -228,7 +229,7 @@ export class AcpSessionPersistence {
     await this.saveSessionData(
       existing.conversationId,
       input.agentId,
-      remoteSession.sessionId,
+      toAcpRemoteSessionId(remoteSession.sessionId),
       existingWorkdir,
       existing.status ?? 'idle',
       {

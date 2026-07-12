@@ -20,7 +20,7 @@
   Depends on: `ASLR-010`.
 - [ ] `ASLR-012` Separate generic catalog notifications from ACP process refresh.
   Depends on: `ASLR-011`.
-- [ ] `ASLR-013` Introduce explicit app-session and ACP-remote-session id types at internal boundaries.
+- [x] `ASLR-013` Introduce explicit app-session and ACP-remote-session id types at internal boundaries.
   Depends on: `ASLR-010`.
 
 ## AgentManager and existing session façade

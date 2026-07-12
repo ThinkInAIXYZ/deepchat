@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import type { AcpAgentConfig, AcpConfigState, IConfigPresenter } from '@shared/presenter'
 import type { AgentSessionState } from './types'
 import type {
@@ -65,6 +66,7 @@ const summarizeSessionResponse = (
 })
 
 export interface AcpSessionRecord extends AgentSessionState {
+  sessionId: AcpRemoteSessionId
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
   workdir: string
@@ -86,7 +88,7 @@ export class AcpSessionManager {
   private readonly sessionPersistence: AcpSessionPersistence
   private readonly configPresenter: IConfigPresenter
   private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
-  private readonly sessionsById = new Map<string, AcpSessionRecord>()
+  private readonly sessionsById = new Map<AcpRemoteSessionId, AcpSessionRecord>()
   private readonly pendingSessions = new Map<string, Promise<AcpSessionRecord>>()
 
   constructor(options: AcpSessionManagerOptions) {
@@ -149,7 +151,7 @@ export class AcpSessionManager {
   }
 
   getSessionById(sessionId: string): AcpSessionRecord | null {
-    return this.sessionsById.get(sessionId) ?? null
+    return this.sessionsById.get(toAcpRemoteSessionId(sessionId)) ?? null
   }
 
   listSessions(): AcpSessionRecord[] {
@@ -339,7 +341,7 @@ export class AcpSessionManager {
     workdir: string,
     hooks: SessionHooks
   ): Promise<{
-    sessionId: string
+    sessionId: AcpRemoteSessionId
     configState: AcpConfigState
     promptCapabilities?: schema.PromptCapabilities
     availableModes?: Array<{ id: string; name: string; description: string }>
@@ -353,9 +355,11 @@ export class AcpSessionManager {
         conversationId,
         agent.id
       )
-      const persistedSessionId = persistedSession?.sessionId?.trim() || null
+      const persistedSessionId = persistedSession?.sessionId?.trim()
+        ? toAcpRemoteSessionId(persistedSession.sessionId.trim())
+        : null
 
-      let sessionId = ''
+      let sessionId: AcpRemoteSessionId | null = null
       let configState = handle.configState ?? createEmptyAcpConfigState('legacy')
       let detachHandlers: Array<() => void> | undefined
       let responseModeState:
@@ -540,7 +544,7 @@ export class AcpSessionManager {
           cwd: workdir,
           mcpServers
         })
-        sessionId = response.sessionId
+        sessionId = toAcpRemoteSessionId(response.sessionId)
         sessionResponse = response
         responseModeState = response.modes ?? undefined
         const nextConfigState = normalizeAcpConfigState({
@@ -562,7 +566,7 @@ export class AcpSessionManager {
         })
       }
 
-      if (!sessionResponse) {
+      if (!sessionId || !sessionResponse) {
         throw new Error('[ACP] Session initialization did not return a response payload')
       }
 
