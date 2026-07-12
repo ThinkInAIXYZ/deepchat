@@ -306,6 +306,24 @@ ACP compatibility branches and stale-run cancellation.
 
 ## 8. Command gates
 
+### Phase 3 composition order
+
+The mechanical owner moves retain the existing lifecycle ordering:
+
+```text
+READY: presenter-initialization
+  -> AFTER_START: acp-registry-migration (priority 0)
+  -> AFTER_START: window-creation (priority 1)
+
+BEFORE_QUIT: mcp-shutdown (priority 5)
+  -> acp-cleanup (priority 6)
+  -> presenter-destroy (priority Number.MAX_VALUE)
+```
+
+`test/main/presenter/lifecyclePresenter/compositionOrder.test.ts` locks these relative boundaries. Hooks
+with the same priority remain intentionally parallel under `LifecycleManager`; ASLR-033 does not impose a new
+order inside a priority group.
+
 Focused PR gate:
 
 ```bash
