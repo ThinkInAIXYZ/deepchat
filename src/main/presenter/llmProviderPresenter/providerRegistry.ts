@@ -532,6 +532,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'daoxe',
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key'
+    })
+  ],
+  [
     'upstage',
     createDefinition({
       ...OPENAI_BASE,

@@ -45,6 +45,7 @@ import rwkvColorIcon from '@/assets/llm-icons/rwkv.svg?url'
 import ppioColorIcon from '@/assets/llm-icons/ppio-color.svg?url'
 import tokenfluxColorIcon from '@/assets/llm-icons/tokenflux-color.svg?url'
 import tokenlabColorIcon from '@/assets/llm-icons/tokenlab.webp?url'
+import daoxeColorIcon from '@/assets/llm-icons/daoxe.png?url'
 import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
@@ -150,6 +151,7 @@ export const modelIcons = {
   ppio: ppioColorIcon,
   tokenflux: tokenfluxColorIcon,
   tokenlab: tokenlabColorIcon,
+  daoxe: daoxeColorIcon,
   qingyan: qingyanColorIcon,
   qwen: qwenColorIcon,
   moonshot: moonshotColorIcon,

@@ -157,6 +157,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves DaoXE through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'daoxe',
+          name: 'DaoXE',
+          baseUrl: 'https://daoxe.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+  })
+
   it('resolves MiniMax global through the Anthropic-compatible runtime', () => {
     expect(
       resolveAiSdkProviderDefinition(

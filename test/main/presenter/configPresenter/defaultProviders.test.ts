@@ -91,5 +91,18 @@ describe('DEFAULT_PROVIDERS', () => {
         defaultBaseUrl: 'https://opencode.ai/zen/go/v1'
       })
     })
+    expect(providersById.get('daoxe')).toMatchObject({
+      name: 'DaoXE',
+      apiType: 'openai-completions',
+      baseUrl: 'https://daoxe.com/v1',
+      enable: false,
+      websites: expect.objectContaining({
+        official: 'https://daoxe.com/',
+        apiKey: 'https://daoxe.com/token',
+        docs: 'https://github.com/seven7763/DaoXE-AI',
+        models: 'https://daoxe.com/pricing',
+        defaultBaseUrl: 'https://daoxe.com/v1'
+      })
+    })
   })
 })
