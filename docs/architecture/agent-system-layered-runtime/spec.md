@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Specification
 
-> 状态：ready for implementation；本目标当前只交付设计文档，不包含源码改动。  
+> 状态：implementation in progress；本文仍是实现期间的兼容与验收合同。  
 > 总览：[README.md](./README.md)
 
 ## 1. User need

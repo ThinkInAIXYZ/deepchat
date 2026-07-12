@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — 总体设计
 
-> 状态：设计完成，尚未实施  
+> 状态：implementation in progress；当前进度以 [tasks.md](./tasks.md) 为准。  
 > 代码基线：`dev@1a57d15b99a6`（2026-07-11）  
 > 本文是目标架构的总入口。`spec.md` 定义验收合同，`plan.md` 和 `tasks.md` 定义实施顺序；
 > `modules/` 描述各模块的本地合同。

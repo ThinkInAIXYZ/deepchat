@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Implementation Plan
 
-> 本计划只定义后续实施；当前文档分支不修改源码。  
+> 实施进行中；当前完成范围与下一项任务以 [tasks.md](./tasks.md) 为准。  
 > 所有 phase 以 `dev` 的最新通过基线为起点，按依赖顺序落地。
 
 ## 1. Strategy
