@@ -1525,12 +1525,23 @@ export class AgentSessionPresenter {
       throw new Error(`Session ${childSessionId} is not a child of ${parentSessionId}.`)
     }
 
-    const agent = await this.resolveAgentImplementation(parentSession.agentId)
-    if (!agent.mergeSubagentTape) {
-      throw new Error(`Agent ${parentSession.agentId} does not support subagent tape merge.`)
+    const resolved = this.agentManager.resolveSubagentFacet(toAppSessionId(parentSessionId))
+    switch (resolved.kind) {
+      case 'deepchat':
+        await resolved.facet.mergeTape(
+          toAppSessionId(parentSessionId),
+          toAppSessionId(childSessionId),
+          meta
+        )
+        break
+      case 'acp':
+        await resolved.facet.mergeTape(
+          toAppSessionId(parentSessionId),
+          toAppSessionId(childSessionId),
+          meta
+        )
+        break
     }
-
-    await agent.mergeSubagentTape(parentSessionId, childSessionId, meta)
   }
 
   async discardSubagentTape(
@@ -1551,12 +1562,23 @@ export class AgentSessionPresenter {
       throw new Error(`Session ${childSessionId} is not a child of ${parentSessionId}.`)
     }
 
-    const agent = await this.resolveAgentImplementation(parentSession.agentId)
-    if (!agent.discardSubagentTape) {
-      throw new Error(`Agent ${parentSession.agentId} does not support subagent tape discard.`)
+    const resolved = this.agentManager.resolveSubagentFacet(toAppSessionId(parentSessionId))
+    switch (resolved.kind) {
+      case 'deepchat':
+        await resolved.facet.discardTape(
+          toAppSessionId(parentSessionId),
+          toAppSessionId(childSessionId),
+          meta
+        )
+        break
+      case 'acp':
+        await resolved.facet.discardTape(
+          toAppSessionId(parentSessionId),
+          toAppSessionId(childSessionId),
+          meta
+        )
+        break
     }
-
-    await agent.discardSubagentTape(parentSessionId, childSessionId, meta)
   }
 
   async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
@@ -2297,7 +2319,8 @@ export class AgentSessionPresenter {
       throw new Error('Only regular sessions can change subagent state.')
     }
 
-    if ((await this.getAgentType(session.agentId)) !== 'deepchat') {
+    const { descriptor } = this.agentManager.resolveSessionBackend(toAppSessionId(sessionId))
+    if (descriptor.kind !== 'deepchat') {
       throw new Error('Only DeepChat sessions can change subagent state.')
     }
 
@@ -2810,12 +2833,14 @@ export class AgentSessionPresenter {
     const trimmedAgentId = input.agentId.trim()
     const resolvedAgentId = resolveAcpAgentAlias(trimmedAgentId)
     const normalizedTargetAgentId = input.targetAgentId?.trim() ? resolvedAgentId : null
-    const agentType = await this.getAgentType(resolvedAgentId)
-    if (agentType !== 'deepchat' && agentType !== 'acp') {
+    let descriptor
+    try {
+      descriptor = this.agentManager.resolveBackend(resolvedAgentId).descriptor
+    } catch {
       throw new Error(`Agent ${input.agentId} is not a valid subagent target.`)
     }
 
-    if (agentType === 'acp') {
+    if (descriptor.kind === 'acp') {
       return {
         agentId: resolvedAgentId,
         targetAgentId: normalizedTargetAgentId,
@@ -2845,27 +2870,32 @@ export class AgentSessionPresenter {
     isEmptyDraft: boolean
     blockReason?: AgentTransferBlockReason
   }> {
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    const state = await agent.getSessionState(session.id)
+    const { handle, facet } = this.agentManager.resolveTransferSource(toAppSessionId(session.id))
+    const state = await handle.snapshot()
     const status = state?.status ?? 'idle'
-    const hasMessages = await this.hasSessionMessages(agent, session.id)
+    let hasMessages = true
+    try {
+      hasMessages = await facet.hasMessages(toAppSessionId(session.id))
+    } catch (error) {
+      console.warn(
+        `[AgentSessionPresenter] Failed to inspect messages for session=${session.id}:`,
+        error
+      )
+    }
+    let hasPendingInput = false
+    try {
+      hasPendingInput = (await facet.listPendingInputs(toAppSessionId(session.id))).length > 0
+    } catch (error) {
+      console.warn(
+        `[AgentSessionPresenter] Failed to inspect pending input for session=${session.id}:`,
+        error
+      )
+      hasPendingInput = true
+    }
     const hasSubagentChildren =
       session.sessionKind === 'regular' &&
       this.sessionManager.list({ includeSubagents: true, parentSessionId: session.id }).length > 0
     const isEmptyDraft = Boolean(session.isDraft) && !hasMessages && !hasSubagentChildren
-    let hasPendingInput = false
-
-    if (agent.listPendingInputs) {
-      try {
-        hasPendingInput = (await agent.listPendingInputs(session.id)).length > 0
-      } catch (error) {
-        console.warn(
-          `[AgentSessionPresenter] Failed to inspect pending input for session=${session.id}:`,
-          error
-        )
-        hasPendingInput = true
-      }
-    }
 
     if (status === 'generating') {
       return { status, isEmptyDraft, blockReason: 'active' }
@@ -2906,13 +2936,11 @@ export class AgentSessionPresenter {
     const previousAgentId = session.agentId
     const targetContext = await this.resolveTransferTargetContext(targetAgentId, session.projectDir)
     const previousAcpBacked = await this.isAcpBackedSession(sessionId, previousAgentId)
-    const agent = await this.resolveAgentImplementation(targetContext.agentId)
+    const { facet: transferTarget } = this.agentManager.resolveDeepChatTransferTarget(
+      targetContext.agentId
+    )
 
-    if (!agent.setSessionAgentContext) {
-      throw new Error(`Agent ${targetContext.agentId} does not support session transfer.`)
-    }
-
-    await agent.setSessionAgentContext(sessionId, {
+    await transferTarget.setSessionAgentContext(toAppSessionId(sessionId), {
       agentId: targetContext.agentId,
       providerId: targetContext.providerId,
       modelId: targetContext.modelId,
@@ -2965,12 +2993,14 @@ export class AgentSessionPresenter {
     currentProjectDir: string | null
   ): Promise<AgentTransferTargetContext> {
     const resolvedAgentId = resolveAcpAgentAlias(targetAgentId.trim())
-    const agentType = await this.getAgentType(resolvedAgentId)
-    if (agentType === 'acp') {
-      throw new Error('Conversation history cannot be moved to ACP agents.')
-    }
-    if (agentType !== 'deepchat') {
+    let descriptor
+    try {
+      descriptor = this.agentManager.resolveBackend(resolvedAgentId).descriptor
+    } catch {
       throw new Error(`Target agent not found: ${targetAgentId}`)
+    }
+    if (descriptor.kind === 'acp') {
+      throw new Error('Conversation history cannot be moved to ACP agents.')
     }
 
     const currentProject = currentProjectDir?.trim() || null
@@ -2989,7 +3019,7 @@ export class AgentSessionPresenter {
 
     return {
       agentId: resolvedAgentId,
-      agentType,
+      agentType: 'deepchat',
       providerId,
       modelId,
       projectDir:
@@ -3001,7 +3031,7 @@ export class AgentSessionPresenter {
       generationSettings: this.mergeDeepChatDefaultGenerationSettings(config),
       disabledAgentTools: this.normalizeDisabledAgentTools(config?.disabledAgentTools),
       subagentEnabled: this.resolveSessionSubagentEnabled(
-        agentType,
+        'deepchat',
         undefined,
         config?.subagentEnabled
       )

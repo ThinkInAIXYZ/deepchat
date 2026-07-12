@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress。
+> 状态：implementation in progress；ASLR-000..023 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -31,7 +31,7 @@
   Depends on: `ASLR-020`.
 - [x] `ASLR-022` Route common send/cancel/close/snapshot calls through typed legacy backend handles and preserve `MessageStartResult`.
   Depends on: `ASLR-021`.
-- [ ] `ASLR-023` Replace transfer/subagent optional-method routing in place with required kind facets.
+- [x] `ASLR-023` Replace transfer/subagent optional-method routing in place with required kind facets.
   Depends on: `ASLR-021`.
 - [ ] `ASLR-024` Keep title/export/search/usage/backfill/import in the façade and remove their fake-registry re-resolution only.
   Depends on: `ASLR-021`.

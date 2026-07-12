@@ -1824,6 +1824,49 @@ describe('AgentSessionPresenter', () => {
     })
   })
 
+  describe('subagent tape facets', () => {
+    it.each([
+      ['deepchat', 'mergeSubagentTape', 'mergeSubagentTape'],
+      ['acp-parent', 'discardSubagentTape', 'discardSubagentTape']
+    ] as const)(
+      'routes %s parent tape operations through required facets',
+      async (agentId, action, method) => {
+        sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) => {
+          if (sessionId === 'parent') {
+            return { id: 'parent', agent_id: agentId, session_kind: 'regular' }
+          }
+          if (sessionId === 'child') {
+            return {
+              id: 'child',
+              agent_id: agentId,
+              session_kind: 'subagent',
+              parent_session_id: 'parent'
+            }
+          }
+          return undefined
+        })
+
+        await presenter[action]('parent', 'child', { source: 'test' })
+
+        expect(deepChatAgent[method]).toHaveBeenCalledWith('parent', 'child', { source: 'test' })
+      }
+    )
+
+    it('rejects unrelated children before resolving the subagent facet', async () => {
+      sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) => {
+        if (sessionId === 'parent') return { id: 'parent', agent_id: 'deepchat' }
+        if (sessionId === 'child') return { id: 'child', parent_session_id: 'other' }
+        return undefined
+      })
+
+      await expect(presenter.mergeSubagentTape('parent', 'child')).rejects.toThrow(
+        'Session child is not a child of parent.'
+      )
+      expect(agentManager.resolveSubagentFacet).not.toHaveBeenCalled()
+      expect(deepChatAgent.mergeSubagentTape).not.toHaveBeenCalled()
+    })
+  })
+
   describe('getSessionList', () => {
     it('prefers lightweight session list state when available', async () => {
       sqlitePresenter.newSessionsTable.list.mockReturnValue([
@@ -2330,6 +2373,29 @@ describe('AgentSessionPresenter', () => {
   })
 
   describe('setSessionSubagentEnabled', () => {
+    it('rejects regular ACP sessions before updating persisted state', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 0,
+        subagent_enabled: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      await expect(presenter.setSessionSubagentEnabled('s-acp', true)).rejects.toThrow(
+        'Only DeepChat sessions can change subagent state.'
+      )
+
+      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
+    })
+
     it('throws when the updated session state cannot be rebuilt', async () => {
       const row = {
         id: 's1',
@@ -2495,6 +2561,35 @@ describe('AgentSessionPresenter', () => {
       expect(impact.emptyDrafts).toBe(0)
       expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
       expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
+    })
+
+    it('blocks transfer when pending input inspection fails', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat-writer',
+        title: 'Test',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({ status: 'idle' })
+      deepChatAgent.hasMessages.mockResolvedValue(true)
+      deepChatAgent.listPendingInputs.mockRejectedValue(new Error('pending query failed'))
+
+      await expect(presenter.moveSessionToAgent('s1', 'deepchat-coder')).rejects.toThrow(
+        'Session s1 cannot be moved: pending-input'
+      )
+
+      expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
     })
 
     it('rejects blank agent ids for destructive agent-session deletion', async () => {
