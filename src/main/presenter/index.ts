@@ -144,6 +144,7 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  agentManager: AgentManager
   memoryPresenter: MemoryPresenter
   projectPresenter: IProjectPresenter
   remoteControlPresenter: IRemoteControlPresenter
@@ -665,13 +666,13 @@ export class Presenter implements IPresenter {
       deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
       newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
     })
-    const agentManager = new AgentManager(agentRepository, appSessionService, {
+    this.agentManager = new AgentManager(agentRepository, appSessionService, {
       deepchat: createLegacyAgentBackend('deepchat', agentRuntimePresenter),
       acp: createLegacyAgentBackend('acp', agentRuntimePresenter)
     })
     this.agentSessionPresenter = new AgentSessionPresenter(
       agentRuntimePresenter,
-      agentManager,
+      this.agentManager,
       appSessionService,
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
@@ -693,7 +694,7 @@ export class Presenter implements IPresenter {
       configPresenter: this.configPresenter,
       agentSessionPresenter: this.agentSessionPresenter,
       filePresenter: this.filePresenter,
-      agentRuntimePresenter,
+      agentManager: this.agentManager,
       windowPresenter: this.windowPresenter,
       tabPresenter: this.tabPresenter
     })

@@ -16,7 +16,9 @@ const implementation = (name: string) =>
     listPendingInputs: vi.fn(),
     setSessionAgentContext: vi.fn(),
     mergeSubagentTape: vi.fn(),
-    discardSubagentTape: vi.fn()
+    discardSubagentTape: vi.fn(),
+    getActiveGeneration: vi.fn().mockReturnValue(null),
+    cancelGenerationByEventId: vi.fn().mockResolvedValue(false)
   }) as never
 
 const descriptor = (kind: 'deepchat' | 'acp'): AgentDescriptor =>
@@ -107,6 +109,33 @@ describe('AgentManager', () => {
       expect(selected.listPendingInputs).toHaveBeenCalledWith('session')
       expect(selected.mergeSubagentTape).toHaveBeenCalledWith('session', 'child', undefined)
       expect(subagent.kind).toBe(kind)
+    }
+  )
+
+  it.each(['deepchat', 'acp'] as const)(
+    'routes remote generation control through the %s session backend',
+    async (kind) => {
+      const selected = implementation(kind)
+      selected.getActiveGeneration.mockReturnValue({ eventId: 'message', runId: 'run' })
+      selected.cancelGenerationByEventId.mockResolvedValue(true)
+      const manager = new AgentManager(
+        { resolveExecutableDescriptor: vi.fn(() => descriptor(kind)) },
+        { get: vi.fn(() => ({ agentId: 'agent', sessionKind: 'regular' }) as never) },
+        {
+          deepchat: createLegacyAgentBackend(
+            'deepchat',
+            kind === 'deepchat' ? selected : implementation('deepchat')
+          ),
+          acp: createLegacyAgentBackend('acp', kind === 'acp' ? selected : implementation('acp'))
+        }
+      )
+      const sessionId = toAppSessionId('session')
+
+      expect(manager.getActiveGeneration(sessionId)).toEqual({ eventId: 'message', runId: 'run' })
+      await expect(manager.cancelGenerationByEventId(sessionId, 'message')).resolves.toBe(true)
+
+      expect(selected.getActiveGeneration).toHaveBeenCalledWith('session')
+      expect(selected.cancelGenerationByEventId).toHaveBeenCalledWith('session', 'message')
     }
   )
 

@@ -96,6 +96,8 @@ function createMockDeepChatAgent() {
     listPendingInputs: vi.fn().mockResolvedValue([]),
     mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
     discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+    getActiveGeneration: vi.fn().mockReturnValue(null),
+    cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
     getSessionCompactionState: vi.fn().mockResolvedValue({
       status: 'idle',
       cursorOrderSeq: 1,
@@ -512,6 +514,8 @@ describe('AgentSessionPresenter', () => {
       setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
       mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
       discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+      getActiveGeneration: vi.fn().mockReturnValue(null),
+      cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
       processMessage: vi
         .fn()
         .mockResolvedValue({ requestId: 'deepchat-request', messageId: 'deepchat-message' })
@@ -522,6 +526,8 @@ describe('AgentSessionPresenter', () => {
       listPendingInputs: vi.fn().mockResolvedValue([]),
       mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
       discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+      getActiveGeneration: vi.fn().mockReturnValue(null),
+      cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
       processMessage: vi
         .fn()
         .mockResolvedValue({ requestId: 'acp-request', messageId: 'acp-message' })

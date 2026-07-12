@@ -2693,7 +2693,7 @@ export class RemoteControlPresenter {
         configPresenter: this.deps.configPresenter,
         agentSessionPresenter: this.deps.agentSessionPresenter,
         filePresenter: this.deps.filePresenter,
-        agentRuntimePresenter: this.deps.agentRuntimePresenter,
+        agentManager: this.deps.agentManager,
         windowPresenter: this.deps.windowPresenter,
         tabPresenter: this.deps.tabPresenter,
         resolveDefaultAgentId: async () =>

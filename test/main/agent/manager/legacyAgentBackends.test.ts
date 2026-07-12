@@ -19,7 +19,9 @@ const createImplementation = () =>
     listPendingInputs: vi.fn().mockResolvedValue([]),
     setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
     mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-    discardSubagentTape: vi.fn().mockResolvedValue(undefined)
+    discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+    getActiveGeneration: vi.fn().mockReturnValue({ eventId: 'message', runId: 'run' }),
+    cancelGenerationByEventId: vi.fn().mockResolvedValue(true)
   }) as unknown as IAgentImplementation
 
 describe('legacy agent backends', () => {
@@ -74,6 +76,11 @@ describe('legacy agent backends', () => {
     })
     await deepchat.subagent.mergeTape(parent, child, { outcome: 'merged' })
     await acp.subagent.discardTape(parent, child, { outcome: 'discarded' })
+    expect(deepchat.generationControl.getActiveGeneration(parent)).toEqual({
+      eventId: 'message',
+      runId: 'run'
+    })
+    await acp.generationControl.cancelGenerationByEventId(parent, 'message')
 
     expect(implementation.hasMessages).toHaveBeenCalledWith('parent')
     expect(implementation.listPendingInputs).toHaveBeenCalledWith('parent')
@@ -87,6 +94,8 @@ describe('legacy agent backends', () => {
     expect(implementation.discardSubagentTape).toHaveBeenCalledWith('parent', 'child', {
       outcome: 'discarded'
     })
+    expect(implementation.getActiveGeneration).toHaveBeenCalledWith('parent')
+    expect(implementation.cancelGenerationByEventId).toHaveBeenCalledWith('parent', 'message')
     expect('transferTarget' in acp).toBe(false)
   })
 
@@ -96,6 +105,15 @@ describe('legacy agent backends', () => {
 
     expect(() => createLegacyAgentBackend('acp', implementation)).toThrow(
       'Legacy agent implementation is missing required method: mergeSubagentTape'
+    )
+  })
+
+  it('fails fast when remote generation control is missing', () => {
+    const implementation = createImplementation()
+    ;(implementation as any).cancelGenerationByEventId = undefined
+
+    expect(() => createLegacyAgentBackend('deepchat', implementation)).toThrow(
+      'Legacy agent implementation is missing required method: cancelGenerationByEventId'
     )
   })
 

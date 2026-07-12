@@ -9,6 +9,7 @@ import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type {
   LegacyAcpSubagentFacet,
   LegacyAgentBackendSet,
+  LegacyActiveGeneration,
   LegacyAgentSessionBackend,
   LegacyAgentSessionHandle,
   LegacyDeepChatSubagentFacet,
@@ -22,6 +23,11 @@ export interface ExecutableAgentCatalog {
 
 export interface AppSessionLookupPort {
   get(sessionId: AppSessionId): SessionRecord | null
+}
+
+export interface AgentManagerGenerationPort {
+  getActiveGeneration(sessionId: AppSessionId): LegacyActiveGeneration | null
+  cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
 }
 
 export class AppSessionNotFoundError extends Error {
@@ -76,7 +82,7 @@ export type ResolvedSubagentFacet =
       facet: LegacyAcpSubagentFacet
     }
 
-export class AgentManager {
+export class AgentManager implements AgentManagerGenerationPort {
   constructor(
     private readonly catalog: ExecutableAgentCatalog,
     private readonly appSessions: AppSessionLookupPort,
@@ -104,6 +110,17 @@ export class AgentManager {
   resolveSessionHandle(sessionId: AppSessionId): ResolvedLegacyAgentSession {
     const { descriptor, backend } = this.resolveSessionBackend(sessionId)
     return { descriptor, handle: backend.open(sessionId) }
+  }
+
+  getActiveGeneration(sessionId: AppSessionId): LegacyActiveGeneration | null {
+    return this.resolveSessionBackend(sessionId).backend.generationControl.getActiveGeneration(
+      sessionId
+    )
+  }
+
+  async cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean> {
+    const { backend } = this.resolveSessionBackend(sessionId)
+    return await backend.generationControl.cancelGenerationByEventId(sessionId, eventId)
   }
 
   resolveTransferSource(sessionId: AppSessionId): ResolvedTransferSource {

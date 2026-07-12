@@ -67,12 +67,23 @@ export interface LegacyAcpSubagentFacet {
   ): Promise<void>
 }
 
+export interface LegacyActiveGeneration {
+  eventId: string
+  runId: string
+}
+
+export interface LegacyGenerationControlFacet {
+  getActiveGeneration(sessionId: AppSessionId): LegacyActiveGeneration | null
+  cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
+}
+
 export interface LegacyDeepChatSessionBackend {
   readonly kind: 'deepchat'
   readonly implementation: IAgentImplementation
   readonly transferSource: LegacyTransferSourceFacet
   readonly transferTarget: LegacyDeepChatTransferTargetFacet
   readonly subagent: LegacyDeepChatSubagentFacet
+  readonly generationControl: LegacyGenerationControlFacet
   open(sessionId: AppSessionId): LegacyAgentSessionHandle
 }
 
@@ -81,6 +92,7 @@ export interface LegacyAcpSessionBackend {
   readonly implementation: IAgentImplementation
   readonly transferSource: LegacyTransferSourceFacet
   readonly subagent: LegacyAcpSubagentFacet
+  readonly generationControl: LegacyGenerationControlFacet
   open(sessionId: AppSessionId): LegacyAgentSessionHandle
 }
 
@@ -92,10 +104,10 @@ export interface LegacyAgentBackendSet {
 }
 
 function requireMethod<T extends (...args: never[]) => unknown>(
-  implementation: IAgentImplementation,
-  methodName: keyof IAgentImplementation
+  implementation: object,
+  methodName: string
 ): T {
-  const method = implementation[methodName]
+  const method = (implementation as Record<string, unknown>)[methodName]
   if (typeof method !== 'function') {
     throw new Error(`Legacy agent implementation is missing required method: ${String(methodName)}`)
   }
@@ -129,6 +141,12 @@ export function createLegacyAgentBackend(
   const discardSubagentTape = requireMethod<
     NonNullable<IAgentImplementation['discardSubagentTape']>
   >(implementation, 'discardSubagentTape')
+  const getActiveGeneration = requireMethod<
+    (sessionId: AppSessionId) => LegacyActiveGeneration | null
+  >(implementation, 'getActiveGeneration')
+  const cancelGenerationByEventId = requireMethod<
+    (sessionId: AppSessionId, eventId: string) => Promise<boolean>
+  >(implementation, 'cancelGenerationByEventId')
   const transferSource: LegacyTransferSourceFacet = {
     hasMessages: (sessionId) => hasMessages(sessionId),
     listPendingInputs: (sessionId) => listPendingInputs(sessionId)
@@ -145,10 +163,15 @@ export function createLegacyAgentBackend(
       meta?: Record<string, unknown>
     ) => discardSubagentTape(parentSessionId, childSessionId, meta)
   }
+  const generationControl: LegacyGenerationControlFacet = {
+    getActiveGeneration: (sessionId) => getActiveGeneration(sessionId),
+    cancelGenerationByEventId: (sessionId, eventId) => cancelGenerationByEventId(sessionId, eventId)
+  }
   const common = {
     kind,
     implementation,
     transferSource,
+    generationControl,
     open(sessionId: AppSessionId): LegacyAgentSessionHandle {
       return {
         sessionId,

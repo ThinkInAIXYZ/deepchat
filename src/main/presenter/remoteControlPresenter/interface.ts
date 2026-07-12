@@ -11,14 +11,14 @@ import type {
   TelegramRemoteSettings,
   WeixinIlinkRemoteSettings
 } from '@shared/presenter'
-import type { AgentRuntimePresenter } from '../agentRuntimePresenter'
+import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
 import type { CronJobRemoteDeliveryPort } from '../cronJobs/deliveryRouter'
 
 export interface RemoteControlPresenterDeps {
   configPresenter: IConfigPresenter
   agentSessionPresenter: IAgentSessionPresenter
   filePresenter?: IFilePresenter
-  agentRuntimePresenter: AgentRuntimePresenter
+  agentManager: AgentManagerGenerationPort
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
 }
