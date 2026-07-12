@@ -14,7 +14,12 @@
 > the compatibility adapter continues to use the existing echo, message projection, tool-fact
 > snapshot, and terminal writers. The engine invokes `settleTurn` exactly once. Within that adapter,
 > a normal settlement write failure still enters the legacy error/abort fallback; a settlement
-> failure while already handling a thrown round error is not replayed.
+> failure while already handling a thrown round error is not replayed. ASLR-053 added separate
+> `BasePromptAssembler` and `PostCompactionPromptAssembler` seams. The first is scoped to the
+> captured DeepChat instance and remains before compaction intent preparation; the second fixes
+> summary, reconstruction, and the awaited fail-open legacy Memory call after normal compaction
+> completion. Context building, compaction coordination, provider preflight, and budget recovery
+> remain in the compatibility presenter until ASLR-054.
 
 ## 1. 模块目的
 

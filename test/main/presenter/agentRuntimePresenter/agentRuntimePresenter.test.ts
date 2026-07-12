@@ -3202,6 +3202,230 @@ describe('AgentRuntimePresenter', () => {
       expect(systemPrompt).toContain('desc-a')
     })
 
+    it('keeps initial and skill-refresh prompt phases around compaction in fixed order', async () => {
+      const order: string[] = []
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getMetadataList.mockResolvedValue([
+        { name: 'skill-a', description: 'phase skill' }
+      ])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'SKILL_PHASE_CONTENT' })
+      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_PHASE_CONTENT')
+
+      const previousState = {
+        summaryText: null,
+        summaryCursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      }
+      const intent = {
+        sessionId: 's1',
+        previousState,
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['old turn'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 128000
+        },
+        reserveTokens: 4096
+      }
+      vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockImplementation(
+        async (input: { systemPrompt: string }) => {
+          order.push('compaction-prepare')
+          expect(input.systemPrompt).toContain('BASE_PHASE_CONTENT')
+          expect(input.systemPrompt).toContain('RUNTIME_CAPABILITIES')
+          expect(input.systemPrompt).toContain('ENV_BLOCK')
+          expect(input.systemPrompt).toContain('TOOLING_PHASE_CONTENT')
+          expect(input.systemPrompt).not.toContain('## Conversation Summary')
+          expect(input.systemPrompt).not.toContain('## Relevant Memories')
+          return intent
+        }
+      )
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockImplementation(async () => {
+        order.push('compaction-apply')
+        return {
+          succeeded: true,
+          summaryState: {
+            summaryText: 'SUMMARY_PHASE_CONTENT',
+            summaryCursorOrderSeq: 3,
+            summaryUpdatedAt: 123
+          }
+        }
+      })
+      ;(sqlitePresenter.deepchatTapeEntriesTable as any).getLatestReconstructionAnchor = vi.fn(
+        () => ({
+          session_id: 's1',
+          entry_id: 10,
+          kind: 'anchor',
+          name: 'handoff/phase-order',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          provenance_key: null,
+          payload_json: JSON.stringify({
+            name: 'handoff/phase-order',
+            state: { summary: 'RECONSTRUCTION_PHASE_CONTENT' }
+          }),
+          meta_json: '{}',
+          created_at: 100
+        })
+      )
+      const buildInjection = vi.fn(async () => {
+        order.push('memory')
+        return {
+          payload: {
+            selfModel: null,
+            working: null,
+            memories: [{ id: 'memory-1', kind: 'semantic', content: 'MEMORY_PHASE_CONTENT' }]
+          },
+          manifest: {
+            policyVersion: 1,
+            selected: [{ id: 'memory-1', kind: 'semantic', score: 1 }],
+            dropped: [],
+            tokenBudget: 1200,
+            estimatedTokens: 20,
+            queryHash: 'phase-query'
+          }
+        }
+      })
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      }
+
+      const buildBasePrompt = (agent as any).buildSystemPromptWithSkills.bind(agent)
+      vi.spyOn(agent as any, 'buildSystemPromptWithSkills').mockImplementation(
+        async (...args: unknown[]) => {
+          order.push('base')
+          return await buildBasePrompt(...args)
+        }
+      )
+      const postAssembler = (agent as any).postCompactionPromptAssembler
+      const assemblePostCompaction = postAssembler.assemble.bind(postAssembler)
+      vi.spyOn(postAssembler, 'assemble').mockImplementation(async (input: unknown) => {
+        order.push('post-compaction')
+        return await assemblePostCompaction(input)
+      })
+
+      let initialSystemPrompt = ''
+      let refreshedSystemPrompt = ''
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        order.push('provider-request')
+        initialSystemPrompt = String(params.run.messages[0]?.content ?? '')
+        refreshedSystemPrompt = await params.refreshSystemPrompt(
+          ['skill-a'],
+          params.run.resources.toolDefinitions
+        )
+        order.push('skill-refresh-complete')
+        return { status: 'completed' }
+      })
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { systemPrompt: 'BASE_PHASE_CONTENT' }
+      })
+      await agent.processMessage('s1', 'phase query')
+
+      expect(order).toEqual([
+        'base',
+        'compaction-prepare',
+        'compaction-apply',
+        'post-compaction',
+        'memory',
+        'provider-request',
+        'base',
+        'post-compaction',
+        'memory',
+        'skill-refresh-complete'
+      ])
+      for (const prompt of [initialSystemPrompt, refreshedSystemPrompt]) {
+        const baseIndex = prompt.indexOf('BASE_PHASE_CONTENT')
+        const summaryIndex = prompt.indexOf('## Conversation Summary')
+        const reconstructionIndex = prompt.indexOf('## Tape Handoff State')
+        const memoryIndex = prompt.indexOf('## Relevant Memories')
+
+        expect(baseIndex).toBeGreaterThanOrEqual(0)
+        expect(summaryIndex).toBeGreaterThan(baseIndex)
+        expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+        expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
+      }
+      expect(refreshedSystemPrompt).toContain('SKILL_PHASE_CONTENT')
+      expect(buildInjection).toHaveBeenCalledTimes(2)
+    })
+
+    it.each([
+      { mode: 'disabled', enabled: false, rejects: false, expectedCalls: 0 },
+      { mode: 'failure', enabled: true, rejects: true, expectedCalls: 1 }
+    ])(
+      'keeps the no-intent post-compaction prompt when Memory is $mode',
+      async ({ enabled, rejects, expectedCalls }) => {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+          summaryText: 'NO_INTENT_SUMMARY',
+          summaryCursorOrderSeq: 3,
+          summaryUpdatedAt: 222
+        })
+        vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockResolvedValue(null)
+        const buildInjection = rejects
+          ? vi.fn().mockRejectedValue(new Error('memory unavailable'))
+          : vi.fn()
+        ;(agent as any).memoryPort = {
+          isEnabled: vi.fn(() => enabled),
+          buildInjection,
+          recordInjectionAccess: vi.fn()
+        }
+
+        await agent.processMessage('s1', 'no intent')
+
+        const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+        const systemPrompt = String(params.run.messages[0]?.content ?? '')
+        expect(systemPrompt).toContain('NO_INTENT_SUMMARY')
+        expect(systemPrompt).not.toContain('## Relevant Memories')
+        expect(buildInjection).toHaveBeenCalledTimes(expectedCalls)
+      }
+    )
+
+    it('does not enter post-compaction contributors when compaction throws', async () => {
+      const intent = {
+        sessionId: 's1',
+        previousState: {
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
+        },
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['old turn'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 128000
+        },
+        reserveTokens: 4096
+      }
+      vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockResolvedValue(intent)
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValue(
+        new Error('compaction failed')
+      )
+      const postAssembler = (agent as any).postCompactionPromptAssembler
+      const postSpy = vi.spyOn(postAssembler, 'assemble')
+      const buildInjection = vi.fn()
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      }
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'stop after compaction')
+      consoleError.mockRestore()
+
+      expect(postSpy).not.toHaveBeenCalled()
+      expect(buildInjection).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
     it('derives runtime capabilities from the current enabled agent tools', async () => {
       const runtimeBuilder = buildRuntimeCapabilitiesPrompt as ReturnType<typeof vi.fn>
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
@@ -5757,6 +5981,90 @@ describe('AgentRuntimePresenter', () => {
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
     })
 
+    it('keeps reconstruction and Memory after context-pressure compaction in provider prompt', async () => {
+      const buildInjection = vi.fn(async () => ({
+        payload: {
+          selfModel: null,
+          working: null,
+          memories: [
+            { id: 'pressure-memory', kind: 'semantic', content: 'PRESSURE_MEMORY_CONTENT' }
+          ]
+        },
+        manifest: {
+          policyVersion: 1,
+          selected: [{ id: 'pressure-memory', kind: 'semantic', score: 1 }],
+          dropped: [],
+          tokenBudget: 1200,
+          estimatedTokens: 20,
+          queryHash: 'pressure-query'
+        }
+      }))
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      }
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      buildInjection.mockClear()
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      ;(sqlitePresenter.deepchatTapeEntriesTable as any).getLatestReconstructionAnchor = vi.fn(
+        () => ({
+          session_id: 's1',
+          entry_id: 12,
+          kind: 'anchor',
+          name: 'handoff/pressure-order',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          provenance_key: null,
+          payload_json: JSON.stringify({
+            name: 'handoff/pressure-order',
+            state: { summary: 'PRESSURE_RECONSTRUCTION_CONTENT' }
+          }),
+          meta_json: '{}',
+          created_at: 102
+        })
+      )
+      llmProvider.generateText.mockClear()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockClear()
+      const pressureText = makeTextWithEstimatedTokens(4100)
+      for await (const _event of callArgs.coreStream(
+        [
+          { role: 'system', content: 'oversized request prompt' },
+          { role: 'user', content: pressureText }
+        ],
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.run.resources.toolDefinitions
+      )) {
+      }
+
+      const providerSystemPrompt = String(providerCoreStream.mock.calls[0][0][0]?.content ?? '')
+      const summaryIndex = providerSystemPrompt.indexOf('## Conversation Summary')
+      const reconstructionIndex = providerSystemPrompt.indexOf('## Tape Handoff State')
+      const memoryIndex = providerSystemPrompt.indexOf('## Relevant Memories')
+      expect(llmProvider.generateText).toHaveBeenCalled()
+      expect(summaryIndex).toBeGreaterThanOrEqual(0)
+      expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+      expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
+      expect(providerSystemPrompt).toContain('PRESSURE_RECONSTRUCTION_CONTENT')
+      expect(providerSystemPrompt).toContain('PRESSURE_MEMORY_CONTENT')
+      expect(buildInjection).toHaveBeenCalledTimes(1)
+    })
+
     it('keeps strict overflow retry within one provider round while advancing request sequence', async () => {
       await agent.initSession('s1', {
         providerId: 'openai',
@@ -6589,6 +6897,112 @@ describe('AgentRuntimePresenter', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
       return row
     }
+
+    it('assembles resume context after compaction and preserves base-only round refresh', async () => {
+      const order: string[] = []
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const assistantRow = makeAssistantRow({ orderSeq: 2, blocks: [] })
+      const userRow = makeDeepchatUserRow(1, 'resume query', 'resume-user')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([userRow, assistantRow])
+
+      const buildBasePrompt = (agent as any).buildSystemPromptWithSkills.bind(agent)
+      vi.spyOn(agent as any, 'buildSystemPromptWithSkills').mockImplementation(
+        async (...args: unknown[]) => {
+          order.push('base')
+          return await buildBasePrompt(...args)
+        }
+      )
+      vi.spyOn(agent as any, 'resolveCompactionStateForResumeTurn').mockImplementation(async () => {
+        order.push('resume-compaction')
+        return {
+          summaryText: 'RESUME_SUMMARY_CONTENT',
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: 321
+        }
+      })
+      ;(sqlitePresenter.deepchatTapeEntriesTable as any).getLatestReconstructionAnchor = vi.fn(
+        () => ({
+          session_id: 's1',
+          entry_id: 11,
+          kind: 'anchor',
+          name: 'handoff/resume-order',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          provenance_key: null,
+          payload_json: JSON.stringify({
+            name: 'handoff/resume-order',
+            state: { summary: 'RESUME_RECONSTRUCTION_CONTENT' }
+          }),
+          meta_json: '{}',
+          created_at: 101
+        })
+      )
+      const buildInjection = vi.fn(async () => {
+        order.push('memory')
+        return {
+          payload: {
+            selfModel: null,
+            working: null,
+            memories: [{ id: 'resume-memory', kind: 'semantic', content: 'RESUME_MEMORY_CONTENT' }]
+          },
+          manifest: {
+            policyVersion: 1,
+            selected: [{ id: 'resume-memory', kind: 'semantic', score: 1 }],
+            dropped: [],
+            tokenBudget: 1200,
+            estimatedTokens: 20,
+            queryHash: 'resume-query'
+          }
+        }
+      })
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      }
+      const postAssembler = (agent as any).postCompactionPromptAssembler
+      const assemblePostCompaction = postAssembler.assemble.bind(postAssembler)
+      vi.spyOn(postAssembler, 'assemble').mockImplementation(async (input: unknown) => {
+        order.push('post-compaction')
+        return await assemblePostCompaction(input)
+      })
+
+      let streamParams: any
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        order.push('provider-request')
+        streamParams = params
+        return { status: 'completed' }
+      })
+
+      await expect((agent as any).resumeAssistantMessage('s1', 'm1', [])).resolves.toBe(true)
+
+      expect(order).toEqual([
+        'base',
+        'resume-compaction',
+        'post-compaction',
+        'memory',
+        'provider-request'
+      ])
+      const systemPrompt = String(streamParams.run.messages[0]?.content ?? '')
+      const summaryIndex = systemPrompt.indexOf('## Conversation Summary')
+      const reconstructionIndex = systemPrompt.indexOf('## Tape Handoff State')
+      const memoryIndex = systemPrompt.indexOf('## Relevant Memories')
+      expect(summaryIndex).toBeGreaterThanOrEqual(0)
+      expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+      expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
+
+      order.length = 0
+      const refreshedSystemPrompt = await streamParams.refreshSystemPrompt(
+        undefined,
+        streamParams.run.resources.toolDefinitions
+      )
+      expect(order).toEqual(['base'])
+      expect(refreshedSystemPrompt).not.toContain('## Conversation Summary')
+      expect(refreshedSystemPrompt).not.toContain('## Tape Handoff State')
+      expect(refreshedSystemPrompt).not.toContain('## Relevant Memories')
+      expect(buildInjection).toHaveBeenCalledTimes(1)
+    })
 
     it('handles question_option and resumes assistant message', async () => {
       const prepareForResumeTurn = vi.spyOn(

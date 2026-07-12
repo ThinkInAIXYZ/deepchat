@@ -93,6 +93,10 @@ import {
   buildSystemEnvPrompt
 } from '@/agent/deepchat/resources/systemEnvPromptBuilder'
 import { advanceRequestSequence, createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
+import type {
+  BasePromptAssembler,
+  PostCompactionPromptAssembler
+} from '@/agent/deepchat/loop/ports'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type {
   DeepChatAgentInstance,
@@ -650,6 +654,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     | 'discardDraftSkill'
   >
   private nextRunSequence = 0
+  private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler = {
+    assemble: async (input) => {
+      const promptWithSummary = appendSummarySection(input.basePrompt, input.summaryText)
+      const promptWithReconstruction = appendReconstructionAnchorStateSection(
+        promptWithSummary,
+        input.reconstructionAnchor
+      )
+      return await this.appendMemoryInjection(
+        input.sessionId,
+        promptWithReconstruction,
+        input.memoryQuery,
+        input.memoryMessageId
+      )
+    }
+  }
 
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
@@ -750,6 +769,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private getDeepChatRuntimeState(sessionId: string): DeepChatSessionState | undefined {
     return this.getHydratedDeepChatInstance(sessionId)?.getRuntimeState()
+  }
+
+  private createBasePromptAssembler(expectedInstance: DeepChatAgentInstance): BasePromptAssembler {
+    return {
+      assemble: async (input) =>
+        await this.buildSystemPromptWithSkills(
+          input.sessionId,
+          input.configuredPrompt,
+          [...input.toolDefinitions],
+          [...input.activeSkillNames],
+          expectedInstance
+        )
+    }
   }
 
   private isCurrentDeepChatInstance(
@@ -1311,13 +1343,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
       stepStartedAt = Date.now()
-      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
-        sessionId,
-        generationSettings.systemPrompt,
-        tools,
-        effectiveActiveSkillNames,
-        instance
-      )
+      const basePromptAssembler = this.createBasePromptAssembler(instance)
+      const baseSystemPrompt = await basePromptAssembler.assemble({
+        sessionId: toAppSessionId(sessionId),
+        configuredPrompt: generationSettings.systemPrompt,
+        toolDefinitions: tools,
+        activeSkillNames: effectiveActiveSkillNames
+      })
       this.logSlowPreStreamStep(sessionId, 'system-prompt', stepStartedAt)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
@@ -1419,15 +1451,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       })
 
       stepStartedAt = Date.now()
-      const systemPrompt = await this.appendMemoryInjection(
-        sessionId,
-        appendReconstructionAnchorStateSection(
-          appendSummarySection(baseSystemPrompt, summaryState.summaryText),
-          this.sessionStore.getReconstructionAnchorPromptState(sessionId)
-        ),
-        normalizedInput.text,
-        userMessageId
-      )
+      const systemPrompt = await this.postCompactionPromptAssembler.assemble({
+        sessionId: toAppSessionId(sessionId),
+        basePrompt: baseSystemPrompt,
+        summaryText: summaryState.summaryText,
+        reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
+        memoryQuery: normalizedInput.text,
+        memoryMessageId: userMessageId
+      })
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       this.logSlowPreStreamStep(sessionId, 'memory-injection', stepStartedAt)
       stepStartedAt = Date.now()
@@ -1479,22 +1510,20 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         resourceInstance: instance,
         maxProviderRounds: context?.maxProviderRounds,
         refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
-          const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
-            sessionId,
-            generationSettings.systemPrompt,
-            refreshedTools,
-            activeSkillNames ?? effectiveActiveSkillNames,
-            instance
-          )
-          return await this.appendMemoryInjection(
-            sessionId,
-            appendReconstructionAnchorStateSection(
-              appendSummarySection(refreshedBasePrompt, summaryState.summaryText),
-              this.sessionStore.getReconstructionAnchorPromptState(sessionId)
-            ),
-            normalizedInput.text,
-            userMessageId
-          )
+          const refreshedBasePrompt = await basePromptAssembler.assemble({
+            sessionId: toAppSessionId(sessionId),
+            configuredPrompt: generationSettings.systemPrompt,
+            toolDefinitions: refreshedTools,
+            activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames
+          })
+          return await this.postCompactionPromptAssembler.assemble({
+            sessionId: toAppSessionId(sessionId),
+            basePrompt: refreshedBasePrompt,
+            summaryText: summaryState.summaryText,
+            reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
+            memoryQuery: normalizedInput.text,
+            memoryMessageId: userMessageId
+          })
         },
         interleavedReasoning,
         viewContext: {
@@ -3440,13 +3469,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         instance
       )
       const toolReserveTokens = estimateToolReserveTokens(tools)
-      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
-        sessionId,
-        generationSettings.systemPrompt,
-        tools,
-        activeSkillNames,
-        instance
-      )
+      const baseSystemPrompt = await this.createBasePromptAssembler(instance).assemble({
+        sessionId: toAppSessionId(sessionId),
+        configuredPrompt: generationSettings.systemPrompt,
+        toolDefinitions: tools,
+        activeSkillNames
+      })
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
 
       const intent = await this.compactionService.prepareForManualCompaction({
@@ -3843,14 +3871,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               refreshedTools
             )
           }
-          const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
-            sessionId,
-            generationSettings.systemPrompt,
-            refreshedTools,
-            getEffectiveRuntimeSkillNames(activeSkillNames),
-            resourceInstance
-          )
-          return refreshedBasePrompt
+          return await this.createBasePromptAssembler(resourceInstance).assemble({
+            sessionId: toAppSessionId(sessionId),
+            configuredPrompt: generationSettings.systemPrompt,
+            toolDefinitions: refreshedTools,
+            activeSkillNames: getEffectiveRuntimeSkillNames(activeSkillNames)
+          })
         },
         toolPresenter: this.toolPresenter,
         coreStream: async function* (
@@ -4431,15 +4457,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       params.expectedInstance.getMemorySessionHandle(),
       intent
     )
-    const systemPrompt = await this.appendMemoryInjection(
-      params.sessionId,
-      appendReconstructionAnchorStateSection(
-        appendSummarySection(systemPromptBase, summaryState.summaryText),
-        this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
-      ),
-      this.getLatestUserQuery(params.sessionId),
-      null
-    )
+    const systemPrompt = await this.postCompactionPromptAssembler.assemble({
+      sessionId: toAppSessionId(params.sessionId),
+      basePrompt: systemPromptBase,
+      summaryText: summaryState.summaryText,
+      reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(params.sessionId),
+      memoryQuery: this.getLatestUserQuery(params.sessionId),
+      memoryMessageId: null
+    })
     this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
     messages = this.replaceLeadingSystemPrompt(messages, systemPrompt)
 
@@ -4823,13 +4848,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
-        sessionId,
-        generationSettings.systemPrompt,
-        tools,
-        activeSkillNames,
-        instance
-      )
+      const baseSystemPrompt = await this.createBasePromptAssembler(instance).assemble({
+        sessionId: toAppSessionId(sessionId),
+        configuredPrompt: generationSettings.systemPrompt,
+        toolDefinitions: tools,
+        activeSkillNames
+      })
       this.throwIfAbortRequested(preStreamAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
       const resumeTargetOrderSeq =
@@ -4861,15 +4885,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const resumeTapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-      const systemPrompt = await this.appendMemoryInjection(
-        sessionId,
-        appendReconstructionAnchorStateSection(
-          appendSummarySection(baseSystemPrompt, summaryState.summaryText),
-          this.sessionStore.getReconstructionAnchorPromptState(sessionId)
-        ),
-        this.getLatestUserQuery(sessionId),
-        messageId
-      )
+      const systemPrompt = await this.postCompactionPromptAssembler.assemble({
+        sessionId: toAppSessionId(sessionId),
+        basePrompt: baseSystemPrompt,
+        summaryText: summaryState.summaryText,
+        reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
+        memoryQuery: this.getLatestUserQuery(sessionId),
+        memoryMessageId: messageId
+      })
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       const resumeContextBuild = buildTapeResumeView({
         sessionId,

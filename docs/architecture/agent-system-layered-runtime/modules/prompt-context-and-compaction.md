@@ -3,8 +3,14 @@
 > 状态：目标设计。顺序与 budget policy 是兼容合同，不在重构中优化。
 
 > 实施进度：ASLR-046 已把 session-scoped compaction in-flight projection 迁入
-> `DeepChatAgentInstance`，persisted summary 仍是事实源，`compacting` projection 仍优先；本任务未提取
-> compaction coordinator，也未改变 prompt/context/Memory 顺序。
+> `DeepChatAgentInstance`，persisted summary 仍是事实源，`compacting` projection 仍优先。ASLR-053
+> 增加了 scoped `BasePromptAssembler` 与固定 `PostCompactionPromptAssembler`：initial、resume 和
+> manual compaction 都在 intent preparation 前完成原有 base/runtime/env/skills/tooling/permission/
+> verification 组合；normal initial/resume/pressure paths 在 compaction 后固定按
+> summary -> reconstruction -> awaited fail-open legacy Memory 顺序组合。initial tool-skill refresh
+> 重用两个 phase；resume later-round refresh 继续保留原有 base-only 差异。manual compaction 仍只消费
+> base prompt，不新增 post-compaction request assembly。本任务未提取 context/compaction coordinator，
+> 未改变 prompt 文案、缓存、budget、request 或 Memory owner/trigger。
 
 ## 1. 模块目的
 

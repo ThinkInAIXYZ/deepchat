@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..052 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..053 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -78,7 +78,7 @@
   Depends on: `ASLR-050`.
 - [x] `ASLR-052` Move existing Tape/message/output commits into the fixed lifecycle without adding entry kinds.
   Depends on: `ASLR-051`.
-- [ ] `ASLR-053` Move base prompt contributors before compaction and summary/reconstruction after compaction; keep the legacy Memory call fixed in its post-compaction slot.
+- [x] `ASLR-053` Move base prompt contributors before compaction and summary/reconstruction after compaction; keep the legacy Memory call fixed in its post-compaction slot.
   Depends on: `ASLR-052`.
 - [ ] `ASLR-054` Move context/preflight/compaction coordinator.
   Depends on: `ASLR-053`.

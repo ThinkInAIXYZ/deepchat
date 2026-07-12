@@ -146,3 +146,33 @@ export interface ContextCoordinator {
   prepare(input: ContextRequestInput): Promise<PreparedProviderRequest>
   recoverFromPressure(input: ContextRequestInput): Promise<PreparedProviderRequest>
 }
+
+export interface BasePromptAssemblyInput {
+  sessionId: AppSessionId
+  configuredPrompt: string
+  toolDefinitions: readonly MCPToolDefinition[]
+  activeSkillNames: readonly string[]
+}
+
+export interface BasePromptAssembler {
+  assemble(input: BasePromptAssemblyInput): Promise<string>
+}
+
+export interface PromptReconstructionAnchor {
+  name: string
+  state: Record<string, unknown>
+  createdAt: number
+}
+
+export interface PostCompactionPromptAssemblyInput {
+  sessionId: AppSessionId
+  basePrompt: string
+  summaryText: string | null
+  reconstructionAnchor: PromptReconstructionAnchor | null
+  memoryQuery: string
+  memoryMessageId?: string | null
+}
+
+export interface PostCompactionPromptAssembler {
+  assemble(input: PostCompactionPromptAssemblyInput): Promise<string>
+}
