@@ -3,7 +3,7 @@ import {
   AcpSessionPersistence,
   type AcpProcessHandle,
   type AcpSessionRecord
-} from '@/presenter/llmProviderPresenter/acp'
+} from '@/agent/acp/runtime'
 import type { ProviderMcpRuntimePort } from '@/presenter/llmProviderPresenter/runtimePorts'
 import { AcpConnectionManager } from './connection/AcpConnectionManager'
 import { AcpSessionRuntime } from './session/AcpSessionRuntime'
@@ -11,7 +11,7 @@ import { AcpPromptController } from './session/AcpPromptController'
 import { AcpEventMapper } from './mapper/AcpEventMapper'
 import type { AcpConnectionRef, CancelAcpPromptInput, StartAcpConnectionInput } from './types'
 
-export class AcpClientPresenter {
+export class AcpClientRuntime {
   readonly connectionManager: AcpConnectionManager
   readonly sessionRuntime: AcpSessionRuntime
   readonly promptController = new AcpPromptController()
@@ -75,4 +75,3 @@ export class AcpClientPresenter {
 
 export type * from './types'
 export { AcpPromptController, type AcpPromptTurn } from './session/AcpPromptController'
-export { AcpDebugLog } from './connection/AcpDebugLog'

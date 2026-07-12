@@ -38,7 +38,7 @@
 
 ### 2.3 Electron 40.10.5 的兼容事实
 
-仓库 `electron` 版本固定为 [`package.json#L185`](../../../package.json#L185) 的 `40.10.5`。项目内已经存在 Node stream 转 Web stream 的运行时用法：[`acpProcessManager.ts#L1407-L1408`](../../../src/main/presenter/llmProviderPresenter/acp/acpProcessManager.ts#L1407-L1408) 使用 `Writable.toWeb(...)` 和 `Readable.toWeb(...)`。这说明当前运行时至少已在项目内接受 Node/Web stream 互转模式。
+仓库 `electron` 版本固定为 [`package.json#L185`](../../../package.json#L185) 的 `40.10.5`。项目内已经存在 Node stream 转 Web stream 的运行时用法：[`acpProcessManager.ts#L1407-L1408`](../../../src/main/agent/acp/runtime/acpProcessManager.ts#L1407-L1408) 使用 `Writable.toWeb(...)` 和 `Readable.toWeb(...)`。这说明当前运行时至少已在项目内接受 Node/Web stream 互转模式。
 
 因此文档结论应明确为：**Electron 40.10.5 上，`protocol.handle` 返回 `Promise<Response>` 是可行设计；body 首选 `Readable.toWeb(fs.createReadStream(...))`。** 但为避免类型层或运行时边界差异，需同时落地确定性 fallback：同一 async handler 内，捕获 stream body 构造/返回失败后改用 `await fs.promises.readFile(...)` 返回 `Response`。
 

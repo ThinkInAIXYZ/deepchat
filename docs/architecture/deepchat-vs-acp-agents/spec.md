@@ -52,9 +52,9 @@ Important current behavior:
 Main files:
 
 - `src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
-- `src/main/presenter/llmProviderPresenter/acp/acpProcessManager.ts`
-- `src/main/presenter/llmProviderPresenter/acp/acpSessionManager.ts`
-- `src/main/presenter/acpClientPresenter/index.ts`
+- `src/main/agent/acp/runtime/acpProcessManager.ts`
+- `src/main/agent/acp/runtime/acpSessionManager.ts`
+- `src/main/agent/acp/client/index.ts`
 
 Flow:
 

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AcpTerminalManager } from '@/presenter/llmProviderPresenter/acp/acpTerminalManager'
+import { AcpTerminalManager } from '@/agent/acp/runtime/acpTerminalManager'
 import { spawn } from 'node-pty'
 
 vi.mock('node-pty', () => ({

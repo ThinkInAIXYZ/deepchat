@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AcpMessageFormatter } from '@/presenter/llmProviderPresenter/acp'
+import { AcpMessageFormatter } from '@/agent/acp/runtime'
 import type { ChatMessage } from '@shared/presenter'
 
 describe('AcpMessageFormatter', () => {

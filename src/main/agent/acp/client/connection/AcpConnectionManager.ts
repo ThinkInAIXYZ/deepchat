@@ -1,6 +1,6 @@
 import type { LLM_PROVIDER, IConfigPresenter, AcpAgentConfig } from '@shared/presenter'
 import type { ProviderMcpRuntimePort } from '@/presenter/llmProviderPresenter/runtimePorts'
-import { AcpProcessManager, type AcpProcessHandle } from '@/presenter/llmProviderPresenter/acp'
+import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime'
 import type { AcpConnectionRef, StartAcpConnectionInput } from '../types'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 

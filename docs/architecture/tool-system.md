@@ -19,7 +19,7 @@
 | `AgentTapeToolHandler` | `src/main/presenter/toolPresenter/agentTools/agentTapeTools.ts` | tape read/merge/discard tools |
 | `AgentImageGenerationTool` | `src/main/presenter/toolPresenter/agentTools/agentImageGenerationTool.ts` | image generation tool |
 | `McpPresenter` | `src/main/presenter/mcpPresenter/` | 外部 MCP servers 与 tools |
-| `ACP helpers` | `src/main/presenter/llmProviderPresenter/acp/` | ACP provider runtime、workdir、config、MCP 映射 |
+| `ACP helpers` | `src/main/agent/acp/` | ACP runtime、workdir、config、MCP 映射 |
 
 ## 路由关系
 
@@ -114,26 +114,16 @@ Search policy:
 
 ## ACP 相关 helper
 
-ACP provider 仍然是活跃能力，但它的 helper 已经迁到 provider 层：
+ACP provider 仍然是活跃兼容能力，但 ACP helper 已经收拢到独立 domain owner：
 
 ```text
-src/main/presenter/llmProviderPresenter/acp/
-├── acpProcessManager.ts
-├── acpSessionManager.ts
-├── acpSessionPersistence.ts
-├── acpConfigState.ts
-├── acpCapabilities.ts
-├── acpContentMapper.ts
-├── acpFsHandler.ts
-├── acpMessageFormatter.ts
-├── acpTerminalManager.ts
-├── mcpConfigConverter.ts
-├── mcpTransportFilter.ts
-└── types.ts
+src/main/agent/acp/
+├── client/                  # connection/prompt/workspace client runtime
+└── runtime/                 # process/session/persistence/protocol mapping
 ```
 
-这些模块现在只服务于 `LLMProviderPresenter` / `AcpProvider`，不再依附 legacy
-`AgentPresenter`。
+`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts` 仍是 DeepChat 选择 ACP provider
+时的兼容 adapter；ACP process/session 实现不再由 provider 目录持有。
 
 ## 调试建议
 

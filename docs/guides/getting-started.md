@@ -65,11 +65,11 @@ src/
 │   │   ├── agentRuntimePresenter/   # 当前聊天 runtime
 │   │   ├── toolPresenter/            # 工具路由
 │   │   │   └── agentTools/           # 本地 agent tools
-│   │   ├── llmProviderPresenter/     # provider 管理
-│   │   │   └── acp/                  # ACP helper
+│   │   ├── llmProviderPresenter/     # provider 管理与 ACP provider adapter
 │   │   ├── mcpPresenter/             # MCP tools/runtime
 │   │   ├── sessionPresenter/         # legacy 数据兼容层
 │   │   └── ...
+│   ├── agent/acp/                    # ACP catalog/client/runtime owner
 │   ├── lib/agentRuntime/             # 共享 runtime helper
 │   ├── eventbus.ts
 │   └── events.ts
@@ -119,7 +119,7 @@ src/
 
 - `src/main/presenter/llmProviderPresenter/index.ts`
 - `src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
-- `src/main/presenter/llmProviderPresenter/acp/`
+- `src/main/agent/acp/`
 
 ### 处理 legacy import / 导出
 

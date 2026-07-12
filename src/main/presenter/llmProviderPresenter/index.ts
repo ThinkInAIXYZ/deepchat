@@ -44,7 +44,7 @@ import { EmbeddingManager } from './managers/embeddingManager'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
-import { AcpSessionPersistence } from './acp'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { AcpProvider } from './providers/acpProvider'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
 

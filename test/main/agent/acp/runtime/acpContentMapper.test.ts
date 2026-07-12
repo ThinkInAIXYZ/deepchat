@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import { AcpContentMapper } from '@/presenter/llmProviderPresenter/acp/acpContentMapper'
+import { AcpContentMapper } from '@/agent/acp/runtime/acpContentMapper'
 
 const createNotification = <T extends schema.SessionNotification['update']>(
   sessionId: string,

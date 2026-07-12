@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import { AcpContentMapper } from '@/presenter/llmProviderPresenter/acp'
+import { AcpContentMapper } from '@/agent/acp/runtime'
 import type { DeepChatAgentEvent } from '../types'
 
 export class AcpEventMapper {

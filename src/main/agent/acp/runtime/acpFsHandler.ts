@@ -3,7 +3,7 @@ import * as path from 'path'
 import { RequestError } from '@agentclientprotocol/sdk'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { buildBinaryReadGuidance, shouldRejectAcpTextRead } from '@/lib/binaryReadGuard'
-import { AcpPathGuard } from '@/presenter/acpClientPresenter/workspace/AcpPathGuard'
+import { AcpPathGuard } from './acpPathGuard'
 
 export interface FsHandlerOptions {
   /** Session's working directory (workspace root). Null = allow all. */

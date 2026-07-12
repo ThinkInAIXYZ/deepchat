@@ -17,7 +17,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 - 客户端能力页：[Content](https://agentclientprotocol.com/protocol/v1/content)、[Tool Calls](https://agentclientprotocol.com/protocol/v1/tool-calls)、[File System](https://agentclientprotocol.com/protocol/v1/file-system)、[Terminals](https://agentclientprotocol.com/protocol/v1/terminals)
 - 状态增强页：[Agent Plan](https://agentclientprotocol.com/protocol/v1/agent-plan)、[Session Modes](https://agentclientprotocol.com/protocol/v1/session-modes)、[Session Config Options](https://agentclientprotocol.com/protocol/v1/session-config-options)、[Slash Commands](https://agentclientprotocol.com/protocol/v1/slash-commands)、[Extensibility](https://agentclientprotocol.com/protocol/v1/extensibility)、[Transports](https://agentclientprotocol.com/protocol/v1/transports)
 - 本仓库 registry snapshot：`resources/acp-registry/registry.json`
-- 现有 ACP 入口：`src/main/presenter/llmProviderPresenter/acp/*`、`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
+- 现有 ACP 入口：`src/main/agent/acp/*`、`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
 
 ## 用户故事
 

@@ -9,7 +9,7 @@ import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { AiSdkProvider } from '../providers/aiSdkProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
-import { AcpSessionPersistence } from '../acp'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 

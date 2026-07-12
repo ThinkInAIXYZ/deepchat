@@ -43,8 +43,8 @@ import {
   updateAcpConfigStateValue,
   type AcpProcessHandle,
   type AcpSessionRecord
-} from '../acp'
-import { AcpClientPresenter, AcpPromptController } from '@/presenter/acpClientPresenter'
+} from '@/agent/acp/runtime'
+import { AcpClientRuntime, AcpPromptController } from '@/agent/acp/client'
 import { nanoid } from 'nanoid'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
@@ -153,7 +153,7 @@ export class AcpProvider extends BaseLLMProvider {
   private readonly processManager: AcpProcessManager
   private readonly sessionManager: AcpSessionManager
   private readonly sessionPersistence: AcpSessionPersistence
-  private readonly acpRuntime: AcpClientPresenter
+  private readonly acpRuntime: AcpClientRuntime
   private readonly promptController: AcpPromptController
   private readonly contentMapper = new AcpContentMapper()
   private readonly messageFormatter = new AcpMessageFormatter()
@@ -167,7 +167,7 @@ export class AcpProvider extends BaseLLMProvider {
   ) {
     super(provider, configPresenter, mcpRuntime)
     this.sessionPersistence = sessionPersistence
-    this.acpRuntime = new AcpClientPresenter({
+    this.acpRuntime = new AcpClientRuntime({
       provider,
       configPresenter,
       sessionPersistence,

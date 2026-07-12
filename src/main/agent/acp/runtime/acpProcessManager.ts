@@ -41,7 +41,7 @@ import {
   normalizeAcpConfigState,
   updateAcpConfigStateValue
 } from './acpConfigState'
-import { AcpDebugLog } from '@/presenter/acpClientPresenter/connection/AcpDebugLog'
+import { AcpDebugLog } from './acpDebugLog'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams

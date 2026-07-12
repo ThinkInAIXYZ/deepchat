@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildCapabilitySnapshot,
   buildClientCapabilities
-} from '@/presenter/llmProviderPresenter/acp'
+} from '@/agent/acp/runtime'
 
 describe('AcpCapabilities', () => {
   describe('buildClientCapabilities', () => {

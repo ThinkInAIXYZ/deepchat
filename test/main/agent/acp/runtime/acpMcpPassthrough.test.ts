@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import { convertMcpConfigToAcpFormat } from '../../../src/main/presenter/llmProviderPresenter/acp/mcpConfigConverter'
-import { filterMcpServersByTransportSupport } from '../../../src/main/presenter/llmProviderPresenter/acp/mcpTransportFilter'
-import { AcpSessionManager } from '../../../src/main/presenter/llmProviderPresenter/acp/acpSessionManager'
+import { convertMcpConfigToAcpFormat } from '@/agent/acp/runtime/mcpConfigConverter'
+import { filterMcpServersByTransportSupport } from '@/agent/acp/runtime/mcpTransportFilter'
+import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'
 
 vi.mock('electron', () => ({
   app: {

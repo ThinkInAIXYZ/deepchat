@@ -64,7 +64,7 @@ class MockChild extends EventEmitter {
 describe('AcpProcessManager initialized capabilities', () => {
   it('carries initialize capabilities into the ready process handle', async () => {
     const { AcpProcessManager } =
-      await import('@/presenter/llmProviderPresenter/acp/acpProcessManager')
+      await import('@/agent/acp/runtime/acpProcessManager')
     const manager = new AcpProcessManager({
       providerId: 'acp',
       resolveLaunchSpec: vi.fn()

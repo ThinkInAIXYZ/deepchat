@@ -7,7 +7,7 @@ import * as shellEnvHelper from '@/lib/agentRuntime/shellEnvHelper'
 import {
   AcpProcessManager,
   parseLoadSessionCapability
-} from '@/presenter/llmProviderPresenter/acp/acpProcessManager'
+} from '@/agent/acp/runtime/acpProcessManager'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 

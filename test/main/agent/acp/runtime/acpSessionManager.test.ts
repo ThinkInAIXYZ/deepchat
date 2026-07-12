@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { AcpSessionManager } from '../../../src/main/presenter/llmProviderPresenter/acp'
+import { AcpSessionManager } from '@/agent/acp/runtime'
 
 vi.mock('electron', () => ({
   app: {

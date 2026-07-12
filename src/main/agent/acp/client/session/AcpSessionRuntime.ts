@@ -1,6 +1,6 @@
 import type { IConfigPresenter } from '@shared/presenter'
-import { AcpSessionManager, AcpSessionPersistence } from '@/presenter/llmProviderPresenter/acp'
-import type { AcpProcessManager } from '@/presenter/llmProviderPresenter/acp'
+import { AcpSessionManager, AcpSessionPersistence } from '@/agent/acp/runtime'
+import type { AcpProcessManager } from '@/agent/acp/runtime'
 
 export class AcpSessionRuntime {
   readonly sessionManager: AcpSessionManager
