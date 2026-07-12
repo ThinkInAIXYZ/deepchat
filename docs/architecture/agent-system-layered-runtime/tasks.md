@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..051 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -74,7 +74,7 @@
 
 - [x] `ASLR-050` Define per-turn `LoopRun`, preserve the late active-generation registration point, and add narrow provider/tool/output/Tape/context ports.
   Depends on: `ASLR-042`, `ASLR-045`.
-- [ ] `ASLR-051` Extract current provider round/tool loop into `DeepChatLoopEngine`.
+- [x] `ASLR-051` Extract current provider round/tool loop into `DeepChatLoopEngine`.
   Depends on: `ASLR-050`.
 - [ ] `ASLR-052` Move existing Tape/message/output commits into the fixed lifecycle without adding entry kinds.
   Depends on: `ASLR-051`.
