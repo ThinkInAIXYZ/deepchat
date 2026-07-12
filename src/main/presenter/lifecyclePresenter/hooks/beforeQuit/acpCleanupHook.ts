@@ -24,15 +24,13 @@ export const acpCleanupHook: LifecycleHook = {
 
     try {
       const llmPresenter = presenter?.llmproviderPresenter
-      // Avoid instantiating ACP provider during shutdown; only clean up if already created
-      const acpProvider = llmPresenter?.getExistingProviderInstance?.('acp') as
-        | { cleanup?: () => Promise<void> }
-        | undefined
-      if (acpProvider?.cleanup) {
-        await acpProvider.cleanup()
+      // The composition owner closes direct instances before the shared process/session runtime.
+      const runtimeOwner = llmPresenter as { shutdownAcpRuntime?: () => Promise<void> } | undefined
+      if (runtimeOwner?.shutdownAcpRuntime) {
+        await runtimeOwner.shutdownAcpRuntime()
       }
     } catch (error) {
-      console.warn('[Lifecycle][ACP] acpCleanupHook: failed to cleanup ACP provider:', error)
+      console.warn('[Lifecycle][ACP] acpCleanupHook: failed to shut down ACP runtime:', error)
     }
   }
 }

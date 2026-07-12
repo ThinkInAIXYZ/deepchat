@@ -253,7 +253,7 @@ architecture guard.
 | tool catalog order/collision/policy/cache/revision, exact execution options/order, normalization/output fitting and abort | existing ToolPresenter, process, dispatch and output-guard suites | typed adapter contracts plus real ToolPresenter collision boundary in `ASLR-055` / Phase 6 |
 | pre-check permission, question, skill draft, multiple ordered interactions and fresh-run resume | existing dispatch/runtime interaction suites plus ASLR-056 four-origin order/execution-state and explicit execute-count fixtures | typed batch outcome, post-call no-replay and final-item-only resume completed in `ASLR-056` / Phase 6 |
 | external hook payload/order, snapshot isolation and non-blocking failure policy | existing hooks/runtime suites plus ASLR-057 observer order, snapshot, sync-throw, rejected/never-settling contracts | typed notification observer separated from control collaborators and internal diagnostics in `ASLR-057` / Phase 6 |
-| ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; the direct backend remains absent in Phase 0 | direct regular/subagent/routing parity in `ASLR-070..072` / Phase 7 |
+| ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; Phase 0 had no direct backend | direct instance/composition parity completed in `ASLR-070..071`; route/title/subagent-retry parity remains `ASLR-072` / Phase 7 |
 | Tape facts, effective view, manifest, replay/privacy | existing Tape fact/view/replay suites | recorder/output causal order in `ASLR-052`, observation non-interference in `ASLR-080..081` |
 | Memory injection, extraction, cursor, lineage, fencing and current trigger asymmetries | existing Memory and runtime integration suites plus the authoritative `MEM-01..14` matrices below | complete `MEM-13` returned/thrown turn matrix and `MEM-14` compaction return/throw matrix over `MemoryPromptContributor` / `MemoryIngestionObserver` in `ASLR-060..061` / Phase 9 |
 | route/event/schema and composition/shutdown facts | compact machine-readable architecture baseline | per-slice integration gates and final architecture guard/baseline in `ASLR-091..092` |
@@ -291,6 +291,24 @@ ACP compatibility branches and stale-run cancellation.
 - `test/main/agent/acp/**`
 - `test/main/presenter/sqlitePresenter/acpSessions.test.ts`
 - agent-session ACP draft/subagent/transfer tests
+
+`ASLR-071` additionally requires focused proof for shared-owner lifetime, shutdown/refresh ordering,
+descriptor-identity single-flight, prepare/workdir rollback, mode/config/command mapping, protocol-exit eviction,
+permission settlement, regular/subagent prompt isolation, first-turn readiness, pending queue/steer ordering,
+production prompt/projection/trace/rate/hook adapters and compatibility-provider reuse. Shutdown fixtures must
+prove lazy materialization is fenced, in-flight identity hydration/prepare/send are drained, cleanup failure still
+evicts the cache, and process shutdown is attempted after earlier cleanup failure. Rate fixtures must keep direct
+waiters in the shared ACP QPS order while compatibility waiters are cancelled on provider rebuild/disable/remove.
+The real session-manager fixture must replay initialization-time mode/config/command/session-info/usage updates
+after record publication, discard updates emitted by failed resume/load attempts even when they share a persisted
+session id, and replay only the successful attempt in original order. Cancellation fixtures must prove one caller
+aborts all callers sharing a conversation-scoped initialization, owner shutdown completes without resolving a
+stuck session-open RPC, and late SDK resolve/reject cannot publish, persist, restore a live map, leak handlers or
+raise an unhandled rejection. Process-manager fixtures must also prove shutdown synchronously fences new
+warmup/connection work without waiting for an unresolved spawn, late handles are disposed exactly once without
+republication, and stale expected-handle cleanup preserves the replacement bound handle. This is not route proof:
+app title generation, ACP-backed subagent initialization retry and app-level queue/steer dispatch move with the
+`AgentManager` switch in `ASLR-072`.
 
 ### Tape
 

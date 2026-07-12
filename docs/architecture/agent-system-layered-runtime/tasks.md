@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-070 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-070..071 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -95,7 +95,7 @@
 
 - [x] `ASLR-070` Implement `AcpAgentInstance`, regular/subagent prompt builder, existing message/Tape/event adapter and request trace port.
   Depends on: `ASLR-031`, `ASLR-034`, `ASLR-022`, `ASLR-052`.
-- [ ] `ASLR-071` Reach parity for regular ACP and ACP-backed subagent paths.
+- [x] `ASLR-071` Reach parity for regular ACP and ACP-backed subagent paths.
   Depends on: `ASLR-070`.
 - [ ] `ASLR-072` Switch only `kind=acp` routing with message/Tape/event/trace parity, retaining DeepChat + ACP-provider compatibility.
   Depends on: `ASLR-071`.

@@ -19,6 +19,13 @@ export { AcpMessageFormatter } from './acpMessageFormatter'
 export { AcpContentMapper, mapAcpPromptStopReason } from './acpContentMapper'
 export { AcpCompatibilityPromptBuilder } from './acpCompatibilityPromptBuilder'
 export {
+  AcpSessionController,
+  type AcpSessionCapabilityEvents,
+  type AcpSessionCommand,
+  type AcpSessionHooks,
+  type AcpSessionPrepareHooks
+} from './acpSessionController'
+export {
   AcpPermissionBridge,
   type AcpPermissionBridgeOptions
 } from './acpPermissionBridge'

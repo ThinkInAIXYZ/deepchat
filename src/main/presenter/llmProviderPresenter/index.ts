@@ -45,8 +45,10 @@ import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
+import { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpProvider } from './providers/acpProvider'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -109,6 +111,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly embeddingManager: EmbeddingManager
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpSessionPersistence: AcpSessionPersistence
+  private readonly acpRuntimeOwner: AcpRuntimeOwner
 
   constructor(
     configPresenter: IConfigPresenter,
@@ -118,6 +121,33 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     this.configPresenter = configPresenter
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
+    this.acpRuntimeOwner = new AcpRuntimeOwner(() => {
+      const provider = configPresenter.getProviderById('acp')
+      if (!provider) throw new Error('[ACP] Provider configuration not found')
+      return new AcpClientRuntime({
+        provider,
+        configPresenter,
+        sessionPersistence: this.acpSessionPersistence,
+        mcpRuntime,
+        capabilityEvents: {
+          modesReady: (input) =>
+            publishDeepchatEvent('sessions.acp.modes.ready', {
+              ...input,
+              version: Date.now()
+            }),
+          configOptionsReady: (input) =>
+            publishDeepchatEvent('sessions.acp.configOptions.ready', {
+              ...input,
+              version: Date.now()
+            }),
+          commandsReady: (input) =>
+            publishDeepchatEvent('sessions.acp.commands.ready', {
+              ...input,
+              version: Date.now()
+            })
+        }
+      })
+    })
     this.providerInstanceManager = new ProviderInstanceManager({
       configPresenter,
       activeStreams: this.activeStreams,
@@ -126,7 +156,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
       },
-      acpSessionPersistence: this.acpSessionPersistence,
+      acpRuntimeOwner: this.acpRuntimeOwner,
       mcpRuntime
     })
     this.modelManager = new ModelManager({
@@ -209,6 +239,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
   }
 
+  public getAcpRuntimeOwner(): AcpRuntimeOwner {
+    return this.acpRuntimeOwner
+  }
+
+  public async shutdownAcpRuntime(): Promise<void> {
+    await this.acpRuntimeOwner.shutdown()
+  }
+
   async clearAcpSession(conversationId: string): Promise<void> {
     const acpProvider = this.getExistingProviderInstance('acp') as
       | { clearSession?: (conversationId: string) => Promise<void> }
@@ -276,6 +314,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     options?: {
       signal?: AbortSignal
       onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+      scope?: 'provider' | 'acp-direct'
     }
   ): Promise<void> {
     await this.rateLimitManager.executeWithRateLimit(providerId, options)

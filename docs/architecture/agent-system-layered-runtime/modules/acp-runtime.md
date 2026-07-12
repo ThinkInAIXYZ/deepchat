@@ -1,7 +1,8 @@
 # ACP 独立 Runtime
 
-> 状态：实施中。`ASLR-070` 已建立尚未被 production router 选择的 typed direct slice；
-> `kind=acp` 切换属于 `ASLR-072`。DeepChat 选择 ACP provider 的兼容路径仍保留。
+> 状态：实施中。`ASLR-070..071` 已建立并完成 composition parity、但尚未被 production router
+> 选择的 typed direct runtime；`kind=acp` 切换属于 `ASLR-072`。DeepChat 选择 ACP provider 的兼容
+> 路径仍保留。
 
 ## 1. 模块目的
 
@@ -46,15 +47,14 @@ configuration/MCP 协议使用工具。
 ACP domain
 ├─ catalog/install/launch/alias/migration/debug boundaries
 ├─ provider-model refresh compatibility adapter
+├─ AcpRuntimeOwner
+│  └─ shared client/process/session runtime + AcpSessionController
 └─ AcpAgentRuntime
-├─ AcpAgentRepository
-├─ AcpClientFactory / process runtime
-├─ AcpSessionStore / AcpTurnStore
-├─ AcpCompatibilityPromptBuilder
-├─ AcpMcpDeliveryAdapter
-├─ AcpPermissionBridge
-├─ AcpRequestTracePort -> existing provider trace persistence
-└─ AcpCompatibilityProjectionAdapter -> current message/Tape/event writers
+   ├─ AcpAgentInstance cache/lifecycle
+   ├─ AcpCompatibilityPromptBuilder
+   ├─ AcpPermissionBridge
+   ├─ AcpRequestTracePort -> existing provider trace persistence
+   └─ AcpCompatibilityProjectionAdapter -> current message/Tape/event writers
 
 AcpAgentInstance
 ├─ appSessionId
@@ -66,8 +66,10 @@ AcpAgentInstance
 └─ active prompt + cancellation state
 ```
 
-`AcpAgentRuntime` 是 instance factory/cache 和 shutdown coordinator；协议运行状态由
-`AcpAgentInstance` 持有。实例不 import DeepChat Tape、compaction、Memory 或 `LoopEngine`。
+`AcpAgentRuntime` 是 keyed instance factory/cache 与 direct lifecycle；`AcpRuntimeOwner` 是 composition
+级 client/session/process lifetime owner。协议运行状态由 `AcpAgentInstance` 持有。实例不 import
+DeepChat Tape、compaction、Memory 或 `LoopEngine`；composition adapter 只通过窄 port 复用现有
+prompt resource 与 transcript writers。
 
 “一个 ACP domain owner”不表示一个 God class。`AcpCatalogConfigAdapter`、
 registry/install/launch-spec、alias、debug route、provider model catalog/enable refresh 和 lifecycle
@@ -133,24 +135,64 @@ connection。request timeout 与 cancel/process exit 分开结算：timeout 取�
 
 ```ts
 interface AcpAgentRuntime {
-  open(input: OpenAcpSession): Promise<AcpAgentInstance>
-  closeAll(reason: ShutdownReason): Promise<void>
+  getOrHydrate(input: AcpAgentRuntimeSessionInput): Promise<AcpAgentInstance>
+  prepare(input: AcpAgentRuntimeSessionInput): Promise<AcpAgentInstance>
+  send(
+    input: AcpAgentRuntimeSessionInput,
+    content: string | SendMessageInput
+  ): Promise<MessageStartResult>
+  closeByAgent(agentId: string): Promise<void>
+  closeAll(): Promise<void>
 }
 
-interface AcpAgentInstance extends AgentSessionHandle {
+interface AcpAgentInstance extends AcpAgentSessionHandle {
   readonly kind: 'acp'
 
+  prepare(): Promise<void>
+  updateWorkdir(workdir: string | null): Promise<string>
   setMode(modeId: string): Promise<void>
-  setConfigOption(optionId: string, value: unknown): Promise<void>
-  getCapabilities(): AcpSessionCapabilities
+  setConfigOption(optionId: string, value: string | boolean): Promise<AcpConfigState | null>
+  getModes(): { current: string; available: AcpMode[] } | null
+  getConfigOptions(): AcpConfigState | null
+  getCommands(): AcpSessionCommand[]
 }
 ```
 
 这些 ACP-only methods 是 required facet，不加入公共 `AgentSessionHandle` 变成 optional。
-`ASLR-070` 只落地 prompt/send/cancel/close/permission continuation slice；mode/config/capability 的
-production parity 在 `ASLR-071` 补齐，不能把未接线 method 作为已完成能力。
+`ASLR-071` 已把 mode/config/command、workdir prepare、pending queue/steer、readiness/snapshot 和
+regular/subagent production collaborators 接到 typed direct runtime；它们尚未成为 app route，因为
+`AgentManager` switch 明确属于 `ASLR-072`。
 当前 route 与 ACP SDK 没有独立 `executeCommand` 操作证据；available commands 仍是 prompt 输入提示，
 因此本设计不发明该 facet。若协议/route 后续增加命令执行能力，另立合同。
+
+### ASLR-071 composition 与生命周期
+
+- `LLMProviderPresenter` 创建唯一 lazy `AcpRuntimeOwner`；direct runtime 与 `AcpProvider` adapter 共享同一
+  `AcpClientRuntime`、session manager、process manager、persistence、prompt controller 和 content mapper；
+- provider disable/remove/rebuild 只清理 adapter-local permission continuation，不关闭 shared owner；
+- rate admission 仍以一个 ACP provider state 保持全局 QPS/last-request order，只给 queued item 标记
+  `provider` / `acp-direct` scope；compatibility adapter retirement 只 reject `provider` waiter，不删除 state
+  或影响 direct waiter；
+- agent refresh 顺序固定为 direct instance close -> remote session clear -> process release；global shutdown
+  顺序固定为 lifecycle fence -> direct hydration/prepare/send drain + closeAll -> session clearAll -> process
+  shutdown，且 root lifecycle 是唯一全局关闭点；fence 开始后 lazy client/instance materialization 一律拒绝；
+  session-scoped initialization abort 会让共享同一 conversation 的 caller 一致失败，不等待挂起的
+  getConnection/resume/load/new RPC；late SDK settlement 由 epoch fence 消费并清理，不得重新注册 handler、
+  写 persistence 或发布 capability；process manager 的 fence 在 shutdown 入口同步生效，不等待未决
+  spawn/warmup，late handle 只进行幂等、identity-safe disposal；旧 handle 的延迟 unbind 只清理旧进程，
+  不得移除或终止已替换的 bound handle；
+- `AcpSessionController` 统一 open/prepare/workdir、mode/config/commands、capability events 与
+  session-info/usage metadata mapping，compatibility provider 不再保留第二份 mapper；process initialization
+  在 session record publish 前 flush 的 update 按 remote session 和 restore attempt 隔离；失败的
+  resume/load attempt 整组丢弃，只有成功 record 对应 attempt 的 update 在 record 可见后按原序
+  map/persist/publish；
+- direct runtime 使用现有 `PendingInputCoordinator`，没有第二份 queue/store；idle initial queue 可直接
+  claim，active steer promotion 等待旧 turn terminal 后按 steer-first drain，prepare 中 steer 保持 queued；
+- descriptor/config identity 变化时不复用旧 instance；并发 hydration 按 app session single-flight，
+  close/prepare-cleanup 即使 session clear 失败也 finally 驱逐 identity-matched cache；prepare-only process
+  exit 同样只驱逐 live instance，保留 durable remote-session binding 供下一次 hydrate 恢复；
+- regular prompt 保持当前 runtime/tool/skill/local-resource description，ACP-backed subagent 保持空 system/
+  local-tool isolation；direct ACP 不新增 DeepChat callable tools、skills 或 Memory。
 
 ## 6. MCP 与 tools
 

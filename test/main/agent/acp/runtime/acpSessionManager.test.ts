@@ -179,7 +179,7 @@ describe('AcpSessionManager public error handling', () => {
     await expect(
       harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')
     ).rejects.toThrow('init failed')
-    expect(harness.unbindProcess).toHaveBeenCalledWith('agent1', 'conv1')
+    expect(harness.unbindProcess).toHaveBeenCalledWith('agent1', 'conv1', expect.anything())
   })
 
   it('continues newSession fallback when persisted-session detach throws', async () => {
@@ -345,5 +345,57 @@ describe('AcpSessionManager public restore matrix', () => {
     expect(restored.sessionId).toBe('new-session')
     expect(secondConnection.unstable_resumeSession).toHaveBeenCalledTimes(1)
     expect(harness.getConnection).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels shared initialization callers and fences a late resume response', async () => {
+    let resolveResume!: (response: schema.ResumeSessionResponse) => void
+    const resume = new Promise<schema.ResumeSessionResponse>((resolve) => {
+      resolveResume = resolve
+    })
+    const harness = createHarness({ persisted: true })
+    harness.connection.unstable_resumeSession.mockImplementation(async () => await resume)
+    const controller = new AbortController()
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+
+    try {
+      const first = harness.manager.getOrCreateSession(
+        'conv1',
+        agent,
+        hooks(),
+        '/tmp',
+        controller.signal
+      )
+      await vi.waitFor(() =>
+        expect(harness.connection.unstable_resumeSession).toHaveBeenCalledTimes(1)
+      )
+      const second = harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')
+
+      controller.abort()
+      const results = await Promise.allSettled([first, second])
+
+      expect(results[0]).toMatchObject({
+        status: 'rejected',
+        reason: expect.objectContaining({ name: 'AbortError' })
+      })
+      expect(results[1].status).toBe('rejected')
+      if (results[0].status === 'rejected' && results[1].status === 'rejected') {
+        expect(results[1].reason).toBe(results[0].reason)
+      }
+      await vi.waitFor(() => expect(harness.updateDisposers[0]).toHaveBeenCalledTimes(1))
+      expect(harness.permissionDisposers[0]).toHaveBeenCalledTimes(1)
+      expect(harness.exitDisposers[0]).toHaveBeenCalledTimes(1)
+      expect(harness.manager.listSessions()).toEqual([])
+      expect(harness.sessionPersistence.saveSessionData).not.toHaveBeenCalled()
+
+      resolveResume({})
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      expect(harness.manager.listSessions()).toEqual([])
+      expect(harness.sessionPersistence.saveSessionData).not.toHaveBeenCalled()
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 })

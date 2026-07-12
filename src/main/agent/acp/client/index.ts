@@ -1,6 +1,8 @@
 import type { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
 import {
+  AcpSessionController,
   AcpSessionPersistence,
+  type AcpSessionCapabilityEvents,
   type AcpProcessHandle,
   type AcpSessionRecord
 } from '@/agent/acp/runtime'
@@ -15,12 +17,14 @@ export class AcpClientRuntime {
   readonly sessionRuntime: AcpSessionRuntime
   readonly promptController = new AcpPromptController()
   readonly sessionPersistence: AcpSessionPersistence
+  readonly sessionController: AcpSessionController
 
   constructor(input: {
     provider: LLM_PROVIDER
     configPresenter: IConfigPresenter
     sessionPersistence: AcpSessionPersistence
     mcpRuntime?: ProviderMcpRuntimePort
+    capabilityEvents?: AcpSessionCapabilityEvents
   }) {
     this.sessionPersistence = input.sessionPersistence
     this.connectionManager = new AcpConnectionManager(
@@ -34,6 +38,12 @@ export class AcpClientRuntime {
       sessionPersistence: input.sessionPersistence,
       configPresenter: input.configPresenter
     })
+    this.sessionController = new AcpSessionController(
+      this.sessionRuntime.sessionManager,
+      this.connectionManager.processManager,
+      input.sessionPersistence,
+      input.capabilityEvents
+    )
   }
 
   get processManager() {
@@ -73,3 +83,4 @@ export class AcpClientRuntime {
 
 export type * from './types'
 export { AcpPromptController, type AcpPromptTurn } from './session/AcpPromptController'
+export { AcpRuntimeOwner, type AcpDirectRuntimeLifecycle } from './acpRuntimeOwner'

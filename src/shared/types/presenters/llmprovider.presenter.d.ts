@@ -305,6 +305,7 @@ export interface ILlmProviderPresenter {
     options?: {
       signal?: AbortSignal
       onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+      scope?: 'provider' | 'acp-direct'
     }
   ): Promise<void>
   syncModelScopeMcpServers(

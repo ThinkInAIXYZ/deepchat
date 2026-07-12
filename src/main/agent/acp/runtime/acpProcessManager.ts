@@ -230,7 +230,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly debugLog = new AcpDebugLog()
   private readonly protocolRequestsToAgent = new Map<string, Map<JsonRpcId, string>>()
   private readonly protocolRequestsFromAgent = new Map<string, Map<JsonRpcId, string>>()
+  private readonly initializingChildren = new Set<ChildProcessWithoutNullStreams>()
+  private readonly terminatedChildren = new WeakSet<ChildProcessWithoutNullStreams>()
+  private readonly disposedHandles = new WeakSet<AcpProcessHandle>()
   private shuttingDown = false
+  private shutdownPromise?: Promise<void>
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
@@ -351,7 +355,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * the existing process will be released and a new one spawned with the new workdir.
    */
   async getConnection(agent: AcpAgentConfig, workdir?: string): Promise<AcpProcessHandle> {
-    return await this.warmupProcess(agent, workdir)
+    this.assertAcceptingProcesses()
+    const handle = await this.warmupProcess(agent, workdir)
+    if (this.shuttingDown) {
+      await this.disposeHandle(handle)
+      this.assertAcceptingProcesses()
+    }
+    return handle
   }
 
   /**
@@ -388,16 +398,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * Reuses an existing warmup handle when possible; never reuses bound handles.
    */
   async warmupProcess(agent: AcpAgentConfig, workdir?: string): Promise<AcpProcessHandle> {
-    if (this.shuttingDown) {
-      throw new Error('[ACP] Process manager is shutting down, refusing to spawn new process')
-    }
+    this.assertAcceptingProcesses()
     const resolvedWorkdir = this.resolveWorkdir(workdir)
     const warmupKey = this.getWarmupKey(agent.id, resolvedWorkdir)
     const preferredModeId = this.preferredModes.get(warmupKey)
     const releaseLock = await this.acquireAgentLock(agent.id)
 
     try {
+      this.assertAcceptingProcesses()
       const launchSpec = await this.resolveLaunchSpec(agent.id, resolvedWorkdir)
+      this.assertAcceptingProcesses()
       const launchSignature = createLaunchSignature(launchSpec)
       const warmupCount = this.getHandlesByAgent(agent.id).filter((handle) =>
         this.isHandleAlive(handle)
@@ -412,7 +422,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
             `[ACP] Discarding warmup process for agent ${agent.id} because launch spec changed (pid=${reusable.pid}, workdir=${resolvedWorkdir})`
           )
           await this.disposeHandle(reusable)
+          this.assertAcceptingProcesses()
         } else {
+          this.assertAcceptingProcesses()
           console.info(
             `[ACP] Reusing warmup process for agent ${agent.id} (pid=${reusable.pid}, workdir=${resolvedWorkdir})`
           )
@@ -424,6 +436,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       const inflight = this.pendingHandles.get(warmupKey)
       if (inflight) {
         const inflightHandle = await inflight
+        if (this.shuttingDown) {
+          await this.disposeHandle(inflightHandle)
+          this.assertAcceptingProcesses()
+        }
         if (
           this.isHandleAlive(inflightHandle) &&
           inflightHandle.workdir === resolvedWorkdir &&
@@ -441,6 +457,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
             `[ACP] Discarding inflight warmup for agent ${agent.id} (workdir "${inflightHandle.workdir}") in favor of "${resolvedWorkdir}"`
           )
           await this.disposeHandle(inflightHandle)
+          this.assertAcceptingProcesses()
         }
       } else {
         console.info(
@@ -448,11 +465,20 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         )
       }
 
+      this.assertAcceptingProcesses()
       const handlePromise = this.spawnProcess(agent, resolvedWorkdir, launchSpec, launchSignature)
       this.pendingHandles.set(warmupKey, handlePromise)
 
       try {
         const handle = await handlePromise
+        if (
+          this.shuttingDown ||
+          this.pendingHandles.get(warmupKey) !== handlePromise
+        ) {
+          await this.disposeHandle(handle)
+          this.assertAcceptingProcesses()
+          throw new Error(`[ACP] Stale warmup result for agent ${agent.id}`)
+        }
         handle.state = 'warmup'
         handle.boundConversationId = undefined
         handle.workdir = resolvedWorkdir
@@ -463,7 +489,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         )
         return handle
       } finally {
-        this.pendingHandles.delete(warmupKey)
+        if (this.pendingHandles.get(warmupKey) === handlePromise) {
+          this.pendingHandles.delete(warmupKey)
+        }
       }
     } finally {
       releaseLock()
@@ -475,6 +503,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * The mode will be applied when a warmup process is created or when a session is created.
    */
   async setPreferredMode(agent: AcpAgentConfig, workdir: string, modeId: string): Promise<void> {
+    this.assertAcceptingProcesses()
     const resolvedWorkdir = this.resolveWorkdir(workdir)
     const warmupKey = this.getWarmupKey(agent.id, resolvedWorkdir)
     this.preferredModes.set(warmupKey, modeId)
@@ -575,33 +604,44 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   }
 
-  async shutdown(): Promise<void> {
-    if (this.shuttingDown) return
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise
     this.shuttingDown = true
-    // Kill eagerly so subprocesses don't survive app shutdown even if async cleanup is skipped
-    this.forceKillAllProcesses('shutdown')
+    const handles = this.listProcesses()
     const allAgents = new Set<string>()
-    for (const handle of this.handles.values()) {
+    const handleCleanup = handles.map((handle) => {
       allAgents.add(handle.agentId)
-    }
-    for (const handle of this.boundHandles.values()) {
-      allAgents.add(handle.agentId)
-    }
-    const releases = Array.from(allAgents.values()).map((agentId) => this.release(agentId))
-    await Promise.allSettled(releases)
-    await this.terminalManager.shutdown()
+      return this.disposeHandle(handle)
+    })
+    this.initializingChildren.forEach((child) => this.killChild(child, 'shutdown'))
+    this.initializingChildren.clear()
+    allAgents.forEach((agentId) => this.clearSessionsForAgent(agentId))
     this.handles.clear()
     this.boundHandles.clear()
     this.sessionListeners.clear()
+    this.bufferedSessionUpdates.clear()
     this.permissionResolvers.clear()
     this.processExitHandlers.clear()
     this.pendingHandles.clear()
     this.sessionWorkdirs.clear()
     this.sessionConversations.clear()
     this.fsHandlers.clear()
+    this.agentLocks.clear()
+    this.preferredModes.clear()
+    this.latestConfigStates.clear()
+    this.latestModeSnapshots.clear()
+    this.protocolRequestsToAgent.clear()
+    this.protocolRequestsFromAgent.clear()
+
+    this.shutdownPromise = (async () => {
+      await Promise.allSettled(handleCleanup)
+      await this.terminalManager.shutdown()
+    })()
+    return this.shutdownPromise
   }
 
   bindProcess(agentId: string, conversationId: string, workdir?: string): void {
+    this.assertAcceptingProcesses()
     const resolvedWorkdir = this.resolveWorkdir(workdir)
     // Prefer warmup handle matching requested workdir if provided
     const warmupHandles = Array.from(this.handles.entries()).filter(
@@ -648,13 +688,21 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     )
   }
 
-  async unbindProcess(agentId: string, conversationId: string): Promise<void> {
+  async unbindProcess(
+    agentId: string,
+    conversationId: string,
+    expectedHandle?: AcpProcessHandle
+  ): Promise<void> {
     const releaseLock = await this.acquireAgentLock(agentId)
     try {
-      const handle = this.boundHandles.get(conversationId)
-      if (!handle || handle.agentId !== agentId) return
+      const current = this.boundHandles.get(conversationId)
+      if (expectedHandle && current !== expectedHandle) {
+        await this.disposeHandle(expectedHandle)
+        return
+      }
+      if (!current || current.agentId !== agentId) return
 
-      await this.disposeHandle(handle)
+      await this.disposeHandle(current)
     } finally {
       releaseLock()
     }
@@ -781,9 +829,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     launchSpec: AcpResolvedLaunchSpec,
     launchSignature: string
   ): Promise<AcpProcessHandle> {
+    this.assertAcceptingProcesses()
     try {
-      return await this.spawnProcessOnce(agent, workdir, launchSpec, launchSignature)
+      const handle = await this.spawnProcessOnce(agent, workdir, launchSpec, launchSignature)
+      if (this.shuttingDown) {
+        await this.disposeHandle(handle)
+        this.assertAcceptingProcesses()
+      }
+      return handle
     } catch (error) {
+      this.assertAcceptingProcesses()
       const repairResult = this.repairNpxCacheIfNeeded(agent.id, launchSpec, error)
       if (!repairResult.repaired) {
         throw error
@@ -793,8 +848,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         `[ACP] Retrying npx agent ${agent.id} after cache repair: ${repairResult.message}`
       )
       try {
-        return await this.spawnProcessOnce(agent, workdir, launchSpec, launchSignature)
+        const handle = await this.spawnProcessOnce(agent, workdir, launchSpec, launchSignature)
+        if (this.shuttingDown) {
+          await this.disposeHandle(handle)
+          this.assertAcceptingProcesses()
+        }
+        return handle
       } catch (retryError) {
+        this.assertAcceptingProcesses()
         throw this.createNpxRepairRetryError(agent.id, error, retryError, repairResult)
       }
     }
@@ -806,7 +867,38 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     launchSpec: AcpResolvedLaunchSpec,
     launchSignature: string
   ): Promise<AcpProcessHandle> {
+    this.assertAcceptingProcesses()
     const child = await this.spawnAgentProcess(agent, workdir, launchSpec)
+    if (this.shuttingDown) {
+      this.killChild(child, 'late spawn')
+      this.assertAcceptingProcesses()
+    }
+    this.initializingChildren.add(child)
+    try {
+      const handle = await this.initializeSpawnedProcess(
+        child,
+        agent,
+        workdir,
+        launchSpec,
+        launchSignature
+      )
+      if (this.shuttingDown) {
+        await this.disposeHandle(handle)
+        this.assertAcceptingProcesses()
+      }
+      return handle
+    } finally {
+      this.initializingChildren.delete(child)
+    }
+  }
+
+  private async initializeSpawnedProcess(
+    child: ChildProcessWithoutNullStreams,
+    agent: AcpAgentConfig,
+    workdir: string,
+    launchSpec: AcpResolvedLaunchSpec,
+    launchSignature: string
+  ): Promise<AcpProcessHandle> {
     const stderrChunks: string[] = []
     const stream = this.createAgentStream(agent.id, child)
     const client = this.createClientProxy()
@@ -936,6 +1028,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           clearTimeout(timeoutHandle)
         }
       })
+      this.assertAcceptingProcesses()
       console.info(`[ACP] Connection initialization completed successfully for agent ${agent.id}`)
 
       // Log Agent capabilities from initialization
@@ -1012,15 +1105,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
       })
 
-      // Clean up the child process if initialization failed
-      if (!child.killed) {
-        try {
-          child.kill()
-          console.info(`[ACP] Killed process for failed agent ${agent.id} (PID: ${child.pid})`)
-        } catch (killError) {
-          console.warn(`[ACP] Failed to kill process for agent ${agent.id}:`, killError)
-        }
-      }
+      this.killChild(child, 'initialization failed')
 
       this.attachStderrToError(error, stderrChunks)
       throw error
@@ -1254,9 +1339,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     workdir: string,
     launchSpec: AcpResolvedLaunchSpec
   ): Promise<ChildProcessWithoutNullStreams> {
+    this.assertAcceptingProcesses()
     // Initialize runtime paths if not already done
     this.runtimeHelper.initializeRuntimes()
     const agentState = await this.getAgentState?.(agent.id)
+    this.assertAcceptingProcesses()
 
     // Validate command
     if (!launchSpec.command || launchSpec.command.trim().length === 0) {
@@ -1315,6 +1402,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         error
       )
     }
+    this.assertAcceptingProcesses()
 
     const shellPath = shellEnv.PATH || shellEnv.Path || shellEnv.path
     if (shellPath) {
@@ -1341,6 +1429,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
       if (this.getNpmRegistry) {
         const npmRegistry = await this.getNpmRegistry()
+        this.assertAcceptingProcesses()
         if (npmRegistry && npmRegistry !== '') {
           env.npm_config_registry = npmRegistry
         }
@@ -1348,6 +1437,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
       if (this.getUvRegistry) {
         const uvRegistry = await this.getUvRegistry()
+        this.assertAcceptingProcesses()
         if (uvRegistry && uvRegistry !== '') {
           env.UV_DEFAULT_INDEX = uvRegistry
           env.PIP_INDEX_URL = uvRegistry
@@ -1401,6 +1491,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       platform: process.platform
     })
 
+    this.assertAcceptingProcesses()
     const child = spawn(processedCommand, processedArgs, {
       env: mergedEnv,
       cwd,
@@ -1862,6 +1953,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private async disposeHandle(handle: AcpProcessHandle): Promise<void> {
+    if (this.disposedHandles.has(handle)) return
+    this.disposedHandles.add(handle)
     this.removeHandleReferences(handle)
     this.killChild(handle.child, 'dispose')
   }
@@ -1921,12 +2014,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   }
 
-  private forceKillAllProcesses(reason: string): void {
-    const handles = this.listProcesses()
-    handles.forEach((handle) => this.killChild(handle.child, reason))
-  }
-
   private killChild(child: ChildProcessWithoutNullStreams, reason?: string): void {
+    if (this.terminatedChildren.has(child)) return
+    this.terminatedChildren.add(child)
     const pid = child.pid
     if (pid) {
       if (process.platform === 'win32') {
@@ -1982,7 +2072,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   private isHandleAlive(handle: AcpProcessHandle): boolean {
     return (
+      !this.terminatedChildren.has(handle.child) &&
       !handle.child.killed && handle.child.exitCode === null && handle.child.signalCode === null
     )
+  }
+
+  private assertAcceptingProcesses(): void {
+    if (this.shuttingDown) {
+      throw new Error('[ACP] Process manager is shutting down, refusing to spawn new process')
+    }
   }
 }

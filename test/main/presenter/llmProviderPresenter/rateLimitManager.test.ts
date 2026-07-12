@@ -120,4 +120,22 @@ describe('RateLimitManager', () => {
       )
     ).toHaveLength(1)
   })
+
+  it('cancels compatibility waiters without deleting direct waiters or the shared QPS state', async () => {
+    const { presenter } = createConfigPresenter({ enabled: true, qpsLimit: 1 })
+    const manager = new RateLimitManager(presenter as any)
+    manager.initializeProviderRateLimitConfigs()
+    await manager.executeWithRateLimit('openai')
+    const direct = manager.executeWithRateLimit('openai', { scope: 'acp-direct' })
+    const compatibility = manager.executeWithRateLimit('openai')
+    await Promise.resolve()
+
+    manager.cleanupProviderRateLimit('openai', 'provider')
+
+    await expect(compatibility).rejects.toThrow('Provider removed')
+    expect(manager.getQueueLength('openai')).toBe(1)
+    expect(manager.getProviderRateLimitConfig('openai')).toEqual({ enabled: true, qpsLimit: 1 })
+    await vi.advanceTimersByTimeAsync(1000)
+    await expect(direct).resolves.toBeUndefined()
+  })
 })

@@ -4,7 +4,7 @@ import type { AcpAgentConfig } from '@shared/presenter'
 import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type { AcpPermissionPresentationPort } from '@/agent/acp/instance/ports'
 
-const DEFAULT_PERMISSION_TIMEOUT_MS = 5 * 60 * 1000
+const DEFAULT_PERMISSION_TIMEOUT_MS = 60_000
 
 interface PendingPermission {
   requestId: string

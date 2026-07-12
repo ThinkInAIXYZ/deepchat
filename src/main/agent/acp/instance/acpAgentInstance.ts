@@ -2,30 +2,45 @@ import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpAgentConfig } from '@shared/presenter'
 import type { MessageStartResult, SendMessageInput } from '@shared/types/agent-interface'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type { AcpSessionManager, AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
+import type { AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
 import {
   AcpPromptController,
   type AcpPromptTurn
 } from '@/agent/acp/client/session/AcpPromptController'
 import { AcpMessageFormatter } from '@/agent/acp/runtime/acpMessageFormatter'
-import { AcpContentMapper } from '@/agent/acp/runtime/acpContentMapper'
 import { AcpPermissionBridge } from '@/agent/acp/runtime/acpPermissionBridge'
 import type {
+  AcpAgentSessionHandle,
+  AcpAgentSnapshot,
+  AcpAgentStatus,
   AcpCompatibilityProjectionPort,
   AcpCompatibilityPromptPort,
   AcpDebugPort,
   AcpInstanceScope,
+  AcpObserverPort,
+  AcpPermissionFacet,
   AcpProjectionHandle,
   AcpPromptResourcePort,
   AcpRateGatePort,
   AcpRequestTracePort,
+  AcpSessionCapabilityFacet,
+  AcpSessionLifecycleFacet,
+  AcpSessionRuntimePort,
   AcpTurnPersistencePort
 } from './ports'
 
 interface ActivePrompt {
   controller: AbortController
+  settled: Promise<void>
+  settle(): void
   projection?: AcpProjectionHandle
   session?: AcpSessionRecord
+}
+
+interface ActivePreparation {
+  controller: AbortController
+  settled: Promise<void>
+  settle(): void
 }
 
 class AcpPromptTimeoutError extends Error {
@@ -38,7 +53,8 @@ class AcpPromptTimeoutError extends Error {
 }
 
 export interface AcpAgentInstanceDependencies {
-  sessionManager: Pick<AcpSessionManager, 'getOrCreateSession' | 'clearSession'>
+  sessions: AcpSessionRuntimePort
+  promptController: AcpPromptController
   promptResources: AcpPromptResourcePort
   promptBuilder: AcpCompatibilityPromptPort
   projection: AcpCompatibilityProjectionPort
@@ -46,6 +62,9 @@ export interface AcpAgentInstanceDependencies {
   rateGate: AcpRateGatePort
   turns: AcpTurnPersistencePort
   debug: AcpDebugPort
+  observer: AcpObserverPort
+  onProcessExit?: (instance: AcpAgentInstance) => void
+  onClosed?: (instance: AcpAgentInstance) => void
 }
 
 export interface AcpAgentInstanceOptions {
@@ -55,24 +74,35 @@ export interface AcpAgentInstanceOptions {
   scope: AcpInstanceScope
 }
 
-export class AcpAgentInstance {
+export class AcpAgentInstance
+  implements
+    AcpAgentSessionHandle,
+    AcpSessionLifecycleFacet,
+    AcpSessionCapabilityFacet,
+    AcpPermissionFacet
+{
   readonly kind = 'acp' as const
   readonly sessionId: AppSessionId
   private readonly promptController: AcpPromptController
   private readonly messageFormatter: AcpMessageFormatter
-  private readonly contentMapper: AcpContentMapper
   private readonly permissionBridge: AcpPermissionBridge
+  private workdir: string
+  private status: AcpAgentStatus = 'idle'
+  private firstTurnReady = false
+  private readonly firstTurnReadyWaiters = new Set<(ready: boolean) => void>()
   private active?: ActivePrompt
+  private preparing?: ActivePreparation
   private closed = false
+  private closePromise?: Promise<void>
 
   constructor(
     private readonly options: AcpAgentInstanceOptions,
     private readonly dependencies: AcpAgentInstanceDependencies
   ) {
     this.sessionId = options.sessionId
-    this.promptController = new AcpPromptController()
+    this.workdir = options.workdir
+    this.promptController = dependencies.promptController
     this.messageFormatter = new AcpMessageFormatter()
-    this.contentMapper = new AcpContentMapper()
     this.permissionBridge = new AcpPermissionBridge({
       presentation: {
         present: (payload) => {
@@ -91,15 +121,23 @@ export class AcpAgentInstance {
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
     if (this.active) throw new Error(`ACP session ${this.sessionId} is already generating`)
 
-    const active: ActivePrompt = { controller: new AbortController() }
+    let settleActive!: () => void
+    const active: ActivePrompt = {
+      controller: new AbortController(),
+      settled: new Promise<void>((resolve) => {
+        settleActive = resolve
+      }),
+      settle: () => settleActive()
+    }
     this.active = active
     const { signal } = active.controller
-    const { agent, scope, workdir } = this.options
+    const { agent, scope } = this.options
+    const workdir = this.workdir
     let turn: AcpPromptTurn | null = null
     let turnFinished = false
     let projectionResult: AcpProjectionHandle | undefined
 
-    this.dependencies.projection.setStatus('generating')
+    this.setStatus('generating')
     try {
       this.throwIfAborted(signal)
       const resources = await this.dependencies.promptResources.resolve({
@@ -123,6 +161,13 @@ export class AcpAgentInstance {
         userContent: resources.userContent
       })
       projectionResult = active.projection
+      this.dependencies.observer.userPromptSubmitted({
+        sessionId: this.sessionId,
+        messageId: active.projection.messageId,
+        promptPreview: resources.userContent.text,
+        agentId: agent.id,
+        workdir
+      })
       await this.attemptViewManifest({
         sessionId: this.sessionId,
         messageId: active.projection.messageId,
@@ -130,19 +175,31 @@ export class AcpAgentInstance {
         providerId: 'acp',
         modelId: agent.id,
         messages: builtPrompt.messages,
-        localToolDefinitions: builtPrompt.localToolDefinitions
+        localToolDefinitions: builtPrompt.localToolDefinitions,
+        ...resources.viewManifest
       })
+      this.markFirstTurnReady()
       this.throwIfAborted(signal)
-      await this.dependencies.rateGate.wait(signal)
+      try {
+        await this.dependencies.rateGate.wait(signal)
+      } finally {
+        this.dependencies.rateGate.clearWaiting()
+      }
       this.throwIfAborted(signal)
 
-      const session = await this.dependencies.sessionManager.getOrCreateSession(
+      const session = await this.dependencies.sessions.open(
         this.sessionId,
         agent,
         {
-          onSessionUpdate: (notification) => this.handleSessionUpdate(notification),
+          onEvents: (events) => {
+            const projection = this.active?.projection
+            if (projection && events.length > 0) {
+              this.dependencies.projection.applyEvents(projection, events)
+            }
+          },
           onPermission: (request) => this.handlePermissionRequest(request),
-          onProcessExit: (remoteSessionId) => this.handleProcessExit(remoteSessionId)
+          onProcessExit: (remoteSessionId) => this.handleProcessExit(remoteSessionId),
+          signal
         },
         workdir
       )
@@ -199,12 +256,18 @@ export class AcpAgentInstance {
         turnFinished = true
       }
       const completedProjection = active.projection
-      active.projection = undefined
       const settlement = this.dependencies.projection.complete(
         completedProjection,
         response.stopReason
       )
-      this.dependencies.projection.setStatus(settlement.status === 'completed' ? 'idle' : 'error')
+      active.projection = undefined
+      this.setStatus(settlement.status === 'completed' ? 'idle' : 'error')
+      this.dependencies.observer.terminal({
+        sessionId: this.sessionId,
+        agentId: agent.id,
+        workdir,
+        ...settlement
+      })
       return {
         requestId: completedProjection.requestId,
         messageId: completedProjection.messageId
@@ -232,10 +295,28 @@ export class AcpAgentInstance {
       if (active.projection) {
         const failedProjection = active.projection
         active.projection = undefined
-        if (aborted) this.dependencies.projection.cancel(failedProjection)
-        else this.dependencies.projection.fail(failedProjection, error)
+        let settlement
+        try {
+          settlement = aborted
+            ? this.dependencies.projection.cancel(failedProjection)
+            : this.dependencies.projection.fail(failedProjection, error)
+        } catch (projectionError) {
+          console.warn('[ACP] Failed to settle projection:', projectionError)
+          settlement = {
+            status: 'error' as const,
+            stopReason: 'error' as const,
+            errorMessage: error instanceof Error ? error.message : String(error)
+          }
+        }
+        this.markFirstTurnReady()
+        this.dependencies.observer.terminal({
+          sessionId: this.sessionId,
+          agentId: agent.id,
+          workdir,
+          ...settlement
+        })
       }
-      this.dependencies.projection.setStatus(aborted ? 'idle' : 'error')
+      this.setStatus(aborted ? 'idle' : 'error')
       return {
         requestId: projectionResult?.requestId ?? null,
         messageId: projectionResult?.messageId ?? null
@@ -243,7 +324,7 @@ export class AcpAgentInstance {
     } finally {
       if (active.session) {
         this.permissionBridge.cancelSession(active.session.sessionId)
-        this.contentMapper.clearSession(active.session.sessionId)
+        this.dependencies.sessions.clearMappedSession(active.session.sessionId)
         try {
           await active.session.connection.cancel({ sessionId: active.session.sessionId })
         } catch (error) {
@@ -251,6 +332,7 @@ export class AcpAgentInstance {
         }
       }
       if (this.active === active) this.active = undefined
+      active.settle()
     }
   }
 
@@ -266,34 +348,132 @@ export class AcpAgentInstance {
         console.warn('[ACP] cancel failed:', error)
       }
     }
+    await active.settled
   }
 
   resolvePermissionRequest(requestId: string, granted: boolean): boolean {
     return this.permissionBridge.resolve(requestId, granted)
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
-    this.closed = true
-    await this.cancel()
-    this.permissionBridge.close()
-    await this.dependencies.sessionManager.clearSession(this.sessionId)
+  async prepare(): Promise<void> {
+    if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
+    if (this.active) throw new Error(`ACP session ${this.sessionId} is already generating`)
+    if (this.preparing) throw new Error(`ACP session ${this.sessionId} is already preparing`)
+    let settlePreparation!: () => void
+    const preparing: ActivePreparation = {
+      controller: new AbortController(),
+      settled: new Promise<void>((resolve) => {
+        settlePreparation = resolve
+      }),
+      settle: () => settlePreparation()
+    }
+    this.preparing = preparing
+    this.setStatus('initializing')
+    try {
+      await this.dependencies.sessions.prepare(this.sessionId, this.options.agent, this.workdir, {
+        onProcessExit: (remoteSessionId) => this.handleProcessExit(remoteSessionId),
+        signal: preparing.controller.signal
+      })
+      this.throwIfAborted(preparing.controller.signal)
+      this.setStatus('idle')
+    } catch (error) {
+      this.setStatus('error')
+      throw error
+    } finally {
+      if (this.preparing === preparing) this.preparing = undefined
+      preparing.settle()
+    }
   }
 
-  private handleSessionUpdate(notification: schema.SessionNotification): void {
-    const active = this.active
-    if (!active?.projection) return
-    const mapped = this.contentMapper.map(notification)
-    if (mapped.events.length > 0) {
-      this.dependencies.projection.applyEvents(active.projection, mapped.events)
-    }
+  async updateWorkdir(workdir: string | null): Promise<string> {
+    if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
+    await this.cancel()
+    const resolved = await this.dependencies.sessions.updateWorkdir(
+      this.sessionId,
+      this.options.agent.id,
+      workdir
+    )
+    this.workdir = resolved
+    return resolved
+  }
 
-    const session = active.session ?? null
-    if (session) {
-      if (mapped.currentModeId) session.currentModeId = mapped.currentModeId
-      if (mapped.availableCommands) session.availableCommands = mapped.availableCommands
-      if (mapped.configState) session.configState = mapped.configState
+  getWorkdir(): string {
+    return this.workdir
+  }
+
+  getModes() {
+    return this.dependencies.sessions.getModes(this.sessionId)
+  }
+
+  async setMode(modeId: string): Promise<void> {
+    await this.dependencies.sessions.setMode(this.sessionId, modeId)
+  }
+
+  getConfigOptions() {
+    return this.dependencies.sessions.getConfigOptions(this.sessionId)
+  }
+
+  async setConfigOption(configId: string, value: string | boolean) {
+    return await this.dependencies.sessions.setConfigOption(this.sessionId, configId, value)
+  }
+
+  getCommands() {
+    return this.dependencies.sessions.getCommands(this.sessionId)
+  }
+
+  async snapshot(): Promise<AcpAgentSnapshot> {
+    return {
+      sessionId: this.sessionId,
+      agentId: this.options.agent.id,
+      scope: this.options.scope,
+      workdir: this.workdir,
+      status: this.status,
+      ready: this.firstTurnReady,
+      active: Boolean(this.active),
+      remoteSessionId: this.dependencies.sessions.getSession(this.sessionId)?.sessionId ?? null
     }
+  }
+
+  async waitForFirstTurnReady(options?: { timeoutMs?: number }): Promise<boolean> {
+    if (this.firstTurnReady) return true
+    const timeoutMs = Math.max(0, options?.timeoutMs ?? 30_000)
+    if (timeoutMs === 0 || this.closed) return false
+    return await new Promise<boolean>((resolve) => {
+      let settled = false
+      let timer: ReturnType<typeof setTimeout>
+      const settle = (ready: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        this.firstTurnReadyWaiters.delete(settle)
+        resolve(ready)
+      }
+      this.firstTurnReadyWaiters.add(settle)
+      timer = setTimeout(() => settle(false), timeoutMs)
+    })
+  }
+
+  async close(): Promise<void> {
+    if (this.closePromise) return await this.closePromise
+    this.closed = true
+    this.preparing?.controller.abort()
+    this.closePromise = (async () => {
+      try {
+        await this.cancel()
+        await this.preparing?.settled
+        this.permissionBridge.close()
+        this.setStatus('closed')
+        this.settleFirstTurnReadyWaiters(false)
+        await this.dependencies.sessions.clear(this.sessionId)
+      } finally {
+        try {
+          this.dependencies.onClosed?.(this)
+        } catch (error) {
+          console.warn('[ACP] Failed to notify instance close:', error)
+        }
+      }
+    })()
+    return await this.closePromise
   }
 
   private async handlePermissionRequest(
@@ -316,9 +496,28 @@ export class AcpAgentInstance {
 
   private handleProcessExit(remoteSessionId: string): void {
     const active = this.active
-    if (!active) return
     this.permissionBridge.cancelSession(remoteSessionId)
-    active.controller.abort()
+    active?.controller.abort()
+    this.dependencies.onProcessExit?.(this)
+  }
+
+  private setStatus(status: AcpAgentStatus): void {
+    this.status = status
+    if (status === 'generating' || status === 'idle' || status === 'error') {
+      this.dependencies.projection.setStatus(status)
+    }
+  }
+
+  private markFirstTurnReady(): void {
+    if (this.firstTurnReady) return
+    this.firstTurnReady = true
+    this.settleFirstTurnReadyWaiters(true)
+  }
+
+  private settleFirstTurnReadyWaiters(ready: boolean): void {
+    const waiters = Array.from(this.firstTurnReadyWaiters)
+    this.firstTurnReadyWaiters.clear()
+    waiters.forEach((resolve) => resolve(ready))
   }
 
   private async attemptViewManifest(

@@ -107,6 +107,39 @@ describe('AcpProcessManager config cache fallback', () => {
     ]
   })
 
+  const createProcessHandle = (
+    child: MockSpawnedChild,
+    state: 'warmup' | 'bound' = 'warmup'
+  ) => {
+    Object.defineProperty(child, 'pid', { value: undefined })
+    return {
+      providerId: 'acp',
+      agentId: 'agent-1',
+      agent: { id: 'agent-1', name: 'Agent One', command: 'agent' },
+      status: 'ready' as const,
+      pid: undefined,
+      restarts: 1,
+      lastHeartbeatAt: Date.now(),
+      metadata: {},
+      child,
+      connection: {},
+      readyAt: Date.now(),
+      state,
+      boundConversationId: state === 'bound' ? 'conv-1' : undefined,
+      workdir: '/tmp/workspace',
+      configState: createConfigState(),
+      launchSignature: JSON.stringify({
+        command: 'agent',
+        args: [],
+        env: {},
+        cwd: null,
+        distributionType: 'manual',
+        version: null,
+        installDir: null
+      })
+    }
+  }
+
   it('falls back to the latest agent config when no scoped handle matches', () => {
     const manager = createManager()
     const configState = createConfigState('gpt-5-mini', 'ask')
@@ -712,6 +745,98 @@ describe('AcpProcessManager config cache fallback', () => {
     )
 
     expect(newSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects and disposes a warmup that resolves after shutdown', async () => {
+    const manager = createManager()
+    const child = new MockSpawnedChild()
+    const handle = createProcessHandle(child)
+    const terminalShutdown = vi.fn().mockResolvedValue(undefined)
+    let resolveHandle: ((value: typeof handle) => void) | undefined
+    const pendingHandle = new Promise<typeof handle>((resolve) => {
+      resolveHandle = resolve
+    })
+    const unhandledRejections: unknown[] = []
+    const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason)
+
+    ;(manager as any).terminalManager = { shutdown: terminalShutdown }
+    const disposeHandle = vi.spyOn(manager as any, 'disposeHandle')
+    vi.spyOn(manager as any, 'spawnProcess').mockReturnValue(pendingHandle)
+    publishDeepchatEventMock.mockClear()
+    process.on('unhandledRejection', onUnhandledRejection)
+
+    try {
+      const agent = { id: 'agent-1', name: 'Agent One', command: 'agent' }
+      const warmupResult = manager.warmupProcess(agent, '/tmp/workspace').then(
+        (value) => ({ status: 'fulfilled' as const, value }),
+        (error: unknown) => ({ status: 'rejected' as const, error })
+      )
+
+      await vi.waitFor(() => expect((manager as any).pendingHandles.size).toBe(1))
+      const shutdownResult = manager.shutdown()
+
+      expect((manager as any).shuttingDown).toBe(true)
+      expect((manager as any).handles.size).toBe(0)
+      expect((manager as any).boundHandles.size).toBe(0)
+      expect((manager as any).pendingHandles.size).toBe(0)
+      expect((manager as any).sessionListeners.size).toBe(0)
+      expect((manager as any).permissionResolvers.size).toBe(0)
+      expect((manager as any).processExitHandlers.size).toBe(0)
+      await expect(manager.warmupProcess(agent, '/tmp/workspace')).rejects.toThrow(
+        'Process manager is shutting down'
+      )
+      await expect(manager.getConnection(agent, '/tmp/workspace')).rejects.toThrow(
+        'Process manager is shutting down'
+      )
+      await shutdownResult
+      expect(terminalShutdown).toHaveBeenCalledTimes(1)
+
+      resolveHandle?.(handle)
+      const result = await warmupResult
+      expect(result.status).toBe('rejected')
+      if (result.status === 'rejected') {
+        expect(result.error).toEqual(
+          expect.objectContaining({ message: expect.stringContaining('shutting down') })
+        )
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      expect(disposeHandle).toHaveBeenCalledTimes(1)
+      expect(child.kill).toHaveBeenCalledTimes(1)
+      expect((manager as any).handles.size).toBe(0)
+      expect((manager as any).boundHandles.size).toBe(0)
+      expect((manager as any).pendingHandles.size).toBe(0)
+      expect((manager as any).initializingChildren.size).toBe(0)
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
+      expect(unhandledRejections).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection)
+    }
+  })
+
+  it('disposes a stale expected handle without unbinding its replacement', async () => {
+    const manager = createManager()
+    const staleChild = new MockSpawnedChild()
+    const replacementChild = new MockSpawnedChild()
+    const staleHandle = createProcessHandle(staleChild, 'bound')
+    const replacementHandle = createProcessHandle(replacementChild, 'bound')
+    const nextConfigState = createConfigState('gpt-5-mini', 'ask')
+
+    ;(manager as any).boundHandles.set('conv-1', replacementHandle)
+
+    await manager.unbindProcess('agent-1', 'conv-1', staleHandle as any)
+    await manager.unbindProcess('agent-1', 'conv-1', staleHandle as any)
+
+    expect(staleChild.kill).toHaveBeenCalledTimes(1)
+    expect(replacementChild.kill).not.toHaveBeenCalled()
+    expect(manager.getBoundProcess('conv-1')).toBe(replacementHandle)
+    expect(manager.updateBoundProcessConfigState('conv-1', nextConfigState)).toBe(true)
+    expect(replacementHandle.configState).toBe(nextConfigState)
+
+    await manager.unbindProcess('agent-1', 'conv-1', replacementHandle as any)
+
+    expect(replacementChild.kill).toHaveBeenCalledTimes(1)
+    expect(manager.getBoundProcess('conv-1')).toBeNull()
   })
 
   it('settles registered session exit handlers once when the process scope is cleared', () => {

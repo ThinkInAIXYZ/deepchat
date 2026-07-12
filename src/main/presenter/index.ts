@@ -72,6 +72,7 @@ import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
+import type { AcpAgentRuntime } from '@/agent/acp/instance'
 import { MemoryPresenter, isSafeAgentId } from './memoryPresenter'
 import { MemoryVectorStore } from './memoryPresenter/infra/memoryVectorStore'
 import { ProjectPresenter } from './projectPresenter'
@@ -145,6 +146,7 @@ export class Presenter implements IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
   agentManager: AgentManager
+  acpAgentRuntime: AcpAgentRuntime
   memoryPresenter: MemoryPresenter
   projectPresenter: IProjectPresenter
   remoteControlPresenter: IRemoteControlPresenter
@@ -658,6 +660,9 @@ export class Presenter implements IPresenter {
         skillPresenter: this.skillPresenter
       }
     )
+    this.acpAgentRuntime = agentRuntimePresenter.createAcpAgentRuntime(
+      (this.llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner()
+    )
     const sqlitePresenter = this
       .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
     const appSessionService = new AppSessionService({
@@ -1024,6 +1029,9 @@ export class Presenter implements IPresenter {
     // Drain in-flight memory consolidation before the shared SQLite connection closes, so a pass
     // that already fired cannot write to a closed database during teardown.
     await this.runDestroyStep('memoryPresenter.dispose', () => this.memoryPresenter.dispose())
+    await this.runDestroyStep('acpRuntime.shutdown', () =>
+      (this.llmproviderPresenter as LLMProviderPresenter).shutdownAcpRuntime()
+    )
     await this.runDestroyStep('sqlitePresenter.close', () => this.sqlitePresenter.close())
     this.shortcutPresenter.destroy()
     this.syncPresenter.destroy()

@@ -10,6 +10,8 @@ import type {
   AcpPromptResourceSnapshot
 } from '@/agent/acp/instance'
 import type { AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
+import { createStreamEvent } from '@shared/types/core/llm-events'
+import { AcpPromptController } from '@/agent/acp/client'
 
 const projectionHandle: AcpProjectionHandle = {
   requestId: 'assistant-message',
@@ -46,7 +48,23 @@ function createResources(): AcpPromptResourceSnapshot {
         source: 'agent'
       }
     ],
-    traceEnabled: true
+    traceEnabled: true,
+    viewManifest: {
+      taskType: 'chat',
+      policy: 'legacy_context_v1',
+      policyVersion: null,
+      tokenBudget: {
+        contextLength: 8192,
+        requestedMaxTokens: 4096,
+        effectiveMaxTokens: 4096,
+        reserveTokens: 4096,
+        toolReserveTokens: 0
+      },
+      summaryCursorOrderSeq: 1,
+      supportsVision: false,
+      supportsAudioInput: false,
+      traceDebugEnabled: true
+    }
   }
 }
 
@@ -56,11 +74,12 @@ function createHarness(options?: {
   promptNeverSettles?: boolean
   processExitsDuringPermission?: boolean
   requestTimeoutMs?: number
+  scope?: 'regular' | 'subagent'
 }) {
   const calls: string[] = []
   let hooks:
     | {
-        onSessionUpdate(notification: schema.SessionNotification): void
+        onEvents?(events: ReturnType<typeof createStreamEvent.text>[]): void
         onPermission(
           request: schema.RequestPermissionRequest
         ): Promise<schema.RequestPermissionResponse>
@@ -83,13 +102,7 @@ function createHarness(options?: {
         calls.push(`permission.${decision.outcome.outcome}`)
         return { stopReason: 'end_turn' } as schema.PromptResponse
       }
-      hooks?.onSessionUpdate({
-        sessionId: request.sessionId,
-        update: {
-          sessionUpdate: 'agent_message_chunk',
-          content: { type: 'text', text: 'world' }
-        }
-      })
+      hooks?.onEvents?.([createStreamEvent.text('world')])
       return { stopReason: 'end_turn' } as schema.PromptResponse
     }),
     cancel: vi.fn(async () => {
@@ -141,13 +154,25 @@ function createHarness(options?: {
     }
   }
   const dependencies: AcpAgentInstanceDependencies = {
-    sessionManager: {
-      getOrCreateSession: vi.fn(async (_conversationId, _agent, nextHooks) => {
+    promptController: new AcpPromptController(),
+    sessions: {
+      open: vi.fn(async (_conversationId, _agent, nextHooks) => {
         calls.push('session.open')
         hooks = nextHooks
         return session
       }),
-      clearSession: vi.fn()
+      prepare: vi.fn(async () => session),
+      updateWorkdir: vi.fn(async (_sessionId, _agentId, workdir) => workdir ?? '/workspace'),
+      getSession: vi.fn(() => session),
+      clearMappedSession: vi.fn(),
+      clear: vi.fn(async () => {
+        calls.push('session.clear')
+      }),
+      getModes: vi.fn(() => null),
+      setMode: vi.fn(),
+      getConfigOptions: vi.fn(() => null),
+      setConfigOption: vi.fn(async () => null),
+      getCommands: vi.fn(() => [])
     },
     promptResources: {
       resolve: vi.fn(async () => {
@@ -166,7 +191,8 @@ function createHarness(options?: {
     rateGate: {
       wait: vi.fn(async () => {
         calls.push('rate.wait')
-      })
+      }),
+      clearWaiting: vi.fn()
     },
     turns: {
       startTurn: vi.fn(async (input) => {
@@ -179,6 +205,10 @@ function createHarness(options?: {
     },
     debug: {
       appendDebugEvent: vi.fn((_agentId, event) => calls.push(`debug.${event.kind}`))
+    },
+    observer: {
+      userPromptSubmitted: vi.fn(),
+      terminal: vi.fn()
     }
   }
   const instance = new AcpAgentInstance(
@@ -186,7 +216,7 @@ function createHarness(options?: {
       sessionId: toAppSessionId('app-session'),
       agent: { id: 'agent-id', name: 'Agent', command: 'agent-command' },
       workdir: '/workspace',
-      scope: 'regular'
+      scope: options?.scope ?? 'regular'
     },
     dependencies
   )
@@ -231,6 +261,13 @@ describe('AcpAgentInstance', () => {
       ]
     })
     expect(harness.session.systemPromptSent).toBe(true)
+    expect(harness.dependencies.observer.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'app-session',
+        status: 'completed',
+        stopReason: 'complete'
+      })
+    )
   })
 
   it('keeps trace persistence fail-open and still cancels the successful provider prompt', async () => {
@@ -245,6 +282,59 @@ describe('AcpAgentInstance', () => {
     )
     expect(harness.calls.at(-1)).toBe('connection.cancel')
     warning.mockRestore()
+  })
+
+  it('sends the regular compatibility system prompt only once per remote session', async () => {
+    const harness = createHarness()
+
+    await harness.instance.send('first')
+    await harness.instance.send('second')
+
+    expect(harness.connection.prompt).toHaveBeenCalledTimes(2)
+    expect(harness.connection.prompt.mock.calls[0][0].prompt).toHaveLength(2)
+    expect(harness.connection.prompt.mock.calls[1][0].prompt).toEqual([
+      { type: 'text', text: 'hello' }
+    ])
+  })
+
+  it('keeps ACP-backed subagent prompt and local resources isolated', async () => {
+    const harness = createHarness({ scope: 'subagent' })
+
+    await harness.instance.send('hello')
+
+    expect(harness.connection.prompt).toHaveBeenCalledWith({
+      sessionId: 'remote-session',
+      prompt: [{ type: 'text', text: 'hello' }]
+    })
+  })
+
+  it('resolves first-turn readiness after projection is readable without sending a title prompt', async () => {
+    const harness = createHarness({ promptNeverSettles: true })
+    const sending = harness.instance.send('hello')
+
+    await expect(harness.instance.waitForFirstTurnReady({ timeoutMs: 100 })).resolves.toBe(true)
+    expect(harness.connection.prompt).toHaveBeenCalledTimes(1)
+
+    await harness.instance.cancel()
+    await sending
+    expect(harness.connection.prompt).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles an active prompt before clearing its session on close', async () => {
+    const harness = createHarness({ promptNeverSettles: true })
+    const sending = harness.instance.send('hello')
+    await harness.instance.waitForFirstTurnReady({ timeoutMs: 100 })
+
+    await harness.instance.close()
+    await sending
+
+    expect(harness.calls.indexOf('projection.cancel')).toBeLessThan(
+      harness.calls.indexOf('session.clear')
+    )
+    await expect(harness.instance.snapshot()).resolves.toMatchObject({
+      status: 'closed',
+      active: false
+    })
   })
 
   it('does not mark the system prompt sent when the ACP prompt fails', async () => {

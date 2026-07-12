@@ -1141,6 +1141,7 @@ export interface ILlmProviderPresenter {
     providerId: string,
     options?: {
       signal?: AbortSignal
+      scope?: 'provider' | 'acp-direct'
       onQueued?: (snapshot: {
         providerId: string
         qpsLimit: number

@@ -18,9 +18,14 @@ import {
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
+import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
+import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
+import type { AcpAgentConfig } from '@shared/presenter'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import { nanoid } from 'nanoid'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -102,7 +107,8 @@ vi.mock('@/agent/deepchat/resources/systemEnvPromptBuilder', () => ({
 }))
 
 // Mock processStream to avoid timer/async complexity
-vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
+vi.mock('@/presenter/agentRuntimePresenter/process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/presenter/agentRuntimePresenter/process')>()),
   processStream: vi.fn().mockResolvedValue({ status: 'completed' })
 }))
 
@@ -3207,6 +3213,227 @@ describe('AgentRuntimePresenter', () => {
       expect(systemPrompt).toContain('`skill_view`')
       expect(systemPrompt).not.toContain('`skill_control`')
       expect(systemPrompt).toContain('desc-a')
+    })
+
+    it('composes the direct ACP production adapters with full prompt, manifest, file fallback, and rate UI parity', async () => {
+      let id = 0
+      vi.mocked(nanoid).mockImplementation(() => `direct-id-${++id}`)
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        agent_id: 'agent-id',
+        session_kind: 'regular'
+      })
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? true : undefined
+      )
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getMetadataList.mockResolvedValue([
+        { name: 'skill-a', description: 'direct skill' }
+      ])
+      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'DIRECT_SKILL_BODY' })
+      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+        {
+          type: 'function',
+          source: 'agent',
+          function: { name: 'read', description: 'read', parameters: {} },
+          server: { name: 'agent-filesystem', description: '' }
+        },
+        {
+          type: 'function',
+          source: 'agent',
+          function: { name: 'skill_list', description: 'skills', parameters: {} },
+          server: { name: 'agent-skills', description: '' }
+        },
+        {
+          type: 'function',
+          source: 'agent',
+          function: { name: 'skill_view', description: 'skill', parameters: {} },
+          server: { name: 'agent-skills', description: '' }
+        }
+      ])
+      toolPresenter.buildToolSystemPrompt.mockReturnValue('DIRECT_TOOLING')
+      llmProvider.executeWithRateLimit.mockImplementation(
+        async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
+          options?.onQueued?.({
+            providerId: 'acp',
+            qpsLimit: 1,
+            currentQps: 1,
+            queueLength: 1,
+            estimatedWaitTime: 25
+          })
+        }
+      )
+
+      await agent.initSession('s1', {
+        providerId: 'acp',
+        modelId: 'agent-id',
+        agentId: 'agent-id',
+        projectDir: '/workspace',
+        generationSettings: {
+          systemPrompt: 'DIRECT_CONFIGURED',
+          contextLength: 8192,
+          maxTokens: 2048,
+          timeout: 5000
+        }
+      })
+
+      let activeHooks: any
+      const prompt = vi.fn(async (request: schema.PromptRequest) => {
+        activeHooks.onEvents([{ type: 'text', content: 'direct response' }])
+        return { stopReason: 'end_turn' } as schema.PromptResponse
+      })
+      const remoteSession = {
+        sessionId: toAcpRemoteSessionId('remote-direct'),
+        connection: { prompt, cancel: vi.fn() },
+        detachHandlers: [],
+        workdir: '/workspace',
+        providerId: 'acp',
+        agentId: 'agent-id',
+        conversationId: 's1',
+        status: 'active',
+        createdAt: 1,
+        updatedAt: 1,
+        metadata: {},
+        systemPromptSent: false
+      }
+      const sessionController = {
+        open: vi.fn(async (_sessionId, _agent, hooks) => {
+          activeHooks = hooks
+          return remoteSession
+        }),
+        prepare: vi.fn(async () => remoteSession),
+        updateWorkdir: vi.fn(async (_sessionId, _agentId, workdir) => workdir ?? '/workspace'),
+        getSession: vi.fn(() => remoteSession),
+        clearMappedSession: vi.fn(),
+        clear: vi.fn(),
+        getModes: vi.fn(() => null),
+        setMode: vi.fn(),
+        getConfigOptions: vi.fn(() => null),
+        setConfigOption: vi.fn(async () => null),
+        getCommands: vi.fn(() => [])
+      }
+      const sharedClient = {
+        promptController: new AcpPromptController(),
+        sessionController,
+        sessionPersistence: { startTurn: vi.fn(), finishTurn: vi.fn() },
+        processManager: {
+          appendDebugEvent: vi.fn(),
+          shutdown: vi.fn(),
+          release: vi.fn()
+        },
+        sessionManager: { clearAllSessions: vi.fn(), clearSessionsByAgent: vi.fn() }
+      } as unknown as AcpClientRuntime
+      const owner = new AcpRuntimeOwner(() => sharedClient)
+      const directRuntime = agent.createAcpAgentRuntime(owner)
+      const descriptor: AcpAgentDescriptor = {
+        id: 'agent-id',
+        kind: 'acp',
+        source: 'manual',
+        name: 'Agent',
+        enabled: true,
+        protected: false,
+        description: null,
+        icon: null,
+        avatar: null,
+        launch: { command: 'agent', args: [], env: {} }
+      }
+      const acpAgent: AcpAgentConfig = {
+        id: 'agent-id',
+        name: 'Agent',
+        command: 'agent',
+        source: 'manual'
+      }
+
+      const directInput = {
+        sessionId: toAppSessionId('s1'),
+        descriptor,
+        agent: acpAgent,
+        scope: 'regular',
+        workdir: '/workspace'
+      } as const
+      await directRuntime.send(directInput, {
+        text: 'Inspect attachment',
+        files: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/notes.txt',
+            type: 'text/plain',
+            content: 'do-not-inline'
+          }
+        ]
+      })
+      expect(sharedClient.processManager.appendDebugEvent).not.toHaveBeenCalledWith(
+        'agent-id',
+        expect.objectContaining({ kind: 'error' })
+      )
+      expect(await directRuntime.getHydrated(directInput.sessionId)?.snapshot()).toMatchObject({
+        status: 'idle'
+      })
+
+      const request = prompt.mock.calls[0][0]
+      const systemPrompt = String((request.prompt[0] as { text: string }).text)
+      const userPrompt = String((request.prompt[1] as { text: string }).text)
+      const orderedSections = [
+        'DIRECT_CONFIGURED',
+        'RUNTIME_CAPABILITIES',
+        'ENV_BLOCK',
+        '## Skills',
+        '## Active Skills',
+        'DIRECT_TOOLING',
+        '## Permission Rules',
+        '## Verification Policy'
+      ]
+      for (let index = 1; index < orderedSections.length; index += 1) {
+        expect(systemPrompt.indexOf(orderedSections[index])).toBeGreaterThan(
+          systemPrompt.indexOf(orderedSections[index - 1])
+        )
+      }
+      expect(userPrompt).toContain('[Attached File 1]')
+      expect(userPrompt).toContain('path: /tmp/notes.txt')
+      expect(userPrompt).not.toContain('do-not-inline')
+
+      const manifestRow = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .find((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+      const manifest = JSON.parse(manifestRow.payload_json).data.manifest
+      expect(manifest).toMatchObject({
+        taskType: 'chat',
+        policy: 'legacy_context_v1',
+        policyVersion: null,
+        tokenBudget: {
+          contextLength: 8192,
+          requestedMaxTokens: 2048,
+          effectiveMaxTokens: 2048,
+          reserveTokens: 2048
+        },
+        meta: {
+          providerId: 'acp',
+          modelId: 'agent-id',
+          summaryCursorOrderSeq: 1,
+          supportsVision: false,
+          supportsAudioInput: false,
+          traceDebugEnabled: true
+        }
+      })
+      expect(manifest.hashes.promptHash).toEqual(expect.any(String))
+      expect(manifest.hashes.toolDefinitionsHash).toEqual(expect.any(String))
+
+      const rateUpdates = getPublishedPayloads('chat.stream.updated').filter(
+        (payload) => payload.messageId === 'rate-limit-acp:s1'
+      )
+      expect(rateUpdates).toHaveLength(2)
+      expect(rateUpdates[0].blocks).toEqual([
+        expect.objectContaining({ action_type: 'rate_limit', status: 'pending' })
+      ])
+      expect(rateUpdates[1].blocks).toEqual([])
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'acp',
+        expect.objectContaining({ scope: 'acp-direct' })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'SessionStart',
+        expect.objectContaining({ conversationId: 's1', providerId: 'acp' })
+      )
     })
 
     it('keeps initial and skill-refresh prompt phases around compaction in fixed order', async () => {

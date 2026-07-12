@@ -259,6 +259,12 @@ Rollback: each collaborator adapter delegates to the legacy method until its sli
 Objective: stop routing `kind=acp` sessions through DeepChat LoopEngine without removing the DeepChat +
 ACP-provider compatibility path.
 
+Progress after `ASLR-071`: the typed direct runtime is production-composed with shared ACP
+client/session/process ownership and regular/subagent collaborator parity, but remains unselected. The legacy
+ACP backend still owns every app route until `ASLR-072`; this prevents double dispatch while the title,
+ACP-backed subagent initialization retry and app-level queue/steer route fixtures move with the router switch.
+`ASLR-073` remains responsible for compatibility contract retirement. No Memory behavior is changed here.
+
 Deliverables:
 
 - implement `AcpAgentInstance` over the consolidated process/session/prompt/protocol module;
@@ -283,6 +289,25 @@ Deliverables:
   generic ProviderPort without an ACP-agent routing branch;
 - preserve the regular compatibility prompt/local-resource descriptions on that provider path; ACP still
   ignores the DeepChat `_tools` array, while ACP-backed subagents retain their current bypass.
+
+Delivered by `ASLR-070..071` before routing changes:
+
+- direct instance prompt/projection/trace/permission slice plus typed lifecycle, capability, pending-input,
+  readiness and snapshot facets;
+- one composition-owned `AcpRuntimeOwner` shared by direct and ACP-provider compatibility paths, with explicit
+  refresh/shutdown ordering and an irreversible shutdown fence over lazy materialization and in-flight direct
+  operations; the process-manager fence starts synchronously, never waits on unresolved spawn work and disposes
+  late or replaced handles exactly once by identity;
+- one `AcpSessionController` for workdir/open, mode/config/commands, content mapping, capability publication and
+  metadata persistence, including restore-attempt isolation and ordered replay of only the successful remote
+  session's process updates after session publication;
+- production adapters over the current prompt resources, message/Tape/event projection, trace, rate admission,
+  hooks, ACP turn/debug persistence and the existing pending-input coordinator;
+- one shared ACP rate-limit state with scoped queue cleanup, so provider adapter rebuild/disable/remove keeps
+  direct waiters and global QPS ordering intact;
+- focused regular/subagent, timeout/cancel/process-exit, prompt-once, queue/steer, workdir/capability,
+  provider-lifetime, shutdown-fence/in-flight drain, stuck/late session-open cancellation, fallback-attempt update
+  isolation and composition-order fixtures.
 
 Exit gate:
 

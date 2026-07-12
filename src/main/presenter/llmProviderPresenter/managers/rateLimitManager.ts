@@ -6,7 +6,8 @@ import {
   ProviderRateLimitState,
   QueueItem,
   RateLimitConfig,
-  RateLimitQueueSnapshot
+  RateLimitQueueSnapshot,
+  RateLimitScope
 } from '../types'
 
 const createAbortError = (): Error => {
@@ -146,7 +147,8 @@ export class RateLimitManager {
         id: `${providerId}-${Date.now()}-${Math.random()}`,
         timestamp: Date.now(),
         resolve: () => settle(resolve),
-        reject: (error) => settle(() => reject(error))
+        reject: (error) => settle(() => reject(error)),
+        scope: options?.scope ?? 'provider'
       }
 
       state.queue.push(queueItem)
@@ -200,22 +202,25 @@ export class RateLimitManager {
     const allStatus = this.getAllProviderRateLimitStatus()
     for (const providerId of Object.keys(allStatus)) {
       if (!currentProviderIds.has(providerId)) {
-        this.cleanupProviderRateLimit(providerId)
+        this.cleanupProviderRateLimit(providerId, providerId === 'acp' ? 'provider' : undefined)
       }
     }
   }
 
-  cleanupProviderRateLimit(providerId: string): void {
+  cleanupProviderRateLimit(providerId: string, scope?: RateLimitScope): void {
     const state = this.providerRateLimitStates.get(providerId)
     if (state) {
-      while (state.queue.length > 0) {
-        const queueItem = state.queue.shift()
-        if (queueItem) {
-          queueItem.reject(new Error('Provider removed'))
-        }
+      const removed = scope
+        ? state.queue.filter((queueItem) => queueItem.scope === scope)
+        : state.queue.splice(0)
+      if (scope) {
+        state.queue = state.queue.filter((queueItem) => queueItem.scope !== scope)
       }
-      this.providerRateLimitStates.delete(providerId)
-      logger.info(`[RateLimitManager] Cleaned up rate limit state for ${providerId}`)
+      removed.forEach((queueItem) => queueItem.reject(new Error('Provider removed')))
+      if (!scope) this.providerRateLimitStates.delete(providerId)
+      logger.info(
+        `[RateLimitManager] Cleaned up ${scope ?? 'all'} rate limit requests for ${providerId}`
+      )
     }
   }
 
