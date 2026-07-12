@@ -21,6 +21,20 @@ export interface DeepChatActiveGeneration {
   readonly abortController: AbortController
 }
 
+export interface DeepChatPendingInteractionRef {
+  readonly messageId: string
+  readonly toolCallId: string
+}
+
+export interface DeepChatActiveProviderPermission {
+  readonly requestId: string
+  readonly messageId: string
+  readonly toolCallId: string
+  readonly providerId: string
+  readonly permissionType: 'read' | 'write' | 'all' | 'command'
+  readonly resolve: (granted: boolean) => Promise<void>
+}
+
 export class DeepChatAgentInstance {
   readonly kind = 'deepchat' as const
   private runtimeState?: DeepChatSessionState
@@ -33,6 +47,11 @@ export class DeepChatAgentInstance {
   private activeGeneration?: DeepChatActiveGeneration
   private activeSteerPendingInputId?: string
   private pendingQueueDraining = false
+  private pendingInteractions: DeepChatPendingInteractionRef[] = []
+  private readonly interactionLocks = new Set<string>()
+  private readonly resumingMessages = new Set<string>()
+  private readonly deferredToolAbortControllers = new Map<string, AbortController>()
+  private readonly activeProviderPermissions = new Map<string, DeepChatActiveProviderPermission>()
 
   constructor(
     readonly sessionId: AppSessionId,
@@ -211,6 +230,101 @@ export class DeepChatAgentInstance {
     this.pendingQueueDraining = false
   }
 
+  replacePendingInteractions(interactions: readonly DeepChatPendingInteractionRef[]): void {
+    this.pendingInteractions = interactions.map((interaction) => ({ ...interaction }))
+  }
+
+  getFirstPendingInteraction(): DeepChatPendingInteractionRef | undefined {
+    const first = this.pendingInteractions[0]
+    return first ? { ...first } : undefined
+  }
+
+  hasPendingInteractions(): boolean {
+    return this.pendingInteractions.length > 0
+  }
+
+  tryLockInteraction(messageId: string, toolCallId: string): boolean {
+    const key = this.buildInteractionKey(messageId, toolCallId)
+    if (this.interactionLocks.has(key)) {
+      return false
+    }
+    this.interactionLocks.add(key)
+    return true
+  }
+
+  unlockInteraction(messageId: string, toolCallId: string): void {
+    this.interactionLocks.delete(this.buildInteractionKey(messageId, toolCallId))
+  }
+
+  tryBeginResume(messageId: string): boolean {
+    if (this.resumingMessages.has(messageId)) {
+      return false
+    }
+    this.resumingMessages.add(messageId)
+    return true
+  }
+
+  finishResume(messageId: string): void {
+    this.resumingMessages.delete(messageId)
+  }
+
+  registerDeferredToolAbortController(toolCallId: string): AbortController {
+    this.deferredToolAbortControllers.get(toolCallId)?.abort()
+    const controller = new AbortController()
+    this.deferredToolAbortControllers.set(toolCallId, controller)
+    return controller
+  }
+
+  clearDeferredToolAbortController(toolCallId: string, controller?: AbortController): boolean {
+    const current = this.deferredToolAbortControllers.get(toolCallId)
+    if (!current || (controller && current !== controller)) {
+      return false
+    }
+    this.deferredToolAbortControllers.delete(toolCallId)
+    return true
+  }
+
+  hasDeferredToolAbortController(toolCallId: string): boolean {
+    return this.deferredToolAbortControllers.has(toolCallId)
+  }
+
+  abortDeferredToolCalls(): void {
+    for (const controller of this.deferredToolAbortControllers.values()) {
+      controller.abort()
+    }
+    this.deferredToolAbortControllers.clear()
+  }
+
+  registerActiveProviderPermission(permission: DeepChatActiveProviderPermission): void {
+    this.activeProviderPermissions.set(permission.requestId, permission)
+  }
+
+  getActiveProviderPermission(requestId: string): DeepChatActiveProviderPermission | undefined {
+    return this.activeProviderPermissions.get(requestId)
+  }
+
+  clearActiveProviderPermission(
+    requestId: string,
+    expected?: DeepChatActiveProviderPermission
+  ): boolean {
+    const current = this.activeProviderPermissions.get(requestId)
+    if (!current || (expected && current !== expected)) {
+      return false
+    }
+    this.activeProviderPermissions.delete(requestId)
+    return true
+  }
+
+  takeActiveProviderPermissions(): DeepChatActiveProviderPermission[] {
+    const permissions = [...this.activeProviderPermissions.values()]
+    this.activeProviderPermissions.clear()
+    return permissions
+  }
+
+  hasActiveProviderPermission(requestId: string): boolean {
+    return this.activeProviderPermissions.has(requestId)
+  }
+
   clearOwnedState(): void {
     this.abortAndClearGeneration()
     this.runtimeState = undefined
@@ -220,6 +334,11 @@ export class DeepChatAgentInstance {
     this.clearFirstTurnReady()
     this.activeSteerPendingInputId = undefined
     this.pendingQueueDraining = false
+    this.pendingInteractions = []
+    this.interactionLocks.clear()
+    this.resumingMessages.clear()
+    this.abortDeferredToolCalls()
+    this.activeProviderPermissions.clear()
   }
 
   async send(input: AgentSessionSendInput): Promise<MessageStartResult> {
@@ -246,5 +365,9 @@ export class DeepChatAgentInstance {
     const waiters = [...this.firstTurnReadyWaiters]
     this.firstTurnReadyWaiters.clear()
     for (const waiter of waiters) waiter(ready)
+  }
+
+  private buildInteractionKey(messageId: string, toolCallId: string): string {
+    return `${messageId}:${toolCallId}`
   }
 }

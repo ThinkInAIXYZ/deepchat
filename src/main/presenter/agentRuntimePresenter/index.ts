@@ -523,16 +523,6 @@ function getVerificationScriptNames(workdir: string): string[] {
     .map(([name]) => name)
 }
 
-type ActiveProviderPermission = {
-  requestId: string
-  sessionId: string
-  messageId: string
-  toolCallId: string
-  providerId: string
-  permissionType: 'read' | 'write' | 'all' | 'command'
-  resolve: (granted: boolean) => Promise<void>
-}
-
 type ProviderPermissionInteractionInput = {
   sessionId: string
   messageId: string
@@ -633,15 +623,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly tapeService: DeepChatTapeService
   private readonly pendingInputStore: DeepChatPendingInputStore
   private readonly pendingInputCoordinator: PendingInputCoordinator
-  private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   readonly deepChatRuntime: DeepChatAgentRuntime
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
   private readonly toolProfileCache: Map<string, ToolProfileCacheEntry> = new Map()
   private readonly runtimeActivatedSkillsBySession: Map<string, Set<string>> = new Map()
   private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
-  private readonly interactionLocks: Set<string> = new Set()
-  private readonly resumingMessages: Set<string> = new Set()
-  private readonly activeProviderPermissions: Map<string, ActiveProviderPermission> = new Map()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
@@ -1800,11 +1786,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult> {
-    const lockKey = `${messageId}:${toolCallId}`
-    if (this.interactionLocks.has(lockKey)) {
+    const instance = this.getDeepChatInstance(sessionId)
+    if (!instance.tryLockInteraction(messageId, toolCallId)) {
       return { resumed: false }
     }
-    this.interactionLocks.add(lockKey)
 
     try {
       const message = await this.messageStore.getMessage(messageId)
@@ -1817,12 +1802,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       const blocks = this.parseAssistantBlocks(message.content)
       const pendingEntries = this.collectPendingInteractionEntries(messageId, blocks)
+      this.replacePendingInteractions(instance, pendingEntries)
       if (pendingEntries.length === 0) {
         throw new Error('No pending interaction found in target message.')
       }
 
+      const firstPendingInteraction = instance.getFirstPendingInteraction()
       const currentEntry = pendingEntries[0]
-      if (currentEntry.interaction.toolCallId !== toolCallId) {
+      if (
+        firstPendingInteraction?.messageId !== messageId ||
+        firstPendingInteraction.toolCallId !== toolCallId
+      ) {
         throw new Error('Interaction queue out of order. Please handle the first pending item.')
       }
 
@@ -1951,6 +1941,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               error: { message: execution.terminalError }
             })
             this.setSessionStatus(sessionId, 'error')
+            this.replacePendingInteractions(
+              instance,
+              this.collectPendingInteractionEntries(messageId, blocks)
+            )
             return { resumed: false }
           }
           const imagePresentation = prepareToolImagePreviewPresentation({
@@ -2031,6 +2025,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       this.messageStore.updateAssistantContent(messageId, blocks)
       const remainingPending = this.collectPendingInteractionEntries(messageId, blocks)
+      this.replacePendingInteractions(instance, remainingPending)
       this.emitMessageRefresh(sessionId, messageId)
 
       if (remainingPending.length > 0) {
@@ -2056,7 +2051,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       emitResolvedToolHook?.()
       return { resumed }
     } finally {
-      this.interactionLocks.delete(lockKey)
+      instance.unlockInteraction(messageId, toolCallId)
     }
   }
 
@@ -3079,19 +3074,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.getHydratedDeepChatInstance(sessionId)?.clearAbortController(controller)
   }
 
-  private buildDeferredToolAbortKey(sessionId: string, toolCallId: string): string {
-    return `${sessionId}:${toolCallId}`
-  }
-
   private registerDeferredToolAbortController(
     sessionId: string,
     toolCallId: string
   ): AbortController {
-    const key = this.buildDeferredToolAbortKey(sessionId, toolCallId)
-    this.deferredToolAbortControllers.get(key)?.abort()
-    const controller = new AbortController()
-    this.deferredToolAbortControllers.set(key, controller)
-    return controller
+    return this.getDeepChatInstance(sessionId).registerDeferredToolAbortController(toolCallId)
   }
 
   private clearDeferredToolAbortController(
@@ -3099,26 +3086,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     toolCallId: string,
     controller?: AbortController
   ): void {
-    const key = this.buildDeferredToolAbortKey(sessionId, toolCallId)
-    const current = this.deferredToolAbortControllers.get(key)
-    if (!current) {
-      return
-    }
-    if (controller && current !== controller) {
-      return
-    }
-    this.deferredToolAbortControllers.delete(key)
+    this.getHydratedDeepChatInstance(sessionId)?.clearDeferredToolAbortController(
+      toolCallId,
+      controller
+    )
   }
 
   private abortDeferredToolAbortControllers(sessionId: string): void {
-    const prefix = `${sessionId}:`
-    for (const [key, controller] of this.deferredToolAbortControllers) {
-      if (!key.startsWith(prefix)) {
-        continue
-      }
-      controller.abort()
-      this.deferredToolAbortControllers.delete(key)
-    }
+    this.getHydratedDeepChatInstance(sessionId)?.abortDeferredToolCalls()
   }
 
   private throwIfAbortRequested(signal?: AbortSignal): void {
@@ -3420,6 +3395,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.resetMemoryExtractionCursor(sessionId)
     this.memoryIngestionProjectionRetryAfter.delete(sessionId)
     this.messageStore.deleteBySession(sessionId)
+    this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions([])
     this.sessionStore.resetTape(sessionId)
     this.resetSummaryState(sessionId)
     this.setSessionStatus(sessionId, 'idle')
@@ -3482,6 +3458,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
     this.invalidateMemoryExtractionFromOrderSeq(sessionId, target.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
+    this.refreshPendingInteractionsFromStore(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
 
@@ -4595,12 +4572,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const state = this.getDeepChatRuntimeState(sessionId)
     if (!result || !result.status) {
       if (isActive) {
+        this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions([])
         this.setSessionStatus(sessionId, 'idle')
       }
       return
     }
     if (result.status === 'paused') {
       if (isActive) {
+        this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions(
+          result.pendingInteractions ?? []
+        )
         this.setSessionStatus(sessionId, 'generating')
       }
       return
@@ -4608,6 +4589,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (result.status === 'completed') {
       this.dispatchTerminalHooks(sessionId, state, result)
       if (isActive) {
+        this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions([])
         this.setSessionStatus(sessionId, 'idle')
       }
       return
@@ -4615,12 +4597,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (result.status === 'aborted') {
       this.dispatchTerminalHooks(sessionId, state, result)
       if (isActive) {
+        this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions([])
         this.setSessionStatus(sessionId, 'idle')
       }
       return
     }
     this.dispatchTerminalHooks(sessionId, state, result)
     if (isActive) {
+      this.getHydratedDeepChatInstance(sessionId)?.replacePendingInteractions([])
       this.setSessionStatus(sessionId, 'error')
     }
   }
@@ -4631,10 +4615,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     initialBlocks: AssistantMessageBlock[],
     budgetToolCall?: ResumeBudgetToolCall | null
   ): Promise<boolean> {
-    if (this.resumingMessages.has(messageId)) {
+    const instance = this.getDeepChatInstance(sessionId)
+    if (!instance.tryBeginResume(messageId)) {
       return false
     }
-    this.resumingMessages.add(messageId)
     let preStreamAbortController: AbortController | null = null
     let preStreamAbortSignal: AbortSignal | undefined
     let streamRunId: string | undefined
@@ -4834,7 +4818,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       throw error
     } finally {
       this.clearSessionAbortController(sessionId, preStreamAbortController ?? undefined)
-      this.resumingMessages.delete(messageId)
+      instance.finishResume(messageId)
     }
   }
 
@@ -6275,6 +6259,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return entries
   }
 
+  private replacePendingInteractions(
+    instance: DeepChatAgentInstance,
+    entries: readonly PendingInteractionEntry[]
+  ): void {
+    instance.replacePendingInteractions(
+      entries.map(({ interaction }) => ({
+        messageId: interaction.messageId,
+        toolCallId: interaction.toolCallId
+      }))
+    )
+  }
+
   private parseQuestionOptions(raw: unknown): Array<{ label: string; description?: string }> {
     const parseOption = (value: unknown): { label: string; description?: string } | null => {
       if (!value || typeof value !== 'object') return null
@@ -6373,9 +6369,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return
     }
 
-    this.activeProviderPermissions.set(requestId, {
+    this.getDeepChatInstance(sessionId).registerActiveProviderPermission({
       requestId,
-      sessionId,
       messageId,
       toolCallId: tool.callId || '',
       providerId,
@@ -6390,7 +6385,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private async resolveProviderPermissionInteraction(
     input: ProviderPermissionInteractionInput
   ): Promise<void> {
-    const active = this.activeProviderPermissions.get(input.requestId)
+    const instance = this.getHydratedDeepChatInstance(input.sessionId)
+    const active = instance?.getActiveProviderPermission(input.requestId)
     let resolution: { status: 'resolved' } | { status: 'stale'; error: unknown }
 
     try {
@@ -6400,10 +6396,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           : () => this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
       )
     } finally {
-      this.activeProviderPermissions.delete(input.requestId)
+      instance?.clearActiveProviderPermission(input.requestId, active)
     }
 
     if (active && resolution.status === 'resolved') {
+      this.refreshPendingInteractionsFromStore(input.sessionId)
       return
     }
 
@@ -6423,6 +6420,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       resolution.status === 'stale' ? 'Permission request expired.' : undefined
     )
     this.finishProviderPermissionInteraction(input.sessionId, input.messageId)
+    this.refreshPendingInteractionsFromStore(input.sessionId)
   }
 
   private async resolveProviderPermissionSafely(
@@ -6485,18 +6483,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private clearActiveProviderPermissionsForSession(sessionId: string): void {
-    for (const [requestId, permission] of this.activeProviderPermissions.entries()) {
-      if (permission.sessionId === sessionId) {
-        this.activeProviderPermissions.delete(requestId)
-        void this.resolveProviderPermissionSafely(() => permission.resolve(false)).catch(
-          (error) => {
-            console.warn(
-              `[DeepChatAgent] Failed to cancel ACP permission request ${requestId}:`,
-              error
-            )
-          }
+    const instance = this.getHydratedDeepChatInstance(sessionId)
+    for (const permission of instance?.takeActiveProviderPermissions() ?? []) {
+      void this.resolveProviderPermissionSafely(() => permission.resolve(false)).catch((error) => {
+        console.warn(
+          `[DeepChatAgent] Failed to cancel ACP permission request ${permission.requestId}:`,
+          error
         )
-      }
+      })
     }
   }
 
@@ -7256,16 +7250,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private hasPendingInteractions(sessionId: string): boolean {
+    return this.refreshPendingInteractionsFromStore(sessionId)
+  }
+
+  private refreshPendingInteractionsFromStore(sessionId: string): boolean {
     const messages = this.messageStore.getMessages(sessionId)
+    const pendingEntries: PendingInteractionEntry[] = []
     for (const message of messages) {
       if (message.role !== 'assistant') continue
       const blocks = this.parseAssistantBlocks(message.content)
-      const pendingEntries = this.collectPendingInteractionEntries(message.id, blocks)
-      if (pendingEntries.length > 0) {
-        return true
-      }
+      pendingEntries.push(...this.collectPendingInteractionEntries(message.id, blocks))
     }
-    return false
+    const instance = this.getHydratedDeepChatInstance(sessionId)
+    if (instance) {
+      this.replacePendingInteractions(instance, pendingEntries)
+      return instance.hasPendingInteractions()
+    }
+    return pendingEntries.length > 0
   }
 
   private isAwaitingToolQuestionFollowUp(sessionId: string): boolean {

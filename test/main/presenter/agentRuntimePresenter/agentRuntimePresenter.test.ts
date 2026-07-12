@@ -6814,9 +6814,9 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
     })
 
-    it('does not resume when there are remaining pending interactions', async () => {
+    it('starts one fresh resume only after the final pending interaction', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      makeAssistantRow({
+      const row = makeAssistantRow({
         blocks: [
           {
             type: 'tool_call',
@@ -6850,18 +6850,37 @@ describe('AgentRuntimePresenter', () => {
           }
         ]
       })
+      sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+        (id: string, content: string) => {
+          if (id === row.id) row.content = content
+        }
+      )
 
-      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+      const firstResult = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'question_option',
         optionLabel: 'A'
       })
 
-      expect(result).toEqual({ resumed: false })
+      expect(firstResult).toEqual({ resumed: false })
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
         'm1',
         'pending'
       )
       expect(processStream).not.toHaveBeenCalled()
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getFirstPendingInteraction()
+      ).toEqual({ messageId: 'm1', toolCallId: 'tc2' })
+
+      const finalResult = await agent.respondToolInteraction('s1', 'm1', 'tc2', {
+        kind: 'question_option',
+        optionLabel: 'B'
+      })
+
+      expect(finalResult).toEqual({ resumed: true })
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
+      ).toBe(false)
     })
 
     it('handles permission grant by executing deferred tool and resuming', async () => {
@@ -7247,9 +7266,9 @@ describe('AgentRuntimePresenter', () => {
         ]
       })
 
-      ;(agent as any).activeProviderPermissions.set('acp-req-1', {
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      instance.registerActiveProviderPermission({
         requestId: 'acp-req-1',
-        sessionId: 's1',
         messageId: 'm1',
         toolCallId: 'tc1',
         providerId: 'acp',
@@ -7312,23 +7331,23 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
-      expect((agent as any).activeProviderPermissions.has('acp-req-1')).toBe(false)
+      expect(instance.hasActiveProviderPermission('acp-req-1')).toBe(false)
     })
 
-    it('cancels live ACP permission resolvers when clearing a session', async () => {
+    it('cancels only the target session live ACP permission resolvers', async () => {
       const resolve = vi.fn().mockResolvedValue(undefined)
-      ;(agent as any).activeProviderPermissions.set('acp-req-1', {
+      const first = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const second = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s2'))
+      first.registerActiveProviderPermission({
         requestId: 'acp-req-1',
-        sessionId: 's1',
         messageId: 'm1',
         toolCallId: 'tc1',
         providerId: 'acp',
         permissionType: 'command',
         resolve
       })
-      ;(agent as any).activeProviderPermissions.set('acp-req-2', {
+      second.registerActiveProviderPermission({
         requestId: 'acp-req-2',
-        sessionId: 's2',
         messageId: 'm2',
         toolCallId: 'tc2',
         providerId: 'acp',
@@ -7336,12 +7355,12 @@ describe('AgentRuntimePresenter', () => {
         resolve: vi.fn().mockResolvedValue(undefined)
       })
 
-      ;(agent as any).clearActiveProviderPermissionsForSession('s1')
+      await agent.cancelGeneration('s1')
       await Promise.resolve()
 
       expect(resolve).toHaveBeenCalledWith(false)
-      expect((agent as any).activeProviderPermissions.has('acp-req-1')).toBe(false)
-      expect((agent as any).activeProviderPermissions.has('acp-req-2')).toBe(true)
+      expect(first.hasActiveProviderPermission('acp-req-1')).toBe(false)
+      expect(second.hasActiveProviderPermission('acp-req-2')).toBe(true)
     })
 
     it('falls back to direct ACP permission resolve when live resolver is missing', async () => {
@@ -7987,7 +8006,11 @@ describe('AgentRuntimePresenter', () => {
 
       expect(capturedSignal).toBeDefined()
       expect(capturedSignal?.aborted).toBe(false)
-      expect((agent as any).deferredToolAbortControllers.size).toBe(1)
+      expect(
+        agent.deepChatRuntime
+          .getHydrated(toAppSessionId('s1'))
+          ?.hasDeferredToolAbortController('tc-subagent')
+      ).toBe(true)
 
       await agent.cancelGeneration('s1')
 
@@ -7998,7 +8021,11 @@ describe('AgentRuntimePresenter', () => {
           responseText: 'Error: Aborted'
         })
       )
-      expect((agent as any).deferredToolAbortControllers.size).toBe(0)
+      expect(
+        agent.deepChatRuntime
+          .getHydrated(toAppSessionId('s1'))
+          ?.hasDeferredToolAbortController('tc-subagent')
+      ).toBe(false)
     })
 
     it('persists final-only deferred subagent snapshots', async () => {

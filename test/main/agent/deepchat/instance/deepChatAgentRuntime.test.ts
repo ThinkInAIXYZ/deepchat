@@ -173,6 +173,67 @@ describe('DeepChatAgentRuntime', () => {
     expect(first.isPendingQueueDraining()).toBe(false)
   })
 
+  it('owns ordered interactions and per-session response guards', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const first = runtime.getOrHydrate(toAppSessionId('first'))
+    const second = runtime.getOrHydrate(toAppSessionId('second'))
+
+    first.replacePendingInteractions([
+      { messageId: 'message', toolCallId: 'tool-1' },
+      { messageId: 'message', toolCallId: 'tool-2' }
+    ])
+
+    expect(first.getFirstPendingInteraction()).toEqual({
+      messageId: 'message',
+      toolCallId: 'tool-1'
+    })
+    expect(first.hasPendingInteractions()).toBe(true)
+    expect(second.hasPendingInteractions()).toBe(false)
+    expect(first.tryLockInteraction('message', 'tool-1')).toBe(true)
+    expect(first.tryLockInteraction('message', 'tool-1')).toBe(false)
+    expect(second.tryLockInteraction('message', 'tool-1')).toBe(true)
+    expect(first.tryBeginResume('message')).toBe(true)
+    expect(first.tryBeginResume('message')).toBe(false)
+
+    first.unlockInteraction('message', 'tool-1')
+    first.finishResume('message')
+    expect(first.tryLockInteraction('message', 'tool-1')).toBe(true)
+    expect(first.tryBeginResume('message')).toBe(true)
+  })
+
+  it('owns deferred tool cancellation and live provider permissions', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const first = runtime.getOrHydrate(toAppSessionId('first'))
+    const second = runtime.getOrHydrate(toAppSessionId('second'))
+    const staleController = first.registerDeferredToolAbortController('tool')
+    const currentController = first.registerDeferredToolAbortController('tool')
+    const resolve = vi.fn().mockResolvedValue(undefined)
+
+    first.registerActiveProviderPermission({
+      requestId: 'request',
+      messageId: 'message',
+      toolCallId: 'tool',
+      providerId: 'acp',
+      permissionType: 'command',
+      resolve
+    })
+
+    expect(staleController.signal.aborted).toBe(true)
+    expect(currentController.signal.aborted).toBe(false)
+    expect(first.clearDeferredToolAbortController('tool', staleController)).toBe(false)
+    expect(first.hasDeferredToolAbortController('tool')).toBe(true)
+    expect(first.hasActiveProviderPermission('request')).toBe(true)
+    expect(second.hasActiveProviderPermission('request')).toBe(false)
+    expect(first.takeActiveProviderPermissions()).toEqual([
+      expect.objectContaining({ requestId: 'request', resolve })
+    ])
+
+    first.abortDeferredToolCalls()
+    expect(currentController.signal.aborted).toBe(true)
+    expect(first.hasDeferredToolAbortController('tool')).toBe(false)
+    expect(first.hasActiveProviderPermission('request')).toBe(false)
+  })
+
   it('does not let a stale drain completion clear a rehydrated instance', () => {
     const runtime = new DeepChatAgentRuntime(() => createDelegate())
     const sessionId = toAppSessionId('session')
