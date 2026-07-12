@@ -16,7 +16,7 @@
 
 - [x] `ASLR-010` Add internal kind/source descriptors, tolerant catalog codec, strict executable codec and route compatibility mapper.
   Depends on: `ASLR-003`.
-- [ ] `ASLR-011` Split shared agent row codec, DeepChat repository and ACP repository without schema change.
+- [x] `ASLR-011` Split shared agent row codec, DeepChat repository and ACP repository without schema change.
   Depends on: `ASLR-010`.
 - [ ] `ASLR-012` Separate generic catalog notifications from ACP process refresh.
   Depends on: `ASLR-011`.
