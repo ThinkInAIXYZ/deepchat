@@ -9,7 +9,9 @@
 > 机械提取到唯一 runtime-scoped `MemoryRuntimeCoordinator`。legacy Presenter 只保留构造接线和调用委托，
 > `MemoryPresenter` data orchestration 未迁移。AST architecture guard 以 class/property structure 固定唯一
 > owner，并拒绝 Presenter owner 回流；public seam tests 覆盖 128-turn access cap 与 256-session cooldown
-> cap。typed prompt/ingestion ports 仍分别属于 ASLR-060/061。
+> cap。ASLR-060 已让 coordinator 直接实现最小 `MemoryPromptContributor`，PostCompaction 固定 slot 传入
+> captured stable handle；Presenter 不再拥有私有 Memory injection callback。typed ingestion port 仍属于
+> ASLR-061。
 
 ## 1. 模块目的
 
@@ -48,8 +50,17 @@ persona/working-memory、retrieval/write、vector 与 maintenance；instance 只
 handle，不复制上述 maps。
 
 ```ts
+interface MemorySessionHandle {
+  readonly sessionId: AppSessionId
+}
+
 interface MemoryPromptContributor {
-  contribute(input: MemoryPromptInput): Promise<PromptSection[]>
+  contribute(input: {
+    session: MemorySessionHandle
+    basePrompt: string
+    query: string
+    messageId?: string | null
+  }): Promise<string>
 }
 
 interface MemoryIngestionObserver {
@@ -186,7 +197,8 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
 1. 在任何代码移动前冻结 `MEM-01..14` 和两个 outcome matrix 的 fixture/test。
 2. [ASLR-059 已完成] 从 runtime 机械提取唯一 `MemoryRuntimeCoordinator` owner，queue/counter、四组
    maps/cursor call sites 原样移动；instance 只取得 session handle。
-3. 为 query/injection 建 `MemoryPromptContributor` port，对比 exact section/budget/sanitization/selection。
+3. [ASLR-060 已完成] coordinator 直接实现 `MemoryPromptContributor`，以 stable session handle 接入现有
+   PostCompaction slot，并对比 exact prompt/budget/sanitization/selection/accounting/anchor。
 4. 为 terminal/compaction 建只携带 trigger/origin/upper-bound 的 DTO；普通 task 在开始时 ensure epoch，
    只有同一 job continuation 携带 `expectedEpoch`；不要提前抓 cursor/tail/window。
 5. 接入 `afterTurnSettled`，分别验证 initial returned、resume returned 和 thrown paths。

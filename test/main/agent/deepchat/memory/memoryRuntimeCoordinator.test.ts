@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { DeepChatMemorySessionHandle } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import type {
+  MemoryPromptContributor,
+  MemorySessionHandle
+} from '@/agent/deepchat/memory/memoryPromptContributor'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
@@ -52,7 +55,7 @@ function createHarness() {
   let rows = [createRecord('u1', 1, 'Remember Redis.')]
   let tapeRows = rows.map(toTapeRow)
   const runtimeStates = new Map([['s1', { providerId: 'openai', modelId: 'gpt-4' }]])
-  const handles = new Map<string, DeepChatMemorySessionHandle>()
+  const handles = new Map<string, MemorySessionHandle>()
   const port = {
     isEnabled: vi.fn(() => true),
     buildInjection: vi
@@ -72,7 +75,7 @@ function createHarness() {
     getSessionAgentId: vi.fn(() => 'agent-a'),
     getSessionRuntimeState: vi.fn((sessionId: string) => runtimeStates.get(sessionId)),
     hasSessionRuntimeState: vi.fn((sessionId: string) => runtimeStates.has(sessionId)),
-    assertCurrentSessionHandle: vi.fn((handle: DeepChatMemorySessionHandle) => {
+    assertCurrentSessionHandle: vi.fn((handle: MemorySessionHandle) => {
       if (handles.get(handle.sessionId) !== handle) {
         throw new Error(`DeepChat agent instance was replaced: ${handle.sessionId}`)
       }
@@ -93,6 +96,8 @@ function createHarness() {
     getIngestionProjection: vi.fn(() => projection)
   }
   const coordinator = new MemoryRuntimeCoordinator(deps)
+  const memorySession = Object.freeze({ sessionId: toAppSessionId('s1') })
+  handles.set(memorySession.sessionId, memorySession)
 
   return {
     coordinator,
@@ -101,6 +106,7 @@ function createHarness() {
     port,
     projection,
     runtimeStates,
+    memorySession,
     get cursor() {
       return cursor
     },
@@ -115,6 +121,135 @@ function createHarness() {
 }
 
 describe('MemoryRuntimeCoordinator', () => {
+  it('contributes through the public port and returns the exact base prompt when unavailable', async () => {
+    const { coordinator, deps, handles, memorySession, port } = createHarness()
+    const contributor: MemoryPromptContributor = coordinator
+    const basePrompt = 'base prompt\nwith exact spacing'
+    const input = { session: memorySession, basePrompt, query: 'redis', messageId: 'message-1' }
+
+    coordinator.setPort(undefined)
+    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
+    expect(deps.assertCurrentSessionHandle).not.toHaveBeenCalled()
+
+    coordinator.setPort(port as any)
+    port.isEnabled.mockReturnValue(false)
+    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
+    expect(port.buildInjection).not.toHaveBeenCalled()
+
+    port.isEnabled.mockReturnValue(true)
+    port.buildInjection.mockRejectedValueOnce(new Error('memory unavailable'))
+    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
+
+    port.buildInjection.mockClear()
+    handles.set(memorySession.sessionId, Object.freeze({ sessionId: memorySession.sessionId }))
+    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
+    expect(port.buildInjection).not.toHaveBeenCalled()
+  })
+
+  it('rechecks enablement after build and before accounting and anchor writes', async () => {
+    const { coordinator, deps, memorySession, port } = createHarness()
+    const input = {
+      session: memorySession,
+      basePrompt: 'base prompt',
+      query: 'redis',
+      messageId: 'message-1'
+    }
+    port.buildInjection.mockResolvedValue({
+      payload: {
+        selfModel: null,
+        working: null,
+        memories: [{ id: 'selected', kind: 'semantic', content: 'Remember Redis.' }]
+      },
+      manifest: {
+        policyVersion: 1,
+        selected: [{ id: 'selected', kind: 'semantic' }],
+        dropped: [],
+        tokenBudget: 1_200,
+        estimatedTokens: 20,
+        queryHash: 'query-hash'
+      }
+    })
+
+    port.isEnabled.mockReset().mockReturnValueOnce(true).mockReturnValueOnce(false)
+    await expect(coordinator.contribute(input)).resolves.toBe(input.basePrompt)
+    expect(port.recordInjectionAccess).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+
+    port.isEnabled
+      .mockReset()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+    const promptWithoutAccounting = await coordinator.contribute(input)
+    expect(promptWithoutAccounting).toContain('Remember Redis.')
+    expect(port.recordInjectionAccess).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+
+    port.isEnabled
+      .mockReset()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false)
+    const promptWithoutAnchor = await coordinator.contribute(input)
+    expect(promptWithoutAnchor).toContain('Remember Redis.')
+    expect(port.recordInjectionAccess).toHaveBeenCalledWith('agent-a', ['selected'])
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+  })
+
+  it('accounts only final selected IDs and keeps assembled prompt on accounting and anchor failure', async () => {
+    const { coordinator, deps, memorySession, port } = createHarness()
+    port.buildInjection.mockResolvedValue({
+      payload: {
+        selfModel: null,
+        working: null,
+        memories: [
+          { id: 'selected', kind: 'semantic', content: 'Remember Redis.' },
+          { id: 'dropped', kind: 'semantic', content: `PRIVATE_${'x'.repeat(10_000)}` }
+        ],
+        tokenBudget: 80
+      },
+      manifest: {
+        policyVersion: 1,
+        selected: [],
+        dropped: [],
+        tokenBudget: 80,
+        estimatedTokens: 0,
+        queryHash: 'raw-internal-query-hash'
+      }
+    })
+    port.recordInjectionAccess.mockImplementation(() => {
+      throw new Error('accounting unavailable')
+    })
+    deps.appendTapeAnchor.mockImplementation(() => {
+      throw new Error('anchor unavailable')
+    })
+
+    const prompt = await coordinator.contribute({
+      session: memorySession,
+      basePrompt: 'base prompt',
+      query: 'redis',
+      messageId: 'message-1'
+    })
+
+    expect(prompt).toContain('base prompt')
+    expect(prompt).toContain('Remember Redis.')
+    expect(prompt).not.toContain('PRIVATE_')
+    expect(prompt).not.toContain('raw-internal-query-hash')
+    expect(port.recordInjectionAccess).toHaveBeenCalledWith('agent-a', ['selected'])
+    expect(deps.appendTapeAnchor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 's1',
+        name: 'memory/view_assembled',
+        state: expect.objectContaining({
+          selected: [expect.objectContaining({ id: 'selected' })],
+          dropped: [expect.objectContaining({ id: 'dropped', reason: 'budget' })]
+        })
+      })
+    )
+  })
+
   it('serializes one session while sibling sessions run and reports absolute queue state', async () => {
     const { coordinator, port } = createHarness()
     const first = deferred()
@@ -275,7 +410,7 @@ describe('MemoryRuntimeCoordinator', () => {
   })
 
   it('bounds prompt access dedupe to 128 non-null turns through the contribution seam', async () => {
-    const { coordinator, port } = createHarness()
+    const { coordinator, memorySession, port } = createHarness()
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     port.buildInjection.mockResolvedValue({
       payload: {
@@ -295,20 +430,54 @@ describe('MemoryRuntimeCoordinator', () => {
 
     try {
       for (let index = 0; index < 130; index += 1) {
-        await coordinator.appendPrompt('s1', 'base prompt', 'redis', `message-${index}`)
+        await coordinator.contribute({
+          session: memorySession,
+          basePrompt: 'base prompt',
+          query: 'redis',
+          messageId: `message-${index}`
+        })
       }
       expect(port.recordInjectionAccess).toHaveBeenCalledTimes(130)
 
-      await coordinator.appendPrompt('s1', 'base prompt', 'redis', 'message-129')
+      await coordinator.contribute({
+        session: memorySession,
+        basePrompt: 'base prompt',
+        query: 'redis',
+        messageId: 'message-129'
+      })
       expect(port.recordInjectionAccess).toHaveBeenCalledTimes(130)
 
-      await coordinator.appendPrompt('s1', 'base prompt', 'redis', 'message-0')
+      await coordinator.contribute({
+        session: memorySession,
+        basePrompt: 'base prompt',
+        query: 'redis',
+        messageId: 'message-0'
+      })
       expect(port.recordInjectionAccess).toHaveBeenCalledTimes(131)
 
-      await coordinator.appendPrompt('s1', 'base prompt', 'redis', null)
-      await coordinator.appendPrompt('s1', 'base prompt', 'redis', null)
+      await coordinator.contribute({
+        session: memorySession,
+        basePrompt: 'base prompt',
+        query: 'redis',
+        messageId: null
+      })
+      await coordinator.contribute({
+        session: memorySession,
+        basePrompt: 'base prompt',
+        query: 'redis',
+        messageId: null
+      })
       expect(port.recordInjectionAccess).toHaveBeenCalledTimes(133)
       expect(port.recordInjectionAccess).toHaveBeenLastCalledWith('agent-a', ['selected'])
+
+      now.mockReturnValue(31 * 60 * 1_000)
+      await coordinator.contribute({
+        session: memorySession,
+        basePrompt: 'base prompt',
+        query: 'redis',
+        messageId: 'message-129'
+      })
+      expect(port.recordInjectionAccess).toHaveBeenCalledTimes(134)
     } finally {
       now.mockRestore()
     }

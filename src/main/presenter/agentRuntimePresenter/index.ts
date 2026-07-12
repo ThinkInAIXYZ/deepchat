@@ -100,6 +100,7 @@ import type {
 } from '@/agent/deepchat/loop/ports'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
+import type { MemoryPromptContributor } from '@/agent/deepchat/memory/memoryPromptContributor'
 import type {
   DeepChatAgentInstance,
   DeepChatAgentInstanceDelegate,
@@ -629,6 +630,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly acpAsLlmProviderPermission?: AcpAsLlmProviderPermissionPort
   private readonly sessionUiPort?: SessionUiPort
   private readonly memoryCoordinator: MemoryRuntimeCoordinator
+  private readonly memoryPromptContributor: MemoryPromptContributor
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
@@ -640,21 +642,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     | 'discardDraftSkill'
   >
   private nextRunSequence = 0
-  private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler = {
-    assemble: async (input) => {
-      const promptWithSummary = appendSummarySection(input.basePrompt, input.summaryText)
-      const promptWithReconstruction = appendReconstructionAnchorStateSection(
-        promptWithSummary,
-        input.reconstructionAnchor
-      )
-      return await this.memoryCoordinator.appendPrompt(
-        input.sessionId,
-        promptWithReconstruction,
-        input.memoryQuery,
-        input.memoryMessageId
-      )
-    }
-  }
+  private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
@@ -719,6 +707,22 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       },
       getIngestionProjection: () => this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
     })
+    this.memoryPromptContributor = this.memoryCoordinator
+    this.postCompactionPromptAssembler = {
+      assemble: async (input) => {
+        const promptWithSummary = appendSummarySection(input.basePrompt, input.summaryText)
+        const promptWithReconstruction = appendReconstructionAnchorStateSection(
+          promptWithSummary,
+          input.reconstructionAnchor
+        )
+        return await this.memoryPromptContributor.contribute({
+          session: input.memorySession,
+          basePrompt: promptWithReconstruction,
+          query: input.memoryQuery,
+          messageId: input.memoryMessageId
+        })
+      }
+    }
     this.compactionService = new CompactionService(
       this.sessionStore,
       this.messageStore,
@@ -1694,7 +1698,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const preparedContext = await this.contextCoordinator.assemble({
         assemblePostCompactionPrompt: async () => {
           const systemPrompt = await this.postCompactionPromptAssembler.assemble({
-            sessionId: toAppSessionId(sessionId),
+            memorySession: instance.getMemorySessionHandle(),
             basePrompt: baseSystemPrompt,
             summaryText: summaryState.summaryText,
             reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
@@ -1766,7 +1770,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames
           })
           return await this.postCompactionPromptAssembler.assemble({
-            sessionId: toAppSessionId(sessionId),
+            memorySession: instance.getMemorySessionHandle(),
             basePrompt: refreshedBasePrompt,
             summaryText: summaryState.summaryText,
             reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
@@ -3894,7 +3898,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       },
       assemblePostCompactionPrompt: async (summaryState, systemPrompt) =>
         await this.postCompactionPromptAssembler.assemble({
-          sessionId: toAppSessionId(params.sessionId),
+          memorySession: params.expectedInstance.getMemorySessionHandle(),
           basePrompt: systemPrompt,
           summaryText: summaryState.summaryText,
           reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(
@@ -4324,7 +4328,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const preparedContext = await this.contextCoordinator.assemble({
         assemblePostCompactionPrompt: async () =>
           await this.postCompactionPromptAssembler.assemble({
-            sessionId: toAppSessionId(sessionId),
+            memorySession: instance.getMemorySessionHandle(),
             basePrompt: baseSystemPrompt,
             summaryText: summaryState.summaryText,
             reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),

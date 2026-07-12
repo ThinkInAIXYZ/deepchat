@@ -255,6 +255,7 @@ const virtualFiles = new Map<string, string>([
     `
       export class RetiredMemoryOwner {
         private readonly memoryExtractionChains = new Map<string, Promise<void>>()
+        private appendMemoryInjection() {}
       }
     `
   ],
@@ -398,10 +399,12 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[memory-legacy-list-caller]')
   })
 
-  it('keeps Memory orchestration state out of the runtime presenter', () => {
-    expect(forFile(violations, RETIRED_MEMORY_OWNER_FIXTURE).join('\n')).toContain(
+  it('keeps Memory orchestration and injection callbacks out of the runtime presenter', () => {
+    const fixtureViolations = forFile(violations, RETIRED_MEMORY_OWNER_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain(
       '[memory-retired-presenter-owner]'
     )
+    expect(fixtureViolations).toContain('[memory-retired-presenter-injection]')
   })
 
   it(

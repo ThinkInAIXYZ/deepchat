@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import type { DeepChatMemorySessionHandle } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { appendMemorySectionWithManifest } from '@/presenter/memoryPresenter/injection'
 import type { MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
 import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
@@ -17,6 +16,7 @@ import {
   type MemoryExtractionChunk,
   type MemoryExtractionMessage
 } from './memoryExtractionChunks'
+import type { MemoryPromptContributor, MemorySessionHandle } from './memoryPromptContributor'
 
 const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
 const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
@@ -55,7 +55,7 @@ export interface MemoryRuntimeCoordinatorDependencies {
   getSessionAgentId(sessionId: string): string | undefined
   getSessionRuntimeState(sessionId: string): { providerId: string; modelId: string } | undefined
   hasSessionRuntimeState(sessionId: string): boolean
-  assertCurrentSessionHandle(handle: DeepChatMemorySessionHandle): void
+  assertCurrentSessionHandle(handle: MemorySessionHandle): void
   getNextMessageOrderSeq(sessionId: string): number
   getMessagesUpToOrderSeq(sessionId: string, orderSeq: number): ChatMessageRecord[]
   getMemoryCursorOrderSeq(sessionId: string): number | null
@@ -71,7 +71,7 @@ export interface MemoryRuntimeCoordinatorDependencies {
   getIngestionProjection(): MemoryIngestionProjection | undefined
 }
 
-export class MemoryRuntimeCoordinator {
+export class MemoryRuntimeCoordinator implements MemoryPromptContributor {
   private memoryPort?: MemoryRuntimePort
   private readonly extractionChains = new Map<string, Promise<void>>()
   private readonly extractionQueue = new Map<number, { sessionId: string; queuedAt: number }>()
@@ -122,22 +122,29 @@ export class MemoryRuntimeCoordinator {
     }
   }
 
-  async appendPrompt(
-    sessionId: string,
-    systemPrompt: string,
-    query: string,
-    messageId?: string | null
-  ): Promise<string> {
-    if (!this.memoryPort) return systemPrompt
+  async contribute(input: {
+    readonly session: MemorySessionHandle
+    readonly basePrompt: string
+    readonly query: string
+    readonly messageId?: string | null
+  }): Promise<string> {
+    if (!this.memoryPort) return input.basePrompt
     try {
+      this.deps.assertCurrentSessionHandle(input.session)
+      const sessionId = input.session.sessionId
       const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
-      if (!this.memoryPort.isEnabled(agentId)) return systemPrompt
-      const injection = await this.memoryPort.buildInjection(agentId, query)
-      if (!this.memoryPort.isEnabled(agentId)) return systemPrompt
-      const assembled = appendMemorySectionWithManifest(systemPrompt, injection)
+      if (!this.memoryPort.isEnabled(agentId)) return input.basePrompt
+      const injection = await this.memoryPort.buildInjection(agentId, input.query)
+      if (!this.memoryPort.isEnabled(agentId)) return input.basePrompt
+      const assembled = appendMemorySectionWithManifest(input.basePrompt, injection)
       if (assembled.manifest) {
         if (this.memoryPort.isEnabled(agentId)) {
-          this.recordInjectionAccess(agentId, sessionId, assembled.manifest.selected, messageId)
+          this.recordInjectionAccess(
+            agentId,
+            sessionId,
+            assembled.manifest.selected,
+            input.messageId
+          )
         }
         if (this.memoryPort.isEnabled(agentId)) {
           try {
@@ -145,7 +152,7 @@ export class MemoryRuntimeCoordinator {
               sessionId,
               name: 'memory/view_assembled',
               state: assembled.manifest as unknown as Record<string, unknown>,
-              meta: messageId ? { messageId } : undefined
+              meta: input.messageId ? { messageId: input.messageId } : undefined
             })
           } catch (error) {
             logger.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
@@ -155,7 +162,7 @@ export class MemoryRuntimeCoordinator {
       return assembled.prompt
     } catch (error) {
       logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
-      return systemPrompt
+      return input.basePrompt
     }
   }
 
@@ -199,7 +206,7 @@ export class MemoryRuntimeCoordinator {
   }
 
   triggerExtractionFromCompaction(
-    memorySession: DeepChatMemorySessionHandle,
+    memorySession: MemorySessionHandle,
     intent: CompactionIntent
   ): void {
     this.deps.assertCurrentSessionHandle(memorySession)

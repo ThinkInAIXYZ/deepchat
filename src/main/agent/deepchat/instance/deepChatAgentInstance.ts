@@ -12,6 +12,7 @@ import type {
   PendingToolInteractionOrigin,
   PersistedToolBatchState
 } from '@/agent/deepchat/loop/ports'
+import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
 
 export interface DeepChatAgentInstanceDelegate {
   send(input: AgentSessionSendInput): Promise<MessageStartResult>
@@ -52,10 +53,6 @@ export interface DeepChatToolProfileCacheEntry {
   readonly tools: MCPToolDefinition[]
 }
 
-export interface DeepChatMemorySessionHandle {
-  readonly sessionId: AppSessionId
-}
-
 export class DeepChatAgentInstance {
   readonly kind = 'deepchat' as const
   private runtimeState?: DeepChatSessionState
@@ -78,7 +75,7 @@ export class DeepChatAgentInstance {
   private systemPromptCache?: DeepChatSystemPromptCacheEntry
   private toolProfileCache?: DeepChatToolProfileCacheEntry
   private compactionState?: SessionCompactionState
-  private readonly memorySessionHandle: DeepChatMemorySessionHandle
+  private readonly memorySessionHandle: MemorySessionHandle
 
   constructor(
     readonly sessionId: AppSessionId,
@@ -487,7 +484,7 @@ export class DeepChatAgentInstance {
     this.compactionState = undefined
   }
 
-  getMemorySessionHandle(): DeepChatMemorySessionHandle {
+  getMemorySessionHandle(): MemorySessionHandle {
     return this.memorySessionHandle
   }
 

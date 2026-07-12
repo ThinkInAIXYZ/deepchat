@@ -9,6 +9,7 @@ import type {
 } from '@shared/types/presenters/tool.presenter'
 import type { ModelConfig } from '@shared/presenter'
 import type { DeepChatTapeViewManifest } from '@shared/types/tape-view-manifest'
+import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
 
 export interface ProviderRequest {
   runId: string
@@ -247,7 +248,7 @@ export interface PromptReconstructionAnchor {
 }
 
 export interface PostCompactionPromptAssemblyInput {
-  sessionId: AppSessionId
+  memorySession: MemorySessionHandle
   basePrompt: string
   summaryText: string | null
   reconstructionAnchor: PromptReconstructionAnchor | null

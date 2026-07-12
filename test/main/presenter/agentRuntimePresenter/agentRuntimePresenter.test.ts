@@ -762,82 +762,6 @@ describe('AgentRuntimePresenter', () => {
     }
   })
 
-  describe('memory injection', () => {
-    it('keeps the injected prompt when the view anchor write fails', async () => {
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
-      setMemoryPort({
-        isEnabled: vi.fn(() => true),
-        recordInjectionAccess: vi.fn(),
-        buildInjection: vi.fn(async () => ({
-          payload: {
-            selfModel: null,
-            working: null,
-            memories: [{ id: 'm1', kind: 'semantic', content: 'redis fact' }]
-          },
-          manifest: {
-            policyVersion: 1,
-            selected: [{ id: 'm1', kind: 'semantic', score: 1 }],
-            dropped: [],
-            tokenBudget: 1200,
-            estimatedTokens: 20,
-            queryHash: 'query-hash'
-          }
-        }))
-      })
-      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockImplementation(() => {
-        throw new Error('anchor failed')
-      })
-
-      const prompt = await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis')
-
-      expect(prompt).toContain('base prompt')
-      expect(prompt).toContain('## Relevant Memories')
-      expect(prompt).toContain('redis fact')
-      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).toHaveBeenCalledWith(
-        expect.objectContaining({ sessionId: 's1', name: 'memory/view_assembled' })
-      )
-    })
-
-    it('records access only for selected injected memories and dedupes by message', async () => {
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
-      const recordInjectionAccess = vi.fn()
-      setMemoryPort({
-        isEnabled: vi.fn(() => true),
-        recordInjectionAccess,
-        buildInjection: vi.fn(async () => ({
-          payload: {
-            selfModel: null,
-            working: null,
-            memories: [
-              { id: 'selected', kind: 'semantic', content: 'redis fact' },
-              { id: 'dropped', kind: 'semantic', content: 'x'.repeat(10_000) }
-            ],
-            tokenBudget: 80
-          },
-          manifest: {
-            policyVersion: 1,
-            selected: [],
-            dropped: [],
-            tokenBudget: 80,
-            estimatedTokens: 0,
-            queryHash: 'query-hash'
-          }
-        }))
-      })
-
-      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', 'user-message-1')
-      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', 'user-message-1')
-      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', null)
-      await getMemoryCoordinator().appendPrompt('s1', 'base prompt', 'redis', null)
-
-      expect(recordInjectionAccess.mock.calls).toEqual([
-        ['a', ['selected']],
-        ['a', ['selected']],
-        ['a', ['selected']]
-      ])
-    })
-  })
-
   describe('memory extraction lifecycle', () => {
     function installDeferredExtraction() {
       const extraction = deferred<{ ok: true; createdIds: string[] }>()
@@ -3445,7 +3369,6 @@ describe('AgentRuntimePresenter', () => {
         })
       )
       const buildInjection = vi.fn(async () => {
-        order.push('memory')
         return {
           payload: {
             selfModel: null,
@@ -3466,6 +3389,16 @@ describe('AgentRuntimePresenter', () => {
         isEnabled: vi.fn(() => true),
         buildInjection,
         recordInjectionAccess: vi.fn()
+      })
+      const memoryContributor = (agent as any).memoryPromptContributor
+      const contributeMemory = memoryContributor.contribute.bind(memoryContributor)
+      vi.spyOn(memoryContributor, 'contribute').mockImplementation(async (input: any) => {
+        const summaryIndex = input.basePrompt.indexOf('## Conversation Summary')
+        const reconstructionIndex = input.basePrompt.indexOf('## Tape Handoff State')
+        expect(summaryIndex).toBeGreaterThanOrEqual(0)
+        expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+        order.push('memory')
+        return await contributeMemory(input)
       })
 
       const buildBasePrompt = (agent as any).buildSystemPromptWithSkills.bind(agent)

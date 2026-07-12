@@ -170,8 +170,9 @@ Compaction trigger matrix:
 
 Memory service internals are out of scope. ASLR-059 moved the current queue/counter, chains/epochs,
 cooldown/access-dedupe and cursor orchestration into one runtime-scoped `MemoryRuntimeCoordinator`; instances
-only keep a session handle. Prompt/ingestion ports remain ASLR-060/061 work. The existing start-time epoch leaves
-session-id reuse behavior intentionally unchanged; any change requires a separate behavior spec.
+only keep a session handle. ASLR-060 made that coordinator the direct `MemoryPromptContributor` implementation
+and preserved the fixed PostCompaction slot; the ingestion port remains ASLR-061 work. The existing start-time
+epoch leaves session-id reuse behavior intentionally unchanged; any change requires a separate behavior spec.
 
 ## 5. Golden causal fixtures
 
@@ -257,7 +258,7 @@ architecture guard.
 | external hook payload/order, snapshot isolation and non-blocking failure policy | existing hooks/runtime suites plus ASLR-057 observer order, snapshot, sync-throw, rejected/never-settling contracts | typed notification observer separated from control collaborators and internal diagnostics in `ASLR-057` / Phase 6 |
 | ACP regular/subagent behavior and DeepChat + ACP-provider compatibility versus direct `kind=acp` | existing ACP provider/session and DeepChat compatibility suites; Phase 0 had no direct backend | direct instance/composition parity completed in `ASLR-070..071`; route/title/subagent-retry/pending/remote/cron/no-fallback switch completed in `ASLR-072`; generic provider contract and legacy ACP backend retirement completed in `ASLR-073` / Phase 7 |
 | Tape facts, effective view, manifest, replay/privacy | existing Tape fact/view/replay suites | recorder/output causal order in `ASLR-052`; pure-read causal join, partial/unavailable states and event-history gap in `ASLR-080`; injected-seam plus native-table non-interference, replay privacy and AST-enforced Memory non-access proof completed in `ASLR-081`; runtime cooldown remains assigned to `ASLR-059`, and event history remains `not_persisted` |
-| Memory injection, extraction, cursor, lineage, fencing and current trigger asymmetries | existing Memory and runtime integration suites plus the authoritative `MEM-01..14` matrices below | complete `MEM-13` returned/thrown turn matrix and `MEM-14` compaction return/throw matrix over `MemoryPromptContributor` / `MemoryIngestionObserver` in `ASLR-060..061` / Phase 9 |
+| Memory injection, extraction, cursor, lineage, fencing and current trigger asymmetries | existing Memory and runtime integration suites plus the authoritative `MEM-01..14` matrices below | `MemoryPromptContributor` and `MEM-01..05` parity completed in `ASLR-060`; complete `MEM-13` returned/thrown turn matrix and `MEM-14` compaction return/throw matrix over `MemoryIngestionObserver` in `ASLR-061` / Phase 9 |
 | route/event/schema and composition/shutdown facts | compact machine-readable architecture baseline | per-slice integration gates and final architecture guard/baseline in `ASLR-091..092` |
 
 A large presenter fake created only to restate this table is not an acceptable substitute for the assigned typed

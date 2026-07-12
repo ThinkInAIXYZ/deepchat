@@ -131,6 +131,10 @@ const RETIRED_MEMORY_ORCHESTRATION_OWNER_NAMES = new Set([
   'memoryIngestionProjectionRetryAfter',
   'memoryInjectionAccessByTurn'
 ])
+const RETIRED_MEMORY_PRESENTER_INJECTION_NAMES = new Set([
+  'appendMemoryInjection',
+  'recordMemoryInjectionAccess'
+])
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
@@ -333,18 +337,23 @@ function analyzeMemoryRuntimeCoordinatorStructure(source, filePath) {
   return { classCount: classes.length, violations }
 }
 
-function findRetiredMemoryPresenterOwners(source, filePath) {
+function findRetiredMemoryPresenterMembers(source, filePath) {
   const sourceFile = sourceFileForAst(source, filePath)
   const owners = []
+  const injection = []
   const visit = (node) => {
     if (ts.isPropertyDeclaration(node) && node.name) {
       const name = propertyNameText(node.name)
       if (name && RETIRED_MEMORY_ORCHESTRATION_OWNER_NAMES.has(name)) owners.push(name)
     }
+    if ((ts.isPropertyDeclaration(node) || ts.isMethodDeclaration(node)) && node.name) {
+      const name = propertyNameText(node.name)
+      if (name && RETIRED_MEMORY_PRESENTER_INJECTION_NAMES.has(name)) injection.push(name)
+    }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return owners
+  return { owners, injection }
 }
 
 function accessMemberName(node) {
@@ -870,10 +879,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       }
 
       if (isUnder(filePath, AGENT_RUNTIME_PRESENTER_ROOT)) {
-        const retiredMemoryOwners = findRetiredMemoryPresenterOwners(source, filePath)
-        if (retiredMemoryOwners.length > 0) {
+        const retiredMemory = findRetiredMemoryPresenterMembers(source, filePath)
+        if (retiredMemory.owners.length > 0) {
           violations.push(
-            `[memory-retired-presenter-owner] ${relativePath(filePath)} expected 0 retired orchestration owner fields, found ${retiredMemoryOwners.join(', ')}`
+            `[memory-retired-presenter-owner] ${relativePath(filePath)} expected 0 retired orchestration owner fields, found ${retiredMemory.owners.join(', ')}`
+          )
+        }
+        if (retiredMemory.injection.length > 0) {
+          violations.push(
+            `[memory-retired-presenter-injection] ${relativePath(filePath)} expected 0 private Memory injection callbacks, found ${retiredMemory.injection.join(', ')}`
           )
         }
       }

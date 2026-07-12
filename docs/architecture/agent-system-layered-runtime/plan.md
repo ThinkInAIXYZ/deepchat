@@ -396,12 +396,14 @@ Rollback: remove the read/observation adapter; no persisted data needs rollback.
 Objective: after control plane, both backends, loop lifecycle and Tape boundaries are stable, connect Memory
 without changing Memory internals.
 
-Progress after `ASLR-059`: the sole runtime-scoped coordinator now owns queue/counter, chains/epochs,
+Progress after `ASLR-060`: the sole runtime-scoped coordinator owns queue/counter, chains/epochs,
 projection retry cooldown, injection-access dedupe, cursor/window/extraction and prompt/accounting orchestration.
 `AgentRuntimePresenter` retains only construction wiring and thin delegates. Public coordinator tests replace the
 handwritten serialization mirror and prove the historical 128-turn access and 256-session cooldown caps through
 public seams. An AST architecture guard requires exactly one structurally valid coordinator owner and rejects
-retired Presenter owner fields. Prompt/ingestion port extraction remains ASLR-060/061.
+retired Presenter owner fields and private injection callbacks. The coordinator now directly implements the
+minimal `MemoryPromptContributor`; PostCompaction wiring passes a captured stable handle in the existing ordered
+slot. `MemoryIngestionObserver` remains ASLR-061 work.
 
 Deliverables:
 

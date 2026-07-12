@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-059、ASLR-070..073、ASLR-080..081 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-059..060、ASLR-070..073、ASLR-080..081 completed。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -113,7 +113,7 @@
 
 - [x] `ASLR-059` Extract the sole `MemoryRuntimeCoordinator` owner for chains/epochs/cooldown/access dedupe; instances keep session handles.
   Depends on: `ASLR-046`, `ASLR-054`, `ASLR-072`, `ASLR-081`.
-- [ ] `ASLR-060` Add `MemoryPromptContributor` with injection/access/view-anchor parity.
+- [x] `ASLR-060` Add `MemoryPromptContributor` with injection/access/view-anchor parity.
   Depends on: `ASLR-053`, `ASLR-054`, `ASLR-059`.
 - [ ] `ASLR-061` Add `MemoryIngestionObserver` with extraction/projection/cursor parity and narrow
   `MEM-13` / `MEM-14` outcome contracts.
