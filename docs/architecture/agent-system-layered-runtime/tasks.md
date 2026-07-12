@@ -33,7 +33,7 @@
   Depends on: `ASLR-021`.
 - [x] `ASLR-023` Replace transfer/subagent optional-method routing in place with required kind facets.
   Depends on: `ASLR-021`.
-- [ ] `ASLR-024` Keep title/export/search/usage/backfill/import in the façade and remove their fake-registry re-resolution only.
+- [x] `ASLR-024` Keep title/export/search/usage/backfill/import in the façade and remove their fake-registry re-resolution only.
   Depends on: `ASLR-021`.
 - [ ] `ASLR-025` Route remote/cron/hot-path consumers through AgentManager ports.
   Depends on: `ASLR-022`, `ASLR-023`.

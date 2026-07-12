@@ -3169,6 +3169,7 @@ describe('AgentSessionPresenter', () => {
         expect(result.filename.endsWith(extension)).toBe(true)
         expect(result.content.length).toBeGreaterThan(0)
       }
+      expect(agentManager.resolveSessionHandle).toHaveBeenCalledWith('s1')
     })
   })
 

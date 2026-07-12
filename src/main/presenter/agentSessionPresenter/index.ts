@@ -1115,7 +1115,7 @@ export class AgentSessionPresenter {
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
     const session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     return agent.getMessages(sessionId)
   }
 
@@ -1131,7 +1131,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     if (agent.listMessagesPage) {
       return await agent.listMessagesPage(sessionId, options)
     }
@@ -1373,7 +1373,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     if (!agent.getTapeInfo) {
       throw new Error(`Agent ${session.agentId} does not support tape info.`)
     }
@@ -1391,7 +1391,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     if (!agent.searchTape) {
       throw new Error(`Agent ${session.agentId} does not support tape search.`)
     }
@@ -1409,7 +1409,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     if (!agent.getTapeContext) {
       throw new Error(`Agent ${session.agentId} does not support tape context.`)
     }
@@ -1426,7 +1426,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     if (!agent.listTapeAnchors) {
       throw new Error(`Agent ${session.agentId} does not support tape anchors.`)
     }
@@ -1463,7 +1463,7 @@ export class AgentSessionPresenter {
     if (!session) return []
 
     try {
-      const agent = await this.resolveAgentImplementation(session.agentId)
+      const agent = this.resolveLegacySessionImplementation(message.session_id)
       if (!agent.listMessageViewManifests) return []
 
       return await agent.listMessageViewManifests(message.session_id, normalizedMessageId)
@@ -1490,7 +1490,7 @@ export class AgentSessionPresenter {
     if (!session) return null
 
     try {
-      const agent = await this.resolveAgentImplementation(session.agentId)
+      const agent = this.resolveLegacySessionImplementation(message.session_id)
       if (!agent.exportMessageTapeReplaySlice) return null
 
       return await agent.exportMessageTapeReplaySlice(
@@ -1828,7 +1828,7 @@ export class AgentSessionPresenter {
   async getMessageIds(sessionId: string): Promise<string[]> {
     const session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     return agent.getMessageIds(sessionId)
   }
 
@@ -1977,7 +1977,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
+    const agent = this.resolveLegacySessionImplementation(sessionId)
     const state = await agent.getSessionState(sessionId)
     const generationSettings = agent.getGenerationSettings
       ? await agent.getGenerationSettings(sessionId)
@@ -2584,7 +2584,7 @@ export class AgentSessionPresenter {
       const session = this.sessionManager.get(sessionId)
       if (!session) return null
 
-      const agent = await this.resolveAgentImplementation(session.agentId)
+      const agent = this.resolveLegacySessionImplementation(sessionId)
       const state = await agent.getSessionState(sessionId)
       if (!state) return null
       if (state.status === 'error') return null
@@ -2691,6 +2691,11 @@ export class AgentSessionPresenter {
   private async resolveAgentImplementation(agentId: string): Promise<IAgentImplementation> {
     const resolvedAgentId = resolveAcpAgentAlias(agentId)
     return this.agentManager.resolveBackend(resolvedAgentId).backend.implementation
+  }
+
+  private resolveLegacySessionImplementation(sessionId: string): IAgentImplementation {
+    return this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
+      .compatibilityImplementation
   }
 
   private async assertAcpAgent(agentId: string): Promise<void> {
