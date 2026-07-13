@@ -368,16 +368,75 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
     rule: '[session-application-combined-facade]',
     expected: 'hub',
     source: `
-      const lifecycle = {}
-      const turn = {}
-      const assignment = {}
-      const projection = {}
-      export const hub = {
-        sessionLifecycle: lifecycle,
-        sessionTurn: turn,
-        sessionAgentAssignment: assignment,
-        sessionProjection: projection
+      import type {
+        SessionLifecyclePort,
+        SessionTurnPort,
+        SessionAgentAssignmentPort,
+        SessionProjectionReadPort
+      } from './sessionApplication/ports'
+      declare const lifecycle: SessionLifecyclePort
+      declare const turn: SessionTurnPort
+      declare const assignment: SessionAgentAssignmentPort
+      declare const projection: SessionProjectionReadPort
+      export const hub = { lifecycle, turn, assignment, projection }
+    `
+  })
+  .concat({
+    filePath: path.join(
+      ROOT,
+      'src/main/presenter/__architecture_guard_combined_namespace_fixture__.ts'
+    ),
+    rule: '[session-application-combined-facade]',
+    expected: 'SessionCapabilityHub',
+    source: `
+      import type * as Ports from './sessionApplication/ports'
+      export type SessionCapabilityHub =
+        Ports.SessionLifecyclePort &
+        Ports.SessionTurnPort &
+        Ports.SessionAgentAssignmentPort &
+        Ports.SessionProjectionReadPort
+    `
+  })
+  .concat({
+    filePath: path.join(
+      ROOT,
+      'src/main/presenter/__architecture_guard_combined_export_list_fixture__.ts'
+    ),
+    rule: '[session-application-combined-facade]',
+    expected: 'hub',
+    source: `
+      import type {
+        SessionLifecyclePort,
+        SessionTurnPort,
+        SessionAgentAssignmentPort,
+        SessionProjectionReadPort
+      } from './sessionApplication/ports'
+      declare const lifecyclePort: SessionLifecyclePort
+      declare const turnPort: SessionTurnPort
+      declare const assignmentPort: SessionAgentAssignmentPort
+      declare const projectionPort: SessionProjectionReadPort
+      const hub = {
+        lifecycle: lifecyclePort,
+        turn: turnPort,
+        assignment: assignmentPort,
+        projection: projectionPort
       }
+      export { hub }
+    `
+  })
+  .concat({
+    filePath: path.join(
+      ROOT,
+      'src/main/presenter/__architecture_guard_combined_default_export_fixture__.ts'
+    ),
+    rule: '[session-application-combined-facade]',
+    expected: 'default',
+    source: `
+      import { SessionLifecycleCoordinator as lifecycle } from './sessionApplication/lifecycleCoordinator'
+      import { SessionTurnCoordinator as turn } from './sessionApplication/turnCoordinator'
+      import { SessionAgentAssignmentCoordinator as assignment } from './sessionApplication/agentAssignmentCoordinator'
+      import { SessionProjectionCoordinator as projection } from './sessionApplication/projectionCoordinator'
+      export default { lifecycle, turn, assignment, projection }
     `
   })
 
@@ -431,10 +490,26 @@ const SESSION_REMOTE_DEPS_FIXTURE = {
   `
 }
 
+const SESSION_TELEMETRY_OBJECT_FIXTURE = {
+  filePath: path.join(
+    ROOT,
+    'src/main/presenter/__architecture_guard_session_telemetry_object_fixture__.ts'
+  ),
+  source: `
+    export const telemetry = {
+      lifecycle: 'stable',
+      turn: 1,
+      assignment: 'round-robin',
+      projection: 'orthographic'
+    }
+  `
+}
+
 const SESSION_SAFE_AGGREGATE_FIXTURES = [
   { ...SESSION_NARROW_PORT_FIXTURE, expected: 'single-capability port' },
   { ...SESSION_UNION_CAPABILITY_FIXTURE, expected: 'capability union' },
-  { ...SESSION_REMOTE_DEPS_FIXTURE, expected: 'Remote dependency bundle' }
+  { ...SESSION_REMOTE_DEPS_FIXTURE, expected: 'Remote dependency bundle' },
+  { ...SESSION_TELEMETRY_OBJECT_FIXTURE, expected: 'session telemetry object' }
 ]
 
 const SESSION_ARCHITECTURE_FIXTURES = [

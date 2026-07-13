@@ -503,6 +503,11 @@ function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
 }
 
 function findCombinedSessionFacadeDeclarations(sourceFile, importRecords, includeExportedObjects) {
+  const namespaceImports = new Set(
+    importRecords
+      .filter((record) => record.importedName === '*')
+      .map((record) => record.localName)
+  )
   const capabilities = new Map()
   for (const record of importRecords) {
     const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(record.importedName)
@@ -512,25 +517,46 @@ function findCombinedSessionFacadeDeclarations(sourceFile, importRecords, includ
   const typeAliases = []
   const facades = []
 
+  const mergeCategories = (sets) => new Set(sets.flatMap((set) => [...set]))
+  const sameCategories = (left, right) =>
+    left.size === right.size && [...left].every((category) => right.has(category))
+
+  const qualifiedCategory = (node) => {
+    let namespace = null
+    let member = null
+    if (ts.isQualifiedName(node) && ts.isIdentifier(node.left)) {
+      namespace = node.left.text
+      member = node.right.text
+    } else if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
+      namespace = node.expression.text
+      member = node.name.text
+    }
+    if (!namespace || !namespaceImports.has(namespace)) return new Set()
+    const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(member)
+    return category ? new Set([category]) : new Set()
+  }
+
+  const referenceCategories = (node, bindings) => {
+    if (ts.isIdentifier(node)) {
+      const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(node.text)
+      return new Set(bindings.get(node.text) ?? (category ? [category] : []))
+    }
+    return qualifiedCategory(node)
+  }
+
   const categoriesFor = (node) => {
     if (ts.isUnionTypeNode(node)) {
       const [first = new Set(), ...rest] = node.types.map(categoriesFor)
       return new Set([...first].filter((category) => rest.every((set) => set.has(category))))
     }
     if (ts.isIntersectionTypeNode(node)) {
-      return new Set(node.types.flatMap((type) => [...categoriesFor(type)]))
+      return mergeCategories(node.types.map(categoriesFor))
     }
-    if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
-      return new Set(
-        capabilities.get(node.typeName.text) ??
-          [SESSION_FACADE_CAPABILITY_CATEGORIES.get(node.typeName.text)].filter(Boolean)
-      )
+    if (ts.isTypeReferenceNode(node)) {
+      return referenceCategories(node.typeName, capabilities)
     }
-    if (ts.isExpressionWithTypeArguments(node) && ts.isIdentifier(node.expression)) {
-      return new Set(
-        capabilities.get(node.expression.text) ??
-          [SESSION_FACADE_CAPABILITY_CATEGORIES.get(node.expression.text)].filter(Boolean)
-      )
+    if (ts.isExpressionWithTypeArguments(node)) {
+      return referenceCategories(node.expression, capabilities)
     }
 
     const categories = new Set()
@@ -553,7 +579,7 @@ function findCombinedSessionFacadeDeclarations(sourceFile, importRecords, includ
     for (const alias of typeAliases) {
       const next = categoriesFor(alias.type)
       const current = capabilities.get(alias.name.text)
-      if (next.size !== current.size || [...next].some((category) => !current.has(category))) {
+      if (!sameCategories(next, current)) {
         capabilities.set(alias.name.text, next)
         changed = true
       }
@@ -566,6 +592,152 @@ function findCombinedSessionFacadeDeclarations(sourceFile, importRecords, includ
     return ['lifecycle', 'turn', 'assignment', 'projection'].includes(normalized)
       ? normalized
       : null
+  }
+
+  const hasAllPropertyCategories = (object) =>
+    new Set(
+      object.properties
+        .map((property) => property.name && propertyNameText(property.name))
+        .map((name) => name && propertyCategory(name))
+        .filter(Boolean)
+    ).size === 4
+
+  const exportedObjects = []
+  if (includeExportedObjects) {
+    const localObjects = new Map()
+    for (const statement of sourceFile.statements) {
+      if (!ts.isVariableStatement(statement)) continue
+      const exported = statement.modifiers?.some(
+        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+      )
+      for (const declaration of statement.declarationList.declarations) {
+        const initializer = declaration.initializer && unwrapExpression(declaration.initializer)
+        if (
+          !ts.isIdentifier(declaration.name) ||
+          !initializer ||
+          !ts.isObjectLiteralExpression(initializer)
+        ) {
+          continue
+        }
+        localObjects.set(declaration.name.text, { object: initializer, type: declaration.type })
+        if (exported && hasAllPropertyCategories(initializer)) {
+          exportedObjects.push({
+            name: declaration.name.text,
+            object: initializer,
+            type: declaration.type
+          })
+        }
+      }
+    }
+
+    for (const statement of sourceFile.statements) {
+      if (
+        ts.isExportDeclaration(statement) &&
+        !statement.moduleSpecifier &&
+        statement.exportClause &&
+        ts.isNamedExports(statement.exportClause)
+      ) {
+        for (const element of statement.exportClause.elements) {
+          const localName = element.propertyName?.text ?? element.name.text
+          const local = localObjects.get(localName)
+          if (local && hasAllPropertyCategories(local.object)) {
+            exportedObjects.push({ name: element.name.text, ...local })
+          }
+        }
+      }
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+        const object = unwrapExpression(statement.expression)
+        if (ts.isObjectLiteralExpression(object) && hasAllPropertyCategories(object)) {
+          exportedObjects.push({ name: 'default', object, type: null })
+        }
+      }
+    }
+  }
+
+  if (exportedObjects.length > 0) {
+    const values = new Map()
+    for (const record of importRecords) {
+      const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(record.importedName)
+      if (category) values.set(record.localName, new Set([category]))
+    }
+
+    const expressionCategories = (node) => {
+      if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) {
+        return referenceCategories(node, values)
+      }
+      if (ts.isNewExpression(node)) return expressionCategories(node.expression)
+      if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
+        return mergeCategories([categoriesFor(node.type), expressionCategories(node.expression)])
+      }
+      if (ts.isParenthesizedExpression(node) || ts.isNonNullExpression(node)) {
+        return expressionCategories(node.expression)
+      }
+      return new Set()
+    }
+
+    const valueDeclarations = []
+    const collectValueDeclarations = (node) => {
+      if (
+        (ts.isVariableDeclaration(node) || ts.isParameter(node)) &&
+        ts.isIdentifier(node.name)
+      ) {
+        valueDeclarations.push(node)
+        values.set(node.name.text, new Set())
+      }
+      ts.forEachChild(node, collectValueDeclarations)
+    }
+    collectValueDeclarations(sourceFile)
+
+    changed = true
+    while (changed) {
+      changed = false
+      for (const declaration of valueDeclarations) {
+        const next = mergeCategories([
+          values.get(declaration.name.text),
+          declaration.type ? categoriesFor(declaration.type) : new Set(),
+          declaration.initializer ? expressionCategories(declaration.initializer) : new Set()
+        ])
+        const current = values.get(declaration.name.text)
+        if (!sameCategories(next, current)) {
+          values.set(declaration.name.text, next)
+          changed = true
+        }
+      }
+    }
+
+    const objectCategories = (object, declaredType) => {
+      const declaredProperties = new Map()
+      if (declaredType && ts.isTypeLiteralNode(declaredType)) {
+        for (const member of declaredType.members) {
+          const name = member.name && propertyNameText(member.name)
+          if (name && member.type) declaredProperties.set(name, categoriesFor(member.type))
+        }
+      }
+
+      const categories = new Set()
+      for (const property of object.properties) {
+        const name = property.name && propertyNameText(property.name)
+        const category = name && propertyCategory(name)
+        if (!category) continue
+
+        let evidence = new Set()
+        if (ts.isShorthandPropertyAssignment(property)) {
+          evidence = expressionCategories(property.name)
+        } else if (ts.isPropertyAssignment(property)) {
+          evidence = expressionCategories(property.initializer)
+        }
+        if (evidence.has(category) || declaredProperties.get(name)?.has(category)) {
+          categories.add(category)
+        }
+      }
+      return categories
+    }
+
+    for (const exported of exportedObjects) {
+      if (objectCategories(exported.object, exported.type).size === 4) {
+        facades.push(exported.name)
+      }
+    }
   }
 
   const visit = (node) => {
@@ -583,24 +755,6 @@ function findCombinedSessionFacadeDeclarations(sourceFile, importRecords, includ
       name = node.name.text
       for (const child of node.heritageClauses ?? []) {
         for (const category of categoriesFor(child)) categories.add(category)
-      }
-    } else if (
-      includeExportedObjects &&
-      ts.isVariableStatement(node) &&
-      node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
-    ) {
-      for (const declaration of node.declarationList.declarations) {
-        const initializer = declaration.initializer && unwrapExpression(declaration.initializer)
-        if (!ts.isIdentifier(declaration.name) || !initializer || !ts.isObjectLiteralExpression(initializer)) {
-          continue
-        }
-        const objectCategories = new Set(
-          initializer.properties
-            .map((property) => property.name && propertyNameText(property.name))
-            .map((propertyName) => propertyName && propertyCategory(propertyName))
-            .filter(Boolean)
-        )
-        if (objectCategories.size === 4) facades.push(declaration.name.text)
       }
     }
 
