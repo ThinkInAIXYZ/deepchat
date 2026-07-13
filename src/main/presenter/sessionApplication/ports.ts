@@ -11,6 +11,7 @@ import type {
   ResolvedTransferSource
 } from '@/agent/manager/agentManager'
 import type {
+  AgentTransferImpact,
   DeepChatAgentConfig,
   DeepChatSessionState,
   PermissionMode,
@@ -21,6 +22,7 @@ import type {
   SessionRecord,
   SessionWithState
 } from '@shared/types/agent-interface'
+import type { AcpConfigState } from '@shared/presenter'
 import type { AcpAsLlmProviderSessionControlPort } from '../runtimePorts'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../sqlitePresenter/tables/deepchatMessageSearchResults'
@@ -243,11 +245,6 @@ export interface SessionAssignmentPolicyPort {
     currentProjectDir: string | null
   ): Promise<ResolvedTransferTarget>
   assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void
-  normalizeDisabledAgentTools(
-    disabledAgentTools?: string[],
-    options?: { dropLegacySearchTools?: boolean }
-  ): string[]
-  normalizeActiveSkills(activeSkills?: string[]): string[]
 }
 
 export interface SessionAssignmentStorePort {
@@ -263,6 +260,7 @@ export interface SessionAssignmentStorePort {
 }
 
 export interface SessionAssignmentRuntimePort {
+  getSessionAgentKind(sessionId: AppSessionId): 'deepchat' | 'acp'
   resolveSession(sessionId: AppSessionId): ResolvedAgentSession
   resolveTransferSource(sessionId: AppSessionId): ResolvedTransferSource
   resolveDeepChatTransferTarget(agentId: string): ResolvedDeepChatTransferTarget
@@ -292,6 +290,54 @@ export interface SessionAssignmentWorkdirPort {
   ): Promise<void>
   prepareDirectAcpSession(sessionId: string): Promise<void>
   clearCompatibilityAcpSession(sessionId: string): Promise<void>
+}
+
+export interface SessionAgentAssignmentPort {
+  mergeSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+  discardSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+  getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact>
+  moveAgentSessions(
+    fromAgentId: string,
+    toAgentId: string
+  ): Promise<{ movedSessionIds: string[]; deletedSessionIds: string[] }>
+  deleteAgentSessions(agentId: string): Promise<string[]>
+  moveSessionToAgent(sessionId: string, toAgentId: string): Promise<SessionWithState>
+  getAcpSessionCommands(sessionId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  >
+  getAcpSessionConfigOptions(sessionId: string): Promise<AcpConfigState | null>
+  setAcpSessionConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string | boolean
+  ): Promise<AcpConfigState | null>
+  getPermissionMode(sessionId: string): Promise<PermissionMode>
+  setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
+  setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<SessionWithState>
+  setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>
+  setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
+  getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
+  getSessionDisabledAgentTools(sessionId: string): Promise<string[]>
+  updateSessionDisabledAgentTools(
+    sessionId: string,
+    disabledAgentTools: string[]
+  ): Promise<string[]>
+  updateSessionGenerationSettings(
+    sessionId: string,
+    settings: Partial<SessionGenerationSettings>
+  ): Promise<SessionGenerationSettings>
 }
 
 export interface SessionDeletionStorePort {

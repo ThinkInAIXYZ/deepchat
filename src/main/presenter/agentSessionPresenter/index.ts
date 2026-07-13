@@ -66,11 +66,16 @@ import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { LegacyChatImportService } from './legacyImportService'
 import { SessionProjectionCoordinator } from '../sessionApplication/projectionCoordinator'
-import { SessionAgentAssignmentCoordinator } from '../sessionApplication/agentAssignmentCoordinator'
 import type {
+  SessionAgentAssignmentPort,
   SessionAssignmentPolicyPort,
+  SessionAssignmentWorkdirPort,
   SessionLifecycleDeletionPort
 } from '../sessionApplication/ports'
+import {
+  normalizeActiveSkills,
+  normalizeDisabledAgentTools
+} from '@/agent/shared/agentSessionNormalization'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -246,7 +251,8 @@ export class AgentSessionPresenter {
   private legacyImportService: LegacyChatImportService
   private sessionProjection: SessionProjectionCoordinator
   private sessionAssignmentPolicy: SessionAssignmentPolicyPort
-  private sessionAssignment: SessionAgentAssignmentCoordinator
+  private sessionAssignment: SessionAgentAssignmentPort
+  private sessionAssignmentWorkdir: SessionAssignmentWorkdirPort
   private sessionDeletion: SessionLifecycleDeletionPort
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   private sessionPermissionPort?: SessionPermissionPort
@@ -263,7 +269,8 @@ export class AgentSessionPresenter {
     sharedData: AgentSharedDataPorts,
     sessionProjection: SessionProjectionCoordinator,
     sessionAssignmentPolicy: SessionAssignmentPolicyPort,
-    sessionAssignment: SessionAgentAssignmentCoordinator,
+    sessionAssignment: SessionAgentAssignmentPort,
+    sessionAssignmentWorkdir: SessionAssignmentWorkdirPort,
     sessionDeletion: SessionLifecycleDeletionPort,
     skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
     runtimePorts?: {
@@ -278,6 +285,7 @@ export class AgentSessionPresenter {
     this.sessionProjection = sessionProjection
     this.sessionAssignmentPolicy = sessionAssignmentPolicy
     this.sessionAssignment = sessionAssignment
+    this.sessionAssignmentWorkdir = sessionAssignmentWorkdir
     this.sessionDeletion = sessionDeletion
     this.skillPresenter = skillPresenter
     this.sessionManager = appSessionService
@@ -638,7 +646,7 @@ export class AgentSessionPresenter {
       })
     }
 
-    await this.sessionAssignment.prepareDirectAcpSession(record.id)
+    await this.sessionAssignmentWorkdir.prepareDirectAcpSession(record.id)
     this.sessionProjection.notify({
       sessionIds: [record.id],
       reason: createdDraftSession ? 'created' : 'updated'
@@ -681,8 +689,8 @@ export class AgentSessionPresenter {
     const hadMessages = await this.sharedData.transcript.hasMessages(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.sessionAssignment.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.sessionAssignment.syncAcpSessionWorkdir(
+    this.sessionAssignmentWorkdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
       providerId,
       sessionId,
       session.agentId,
@@ -730,8 +738,8 @@ export class AgentSessionPresenter {
     const state = await handle.snapshot()
     let providerId = state?.providerId ?? ''
     if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.sessionAssignment.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.sessionAssignment.syncAcpSessionWorkdir(
+    this.sessionAssignmentWorkdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
       providerId,
       sessionId,
       session.agentId,
@@ -772,8 +780,11 @@ export class AgentSessionPresenter {
     const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
     let providerId = (await handle.snapshot())?.providerId ?? ''
     if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.sessionAssignment.assertAcpSessionHasWorkdir(providerId, currentSession.projectDir ?? null)
-    await this.sessionAssignment.syncAcpSessionWorkdir(
+    this.sessionAssignmentWorkdir.assertAcpSessionHasWorkdir(
+      providerId,
+      currentSession.projectDir ?? null
+    )
+    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
       providerId,
       sessionId,
       currentSession.agentId,
@@ -1784,7 +1795,7 @@ export class AgentSessionPresenter {
       await handle.settings.setPermissionMode(config.permissionMode)
     }
 
-    await this.sessionAssignment.syncAcpSessionWorkdir(
+    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
       config.providerId,
       sessionId,
       config.agentId ?? config.modelId,
@@ -1806,7 +1817,7 @@ export class AgentSessionPresenter {
     await this.agentManager
       .resolveSessionHandle(toAppSessionId(sessionId))
       .handle.lifecycle.initialize(config)
-    await this.sessionAssignment.syncAcpSessionWorkdir(
+    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
       config.providerId,
       sessionId,
       config.agentId ?? config.modelId,
@@ -1821,7 +1832,7 @@ export class AgentSessionPresenter {
     const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
     if (providerId === 'acp' && handle.kind !== 'acp') {
       try {
-        await this.sessionAssignment.clearCompatibilityAcpSession(sessionId)
+        await this.sessionAssignmentWorkdir.clearCompatibilityAcpSession(sessionId)
       } catch (error) {
         console.warn(
           `[AgentSessionPresenter] Failed to clear ACP session after initialization error ${sessionId}:`,
@@ -2234,12 +2245,9 @@ export class AgentSessionPresenter {
         const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
           sessionRow.id
         )
-        const normalized = this.sessionAssignmentPolicy.normalizeDisabledAgentTools(
-          disabledAgentTools,
-          {
-            dropLegacySearchTools: true
-          }
-        )
+        const normalized = normalizeDisabledAgentTools(disabledAgentTools, {
+          dropLegacySearchTools: true
+        })
 
         if (!this.areStringArraysEqual(disabledAgentTools, normalized)) {
           this.sessionManager.updateDisabledAgentTools(sessionRow.id, normalized)
@@ -2289,12 +2297,9 @@ export class AgentSessionPresenter {
         continue
       }
 
-      const normalized = this.sessionAssignmentPolicy.normalizeDisabledAgentTools(
-        config.disabledAgentTools,
-        {
-          dropLegacySearchTools: true
-        }
-      )
+      const normalized = normalizeDisabledAgentTools(config.disabledAgentTools, {
+        dropLegacySearchTools: true
+      })
       if (this.areStringArraysEqual(config.disabledAgentTools, normalized)) {
         continue
       }
@@ -2375,7 +2380,7 @@ export class AgentSessionPresenter {
           : [],
         search: parsed.search === true,
         think: parsed.think === true,
-        activeSkills: this.sessionAssignmentPolicy.normalizeActiveSkills(parsed.activeSkills)
+        activeSkills: normalizeActiveSkills(parsed.activeSkills)
       }
     } catch {
       return null
@@ -2667,7 +2672,7 @@ export class AgentSessionPresenter {
     const files = Array.isArray(content.files)
       ? content.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    const activeSkills = this.sessionAssignmentPolicy.normalizeActiveSkills(content.activeSkills)
+    const activeSkills = normalizeActiveSkills(content.activeSkills)
     const inlineItems = Array.isArray(content.inlineItems) ? content.inlineItems : []
     return {
       text,
@@ -2697,9 +2702,7 @@ export class AgentSessionPresenter {
     input: SendMessageInput,
     activeSkills?: string[]
   ): SendMessageInput {
-    const normalizedActiveSkills = this.sessionAssignmentPolicy.normalizeActiveSkills(
-      activeSkills ?? input.activeSkills
-    )
+    const normalizedActiveSkills = normalizeActiveSkills(activeSkills ?? input.activeSkills)
     return {
       ...input,
       ...(normalizedActiveSkills.length > 0 ? { activeSkills: normalizedActiveSkills } : {})

@@ -496,6 +496,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
       projection,
       sessionApplications.policy,
       sessionApplications.assignment,
+      sessionApplications.assignment,
       sessionApplications.deletion
     )
 

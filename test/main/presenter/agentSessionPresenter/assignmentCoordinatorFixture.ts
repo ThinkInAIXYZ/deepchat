@@ -63,6 +63,8 @@ export const createAssignmentCoordinatorFixture = (input: {
   const assignment = new SessionAgentAssignmentCoordinator({
     sessions: input.appSessionService,
     runtime: {
+      getSessionAgentKind: (sessionId) =>
+        input.agentManager.resolveSessionBackend(sessionId).descriptor.kind,
       resolveSession: (sessionId) => input.agentManager.resolveSessionHandle(sessionId),
       resolveTransferSource: (sessionId) => input.agentManager.resolveTransferSource(sessionId),
       resolveDeepChatTransferTarget: (agentId) =>

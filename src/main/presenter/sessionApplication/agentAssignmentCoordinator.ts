@@ -11,6 +11,7 @@ import type {
 import type { AcpConfigState } from '@shared/presenter'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type {
+  SessionAgentAssignmentPort,
   SessionAssignmentAcpControlPort,
   SessionAssignmentEnvironmentPort,
   SessionAssignmentPolicyPort,
@@ -20,6 +21,7 @@ import type {
   SessionAssignmentWorkdirPort,
   SessionLifecycleDeletionPort
 } from './ports'
+import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort
@@ -31,7 +33,9 @@ export interface SessionAgentAssignmentDependencies {
   acp: SessionAssignmentAcpControlPort
 }
 
-export class SessionAgentAssignmentCoordinator implements SessionAssignmentWorkdirPort {
+export class SessionAgentAssignmentCoordinator
+  implements SessionAgentAssignmentPort, SessionAssignmentWorkdirPort
+{
   constructor(private readonly dependencies: SessionAgentAssignmentDependencies) {}
 
   async mergeSubagentTape(
@@ -288,8 +292,7 @@ export class SessionAgentAssignmentCoordinator implements SessionAssignmentWorkd
       throw new Error('Only regular sessions can change subagent state.')
     }
 
-    const resolved = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-    if (resolved.descriptor.kind !== 'deepchat') {
+    if (this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat') {
       throw new Error('Only DeepChat sessions can change subagent state.')
     }
 
@@ -311,7 +314,7 @@ export class SessionAgentAssignmentCoordinator implements SessionAssignmentWorkd
     providerId: string,
     modelId: string
   ): Promise<SessionWithState> {
-    this.requireSession(sessionId)
+    const session = this.requireSession(sessionId)
     const nextProviderId = providerId?.trim()
     const nextModelId = modelId?.trim()
     if (!nextProviderId || !nextModelId) {
@@ -321,13 +324,15 @@ export class SessionAgentAssignmentCoordinator implements SessionAssignmentWorkd
     const { handle } = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     if (handle.kind !== 'deepchat') throw new Error('ACP session model is locked.')
     await handle.deepchat.setModel(nextProviderId, nextModelId)
-
-    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
-    const materialized = await this.dependencies.projection.materialize(sessionId)
-    if (!materialized) {
-      throw new Error(`Failed to build session state after model update: ${sessionId}`)
+    const state = await handle.snapshot()
+    const updated: SessionWithState = {
+      ...session,
+      status: state?.status ?? 'idle',
+      providerId: state?.providerId ?? nextProviderId,
+      modelId: state?.modelId ?? nextModelId
     }
-    return materialized
+    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
+    return updated
   }
 
   async setSessionProjectDir(
@@ -375,7 +380,7 @@ export class SessionAgentAssignmentCoordinator implements SessionAssignmentWorkd
     disabledAgentTools: string[]
   ): Promise<string[]> {
     this.requireSession(sessionId)
-    const normalized = this.dependencies.policy.normalizeDisabledAgentTools(disabledAgentTools)
+    const normalized = normalizeDisabledAgentTools(disabledAgentTools)
     this.dependencies.sessions.updateDisabledAgentTools(sessionId, normalized)
 
     const { handle } = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))

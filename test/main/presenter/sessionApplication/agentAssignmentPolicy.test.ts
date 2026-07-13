@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SessionAgentAssignmentPolicy } from '@/presenter/sessionApplication/agentAssignmentPolicy'
+import {
+  normalizeActiveSkills,
+  normalizeDisabledAgentTools
+} from '@/agent/shared/agentSessionNormalization'
 
 function createHarness() {
   const agents = new Map([
@@ -149,16 +153,11 @@ describe('SessionAgentAssignmentPolicy', () => {
   })
 
   it('normalizes legacy tool and skill values deterministically', () => {
-    const { policy } = createHarness()
-
     expect(
-      policy.normalizeDisabledAgentTools([' yo_browser_cdp_send ', 'grep', 'ls', 'cdp_send'], {
+      normalizeDisabledAgentTools([' yo_browser_cdp_send ', 'grep', 'ls', 'cdp_send'], {
         dropLegacySearchTools: true
       })
     ).toEqual(['cdp_send'])
-    expect(policy.normalizeActiveSkills([' review ', '', 'review', 'test'])).toEqual([
-      'review',
-      'test'
-    ])
+    expect(normalizeActiveSkills([' review ', '', 'review', 'test'])).toEqual(['review', 'test'])
   })
 })

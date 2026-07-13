@@ -100,6 +100,9 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
     updateDisabledAgentTools: vi.fn()
   }
   const runtime = {
+    getSessionAgentKind: vi.fn((sessionId: string) =>
+      records.get(sessionId)?.agentId.includes('acp') ? 'acp' : 'deepchat'
+    ),
     resolveSession: vi.fn((sessionId: string) => {
       const session = records.get(sessionId)
       const isAcp = session?.agentId.includes('acp')
@@ -156,9 +159,7 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
     })),
     assertAcpSessionHasWorkdir: vi.fn((providerId: string, projectDir: string | null) => {
       if (providerId === 'acp' && !projectDir) throw new Error('workdir required')
-    }),
-    normalizeDisabledAgentTools: vi.fn((tools?: string[]) => tools ?? []),
-    normalizeActiveSkills: vi.fn((skills?: string[]) => skills ?? [])
+    })
   }
   const projection = {
     materialize: vi.fn(async (sessionId: string) => {
@@ -323,7 +324,81 @@ describe('SessionAgentAssignmentCoordinator', () => {
     expect(order).toEqual(['store', 'environment', 'runtime-setting', 'acp-workdir'])
   })
 
-  it('routes direct and compatibility ACP commands through their narrow controls', async () => {
+  it('uses descriptor-only lookup before mutating subagent-enabled state', async () => {
+    const harness = createHarness()
+
+    await harness.coordinator.setSessionSubagentEnabled('s1', true)
+
+    expect(harness.runtime.getSessionAgentKind).toHaveBeenCalledWith('s1')
+    expect(harness.runtime.resolveSession).not.toHaveBeenCalled()
+    expect(harness.sessions.update).toHaveBeenCalledWith('s1', { subagentEnabled: true })
+  })
+
+  it('falls back to requested model identity when the post-set snapshot is null', async () => {
+    const harness = createHarness()
+    harness.deepchatHandle.snapshot.mockResolvedValue(null)
+
+    await expect(
+      harness.coordinator.setSessionModel('s1', ' openrouter ', ' custom-model ')
+    ).resolves.toMatchObject({
+      status: 'idle',
+      providerId: 'openrouter',
+      modelId: 'custom-model'
+    })
+    expect(harness.deepchat.setModel).toHaveBeenCalledWith('openrouter', 'custom-model')
+    expect(harness.projection.materialize).not.toHaveBeenCalled()
+    expect(harness.projection.notify).toHaveBeenCalledWith({
+      sessionIds: ['s1'],
+      reason: 'updated'
+    })
+  })
+
+  it('does not publish a model update when the post-set snapshot fails', async () => {
+    const harness = createHarness()
+    harness.deepchatHandle.snapshot.mockRejectedValue(new Error('snapshot failed'))
+
+    await expect(harness.coordinator.setSessionModel('s1', 'openai', 'gpt-5')).rejects.toThrow(
+      'snapshot failed'
+    )
+    expect(harness.deepchat.setModel).toHaveBeenCalledWith('openai', 'gpt-5')
+    expect(harness.projection.notify).not.toHaveBeenCalled()
+  })
+
+  it('keeps direct ACP models locked before invoking DeepChat model control', async () => {
+    const harness = createHarness([createSession({ agentId: 'claude-acp' })])
+
+    await expect(harness.coordinator.setSessionModel('s1', 'openai', 'gpt-5')).rejects.toThrow(
+      'ACP session model is locked.'
+    )
+    expect(harness.deepchat.setModel).not.toHaveBeenCalled()
+    expect(harness.projection.notify).not.toHaveBeenCalled()
+  })
+
+  it('owns permission, generation, and disabled-tool settings', async () => {
+    const harness = createHarness()
+    harness.sessions.getDisabledAgentTools.mockReturnValue(['read'])
+    harness.settings.getGenerationSettings.mockResolvedValue({ temperature: 0.7 })
+
+    await expect(harness.coordinator.getPermissionMode('s1')).resolves.toBe('full_access')
+    await harness.coordinator.setPermissionMode('s1', 'auto_approve')
+    await expect(harness.coordinator.getSessionGenerationSettings('s1')).resolves.toEqual({
+      temperature: 0.7
+    })
+    await expect(
+      harness.coordinator.updateSessionGenerationSettings('s1', { temperature: 0.2 })
+    ).resolves.toEqual({ temperature: 0.2 })
+    await expect(harness.coordinator.getSessionDisabledAgentTools('s1')).resolves.toEqual(['read'])
+    await expect(
+      harness.coordinator.updateSessionDisabledAgentTools('s1', ['find', 'write', 'write'])
+    ).resolves.toEqual(['write'])
+
+    expect(harness.settings.setPermissionMode).toHaveBeenCalledWith('auto_approve')
+    expect(harness.settings.updateGenerationSettings).toHaveBeenCalledWith({ temperature: 0.2 })
+    expect(harness.sessions.updateDisabledAgentTools).toHaveBeenCalledWith('s1', ['write'])
+    expect(harness.deepchat.invalidateSystemPromptCache).toHaveBeenCalledOnce()
+  })
+
+  it('routes direct and compatibility ACP commands and config through narrow controls', async () => {
     const harness = createHarness([
       createSession({ id: 'direct', agentId: 'claude-acp' }),
       createSession({ id: 'compat', agentId: 'source' })
@@ -340,8 +415,73 @@ describe('SessionAgentAssignmentCoordinator', () => {
     await expect(harness.coordinator.getAcpSessionCommands('compat')).resolves.toEqual([
       { name: 'compat', description: 'Compat' }
     ])
+    await expect(harness.coordinator.getAcpSessionConfigOptions('direct')).resolves.toEqual({
+      options: []
+    })
+    await expect(
+      harness.coordinator.setAcpSessionConfigOption('direct', 'mode', 'plan')
+    ).resolves.toEqual({ options: [] })
+    await expect(harness.coordinator.getAcpSessionConfigOptions('compat')).resolves.toEqual({
+      options: []
+    })
+    await expect(
+      harness.coordinator.setAcpSessionConfigOption('compat', 'mode', 'plan')
+    ).resolves.toEqual({ options: [] })
     expect(harness.acpFacet.getCommands).toHaveBeenCalledOnce()
     expect(harness.acp.getAcpSessionCommands).toHaveBeenCalledWith('compat')
+    expect(harness.acpFacet.getConfigOptions).toHaveBeenCalledOnce()
+    expect(harness.acpFacet.setConfigOption).toHaveBeenCalledWith('mode', 'plan')
+    expect(harness.acp.getAcpSessionConfigOptions).toHaveBeenCalledWith('compat')
+    expect(harness.acp.setAcpSessionConfigOption).toHaveBeenCalledWith('compat', 'mode', 'plan')
+  })
+
+  it('preserves transfer mutation order before materializing state', async () => {
+    const harness = createHarness()
+    const order: string[] = []
+    harness.deepchat.setSessionAgentContext.mockImplementation(async () => {
+      order.push('runtime-context')
+    })
+    harness.sessions.updateAgentId.mockImplementation((sessionId: string, agentId: string) => {
+      order.push('agent-id')
+      const session = harness.records.get(sessionId)
+      if (session) harness.records.set(sessionId, { ...session, agentId })
+    })
+    harness.sessions.update.mockImplementation(
+      (sessionId: string, fields: Partial<SessionRecord>) => {
+        order.push('session-row')
+        const session = harness.records.get(sessionId)
+        if (session) harness.records.set(sessionId, { ...session, ...fields })
+      }
+    )
+    harness.sessions.updateDisabledAgentTools.mockImplementation(() => order.push('tools'))
+    harness.projection.materialize.mockImplementation(async (sessionId: string) => {
+      order.push('materialize')
+      return materialize(harness.records.get(sessionId)!)
+    })
+
+    await harness.coordinator.moveSessionToAgent('s1', 'target')
+    expect(order).toEqual(['runtime-context', 'agent-id', 'session-row', 'tools', 'materialize'])
+  })
+
+  it('clears compatibility ACP binding only after transfer commit materialization', async () => {
+    const harness = createHarness()
+    const order: string[] = []
+    harness.deepchatHandle.snapshot.mockResolvedValue({
+      status: 'idle',
+      providerId: 'acp',
+      modelId: 'claude-acp'
+    })
+    harness.projection.materialize.mockImplementation(async (sessionId: string) => {
+      order.push('materialize')
+      return materialize(harness.records.get(sessionId)!)
+    })
+    harness.acp.clearAcpSession.mockImplementation(async () => {
+      order.push('clear-acp')
+    })
+
+    await harness.coordinator.moveSessionToAgent('s1', 'target')
+    expect(order).toEqual(['materialize', 'clear-acp'])
+    expect(harness.acp.clearAcpSession).toHaveBeenCalledWith('s1')
   })
 
   it('validates Tape parentage before resolving the runtime facet', async () => {

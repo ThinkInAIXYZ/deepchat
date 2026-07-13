@@ -723,6 +723,7 @@ describe('Integration: createSession end-to-end', () => {
       projection,
       sessionApplications.policy,
       sessionApplications.assignment,
+      sessionApplications.assignment,
       sessionApplications.deletion
     )
   })
@@ -910,6 +911,7 @@ describe('Integration: ACP hooks bridge', () => {
       projection,
       sessionApplications.policy,
       sessionApplications.assignment,
+      sessionApplications.assignment,
       sessionApplications.deletion
     )
   })
@@ -1024,6 +1026,7 @@ describe('Integration: multi-turn context', () => {
       sharedData,
       projection,
       sessionApplications.policy,
+      sessionApplications.assignment,
       sessionApplications.assignment,
       sessionApplications.deletion
     )

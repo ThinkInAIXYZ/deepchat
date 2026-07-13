@@ -769,6 +769,10 @@ export class Presenter implements IPresenter {
           await this.configPresenter.resolveDeepChatAgentConfig(agentId)
       }
     )
+    const clearNewAgentSessionSkills = this.skillPresenter.clearNewAgentSessionSkills
+    if (!clearNewAgentSessionSkills) {
+      throw new Error('Skill presenter must provide session skill cleanup.')
+    }
     this.sessionDeletionTransaction = new SessionDeletionTransaction({
       sessions: appSessionService,
       runtime: {
@@ -779,13 +783,15 @@ export class Presenter implements IPresenter {
       permissions: sessionPermissionPort,
       skills: {
         clearNewAgentSessionSkills: async (sessionId) =>
-          await this.skillPresenter.clearNewAgentSessionSkills?.(sessionId)
+          await clearNewAgentSessionSkills.call(this.skillPresenter, sessionId)
       },
       projection: this.sessionProjectionCoordinator
     })
     this.sessionAgentAssignmentCoordinator = new SessionAgentAssignmentCoordinator({
       sessions: appSessionService,
       runtime: {
+        getSessionAgentKind: (sessionId) =>
+          this.agentManager.resolveSessionBackend(sessionId).descriptor.kind,
         resolveSession: (sessionId) => this.agentManager.resolveSessionHandle(sessionId),
         resolveTransferSource: (sessionId) => this.agentManager.resolveTransferSource(sessionId),
         resolveDeepChatTransferTarget: (agentId) =>
@@ -809,6 +815,7 @@ export class Presenter implements IPresenter {
       agentSharedData,
       this.sessionProjectionCoordinator,
       this.sessionAgentAssignmentPolicy,
+      this.sessionAgentAssignmentCoordinator,
       this.sessionAgentAssignmentCoordinator,
       this.sessionDeletionTransaction,
       this.skillPresenter,
