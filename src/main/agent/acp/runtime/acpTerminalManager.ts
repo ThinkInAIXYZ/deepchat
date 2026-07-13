@@ -133,7 +133,17 @@ export class AcpTerminalManager {
   async terminalOutput(
     params: schema.TerminalOutputRequest
   ): Promise<schema.TerminalOutputResponse> {
-    const state = this.getTerminal(params.terminalId)
+    const snapshot = this.getTerminalSnapshot(params.terminalId)
+    if (!snapshot) {
+      throw RequestError.resourceNotFound(params.terminalId)
+    }
+
+    return snapshot
+  }
+
+  getTerminalSnapshot(terminalId: string): schema.TerminalOutputResponse | null {
+    const state = this.terminals.get(terminalId)
+    if (!state) return null
 
     return {
       output: state.outputBuffer,

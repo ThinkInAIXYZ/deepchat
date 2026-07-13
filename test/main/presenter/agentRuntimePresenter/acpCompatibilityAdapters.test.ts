@@ -206,7 +206,7 @@ function createProjectionHarness() {
       ? (JSON.parse(row.payload_json) as { record: { content: string; status: string } }).record
       : null
   }
-  return { adapter, getAssistantTapeRecord, handle, messageStore, tapeService }
+  return { adapter, getAssistantTapeRecord, handle, messageStore, tapeRows, tapeService }
 }
 
 describe('ACP compatibility adapters', () => {
@@ -244,6 +244,51 @@ describe('ACP compatibility adapters', () => {
     expect(publishDeepchatEvent).toHaveBeenCalledWith(
       'chat.stream.completed',
       expect.objectContaining({ messageId: harness.handle.messageId })
+    )
+  })
+
+  it('persists ACP tool responses and appends a Tape tool result', () => {
+    const harness = createProjectionHarness()
+    const mapper = new AcpContentMapper()
+    const start = mapper.map({
+      sessionId: 'remote-session',
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'tool-1',
+        title: 'glob',
+        status: 'in_progress',
+        rawInput: { pattern: '**/*' }
+      }
+    })
+    const end = mapper.map({
+      sessionId: 'remote-session',
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-1',
+        status: 'completed',
+        rawOutput: ['README.md']
+      }
+    })
+
+    harness.adapter.applyEvents(harness.handle, [...start.events, ...end.events])
+    harness.adapter.complete(harness.handle, 'end_turn')
+
+    const message = harness.messageStore.getMessage(harness.handle.messageId)
+    const blocks = JSON.parse(message?.content ?? '[]')
+    expect(blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'tool_call',
+          status: 'success',
+          tool_call: expect.objectContaining({
+            params: '{"pattern":"**/*"}',
+            response: '["README.md"]'
+          })
+        })
+      ])
+    )
+    expect(harness.tapeRows).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'tool_result', name: 'glob' })])
     )
   })
 

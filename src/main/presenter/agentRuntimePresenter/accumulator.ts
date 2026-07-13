@@ -179,6 +179,12 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         const block = state.blocks[pending.blockIndex]
         if (block?.tool_call) {
           block.tool_call.params = finalArgs
+          if (event.tool_call_response !== undefined) {
+            block.tool_call.response = event.tool_call_response
+          }
+          if (event.tool_call_status) {
+            block.status = event.tool_call_status
+          }
           block.extra = {
             ...block.extra,
             toolCallArgsComplete: true,

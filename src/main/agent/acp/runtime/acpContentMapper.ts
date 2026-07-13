@@ -64,15 +64,22 @@ interface ToolCallState {
   toolName: string
   argumentsBuffer: string
   paramsCaptured: boolean
+  rawOutput?: string
+  contentOutput?: string
   status?: schema.ToolCallStatus | null
   started: boolean
 }
 
 const now = () => Date.now()
+type TerminalSnapshotResolver = (
+  terminalId: string
+) => schema.TerminalOutputResponse | null | undefined
 
 export class AcpContentMapper {
   private readonly toolCallStates = new Map<string, ToolCallState>()
   private readonly planRevisions = new Map<string, number>()
+
+  constructor(private readonly resolveTerminalSnapshot?: TerminalSnapshotResolver) {}
 
   clearSession(sessionId: string): void {
     this.planRevisions.delete(sessionId)
@@ -240,15 +247,20 @@ export class AcpContentMapper {
       }
     }
 
-    const content = 'content' in update ? (update.content ?? undefined) : undefined
     const paramsChunk = this.stringifyToolParams(update)
-    const contentChunk = this.formatToolCallContent(content, '')
-    const chunk = paramsChunk ?? (state.paramsCaptured ? '' : contentChunk)
-    if (chunk) {
-      this.emitToolCallChunk(state, chunk, payload)
-      if (paramsChunk) {
+    if (paramsChunk) {
+      state.argumentsBuffer = paramsChunk
+      if (!state.paramsCaptured) {
+        this.emitToolCallChunk(state, paramsChunk, payload)
         state.paramsCaptured = true
       }
+    }
+
+    if ('rawOutput' in update && update.rawOutput !== undefined) {
+      state.rawOutput = this.stringifyToolResult(update.rawOutput)
+    }
+    if ('content' in update && update.content !== undefined) {
+      state.contentOutput = this.formatToolCallContent(update.content)
     }
 
     if (status === 'completed' || status === 'failed') {
@@ -385,12 +397,19 @@ export class AcpContentMapper {
           }
         }
         if (item.type === 'terminal') {
-          return 'output' in item && typeof item.output === 'string'
-            ? item.output
-            : `[terminal:${item.terminalId}]`
+          const snapshot = this.resolveTerminalSnapshot?.(item.terminalId)
+          if (!snapshot) return `[terminal:${item.terminalId}]`
+          if (snapshot.output) return snapshot.output
+          return `[terminal:${item.terminalId}: no output]`
         }
         if (item.type === 'diff') {
-          return item.path ? `diff: ${item.path}` : '[diff]'
+          return [
+            `diff: ${item.path}`,
+            '--- before',
+            item.oldText ?? '',
+            '+++ after',
+            item.newText
+          ].join('\n')
         }
         return JSON.stringify(item)
       })
@@ -437,7 +456,6 @@ export class AcpContentMapper {
   }
 
   private emitToolCallChunk(state: ToolCallState, chunk: string, payload: MappedContent) {
-    state.argumentsBuffer += chunk
     payload.events.push(createStreamEvent.toolCallChunk(state.toolCallId, chunk))
     payload.blocks.push(
       this.createBlock('tool_call', state.argumentsBuffer, {
@@ -454,14 +472,21 @@ export class AcpContentMapper {
   private emitToolCallEnd(state: ToolCallState, payload: MappedContent, isError: boolean) {
     const toolCallId = state.toolCallId
     const finalArgs = this.tryParseJsonArguments(state.argumentsBuffer, toolCallId)
-    payload.events.push(createStreamEvent.toolCallEnd(toolCallId, finalArgs))
+    const response = state.contentOutput || state.rawOutput
+    payload.events.push(
+      createStreamEvent.toolCallEnd(toolCallId, finalArgs, undefined, {
+        response,
+        status: isError ? 'error' : 'success'
+      })
+    )
     payload.blocks.push(
       this.createBlock('tool_call', finalArgs, {
         status: isError ? 'error' : 'success',
         tool_call: {
           id: toolCallId,
           name: state.toolName,
-          params: finalArgs
+          params: finalArgs,
+          response
         }
       })
     )
@@ -488,6 +513,8 @@ export class AcpContentMapper {
       toolName: toolName ?? toolCallId,
       argumentsBuffer: '',
       paramsCaptured: false,
+      rawOutput: undefined,
+      contentOutput: undefined,
       status: undefined,
       started: false
     }
@@ -520,9 +547,9 @@ export class AcpContentMapper {
     >
   ): string | undefined {
     const rawInput = (update as any).rawInput ?? (update as any).raw_input
-    if (rawInput && typeof rawInput === 'object' && Object.keys(rawInput).length > 0) {
+    if (rawInput !== undefined) {
       try {
-        return JSON.stringify(rawInput)
+        return typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput)
       } catch (error) {
         console.warn('[ACP] Failed to stringify rawInput for tool call params:', error)
       }
@@ -541,5 +568,16 @@ export class AcpContentMapper {
     }
 
     return undefined
+  }
+
+  private stringifyToolResult(value: unknown): string {
+    if (typeof value === 'string') return value
+    try {
+      const serialized = JSON.stringify(value)
+      return serialized ?? String(value)
+    } catch (error) {
+      console.warn('[ACP] Failed to stringify rawOutput for tool call result:', error)
+      return String(value)
+    }
   }
 }

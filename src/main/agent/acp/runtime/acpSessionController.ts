@@ -98,14 +98,18 @@ async function setSessionModelCompat(
 }
 
 export class AcpSessionController {
-  private readonly contentMapper = new AcpContentMapper()
+  private readonly contentMapper: AcpContentMapper
 
   constructor(
     private readonly sessionManager: AcpSessionManager,
     private readonly processManager: AcpProcessManager,
     private readonly persistence: AcpSessionPersistence,
     private readonly events?: AcpSessionCapabilityEvents
-  ) {}
+  ) {
+    this.contentMapper = new AcpContentMapper((terminalId) =>
+      this.processManager.getTerminalSnapshot(terminalId)
+    )
+  }
 
   async open(
     conversationId: AppSessionId,

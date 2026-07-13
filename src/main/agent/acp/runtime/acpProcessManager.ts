@@ -244,6 +244,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.getUvRegistry = options.getUvRegistry
   }
 
+  getTerminalSnapshot(terminalId: string): schema.TerminalOutputResponse | null {
+    return this.terminalManager.getTerminalSnapshot(terminalId)
+  }
+
   /**
    * Register a session's working directory for file system operations.
    * This must be called when a session is created, before any fs/terminal operations.

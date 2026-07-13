@@ -234,6 +234,26 @@ describe('accumulate', () => {
     expect(state.blocks[0].tool_call!.params).toBe('{"q":"full"}')
   })
 
+  it('projects optional tool results and failure status onto the tool block', () => {
+    accumulate(state, {
+      type: 'tool_call_start',
+      tool_call_id: 'tc1',
+      tool_call_name: 'exec'
+    })
+    accumulate(state, {
+      type: 'tool_call_end',
+      tool_call_id: 'tc1',
+      tool_call_response: 'command failed',
+      tool_call_status: 'error'
+    })
+
+    expect(state.blocks[0]).toMatchObject({
+      type: 'tool_call',
+      status: 'error',
+      tool_call: { response: 'command failed' }
+    })
+  })
+
   it('usage sets metadata', () => {
     accumulate(state, {
       type: 'usage',

@@ -70,6 +70,72 @@ describe('AcpContentMapper tool call handling', () => {
     })
   })
 
+  it('keeps raw input as params and projects raw output as the tool result', () => {
+    const mapper = new AcpContentMapper()
+
+    mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'tool-result',
+        title: 'glob',
+        status: 'in_progress',
+        rawInput: { pattern: '**/*' }
+      })
+    )
+    const completion = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-result',
+        status: 'completed',
+        rawOutput: { files: ['README.md'] }
+      })
+    )
+
+    expect(completion.events.find((event) => event.type === 'tool_call_end')).toMatchObject({
+      type: 'tool_call_end',
+      tool_call_id: 'tool-result',
+      tool_call_arguments_complete: '{"pattern":"**/*"}',
+      tool_call_response: '{"files":["README.md"]}',
+      tool_call_status: 'success'
+    })
+  })
+
+  it('projects terminal and diff content when raw output is absent', () => {
+    const mapper = new AcpContentMapper((terminalId) =>
+      terminalId === 'terminal-1'
+        ? { output: 'README.md\r\n', truncated: false, exitStatus: { exitCode: 0 } }
+        : null
+    )
+
+    const completion = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'tool-content',
+        title: 'exec',
+        status: 'completed',
+        content: [
+          { type: 'terminal', terminalId: 'terminal-1' },
+          {
+            type: 'diff',
+            path: '/tmp/file.txt',
+            oldText: 'before',
+            newText: 'after'
+          }
+        ]
+      })
+    )
+
+    const end = completion.events.find((event) => event.type === 'tool_call_end')
+    expect(end).toMatchObject({
+      type: 'tool_call_end',
+      tool_call_status: 'success'
+    })
+    expect(end?.type === 'tool_call_end' ? end.tool_call_response : '').toContain('README.md')
+    expect(end?.type === 'tool_call_end' ? end.tool_call_response : '').toContain(
+      'diff: /tmp/file.txt\n--- before\nbefore\n+++ after\nafter'
+    )
+  })
+
   it('tracks tool call state per session to avoid id collisions', () => {
     const mapper = new AcpContentMapper()
 
