@@ -655,18 +655,23 @@ export class ManagementService {
       this.ports.syncWorkingMemoryAfterMutation(agentId)
     }
     let cleanupPendingRestart = false
+    let markerError: VectorStoreQuarantineMarkerError | undefined
     try {
       cleanupPendingRestart = (await this.ports.resetAgentStore(agentId)) === 'pending-restart'
     } catch (error) {
-      if (error instanceof VectorStoreQuarantineMarkerError) throw error
-      logger.error(
-        `[Memory] vector reset failed for ${agentId}; on-disk store may persist: ${String(error)}`
-      )
+      if (error instanceof VectorStoreQuarantineMarkerError) {
+        markerError = error
+      } else {
+        logger.error(
+          `[Memory] vector reset failed for ${agentId}; on-disk store may persist: ${String(error)}`
+        )
+      }
     }
     if (removed > 0) this.ctx.emitChanged(agentId, 'clear')
     if (removed > 0 && this.ports.repository.countByAgent(agentId) === 0) {
       this.ports.clearConsolidationCooldown(agentId)
     }
+    if (markerError) throw markerError
     return { removed, cleanupPendingRestart }
   }
 

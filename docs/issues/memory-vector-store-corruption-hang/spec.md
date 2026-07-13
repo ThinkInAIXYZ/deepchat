@@ -27,7 +27,7 @@ invalidated instance that never settles.
 
 Startup prewarm fails identically on every launch, ~10ms after the store opens:
 
-```
+```text
 [info]  [MemoryVectorStore] loaded bundled VSS extension: ...\runtime\duckdb\extensions\vss.duckdb_extension
 [warn]  [Memory] orphan vector reconcile failed for deepchat: Error: INTERNAL Error:
         Failed to add to the HNSW index: Duplicate keys not allowed in high-level wrappers
@@ -389,7 +389,9 @@ unbounded await turns out to be.
   later lease retry.
 - Cleanup lifecycle: quarantined clear/delete returns pending restart without awaiting native
   resources; marker failure preserves the agent; shutdown skips wedged quarantined promises and
-  locks.
+  locks. Reindex stops before provider/vector work when reset returns pending restart; a committed
+  clear still emits its change event and clears cooldown/diagnostics before marker failure is
+  propagated; abandoning one shared warmup participant does not cancel or untrack other agents.
 - Warm fatal error: `verifyVectorCoverage` throwing a fatal error → quarantine path invoked
   exactly once (no reindex loop in the same process).
 - Format v2 + migration test cases are enumerated in

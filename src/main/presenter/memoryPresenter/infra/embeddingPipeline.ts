@@ -465,7 +465,8 @@ export class EmbeddingPipeline {
     ])
     if (!requeued && !force) return
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
-    await this.ports.vectorStore.resetAgentStore(agentId)
+    const cleanupDisposition = await this.ports.vectorStore.resetAgentStore(agentId)
+    if (cleanupDisposition === 'pending-restart') return
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     this.ctx.emitChanged(agentId, 'reindex')
     await this.drainUntilExhausted(agentId)
@@ -853,6 +854,10 @@ export class EmbeddingPipeline {
     this.errorRetryAfterId.delete(agentId)
     for (const [key] of this.getAgentEntries(this.vectorStoreWarmups, agentId)) {
       this.vectorStoreWarmups.delete(key)
+    }
+    for (const [key, agents] of this.embeddingWarmupAgents) {
+      agents.delete(agentId)
+      if (!agents.size) this.embeddingWarmupAgents.delete(key)
     }
     for (const key of this.vectorStoreDimensionFailures.keys()) {
       if (key.startsWith(`${agentId}::`)) this.vectorStoreDimensionFailures.delete(key)

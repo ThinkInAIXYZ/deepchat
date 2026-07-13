@@ -9,7 +9,11 @@ import {
 } from './injection'
 import { isSafeAgentId } from '@shared/types/agent-memory'
 import type { AgentMemoryRow } from './types'
-import type { DeletedAgentMemoryCleanupResult, MemoryClearResult } from './domain/types'
+import {
+  VectorStoreQuarantineMarkerError,
+  type DeletedAgentMemoryCleanupResult,
+  type MemoryClearResult
+} from './domain/types'
 import type {
   MemoryCandidate,
   MemoryConflictPair,
@@ -571,9 +575,16 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   async clearMemoriesWithCleanup(agentId: string): Promise<MemoryClearResult> {
-    const cleared = await this.management.clearMemories(agentId)
-    this.diagnostics.cleanupAgent(agentId)
-    return cleared
+    try {
+      const cleared = await this.management.clearMemories(agentId)
+      this.diagnostics.cleanupAgent(agentId)
+      return cleared
+    } catch (error) {
+      if (error instanceof VectorStoreQuarantineMarkerError) {
+        this.diagnostics.cleanupAgent(agentId)
+      }
+      throw error
+    }
   }
 
   async cleanupDeletedAgentResources(agentId: string): Promise<DeletedAgentMemoryCleanupResult> {

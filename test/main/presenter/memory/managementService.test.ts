@@ -63,11 +63,16 @@ describe('MemoryPresenter management', () => {
   it('surfaces quarantine marker persistence failure during clear', async () => {
     const repo = createFakeRepository()
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis' })
+    const onMemoryChanged = vi.fn()
     const markVectorStoreQuarantined = vi.fn(() => {
       throw new Error('marker disk is read-only')
     })
-    const { presenter } = makePresenter(enabledConfig, repo, { markVectorStoreQuarantined })
-    const vectorStore = memoryRuntimeForTests(presenter).vectorStoreService
+    const { presenter } = makePresenter(enabledConfig, repo, {
+      markVectorStoreQuarantined,
+      onMemoryChanged
+    })
+    const runtime = memoryRuntimeForTests(presenter)
+    const vectorStore = runtime.vectorStoreService
     await expect(
       vectorStore.withStoreLease(
         'a',
@@ -78,11 +83,17 @@ describe('MemoryPresenter management', () => {
         }
       )
     ).rejects.toMatchObject({ reason: 'quarantined' })
+    onMemoryChanged.mockClear()
+    const clearCooldown = vi.spyOn(runtime.maintenanceService, 'clearCooldown')
+    const cleanupDiagnostics = vi.spyOn(runtime.diagnosticsCollector, 'cleanupAgent')
 
     await expect(presenter.clearMemoriesWithCleanup('a')).rejects.toMatchObject({
       name: 'VectorStoreQuarantineMarkerError'
     })
     expect(repo.countByAgent('a')).toBe(0)
+    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'clear')
+    expect(clearCooldown).toHaveBeenCalledWith('a')
+    expect(cleanupDiagnostics).toHaveBeenCalledWith('a')
   })
 
   it('clearMemories invalidates a cached working blob', async () => {

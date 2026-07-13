@@ -31,7 +31,7 @@ presence — no file is opened to find out what it is.
 
 **Commit point: the atomic rename of `stagingPath` to `v2Path` — for every creation path.**
 Nothing is ever written to the final path directly; `v2Path` existing therefore always means a
-committed, authoritative store — its authority never depends on whether cleanup afterwards
+committed, authoritative store — its authority never depends on whether cleanup afterward
 succeeded (a delete is an operation that can fail; a same-directory rename to a non-existent
 target is atomic on both Windows and POSIX).
 
@@ -139,6 +139,12 @@ retirement return `completed` or `pending-restart`. A quarantined agent is never
 closed, deleted, or awaited in-process; once its marker is durable, clear/delete may finish
 their logical work and report `cleanupPendingRestart = true`. Agent deletion performs this
 cleanup preflight before repository deletion, and a marker persistence failure aborts deletion.
+Reindex treats `pending-restart` as terminal for the current process: requeued SQLite rows remain
+pending for the next launch, while provider drain and vector-store warmup do not run. If clear has
+already committed its SQLite deletion before marker persistence fails, it still publishes the
+change event and clears consolidation cooldown and diagnostics before propagating the marker
+error. Abandoning one agent removes only that agent's membership from a shared embedding warmup;
+the shared promise and other agents remain tracked.
 
 ## Recovery alternatives rejected for suspect v1 stores and failed migrations
 

@@ -650,6 +650,59 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     expect(createVectorStore).toHaveBeenCalledTimes(2)
   })
 
+  it('stops provider and vector work when quarantined reindex cleanup is pending restart', async () => {
+    const repo = createFakeRepository()
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis' })
+    repo.seedLegacyStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: textToVector('').length,
+      embeddingModel: 'p:m'
+    })
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
+      texts.map((text) => textToVector(text))
+    )
+    const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const resetVectorStore = vi.fn(async () => undefined)
+    const markVectorStoreQuarantined = vi.fn()
+    const onMemoryChanged = vi.fn()
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore,
+      resetVectorStore,
+      markVectorStoreQuarantined,
+      onMemoryChanged
+    })
+    const vectorStore = memoryRuntimeForTests(presenter).vectorStoreService
+
+    await expect(
+      vectorStore.withStoreLease(
+        'a',
+        { providerId: 'p', modelId: 'm' },
+        textToVector('').length,
+        async () => {
+          throw new Error('INTERNAL Error: database has been invalidated')
+        }
+      )
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+    getEmbeddings.mockClear()
+    createVectorStore.mockClear()
+    markVectorStoreQuarantined.mockClear()
+    onMemoryChanged.mockClear()
+
+    await presenter.reindexEmbeddings('a', true)
+
+    expect(repo.getById('m1')?.status).toBe('pending_embedding')
+    expect(getEmbeddings).not.toHaveBeenCalled()
+    expect(createVectorStore).not.toHaveBeenCalled()
+    expect(resetVectorStore).not.toHaveBeenCalled()
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(1)
+    expect(onMemoryChanged).toHaveBeenCalledTimes(1)
+    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'reindex')
+  })
+
   it('treats a legacy NULL fingerprint as stale and re-embeds it', async () => {
     const repo = createFakeRepository()
     const config: DeepChatAgentConfig = {
@@ -1019,5 +1072,51 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     const results = await presenter.recall('a', 'redis')
     expect(query).not.toHaveBeenCalled()
     expect(results.some((item) => item.content === 'redis fact')).toBe(true)
+  })
+})
+
+describe('MemoryPresenter embedding warmup lifecycle', () => {
+  it('abandons only one agent membership from a shared warmup', async () => {
+    let resolveWarmup!: () => void
+    const getEmbeddings = vi.fn(
+      async () =>
+        new Promise<number[][]>((resolve) => {
+          resolveWarmup = () => resolve([textToVector('memory warmup')])
+        })
+    )
+    const presenter = new MemoryPresenter({
+      repository: createFakeRepository(),
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    const embedding = memoryRuntimeForTests(presenter).embeddingService
+    const model = { providerId: 'p', modelId: 'm' }
+
+    embedding.warmEmbeddingConnection('agent-a', model)
+    embedding.warmEmbeddingConnection('agent-b', model)
+    await waitForMemoryCondition(() => getEmbeddings.mock.calls.length === 1)
+
+    embedding.abandonAgent('agent-a')
+    let agentACleaned = false
+    let agentBCleaned = false
+    const cleanupA = embedding.cleanupAgent('agent-a').then(() => {
+      agentACleaned = true
+    })
+    const cleanupB = embedding.cleanupAgent('agent-b').then(() => {
+      agentBCleaned = true
+    })
+    await flushMicrotasks()
+
+    expect(agentACleaned).toBe(true)
+    expect(agentBCleaned).toBe(false)
+
+    resolveWarmup()
+    await Promise.all([cleanupA, cleanupB])
+
+    expect(agentBCleaned).toBe(true)
+    expect(getEmbeddings).toHaveBeenCalledTimes(1)
   })
 })

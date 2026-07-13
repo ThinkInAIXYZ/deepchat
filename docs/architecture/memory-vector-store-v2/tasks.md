@@ -92,5 +92,8 @@
       call native resources.
 - [x] Return `cleanupPendingRestart` from memory clear and agent delete; run deletion cleanup
       preflight before deleting repository state and surface the restart cleanup notice in UI.
+- [x] Close quarantine lifecycle gaps: stop reindex provider/vector work on pending restart,
+      finish committed clear bookkeeping before marker errors propagate, and remove abandoned
+      agents from shared embedding warmup ownership without cancelling other waiters.
 - [x] Add unit, native, Windows handle, performance, and crash regression coverage, including a
       genuine HNSW v1 file renamed to the v2 path reaching the metadata self-check.
