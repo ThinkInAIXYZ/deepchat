@@ -1,4 +1,4 @@
-import type { AcpAgentConfig } from '@shared/presenter'
+import type { AcpAgentConfig, AcpAgentInstallState } from '@shared/presenter'
 import type {
   MessageStartResult,
   PendingSessionInputRecord,
@@ -34,6 +34,16 @@ interface RuntimeEntry {
 
 interface HydrationEntry {
   promise: Promise<AcpAgentInstance>
+}
+
+function toRuntimeInstallState(
+  installState: AcpAgentInstallState | null | undefined
+): AcpAgentInstallState | null | undefined {
+  if (!installState) return installState
+  const identity = { ...installState }
+  delete identity.installedAt
+  delete identity.lastCheckedAt
+  return identity
 }
 
 export class AcpAgentRuntime {
@@ -449,9 +459,19 @@ export class AcpAgentRuntime {
   }
 
   private buildIdentity(input: AcpAgentRuntimeSessionInput): string {
+    const descriptor =
+      input.descriptor.source === 'registry'
+        ? {
+            ...input.descriptor,
+            installState: toRuntimeInstallState(input.descriptor.installState)
+          }
+        : input.descriptor
     return JSON.stringify({
-      descriptor: input.descriptor,
-      agent: input.agent,
+      descriptor,
+      agent: {
+        ...input.agent,
+        installState: toRuntimeInstallState(input.agent.installState)
+      },
       scope: input.scope
     })
   }

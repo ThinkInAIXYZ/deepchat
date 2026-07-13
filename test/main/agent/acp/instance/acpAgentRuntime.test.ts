@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig } from '@shared/presenter'
+import type { AcpAgentConfig, AcpAgentInstallState } from '@shared/presenter'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
@@ -485,6 +485,66 @@ describe('AcpAgentRuntime', () => {
 
     expect(harness.runtime.getHydrated(createInput().sessionId)).toBe(first)
     expect(harness.calls).not.toContain('session.clear')
+  })
+
+  it('keeps registry identity across install timestamp refreshes', async () => {
+    const harness = createHarness()
+    const installState: AcpAgentInstallState = {
+      status: 'installed',
+      distributionType: 'npx',
+      version: '1.0.0',
+      installDir: '/agents/agent',
+      installedAt: 100,
+      lastCheckedAt: 100
+    }
+    const registryDescriptor: AcpAgentDescriptor = {
+      id: 'agent',
+      kind: 'acp',
+      source: 'registry',
+      name: 'Agent',
+      enabled: true,
+      protected: false,
+      description: null,
+      icon: null,
+      avatar: null,
+      registry: {
+        id: 'agent',
+        version: '1.0.0',
+        distribution: { npx: { package: '@example/agent' } }
+      },
+      installState
+    }
+    const registryAgent: AcpAgentConfig = {
+      ...agent,
+      source: 'registry',
+      installState
+    }
+    const first = await harness.runtime.getOrHydrate(
+      createInput({ descriptor: registryDescriptor, agent: registryAgent })
+    )
+    const refreshedInstallState = {
+      ...installState,
+      installedAt: 200,
+      lastCheckedAt: 300
+    }
+
+    const refreshed = await harness.runtime.getOrHydrate(
+      createInput({
+        descriptor: { ...registryDescriptor, installState: refreshedInstallState },
+        agent: { ...registryAgent, installState: refreshedInstallState }
+      })
+    )
+
+    expect(refreshed).toBe(first)
+    const movedInstallState = { ...refreshedInstallState, installDir: '/agents/moved' }
+    await expect(
+      harness.runtime.getOrHydrate(
+        createInput({
+          descriptor: { ...registryDescriptor, installState: movedInstallState },
+          agent: { ...registryAgent, installState: movedInstallState }
+        })
+      )
+    ).rejects.toThrow('ACP session identity mismatch for session')
   })
 
   it('rejects malformed descriptor/config identity before hydration', async () => {
