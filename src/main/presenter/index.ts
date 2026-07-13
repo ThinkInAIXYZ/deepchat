@@ -579,6 +579,7 @@ export class Presenter implements IPresenter {
     }
     // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
     const memoryDbDir = path.join(dbDir, 'AgentMemory')
+    MemoryVectorStore.recoverQuarantinedStores(memoryDbDir)
     const memoryVectorDbPaths = (agentId: string) =>
       createMemoryVectorStorePaths(memoryDbDir, agentId)
     this.memoryPresenter = new MemoryPresenter({

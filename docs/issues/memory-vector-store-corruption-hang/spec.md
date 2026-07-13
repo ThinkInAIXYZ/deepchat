@@ -318,7 +318,7 @@ unbounded await turns out to be.
 
 ## Tasks
 
-- [ ] Add `isDuckDbFatalError` classifier + fatal-state tracking (`usable = false`) to
+- [x] Add `isDuckDbFatalError` classifier + fatal-state tracking (`usable = false`) to
       `memoryVectorStore.ts`; wrap all store operations; fix the three fatal-path holes
       (`upsert` catch must not `ROLLBACK` on fatal, `create()` catch must not `close()` on
       fatal/timeout, `readEmbeddingMeta()` must propagate fatal errors instead of returning
@@ -329,10 +329,10 @@ unbounded await turns out to be.
 - [ ] Shutdown exclusion: `closeAllStores()` / dispose skip quarantined agents entirely — no
       `drainAndClose`, no lease-drain / agent-lock / mutation-lock waits, no `closeSync`;
       dispose completes within a fixed bound.
-- [ ] Marker check at `MemoryVectorStore.create()`: marker present → destroy all agent store
+- [x] Marker check at `MemoryVectorStore.create()`: marker present → destroy all agent store
       files, delete marker last within destruction, then fresh store; startup also sweeps
       markers for deleted agents before any vector handle is opened.
-- [ ] Terminal recovery errors: current/post-commit open and required recovery cleanup failures
+- [x] Terminal recovery errors: current/post-commit open and required recovery cleanup failures
       persist marker + close admission once; no same-process file retry. Fatal errors never
       close, while non-fatal failures close safely before cleanup.
 - [ ] Quarantined clear/delete lifecycle: no drain/lock/native waits, marker durability

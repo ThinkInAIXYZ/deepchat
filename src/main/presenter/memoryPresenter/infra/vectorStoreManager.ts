@@ -14,7 +14,7 @@ import {
   VECTOR_STORE_SOFT_CAP,
   VECTOR_STORE_SWEEP_INTERVAL_MS
 } from '../runtimeConstants'
-import { MemoryVectorStoreQuarantineRequiredError } from './vectorStoreErrors'
+import { isDuckDbFatalError, MemoryVectorStoreQuarantineRequiredError } from './vectorStoreErrors'
 
 export interface LockedVectorStorePort {
   open(embedding: MemoryModelRef, dimensions: number): Promise<IMemoryVectorStore>
@@ -443,6 +443,15 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.observeResources()
     try {
       return await task(store, generation)
+    } catch (error) {
+      if (isDuckDbFatalError(error)) {
+        this.quarantineAgent(agentId, error)
+        throw new VectorStoreLeaseUnavailableError(
+          'quarantined',
+          '[Memory] vector store hit a fatal native error and was quarantined'
+        )
+      }
+      throw error
     } finally {
       state.active -= 1
       state.lastUsedAt = Date.now()
@@ -631,7 +640,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           this.quarantineAgent(agentId, error)
           throw new VectorStoreLeaseUnavailableError(
             'quarantined',
-            '[Memory] vector store migration failed and was quarantined'
+            '[Memory] vector store recovery is pending restart'
           )
         }
         this.vectorStores.delete(agentId)
@@ -650,7 +659,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     return pending
   }
 
-  private quarantineAgent(agentId: string, error: MemoryVectorStoreQuarantineRequiredError): void {
+  private quarantineAgent(agentId: string, error: unknown): void {
     const firstQuarantine = !this.quarantinedAgents.has(agentId)
     this.quarantinedAgents.add(agentId)
     const state = this.leaseState(agentId)
@@ -668,7 +677,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       this.ports.vectorStoreFactory.markVectorStoreQuarantined(agentId)
     } catch (markerError) {
       logger.error(
-        `[Memory] failed to persist vector quarantine marker for ${agentId}: ${String(markerError)}; original migration failure: ${String(error)}`
+        `[Memory] failed to persist vector quarantine marker for ${agentId}: ${String(markerError)}; terminal vector failure: ${String(error)}`
       )
     }
   }
@@ -773,6 +782,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
               await store.deleteByMemoryIds(memoryIds)
               result = 'deleted'
             } catch (error) {
+              if (isDuckDbFatalError(error)) throw error
               logger.warn(`[Memory] vector delete failed: ${String(error)}`)
             }
           },
@@ -811,6 +821,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           await store.deleteByMemoryIds(prunableIds)
           return prunableIds
         } catch (error) {
+          if (isDuckDbFatalError(error)) throw error
           logger.warn(`[Memory] vector prune failed: ${String(error)}`)
           return []
         }

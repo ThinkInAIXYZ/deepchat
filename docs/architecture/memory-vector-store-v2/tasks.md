@@ -12,9 +12,9 @@
 - [x] Path scheme in `presenter/index.ts` (`memoryVectorDbPath`): v2 / staging / marker /
       legacy-v1 paths; factory port gains `markVectorStoreQuarantined(agentId)` (issue scope
       uses it; path ownership stays in the factory).
-- [x] Open decision tree step 0 (marker-last recovery): marker present → destroy all agent
+- [x] Open decision tree step 0 (marker-last destruction): marker present → destroy all agent
       store files (v2 main+wal, staging main+wal, legacy v1 main+wal) **keeping the marker** →
-      `publishFreshV2()` → delete marker last; rebuild via coverage verification.
+      delete marker last → only then call `publishFreshV2()`; rebuild via coverage verification.
 - [x] Staging cleanup rule: `stagingPath` or `${stagingPath}.wal` present → delete both
       unconditionally (never a commit point) before continuing the decision tree.
 - [x] Committed-v2 authority: `v2Path` present → open it; leftover v1 files are swept
@@ -43,8 +43,9 @@
     half-built state; `format_version = 2` recorded; a v1 file renamed to `v2Path` fails the
     post-open self-check and routes to rebuild.
   - `query()` returns exact top-k ordering without `LOAD vss`.
-  - Marker-last recovery: crash (simulated by aborting) between file sweep and publish leaves
-    the marker → next `create()` recovers again; marker deleted only after a healthy v2 exists.
+  - Marker-last destruction: marker removal failure publishes nothing; once marker deletion
+    succeeds, a publication failure re-enters terminal recovery and the manager re-persists the
+    marker for the next process.
   - v1 without WAL → vectors preserved via staging + atomic rename, v1 files gone, no
     re-embedding requested.
   - v1 with WAL → files destroyed before any open of the suspect data, fresh v2 store, reindex
@@ -80,10 +81,10 @@
 - [x] Make bundled VSS materialization fence-neutral and migration offline-only; use a
       progress-refreshed 60-second inactivity fence, one transaction, INSERT-only pages, and no
       redundant vector copies.
-- [ ] Centralize v2 schema/metadata validation and DuckDB fatal classification; make current
+- [x] Centralize v2 schema/metadata validation and DuckDB fatal classification; make current
       open, post-commit open, recovery cleanup, orphan-current-WAL, and fresh cleanup failures
       converge on a typed terminal state rather than lease retries.
-- [ ] Change marker recovery to files-first and marker-last **within the destruction phase**;
+- [x] Change marker recovery to files-first and marker-last **within the destruction phase**;
       publish only after marker deletion succeeds. Sweep markers for deleted agents at process
       startup.
 - [ ] Make the production marker dependency required and replace manager quarantine double

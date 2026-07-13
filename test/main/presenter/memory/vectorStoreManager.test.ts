@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryRuntimeContext } from '@/presenter/memoryPresenter/context'
 import { VectorStoreManager } from '@/presenter/memoryPresenter/infra/vectorStoreManager'
-import { MemoryVectorStoreQuarantineRequiredError } from '@/presenter/memoryPresenter/infra/vectorStoreErrors'
+import {
+  MemoryVectorStorePostCommitError,
+  MemoryVectorStoreQuarantineRequiredError
+} from '@/presenter/memoryPresenter/infra/vectorStoreErrors'
 import type {
   IMemoryVectorStore,
   MemoryEmbeddingRepositoryPort
@@ -177,5 +180,83 @@ describe('VectorStoreManager open failures', () => {
       manager.withStoreLease('agent', embedding, 4, async () => undefined)
     ).rejects.toMatchObject({ reason: 'quarantined' })
     await manager.closeAllStores()
+  })
+
+  it('persists quarantine after a committed store fails its final open', async () => {
+    const embedding = { providerId: 'p', modelId: 'm' }
+    const policy = {
+      resolveAgentConfig: () =>
+        ({ memoryEnabled: true, memoryEmbedding: embedding }) as DeepChatAgentConfig
+    }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const markVectorStoreQuarantined = vi.fn()
+    const createVectorStore = vi.fn(async () => {
+      throw new MemoryVectorStorePostCommitError(new Error('final open failed'))
+    })
+    const manager = new VectorStoreManager({
+      ctx,
+      policy,
+      repository: {} as MemoryEmbeddingRepositoryPort,
+      vectorStoreFactory: {
+        createVectorStore,
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined
+      }
+    })
+
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(1)
+    await manager.closeAllStores()
+  })
+})
+
+describe('VectorStoreManager runtime fatal failures', () => {
+  it('quarantines without closing a store whose native state may be invalid', async () => {
+    const embedding = { providerId: 'p', modelId: 'm' }
+    const policy = {
+      resolveAgentConfig: () =>
+        ({ memoryEnabled: true, memoryEmbedding: embedding }) as DeepChatAgentConfig
+    }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const close = vi.fn(async () => undefined)
+    const store = { ...createStore(), close }
+    const markVectorStoreQuarantined = vi.fn()
+    const manager = new VectorStoreManager({
+      ctx,
+      policy,
+      repository: {} as MemoryEmbeddingRepositoryPort,
+      vectorStoreFactory: {
+        createVectorStore: async () => store,
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined
+      }
+    })
+
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => {
+        throw new Error('INTERNAL Error: database has been invalidated')
+      })
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(1)
+    expect(close).not.toHaveBeenCalled()
+    await manager.closeAllStores()
+    expect(close).not.toHaveBeenCalled()
   })
 })

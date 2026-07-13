@@ -18,6 +18,10 @@ import {
   MemoryVectorStore,
   type MemoryVectorStorePaths
 } from '@/presenter/memoryPresenter/infra/memoryVectorStore'
+import {
+  isDuckDbFatalError,
+  MemoryVectorStorePostCommitError
+} from '@/presenter/memoryPresenter/infra/vectorStoreErrors'
 import type { MemoryVectorRecord } from '@/presenter/memoryPresenter/types'
 import { app } from 'electron'
 import fs from 'node:fs'
@@ -94,6 +98,20 @@ describe('MemoryVectorStore.upsert transaction (C4, AC-4.2)', () => {
     await expect(store.upsert(records)).rejects.toThrow('insert boom')
     expect(calls).toContain('BEGIN')
     expect(calls).toContain('ROLLBACK')
+    expect(calls).not.toContain('COMMIT')
+  })
+
+  it('does not call native rollback after a fatal DuckDB failure', async () => {
+    const { store, calls } = makeStore((sql) => {
+      if (sql.trim().toUpperCase().startsWith('INSERT')) {
+        throw new Error('INTERNAL Error: database has been invalidated')
+      }
+    })
+
+    await expect(store.upsert(records)).rejects.toThrow('database has been invalidated')
+
+    expect(calls).toContain('BEGIN')
+    expect(calls).not.toContain('ROLLBACK')
     expect(calls).not.toContain('COMMIT')
   })
 
@@ -266,6 +284,8 @@ function mockV2DuckDbLifecycle(
     dimensions?: number
     includeFormatVersion?: boolean
     failFinalOpen?: boolean
+    finalOpenError?: Error
+    currentReadError?: Error
     onFinalOpen?: () => void
     leaveStagingWal?: boolean
     legacyRows?: MemoryVectorRecord[]
@@ -332,7 +352,9 @@ function mockV2DuckDbLifecycle(
         closeSync: vi.fn()
       }
     }
-    if (dbPath === paths.current && options.failFinalOpen) throw new Error('final open failed')
+    if (dbPath === paths.current && (options.finalOpenError || options.failFinalOpen)) {
+      throw options.finalOpenError ?? new Error('final open failed')
+    }
     if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, '')
     if (dbPath === paths.current) options.onFinalOpen?.()
     const connection = {
@@ -347,24 +369,27 @@ function mockV2DuckDbLifecycle(
         }
         return undefined
       }),
-      runAndReadAll: vi.fn(async (statement: string) => ({
-        getRowObjectsJson: () => {
-          if (statement.includes('information_schema.columns')) {
-            return v2SchemaRows(dimensions, options.includeFormatVersion ?? true)
-          }
-          if (statement.includes('count(*) AS row_count')) {
-            return [{ row_count: options.targetRowCountOverride ?? targetRowCount }]
-          }
-          return [
-            {
-              provider: 'p',
-              model: 'm',
-              dim: dimensions,
-              format_version: 2
+      runAndReadAll: vi.fn(async (statement: string) => {
+        if (dbPath === paths.current && options.currentReadError) throw options.currentReadError
+        return {
+          getRowObjectsJson: () => {
+            if (statement.includes('information_schema.columns')) {
+              return v2SchemaRows(dimensions, options.includeFormatVersion ?? true)
             }
-          ]
+            if (statement.includes('count(*) AS row_count')) {
+              return [{ row_count: options.targetRowCountOverride ?? targetRowCount }]
+            }
+            return [
+              {
+                provider: 'p',
+                model: 'm',
+                dim: dimensions,
+                format_version: 2
+              }
+            ]
+          }
         }
-      })),
+      }),
       closeSync: vi.fn()
     }
     connections.push(connection)
@@ -389,6 +414,7 @@ async function setupRealFileSystem() {
     String(target) === bundledVssPath ? true : actualFs.existsSync(target)
   )
   vi.spyOn(fs, 'readFileSync').mockImplementation(actualFs.readFileSync)
+  vi.spyOn(fs, 'readdirSync').mockImplementation(actualFs.readdirSync)
   vi.spyOn(fs, 'writeFileSync').mockImplementation(actualFs.writeFileSync)
   vi.spyOn(fs, 'mkdirSync').mockImplementation(actualFs.mkdirSync)
   vi.spyOn(fs, 'rmSync').mockImplementation(actualFs.rmSync)
@@ -511,6 +537,25 @@ afterEach(() => {
   mutableApp.isPackaged = false
   duckDbMocks.create.mockReset()
   vi.restoreAllMocks()
+})
+
+describe('DuckDB fatal error classification', () => {
+  it.each([
+    new Error('INTERNAL Error: assertion failed'),
+    new Error('Fatal Error: database is corrupted'),
+    new Error('Database has been invalidated'),
+    new Error('Failed to add to the HNSW index: Duplicate keys not allowed')
+  ])('classifies terminal native failures', (error) => {
+    expect(isDuckDbFatalError(error)).toBe(true)
+  })
+
+  it('walks causes without classifying ordinary IO and validation errors', () => {
+    expect(isDuckDbFatalError(new Error('wrapper', { cause: new Error('INTERNAL Error') }))).toBe(
+      true
+    )
+    expect(isDuckDbFatalError(new Error('EBUSY: file locked'))).toBe(false)
+    expect(isDuckDbFatalError(new Error('format_version mismatch'))).toBe(false)
+  })
 })
 
 describe('MemoryVectorStore v2 staged publish', () => {
@@ -899,7 +944,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     }
   })
 
-  it('keeps the quarantine marker until the final v2 store opens successfully', async () => {
+  it('removes the quarantine marker before publishing a fresh v2 store', async () => {
     const actualFs = await setupRealFileSystem()
     const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-marker-'))
     const paths = createMemoryVectorStorePaths(root, 'agent-a')
@@ -915,7 +960,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
       fs.writeFileSync(filePath, 'old')
     }
     mockV2DuckDbLifecycle(paths, {
-      onFinalOpen: () => expect(fs.existsSync(paths.quarantine)).toBe(true)
+      onFinalOpen: () => expect(fs.existsSync(paths.quarantine)).toBe(false)
     })
 
     try {
@@ -929,7 +974,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     }
   })
 
-  it('retries marker recovery after a pre-commit publish failure', async () => {
+  it('allows the terminal layer to re-persist marker after a fresh publish failure', async () => {
     const actualFs = await setupRealFileSystem()
     const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-marker-retry-'))
     const paths = createMemoryVectorStorePaths(root, 'agent-a')
@@ -937,10 +982,14 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths, { leaveStagingWal: true })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toThrow('staged v2 WAL remains')
-      expect(fs.existsSync(paths.quarantine)).toBe(true)
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStoreTerminalRecoveryError',
+        message: expect.stringContaining('staged v2 WAL remains')
+      })
+      expect(fs.existsSync(paths.quarantine)).toBe(false)
       expect(fs.existsSync(paths.current)).toBe(false)
 
+      MemoryVectorStore.markQuarantined(paths)
       duckDbMocks.create.mockReset()
       mockV2DuckDbLifecycle(paths)
       const store = await MemoryVectorStore.create(paths, 2, EMB)
@@ -953,7 +1002,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     }
   })
 
-  it('returns the healthy store when marker cleanup fails after commit', async () => {
+  it('publishes nothing when quarantine marker removal fails', async () => {
     const actualFs = await setupRealFileSystem()
     const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-marker-failure-'))
     const paths = createMemoryVectorStorePaths(root, 'agent-a')
@@ -967,10 +1016,67 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
-      expect(store.isUsable()).toBe(true)
-      expect(fs.existsSync(paths.current)).toBe(true)
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStoreTerminalRecoveryError'
+      })
+      expect(fs.existsSync(paths.current)).toBe(false)
       expect(fs.existsSync(paths.quarantine)).toBe(true)
+      expect(duckDbMocks.create).not.toHaveBeenCalled()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    {
+      name: 'staging residue',
+      createResidue: (paths: MemoryVectorStorePaths) => [paths.staging],
+      busyPath: (paths: MemoryVectorStorePaths) => paths.staging
+    },
+    {
+      name: 'legacy WAL recovery',
+      createResidue: (paths: MemoryVectorStorePaths) => [paths.legacy, `${paths.legacy}.wal`],
+      busyPath: (paths: MemoryVectorStorePaths) => `${paths.legacy}.wal`
+    },
+    {
+      name: 'orphan current WAL recovery',
+      createResidue: (paths: MemoryVectorStorePaths) => [`${paths.current}.wal`],
+      busyPath: (paths: MemoryVectorStorePaths) => `${paths.current}.wal`
+    }
+  ])('makes $name cleanup failure terminal before opening DuckDB', async (testCase) => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-cleanup-failure-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    for (const filePath of testCase.createResidue(paths)) fs.writeFileSync(filePath, 'old')
+    const busyPath = testCase.busyPath(paths)
+    vi.mocked(fs.rmSync).mockImplementation((target, options) => {
+      if (String(target) === busyPath) {
+        throw Object.assign(new Error('file busy'), { code: 'EBUSY' })
+      }
+      return actualFs.rmSync(target, options)
+    })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStoreTerminalRecoveryError'
+      })
+      expect(duckDbMocks.create).not.toHaveBeenCalled()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('removes an orphan current WAL before a fresh publication', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-orphan-wal-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(`${paths.current}.wal`, 'orphan')
+    mockV2DuckDbLifecycle(paths)
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(fs.existsSync(`${paths.current}.wal`)).toBe(false)
+      expect(fs.existsSync(paths.current)).toBe(true)
       await store.close()
     } finally {
       actualFs.rmSync(root, { recursive: true, force: true })
@@ -1011,11 +1117,51 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths, { failFinalOpen: true })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toThrow('final open failed')
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toBeInstanceOf(
+        MemoryVectorStorePostCommitError
+      )
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(false)
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('does not close a current store after a fatal native metadata read', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-current-fatal-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.current, 'v2')
+    const { connections } = mockV2DuckDbLifecycle(paths, {
+      currentReadError: new Error('INTERNAL Error: current metadata read failed')
+    })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStoreTerminalRecoveryError',
+        fatal: true
+      })
+      expect(connections).toHaveLength(1)
+      expect(connections[0].closeSync).not.toHaveBeenCalled()
+      expect(fs.existsSync(paths.current)).toBe(true)
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('sweeps quarantined stores for agents that no longer exist', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-startup-sweep-'))
+    const paths = createMemoryVectorStorePaths(root, 'deleted-agent')
+    for (const filePath of [paths.current, `${paths.legacy}.wal`, paths.quarantine]) {
+      fs.writeFileSync(filePath, 'old')
+    }
+
+    try {
+      MemoryVectorStore.recoverQuarantinedStores(root)
+      expect(fs.readdirSync(root)).toEqual([])
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
     }
   })
 
