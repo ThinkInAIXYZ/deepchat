@@ -47,21 +47,33 @@ At DeepChat's memory scale the index buys nothing:
   core, battle-tested DuckDB. An unclean shutdown no longer costs a rebuild or re-embed.
 - Sidecar files per agent: `<agentId>.v2.duckdb`, `<agentId>.v2.duckdb.wal` (transient),
   `<agentId>.v2.duckdb.quarantine` — a marker written when a runtime failure or a failed
-  preserve migration quarantines the store; its presence makes the next open destroy all of the
-  agent's store files (v2, staging, legacy v1) and rebuild before any handle is taken (see
-  plan.md decision tree, step 0); a v1-era process never writes this marker — and
+  preserve migration quarantines the store; its presence makes the next process destroy all of
+  the agent's store files (v2, staging, legacy v1), remove the marker as the final destruction
+  step, and only then publish a fresh store (see plan.md decision tree, step 0); a v1-era process
+  never writes this marker — and
   `<agentId>.v2.duckdb.migrating` — migration staging, never a valid store; deleted on sight.
 - Commit point: **every** creation path (fresh create, quarantine recovery, rebuild, preserve
   migration) builds at `.migrating` and atomically renames to the final path after verification
   (`publishFreshV2()`, see plan.md); nothing is ever initialized directly at the final path.
   `<agentId>.v2.duckdb` existing always means a committed, authoritative store; its authority
   never depends on post-commit cleanup succeeding.
+- Recovery is terminal within the process that encounters an unsafe native or filesystem state.
+  It persists the marker, closes vector admission, and falls back to FTS without retrying file
+  operations. A later process performs recovery before acquiring any store handle.
+- A current WAL without a current main file is an orphan, never a recoverable store. It must be
+  removed before fresh publication and checked again immediately before the atomic rename.
+- Explicit reset and agent retirement return a cleanup disposition. `pending-restart` means the
+  logical operation may complete after a durable quarantine marker is present, while locked
+  vector files are intentionally left for the next process.
 
 ## VSS extension lifecycle
 
 - This release: the bundled VSS extension is kept **only** for reading v1 stores during
   migration (a v1 catalog contains an HNSW index entry and cannot be opened without the
-  extension).
+  extension). Migration never downloads or installs VSS from the network. Missing or
+  unmaterializable bundled VSS before a legacy handle is opened selects the safe empty-rebuild
+  path; a native `LOAD`, `ATTACH`, or metadata-read failure after native access begins requires
+  terminal quarantine.
 - Follow-up release: once the migration window has passed, remove the bundled extension and its
   materialization / network-install machinery from `memoryVectorStore.ts` and the runtime
   installer.

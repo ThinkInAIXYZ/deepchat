@@ -7,7 +7,8 @@ The format change centers on
 `IMemoryVectorStore` interface, but it is not confined to it: the store path scheme changes in
 `src/main/presenter/index.ts` (`memoryVectorDbPath` → v2/staging/marker paths), the factory
 port (`ports.ts`) gains `markVectorStoreQuarantined(agentId)` for the linked issue's quarantine
-flow, and a `LegacyV1Reader` component is added for migration. `VectorStoreManager` /
+flow. The dependency is required in production composition; only test adapters may provide an
+explicit no-op. A `LegacyV1Reader` component is added for migration. `VectorStoreManager` /
 `EmbeddingPipeline` / `RetrievalService` hardening belongs to the linked issue.
 
 ## Format v2 creation and open
@@ -46,52 +47,69 @@ half-built file at `v2Path`, violating the invariant):
    source/target row counts match;
 4. `CHECKPOINT`, close, and assert `${stagingPath}.wal` is absent;
 5. atomic rename `stagingPath` → `v2Path`;
-6. open the final store.
+6. open and validate the final store. Rename remains the commit point: if this final open fails,
+   keep the committed current file, persist quarantine, and leave recovery to the next process.
 
 Decision tree at `MemoryVectorStore.create()`:
 
-0. **Quarantine marker present (`<v2Path>.quarantine`)** → recover in marker-last order:
-   destroy **all** of the agent's store files (v2 main + wal, staging main + wal, legacy v1
-   main + wal) while **keeping the marker**; publish a fresh v2 via `publishFreshV2()`; delete
-   the marker **last**, only once a healthy store exists at `v2Path`. A crash anywhere in
-   between leaves the marker in place, so the next launch simply recovers again — a failed
-   marker delete costs at worst one redundant rebuild, never a half-built store treated as
-   healthy. Rebuild of embeddings follows via coverage verification. The marker is written by
+0. **Quarantine marker present (`<v2Path>.quarantine`)** → recover in two phases before any
+   handle is acquired. First destroy **all** of the agent's store files (v2 main + wal, staging
+   main + wal, legacy v1 main + wal) while keeping the marker, then delete the marker as the
+   final destruction step. Only after marker deletion succeeds may normal fresh publication
+   start. A marker deletion failure therefore publishes nothing and keeps admission closed;
+   it cannot repeatedly destroy a newly re-embedded healthy store. Rebuild of embeddings
+   follows via coverage verification. The marker is written by
    the quarantine paths of the linked issue (settled fatal error, a vector query that never
    settled within grace) and by a failed preserve migration (below); the process that wrote it
    never deletes or reopens store files itself — it also closes vector admission for the agent,
    which guarantees the marker is only ever processed by a *later* process holding no handles.
-   Sweeping v1 here is what makes preserve one-shot: a persistently failing preserve (e.g.
-   missing VSS extension) can never become a retry loop across launches.
+   Sweeping v1 here is what makes an unsafe native preserve failure one-shot. On presenter
+   startup, scan the whole `AgentMemory` directory for markers and apply the same files-first,
+   marker-last destruction even when the owning agent has already been deleted.
 1. **`stagingPath` (or `${stagingPath}.wal`) present** → always torn (staging is never a
-   commit point): delete both unconditionally and continue.
+   commit point): delete both unconditionally and continue. If recovery deletion fails, persist
+   or retain the marker, terminate vector admission for this process, and do not retry on later
+   leases.
 2. **`v2Path` exists** → committed and authoritative — open it (safe even with a residual
    `.wal`); verify the in-band `format_version = 2` and embedding identity (mismatch →
    unusable → rebuild path). If v1 files are still present they are leftovers from a failed
    post-commit deletion: sweep them best-effort (failure only logs; re-swept next launch) —
-   never discard the committed v2.
+   never discard the committed v2. Structural metadata mismatch is unusable and routes to a
+   rebuild. Native open/read failure is terminal for this process: do not touch a fatal
+   instance; for other open failures attempt a safe close, persist a marker, and defer recovery.
+   If `v2Path` is absent but `${v2Path}.wal` exists, remove the orphan WAL before continuing;
+   inability to remove it is terminal recovery, not a lease-level retry.
 3. **Only `v1Path` exists** → migrate:
    - v1 with a residual `.wal` → do not open it at all (replaying a suspect HNSW WAL is the
      corruption trigger): `destroyFile` the v1 files, publish a fresh empty v2 via
      `publishFreshV2()`. The warm flow's coverage verification (`verifyVectorCoverage`) sees
      rows marked embedded in SQLite with no vector present and triggers
      `reindexEmbeddings(force)` — rebuild from the SQLite source of truth.
-   - v1 without a WAL → attempt preservation through a dedicated `LegacyV1Reader`: load the
-     bundled VSS extension on a neutral in-memory DuckDB connection and read-only `ATTACH` the
-     v1 file (keeping VSS and legacy access entirely out of the v2 hot path), then read
+   - v1 without a WAL → prepare the bundled VSS extension without binding the shared
+     materialization promise to any caller's abandon fence. Migration never runs network
+     `INSTALL vss`. If the bundled extension is unavailable before legacy native access, safely
+     delete v1 and publish an empty v2. Otherwise a dedicated `LegacyV1Reader` loads it on a
+     neutral in-memory connection and read-only `ATTACH`es the v1 file (keeping VSS and legacy
+     access entirely out of the v2 hot path). Before copying, read exactly one valid legacy
+     `embedding_meta(provider, model, dim)` row. Only an exact identity match may be preserved;
+     missing, duplicate, malformed, or mismatched metadata safely rebuilds empty without
+     quarantine. Native `LOAD`, `ATTACH`, or metadata-read failures remain terminal. Then read
      `memory_id, embedding` in keyset-paged batches ordered by `memory_id` — paging bounds the
      JS heap on the read side, not just the write side. Rows flow into `publishFreshV2()`
      (staging build → verify incl. source/target row counts → checkpoint → rename commit),
      then the v1 files are deleted best-effort. Zero re-embedding cost; v1 stays intact until
-     commit. The whole preserve step runs under a generous soft deadline
-     (`V1_PRESERVE_TIMEOUT_MS = 60_000`).
-   - **Any native failure during preserve — error or deadline expiry — follows the issue's
-     governing principle**: write the quarantine marker, close vector admission for the agent
-     for the remainder of the process, recall runs FTS-only, and nothing is closed or deleted
+     commit. The copy uses one transaction for all pages and INSERT-only population. The
+     preserve step has a 60-second **no-progress** deadline, refreshed after each successful
+     native await and page insertion, so a single native hang is bounded without penalizing a
+     large migration that continues making progress.
+   - **Any native failure after legacy native access begins — error or no-progress deadline
+     expiry — follows the issue's governing principle**: write the quarantine marker, close
+     vector admission for the agent for the remainder of the process, recall runs FTS-only,
+     and nothing is closed or deleted
      in-process (a wedged open/read still holds v1 handles; `closeSync` after a fatal error is
      an unboundable sync native call). The leaked instance dies with the process; the next
      launch hits step 0, sweeps everything, and rebuilds from SQLite. Preserve is an
-     optimization over the always-correct rebuild path — when it fails once, for any reason,
+     optimization over the always-correct rebuild path — once native legacy access is unsafe,
      fall back permanently rather than classify-and-retry (a transient failure costs one
      re-embed; a misclassified "safe" recovery can freeze the app).
    - **Abandon fence — a deadline expiry must also stop the still-running flow.** Racing a
@@ -104,7 +122,9 @@ Decision tree at `MemoryVectorStore.create()`:
      not query, close, checkpoint, rename, or delete — a late settlement (success or failure)
      is logged only and never resumes admission. The original promise stays observed to the end
      so a late rejection cannot become an unhandled rejection.
-4. **Neither exists** → publish a fresh empty v2 via `publishFreshV2()`.
+4. **Neither exists** → publish a fresh empty v2 via `publishFreshV2()`. Immediately before
+   rename, assert the current main is still absent and remove any newly appeared orphan current
+   WAL; a failure becomes terminal recovery while preserving the original initialization cause.
 
 Crash semantics are fully deterministic: a crash before the rename leaves v1 (if any) intact
 plus staging garbage — main and/or `${stagingPath}.wal` — which step 1 cleans and step 3/4
@@ -113,7 +133,12 @@ No path ever discards a committed v2, and no path can leave a half-built file at
 
 All paths converge on a healthy v2 store; the only difference is whether embeddings were
 preserved or recomputed. `resetVectorStore` / `destroyFile` target the v2 paths and also sweep
-staging and legacy v1 files if present.
+staging and legacy v1 files if present. Manager state has a single
+`health: 'healthy' | 'quarantined'`; `accepting` is only a temporary admission gate. Reset and
+retirement return `completed` or `pending-restart`. A quarantined agent is never drained,
+closed, deleted, or awaited in-process; once its marker is durable, clear/delete may finish
+their logical work and report `cleanupPendingRestart = true`. Agent deletion performs this
+cleanup preflight before repository deletion, and a marker persistence failure aborts deletion.
 
 ## Recovery alternatives rejected for suspect v1 stores and failed migrations
 
