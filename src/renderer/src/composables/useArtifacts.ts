@@ -89,415 +89,256 @@ export function extractArtifactsFromContent(
     }))
 }
 
+// Precompiled once — never construct RegExp inside the scan loop.
+const ATTRIBUTE_REGEX = /(\w+)="([^"]*)"/g
+const THINKING_CLOSED_RE = /<antThinking>(.*?)<\/antThinking>/s
+const THINKING_UNCLOSED_RE = /<antThinking>([^<]*)/s
+const ARTIFACT_CLOSED_RE = /<antArtifact\s+([^>]*)>([\s\S]*?)<\/antArtifact>/s
+const ARTIFACT_UNCLOSED_RE =
+  /<antArtifact\s+(?=.*\btype="([^"]+)")(?=.*\bidentifier="([^"]+)")(?=.*\btitle="([^"]+)")(?:\s+language="([^"]+)")?\s*(?:[^>]*?)>([\s\S]*)/s
+const TOOL_CALL_OPEN_RE = /<tool_call(?:\s+([^>]*))?>/
+const TOOL_RESPONSE_OPEN_RE = /<tool_response(?:\s+([^>]*))?>/
+const TOOL_CALL_END_OPEN_RE = /<tool_call_end(?:\s+([^>]*))?>/
+const TOOL_CALL_ERROR_OPEN_RE = /<tool_call_error(?:\s+([^>]*))?>/
+const MAX_TOOL_CALLS_OPEN_RE = /<maximum_tool_calls_reached(?:\s+([^>]*))?>/
+// Longer tool_* names first so tool_call does not steal tool_call_end / error.
+const NEXT_TAG_RE =
+  /<(antThinking|antArtifact|tool_call_error|tool_call_end|tool_response|tool_call|maximum_tool_calls_reached)\b/g
+const TOOL_RELATED_OPEN_RES = [
+  TOOL_RESPONSE_OPEN_RE,
+  TOOL_CALL_END_OPEN_RE,
+  TOOL_CALL_ERROR_OPEN_RE,
+  TOOL_CALL_OPEN_RE,
+  MAX_TOOL_CALLS_OPEN_RE
+] as const
+const LOADING_SKIP_TAGS = new Set([
+  'tool_call',
+  'tool_response',
+  'tool_call_end',
+  'tool_call_error',
+  'maximum_tool_calls_reached'
+])
+
+type TagKind =
+  | 'thinking'
+  | 'artifact'
+  | 'tool_call'
+  | 'tool_response'
+  | 'tool_call_end'
+  | 'tool_call_error'
+  | 'maximum_tool_calls_reached'
+
+type ParsedTagMatch = {
+  index: number
+  kind: TagKind
+  match: RegExpExecArray
+  unclosed?: boolean
+}
+
+/** Map NEXT_TAG_RE capture groups (literal tag names) onto internal kinds. */
+function tagKindFromProbe(raw: string): TagKind | null {
+  switch (raw) {
+    case 'antThinking':
+      return 'thinking'
+    case 'antArtifact':
+      return 'artifact'
+    case 'tool_call':
+    case 'tool_response':
+    case 'tool_call_end':
+    case 'tool_call_error':
+    case 'maximum_tool_calls_reached':
+      return raw
+    default:
+      return null
+  }
+}
+
+// Last-parse memo: streaming recomputes with the same string many times per frame.
+let lastGeneratePartContent: string | null = null
+let lastGeneratePartStatus: DisplayAssistantMessageBlock['status'] | null = null
+let lastGeneratePartResult: ProcessedPart[] | null = null
+
 // 辅助函数：解析标签属性
 function parseAttributes(attributesStr?: string): Record<string, string> {
   const attributes: Record<string, string> = {}
   if (!attributesStr) return attributes
 
-  // 匹配所有name="value"形式的属性
-  const attributeRegex = /(\w+)="([^"]*)"/g
+  ATTRIBUTE_REGEX.lastIndex = 0
   let attrMatch: RegExpExecArray | null
-  while ((attrMatch = attributeRegex.exec(attributesStr)) !== null) {
+  while ((attrMatch = ATTRIBUTE_REGEX.exec(attributesStr)) !== null) {
     const [, name, value] = attrMatch
     attributes[name] = value
   }
   return attributes
 }
 
-function generatePart(
+function matchFrom(regex: RegExp, content: string, from: number): RegExpExecArray | null {
+  const slice = content.slice(from)
+  const match = regex.exec(slice)
+  if (!match) return null
+  match.index += from
+  return match
+}
+
+function findNextToolRelatedTagIndex(content: string, from: number): number {
+  let nextIndex = content.length
+  for (const regex of TOOL_RELATED_OPEN_RES) {
+    const match = matchFrom(regex, content, from)
+    if (match && match.index < nextIndex) {
+      nextIndex = match.index
+    }
+  }
+  return nextIndex
+}
+
+function findEarliestTag(
+  content: string,
+  from: number,
+  status: DisplayAssistantMessageBlock['status']
+): ParsedTagMatch | null {
+  NEXT_TAG_RE.lastIndex = from
+  let probe: RegExpExecArray | null
+  while ((probe = NEXT_TAG_RE.exec(content)) !== null) {
+    const kind = tagKindFromProbe(probe[1])
+    if (!kind) {
+      continue
+    }
+    if (status === 'loading' && LOADING_SKIP_TAGS.has(kind)) {
+      continue
+    }
+
+    if (kind === 'thinking') {
+      const closed = matchFrom(THINKING_CLOSED_RE, content, probe.index)
+      if (closed && closed.index === probe.index) {
+        return { index: probe.index, kind, match: closed }
+      }
+      const unclosed = matchFrom(THINKING_UNCLOSED_RE, content, probe.index)
+      if (unclosed && unclosed.index === probe.index) {
+        return { index: probe.index, kind, match: unclosed, unclosed: true }
+      }
+      continue
+    }
+
+    if (kind === 'artifact') {
+      const closed = matchFrom(ARTIFACT_CLOSED_RE, content, probe.index)
+      if (closed && closed.index === probe.index) {
+        return { index: probe.index, kind, match: closed }
+      }
+      const unclosed = matchFrom(ARTIFACT_UNCLOSED_RE, content, probe.index)
+      if (unclosed && unclosed.index === probe.index) {
+        return { index: probe.index, kind, match: unclosed, unclosed: true }
+      }
+      continue
+    }
+
+    if (kind === 'tool_call') {
+      const match = matchFrom(TOOL_CALL_OPEN_RE, content, probe.index)
+      if (match && match.index === probe.index) {
+        return { index: probe.index, kind, match }
+      }
+      continue
+    }
+
+    if (kind === 'tool_response') {
+      const match = matchFrom(TOOL_RESPONSE_OPEN_RE, content, probe.index)
+      if (match && match.index === probe.index) {
+        return { index: probe.index, kind, match }
+      }
+      continue
+    }
+
+    if (kind === 'tool_call_end') {
+      const match = matchFrom(TOOL_CALL_END_OPEN_RE, content, probe.index)
+      if (match && match.index === probe.index) {
+        return { index: probe.index, kind, match }
+      }
+      continue
+    }
+
+    if (kind === 'tool_call_error') {
+      const match = matchFrom(TOOL_CALL_ERROR_OPEN_RE, content, probe.index)
+      if (match && match.index === probe.index) {
+        return { index: probe.index, kind, match }
+      }
+      continue
+    }
+
+    if (kind === 'maximum_tool_calls_reached') {
+      const match = matchFrom(MAX_TOOL_CALLS_OPEN_RE, content, probe.index)
+      if (match && match.index === probe.index) {
+        return { index: probe.index, kind, match }
+      }
+    }
+  }
+
+  return null
+}
+
+function buildThinkingPart(match: RegExpExecArray): ProcessedPart {
+  return {
+    type: 'thinking',
+    content: match[1].trim(),
+    loading: false
+  }
+}
+
+function buildClosedArtifactPart(match: RegExpExecArray): ProcessedPart {
+  const attributes = parseAttributes(match[1])
+  return {
+    type: 'artifact',
+    content: match[2].trim(),
+    loading: false,
+    artifact: {
+      identifier: attributes.identifier || '',
+      title: attributes.title || '',
+      type: (attributes.type || 'text/markdown') as ArtifactType,
+      language: attributes.language
+    }
+  }
+}
+
+function buildUnclosedArtifactPart(match: RegExpExecArray): ProcessedPart {
+  const openingTag = match[0].substring(0, match[0].indexOf('>') + 1)
+  const typeMatch = openingTag.match(/type="([^"]+)"/)
+  const identifierMatch = openingTag.match(/identifier="([^"]+)"/)
+  const titleMatch = openingTag.match(/title="([^"]+)"/)
+  const languageMatch = openingTag.match(/language="([^"]+)"/)
+  const body = match[5] ? match[5].trim() : ''
+
+  return {
+    type: 'artifact',
+    content: body,
+    loading: true,
+    artifact: {
+      identifier: identifierMatch ? identifierMatch[1] : '',
+      title: titleMatch ? titleMatch[1] : '',
+      type: typeMatch ? (typeMatch[1] as ArtifactType) : 'text/markdown',
+      language: languageMatch ? languageMatch[1] : undefined
+    }
+  }
+}
+
+/** Exported for unit tests — production callers use useBlockContent / extractArtifactsFromContent. */
+export function generatePart(
   content: string,
   status: DisplayAssistantMessageBlock['status']
 ): ProcessedPart[] {
+  if (
+    lastGeneratePartResult &&
+    lastGeneratePartContent === content &&
+    lastGeneratePartStatus === status
+  ) {
+    return lastGeneratePartResult
+  }
+
   const parts: ProcessedPart[] = []
-
-  // 定义所有可能的标签匹配模式
-  const tagPatterns = [
-    // antThinking 标签 (闭合)
-    {
-      name: 'thinking',
-      regex: /<antThinking>(.*?)<\/antThinking>/s,
-      process: (match: RegExpExecArray) => ({
-        type: 'thinking' as const,
-        content: match[1].trim(),
-        loading: false
-      })
-    },
-    // antThinking 标签 (未闭合)
-    {
-      name: 'thinking-unclosed',
-      regex: /<antThinking>([^<]*)/s,
-      process: (match: RegExpExecArray) => ({
-        type: 'thinking' as const,
-        content: match[1].trim(),
-        loading: false
-      })
-    },
-    // antArtifact 标签 (闭合)
-    {
-      name: 'artifact',
-      regex: /<antArtifact\s+([^>]*)>([\s\S]*?)<\/antArtifact>/s,
-      process: (match: RegExpExecArray) => {
-        const attributesStr = match[1]
-        const content = match[2].trim()
-        const attributes = parseAttributes(attributesStr)
-
-        return {
-          type: 'artifact' as const,
-          content,
-          loading: false,
-          artifact: {
-            identifier: attributes.identifier || '',
-            title: attributes.title || '',
-            type: (attributes.type || 'text/markdown') as ArtifactType,
-            language: attributes.language
-          }
-        }
-      }
-    },
-    // antArtifact 标签 (未闭合)
-    {
-      name: 'artifact-unclosed',
-      // 匹配开始的标签和属性，后面跟着所有剩余内容
-      regex:
-        /<antArtifact\s+(?=.*\btype="([^"]+)")(?=.*\bidentifier="([^"]+)")(?=.*\btitle="([^"]+)")(?:\s+language="([^"]+)")?\s*(?:[^>]*?)>([\s\S]*)/s,
-      process: (match: RegExpExecArray) => {
-        // 提取完整的标签内容用于属性匹配
-        const openingTag = match[0].substring(0, match[0].indexOf('>') + 1)
-        const typeMatch = openingTag.match(/type="([^"]+)"/)
-        const identifierMatch = openingTag.match(/identifier="([^"]+)"/)
-        const titleMatch = openingTag.match(/title="([^"]+)"/)
-        const languageMatch = openingTag.match(/language="([^"]+)"/)
-
-        // 提取内容部分 - 直接使用捕获组获取内容，更可靠
-        const content = match[5] ? match[5].trim() : ''
-
-        // 添加调试日志
-        // console.log('Processing unclosed artifact:', {
-        //   type: typeMatch ? typeMatch[1] : 'text/markdown',
-        //   identifier: identifierMatch ? identifierMatch[1] : '',
-        //   title: titleMatch ? titleMatch[1] : '',
-        //   contentLength: content.length
-        // })
-
-        return {
-          type: 'artifact' as const,
-          content,
-          loading: true,
-          artifact: {
-            identifier: identifierMatch ? identifierMatch[1] : '',
-            title: titleMatch ? titleMatch[1] : '',
-            type: typeMatch ? (typeMatch[1] as ArtifactType) : 'text/markdown',
-            language: languageMatch ? languageMatch[1] : undefined
-          }
-        }
-      }
-    },
-    // tool_call 标签
-    {
-      name: 'tool_call',
-      regex: /<tool_call(?:\s+([^>]*))?>/,
-      process: (match: RegExpExecArray) => {
-        const attributes = parseAttributes(match[1])
-        return {
-          type: 'tool_call' as const,
-          content: '',
-          loading: true,
-          tool_call: {
-            status: 'calling' as const,
-            name: attributes?.name,
-            error: attributes?.error
-          }
-        }
-      }
-    },
-    // tool_response 标签
-    {
-      name: 'tool_response',
-      regex: /<tool_response(?:\s+([^>]*))?>/,
-      process: null // 特殊处理
-    },
-    // tool_call_end 标签
-    {
-      name: 'tool_call_end',
-      regex: /<tool_call_end(?:\s+([^>]*))?>/,
-      process: null // 特殊处理
-    },
-    // tool_call_error 标签
-    {
-      name: 'tool_call_error',
-      regex: /<tool_call_error(?:\s+([^>]*))?>/,
-      process: null // 特殊处理
-    },
-    {
-      name: 'maximum_tool_calls_reached',
-      regex: /<maximum_tool_calls_reached(?:\s+([^>]*))?>/,
-      process: null // 特殊处理
-    }
-  ]
-  const toolRelatedPatterns = [
-    'tool_response',
-    'tool_call_end',
-    'tool_call_error',
-    'tool_call',
-    'maximum_tool_calls_reached'
-  ]
-
-  // 从头到尾扫描内容
   let currentPosition = 0
   let currentToolCallIndex = -1
 
   while (currentPosition < content.length) {
-    // 尝试匹配所有可能的标签
-    let earliestMatch: {
-      index: number
-      pattern: (typeof tagPatterns)[0]
-      match: RegExpExecArray
-    } | null = null
+    const earliestMatch = findEarliestTag(content, currentPosition, status)
 
-    for (const pattern of tagPatterns) {
-      // 如果消息正在生成中且是toolcall相关标签，则跳过检测
-      if (
-        status === 'loading' &&
-        [
-          'tool_call',
-          'tool_response',
-          'tool_call_end',
-          'tool_call_error',
-          'maximum_tool_calls_reached'
-        ].includes(pattern.name)
-      ) {
-        continue
-      }
-
-      // 避免lastIndex问题，每次创建新的正则表达式
-      const regex = new RegExp(pattern.regex)
-      const match = regex.exec(content.substring(currentPosition))
-
-      if (match) {
-        const index = match.index + currentPosition
-
-        if (!earliestMatch || index < earliestMatch.index) {
-          earliestMatch = { index, pattern, match }
-        }
-      }
-    }
-
-    // 如果找到标签
-    if (earliestMatch) {
-      // 如果标签前有文本，添加为文本部分
-      if (earliestMatch.index > currentPosition) {
-        const text = content.substring(currentPosition, earliestMatch.index).trim()
-        if (text) {
-          parts.push({
-            type: 'text',
-            content: text
-          })
-        }
-      }
-
-      // 处理找到的标签
-      const { pattern, match } = earliestMatch
-
-      // 根据标签类型进行处理
-      if (pattern.name === 'tool_call') {
-        // 计算标签结束位置
-        const tagEndIndex = content.indexOf('>', earliestMatch.index) + 1
-
-        // 寻找下一个工具相关标签
-        let nextToolTagIndex = content.length
-
-        for (const tagName of toolRelatedPatterns) {
-          const nextTagRegex = new RegExp(`<${tagName}(?:\\s+([^>]*))?>`)
-          const nextMatch = nextTagRegex.exec(content.substring(tagEndIndex))
-
-          if (nextMatch) {
-            const index = nextMatch.index + tagEndIndex
-            if (index < nextToolTagIndex) {
-              nextToolTagIndex = index
-            }
-          }
-        }
-
-        const toolCallContent = content.substring(tagEndIndex, nextToolTagIndex).trim()
-
-        const attributes = parseAttributes(match[1])
-        parts.push({
-          type: 'tool_call',
-          content: toolCallContent,
-          loading: true,
-          tool_call: {
-            status: 'calling',
-            name: attributes?.name,
-            error: attributes?.error
-          }
-        })
-
-        currentToolCallIndex = parts.length - 1
-        currentPosition = nextToolTagIndex
-      } else if (pattern.name === 'tool_response') {
-        if (currentToolCallIndex !== -1 && parts[currentToolCallIndex].type === 'tool_call') {
-          // 计算标签结束位置
-          const tagEndIndex = content.indexOf('>', earliestMatch.index) + 1
-
-          // 寻找下一个工具相关标签
-          let nextToolTagIndex = content.length
-
-          for (const tagName of toolRelatedPatterns) {
-            const nextTagRegex = new RegExp(`<${tagName}(?:\\s+([^>]*))?>`)
-            const nextMatch = nextTagRegex.exec(content.substring(tagEndIndex))
-
-            if (nextMatch) {
-              const index = nextMatch.index + tagEndIndex
-              if (index < nextToolTagIndex) {
-                nextToolTagIndex = index
-              }
-            }
-          }
-
-          const responseContent = content.substring(tagEndIndex, nextToolTagIndex).trim()
-
-          // 更新工具调用部分
-          parts[currentToolCallIndex].content += '\n' + responseContent
-          parts[currentToolCallIndex].tool_call!.status = 'response'
-
-          // 如果有属性
-          const attributes = parseAttributes(match[1])
-          if (attributes) {
-            if (attributes.name) {
-              parts[currentToolCallIndex].tool_call!.name = attributes.name
-            }
-            if (attributes.error) {
-              parts[currentToolCallIndex].tool_call!.error = attributes.error
-            }
-          }
-
-          currentPosition = nextToolTagIndex
-        } else {
-          // 如果找不到对应的工具调用，跳过此标签
-          currentPosition = content.indexOf('>', earliestMatch.index) + 1
-        }
-      } else if (pattern.name === 'tool_call_end') {
-        if (
-          currentToolCallIndex !== -1 &&
-          parts[currentToolCallIndex].type === 'tool_call' &&
-          parts[currentToolCallIndex].tool_call!.status !== 'end'
-        ) {
-          // 更新为完成状态
-          parts[currentToolCallIndex].loading = false
-          parts[currentToolCallIndex].tool_call!.status = 'end'
-
-          // 如果有属性
-          const attributes = parseAttributes(match[1])
-          if (attributes) {
-            if (attributes.name) {
-              parts[currentToolCallIndex].tool_call!.name = attributes.name
-            }
-            if (attributes.error) {
-              parts[currentToolCallIndex].tool_call!.error = attributes.error
-            }
-          }
-        } else {
-          // 补偿机制：找不到对应的tool_call，创建一个新的
-          const attributes = parseAttributes(match[1])
-          parts.push({
-            type: 'tool_call',
-            content: '',
-            loading: false,
-            tool_call: {
-              status: 'end',
-              name: attributes?.name,
-              error: attributes?.error
-            }
-          })
-          currentToolCallIndex = parts.length - 1
-        }
-
-        // 移动到标签结束位置
-        currentPosition = content.indexOf('>', earliestMatch.index) + 1
-      } else if (pattern.name === 'tool_call_error') {
-        if (
-          currentToolCallIndex !== -1 &&
-          parts[currentToolCallIndex].type === 'tool_call' &&
-          parts[currentToolCallIndex].tool_call!.status !== 'end'
-        ) {
-          // 更新为错误状态
-          parts[currentToolCallIndex].loading = false
-          parts[currentToolCallIndex].tool_call!.status = 'error'
-
-          // 如果有属性
-          const attributes = parseAttributes(match[1])
-          if (attributes) {
-            if (attributes.name) {
-              parts[currentToolCallIndex].tool_call!.name = attributes.name
-            }
-            if (attributes.error) {
-              parts[currentToolCallIndex].tool_call!.error = attributes.error
-            }
-          }
-        } else {
-          // 补偿机制：找不到对应的tool_call，创建一个新的
-          const attributes = parseAttributes(match[1])
-          parts.push({
-            type: 'tool_call',
-            content: '',
-            loading: false,
-            tool_call: {
-              status: 'error',
-              name: attributes?.name,
-              error: attributes?.error
-            }
-          })
-          currentToolCallIndex = parts.length - 1
-        }
-
-        // 移动到标签结束位置
-        currentPosition = content.indexOf('>', earliestMatch.index) + 1
-      } else if (pattern.name === 'maximum_tool_calls_reached') {
-        // 使用标签的处理函数
-        parts.push({
-          type: 'text',
-          content: 'Maximum tool calls reached'
-        })
-        currentPosition = content.indexOf('>', earliestMatch.index) + 1
-      } else if (pattern.process) {
-        // 使用标签的处理函数
-        parts.push(pattern.process(match))
-
-        // 移动到标签结束位置
-        if (pattern.name.includes('unclosed')) {
-          // 未闭合标签，移动到匹配内容之后
-          if (pattern.name === 'artifact-unclosed') {
-            // 对于未闭合的artifact标签，将剩余的所有内容都归属于它
-            // console.log(
-            //   'Setting currentPosition to end of content for unclosed artifact at index:',
-            //   earliestMatch.index
-            // )
-            // console.log('Content length:', content.length)
-            currentPosition = content.length
-          } else {
-            currentPosition = earliestMatch.index + match[0].length
-          }
-        } else {
-          // 闭合标签，移动到结束标签之后
-          const fullTagLength =
-            pattern.name === 'thinking'
-              ? match[0].length
-              : content
-                  .substring(earliestMatch.index)
-                  .indexOf(
-                    '</ant' + pattern.name.charAt(0).toUpperCase() + pattern.name.slice(1) + '>'
-                  ) +
-                ('</ant' + pattern.name.charAt(0).toUpperCase() + pattern.name.slice(1) + '>')
-                  .length
-
-          currentPosition = earliestMatch.index + fullTagLength
-        }
-      } else {
-        // 未知标签类型，跳过
-        currentPosition = earliestMatch.index + 1
-      }
-    } else {
-      // 如果没有找到任何标签，添加剩余内容为文本
+    if (!earliestMatch) {
       const remainingText = content.substring(currentPosition).trim()
       if (remainingText) {
         parts.push({
@@ -507,17 +348,153 @@ function generatePart(
       }
       break
     }
-  }
 
-  // 如果没有任何部分，返回原始内容
-  if (parts.length === 0) {
-    return [
-      {
-        type: 'text',
-        content: content
+    if (earliestMatch.index > currentPosition) {
+      const text = content.substring(currentPosition, earliestMatch.index).trim()
+      if (text) {
+        parts.push({
+          type: 'text',
+          content: text
+        })
       }
-    ]
+    }
+
+    const { kind, match } = earliestMatch
+
+    if (kind === 'tool_call') {
+      const tagEndIndex = content.indexOf('>', earliestMatch.index) + 1
+      const nextToolTagIndex = findNextToolRelatedTagIndex(content, tagEndIndex)
+      const toolCallContent = content.substring(tagEndIndex, nextToolTagIndex).trim()
+      const attributes = parseAttributes(match[1])
+      parts.push({
+        type: 'tool_call',
+        content: toolCallContent,
+        loading: true,
+        tool_call: {
+          status: 'calling',
+          name: attributes?.name,
+          error: attributes?.error
+        }
+      })
+      currentToolCallIndex = parts.length - 1
+      currentPosition = nextToolTagIndex
+    } else if (kind === 'tool_response') {
+      if (currentToolCallIndex !== -1 && parts[currentToolCallIndex].type === 'tool_call') {
+        const tagEndIndex = content.indexOf('>', earliestMatch.index) + 1
+        const nextToolTagIndex = findNextToolRelatedTagIndex(content, tagEndIndex)
+        const responseContent = content.substring(tagEndIndex, nextToolTagIndex).trim()
+
+        parts[currentToolCallIndex].content += '\n' + responseContent
+        parts[currentToolCallIndex].tool_call!.status = 'response'
+
+        const attributes = parseAttributes(match[1])
+        if (attributes.name) {
+          parts[currentToolCallIndex].tool_call!.name = attributes.name
+        }
+        if (attributes.error) {
+          parts[currentToolCallIndex].tool_call!.error = attributes.error
+        }
+
+        currentPosition = nextToolTagIndex
+      } else {
+        currentPosition = content.indexOf('>', earliestMatch.index) + 1
+      }
+    } else if (kind === 'tool_call_end') {
+      if (
+        currentToolCallIndex !== -1 &&
+        parts[currentToolCallIndex].type === 'tool_call' &&
+        parts[currentToolCallIndex].tool_call!.status !== 'end'
+      ) {
+        parts[currentToolCallIndex].loading = false
+        parts[currentToolCallIndex].tool_call!.status = 'end'
+
+        const attributes = parseAttributes(match[1])
+        if (attributes.name) {
+          parts[currentToolCallIndex].tool_call!.name = attributes.name
+        }
+        if (attributes.error) {
+          parts[currentToolCallIndex].tool_call!.error = attributes.error
+        }
+      } else {
+        const attributes = parseAttributes(match[1])
+        parts.push({
+          type: 'tool_call',
+          content: '',
+          loading: false,
+          tool_call: {
+            status: 'end',
+            name: attributes?.name,
+            error: attributes?.error
+          }
+        })
+        currentToolCallIndex = parts.length - 1
+      }
+      currentPosition = content.indexOf('>', earliestMatch.index) + 1
+    } else if (kind === 'tool_call_error') {
+      if (
+        currentToolCallIndex !== -1 &&
+        parts[currentToolCallIndex].type === 'tool_call' &&
+        parts[currentToolCallIndex].tool_call!.status !== 'end'
+      ) {
+        parts[currentToolCallIndex].loading = false
+        parts[currentToolCallIndex].tool_call!.status = 'error'
+
+        const attributes = parseAttributes(match[1])
+        if (attributes.name) {
+          parts[currentToolCallIndex].tool_call!.name = attributes.name
+        }
+        if (attributes.error) {
+          parts[currentToolCallIndex].tool_call!.error = attributes.error
+        }
+      } else {
+        const attributes = parseAttributes(match[1])
+        parts.push({
+          type: 'tool_call',
+          content: '',
+          loading: false,
+          tool_call: {
+            status: 'error',
+            name: attributes?.name,
+            error: attributes?.error
+          }
+        })
+        currentToolCallIndex = parts.length - 1
+      }
+      currentPosition = content.indexOf('>', earliestMatch.index) + 1
+    } else if (kind === 'maximum_tool_calls_reached') {
+      parts.push({
+        type: 'text',
+        content: 'Maximum tool calls reached'
+      })
+      currentPosition = content.indexOf('>', earliestMatch.index) + 1
+    } else if (kind === 'thinking') {
+      parts.push(buildThinkingPart(match))
+      currentPosition = earliestMatch.index + match[0].length
+    } else if (kind === 'artifact') {
+      if (earliestMatch.unclosed) {
+        parts.push(buildUnclosedArtifactPart(match))
+        currentPosition = content.length
+      } else {
+        parts.push(buildClosedArtifactPart(match))
+        currentPosition = earliestMatch.index + match[0].length
+      }
+    } else {
+      currentPosition = earliestMatch.index + 1
+    }
   }
 
-  return parts
+  const result =
+    parts.length === 0
+      ? [
+          {
+            type: 'text' as const,
+            content
+          }
+        ]
+      : parts
+
+  lastGeneratePartContent = content
+  lastGeneratePartStatus = status
+  lastGeneratePartResult = result
+  return result
 }

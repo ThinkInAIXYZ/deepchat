@@ -469,6 +469,8 @@ type ViewportAnchor = {
   viewportOffset: number
 }
 let anchorRestoreFrame: number | null = null
+/** Coalesce auto-follow / measure / stream-revision scroll writes into one tick. */
+let pendingScrollToBottom: { force: boolean } | false = false
 
 const resolveChatInputBoxElement = () =>
   (chatInputHeroHostRef.value?.querySelector(
@@ -623,19 +625,21 @@ type PendingAnchorRestore = {
 
 let pendingAnchorRestoreState: PendingAnchorRestore | null = null
 
+function isBottomFollowingMode(): boolean {
+  return (
+    shouldAutoFollow.value &&
+    (scrollMode.value === 'initial-bottom' || scrollMode.value === 'auto-follow')
+  )
+}
+
 function scheduleViewportAnchorRestore(
   anchor: ViewportAnchor | null,
   heightDelta = 0,
   measuredMessageId?: string
 ): void {
-  if (isProgrammaticScrollActive()) {
-    return
-  }
-
-  // While the user is actively scrolling, never write scrollTop from measure
-  // paths — height map still updates, but fighting the gesture is what makes
-  // scrolling feel sticky/janky.
-  if (hasRecentUserScrollAwayIntent()) {
+  // Auto-follow and reading-anchor restore must be mutually exclusive: both write
+  // scrollTop and form a feedback loop with ResizeObserver measurement.
+  if (isBottomFollowingMode() || isProgrammaticScrollActive() || hasRecentUserScrollAwayIntent()) {
     return
   }
 
@@ -664,13 +668,21 @@ function scheduleViewportAnchorRestore(
     const pending = pendingAnchorRestoreState
     pendingAnchorRestoreState = null
     if (!pending) return
-    if (isProgrammaticScrollActive() || isListScrolling.value || hasRecentUserScrollAwayIntent()) {
+    if (
+      isBottomFollowingMode() ||
+      isProgrammaticScrollActive() ||
+      isListScrolling.value ||
+      hasRecentUserScrollAwayIntent()
+    ) {
       return
     }
 
     const container = scrollContainer.value
     const root = messageSearchRoot.value
     if (!container || !root) return
+
+    // Mark restore writes so onScroll does not treat them as user intent.
+    markProgrammaticScroll(120)
 
     const currentAnchor = pending.anchor
     if (currentAnchor) {
@@ -708,6 +720,7 @@ function hasRecentUserScrollAwayIntent(): boolean {
 
 function enterAnchoredReadingMode(): void {
   programmaticScrollUntil = 0
+  pendingScrollToBottom = false
   isNearBottom.value = false
   scrollMode.value = 'anchored-reading'
   shouldAutoFollow.value = false
@@ -831,6 +844,8 @@ function scrollDomToBottom(): void {
   // Use the container's max scrollTop rather than `bottomScrollAnchor.scrollIntoView`:
   // the anchor sits before the sticky input area in flow, so scrollIntoView stops
   // short by the input's height and never reaches the true bottom during generation.
+  // Always tag programmatic writes so measure/onScroll cannot race into anchor restore.
+  markProgrammaticScroll(160)
   el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
   syncMessageViewportMetrics(el)
 }
@@ -842,11 +857,28 @@ function scrollToBottom(force = false) {
     shouldAutoFollow.value = true
   } else if (!uiSettingsStore.autoScrollEnabled || !shouldAutoFollow.value) {
     return
+  } else {
+    // Continuous auto-follow also needs the short programmatic window; otherwise a
+    // frame where content grew before scrollTop caught up looks like user scroll-away.
+    markProgrammaticScroll(160)
   }
 
+  // Coalesce stream-revision + measure + submit paths into a single nextTick write.
+  if (pendingScrollToBottom) {
+    pendingScrollToBottom.force = pendingScrollToBottom.force || force
+    return
+  }
+
+  pendingScrollToBottom = { force }
   void nextTick(() => {
+    const pending = pendingScrollToBottom
+    pendingScrollToBottom = false
+    if (!pending) return
+    if (!pending.force && (!uiSettingsStore.autoScrollEnabled || !shouldAutoFollow.value)) {
+      return
+    }
     scrollDomToBottom()
-    if (force) {
+    if (pending.force) {
       scheduleScrollMetricsRead()
     }
   })
@@ -1460,11 +1492,28 @@ watch(
   bindPendingAssistantRenderKey
 )
 
-const displayMessages = computed(() => {
+/**
+ * Stable history list: intentionally does NOT read streamRevision / streamingBlocks,
+ * so token-level updates do not rebuild every display message in long sessions.
+ * The in-flight assistant row is owned by streamingDisplayTail instead.
+ */
+const stableDisplayMessages = computed(() => {
+  void messageStore.lastPersistedRevision
+  const streamId =
+    messageStore.isStreaming && hasInlineStreamingTarget.value
+      ? messageStore.currentStreamMessageId
+      : null
+
   const msgs: DisplayMessage[] = []
   const activeMessageIds = new Set<string>()
+  const cache = messageStore.messageCache
 
-  for (const message of messageStore.messages) {
+  for (const id of messageStore.messageIds) {
+    if (streamId && id === streamId) {
+      continue
+    }
+    const message = cache.get(id)
+    if (!message) continue
     activeMessageIds.add(message.id)
     const displayMessage = toDisplayMessage(message)
     if (shouldRenderDisplayMessage(displayMessage)) {
@@ -1473,17 +1522,31 @@ const displayMessages = computed(() => {
   }
 
   for (const cachedId of displayMessageCache.keys()) {
-    if (!activeMessageIds.has(cachedId)) {
+    if (!activeMessageIds.has(cachedId) && cachedId !== streamId) {
       displayMessageCache.delete(cachedId)
     }
   }
 
-  // Single-track rendering: streaming blocks are folded into their message record
-  // in place (applyStreamingBlocksToMessage), so the generating message is already
-  // in `msgs` above as a normal item. Only when that record isn't in the store yet
-  // do we append a virtual streaming item as a fallback. Stream end then reuses the
-  // same id/node — no separate trailing row, no completion flash.
-  if (
+  return msgs
+})
+
+/** High-frequency streaming row + pending placeholder only. */
+const streamingDisplayTail = computed(() => {
+  void messageStore.streamRevision
+  const msgs: DisplayMessage[] = []
+
+  // Single-track: stream blocks are folded into the message record in place, so the
+  // generating message is the same id/node through completion (no flash).
+  if (messageStore.isStreaming && hasInlineStreamingTarget.value) {
+    const streamId = messageStore.currentStreamMessageId
+    const record = streamId ? messageStore.messageCache.get(streamId) : undefined
+    if (record) {
+      const displayMessage = toDisplayMessage(record)
+      if (shouldRenderDisplayMessage(displayMessage)) {
+        msgs.push(displayMessage)
+      }
+    }
+  } else if (
     messageStore.isStreaming &&
     messageStore.streamingBlocks.length > 0 &&
     !hasInlineStreamingTarget.value &&
@@ -1491,11 +1554,44 @@ const displayMessages = computed(() => {
   ) {
     msgs.push(toStreamingMessage(messageStore.streamingBlocks, messageStore.currentStreamMessageId))
   }
+
   if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
     msgs.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
   }
 
   return msgs
+})
+
+const displayMessages = computed(() => {
+  const stable = stableDisplayMessages.value
+  const tail = streamingDisplayTail.value
+  if (tail.length === 0) {
+    return stable
+  }
+
+  const streamId = messageStore.currentStreamMessageId
+  // Common path: virtual/fallback streaming rows and pending placeholders append at end.
+  if (!(streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId)) {
+    return stable.concat(tail)
+  }
+
+  // Re-insert the in-flight row at its messageIds order while reusing stable objects.
+  const stableById = new Map(stable.map((message) => [message.id, message]))
+  const ordered: DisplayMessage[] = []
+  for (const id of messageStore.messageIds) {
+    if (id === streamId) {
+      ordered.push(tail[0])
+      continue
+    }
+    const item = stableById.get(id)
+    if (item) {
+      ordered.push(item)
+    }
+  }
+  for (let i = 1; i < tail.length; i += 1) {
+    ordered.push(tail[i])
+  }
+  return ordered
 })
 
 const messageWindow = useMessageWindow({
@@ -1586,13 +1682,13 @@ function applyMessageMeasure(payload: { messageId: string; height: number }) {
   // Snapshot the reading anchor from pre-change geometry: capturing after
   // setMeasuredHeight resizes the row would compare against post-layout DOM and
   // let anchored-reading/manual-jump drift when content above the viewport grows.
-  const isBottomFollowing =
-    scrollMode.value === 'initial-bottom' || scrollMode.value === 'auto-follow'
+  const isBottomFollowing = isBottomFollowingMode()
   const preChangeAnchor = isBottomFollowing ? null : captureViewportAnchor()
 
   const delta = messageWindow.setMeasuredHeight(payload.messageId, payload.height)
   if (delta === 0) return
   if (isBottomFollowing) {
+    // Unified coalesced auto-follow path (same as streamRevision watcher).
     scrollToBottom(scrollMode.value === 'initial-bottom')
   } else {
     scheduleViewportAnchorRestore(preChangeAnchor, delta, payload.messageId)
@@ -2757,6 +2853,7 @@ onUnmounted(() => {
     anchorRestoreFrame = null
   }
   pendingAnchorRestoreState = null
+  pendingScrollToBottom = false
   if (scrollReadFrame !== null) {
     window.cancelAnimationFrame(scrollReadFrame)
     scrollReadFrame = null

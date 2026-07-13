@@ -1532,7 +1532,7 @@ describe('ChatPage', () => {
     expect(before[0].content[0]?.content).toBe('first')
     expect(before[0].usage.total_tokens).toBe(0)
 
-    messageStore.messages[0] = {
+    const updatedMessage = {
       ...messageStore.messages[0],
       content: JSON.stringify([
         {
@@ -1549,6 +1549,11 @@ describe('ChatPage', () => {
       }),
       updatedAt: initialMessage.updatedAt
     }
+    // Production updates go through messageCache (+ persisted revision on load/persist).
+    // displayMessages stable path intentionally does not scan streamRevision.
+    messageStore.messages[0] = updatedMessage
+    messageStore.messageCache.set(String(updatedMessage.id), updatedMessage)
+    messageStore.lastPersistedRevision += 1
 
     await flushPromises()
 
