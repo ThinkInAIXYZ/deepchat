@@ -29,7 +29,7 @@ describeIfNativeSqlite('Agent Memory #28 recall scale', () => {
            FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
         )
         .get() as { schema_version: number; policy_version: number; tokenizer: string } | undefined
-      expect(ftsMeta).toEqual({ schema_version: 4, policy_version: 2, tokenizer: 'trigram' })
+      expect(ftsMeta).toEqual({ schema_version: 4, policy_version: 3, tokenizer: 'trigram' })
 
       const insert = db.prepare(
         `INSERT INTO agent_memory (

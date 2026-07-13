@@ -111,6 +111,31 @@ const buildHighlightedFragment = (value: string, query: string): DocumentFragmen
   return fragment
 }
 
+const getSearchRootElement = (root: ParentNode | null | undefined): Element | null => {
+  if (!root) return null
+  if (root instanceof Element) return root
+  if (root instanceof Document) return root.documentElement
+  if (root instanceof DocumentFragment) {
+    return root.querySelector('[data-chat-search-root]') ?? null
+  }
+  return null
+}
+
+const setAppliedSearchQuery = (root: ParentNode, query: string | null): void => {
+  const element = getSearchRootElement(root)
+  if (!element) return
+  if (query === null || query === '') {
+    element.removeAttribute('data-chat-search-query')
+    return
+  }
+  element.setAttribute('data-chat-search-query', query)
+}
+
+const getAppliedSearchQuery = (root: ParentNode): string | null => {
+  const element = getSearchRootElement(root)
+  return element?.getAttribute('data-chat-search-query') ?? null
+}
+
 export const clearChatSearchHighlights = (root: ParentNode | null | undefined): void => {
   if (!root) {
     return
@@ -129,7 +154,10 @@ export const clearChatSearchHighlights = (root: ParentNode | null | undefined): 
 
   root.querySelectorAll<HTMLElement>(ACTIVE_HIGHLIGHT_SELECTOR).forEach((highlight) => {
     highlight.removeAttribute('data-chat-search-active')
+    highlight.classList.remove('chat-search-highlight--active')
   })
+
+  setAppliedSearchQuery(root, null)
 }
 
 export const applyChatSearchHighlights = (
@@ -140,11 +168,17 @@ export const applyChatSearchHighlights = (
     return []
   }
 
-  clearChatSearchHighlights(root)
-
   const normalizedQuery = query.trim()
   if (!normalizedQuery) {
+    clearChatSearchHighlights(root)
     return []
+  }
+
+  // Same query: keep existing marks and only highlight newly mounted text nodes.
+  // Full clear+rebuild on every virtual-window change is the main flicker source.
+  const appliedQuery = getAppliedSearchQuery(root)
+  if (appliedQuery !== null && appliedQuery !== normalizedQuery) {
+    clearChatSearchHighlights(root)
   }
 
   const searchableNodes = collectSearchableTextNodes(root)
@@ -158,6 +192,7 @@ export const applyChatSearchHighlights = (
     node.parentNode.replaceChild(fragment, node)
   })
 
+  setAppliedSearchQuery(root, normalizedQuery)
   return Array.from(root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR))
 }
 

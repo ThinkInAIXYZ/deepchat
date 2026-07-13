@@ -139,6 +139,7 @@ describe('Agent Memory #28 bounded workloads', () => {
         model: { providerId: 'decision-provider', modelId: 'decision-model' }
       })
       expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('expected extraction to succeed')
       expect(result.createdIds).toHaveLength(8)
       expect(search).toHaveBeenCalledTimes(8)
       expect(listByIds).toHaveBeenCalledTimes(1)
@@ -174,7 +175,7 @@ describe('Agent Memory #28 bounded workloads', () => {
         status: 'pending_embedding',
         createdAt: index + 1
       })
-      repo.updateStatus(`${agent.id}-memory`, 'embedded', {
+      repo.seedLegacyStatus(`${agent.id}-memory`, 'embedded', {
         embeddingId: `${agent.id}-memory`,
         embeddingDim: 4,
         embeddingModel: 'shared-provider:shared-model'

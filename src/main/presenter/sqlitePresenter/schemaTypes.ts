@@ -18,5 +18,5 @@ export interface SchemaTableSpec {
   createdOnFreshInstall: boolean
   columns: SchemaColumnSpec[]
   indexes: SchemaIndexSpec[]
-  afterRepair?: (db: Database.Database) => void
+  afterRepair?: (db: Database.Database, addedColumns: ReadonlySet<string>) => void
 }

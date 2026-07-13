@@ -162,7 +162,8 @@ export class ReflectionService {
         kind: 'reflection',
         content: trimmed,
         importance: REFLECTION_IMPORTANCE,
-        status: 'pending_embedding',
+        lifecycleState: 'active',
+        embeddingState: 'pending',
         sourceSession,
         provenanceKey
       })

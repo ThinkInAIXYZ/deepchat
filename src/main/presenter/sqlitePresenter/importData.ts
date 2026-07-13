@@ -1,9 +1,24 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { configureSQLiteConnection } from './connectionConfig'
 import { shouldExcludeFromSqliteCopy } from './sqliteCopyExclusions'
+import {
+  isAgentMemoryEmbeddingState,
+  isAgentMemoryKind,
+  isAgentMemoryLifecycleState,
+  isLegacyAgentMemoryStatus,
+  normalizeCanonicalStateFromLegacy,
+  projectLegacyStatus
+} from '../memoryPresenter/domain/stateModel'
+import type {
+  AgentMemoryEmbeddingState,
+  AgentMemoryLifecycleState,
+  AgentMemoryStatus
+} from '../memoryPresenter/domain/types'
 
 export interface ImportSummary {
   tableCounts: Record<string, number>
+  repairedRowCounts: Record<string, number>
+  skippedRowCounts: Record<string, number>
 }
 
 type ColumnInfo = {
@@ -45,15 +60,19 @@ export class DataImporter {
    */
   public async importData(): Promise<ImportSummary> {
     const tableCounts: Record<string, number> = {}
+    const repairedRowCounts: Record<string, number> = {}
+    const skippedRowCounts: Record<string, number> = {}
     const tables = this.getTablesInOrder()
 
     const importTransaction = this.targetDb.transaction(() => {
       for (const table of tables) {
         try {
-          const inserted = this.importTable(table)
-          if (inserted > 0) {
-            tableCounts[table] = inserted
+          const result = this.importTable(table)
+          if (result.inserted > 0) {
+            tableCounts[table] = result.inserted
           }
+          if (result.repaired > 0) repairedRowCounts[table] = result.repaired
+          if (result.skipped > 0) skippedRowCounts[table] = result.skipped
         } catch (error) {
           throw new Error(
             `Failed to import table ${table}: ${error instanceof Error ? error.message : String(error)}`
@@ -72,7 +91,7 @@ export class DataImporter {
 
     try {
       importTransaction()
-      return { tableCounts }
+      return { tableCounts, repairedRowCounts, skippedRowCounts }
     } catch (transactionError) {
       throw new Error(
         `Failed to import database: ${
@@ -125,24 +144,51 @@ export class DataImporter {
     return [...preferredTables, ...remainingTables]
   }
 
-  private importTable(tableName: string): number {
+  private importTable(tableName: string): {
+    inserted: number
+    repaired: number
+    skipped: number
+  } {
     const sourceColumns = this.getTableColumns(this.sourceDb, tableName)
     const targetColumns = this.getTableColumns(this.targetDb, tableName)
 
     if (targetColumns.length === 0) {
-      return 0
+      return { inserted: 0, repaired: 0, skipped: 0 }
     }
 
     const targetColumnNames = new Set(targetColumns.map((column) => column.name))
     const commonColumns = sourceColumns.filter((column) => targetColumnNames.has(column.name))
 
     if (commonColumns.length === 0) {
-      return 0
+      return { inserted: 0, repaired: 0, skipped: 0 }
     }
 
     const pkColumns = targetColumns
       .filter((column) => column.pk > 0 && commonColumns.some((col) => col.name === column.name))
       .sort((a, b) => a.pk - b.pk)
+
+    const sourceColumnNames = new Set(sourceColumns.map((column) => column.name))
+    const targetColumnNamesInInsert = commonColumns.map((column) => column.name)
+    const normalizeAgentMemoryState =
+      tableName === 'agent_memory' &&
+      targetColumnNames.has('lifecycle_state') &&
+      targetColumnNames.has('embedding_state')
+    if (normalizeAgentMemoryState) {
+      if (!targetColumnNames.has('status')) {
+        throw new Error(
+          'Unsupported target agent_memory schema: canonical state requires legacy status shadow'
+        )
+      }
+      if (!targetColumnNamesInInsert.includes('status')) {
+        targetColumnNamesInInsert.push('status')
+      }
+      if (!targetColumnNamesInInsert.includes('lifecycle_state')) {
+        targetColumnNamesInInsert.push('lifecycle_state')
+      }
+      if (!targetColumnNamesInInsert.includes('embedding_state')) {
+        targetColumnNamesInInsert.push('embedding_state')
+      }
+    }
 
     const wrappedTableName = this.wrapIdentifier(tableName)
     const selectColumnsSql = commonColumns
@@ -153,26 +199,88 @@ export class DataImporter {
       .all() as Record<string, unknown>[]
 
     if (rows.length === 0) {
-      return 0
+      return { inserted: 0, repaired: 0, skipped: 0 }
     }
 
-    const insertPlaceholders = Array.from({ length: commonColumns.length }, () => '?').join(', ')
+    const insertColumnsSql = targetColumnNamesInInsert
+      .map((column) => this.wrapIdentifier(column))
+      .join(', ')
+    const insertPlaceholders = Array.from(
+      { length: targetColumnNamesInInsert.length },
+      () => '?'
+    ).join(', ')
     const insertSql =
       pkColumns.length > 0
-        ? `INSERT OR IGNORE INTO ${wrappedTableName} (${selectColumnsSql}) VALUES (${insertPlaceholders})`
-        : `INSERT INTO ${wrappedTableName} (${selectColumnsSql}) VALUES (${insertPlaceholders})`
+        ? `INSERT OR IGNORE INTO ${wrappedTableName} (${insertColumnsSql}) VALUES (${insertPlaceholders})`
+        : `INSERT INTO ${wrappedTableName} (${insertColumnsSql}) VALUES (${insertPlaceholders})`
     const insertStmt = this.targetDb.prepare(insertSql)
 
     let inserted = 0
+    let repaired = 0
+    let skipped = 0
     for (const row of rows) {
-      const values = commonColumns.map((column) => row[column.name])
+      let normalizedState:
+        | {
+            lifecycleState: AgentMemoryLifecycleState
+            embeddingState: AgentMemoryEmbeddingState
+            status: AgentMemoryStatus
+          }
+        | undefined
+      let repairedState = false
+      if (normalizeAgentMemoryState) {
+        if (!isAgentMemoryKind(row.kind)) {
+          skipped += 1
+          continue
+        }
+        const derived = normalizeCanonicalStateFromLegacy({
+          status: row.status,
+          kind: row.kind,
+          embedding_id: typeof row.embedding_id === 'string' ? row.embedding_id : null,
+          embedding_dim: typeof row.embedding_dim === 'number' ? row.embedding_dim : null,
+          embedding_model: typeof row.embedding_model === 'string' ? row.embedding_model : null
+        })
+        const hasLifecycleState = sourceColumnNames.has('lifecycle_state')
+        const hasEmbeddingState = sourceColumnNames.has('embedding_state')
+        if (hasLifecycleState && !isAgentMemoryLifecycleState(row.lifecycle_state)) {
+          skipped += 1
+          continue
+        }
+        if (hasEmbeddingState && !isAgentMemoryEmbeddingState(row.embedding_state)) {
+          skipped += 1
+          continue
+        }
+        const lifecycleState: AgentMemoryLifecycleState = hasLifecycleState
+          ? (row.lifecycle_state as AgentMemoryLifecycleState)
+          : derived.state.lifecycleState
+        const embeddingState: AgentMemoryEmbeddingState = hasEmbeddingState
+          ? (row.embedding_state as AgentMemoryEmbeddingState)
+          : derived.state.embeddingState
+        const projectedStatus = projectLegacyStatus(lifecycleState, embeddingState)
+        repairedState =
+          derived.repairedLegacyStatus ||
+          !isLegacyAgentMemoryStatus(row.status) ||
+          row.status !== projectedStatus
+        normalizedState = {
+          lifecycleState,
+          embeddingState,
+          status: projectedStatus
+        }
+      }
+      const values = targetColumnNamesInInsert.map((column) => {
+        if (!normalizedState) return row[column]
+        if (column === 'lifecycle_state') return normalizedState.lifecycleState
+        if (column === 'embedding_state') return normalizedState.embeddingState
+        if (column === 'status') return normalizedState.status
+        return row[column]
+      })
       const info = insertStmt.run(...values)
       if (pkColumns.length === 0 || info.changes > 0) {
         inserted++
+        if (repairedState) repaired++
       }
     }
 
-    return inserted
+    return { inserted, repaired, skipped }
   }
 
   private getTableColumns(db: Database.Database, tableName: string): ColumnInfo[] {

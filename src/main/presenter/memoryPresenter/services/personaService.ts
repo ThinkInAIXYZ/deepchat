@@ -70,7 +70,8 @@ export class PersonaService {
       kind: 'persona',
       content: trimmed,
       importance: 1,
-      status: 'fts_only',
+      lifecycleState: 'active',
+      embeddingState: 'not_applicable',
       sourceSession: sourceSession ?? null,
       personaState: 'draft'
     })

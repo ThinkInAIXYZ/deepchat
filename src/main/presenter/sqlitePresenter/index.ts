@@ -335,7 +335,9 @@ export class SQLitePresenter implements ISQLitePresenter {
 
     const migrateStart = performance.now()
     this.migrate()
-    this.agentMemoryTable.assertCurrentSchema()
+    this.agentMemoryTable.assertCurrentSchema({
+      backupBeforeLegacyBridgeRecovery: () => this.createDatabaseBackup('memory-state-repair')
+    })
     logger.info(
       `SQLitePresenter: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
     )
@@ -380,20 +382,29 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   private backupDatabase(): void {
+    this.createDatabaseBackup()
+  }
+
+  private createDatabaseBackup(reason?: string): string | null {
+    // Bypass mocked node:fs so recovery always copies the real database file.
+    const nativeFs = process.getBuiltinModule('fs')
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const backupPath = `${this.dbPath}.${timestamp}.bak`
+    const suffix = reason ? `.${reason}.bak` : '.bak'
+    const backupPath = `${this.dbPath}.${timestamp}${suffix}`
 
     try {
-      if (fs.existsSync(this.dbPath)) {
+      if (nativeFs.existsSync(this.dbPath)) {
         if (this.db?.open) {
           this.db.pragma('wal_checkpoint(TRUNCATE)')
         }
-        fs.copyFileSync(this.dbPath, backupPath)
+        nativeFs.copyFileSync(this.dbPath, backupPath)
         logger.info(`Database backed up to: ${backupPath}`)
+        return backupPath
       }
     } catch (error) {
       console.error('Error creating database backup:', error)
     }
+    return null
   }
 
   private cleanupDatabaseFiles(): void {
@@ -595,6 +606,7 @@ export class SQLitePresenter implements ISQLitePresenter {
               }
             }
           })
+          tables.forEach((table) => table.finalizeMigration?.(version))
           this.db
             .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
             .run(version, Date.now())

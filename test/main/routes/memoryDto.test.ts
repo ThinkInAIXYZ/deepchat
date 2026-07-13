@@ -42,7 +42,8 @@ function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
     category: null,
     content: 'redis listens on 6379',
     importance: 0.5,
-    status: 'embedded',
+    lifecycle_state: 'active',
+    embedding_state: 'ready',
     embedding_id: null,
     embedding_dim: null,
     embedding_model: null,
@@ -60,6 +61,7 @@ function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
     conflict_state: null,
     conflict_with: null,
     persona_state: null,
+    decision_revision: 1,
     ...overrides
   }
 }
@@ -161,12 +163,22 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
 
   it('maps conflict_with to camelCase conflictWith and accepts conflicted status', () => {
     const dto = toMemoryItemDto(
-      makeRow({ status: 'conflicted', conflict_with: 'm-target', conflict_state: null })
+      makeRow({
+        lifecycle_state: 'conflicted',
+        embedding_state: 'pending',
+        conflict_with: 'm-target',
+        conflict_state: null
+      })
     )
     const parsed = memoryListRoute.output.parse({ memories: [dto] })
     expect(parsed.memories[0].status).toBe('conflicted')
     expect(parsed.memories[0].conflictWith).toBe('m-target')
     expect('conflict_with' in parsed.memories[0]).toBe(false)
+  })
+
+  it('projects canonical state even when a storage shadow is stale', () => {
+    const row = { ...makeRow(), status: 'error' }
+    expect(toMemoryItemDto(row).status).toBe('embedded')
   })
 
   it('normalizes invalid persona_state values to null', () => {
@@ -736,7 +748,7 @@ describe('memory.getByIds route contract', () => {
     ).toBe(false)
     expect(
       memoryGetByIdsRoute.output.parse({
-        memories: [toMemoryItemDto(makeRow({ id: 'm1', status: 'archived' }))]
+        memories: [toMemoryItemDto(makeRow({ id: 'm1', lifecycle_state: 'archived' }))]
       }).memories[0].status
     ).toBe('archived')
   })
@@ -809,18 +821,18 @@ describe('memory.updated event contract', () => {
 })
 
 describe('formatMemorySourceRecordContent', () => {
-  const record = (role: ChatMessageRecord['role'], content: string): ChatMessageRecord =>
-    ({
-      id: 'msg-1',
-      sessionId: 's',
-      role,
-      content,
-      createdAt: 1000,
-      updatedAt: 1000,
-      status: 'sent',
-      orderSeq: 1,
-      tokenCount: 0
-    }) as ChatMessageRecord
+  const record = (role: ChatMessageRecord['role'], content: string): ChatMessageRecord => ({
+    id: 'msg-1',
+    sessionId: 's',
+    role,
+    content,
+    createdAt: 1000,
+    updatedAt: 1000,
+    status: 'sent',
+    orderSeq: 1,
+    isContextEdge: 0,
+    metadata: null
+  })
 
   it('returns readable text for user and assistant JSON records', () => {
     expect(formatMemorySourceRecordContent(record('user', JSON.stringify({ text: 'hello' })))).toBe(

@@ -144,8 +144,8 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
   refreshWorkingMemory(agentId: string): void {
     if (!this.ctx.canReadAgentMemory(agentId)) return
     const workingKey = this.workingMemoryKey(agentId)
-    const existing = this.resolveWorkingRow(agentId)
-    const blob = this.buildWorkingBlob(agentId)
+    let existing = this.resolveWorkingRow(agentId)
+    let blob = this.buildWorkingBlob(agentId)
     if (!blob) {
       if (existing) {
         this.ports.repository.delete(existing.id)
@@ -154,10 +154,37 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
       return
     }
     if (existing) {
-      if (existing.content === blob) return
-      this.ports.repository.updateContent(existing.id, blob, workingKey, Date.now())
-      this.ctx.markDomainMutationCommitted(agentId)
-      return
+      for (let attempt = 0; attempt < 2 && existing; attempt += 1) {
+        if (existing.content === blob) return
+        if (
+          this.ports.repository.updateInternalContent({
+            agentId,
+            id: existing.id,
+            expectedRevision: existing.decision_revision,
+            content: blob,
+            provenanceKey: workingKey,
+            at: Date.now()
+          })
+        ) {
+          this.ctx.markDomainMutationCommitted(agentId)
+          return
+        }
+        existing = this.resolveWorkingRow(agentId)
+        blob = this.buildWorkingBlob(agentId)
+        if (!blob) {
+          if (existing) {
+            this.ports.repository.delete(existing.id)
+            this.ctx.markDomainMutationCommitted(agentId)
+          }
+          return
+        }
+      }
+      if (existing) {
+        this.workingMemoryDirty.add(agentId)
+        this.scheduleDirtyRefresh(agentId)
+        logger.warn(`[Memory] working refresh CAS rejected twice for ${agentId}; retry scheduled`)
+        return
+      }
     }
     const now = Date.now()
     try {
@@ -167,7 +194,8 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
         kind: 'working',
         content: blob,
         importance: 0,
-        status: 'fts_only',
+        lifecycleState: 'active',
+        embeddingState: 'not_applicable',
         provenanceKey: workingKey,
         createdAt: now
       })

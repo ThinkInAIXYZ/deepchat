@@ -1,14 +1,13 @@
 import { createHash } from 'node:crypto'
 
-export const AGENT_MEMORY_FTS_POLICY_VERSION = 2
+export const AGENT_MEMORY_FTS_POLICY_VERSION = 3
 
-export const AGENT_MEMORY_FTS_EXCLUDED_STATUSES = ['archived', 'conflicted'] as const
 export const AGENT_MEMORY_FTS_EXCLUDED_KINDS = ['persona', 'working'] as const
 
 export interface AgentMemoryFtsPolicyRow {
   agent_id: string
   kind: string
-  status: string
+  lifecycle_state: string
   superseded_by: string | null
 }
 
@@ -22,9 +21,7 @@ export function isRecallableFtsRow<T extends AgentMemoryFtsPolicyRow>(
   return (
     !!row &&
     row.superseded_by === null &&
-    !AGENT_MEMORY_FTS_EXCLUDED_STATUSES.includes(
-      row.status as (typeof AGENT_MEMORY_FTS_EXCLUDED_STATUSES)[number]
-    ) &&
+    row.lifecycle_state === 'active' &&
     !AGENT_MEMORY_FTS_EXCLUDED_KINDS.includes(
       row.kind as (typeof AGENT_MEMORY_FTS_EXCLUDED_KINDS)[number]
     )
@@ -33,11 +30,10 @@ export function isRecallableFtsRow<T extends AgentMemoryFtsPolicyRow>(
 
 export function buildRecallablePredicate(alias?: string): string {
   const column = (name: string): string => (alias ? `${alias}.${name}` : name)
-  const excludedStatuses = AGENT_MEMORY_FTS_EXCLUDED_STATUSES.map(sqlLiteral).join(', ')
   const excludedKinds = AGENT_MEMORY_FTS_EXCLUDED_KINDS.map(sqlLiteral).join(', ')
   return [
     `${column('superseded_by')} IS NULL`,
-    `${column('status')} NOT IN (${excludedStatuses})`,
+    `${column('lifecycle_state')} = 'active'`,
     `${column('kind')} NOT IN (${excludedKinds})`
   ].join(' AND ')
 }

@@ -76,7 +76,19 @@ export const AGENT_MEMORY_HEALTH_KIND_KEYS = [
   'working'
 ] as const
 
+export const AGENT_MEMORY_LIFECYCLE_STATES = ['active', 'archived', 'conflicted'] as const
+
+export const AGENT_MEMORY_EMBEDDING_STATES = [
+  'pending',
+  'ready',
+  'error',
+  'fts_only',
+  'not_applicable'
+] as const
+
 export type AgentMemoryHealthKind = (typeof AGENT_MEMORY_HEALTH_KIND_KEYS)[number]
+export type AgentMemoryLifecycleState = (typeof AGENT_MEMORY_LIFECYCLE_STATES)[number]
+export type AgentMemoryEmbeddingState = (typeof AGENT_MEMORY_EMBEDDING_STATES)[number]
 
 function asNonEmptyTuple<T extends string>(values: readonly T[]): readonly [T, ...T[]] {
   if (values.length === 0) throw new Error('Expected a non-empty tuple')
@@ -101,6 +113,7 @@ export const AGENT_MEMORY_HEALTH_STATUS_KEYS = [
 ] as const
 
 export type AgentMemoryHealthStatus = (typeof AGENT_MEMORY_HEALTH_STATUS_KEYS)[number]
+export type LegacyAgentMemoryStatus = AgentMemoryHealthStatus
 
 export const AGENT_MEMORY_HEALTH_CATEGORY_KEYS = [
   ...AGENT_MEMORY_CATEGORIES,

@@ -13,13 +13,14 @@ import type {
 
 export type {
   AgentMemoryConflictState,
+  AgentMemoryEmbeddingState,
   AgentMemoryHealthStats,
   AgentMemoryInsertInput,
   AgentMemoryKind,
+  AgentMemoryLifecycleState,
   AgentMemoryLifecycleRow,
   AgentMemoryListOptions,
   AgentMemoryPersonaState,
-  AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryWorkingCandidateCursor,
   ConsolidationScanCursor,
@@ -46,6 +47,13 @@ export type {
   MemoryReflectionResult,
   MemorySearchHit,
   MemoryStatus,
+  MemoryTransitionTarget,
+  ResolveChallengerTransition,
+  ReviveSupersededTransition,
+  ArchiveChallengerTransition,
+  ArchiveConflictTargetTransition,
+  UserContentTransition,
+  InternalContentTransition,
   MemoryUpdateContext,
   MemoryVectorMatch,
   MemoryVectorQueryOptions,
@@ -56,6 +64,7 @@ export type {
   RetrievalCandidate,
   WriteMemoriesOptions
 } from './domain/types'
+export type { CanonicalAgentMemoryRow as AgentMemoryRow } from './domain/types'
 export type {
   AgentMemoryAuditActorType,
   AgentMemoryAuditInsertInput,

@@ -1,15 +1,81 @@
-import type { AgentMemoryCategory, AgentMemoryHealthCategory } from '@shared/types/agent-memory'
-import {
-  AGENT_MEMORY_HEALTH_KIND_KEYS,
-  AGENT_MEMORY_HEALTH_STATUS_KEYS
+import type {
+  AgentMemoryCategory,
+  AgentMemoryEmbeddingState,
+  AgentMemoryHealthCategory,
+  AgentMemoryLifecycleState,
+  LegacyAgentMemoryStatus
 } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_HEALTH_KIND_KEYS } from '@shared/types/agent-memory'
 
 export type MemoryModelRef = { providerId: string; modelId: string }
 
 export type AgentMemoryKind = (typeof AGENT_MEMORY_HEALTH_KIND_KEYS)[number]
-export type AgentMemoryStatus = (typeof AGENT_MEMORY_HEALTH_STATUS_KEYS)[number]
+export type AgentMemoryStatus = LegacyAgentMemoryStatus
+export type { AgentMemoryEmbeddingState, AgentMemoryLifecycleState }
 export type AgentMemoryConflictState = 'challenged'
 export type AgentMemoryPersonaState = 'draft' | 'active' | 'superseded' | 'rejected'
+
+export interface MemoryTransitionTarget {
+  agentId: string
+  id: string
+  expectedRevision: number
+}
+
+export interface ReviveSupersededTransition extends MemoryTransitionTarget {
+  retiredHead?: {
+    id: string
+    expectedRevision: number
+  } | null
+}
+
+interface ResolveChallengerTransitionBase extends MemoryTransitionTarget {
+  targetId: string
+}
+
+export type ResolveChallengerTransition = ResolveChallengerTransitionBase &
+  (
+    | {
+        content?: never
+        provenanceKey?: never
+        category?: never
+        at?: never
+      }
+    | {
+        content: string
+        provenanceKey: string | null
+        category?: string | null
+        at: number
+      }
+  )
+
+export interface ArchiveChallengerTransition extends MemoryTransitionTarget {
+  targetId: string
+  winnerId: string
+}
+
+export interface ArchiveConflictTargetTransition extends MemoryTransitionTarget {
+  challengerId: string
+}
+
+export interface UserContentTransition extends MemoryTransitionTarget {
+  content: string
+  provenanceKey: string | null
+  at: number
+  category?: string | null
+  importance?: number
+}
+
+export interface InternalContentTransition extends MemoryTransitionTarget {
+  content: string
+  provenanceKey: string | null
+  at: number
+}
+
+export interface UserMetadataTransition extends MemoryTransitionTarget {
+  category?: string | null
+  importance?: number
+  lastAccessedAt?: number
+}
 
 export interface AgentMemoryRow {
   id: string
@@ -20,6 +86,8 @@ export interface AgentMemoryRow {
   content: string
   importance: number
   status: AgentMemoryStatus
+  lifecycle_state: AgentMemoryLifecycleState
+  embedding_state: AgentMemoryEmbeddingState
   embedding_id: string | null
   embedding_dim: number | null
   embedding_model: string | null
@@ -40,6 +108,8 @@ export interface AgentMemoryRow {
   decision_revision: number
 }
 
+export type CanonicalAgentMemoryRow = Omit<AgentMemoryRow, 'status'>
+
 export interface AgentMemoryWorkingCandidateCursor {
   importance: number
   accessCount: number
@@ -48,12 +118,13 @@ export interface AgentMemoryWorkingCandidateCursor {
 }
 
 export type AgentMemoryLifecycleRow = Pick<
-  AgentMemoryRow,
+  CanonicalAgentMemoryRow,
   | 'id'
   | 'agent_id'
   | 'kind'
   | 'importance'
-  | 'status'
+  | 'lifecycle_state'
+  | 'embedding_state'
   | 'is_anchor'
   | 'superseded_by'
   | 'created_at'
@@ -64,7 +135,17 @@ export type AgentMemoryLifecycleRow = Pick<
   | 'conflict_state'
 >
 
-export interface AgentMemoryInsertInput {
+type AgentMemoryCanonicalInsertState =
+  | {
+      lifecycleState: AgentMemoryLifecycleState
+      embeddingState: AgentMemoryEmbeddingState
+    }
+  | {
+      lifecycleState?: never
+      embeddingState?: never
+    }
+
+export type AgentMemoryInsertInput = {
   id: string
   agentId: string
   kind: AgentMemoryKind
@@ -80,7 +161,7 @@ export interface AgentMemoryInsertInput {
   sourceEntryIds?: number[] | null
   conflictWith?: string | null
   personaState?: AgentMemoryPersonaState | null
-}
+} & AgentMemoryCanonicalInsertState
 
 export interface AgentMemoryListOptions {
   kinds?: AgentMemoryKind[]
@@ -120,7 +201,7 @@ export interface MemoryCognitiveMaintenanceInput {
   eligibleCount: number
   importanceAfterWatermark: number
   maxCreatedAt: number
-  topRows: AgentMemoryRow[]
+  topRows: CanonicalAgentMemoryRow[]
 }
 
 export interface MemoryVectorRecord {
@@ -154,7 +235,7 @@ export interface MemoryManagementPageCursor {
 }
 
 export interface MemoryManagementPage {
-  rows: AgentMemoryRow[]
+  rows: CanonicalAgentMemoryRow[]
   nextCursor: MemoryManagementPageCursor | null
 }
 
@@ -189,8 +270,8 @@ export type MemoryWriteOutcome =
 export type MemoryConflictResolution = 'keep_target' | 'keep_challenger' | 'keep_both'
 
 export interface MemoryConflictPair {
-  challenger: AgentMemoryRow
-  target: AgentMemoryRow
+  challenger: CanonicalAgentMemoryRow
+  target: CanonicalAgentMemoryRow
 }
 
 export interface MemoryRecallItem {
@@ -229,19 +310,19 @@ export interface MemoryDecisionQueryVectorSnapshot {
 export type MemoryKeywordSearchStrategy = 'fts-only' | 'like-fallback'
 
 export interface MemoryKeywordSearchResult {
-  rows: AgentMemoryRow[]
+  rows: CanonicalAgentMemoryRow[]
   strategy: MemoryKeywordSearchStrategy
 }
 
 export interface MemorySearchHit {
-  row: AgentMemoryRow
+  row: CanonicalAgentMemoryRow
   score: number
   sources?: { vec?: boolean; fts?: boolean }
   similarity?: number
 }
 
 export interface RetrievalCandidate {
-  row: AgentMemoryRow
+  row: CanonicalAgentMemoryRow
   similarity?: number
   sources: { vec?: boolean; fts?: boolean }
 }

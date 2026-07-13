@@ -158,6 +158,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'daoxe',
+    name: 'DaoXE',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://daoxe.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://daoxe.com/',
+      apiKey: 'https://daoxe.com/token',
+      docs: 'https://github.com/seven7763/DaoXE-AI',
+      models: 'https://daoxe.com/pricing',
+      defaultBaseUrl: 'https://daoxe.com/v1'
+    }
+  },
+
+  {
     id: 'burncloud',
     name: 'BurnCloud',
     apiType: 'openai-completions',

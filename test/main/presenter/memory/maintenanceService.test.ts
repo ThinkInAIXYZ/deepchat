@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { MaintenanceBudget } from '@/presenter/memoryPresenter/core/maintenanceBudget'
-import { type AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   FakeAuditRepository,
@@ -180,7 +180,7 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
       status: 'embedded',
       createdAt: now - 2000
     })
-    repo.updateStatus('old', 'embedded', {
+    repo.seedLegacyStatus('old', 'embedded', {
       embeddingId: 'old',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -193,7 +193,7 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
       status: 'embedded',
       createdAt: now - 1000
     })
-    repo.updateStatus('new', 'embedded', {
+    repo.seedLegacyStatus('new', 'embedded', {
       embeddingId: 'new',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -232,7 +232,7 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
         status: 'embedded',
         createdAt: now - 1000
       })
-      repo.updateStatus(id, 'embedded', {
+      repo.seedLegacyStatus(id, 'embedded', {
         embeddingId: id,
         embeddingDim: 4,
         embeddingModel: 'p:m'
@@ -865,7 +865,7 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
         content: 'redis fact',
         status: 'embedded'
       })
-      repo.updateStatus('a1', 'embedded', {
+      repo.seedLegacyStatus('a1', 'embedded', {
         embeddingId: 'a1',
         embeddingDim: 4,
         embeddingModel: 'p:m'
@@ -877,7 +877,7 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
         content: 'vue fact',
         status: 'embedded'
       })
-      repo.updateStatus('b1', 'embedded', {
+      repo.seedLegacyStatus('b1', 'embedded', {
         embeddingId: 'b1',
         embeddingDim: 4,
         embeddingModel: 'p:m'
@@ -945,7 +945,13 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
           status: 'fts_only'
         })
       }
-      const createVectorStore = vi.fn(async () => new FakeVectorStore())
+      const createVectorStore = vi.fn(
+        async (
+          _agentId: string,
+          _embedding: { providerId: string; modelId: string },
+          _dimensions: number
+        ) => new FakeVectorStore()
+      )
       const resetVectorStore = vi.fn(async () => undefined)
       const presenter = new MemoryPresenter({
         repository: repo,

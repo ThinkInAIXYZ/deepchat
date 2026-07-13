@@ -2,7 +2,8 @@ import { vi } from 'vitest'
 
 import { MemoryPresenter as BaseMemoryPresenter } from '@/presenter/memoryPresenter'
 import type { ConflictService } from '@/presenter/memoryPresenter/services/conflictService'
-import type { AgentMemoryRow, MemoryPresenterDeps } from '@/presenter/memoryPresenter/types'
+import type { MemoryPresenterDeps } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   createFakeRepository,
@@ -221,5 +222,5 @@ export function seedConflicted(
     status: 'conflicted',
     conflictWith: targetId
   })
-  repo.markConflict(targetId, 'challenged')
+  repo.seedConflictState(targetId, 'challenged')
 }

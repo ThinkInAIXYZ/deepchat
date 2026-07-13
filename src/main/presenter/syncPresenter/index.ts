@@ -446,6 +446,15 @@ export class SyncPresenter implements ISyncPresenter {
           )
           const summary = await importer.importData()
           importer.close()
+          if (
+            Object.keys(summary.repairedRowCounts).length > 0 ||
+            Object.keys(summary.skippedRowCounts).length > 0
+          ) {
+            console.warn('[Sync] Incremental import normalized or skipped malformed rows', {
+              repairedRowCounts: summary.repairedRowCounts,
+              skippedRowCounts: summary.skippedRowCounts
+            })
+          }
           importedConversationCount =
             summary.tableCounts.new_sessions || summary.tableCounts.conversations || 0
 

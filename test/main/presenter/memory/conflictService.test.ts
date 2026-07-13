@@ -305,7 +305,7 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     await expect(presenter.forgetMemory('a', 'challenger')).resolves.toBe(false)
     await expect(presenter.deleteMemory('a', targetId)).resolves.toBe(false)
 
-    repo.archive(targetId)
+    repo.seedArchived(targetId)
     expect(presenter.restoreMemory('a', targetId)).toBe(false)
   })
 
@@ -341,7 +341,7 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
       content: 'orphan target',
       status: 'embedded'
     })
-    repo.markConflict('orphan-target', 'challenged')
+    repo.seedConflictState('orphan-target', 'challenged')
     repo.insert({
       id: 'residual-link',
       agentId: 'a',
@@ -469,6 +469,57 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     expect(repo.getById(targetId)?.status).toBe('archived')
   })
 
+  it('continues challenge resolution after a merged challenger hits provenance uniqueness', async () => {
+    const mergedContent = 'occupied merged memory'
+    const generateText = routedLLM({
+      decision: [
+        `{"decision":"UPDATE","targetIndex":0,"mergedContent":"${mergedContent}"}`,
+        '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+      ]
+    })
+    const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+    const firstTargetId = await seedEmbedded(presenter, 'first target memory')
+    const secondTargetId = await seedEmbedded(presenter, 'second target memory')
+    seedConflicted(repo, 'c1', firstTargetId, 'first challenger memory')
+    seedConflicted(repo, 'c2', secondTargetId, 'second challenger memory')
+    repo.insert({
+      id: 'provenance-owner',
+      agentId: 'a',
+      kind: 'semantic',
+      content: mergedContent,
+      provenanceKey: buildMemoryProvenanceKey('a', 'semantic', mergedContent)
+    })
+    const activateResolvedChallenger = repo.activateResolvedChallenger.bind(repo)
+    vi.spyOn(repo, 'activateResolvedChallenger').mockImplementation((input) => {
+      if (input.id === 'c1' && input.provenanceKey) {
+        throw new Error('UNIQUE constraint failed: agent_memory.agent_id, provenance_key')
+      }
+      return activateResolvedChallenger(input)
+    })
+
+    const result = await memoryRuntimeForTests(
+      presenter
+    ).conflictService.runChallengeResolutionPass('a', {
+      providerId: 'main',
+      modelId: 'main'
+    })
+
+    expect(result).toEqual({ touched: true, calls: 2, failures: 0 })
+    expect(repo.getById('c1')).toMatchObject({
+      lifecycle_state: 'conflicted',
+      conflict_with: firstTargetId,
+      decision_revision: 1
+    })
+    expect(repo.getById(firstTargetId)?.conflict_state).toBe('challenged')
+    expect(repo.getById('c2')).toMatchObject({
+      lifecycle_state: 'archived',
+      conflict_with: null,
+      superseded_by: secondTargetId
+    })
+    expect(repo.getById(secondTargetId)?.conflict_state).toBeNull()
+    expect(auditRepo.listByAgent('a', { eventType: 'memory/challenge_resolved' })).toHaveLength(1)
+  })
+
   it('does not mark the target challenged when the challenger insert races and fails', async () => {
     const generateText = routedLLM({
       extraction: '[{"kind":"semantic","content":"user dislikes redis","importance":0.8}]',
@@ -478,7 +529,7 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     const targetId = await seedEmbedded(presenter, 'user likes redis')
     const originalInsert = repo.insert.bind(repo)
     vi.spyOn(repo, 'insert').mockImplementation((input) => {
-      if (input.status === 'conflicted') throw new Error('UNIQUE constraint failed')
+      if (input.lifecycleState === 'conflicted') throw new Error('UNIQUE constraint failed')
       return originalInsert(input)
     })
 
@@ -504,7 +555,7 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     const originalInsert = repo.insert.bind(repo)
     vi.spyOn(repo, 'insert').mockImplementation((input) => {
       const row = originalInsert(input)
-      if (input.status === 'conflicted') repo.archive(targetId, Date.now())
+      if (input.lifecycleState === 'conflicted') repo.seedArchived(targetId, Date.now())
       return row
     })
 
@@ -547,7 +598,12 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
       if (prompt.includes('Choose exactly ONE decision')) {
         decisionCallCount += 1
         if (decisionCallCount === 1) {
-          repo.updateUserMetadata(targetId, { importance: 0.7 })
+          repo.updateUserMetadataIfRevision({
+            agentId: 'a',
+            id: targetId,
+            expectedRevision: repo.getById(targetId)!.decision_revision,
+            importance: 0.7
+          })
         }
         return response
       }
@@ -584,7 +640,14 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
       }
       if (prompt.includes('Choose exactly ONE decision')) {
         decisionCallCount += 1
-        if (decisionCallCount === 1) repo.updateUserMetadata(targetId, { importance: 0.7 })
+        if (decisionCallCount === 1) {
+          repo.updateUserMetadataIfRevision({
+            agentId: 'a',
+            id: targetId,
+            expectedRevision: repo.getById(targetId)!.decision_revision,
+            importance: 0.7
+          })
+        }
         return '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis"}'
       }
       return ''
@@ -622,7 +685,12 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
       }
       if (prompt.includes('Choose exactly ONE decision')) {
         decisionCallCount += 1
-        repo.updateUserMetadata(targetId, { importance: 0.7 + decisionCallCount * 0.01 })
+        repo.updateUserMetadataIfRevision({
+          agentId: 'a',
+          id: targetId,
+          expectedRevision: repo.getById(targetId)!.decision_revision,
+          importance: 0.7 + decisionCallCount * 0.01
+        })
         return '{"decision":"UPDATE","targetIndex":0,"mergedContent":"stale overwrite"}'
       }
       return ''
@@ -659,7 +727,7 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
         content: `target ${index} original`,
         status: 'embedded'
       })
-      repo.updateStatus(id, 'embedded', {
+      repo.seedLegacyStatus(id, 'embedded', {
         embeddingId: id,
         embeddingDim: 4,
         embeddingModel: 'p:m'
@@ -681,7 +749,13 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
       const indexes = [...prompt.matchAll(/^Candidate (\d+) \(/gm)].map((match) => Number(match[1]))
       if (decisionBatch <= 2) {
         indexes.forEach((candidateIndex) => {
-          repo.updateUserMetadata(targetIds[candidateIndex], { importance: 0.7 })
+          const targetId = targetIds[candidateIndex]
+          repo.updateUserMetadataIfRevision({
+            agentId: 'a',
+            id: targetId,
+            expectedRevision: repo.getById(targetId)!.decision_revision,
+            importance: 0.7
+          })
         })
       }
       return JSON.stringify(

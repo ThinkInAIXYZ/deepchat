@@ -42,15 +42,19 @@ const TYPES_COMPAT_REEXPORTS = new Map([
     './domain/types',
     new Set([
       'AgentMemoryConflictState',
+      'AgentMemoryEmbeddingState',
       'AgentMemoryHealthStats',
       'AgentMemoryInsertInput',
       'AgentMemoryKind',
+      'AgentMemoryLifecycleState',
       'AgentMemoryLifecycleRow',
       'AgentMemoryListOptions',
       'AgentMemoryPersonaState',
       'AgentMemoryRow',
       'AgentMemoryStatus',
       'AgentMemoryWorkingCandidateCursor',
+      'ArchiveChallengerTransition',
+      'ArchiveConflictTargetTransition',
       'ConsolidationScanCursor',
       'EmbeddedMemoryUpdate',
       'FailedEmbeddingUpdate',
@@ -75,6 +79,7 @@ const TYPES_COMPAT_REEXPORTS = new Map([
       'MemoryReflectionResult',
       'MemorySearchHit',
       'MemoryStatus',
+      'MemoryTransitionTarget',
       'MemoryUpdateContext',
       'MemoryVectorMatch',
       'MemoryVectorQueryOptions',
@@ -82,7 +87,11 @@ const TYPES_COMPAT_REEXPORTS = new Map([
       'MemoryVectorRef',
       'MemoryWriteOutcome',
       'NormalizedMemoryCandidate',
+      'ResolveChallengerTransition',
+      'ReviveSupersededTransition',
       'RetrievalCandidate',
+      'InternalContentTransition',
+      'UserContentTransition',
       'WriteMemoriesOptions'
     ])
   ],
@@ -164,6 +173,78 @@ function typeContainsRuntimeContext(type) {
     return type.types.some((member) => typeContainsRuntimeContext(member))
   }
   return type.getSymbol()?.getName() === 'MemoryRuntimeContext'
+}
+
+function typeContainsAgentMemoryRow(type) {
+  if (!type) return false
+  if (type.isUnionOrIntersection()) {
+    return type.types.some((member) => typeContainsAgentMemoryRow(member))
+  }
+  const name = type.getSymbol()?.getName()
+  return name === 'AgentMemoryRow' || name === 'AgentMemoryLifecycleRow'
+}
+
+function legacyMemoryStatusAccessViolations(sourceFile, checker, filePath, paths) {
+  const layer = memoryLayer(filePath, paths)
+  if (layer !== 'services' && layer !== 'core') return []
+  const violations = []
+  const reported = new Set()
+  const report = (detail) => {
+    if (reported.has(detail)) return
+    reported.add(detail)
+    violations.push(
+      `[memory-canonical-state] ${relativePath(paths.root, filePath)} ${detail}; use lifecycle_state and embedding_state instead of legacy status`
+    )
+  }
+  const checkAccess = (receiver, memberName) => {
+    if (memberName !== 'status') return
+    if (!typeContainsAgentMemoryRow(checker.getTypeAtLocation(receiver))) return
+    report('must not access AgentMemoryRow.status')
+  }
+  const bindingPatternType = (pattern) => {
+    const direct = checker.getTypeAtLocation(pattern)
+    if (typeContainsAgentMemoryRow(direct)) return direct
+    const declaration = pattern.parent
+    if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
+      return checker.getTypeAtLocation(declaration.initializer)
+    }
+    return direct
+  }
+  const checkLegacyStatusSymbol = (node) => {
+    const symbol = resolvedSymbolAt(node, checker)
+    if ((symbol?.getName() ?? propertyNameText(node)) === 'LegacyAgentMemoryStatus') {
+      report('must not import LegacyAgentMemoryStatus')
+    }
+  }
+  const rightmostEntityName = (node) => {
+    let current = node
+    while (current && ts.isQualifiedName(current)) current = current.right
+    return current
+  }
+  const visit = (node) => {
+    if (ts.isImportSpecifier(node)) {
+      const imported = node.propertyName ?? node.name
+      checkLegacyStatusSymbol(imported)
+    }
+    if (ts.isExportSpecifier(node)) checkLegacyStatusSymbol(node.propertyName ?? node.name)
+    if (ts.isQualifiedName(node)) checkLegacyStatusSymbol(node.right)
+    if (ts.isImportTypeNode(node) && node.qualifier) {
+      checkLegacyStatusSymbol(rightmostEntityName(node.qualifier))
+    }
+    if (ts.isPropertyAccessExpression(node)) checkAccess(node.expression, node.name.text)
+    if (ts.isElementAccessExpression(node)) {
+      checkAccess(node.expression, propertyNameText(node.argumentExpression))
+    }
+    if (ts.isObjectBindingPattern(node) && typeContainsAgentMemoryRow(bindingPatternType(node))) {
+      for (const element of node.elements) {
+        const memberName = propertyNameText(element.propertyName ?? element.name)
+        if (memberName === 'status') report('must not destructure AgentMemoryRow.status')
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return violations
 }
 
 function scriptKind(filePath) {
@@ -447,7 +528,11 @@ function checkTypesOwnership(sourceFile, filePath, paths) {
       for (const element of statement.exportClause.elements) {
         const exportedName = element.name.text
         const sourceName = element.propertyName?.text ?? exportedName
-        if (!allowed?.has(sourceName) || exportedName !== sourceName) {
+        const canonicalRowAlias =
+          specifier === './domain/types' &&
+          sourceName === 'CanonicalAgentMemoryRow' &&
+          exportedName === 'AgentMemoryRow'
+        if ((!allowed?.has(sourceName) || exportedName !== sourceName) && !canonicalRowAlias) {
           violations.push(
             `[memory-types-owner] ${relativePath(paths.root, filePath)} must not re-export ${exportedName} from ${specifier}`
           )
@@ -777,6 +862,7 @@ export async function analyzeMemoryArchitecture({
     }
 
     violations.push(...contextSurfaceViolations(sourceFile, checker, filePath, paths))
+    violations.push(...legacyMemoryStatusAccessViolations(sourceFile, checker, filePath, paths))
     violations.push(...checkTypesOwnership(sourceFile, filePath, paths))
 
     if (isMemoryTable) {

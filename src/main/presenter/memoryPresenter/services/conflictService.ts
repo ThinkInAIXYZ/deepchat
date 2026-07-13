@@ -13,12 +13,11 @@ import { estimateTokens } from '../core/injectionPort'
 import { MaintenanceBudget } from '../core/maintenanceBudget'
 import { buildMemoryProvenanceKey } from '../core/scoring'
 import type {
-  AgentMemoryRow,
   MemoryConflictPair,
   MemoryConflictResolution,
   MemoryMaintenanceStepResult
 } from '../types'
-import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type {
   MemoryEmbeddingRepositoryPort,
   MemoryLifecycleRepositoryPort,
@@ -31,6 +30,8 @@ import type {
 interface ConflictResolutionOptions {
   mergedContent?: string | null
 }
+
+class ConflictTransitionRejectedError extends Error {}
 
 export interface ConflictIntegrityRepairResult {
   repairedTargets: number
@@ -127,7 +128,7 @@ export class ConflictService {
       : undefined
     const pair =
       challenger?.agent_id === agentId &&
-      challenger.status === 'conflicted' &&
+      challenger.lifecycle_state === 'conflicted' &&
       challenger.superseded_by === null &&
       target?.agent_id === agentId &&
       target.conflict_state === 'challenged' &&
@@ -136,9 +137,16 @@ export class ConflictService {
         : undefined
     if (!pair) return false
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
-    this.ports.repository.runInTransaction(() => {
-      this.applyConflictResolution(agentId, pair, outcome, options)
-    })
+    try {
+      this.ports.repository.runInTransaction(() => {
+        this.applyConflictResolution(agentId, pair, outcome, options)
+      })
+    } catch (error) {
+      if (error instanceof ConflictTransitionRejectedError || isUniqueConstraintError(error)) {
+        return false
+      }
+      throw error
+    }
     this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     this.ctx.writeAudit(agentId, {
@@ -167,10 +175,25 @@ export class ConflictService {
   ): void {
     const now = Date.now()
     switch (outcome) {
-      case 'keep_challenger':
-        this.applyMergedChallengerContent(agentId, pair.challenger, options.mergedContent, now)
-        this.ports.repository.setConflictWith(pair.challenger.id, null)
-        this.ports.repository.activateForEmbedding(pair.challenger.id)
+      case 'keep_challenger': {
+        const content = options.mergedContent?.trim()
+        const transitionTarget = {
+          agentId,
+          id: pair.challenger.id,
+          targetId: pair.target.id,
+          expectedRevision: pair.challenger.decision_revision
+        }
+        const activated =
+          content && content !== pair.challenger.content
+            ? this.ports.repository.activateResolvedChallenger({
+                ...transitionTarget,
+                content,
+                provenanceKey: buildMemoryProvenanceKey(agentId, pair.challenger.kind, content),
+                category: pair.challenger.category,
+                at: now
+              })
+            : this.ports.repository.activateResolvedChallenger(transitionTarget)
+        if (!activated) throw new ConflictTransitionRejectedError()
         this.ports.repository.retireConflictSiblings(
           agentId,
           pair.target.id,
@@ -178,39 +201,46 @@ export class ConflictService {
           pair.challenger.id,
           now
         )
-        this.ports.repository.markSuperseded(pair.target.id, pair.challenger.id)
-        this.ports.repository.markConflict(pair.target.id, null)
-        this.ports.repository.archive(pair.target.id, now)
+        if (
+          !this.ports.repository.archiveResolvedConflictTarget({
+            agentId,
+            id: pair.target.id,
+            challengerId: pair.challenger.id,
+            expectedRevision: pair.target.decision_revision
+          })
+        ) {
+          throw new ConflictTransitionRejectedError()
+        }
         return
+      }
       case 'keep_target':
-        this.ports.repository.setConflictWith(pair.challenger.id, null)
-        this.ports.repository.markSuperseded(pair.challenger.id, pair.target.id)
-        this.ports.repository.archive(pair.challenger.id, now)
+        if (
+          !this.ports.repository.archiveResolvedChallenger({
+            agentId,
+            id: pair.challenger.id,
+            targetId: pair.target.id,
+            winnerId: pair.target.id,
+            expectedRevision: pair.challenger.decision_revision
+          })
+        ) {
+          throw new ConflictTransitionRejectedError()
+        }
         this.ports.repository.clearTargetConflictIfNoChallengers(agentId, pair.target.id)
         return
       case 'keep_both':
-        this.ports.repository.setConflictWith(pair.challenger.id, null)
-        this.ports.repository.activateForEmbedding(pair.challenger.id)
+        if (
+          !this.ports.repository.activateResolvedChallenger({
+            agentId,
+            id: pair.challenger.id,
+            targetId: pair.target.id,
+            expectedRevision: pair.challenger.decision_revision
+          })
+        ) {
+          throw new ConflictTransitionRejectedError()
+        }
         this.ports.repository.clearTargetConflictIfNoChallengers(agentId, pair.target.id)
         return
     }
-  }
-
-  private applyMergedChallengerContent(
-    agentId: string,
-    challenger: AgentMemoryRow,
-    mergedContent: string | null | undefined,
-    now: number
-  ): void {
-    const content = mergedContent?.trim()
-    if (!content || content === challenger.content) return
-    this.ports.repository.updateContent(
-      challenger.id,
-      content,
-      buildMemoryProvenanceKey(agentId, challenger.kind, content),
-      now,
-      challenger.category
-    )
   }
 
   async runChallengeResolutionPass(

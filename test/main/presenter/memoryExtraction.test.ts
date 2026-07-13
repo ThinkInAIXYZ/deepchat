@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createFakeRepository } from './fakes/memoryFakes'
 
 import {
   buildExtractionPrompt,
@@ -413,7 +414,10 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
   })
 
   it('uses the configured memoryExtractionModel for both triage and extraction', async () => {
-    const generateText = vi.fn(async () => 'KEEP\n[{"kind":"semantic","content":"x"}]')
+    const generateText = vi.fn(
+      async (_providerId: string, _modelId: string, _prompt: string) =>
+        'KEEP\n[{"kind":"semantic","content":"x"}]'
+    )
     const { presenter } = await build(
       {
         memoryEnabled: true,
@@ -434,7 +438,10 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
   })
 
   it('falls back to the caller model when no memoryExtractionModel is configured', async () => {
-    const generateText = vi.fn(async () => 'KEEP\n[{"kind":"semantic","content":"x"}]')
+    const generateText = vi.fn(
+      async (_providerId: string, _modelId: string, _prompt: string) =>
+        'KEEP\n[{"kind":"semantic","content":"x"}]'
+    )
     const { presenter } = await build({ memoryEnabled: true }, generateText)
     await presenter.extractAndStore({
       agentId: 'a',
@@ -493,7 +500,8 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
         agentId: 'a',
         kind: 'semantic',
         content: `fact ${i}`,
-        importance: 0.9
+        importance: 0.9,
+        createdAt: 1
       })
     }
     const presenter = new MemoryPresenter({
@@ -517,7 +525,10 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
   }
 
   it('reflects through the configured memoryExtractionModel', async () => {
-    const generateText = vi.fn(async () => '["The user prefers concise, technical answers."]')
+    const generateText = vi.fn(
+      async (_providerId: string, _modelId: string, _prompt: string) =>
+        '["The user prefers concise, technical answers."]'
+    )
     const { presenter, repo } = await buildWithMemories(
       {
         memoryEnabled: true,
@@ -538,7 +549,9 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
   })
 
   it('falls back to the caller model when no memoryExtractionModel is configured', async () => {
-    const generateText = vi.fn(async () => '["An insight."]')
+    const generateText = vi.fn(
+      async (_providerId: string, _modelId: string, _prompt: string) => '["An insight."]'
+    )
     const { presenter } = await buildWithMemories({ memoryEnabled: true }, generateText)
     await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' })
     expect(generateText.mock.calls[0][0]).toBe('main-p')
@@ -599,287 +612,5 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
 })
 
 function makeFakeRepo() {
-  const rows = new Map<string, any>()
-  return {
-    rows,
-    insert(input: any) {
-      if (input.provenanceKey) {
-        for (const r of rows.values()) {
-          if (r.agent_id === input.agentId && r.provenance_key === input.provenanceKey) {
-            throw new Error('UNIQUE')
-          }
-        }
-      }
-      const row = {
-        id: input.id,
-        agent_id: input.agentId,
-        kind: input.kind,
-        category: input.category ?? null,
-        content: input.content,
-        importance: input.importance ?? 0.5,
-        status: input.status ?? 'pending_embedding',
-        provenance_key: input.provenanceKey ?? null,
-        superseded_by: null,
-        is_anchor: 0,
-        created_at: input.createdAt ?? 1,
-        source_session: input.sourceSession ?? null,
-        embedding_id: null,
-        embedding_dim: null,
-        embedding_model: null,
-        user_scope: null,
-        last_accessed: null,
-        access_count: 0,
-        decay_score: null,
-        source_entry_ids: input.sourceEntryIds?.length
-          ? JSON.stringify(input.sourceEntryIds)
-          : null,
-        confidence: null,
-        last_consolidated_at: null,
-        conflict_state: null,
-        conflict_with: input.conflictWith ?? null,
-        persona_state: input.personaState ?? null
-      }
-      rows.set(row.id, row)
-      return row
-    },
-    getById: (id: string) => rows.get(id),
-    listByIds: (agentId: string, ids: string[]) =>
-      ids.flatMap((id) => {
-        const row = rows.get(id)
-        return row?.agent_id === agentId ? [row] : []
-      }),
-    getByProvenanceKey: (agentId: string, key: string) =>
-      [...rows.values()].find((r) => r.agent_id === agentId && r.provenance_key === key),
-    listByAgent: (agentId: string, opts?: any) => {
-      let result = [...rows.values()].filter(
-        (r) => r.agent_id === agentId && (opts?.includeSuperseded || !r.superseded_by)
-      )
-      if (opts?.kinds?.length) result = result.filter((r) => opts.kinds.includes(r.kind))
-      else result = result.filter((r) => r.kind !== 'working')
-      result.sort((a, b) => b.created_at - a.created_at)
-      if (opts?.limit) result = result.slice(0, opts.limit)
-      return result
-    },
-    getCognitiveMaintenanceInput: (
-      agentId: string,
-      options: { kinds: string[]; watermark: number; limit: number }
-    ) => {
-      const eligible = [...rows.values()].filter(
-        (row) =>
-          row.agent_id === agentId &&
-          options.kinds.includes(row.kind) &&
-          row.status !== 'archived' &&
-          row.status !== 'conflicted' &&
-          !row.superseded_by
-      )
-      const afterWatermark = eligible.filter((row) => row.created_at > options.watermark)
-      return {
-        eligibleCount: eligible.length,
-        importanceAfterWatermark: afterWatermark.reduce(
-          (sum, row) => sum + Number(row.importance ?? 0),
-          0
-        ),
-        maxCreatedAt: afterWatermark.reduce(
-          (max, row) => Math.max(max, Number(row.created_at ?? 0)),
-          options.watermark
-        ),
-        topRows: eligible
-          .sort(
-            (left, right) =>
-              right.importance - left.importance ||
-              right.created_at - left.created_at ||
-              right.id.localeCompare(left.id)
-          )
-          .slice(0, options.limit)
-      }
-    },
-    getActivePersona: () => undefined,
-    listPersonaVersions: () => [],
-    search: () => [],
-    listPendingEmbedding: (limit = 50, agentId?: string) =>
-      [...rows.values()]
-        .filter((r) => r.status === 'pending_embedding' && (!agentId || r.agent_id === agentId))
-        .slice(0, limit),
-    countPendingEmbedding: (agentId?: string) =>
-      [...rows.values()].filter(
-        (r) => r.status === 'pending_embedding' && (!agentId || r.agent_id === agentId)
-      ).length,
-    updateStatus: (id: string, status: string) => {
-      const r = rows.get(id)
-      if (r) r.status = status
-    },
-    requeueForEmbedding: (
-      agentId: string,
-      statuses: string[],
-      limit?: number,
-      afterId?: string | null
-    ) => {
-      const candidates = [...rows.values()]
-        .filter(
-          (r) =>
-            r.agent_id === agentId &&
-            !r.superseded_by &&
-            statuses.includes(r.status) &&
-            (!afterId || r.id > afterId)
-        )
-        .sort((a, b) => a.id.localeCompare(b.id))
-        .slice(0, limit === undefined ? undefined : Math.max(0, Math.floor(limit)))
-      for (const r of candidates) {
-        r.status = 'pending_embedding'
-        r.embedding_id = null
-        r.embedding_dim = null
-        r.embedding_model = null
-      }
-      return candidates.length
-    },
-    listEmbeddingStatusIds: (
-      agentId: string,
-      statuses: string[],
-      limit: number,
-      afterId?: string | null
-    ) =>
-      [...rows.values()]
-        .filter(
-          (r) =>
-            r.agent_id === agentId &&
-            !r.superseded_by &&
-            statuses.includes(r.status) &&
-            (!afterId || r.id > afterId)
-        )
-        .sort((a, b) => a.id.localeCompare(b.id))
-        .slice(0, Math.max(0, Math.floor(limit)))
-        .map((row) => row.id),
-    updateContent: (
-      id: string,
-      content: string,
-      provenanceKey: string | null,
-      at = 0,
-      category?: string | null
-    ) => {
-      const r = rows.get(id)
-      if (!r) return
-      r.content = content
-      r.provenance_key = provenanceKey
-      r.last_accessed = at
-      if (category !== undefined) r.category = category
-    },
-    markSuperseded: () => {},
-    recordAccess: () => {},
-    recordAccessBatch: () => {},
-    setPersonaState: () => {},
-    setAnchor: () => {},
-    getDraftPersona: () => undefined,
-    setConfidence: () => {},
-    setImportance: () => {},
-    markConflict: () => {},
-    setConflictWith: () => {},
-    setLastConsolidatedAt: () => {},
-    getLastConsolidatedAt: () => null,
-    getCurrentEmbeddingDimension: () => null,
-    getHealthStats: () => ({
-      totalRows: 0,
-      byKind: { semantic: 0, episodic: 0, reflection: 0, persona: 0, working: 0 },
-      byCategory: {
-        user_preference: 0,
-        project_fact: 0,
-        task_outcome: 0,
-        heuristic: 0,
-        anti_pattern: 0,
-        uncategorized: 0
-      },
-      byStatus: {
-        pending_embedding: 0,
-        embedded: 0,
-        fts_only: 0,
-        error: 0,
-        archived: 0,
-        conflicted: 0
-      },
-      neverAccessed: 0,
-      importanceAvg: null,
-      importanceMedian: null,
-      confidenceAvg: null,
-      conflicted: 0,
-      challenged: 0
-    }),
-    hasStaleEmbeddings: () => false,
-    countStaleEmbeddings: () => 0,
-    archive: (id: string) => {
-      const r = rows.get(id)
-      if (r) r.status = 'archived'
-    },
-    listArchiveCandidateLifecycleRows: () => [],
-    listTopAccessed: () => [],
-    delete: (id: string) => rows.delete(id),
-    clearByAgent: (agentId: string) => {
-      let n = 0
-      for (const [id, r] of rows) if (r.agent_id === agentId) (rows.delete(id), n++)
-      return n
-    },
-    countByAgent: (agentId: string) =>
-      [...rows.values()].filter((r) => r.agent_id === agentId).length,
-    countStatusView: (agentId: string) => {
-      const view = [...rows.values()].filter(
-        (r) => r.agent_id === agentId && r.status !== 'archived' && r.status !== 'conflicted'
-      )
-      return {
-        total: view.length,
-        pendingEmbedding: view.filter((r) => r.status === 'pending_embedding').length
-      }
-    },
-    hasActiveMemory: () => false,
-    listAgentIdsWithMemories: () => [],
-    runInTransaction: <T>(fn: () => T): T => {
-      const snapshot = new Map([...rows.entries()].map(([id, row]) => [id, { ...row }]))
-      try {
-        return fn()
-      } catch (error) {
-        rows.clear()
-        for (const [id, row] of snapshot) rows.set(id, row)
-        throw error
-      }
-    },
-    listWorkingCandidates: (
-      agentId: string,
-      limit: number,
-      after?: { importance: number; accessCount: number; createdAt: number; id: string }
-    ) =>
-      [...rows.values()]
-        .filter((r) => {
-          if (
-            r.agent_id !== agentId ||
-            r.superseded_by !== null ||
-            r.status === 'archived' ||
-            r.status === 'conflicted' ||
-            !['semantic', 'reflection', 'episodic'].includes(r.kind)
-          ) {
-            return false
-          }
-          if (!after) return true
-          return (
-            r.importance < after.importance ||
-            (r.importance === after.importance && r.access_count < after.accessCount) ||
-            (r.importance === after.importance &&
-              r.access_count === after.accessCount &&
-              r.created_at < after.createdAt) ||
-            (r.importance === after.importance &&
-              r.access_count === after.accessCount &&
-              r.created_at === after.createdAt &&
-              r.id < after.id)
-          )
-        })
-        .sort(
-          (a, b) =>
-            b.importance - a.importance ||
-            b.access_count - a.access_count ||
-            b.created_at - a.created_at ||
-            b.id.localeCompare(a.id)
-        )
-        .slice(0, Math.max(0, Math.floor(limit))),
-    listConsolidationScanRows: () => [],
-    repairInternalKindStatuses: () => 0,
-    listPrunableVectorRefs: () => [],
-    filterPrunableVectorRefs: () => [],
-    clearPrunableEmbeddingRefs: () => 0
-  }
+  return createFakeRepository()
 }

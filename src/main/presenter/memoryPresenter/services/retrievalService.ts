@@ -63,9 +63,15 @@ function isLiveRecallRow(agentId: string, row: AgentMemoryRow | undefined): row 
     !row.superseded_by &&
     row.kind !== 'persona' &&
     row.kind !== 'working' &&
-    row.status !== 'archived' &&
-    row.status !== 'conflicted'
+    row.lifecycle_state === 'active'
   )
+}
+
+function isLiveDecisionRow(
+  agentId: string,
+  row: AgentMemoryRow | undefined
+): row is AgentMemoryRow {
+  return isLiveRecallRow(agentId, row) && row.conflict_state === null && row.conflict_with === null
 }
 
 function isCurrentRecallVectorRow(
@@ -76,7 +82,8 @@ function isCurrentRecallVectorRow(
 ): row is AgentMemoryRow {
   return (
     isLiveRecallRow(agentId, row) &&
-    row.status === 'embedded' &&
+    row.lifecycle_state === 'active' &&
+    row.embedding_state === 'ready' &&
     row.embedding_dim === dimensions &&
     row.embedding_model === fingerprint
   )
@@ -167,7 +174,8 @@ export class RetrievalService {
       purpose: 'decision',
       keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
       keywordMatchMode: 'any',
-      enableInlinePrune: false
+      enableInlinePrune: false,
+      excludeConflictParticipants: true
     })
   }
 
@@ -343,12 +351,17 @@ export class RetrievalService {
       const results = candidates.map((_, index) => {
         const ftsRows = keywordRows[index]
           .map((row) => rowsById.get(row.id))
-          .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
+          .filter((row): row is AgentMemoryRow => isLiveDecisionRow(agentId, row))
         const currentVectorMatches = vectorMatches[index]
           .map((match) => {
             const row = rowsById.get(match.memoryId)
             return vectorContext && vectorFingerprint
-              ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)
+              ? isCurrentRecallVectorRow(
+                  agentId,
+                  row,
+                  vectorContext.dimensions,
+                  vectorFingerprint
+                ) && isLiveDecisionRow(agentId, row)
                 ? { row, similarity: match.similarity }
                 : null
               : null
@@ -364,7 +377,7 @@ export class RetrievalService {
         vectorCandidates += currentVectorMatches.length
         const pinnedRows = (pinnedIdsByCandidate?.[index] ?? [])
           .map((id) => rowsById.get(id))
-          .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
+          .filter((row): row is AgentMemoryRow => isLiveDecisionRow(agentId, row))
         for (const pinned of pinnedRows.reverse()) {
           if (!neighbors.some((neighbor) => neighbor.id === pinned.id)) {
             neighbors.unshift({
@@ -521,6 +534,7 @@ export class RetrievalService {
       keywordMatchMode?: 'all' | 'any'
       topKOverride?: number
       enableInlinePrune?: boolean
+      excludeConflictParticipants?: boolean
     }
   ): Promise<MemoryRecallItem[]> {
     const totalStartedAt = performance.now()
@@ -692,9 +706,12 @@ export class RetrievalService {
         : []
       latencyMs.authoritativeRevalidation = performance.now() - revalidationStartedAt
       const rowsById = new Map(authoritativeRows.map((row) => [row.id, row]))
+      const isEligibleRow = options.excludeConflictParticipants
+        ? isLiveDecisionRow
+        : isLiveRecallRow
       const authoritativeFtsRows = ftsRows
         .map((row) => rowsById.get(row.id))
-        .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
+        .filter((row): row is AgentMemoryRow => isEligibleRow(agentId, row))
       const vectorFingerprint = vectorContext
         ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
         : null
@@ -702,7 +719,8 @@ export class RetrievalService {
         .map((candidate) => {
           const row = rowsById.get(candidate.memoryId)
           return vectorContext && vectorFingerprint
-            ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)
+            ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint) &&
+              isEligibleRow(agentId, row)
               ? { row, similarity: candidate.similarity }
               : null
             : null

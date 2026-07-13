@@ -232,7 +232,7 @@ vi.mock('../../../src/main/presenter/sqlitePresenter/importData', async () => {
 
       writeState(this.targetPath, targetState)
 
-      return { tableCounts }
+      return { tableCounts, repairedRowCounts: {}, skippedRowCounts: {} }
     }
 
     close() {}
