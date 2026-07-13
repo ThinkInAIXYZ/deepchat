@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "1e79ddc017a0e71d851f50d536b0ac59b5881105",
+  "headCommit": "17f3d2da1268f490518703987283d980db090ca0",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -75,6 +75,7 @@
     "src/main/agent/shared/agentRowStore.ts",
     "src/main/agent/shared/agentSessionHandle.ts",
     "src/main/agent/shared/agentSessionIds.ts",
+    "src/main/agent/shared/agentSessionNormalization.ts",
     "src/main/agent/shared/agentSharedData.ts",
     "src/main/agent/shared/appSessionService.ts",
     "src/main/agent/shared/process/backgroundExecLogger.ts",
@@ -315,6 +316,7 @@
         "src/main/presenter/sqlitePresenter/tables/agentMemory.ts",
         "src/main/presenter/sqlitePresenter/tables/agentMemoryAudit.ts",
         "src/main/presenter/sqlitePresenter/tables/agentMemoryFtsPolicy.ts",
+        "src/main/presenter/sqlitePresenter/tables/agentMemoryStateSql.ts",
         "src/main/presenter/sqlitePresenter/tables/agents.ts",
         "src/main/presenter/sqlitePresenter/tables/attachments.ts",
         "src/main/presenter/sqlitePresenter/tables/baseTable.ts",
@@ -403,7 +405,7 @@
         "providers",
         "settings_activity"
       ],
-      "sha256": "eb97de4264ffe061beaaaa7870051c8a808b81a056221de1f552e0c14f123e7f"
+      "sha256": "ca9306d19cb9066d6447268aac2e9485ca867fc65f89abda5a1e4b54d4f21974"
     },
     "memoryDuckDbSidecar": {
       "files": [
@@ -424,7 +426,7 @@
       "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
       "src/main/presenter/lifecyclePresenter/index.ts"
     ],
-    "sha256": "daf7a167e849af16f739ac5244ca1a444caecd6250c71f7e19af3fc75763732a"
+    "sha256": "42de1624eb312277aa22d874b54368e5a7e1b60ded01f10769612fcaae7618fc"
   },
   "dependencyMetrics": {
     "loopFiles": [

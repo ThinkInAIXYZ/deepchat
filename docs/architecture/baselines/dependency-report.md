@@ -4,24 +4,24 @@ Generated on 2026-07-13.
 
 ## main
 
-- Total files: 541
-- Internal dependency edges: 1455
+- Total files: 552
+- Internal dependency edges: 1495
 - Cycles detected: 36
 
 ### Top outgoing dependencies
 
-- `presenter/index.ts`: 56
+- `presenter/index.ts`: 62
 - `presenter/agentRuntimePresenter/index.ts`: 45
 - `presenter/sqlitePresenter/index.ts`: 40
 - `presenter/sqlitePresenter/schemaCatalog.ts`: 37
-- `routes/index.ts`: 28
+- `routes/index.ts`: 29
 - `presenter/configPresenter/index.ts`: 27
 - `presenter/lifecyclePresenter/hooks/index.ts`: 23
 - `presenter/toolPresenter/agentTools/agentToolManager.ts`: 22
 - `presenter/memoryPresenter/index.ts`: 19
 - `presenter/llmProviderPresenter/index.ts`: 17
 - `agent/acp/runtime/index.ts`: 15
-- `presenter/agentSessionPresenter/index.ts`: 14
+- `presenter/agentSessionPresenter/index.ts`: 15
 - `presenter/filePresenter/mime.ts`: 14
 - `presenter/remoteControlPresenter/index.ts`: 14
 - `presenter/agentRuntimePresenter/dispatch.ts`: 12
@@ -29,12 +29,12 @@ Generated on 2026-07-13.
 ### Top incoming dependencies
 
 - `presenter/index.ts`: 49
-- `routes/publishDeepchatEvent.ts`: 44
+- `routes/publishDeepchatEvent.ts`: 42
 - `presenter/remoteControlPresenter/types.ts`: 38
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 38
+- `agent/shared/agentSessionIds.ts`: 31
 - `events.ts`: 30
 - `eventbus.ts`: 29
-- `agent/shared/agentSessionIds.ts`: 25
 - `presenter/memoryPresenter/types.ts`: 22
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
 - `presenter/memoryPresenter/ports.ts`: 20
@@ -42,7 +42,7 @@ Generated on 2026-07-13.
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
 - `presenter/filePresenter/BaseFileAdapter.ts`: 13
 - `presenter/memoryPresenter/context.ts`: 12
-- `presenter/sqlitePresenter/tables/deepchatTapeEntries.ts`: 12
+- `presenter/runtimePorts.ts`: 12
 
 ### Cycle samples
 
