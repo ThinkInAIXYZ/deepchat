@@ -73,15 +73,15 @@
 - [x] Add architecture guards for consumer imports, duplicate construction, foreign-owner imports,
       and combined façade regression.
 - [x] Update current architecture, session management, flows, and code navigation.
-- [ ] Review the dependency diff and regenerate maintained baselines only when intentional.
+- [x] Review the dependency diff and regenerate maintained baselines only when intentional.
 
 ## 9. Validation
 
-- [ ] Run focused coordinator, service, route, Remote, Cron, composition, and guard tests.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run `pnpm run typecheck`.
-- [ ] Run `pnpm run test:main`.
-- [ ] Run `pnpm run lint:architecture` and `git diff --check`.
-- [ ] Confirm every acceptance criterion in `spec.md` and close this task list.
+- [x] Run focused coordinator, service, route, Remote, Cron, composition, and guard tests.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.
+- [x] Run `pnpm run test:main`.
+- [x] Run `pnpm run lint:architecture` and `git diff --check`.
+- [x] Confirm every acceptance criterion in `spec.md` and close this task list.

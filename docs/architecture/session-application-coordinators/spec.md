@@ -1,6 +1,6 @@
 # Session Application Coordinators
 
-> Status: approved for implementation  
+> Status: implemented and validated
 > Base: `dev@28e2a0e92`  
 > Branch: `task/session-application-coordinators`
 
