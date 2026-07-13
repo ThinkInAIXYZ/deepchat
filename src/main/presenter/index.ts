@@ -76,6 +76,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentSessionPresenter } from './agentSessionPresenter'
+import { SessionProjectionCoordinator } from './sessionApplication/projectionCoordinator'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
@@ -157,6 +158,7 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  sessionProjectionCoordinator: SessionProjectionCoordinator
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
   memoryPresenter: MemoryPresenter
@@ -719,6 +721,34 @@ export class Presenter implements IPresenter {
         }
       })
     })
+    this.sessionProjectionCoordinator = new SessionProjectionCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        getAgentKind: (agentId) => this.agentManager.resolveBackend(agentId).kind,
+        snapshot: async (sessionId, options) =>
+          await this.agentManager
+            .resolveSessionHandle(toAppSessionId(sessionId))
+            .handle.snapshot(options),
+        waitForFirstTurnReady: async (sessionId, options) =>
+          await this.agentManager
+            .resolveSessionHandle(toAppSessionId(sessionId))
+            .handle.waitForFirstTurnReady(options)
+      },
+      transcript: agentSharedData.transcript,
+      tape: agentSharedData.tape,
+      messages: sqlitePresenter.deepchatMessagesTable,
+      searchResults: sqlitePresenter.deepchatMessageSearchResultsTable,
+      traces: sqlitePresenter.deepchatMessageTracesTable,
+      titles: this.llmproviderPresenter,
+      agentConfig: {
+        getAssistantModel: async (agentId) =>
+          (await this.configPresenter.resolveDeepChatAgentConfig(agentId))?.assistantModel ?? null
+      },
+      events: {
+        publish: (payload) => publishDeepchatEvent('sessions.updated', payload)
+      },
+      ui: sessionUiPort
+    })
     this.agentSessionPresenter = new AgentSessionPresenter(
       this.agentManager,
       appSessionService,
@@ -726,11 +756,11 @@ export class Presenter implements IPresenter {
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       agentSharedData,
+      this.sessionProjectionCoordinator,
       this.skillPresenter,
       {
         acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
-        sessionPermissionPort,
-        sessionUiPort
+        sessionPermissionPort
       }
     )
     this.projectPresenter = new ProjectPresenter(

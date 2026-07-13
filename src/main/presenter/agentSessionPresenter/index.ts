@@ -68,7 +68,7 @@ import { AppSessionService } from '@/agent/shared/appSessionService'
 import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { LegacyChatImportService } from './legacyImportService'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { SessionProjectionCoordinator } from '../sessionApplication/projectionCoordinator'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -88,11 +88,7 @@ import {
 } from '../usageStats'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import type {
-  AcpAsLlmProviderSessionControlPort,
-  SessionPermissionPort,
-  SessionUiPort
-} from '../runtimePorts'
+import type { AcpAsLlmProviderSessionControlPort, SessionPermissionPort } from '../runtimePorts'
 
 type SearchableSessionRow = {
   id: string
@@ -271,14 +267,13 @@ export class AgentSessionPresenter {
   private configPresenter: IConfigPresenter
   private sharedData: AgentSharedDataPorts
   private legacyImportService: LegacyChatImportService
+  private sessionProjection: SessionProjectionCoordinator
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   private acpAsLlmProviderSessionControl?: AcpAsLlmProviderSessionControlPort
   private sessionPermissionPort?: SessionPermissionPort
-  private sessionUiPort?: SessionUiPort
   private usageStatsBackfillPromise: Promise<void> | null = null
   private mainlineNormalizationPromise: Promise<void> | null = null
   private disabledSearchToolCleanupPromise: Promise<void> | null = null
-  private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
 
   constructor(
     agentManager: AgentManager,
@@ -287,11 +282,11 @@ export class AgentSessionPresenter {
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
     sharedData: AgentSharedDataPorts,
+    sessionProjection: SessionProjectionCoordinator,
     skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
     runtimePorts?: {
       acpAsLlmProviderSessionControl?: AcpAsLlmProviderSessionControlPort
       sessionPermissionPort?: SessionPermissionPort
-      sessionUiPort?: SessionUiPort
     }
   ) {
     this.agentManager = agentManager
@@ -299,12 +294,12 @@ export class AgentSessionPresenter {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.sharedData = sharedData
+    this.sessionProjection = sessionProjection
     this.skillPresenter = skillPresenter
     this.sessionManager = appSessionService
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
     this.acpAsLlmProviderSessionControl = runtimePorts?.acpAsLlmProviderSessionControl
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
-    this.sessionUiPort = runtimePorts?.sessionUiPort
   }
 
   // ---- IPC-facing methods ----
@@ -402,9 +397,9 @@ export class AgentSessionPresenter {
     }
     logger.info(`[AgentSessionPresenter] agent.initSession done`)
 
-    // Bind to window and emit activated
-    this.sessionManager.bindWindow(webContentsId, toAppSessionId(sessionId))
-    this.emitSessionListUpdated({
+    // Bind to the window and publish the created session projection.
+    this.sessionProjection.bindWindow(webContentsId, sessionId)
+    this.sessionProjection.notify({
       sessionIds: [sessionId],
       reason: 'created',
       activeSessionId: sessionId,
@@ -446,7 +441,12 @@ export class AgentSessionPresenter {
         .catch((err) => {
           console.error('[AgentSessionPresenter] initial send failed:', err)
         })
-      void this.generateSessionTitle(sessionId, title, providerId, modelId)
+      this.sessionProjection.scheduleTitleGeneration({
+        sessionId,
+        initialTitle: title,
+        fallbackProviderId: providerId,
+        fallbackModelId: modelId
+      })
     }
 
     return sessionResult
@@ -530,7 +530,7 @@ export class AgentSessionPresenter {
       await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
     }
 
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [sessionId],
       reason: 'created'
     })
@@ -628,8 +628,8 @@ export class AgentSessionPresenter {
           throw new Error(`Subagent session not found after creation: ${sessionId}`)
         }
 
-        const session = (await this.buildSessionWithState(record)) as SessionWithState
-        this.emitSessionListUpdated({
+        const session = await this.sessionProjection.materializeRequired(sessionId)
+        this.sessionProjection.notify({
           sessionIds: [session.id],
           reason: 'created'
         })
@@ -712,7 +712,7 @@ export class AgentSessionPresenter {
 
     const handle = this.requireDirectAcpHandle(record.id)
     await handle.acp.prepare()
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [record.id],
       reason: createdDraftSession ? 'created' : 'updated'
     })
@@ -741,7 +741,7 @@ export class AgentSessionPresenter {
     if (session.isDraft) {
       const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
       this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.emitSessionListUpdated({
+      this.sessionProjection.notify({
         sessionIds: [sessionId],
         reason: 'updated'
       })
@@ -773,7 +773,12 @@ export class AgentSessionPresenter {
       }
     })
     if (!hadMessages && !wasDraft) {
-      void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
+      this.sessionProjection.scheduleTitleGeneration({
+        sessionId,
+        initialTitle: session.title,
+        fallbackProviderId: providerId,
+        fallbackModelId: state?.modelId ?? ''
+      })
     }
     return result
   }
@@ -786,7 +791,7 @@ export class AgentSessionPresenter {
     if (session.isDraft) {
       const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
       this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.emitSessionListUpdated({
+      this.sessionProjection.notify({
         sessionIds: [sessionId],
         reason: 'updated'
       })
@@ -830,7 +835,7 @@ export class AgentSessionPresenter {
     if (currentSession.isDraft) {
       const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
       this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.emitSessionListUpdated({
+      this.sessionProjection.notify({
         sessionIds: [sessionId],
         reason: 'updated'
       })
@@ -995,7 +1000,7 @@ export class AgentSessionPresenter {
       throw error
     }
 
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [targetSessionId],
       reason: 'created'
     })
@@ -1022,17 +1027,7 @@ export class AgentSessionPresenter {
     includeSubagents?: boolean
     parentSessionId?: string
   }): Promise<SessionWithState[]> {
-    const records = this.sessionManager.list(filters)
-    const enriched: SessionWithState[] = []
-
-    for (const record of records) {
-      const session = await this.tryBuildSessionWithState(record, 'list')
-      if (session) {
-        enriched.push(session)
-      }
-    }
-
-    return enriched
+    return await this.sessionProjection.listSessions(filters)
   }
 
   async getLightweightSessionList(options?: {
@@ -1042,51 +1037,19 @@ export class AgentSessionPresenter {
     agentId?: string
     prioritizeSessionId?: string
   }): Promise<SessionLightweightListResult> {
-    const page = this.sessionManager.listPage({
-      limit: options?.limit,
-      cursor: options?.cursor,
-      agentId: options?.agentId,
-      includeSubagents: options?.includeSubagents
-    })
-    const items = page.records.map((record) => this.mapSessionRecordToListItem(record))
-
-    const prioritizeSessionId = options?.prioritizeSessionId?.trim()
-    if (prioritizeSessionId) {
-      const prioritizedRecord = this.sessionManager.get(prioritizeSessionId)
-      if (prioritizedRecord && this.matchesLightweightFilter(prioritizedRecord, options)) {
-        items.unshift(this.mapSessionRecordToListItem(prioritizedRecord))
-      }
-    }
-
-    const deduped = this.dedupeAndSortSessionListItems(items)
-    return {
-      items: deduped,
-      nextCursor: page.nextCursor,
-      hasMore: page.hasMore
-    }
+    return await this.sessionProjection.listLightweight(options)
   }
 
   async getLightweightSessionsByIds(sessionIds: string[]): Promise<SessionListItem[]> {
-    const dedupedIds = Array.from(
-      new Set(sessionIds.map((sessionId) => sessionId.trim()).filter(Boolean))
-    )
-    return this.dedupeAndSortSessionListItems(
-      this.sessionManager
-        .getMany(dedupedIds)
-        .map((record) => this.mapSessionRecordToListItem(record))
-    )
+    return await this.sessionProjection.getLightweightByIds(sessionIds)
   }
 
   async getSession(sessionId: string): Promise<SessionWithState | null> {
-    const record = this.sessionManager.get(sessionId)
-    if (!record) return null
-    return await this.tryBuildSessionWithState(record)
+    return await this.sessionProjection.getSession(sessionId)
   }
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) throw new Error(`Session not found: ${sessionId}`)
-    return await this.sharedData.transcript.getMessages(sessionId)
+    return await this.sessionProjection.getMessages(sessionId)
   }
 
   async listMessagesPage(
@@ -1096,12 +1059,7 @@ export class AgentSessionPresenter {
       cursor?: MessagePageCursor | null
     }
   ): Promise<ChatMessagePageResult> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    return await this.sharedData.transcript.listMessagesPage(sessionId, options)
+    return await this.sessionProjection.listMessagesPage(sessionId, options)
   }
 
   async searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]> {
@@ -1307,12 +1265,7 @@ export class AgentSessionPresenter {
   }
 
   async getTapeInfo(sessionId: string): Promise<AgentTapeInfo> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    return await this.sharedData.tape.getTapeInfo(sessionId)
+    return await this.sessionProjection.getTapeInfo(sessionId)
   }
 
   async searchTape(
@@ -1320,12 +1273,7 @@ export class AgentSessionPresenter {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    return await this.sharedData.tape.searchTape(sessionId, query, options)
+    return await this.sessionProjection.searchTape(sessionId, query, options)
   }
 
   async getTapeContext(
@@ -1333,24 +1281,14 @@ export class AgentSessionPresenter {
     entryIds: number[],
     options?: AgentTapeContextOptions
   ): Promise<AgentTapeContextResult> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    return await this.sharedData.tape.getTapeContext(sessionId, entryIds, options)
+    return await this.sessionProjection.getTapeContext(sessionId, entryIds, options)
   }
 
   async listTapeAnchors(
     sessionId: string,
     options?: AgentTapeAnchorsOptions
   ): Promise<AgentTapeAnchorResult[]> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    return await this.sharedData.tape.listTapeAnchors(sessionId, options)
+    return await this.sessionProjection.listTapeAnchors(sessionId, options)
   }
 
   async handoffTape(
@@ -1358,64 +1296,18 @@ export class AgentSessionPresenter {
     name: string,
     state: Record<string, unknown> = {}
   ): Promise<AgentTapeAnchorResult> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    return await this.sharedData.tape.handoffTape(sessionId, name, state)
+    return await this.sessionProjection.handoffTape(sessionId, name, state)
   }
 
   async listMessageViewManifests(messageId: string): Promise<DeepChatTapeViewManifestRecord[]> {
-    const normalizedMessageId = messageId?.trim()
-    if (!normalizedMessageId) return []
-
-    const message = this.sqlitePresenter.deepchatMessagesTable.get(normalizedMessageId)
-    if (!message) return []
-
-    const session = this.sessionManager.get(message.session_id)
-    if (!session) return []
-
-    try {
-      return await this.sharedData.tape.listMessageViewManifests(
-        message.session_id,
-        normalizedMessageId
-      )
-    } catch (error) {
-      logger.warn('[AgentSessionPresenter] Failed to list message view manifests', {
-        messageId: normalizedMessageId,
-        error
-      })
-      return []
-    }
+    return await this.sessionProjection.listMessageViewManifests(messageId)
   }
 
   async exportMessageTapeReplaySlice(
     messageId: string,
     options?: DeepChatTapeReplayExportOptions
   ): Promise<DeepChatTapeReplaySlice | null> {
-    const normalizedMessageId = messageId?.trim()
-    if (!normalizedMessageId) return null
-
-    const message = this.sqlitePresenter.deepchatMessagesTable.get(normalizedMessageId)
-    if (!message) return null
-
-    const session = this.sessionManager.get(message.session_id)
-    if (!session) return null
-
-    try {
-      return await this.sharedData.tape.exportMessageTapeReplaySlice(
-        message.session_id,
-        normalizedMessageId,
-        options
-      )
-    } catch (error) {
-      logger.warn('[AgentSessionPresenter] Failed to export tape replay slice', {
-        messageId: normalizedMessageId,
-        error
-      })
-      return null
-    }
+    return await this.sessionProjection.exportMessageTapeReplaySlice(messageId, options)
   }
 
   async mergeSubagentTape(
@@ -1493,38 +1385,7 @@ export class AgentSessionPresenter {
   }
 
   async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
-    const normalizedMessageId = messageId?.trim()
-    if (!normalizedMessageId) {
-      return []
-    }
-    const parsed: SearchResult[] = []
-    const rows =
-      this.sqlitePresenter.deepchatMessageSearchResultsTable.listByMessageId(normalizedMessageId)
-    for (const row of rows) {
-      try {
-        const result = JSON.parse(row.content) as SearchResult
-        parsed.push({
-          ...result,
-          rank: typeof result.rank === 'number' ? result.rank : (row.rank ?? undefined),
-          searchId: result.searchId ?? row.search_id ?? undefined
-        })
-      } catch (error) {
-        console.warn('[AgentSessionPresenter] Failed to parse search result row:', error)
-      }
-    }
-
-    if (searchId) {
-      const filtered = parsed.filter((item) => item.searchId === searchId)
-      if (filtered.length > 0) {
-        return filtered
-      }
-      const legacy = parsed.filter((item) => !item.searchId)
-      if (legacy.length > 0) {
-        return legacy
-      }
-    }
-
-    return parsed
+    return await this.sessionProjection.getSearchResults(messageId, searchId)
   }
 
   async getLegacyImportStatus(): Promise<LegacyImportStatus> {
@@ -1712,38 +1573,19 @@ export class AgentSessionPresenter {
   }
 
   async listMessageTraces(messageId: string): Promise<MessageTraceRecord[]> {
-    if (!messageId?.trim()) return []
-    return this.sqlitePresenter.deepchatMessageTracesTable
-      .listByMessageId(messageId)
-      .map((row) => ({
-        id: row.id,
-        messageId: row.message_id,
-        sessionId: row.session_id,
-        providerId: row.provider_id,
-        modelId: row.model_id,
-        requestSeq: row.request_seq,
-        endpoint: row.endpoint,
-        headersJson: row.headers_json,
-        bodyJson: row.body_json,
-        truncated: row.truncated === 1,
-        createdAt: row.created_at
-      }))
+    return await this.sessionProjection.listMessageTraces(messageId)
   }
 
   async getMessageTraceCount(messageId: string): Promise<number> {
-    const normalizedMessageId = messageId?.trim()
-    if (!normalizedMessageId) return 0
-    return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(normalizedMessageId)
+    return await this.sessionProjection.getMessageTraceCount(messageId)
   }
 
   async getMessageIds(sessionId: string): Promise<string[]> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) throw new Error(`Session not found: ${sessionId}`)
-    return await this.sharedData.transcript.getMessageIds(sessionId)
+    return await this.sessionProjection.getMessageIds(sessionId)
   }
 
   async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
-    return await this.sharedData.transcript.getMessage(messageId)
+    return await this.sessionProjection.getMessage(messageId)
   }
 
   async translateText(text: string, locale?: string, agentId?: string): Promise<string> {
@@ -1787,37 +1629,19 @@ export class AgentSessionPresenter {
   }
 
   async activateSession(webContentsId: number, sessionId: string): Promise<void> {
-    this.sessionManager.bindWindow(webContentsId, toAppSessionId(sessionId))
-    publishDeepchatEvent('sessions.updated', {
-      sessionIds: [sessionId],
-      reason: 'activated',
-      activeSessionId: sessionId,
-      webContentsId
-    })
+    await this.sessionProjection.activate(webContentsId, sessionId)
   }
 
   async deactivateSession(webContentsId: number): Promise<void> {
-    this.sessionManager.unbindWindow(webContentsId)
-    publishDeepchatEvent('sessions.updated', {
-      sessionIds: [],
-      reason: 'deactivated',
-      activeSessionId: null,
-      webContentsId
-    })
+    await this.sessionProjection.deactivate(webContentsId)
   }
 
   async getActiveSession(webContentsId: number): Promise<SessionWithState | null> {
-    const sessionId = this.sessionManager.getActiveSessionId(webContentsId)
-    if (!sessionId) return null
-    const session = await this.getSession(sessionId)
-    if (!session) {
-      this.sessionManager.unbindWindow(webContentsId)
-    }
-    return session
+    return await this.sessionProjection.getActive(webContentsId)
   }
 
   getActiveSessionId(webContentsId: number): string | null {
-    return this.sessionManager.getActiveSessionId(webContentsId)
+    return this.sessionProjection.getActiveId(webContentsId)
   }
 
   async getAgents(): Promise<Agent[]> {
@@ -1830,34 +1654,11 @@ export class AgentSessionPresenter {
   }
 
   async renameSession(sessionId: string, title: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const normalized = title.trim()
-    if (!normalized) {
-      throw new Error('Session title cannot be empty.')
-    }
-
-    this.sessionManager.update(sessionId, { title: normalized })
-    this.emitSessionListUpdated({
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
+    await this.sessionProjection.renameSession(sessionId, title)
   }
 
   async toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    this.sessionManager.update(sessionId, { isPinned: pinned })
-    this.emitSessionListUpdated({
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
+    await this.sessionProjection.toggleSessionPinned(sessionId, pinned)
   }
 
   async clearSessionMessages(sessionId: string): Promise<void> {
@@ -1868,7 +1669,7 @@ export class AgentSessionPresenter {
 
     await this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle.cancel()
     await this.sharedData.transcriptMutation.clearMessages(sessionId)
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [sessionId],
       reason: 'updated'
     })
@@ -1908,7 +1709,7 @@ export class AgentSessionPresenter {
 
   async deleteSession(sessionId: string): Promise<void> {
     const deletedSessionIds = await this.deleteSessionInternal(sessionId)
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: deletedSessionIds,
       reason: 'deleted'
     })
@@ -2035,13 +1836,13 @@ export class AgentSessionPresenter {
 
       if (partialCounts.length > 0) {
         if (movedSessionIds.length > 0) {
-          this.emitSessionListUpdated({
+          this.sessionProjection.notify({
             sessionIds: movedSessionIds,
             reason: 'updated'
           })
         }
         if (deletedSessionIds.length > 0) {
-          this.emitSessionListUpdated({
+          this.sessionProjection.notify({
             sessionIds: deletedSessionIds,
             reason: 'deleted'
           })
@@ -2052,13 +1853,13 @@ export class AgentSessionPresenter {
     }
 
     if (movedSessionIds.length > 0) {
-      this.emitSessionListUpdated({
+      this.sessionProjection.notify({
         sessionIds: movedSessionIds,
         reason: 'updated'
       })
     }
     if (deletedSessionIds.length > 0) {
-      this.emitSessionListUpdated({
+      this.sessionProjection.notify({
         sessionIds: deletedSessionIds,
         reason: 'deleted'
       })
@@ -2097,7 +1898,7 @@ export class AgentSessionPresenter {
     }
 
     if (deletedSessionIds.length > 0) {
-      this.emitSessionListUpdated({
+      this.sessionProjection.notify({
         sessionIds: deletedSessionIds,
         reason: 'deleted'
       })
@@ -2108,7 +1909,7 @@ export class AgentSessionPresenter {
 
   async moveSessionToAgent(sessionId: string, toAgentId: string): Promise<SessionWithState> {
     const updated = await this.moveSessionToAgentInternal(sessionId, toAgentId)
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [sessionId],
       reason: 'updated'
     })
@@ -2238,11 +2039,11 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found after update: ${sessionId}`)
     }
 
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [sessionId],
       reason: 'updated'
     })
-    const sessionWithState = await this.tryBuildSessionWithState(updated)
+    const sessionWithState = await this.sessionProjection.materialize(sessionId)
     if (!sessionWithState) {
       throw new Error(`Failed to build session state for sessionId: ${sessionId}`)
     }
@@ -2278,7 +2079,7 @@ export class AgentSessionPresenter {
       providerId: state?.providerId ?? nextProviderId,
       modelId: state?.modelId ?? nextModelId
     }
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [sessionId],
       reason: 'updated'
     })
@@ -2315,11 +2116,11 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found after update: ${sessionId}`)
     }
 
-    this.emitSessionListUpdated({
+    this.sessionProjection.notify({
       sessionIds: [sessionId],
       reason: 'updated'
     })
-    const sessionWithState = await this.tryBuildSessionWithState(updated)
+    const sessionWithState = await this.sessionProjection.materialize(sessionId)
     if (!sessionWithState) {
       throw new Error(`Failed to build session state after project update: ${sessionId}`)
     }
@@ -2374,208 +2175,6 @@ export class AgentSessionPresenter {
     return await this.agentManager
       .resolveSessionHandle(toAppSessionId(sessionId))
       .handle.settings.updateGenerationSettings(settings)
-  }
-
-  private async generateSessionTitle(
-    sessionId: string,
-    initialTitle: string,
-    fallbackProviderId: string,
-    fallbackModelId: string
-  ): Promise<void> {
-    try {
-      const titleMessages = await this.waitForSessionTitleMessages(sessionId)
-      if (!titleMessages) return
-
-      const currentSession = this.sessionManager.get(sessionId)
-      if (!currentSession) return
-      if (currentSession.title !== initialTitle) return
-
-      const assistantSelection = await this.resolveAssistantModelSelection(
-        currentSession.agentId,
-        fallbackProviderId,
-        fallbackModelId
-      )
-      const preferredProviderId = assistantSelection.providerId
-      const preferredModelId = assistantSelection.modelId
-
-      let generatedTitle: string
-      try {
-        generatedTitle = await this.llmProviderPresenter.summaryTitles(
-          titleMessages,
-          preferredProviderId,
-          preferredModelId
-        )
-      } catch (error) {
-        const shouldFallback =
-          preferredProviderId !== fallbackProviderId || preferredModelId !== fallbackModelId
-        if (!shouldFallback) throw error
-        generatedTitle = await this.llmProviderPresenter.summaryTitles(
-          titleMessages,
-          fallbackProviderId,
-          fallbackModelId
-        )
-      }
-
-      const normalized = this.normalizeGeneratedTitle(generatedTitle)
-      if (!normalized || normalized === initialTitle) return
-
-      const latest = this.sessionManager.get(sessionId)
-      if (!latest) return
-      if (latest.title !== initialTitle) return
-
-      this.sessionManager.update(sessionId, { title: normalized })
-      this.emitSessionListUpdated({
-        sessionIds: [sessionId],
-        reason: 'updated'
-      })
-    } catch (error) {
-      console.warn(
-        `[AgentSessionPresenter] title generation skipped for session=${sessionId}:`,
-        error
-      )
-    }
-  }
-
-  private emitSessionListUpdated(
-    options: {
-      sessionIds?: string[]
-      reason?: 'created' | 'updated' | 'deleted' | 'list-refreshed'
-      activeSessionId?: string | null
-      webContentsId?: number
-    } = {}
-  ): void {
-    const sessionIds = Array.from(
-      new Set(options.sessionIds?.map((sessionId) => sessionId.trim()).filter(Boolean) ?? [])
-    )
-    const reason = options.reason ?? (sessionIds.length > 0 ? 'updated' : 'list-refreshed')
-
-    publishDeepchatEvent('sessions.updated', {
-      sessionIds,
-      reason,
-      activeSessionId: options.activeSessionId,
-      webContentsId: options.webContentsId
-    })
-    this.sessionUiPort?.refreshSessionUi()
-  }
-
-  private async waitForSessionTitleMessages(
-    sessionId: string
-  ): Promise<Array<{ role: 'system' | 'user' | 'assistant'; content: string }> | null> {
-    const MAX_WAIT_MS = 30000
-    const POLL_MS = 250
-    const startedAt = Date.now()
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-    const readTitleMessages = async () => {
-      const titleMessages = this.buildTitleMessages(
-        await this.sharedData.transcript.getMessages(sessionId)
-      )
-      return titleMessages.length > 0 ? titleMessages : null
-    }
-
-    while (Date.now() - startedAt < MAX_WAIT_MS) {
-      const session = this.sessionManager.get(sessionId)
-      if (!session) return null
-
-      const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-      const state = await handle.snapshot()
-      if (!state) return null
-      if (state.status === 'error') return null
-      if (state.status === 'idle') {
-        const titleMessages = await readTitleMessages()
-        if (titleMessages) {
-          return titleMessages
-        }
-      }
-
-      const remainingMs = MAX_WAIT_MS - (Date.now() - startedAt)
-      const ready = await handle.waitForFirstTurnReady({
-        timeoutMs: Math.min(POLL_MS, Math.max(0, remainingMs))
-      })
-      if (!ready) {
-        continue
-      }
-
-      const titleMessages = await readTitleMessages()
-      if (titleMessages) {
-        return titleMessages
-      }
-
-      await sleep(POLL_MS)
-    }
-
-    return null
-  }
-
-  private async buildSessionWithState(
-    record: SessionRecord,
-    mode: 'full' | 'list' = 'full'
-  ): Promise<SessionWithState> {
-    const state = await this.agentManager
-      .resolveSessionHandle(toAppSessionId(record.id))
-      .handle.snapshot({ lightweight: mode === 'list' })
-    const status = state?.status ?? 'idle'
-    this.sessionStatusSnapshots.set(record.id, status)
-    return {
-      ...record,
-      status,
-      providerId: state?.providerId ?? '',
-      modelId: state?.modelId ?? ''
-    }
-  }
-
-  private mapSessionRecordToListItem(record: SessionRecord): SessionListItem {
-    return {
-      ...record,
-      status: this.sessionStatusSnapshots.get(record.id) ?? 'idle'
-    }
-  }
-
-  private dedupeAndSortSessionListItems(items: SessionListItem[]): SessionListItem[] {
-    const sessionMap = new Map<string, SessionListItem>()
-    for (const item of items) {
-      sessionMap.set(item.id, item)
-    }
-
-    return Array.from(sessionMap.values()).sort((left, right) => {
-      if (right.updatedAt !== left.updatedAt) {
-        return right.updatedAt - left.updatedAt
-      }
-
-      return right.id.localeCompare(left.id)
-    })
-  }
-
-  private matchesLightweightFilter(
-    record: SessionRecord,
-    options?: {
-      includeSubagents?: boolean
-      agentId?: string
-    }
-  ): boolean {
-    if (options?.agentId && record.agentId !== options.agentId) {
-      return false
-    }
-
-    if (options?.includeSubagents !== true && record.sessionKind === 'subagent') {
-      return false
-    }
-
-    return true
-  }
-
-  private async tryBuildSessionWithState(
-    record: SessionRecord,
-    mode: 'full' | 'list' = 'full'
-  ): Promise<SessionWithState> {
-    try {
-      return await this.buildSessionWithState(record, mode)
-    } catch (error) {
-      console.warn(
-        `[AgentSessionPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
-        error
-      )
-      return null as unknown as SessionWithState
-    }
   }
 
   private requireDirectAcpHandle(sessionId: string): DirectAcpSessionHandle {
@@ -2841,7 +2440,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found after transfer: ${sessionId}`)
     }
 
-    const sessionWithState = await this.tryBuildSessionWithState(updated)
+    const sessionWithState = await this.sessionProjection.materialize(sessionId)
     if (!sessionWithState) {
       throw new Error(`Failed to build session state after transfer: ${sessionId}`)
     }
@@ -2950,7 +2549,7 @@ export class AgentSessionPresenter {
     this.sessionPermissionPort?.clearSessionPermissions(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
-    this.sessionStatusSnapshots.delete(sessionId)
+    this.sessionProjection.forgetStatus([sessionId])
     deletedSessionIds.push(sessionId)
 
     return deletedSessionIds
@@ -3832,68 +3431,6 @@ export class AgentSessionPresenter {
 
   private async yieldToEventLoop(): Promise<void> {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
-  }
-
-  private buildTitleMessages(
-    records: ChatMessageRecord[]
-  ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
-    const sorted = [...records].sort((a, b) => a.orderSeq - b.orderSeq)
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
-
-    for (const record of sorted) {
-      if (record.role === 'user') {
-        const text = this.extractUserText(record.content)
-        if (text) {
-          messages.push({ role: 'user', content: text })
-        }
-        continue
-      }
-
-      if (record.role === 'assistant') {
-        const text = this.extractAssistantText(record.content)
-        if (text) {
-          messages.push({ role: 'assistant', content: text })
-        }
-      }
-    }
-
-    return messages.slice(0, 6)
-  }
-
-  private extractUserText(content: string): string {
-    try {
-      const parsed = JSON.parse(content) as UserMessageContent | string
-      if (typeof parsed === 'string') return parsed.trim()
-      return typeof parsed.text === 'string' ? parsed.text.trim() : ''
-    } catch {
-      return content.trim()
-    }
-  }
-
-  private extractAssistantText(content: string): string {
-    try {
-      const parsed = JSON.parse(content) as AssistantMessageBlock[] | string
-      if (typeof parsed === 'string') return parsed.trim()
-      if (!Array.isArray(parsed)) return ''
-      return parsed
-        .filter((block) => block.type === 'content')
-        .map((block) => block.content)
-        .join('\n')
-        .trim()
-    } catch {
-      return content.trim()
-    }
-  }
-
-  private normalizeGeneratedTitle(rawTitle: string): string {
-    if (!rawTitle) return ''
-    let cleaned = rawTitle.replace(/<think>.*?<\/think>/gs, '').trim()
-    cleaned = cleaned.replace(/^<think>/, '').trim()
-    cleaned = cleaned.replace(/^["'`]+|["'`]+$/g, '').trim()
-    if (cleaned.length > 80) {
-      cleaned = cleaned.slice(0, 80).trim()
-    }
-    return cleaned
   }
 
   private buildForkTitle(sourceTitle: string, customTitle?: string): string {

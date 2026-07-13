@@ -10,6 +10,7 @@ import { AgentRepository } from '@/presenter/agentRepository'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
+import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
@@ -569,18 +570,29 @@ function createDescriptorIndependentDeleteHarness(options: {
     clearSessionPermissions: vi.fn(),
     approvePermission: vi.fn().mockResolvedValue(undefined)
   }
+  const llmProviderPresenter = createMockLlmProviderPresenter()
+  const configPresenter = createMockConfigPresenter()
+  const sharedData = {
+    sessionState: deepchatImplementation,
+    transcript: deepchatImplementation,
+    transcriptMutation: deepchatImplementation,
+    tape: deepchatImplementation
+  } as any
   const presenter = new AgentSessionPresenter(
     manager,
     appSessionService,
-    createMockLlmProviderPresenter(),
-    createMockConfigPresenter(),
+    llmProviderPresenter,
+    configPresenter,
     sqliteWithAgents,
-    {
-      sessionState: deepchatImplementation,
-      transcript: deepchatImplementation,
-      transcriptMutation: deepchatImplementation,
-      tape: deepchatImplementation
-    } as any,
+    sharedData,
+    createProjectionCoordinatorFixture({
+      agentManager: manager,
+      appSessionService,
+      llmProviderPresenter,
+      configPresenter,
+      sqlitePresenter: sqliteWithAgents,
+      sharedData
+    }),
     skillPresenter,
     { sessionPermissionPort }
   )
@@ -697,25 +709,36 @@ describe('AgentSessionPresenter', () => {
         await closeDirectAcpSession(sessionId)
       })
     }
+    const appSessionService = new AppSessionService({
+      newSessionsTable: sqlitePresenter.newSessionsTable,
+      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+    })
+    const sharedData = {
+      sessionState: deepChatAgent,
+      transcript: deepChatAgent,
+      transcriptMutation: deepChatAgent,
+      tape: deepChatAgent
+    } as any
     presenter = new AgentSessionPresenter(
       agentManager as any,
-      new AppSessionService({
-        newSessionsTable: sqlitePresenter.newSessionsTable,
-        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-      }),
+      appSessionService,
       llmProviderPresenter,
       configPresenter,
       sqlitePresenter,
-      {
-        sessionState: deepChatAgent,
-        transcript: deepChatAgent,
-        transcriptMutation: deepChatAgent,
-        tape: deepChatAgent
-      } as any,
+      sharedData,
+      createProjectionCoordinatorFixture({
+        agentManager: agentManager as any,
+        appSessionService,
+        llmProviderPresenter,
+        configPresenter,
+        sqlitePresenter,
+        sharedData,
+        sessionUiPort
+      }),
       skillPresenter,
-      { acpAsLlmProviderSessionControl: llmProviderPresenter, sessionUiPort }
+      { acpAsLlmProviderSessionControl: llmProviderPresenter }
     )
   })
 
@@ -939,18 +962,27 @@ describe('AgentSessionPresenter', () => {
         resolveInput: resolveDirectAcpInput
       })
     })
+    const integratedSharedData = {
+      sessionState: deepchatImplementation,
+      transcript: deepchatImplementation,
+      transcriptMutation: deepchatImplementation,
+      tape: deepchatImplementation
+    } as any
     const integratedPresenter = new AgentSessionPresenter(
       realManager,
       appSessionService,
       llmProviderPresenter,
       configPresenter,
       sqliteWithAgents,
-      {
-        sessionState: deepchatImplementation,
-        transcript: deepchatImplementation,
-        transcriptMutation: deepchatImplementation,
-        tape: deepchatImplementation
-      } as any,
+      integratedSharedData,
+      createProjectionCoordinatorFixture({
+        agentManager: realManager,
+        appSessionService,
+        llmProviderPresenter,
+        configPresenter,
+        sqlitePresenter: sqliteWithAgents,
+        sharedData: integratedSharedData
+      }),
       skillPresenter
     )
 
@@ -3022,7 +3054,7 @@ describe('AgentSessionPresenter', () => {
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('s1')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=missing-agent agent=disabled-agent:',
+        '[SessionProjectionCoordinator] Skipping unavailable session id=missing-agent agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -3067,7 +3099,7 @@ describe('AgentSessionPresenter', () => {
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('healthy-state')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=broken-state agent=deepchat:',
+        '[SessionProjectionCoordinator] Skipping unavailable session id=broken-state agent=deepchat:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -3172,7 +3204,7 @@ describe('AgentSessionPresenter', () => {
 
       expect(await presenter.getSession('s-disabled')).toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        '[SessionProjectionCoordinator] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -3367,7 +3399,7 @@ describe('AgentSessionPresenter', () => {
         sqlitePresenter.deepchatMessageSearchResultsTable.listByMessageId
       ).toHaveBeenCalledWith('message-1')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Failed to parse search result row:',
+        '[SessionProjectionCoordinator] Failed to parse search result row:',
         expect.any(SyntaxError)
       )
       warnSpy.mockRestore()
@@ -3409,11 +3441,14 @@ describe('AgentSessionPresenter', () => {
 
   describe('session update publication', () => {
     it('trims and dedupes ids, applies reason defaults, and refreshes session UI', () => {
-      const emit = Reflect.get(presenter, 'emitSessionListUpdated') as (options?: {
+      const projection = Reflect.get(presenter, 'sessionProjection') as {
+        notify(options?: { sessionIds?: string[] }): void
+      }
+      const emit = projection.notify.bind(projection) as (options?: {
         sessionIds?: string[]
       }) => void
 
-      emit.call(presenter, { sessionIds: [' s1 ', 's1', ' ', 's2', 's2'] })
+      emit({ sessionIds: [' s1 ', 's1', ' ', 's2', 's2'] })
 
       expect(publishDeepchatEvent).toHaveBeenCalledWith('sessions.updated', {
         sessionIds: ['s1', 's2'],
@@ -3425,7 +3460,7 @@ describe('AgentSessionPresenter', () => {
 
       vi.mocked(publishDeepchatEvent).mockClear()
       sessionUiPort.refreshSessionUi.mockClear()
-      emit.call(presenter)
+      emit()
 
       expect(publishDeepchatEvent).toHaveBeenCalledWith('sessions.updated', {
         sessionIds: [],
@@ -4958,7 +4993,7 @@ describe('AgentSessionPresenter', () => {
       })
       await expect(presenter.getActiveSession(1)).resolves.toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        '[SessionProjectionCoordinator] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()

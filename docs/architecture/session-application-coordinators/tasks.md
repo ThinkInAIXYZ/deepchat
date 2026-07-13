@@ -19,11 +19,11 @@
 
 ## 2. SessionProjectionCoordinator
 
-- [ ] Extract full and lightweight session materialization and status cache.
-- [ ] Extract message, Tape, trace, manifest, replay, and search-result projection operations.
-- [ ] Extract active-window binding, rename/pin, title generation, events, and UI refresh.
-- [ ] Construct one composition-owned Projection instance.
-- [ ] Rewire compatibility presenter forwarding and move owner tests.
+- [x] Extract full and lightweight session materialization and status cache.
+- [x] Extract message, Tape, trace, manifest, replay, and search-result projection operations.
+- [x] Extract active-window binding, rename/pin, title generation, events, and UI refresh.
+- [x] Construct one composition-owned Projection instance.
+- [x] Rewire compatibility presenter forwarding and move owner tests.
 
 ## 3. SessionAgentAssignmentCoordinator
 

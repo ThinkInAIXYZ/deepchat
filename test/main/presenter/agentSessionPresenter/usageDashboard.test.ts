@@ -4,6 +4,7 @@ import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
 import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
+import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToMain: vi.fn(), on: vi.fn() }
@@ -447,29 +448,41 @@ describe('AgentSessionPresenter usage dashboard', () => {
     const sqlitePresenter = createMockSqlitePresenter()
     const configPresenter = createMockConfigPresenter()
     const deepChatAgent = createMockDeepChatAgent()
+    const agentManager = {
+      resolveBackend: () => ({
+        kind: 'deepchat',
+        descriptor: { id: 'deepchat', kind: 'deepchat', source: 'builtin', config: {} },
+        backend: createDeepChatAgentBackendFixture(deepChatAgent as never)
+      })
+    } as any
+    const appSessionService = new AppSessionService({
+      newSessionsTable: sqlitePresenter.newSessionsTable,
+      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+    })
+    const llmProviderPresenter = createMockLlmProviderPresenter() as any
+    const sharedData = {
+      sessionState: deepChatAgent,
+      transcript: deepChatAgent,
+      transcriptMutation: deepChatAgent,
+      tape: deepChatAgent
+    } as any
     const presenter = new AgentSessionPresenter(
-      {
-        resolveBackend: () => ({
-          kind: 'deepchat',
-          descriptor: { id: 'deepchat', kind: 'deepchat', source: 'builtin', config: {} },
-          backend: createDeepChatAgentBackendFixture(deepChatAgent as never)
-        })
-      } as any,
-      new AppSessionService({
-        newSessionsTable: sqlitePresenter.newSessionsTable,
-        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-      }),
-      createMockLlmProviderPresenter() as any,
+      agentManager,
+      appSessionService,
+      llmProviderPresenter,
       configPresenter as any,
       sqlitePresenter,
-      {
-        sessionState: deepChatAgent,
-        transcript: deepChatAgent,
-        transcriptMutation: deepChatAgent,
-        tape: deepChatAgent
-      } as any
+      sharedData,
+      createProjectionCoordinatorFixture({
+        agentManager,
+        appSessionService,
+        llmProviderPresenter,
+        configPresenter: configPresenter as any,
+        sqlitePresenter,
+        sharedData
+      })
     )
 
     return {
