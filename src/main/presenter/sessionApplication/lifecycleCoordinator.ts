@@ -468,27 +468,28 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
     sessionId: string,
     providerId?: string
   ): Promise<void> {
-    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-    if (providerId === 'acp' && runtime.kind !== 'acp') {
-      try {
-        await this.dependencies.workdir.clearCompatibilityAcpSession(sessionId)
-      } catch (error) {
-        console.warn(
-          `[SessionLifecycleCoordinator] Failed to clear ACP session after initialization error ${sessionId}:`,
-          error
-        )
-      }
-    }
-
     try {
+      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+      if (providerId === 'acp' && runtime.kind !== 'acp') {
+        try {
+          await this.dependencies.workdir.clearCompatibilityAcpSession(sessionId)
+        } catch (error) {
+          console.warn(
+            `[SessionLifecycleCoordinator] Failed to clear ACP session after initialization error ${sessionId}:`,
+            error
+          )
+        }
+      }
+
       await runtime.close()
     } catch (cleanupError) {
       console.warn(
         `[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error ${sessionId}:`,
         cleanupError
       )
+    } finally {
+      this.dependencies.sessions.delete(sessionId)
     }
-    this.dependencies.sessions.delete(sessionId)
   }
 
   private buildForkTitle(sourceTitle: string, customTitle?: string): string {

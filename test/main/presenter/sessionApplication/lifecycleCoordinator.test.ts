@@ -331,6 +331,33 @@ describe('SessionLifecycleCoordinator', () => {
     warn.mockRestore()
   })
 
+  it('deletes the failed create row when cleanup cannot resolve its runtime', async () => {
+    const harness = createHarness()
+    const initializationError = new Error('workdir failed')
+    const cleanupError = new Error('cleanup resolve failed')
+    const failedRuntime = harness.getRuntime('session-1')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    harness.workdir.syncAcpSessionWorkdir.mockRejectedValueOnce(initializationError)
+    harness.runtime.resolveSession
+      .mockImplementationOnce(() => failedRuntime)
+      .mockImplementationOnce(() => {
+        throw cleanupError
+      })
+
+    await expect(
+      harness.coordinator.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
+    ).rejects.toBe(initializationError)
+
+    expect(failedRuntime.close).not.toHaveBeenCalled()
+    expect(harness.sessions.delete).toHaveBeenCalledExactlyOnceWith('session-1')
+    expect(harness.records.has('session-1')).toBe(false)
+    expect(warn).toHaveBeenCalledWith(
+      '[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error session-1:',
+      cleanupError
+    )
+    warn.mockRestore()
+  })
+
   it('creates detached sessions without binding a window or starting a turn', async () => {
     const harness = createHarness()
     const metadata = {
@@ -369,6 +396,8 @@ describe('SessionLifecycleCoordinator', () => {
 
   it('retries subagent initialization once with a fresh row and publishes only success', async () => {
     const harness = createHarness()
+    const cleanupError = new Error('cleanup resolve failed')
+    const failedRuntime = harness.getRuntime('session-1')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     harness.assignmentPolicy.resolveSubagentAssignment.mockResolvedValueOnce({
       agentId: 'acp-reviewer',
@@ -382,6 +411,12 @@ describe('SessionLifecycleCoordinator', () => {
     harness.workdir.syncAcpSessionWorkdir
       .mockRejectedValueOnce(new Error('warmup failed'))
       .mockResolvedValueOnce(undefined)
+    harness.runtime.resolveSession
+      .mockImplementationOnce(() => failedRuntime)
+      .mockImplementationOnce(() => {
+        throw cleanupError
+      })
+      .mockImplementation((sessionId: string) => harness.getRuntime(sessionId))
 
     await expect(
       harness.coordinator.createSubagentSession({
@@ -398,7 +433,7 @@ describe('SessionLifecycleCoordinator', () => {
     ).resolves.toMatchObject({ id: 'session-2', sessionKind: 'subagent' })
 
     expect(harness.sessions.create).toHaveBeenCalledTimes(2)
-    expect(harness.getRuntime('session-1').close).toHaveBeenCalledOnce()
+    expect(failedRuntime.close).not.toHaveBeenCalled()
     expect(harness.sessions.delete).toHaveBeenCalledWith('session-1')
     expect(harness.records.has('session-1')).toBe(false)
     expect(harness.records.has('session-2')).toBe(true)
@@ -408,7 +443,11 @@ describe('SessionLifecycleCoordinator', () => {
       sessionIds: ['session-2'],
       reason: 'created'
     })
-    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      '[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error session-1:',
+      cleanupError
+    )
+    expect(warn).toHaveBeenCalledTimes(2)
     warn.mockRestore()
   })
 
