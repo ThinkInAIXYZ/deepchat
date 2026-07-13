@@ -548,9 +548,10 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.agent
   }
 
-  async function deleteDeepChatAgent(agentId: string): Promise<boolean> {
-    const result = await bridge.invoke(configDeleteDeepChatAgentRoute.name, { agentId })
-    return result.removed
+  async function deleteDeepChatAgent(
+    agentId: string
+  ): Promise<{ removed: boolean; cleanupPendingRestart: boolean }> {
+    return bridge.invoke(configDeleteDeepChatAgentRoute.name, { agentId })
   }
 
   async function resolveDeepChatAgentConfig(agentId: string) {

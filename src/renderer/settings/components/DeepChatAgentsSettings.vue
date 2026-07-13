@@ -698,6 +698,7 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useRouter } from 'vue-router'
+import { useToast } from '@/components/use-toast'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
@@ -813,6 +814,7 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const { t } = useI18n()
+const { toast } = useToast()
 const router = useRouter()
 const configClient = createConfigClient()
 const projectClient = createProjectClient()
@@ -1567,9 +1569,14 @@ const removeAgent = async () => {
 }
 
 const finishDeleteAgent = async (agentId: string) => {
-  const removed = await configClient.deleteDeepChatAgent(agentId)
-  if (!removed) {
+  const result = await configClient.deleteDeepChatAgent(agentId)
+  if (!result.removed) {
     throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
+  }
+  if (result.cleanupPendingRestart) {
+    toast({
+      title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+    })
   }
   await loadAgents('deepchat')
   transferDialogOpen.value = false

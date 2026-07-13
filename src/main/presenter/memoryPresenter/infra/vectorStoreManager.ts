@@ -1,5 +1,9 @@
 import logger from '@shared/logger'
 
+import {
+  VectorStoreQuarantineMarkerError,
+  type VectorStoreCleanupDisposition
+} from '../domain/types'
 import type { IMemoryVectorStore, MemoryVectorMatch } from '../types'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type {
@@ -14,6 +18,7 @@ import {
   VECTOR_STORE_SOFT_CAP,
   VECTOR_STORE_SWEEP_INTERVAL_MS
 } from '../runtimeConstants'
+import { isDuckDbFatalError, MemoryVectorStoreQuarantineRequiredError } from './vectorStoreErrors'
 
 export interface LockedVectorStorePort {
   open(embedding: MemoryModelRef, dimensions: number): Promise<IMemoryVectorStore>
@@ -27,6 +32,7 @@ interface VectorStoreLeaseState {
   configFingerprint: string | null | undefined
   logicalIdentity: string | null
   accepting: boolean
+  health: 'healthy' | 'quarantined'
   active: number
   openInFlight: number
   lastUsedAt: number
@@ -45,7 +51,7 @@ export interface VectorReadyCertificate {
 
 export class VectorStoreLeaseUnavailableError extends Error {
   constructor(
-    readonly reason: 'stopped' | 'admission-closed' | 'stale-identity',
+    readonly reason: 'stopped' | 'admission-closed' | 'quarantined' | 'stale-identity',
     message: string
   ) {
     super(message)
@@ -156,6 +162,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
 
   private beginConfigIdentityTransition(agentId: string): Promise<void> {
     const state = this.leaseState(agentId)
+    if (state.health === 'quarantined') return Promise.resolve()
     state.accepting = false
     state.leaseEpoch += 1
     const transitionEpoch = state.leaseEpoch
@@ -171,13 +178,16 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       .finally(() => {
         if (this.identityTransitions.get(agentId) !== tracked) return
         this.identityTransitions.delete(agentId)
-        if (!this.stopped && state.leaseEpoch === transitionEpoch) state.accepting = true
+        if (!this.stopped && state.health === 'healthy' && state.leaseEpoch === transitionEpoch) {
+          state.accepting = true
+        }
       })
     this.identityTransitions.set(agentId, tracked)
     return tracked
   }
 
   hasReadyCertificate(agentId: string, embedding: MemoryModelRef): boolean {
+    if (this.leaseStates.get(agentId)?.health === 'quarantined') return false
     const currentEmbedding = this.resolveCurrentEmbedding(agentId)
     if (this.syncConfigIdentity(agentId, currentEmbedding)) {
       void this.beginConfigIdentityTransition(agentId).catch((error) => {
@@ -213,6 +223,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     dimensions: number,
     leaseEpoch?: number
   ): void {
+    if (this.leaseStates.get(agentId)?.health === 'quarantined') return
     const currentEmbedding = this.resolveCurrentEmbedding(agentId)
     if (this.syncConfigIdentity(agentId, currentEmbedding)) {
       void this.beginConfigIdentityTransition(agentId).catch((error) => {
@@ -280,6 +291,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         configFingerprint: undefined,
         logicalIdentity: null,
         accepting: true,
+        health: 'healthy',
         active: 0,
         openInFlight: 0,
         lastUsedAt: Date.now(),
@@ -289,6 +301,21 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       this.leaseStates.set(agentId, state)
     }
     return state
+  }
+
+  private assertLeaseAdmission(state: VectorStoreLeaseState): void {
+    if (!this.stopped && state.health === 'healthy' && state.accepting) return
+    const reason = this.stopped
+      ? 'stopped'
+      : state.health === 'quarantined'
+        ? 'quarantined'
+        : 'admission-closed'
+    throw new VectorStoreLeaseUnavailableError(
+      reason,
+      reason === 'quarantined'
+        ? '[Memory] vector store is quarantined for the remainder of this process'
+        : '[Memory] vector store lease admission is closed'
+    )
   }
 
   private withAgentLock<T>(
@@ -330,8 +357,24 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   async withVectorMutation<T>(agentId: string, task: () => Promise<T>): Promise<T> {
+    if (this.leaseStates.get(agentId)?.health === 'quarantined') {
+      throw new VectorStoreLeaseUnavailableError(
+        'quarantined',
+        '[Memory] vector store is quarantined for the remainder of this process'
+      )
+    }
     const previous = this.vectorMutationLocks.get(agentId) ?? Promise.resolve()
-    const run = previous.catch(() => undefined).then(task)
+    const run = previous
+      .catch(() => undefined)
+      .then(() => {
+        if (this.leaseStates.get(agentId)?.health === 'quarantined') {
+          throw new VectorStoreLeaseUnavailableError(
+            'quarantined',
+            '[Memory] vector store is quarantined for the remainder of this process'
+          )
+        }
+        return task()
+      })
     const settled = run.then(
       () => undefined,
       () => undefined
@@ -353,6 +396,12 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     task: (store: IMemoryVectorStore, generation: number) => Promise<T>,
     options: { allowHistoricalIdentity?: boolean } = {}
   ): Promise<T> {
+    if (this.leaseStates.get(agentId)?.health === 'quarantined') {
+      throw new VectorStoreLeaseUnavailableError(
+        'quarantined',
+        '[Memory] vector store is quarantined for the remainder of this process'
+      )
+    }
     while (true) {
       const currentEmbedding = this.resolveCurrentEmbedding(agentId)
       if (this.syncConfigIdentity(agentId, currentEmbedding)) {
@@ -378,23 +427,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       break
     }
     const state = this.leaseState(agentId)
-    if (this.stopped || !state.accepting) {
-      throw new VectorStoreLeaseUnavailableError(
-        this.stopped ? 'stopped' : 'admission-closed',
-        '[Memory] vector store lease admission is closed'
-      )
-    }
+    this.assertLeaseAdmission(state)
     state.openInFlight += 1
     state.lastUsedAt = Date.now()
     let store: IMemoryVectorStore
     try {
       store = await this.withAgentLock(agentId, async (locked) => {
-        if (this.stopped || !state.accepting) {
-          throw new VectorStoreLeaseUnavailableError(
-            this.stopped ? 'stopped' : 'admission-closed',
-            '[Memory] vector store lease admission is closed'
-          )
-        }
+        this.assertLeaseAdmission(state)
         this.syncLogicalIdentity(agentId, embedding, dimensions)
         const desiredIdentity = this.cacheKey(agentId, embedding, dimensions)
         const openIdentity = this.vectorStoreIdentities.get(agentId)
@@ -406,15 +445,16 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
             await this.waitForLeaseDrain(state)
             await this.closeVectorStoreLocked(agentId, true)
           } finally {
-            if (!this.stopped && state.leaseEpoch === transitionEpoch) state.accepting = true
+            if (
+              !this.stopped &&
+              state.health === 'healthy' &&
+              state.leaseEpoch === transitionEpoch
+            ) {
+              state.accepting = true
+            }
           }
         }
-        if (this.stopped || !state.accepting) {
-          throw new VectorStoreLeaseUnavailableError(
-            this.stopped ? 'stopped' : 'admission-closed',
-            '[Memory] vector store lease admission is closed'
-          )
-        }
+        this.assertLeaseAdmission(state)
         if (state.requiresReset) {
           await this.ports.vectorStoreFactory.resetVectorStore(agentId)
           state.requiresReset = false
@@ -424,17 +464,21 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     } finally {
       state.openInFlight -= 1
     }
-    if (this.stopped || !state.accepting) {
-      throw new VectorStoreLeaseUnavailableError(
-        this.stopped ? 'stopped' : 'admission-closed',
-        '[Memory] vector store lease admission is closed'
-      )
-    }
+    this.assertLeaseAdmission(state)
     const generation = state.leaseEpoch
     state.active += 1
     this.observeResources()
     try {
       return await task(store, generation)
+    } catch (error) {
+      if (isDuckDbFatalError(error)) {
+        this.quarantineAgent(agentId, error)
+        throw new VectorStoreLeaseUnavailableError(
+          'quarantined',
+          '[Memory] vector store hit a fatal native error and was quarantined'
+        )
+      }
+      throw error
     } finally {
       state.active -= 1
       state.lastUsedAt = Date.now()
@@ -619,6 +663,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     const pending = this.ports.vectorStoreFactory
       .createVectorStore(agentId, embedding, dimensions)
       .catch((error) => {
+        if (error instanceof MemoryVectorStoreQuarantineRequiredError) {
+          this.quarantineAgent(agentId, error)
+          throw new VectorStoreLeaseUnavailableError(
+            'quarantined',
+            '[Memory] vector store recovery is pending restart'
+          )
+        }
         this.vectorStores.delete(agentId)
         this.vectorStoreIdentities.delete(agentId)
         this.clearReady(agentId)
@@ -635,20 +686,81 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     return pending
   }
 
-  async resetAgentStore(agentId: string): Promise<void> {
-    await this.withVectorMutation(agentId, () => this.drainAndClose(agentId, true))
+  private quarantineAgent(agentId: string, error: unknown): void {
+    const state = this.leaseState(agentId)
+    const firstQuarantine = state.health !== 'quarantined'
+    state.health = 'quarantined'
+    state.accepting = false
+    state.leaseEpoch += 1
+    state.storeGeneration += 1
+    state.logicalIdentity = null
+    state.requiresReset = false
+    this.vectorStores.delete(agentId)
+    this.vectorStoreIdentities.delete(agentId)
+    this.identityTransitions.delete(agentId)
+    this.vectorStoreLocks.delete(agentId)
+    this.vectorMutationLocks.delete(agentId)
+    this.clearReady(agentId)
+    if (!firstQuarantine) return
+    try {
+      this.ports.vectorStoreFactory.markVectorStoreQuarantined(agentId)
+    } catch (markerError) {
+      logger.error(
+        `[Memory] failed to persist vector quarantine marker for ${agentId}: ${String(markerError)}; terminal vector failure: ${String(error)}`
+      )
+    }
   }
 
-  async retireAgentStore(agentId: string): Promise<void> {
-    await this.withVectorMutation(agentId, () => this.drainAndClose(agentId, true, true))
+  private persistQuarantineMarker(agentId: string): void {
+    try {
+      this.ports.vectorStoreFactory.markVectorStoreQuarantined(agentId)
+    } catch (error) {
+      throw new VectorStoreQuarantineMarkerError(agentId, error)
+    }
+  }
+
+  private deferQuarantinedCleanup(agentId: string): VectorStoreCleanupDisposition | null {
+    if (this.leaseStates.get(agentId)?.health !== 'quarantined') return null
+    this.persistQuarantineMarker(agentId)
+    return 'pending-restart'
+  }
+
+  async resetAgentStore(agentId: string): Promise<VectorStoreCleanupDisposition> {
+    const deferred = this.deferQuarantinedCleanup(agentId)
+    if (deferred) return deferred
+    try {
+      return await this.withVectorMutation(agentId, () => this.drainAndClose(agentId, true))
+    } catch (error) {
+      const deferredAfterFailure = this.deferQuarantinedCleanup(agentId)
+      if (deferredAfterFailure) return deferredAfterFailure
+      throw error
+    }
+  }
+
+  async retireAgentStore(agentId: string): Promise<VectorStoreCleanupDisposition> {
+    const deferred = this.deferQuarantinedCleanup(agentId)
+    if (deferred) return deferred
+    try {
+      return await this.withVectorMutation(agentId, () => this.drainAndClose(agentId, true, true))
+    } catch (error) {
+      const deferredAfterFailure = this.deferQuarantinedCleanup(agentId)
+      if (deferredAfterFailure) return deferredAfterFailure
+      throw error
+    }
   }
 
   async closeAgentStore(agentId: string): Promise<void> {
     await this.drainAndClose(agentId, false)
   }
 
-  private async drainAndClose(agentId: string, reset: boolean, permanent = false): Promise<void> {
+  private async drainAndClose(
+    agentId: string,
+    reset: boolean,
+    permanent = false
+  ): Promise<VectorStoreCleanupDisposition> {
     const state = this.leaseState(agentId)
+    const initiallyDeferred = this.deferQuarantinedCleanup(agentId)
+    if (initiallyDeferred) return initiallyDeferred
     state.accepting = false
     state.leaseEpoch += 1
     const closeEpoch = state.leaseEpoch
@@ -659,7 +771,10 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     }
     try {
       await this.waitForLeaseDrain(state)
+      const deferredAfterDrain = this.deferQuarantinedCleanup(agentId)
+      if (deferredAfterDrain) return deferredAfterDrain
       await this.withAgentLock(agentId, async (locked) => {
+        if (state.health === 'quarantined') return
         await locked.close({ clearCertificate: reset || permanent })
         if (reset) {
           try {
@@ -671,9 +786,19 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           }
         }
       })
+      const deferredAfterLock = this.deferQuarantinedCleanup(agentId)
+      if (deferredAfterLock) return deferredAfterLock
     } finally {
-      if (!permanent && !this.stopped && state.leaseEpoch === closeEpoch) state.accepting = true
+      if (
+        !permanent &&
+        !this.stopped &&
+        state.health === 'healthy' &&
+        state.leaseEpoch === closeEpoch
+      ) {
+        state.accepting = true
+      }
     }
+    return 'completed'
   }
 
   isGenerationCurrent(agentId: string, generation: number): boolean {
@@ -727,6 +852,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
               await store.deleteByMemoryIds(memoryIds)
               result = 'deleted'
             } catch (error) {
+              if (isDuckDbFatalError(error)) throw error
               logger.warn(`[Memory] vector delete failed: ${String(error)}`)
             }
           },
@@ -765,6 +891,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           await store.deleteByMemoryIds(prunableIds)
           return prunableIds
         } catch (error) {
+          if (isDuckDbFatalError(error)) throw error
           logger.warn(`[Memory] vector prune failed: ${String(error)}`)
           return []
         }
@@ -793,15 +920,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     return [
       ...this.vectorStoreLocks.values(),
       ...this.vectorMutationLocks.values(),
-      ...this.identityTransitions.values(),
-      ...(this.resourceConvergence ? [this.resourceConvergence] : [])
+      ...this.identityTransitions.values()
     ]
   }
 
   async closeAllStores(): Promise<void> {
     this.stopAdmission()
     await Promise.allSettled(this.identityTransitions.values())
-    if (this.resourceConvergence) await Promise.allSettled([this.resourceConvergence])
     const agentIds = new Set([...this.vectorStoreLocks.keys(), ...this.vectorStores.keys()])
     await Promise.allSettled(
       [...agentIds].map((agentId) => this.drainAndClose(agentId, false, true))
@@ -825,6 +950,14 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   async settleAgent(agentId: string): Promise<void> {
+    if (this.leaseStates.get(agentId)?.health === 'quarantined') {
+      this.identityTransitions.delete(agentId)
+      this.vectorStoreLocks.delete(agentId)
+      this.vectorMutationLocks.delete(agentId)
+      this.vectorStoreReady.delete(agentId)
+      this.observeResources()
+      return
+    }
     const identityTransition = this.identityTransitions.get(agentId)
     if (identityTransition) await Promise.allSettled([identityTransition])
     if (this.identityTransitions.get(agentId) === identityTransition) {
@@ -851,5 +984,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
 
   currentEmbeddingFingerprint(embedding: MemoryModelRef): string {
     return embeddingFingerprint(embedding.providerId, embedding.modelId)
+  }
+
+  isQuarantined(agentId: string): boolean {
+    return this.leaseStates.get(agentId)?.health === 'quarantined'
   }
 }

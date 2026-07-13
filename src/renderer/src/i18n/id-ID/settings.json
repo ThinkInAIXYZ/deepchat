@@ -163,6 +163,7 @@
       "clearAll": "Bersihkan semua",
       "clearConfirmTitle": "Bersihkan semua memori?",
       "clearConfirmBody": "Ini menghapus permanen semua memori agen ini. Tidak dapat dibatalkan.",
+      "cleanupPendingRestart": "File vektor yang terkunci akan dihapus setelah aplikasi dimulai ulang",
       "emptyMemories": "Belum ada memori. Memori terkumpul saat Anda mengobrol dengan agen ini.",
       "emptyPersona": "Belum ada versi model-diri.",
       "personaActive": "Aktif",

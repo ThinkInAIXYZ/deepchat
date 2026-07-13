@@ -27,15 +27,17 @@ import {
   MEMORY_HEALTH_RECENT_FAILURES_LIMIT,
   MEMORY_HEALTH_TOP_ACCESSED_LIMIT
 } from '../runtimeConstants'
-import type {
-  AgentMemoryRow,
-  MemoryManagementPage,
-  MemoryManagementPageCursor,
-  MemoryStatus,
-  NormalizedMemoryCandidate
-} from '../types'
+import {
+  VectorStoreQuarantineMarkerError,
+  type MemoryClearResult,
+  type MemoryManagementPage,
+  type MemoryManagementPageCursor,
+  type MemoryStatus,
+  type NormalizedMemoryCandidate,
+  type VectorStoreCleanupDisposition
+} from '../domain/types'
+import { FORGET_HALF_LIFE_MS, type AgentMemoryRow } from '../types'
 import type { ManualEditFieldFlags } from '../domain/types'
-import { FORGET_HALF_LIFE_MS } from '../types'
 import { embeddingFingerprint, type MemoryRuntimeContext } from '../context'
 import type {
   MemoryAgentPolicyPort,
@@ -133,7 +135,7 @@ export class ManagementService {
         memoryIds: string[],
         embedding: { embeddingModel: string | null; embeddingDim: number | null }
       ) => Promise<DeleteVectorResult>
-      resetAgentStore: (agentId: string) => Promise<void>
+      resetAgentStore: (agentId: string) => Promise<VectorStoreCleanupDisposition>
       isReindexing: (agentId: string) => boolean
       reindexEmbeddings: (agentId: string, force?: boolean) => Promise<void>
       syncWorkingMemoryAfterMutation: (agentId: string) => void
@@ -640,26 +642,37 @@ export class ManagementService {
     return true
   }
 
-  async clearMemories(agentId: string): Promise<number> {
-    if (this.ctx.isDisposed) return 0
+  async clearMemories(agentId: string): Promise<MemoryClearResult> {
+    if (this.ctx.isDisposed) return { removed: 0, cleanupPendingRestart: false }
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.isManagedAgent(agentId)) return 0
+    if (!this.ctx.isManagedAgent(agentId)) {
+      return { removed: 0, cleanupPendingRestart: false }
+    }
     this.ctx.invalidateAgentOperations(agentId)
     const removed = this.ports.repository.clearByAgent(agentId)
     if (removed > 0) {
       this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
     }
-    await this.ports.resetAgentStore(agentId).catch((error) => {
-      logger.error(
-        `[Memory] vector reset failed for ${agentId}; on-disk store may persist: ${String(error)}`
-      )
-    })
+    let cleanupPendingRestart = false
+    let markerError: VectorStoreQuarantineMarkerError | undefined
+    try {
+      cleanupPendingRestart = (await this.ports.resetAgentStore(agentId)) === 'pending-restart'
+    } catch (error) {
+      if (error instanceof VectorStoreQuarantineMarkerError) {
+        markerError = error
+      } else {
+        logger.error(
+          `[Memory] vector reset failed for ${agentId}; on-disk store may persist: ${String(error)}`
+        )
+      }
+    }
     if (removed > 0) this.ctx.emitChanged(agentId, 'clear')
     if (removed > 0 && this.ports.repository.countByAgent(agentId) === 0) {
       this.ports.clearConsolidationCooldown(agentId)
     }
-    return removed
+    if (markerError) throw markerError
+    return { removed, cleanupPendingRestart }
   }
 
   getStatus(agentId: string): MemoryStatus {

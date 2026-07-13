@@ -31,9 +31,10 @@ kind=acp                          -> direct ACP backend -> external ACP protocol
 
 ```mermaid
 flowchart TD
-    UI["Renderer / typed routes"] --> Services["SessionService / ChatService"]
+    UI["Renderer / typed routes"] --> RouteOwners["Session route owners<br/>search / translation / export / usage / catalog"]
+    UI --> Services["SessionService / ChatService"]
     Services --> App["Session application coordinators"]
-    Compat["AgentSessionPresenter<br/>compatibility façade"] --> App
+    Compat["AgentSessionPresenter<br/>compatibility forwarding"] --> App
     App --> Sessions["AppSessionService"]
     App --> Manager["AgentManager"]
     Manager --> Catalog["strict executable catalog"]
@@ -57,9 +58,11 @@ flowchart TD
 - `SessionLifecycleCoordinator`、`SessionTurnCoordinator`、`SessionAgentAssignmentCoordinator` 和
   `SessionProjectionCoordinator` 分别拥有 core session application invariants；typed Session/Chat、Remote
   和 Cron 通过 consumer-owned narrow ports 调用它们。
-- `AgentSessionPresenter` 保留 compatibility public surface；core session methods 只转发到 composition-owned
-  coordinators。当前 `dev` 上尚未拆出的 import/search/export/dashboard 等 foreign capabilities 仍在 façade，
-  不属于四 coordinator。
+- `AgentSessionPresenter` 仅保留 compatibility public surface；core session methods 只转发到
+  composition-owned coordinators，不拥有 application policy、state 或 session-boundary capabilities。
+- typed session routes 直接组合 `SessionHistorySearch`、`SessionTranslation`、
+  `AgentSessionExportService`、`UsageStatsService`、RTK runtime service 与 available-agent catalog policy；
+  lifecycle hooks 直接调用 startup migration/maintenance owner。
 - `AgentRuntimePresenter` 保留 DeepChat state/delegate façade，初始化 `DeepChatAgentRuntime`，并接线现有
   message/Tape/prompt/provider/tool/permission adapters。它不再实现 unified agent interface，也不构造
   `AcpAgentRuntime`。
@@ -110,7 +113,8 @@ kind-specific facet。不存在 optional-method reflection，也不存在 agent 
 `legacy | direct runtimeKind`。
 
 session delete 是 descriptor-independent cleanup：manager 不 hydrate、不读取 catalog，分别清理两个
-backend cache/durable binding；façade 再按 shared state、permission、skills、app row 的既有顺序清理。
+backend cache/durable binding；Lifecycle deletion transaction 再按 shared state、permission、skills、app
+row 的既有顺序清理。
 
 ## DeepChat instance 与 lifecycle
 
@@ -171,7 +175,8 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 
 - `AgentSessionPresenter` compatibility façade 和 `AgentRuntimePresenter` state/delegate façade；
 - `AcpProvider` 的 DeepChat + ACP-provider compatibility；
-- `LegacyChatImportService`、旧 conversations/messages、`SessionPresenter` export/thread/data compatibility；
+- `startupMigrations/LegacyChatImportService`、旧 conversations/messages、`SessionPresenter`
+  export/thread/data compatibility；current agent-session export 由 `AgentSessionExportService` 拥有；
 - 现有 route/event/DTO/schema/table。
 
 已经退休并由 guard 阻止回流：
@@ -188,10 +193,14 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 
 1. kind/session routing：`src/main/agent/manager/agentManager.ts`
 2. core session application behavior：`src/main/presenter/sessionApplication/`
-3. compatibility forwarding / foreign routes：`src/main/presenter/agentSessionPresenter/index.ts`
-4. DeepChat session state：`src/main/agent/deepchat/instance/`
-5. provider/tool round：`src/main/agent/deepchat/loop/`，再看 retained presenter adapters
-6. direct ACP：`src/main/agent/acp/instance/` 与 `src/main/agent/acp/runtime/`
-7. tool source/dispatch：`src/main/presenter/toolPresenter/`
-8. Tape/message projection：`src/main/presenter/agentRuntimePresenter/{tapeService,messageStore}.ts`
-9. Memory runtime seam：`src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts`
+3. compatibility forwarding：`src/main/presenter/agentSessionPresenter/index.ts`
+4. session search/translation：`src/main/routes/sessions/`
+5. current session export：`src/main/presenter/exporter/agentSessionExporter.ts`
+6. usage/startup/catalog：`src/main/presenter/{usageStatsService.ts,startupMigrations/}` 与
+   `src/main/agent/shared/availableAgentCatalog.ts`
+7. DeepChat session state：`src/main/agent/deepchat/instance/`
+8. provider/tool round：`src/main/agent/deepchat/loop/`，再看 retained presenter adapters
+9. direct ACP：`src/main/agent/acp/instance/` 与 `src/main/agent/acp/runtime/`
+10. tool source/dispatch：`src/main/presenter/toolPresenter/`
+11. Tape/message projection：`src/main/presenter/agentRuntimePresenter/{tapeService,messageStore}.ts`
+12. Memory runtime seam：`src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts`

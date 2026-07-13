@@ -642,6 +642,9 @@ export interface IConfigPresenter {
   createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent>
   updateDeepChatAgent(agentId: string, updates: UpdateDeepChatAgentInput): Promise<Agent | null>
   deleteDeepChatAgent(agentId: string): Promise<boolean>
+  deleteDeepChatAgentWithCleanup(
+    agentId: string
+  ): Promise<{ removed: boolean; cleanupPendingRestart: boolean }>
   // Nowledge-mem configuration methods
   getNowledgeMemConfig(): Promise<{
     baseUrl: string

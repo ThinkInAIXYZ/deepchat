@@ -192,7 +192,6 @@ import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import type { AcpDebugEventEntry, AcpDebugRequest } from '@shared/presenter'
 import { getRuntimeWebContentsId } from '@api/runtime'
-import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createProviderClient } from '@api/ProviderClient'
 import { useToast } from '@/components/use-toast'
@@ -212,7 +211,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configClient = createConfigClient()
 const deviceClient = createDeviceClient()
 const providerClient = createProviderClient()
 const uiSettingsStore = useUiSettingsStore()
@@ -600,8 +598,6 @@ const runHealthCheck = async () => {
   debugSessionId.value = ''
   loading.value = true
   try {
-    await configClient.ensureAcpAgentInstalled(props.agentId)
-
     const initializeResult = await providerClient.runAcpDebugAction({
       agentId: props.agentId,
       action: 'initialize',

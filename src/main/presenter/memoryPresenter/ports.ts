@@ -375,6 +375,7 @@ export interface MemoryVectorStoreFactoryPort {
     dimensions: number
   ): Promise<IMemoryVectorStore>
   resetVectorStore(agentId: string): Promise<void>
+  markVectorStoreQuarantined(agentId: string): void
 }
 
 export interface MemoryChangeSinkPort {

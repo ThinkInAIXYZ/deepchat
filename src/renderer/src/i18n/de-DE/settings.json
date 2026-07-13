@@ -163,6 +163,7 @@
       "clearAll": "Alle löschen",
       "clearConfirmTitle": "Alle Erinnerungen löschen?",
       "clearConfirmBody": "Dadurch werden alle Erinnerungen dieses Agenten dauerhaft entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "cleanupPendingRestart": "Gesperrte Vektordateien werden nach dem Neustart gelöscht",
       "emptyMemories": "Noch keine Erinnerungen. Sie sammeln sich an, während Sie mit diesem Agenten chatten.",
       "emptyPersona": "Noch keine Selbstmodell-Versionen.",
       "personaActive": "Aktiv",

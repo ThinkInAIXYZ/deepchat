@@ -554,9 +554,9 @@ export async function dispatchConfigRoute(
 
     case configDeleteDeepChatAgentRoute.name: {
       const input = configDeleteDeepChatAgentRoute.input.parse(rawInput)
-      return configDeleteDeepChatAgentRoute.output.parse({
-        removed: await configPresenter.deleteDeepChatAgent(input.agentId)
-      })
+      return configDeleteDeepChatAgentRoute.output.parse(
+        await configPresenter.deleteDeepChatAgentWithCleanup(input.agentId)
+      )
     }
 
     case configResolveDeepChatAgentConfigRoute.name: {

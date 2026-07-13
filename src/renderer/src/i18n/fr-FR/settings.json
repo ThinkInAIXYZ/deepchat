@@ -2558,6 +2558,7 @@
       "clearAll": "Tout effacer",
       "clearConfirmTitle": "Effacer toutes les mémoires ?",
       "clearConfirmBody": "Cela supprime définitivement toutes les mémoires de cet agent. Cette action est irréversible.",
+      "cleanupPendingRestart": "Les fichiers vectoriels verrouillés seront supprimés après le redémarrage",
       "emptyMemories": "Aucune mémoire pour l'instant. Elles s'accumulent au fil de vos échanges avec cet agent.",
       "emptyPersona": "Aucune version du modèle de soi pour le moment.",
       "personaActive": "Active",

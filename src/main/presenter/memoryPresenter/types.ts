@@ -121,6 +121,7 @@ export interface MemoryPresenterDeps {
     dimensions: number
   ) => Promise<IMemoryVectorStore>
   resetVectorStore: (agentId: string) => Promise<void>
+  markVectorStoreQuarantined: (agentId: string) => void
   onMemoryChanged?: (
     agentId: string,
     reason: MemoryUpdateReason,

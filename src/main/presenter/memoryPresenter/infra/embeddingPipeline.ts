@@ -11,6 +11,7 @@ import {
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '../runtimeConstants'
 import type { EmbeddedMemoryUpdate, FailedEmbeddingUpdate, MemoryVectorRecord } from '../types'
+import type { VectorStoreCleanupDisposition } from '../domain/types'
 import {
   embeddingFingerprint,
   type MemoryModelRef,
@@ -44,7 +45,7 @@ export interface EmbeddingPipelinePorts {
       leaseEpoch?: number
     ): void
     clearReady(agentId: string): void
-    resetAgentStore(agentId: string): Promise<void>
+    resetAgentStore(agentId: string): Promise<VectorStoreCleanupDisposition>
     isGenerationCurrent(agentId: string, generation: number): boolean
     withVectorMutation<T>(agentId: string, task: () => Promise<T>): Promise<T>
     withStoreLease<T>(
@@ -464,7 +465,8 @@ export class EmbeddingPipeline {
     ])
     if (!requeued && !force) return
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
-    await this.ports.vectorStore.resetAgentStore(agentId)
+    const cleanupDisposition = await this.ports.vectorStore.resetAgentStore(agentId)
+    if (cleanupDisposition === 'pending-restart') return
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     this.ctx.emitChanged(agentId, 'reindex')
     await this.drainUntilExhausted(agentId)
@@ -839,6 +841,10 @@ export class EmbeddingPipeline {
       await Promise.allSettled(inflight)
     }
 
+    this.abandonAgent(agentId)
+  }
+
+  abandonAgent(agentId: string): void {
     this.reindexing.delete(agentId)
     this.backfilling.delete(agentId)
     this.embeddingDrains.delete(agentId)
@@ -848,6 +854,10 @@ export class EmbeddingPipeline {
     this.errorRetryAfterId.delete(agentId)
     for (const [key] of this.getAgentEntries(this.vectorStoreWarmups, agentId)) {
       this.vectorStoreWarmups.delete(key)
+    }
+    for (const [key, agents] of this.embeddingWarmupAgents) {
+      agents.delete(agentId)
+      if (!agents.size) this.embeddingWarmupAgents.delete(key)
     }
     for (const key of this.vectorStoreDimensionFailures.keys()) {
       if (key.startsWith(`${agentId}::`)) this.vectorStoreDimensionFailures.delete(key)

@@ -7,6 +7,7 @@ type OptionalTestDependency =
   | 'executeWithRateLimit'
   | 'generateText'
   | 'getDimensions'
+  | 'markVectorStoreQuarantined'
   | 'resetVectorStore'
 
 type MemoryPresenterTestDeps = Omit<MemoryPresenterDeps, OptionalTestDependency> &
@@ -18,6 +19,7 @@ export class MemoryPresenter extends ProductionMemoryPresenter {
       executeWithRateLimit: async () => undefined,
       generateText: async () => '',
       getDimensions: async () => ({ data: { dimensions: 0, normalized: false } }),
+      markVectorStoreQuarantined: () => undefined,
       resetVectorStore: async () => undefined,
       ...deps
     })

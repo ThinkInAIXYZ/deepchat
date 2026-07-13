@@ -2558,6 +2558,7 @@
       "clearAll": "모두 지우기",
       "clearConfirmTitle": "모든 메모리를 지울까요?",
       "clearConfirmBody": "이 에이전트의 모든 메모리를 영구적으로 제거합니다. 되돌릴 수 없습니다.",
+      "cleanupPendingRestart": "잠긴 벡터 파일은 재시작 후 삭제됩니다",
       "emptyMemories": "아직 메모리가 없습니다. 이 에이전트와 대화하면서 쌓입니다.",
       "emptyPersona": "아직 자기 모델 버전이 없습니다.",
       "personaActive": "활성",

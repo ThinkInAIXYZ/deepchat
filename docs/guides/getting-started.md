@@ -63,13 +63,15 @@ src/
 ├── main/
 │   ├── presenter/
 │   │   ├── sessionApplication/           # core session application owners
-│   │   ├── agentSessionPresenter/        # compatibility forwarding / foreign routes
-│   │   ├── agentRuntimePresenter/   # 当前聊天 runtime
-│   │   ├── toolPresenter/            # 工具路由
-│   │   │   └── agentTools/           # 本地 agent tools
-│   │   ├── llmProviderPresenter/     # provider 管理与 ACP provider adapter
-│   │   ├── mcpPresenter/             # MCP tools/runtime
-│   │   ├── sessionPresenter/         # legacy 数据兼容层
+│   │   ├── agentSessionPresenter/        # core session compatibility forwarding only
+│   │   ├── exporter/                     # current agent-session export owner
+│   │   ├── startupMigrations/            # legacy import and session-data migrations
+│   │   ├── agentRuntimePresenter/        # 当前聊天 runtime
+│   │   ├── toolPresenter/                # 工具路由
+│   │   │   └── agentTools/               # 本地 agent tools
+│   │   ├── llmProviderPresenter/         # provider 管理与 ACP provider adapter
+│   │   ├── mcpPresenter/                 # MCP tools/runtime
+│   │   ├── sessionPresenter/             # legacy 数据兼容层
 │   │   └── ...
 │   ├── agent/
 │   │   ├── acp/                      # ACP catalog/client/runtime owner
@@ -132,7 +134,8 @@ src/
 
 优先看：
 
-- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
+- `src/main/presenter/startupMigrations/legacyChatImportService.ts`
+- `src/main/presenter/exporter/agentSessionExporter.ts`
 - `src/main/presenter/sessionPresenter/index.ts`
 - `src/main/presenter/exporter/formats/`
 

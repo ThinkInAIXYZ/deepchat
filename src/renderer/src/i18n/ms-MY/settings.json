@@ -163,6 +163,7 @@
       "clearAll": "Kosongkan semua",
       "clearConfirmTitle": "Kosongkan semua ingatan?",
       "clearConfirmBody": "Ini membuang secara kekal semua ingatan ejen ini. Tidak boleh dibatalkan.",
+      "cleanupPendingRestart": "Fail vektor yang dikunci akan dipadam selepas dimulakan semula",
       "emptyMemories": "Belum ada ingatan. Ia terkumpul semasa anda berbual dengan ejen ini.",
       "emptyPersona": "Belum ada versi model-diri.",
       "personaActive": "Aktif",

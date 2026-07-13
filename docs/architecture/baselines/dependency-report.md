@@ -4,53 +4,53 @@ Generated on 2026-07-13.
 
 ## main
 
-- Total files: 552
-- Internal dependency edges: 1495
+- Total files: 550
+- Internal dependency edges: 1488
 - Cycles detected: 36
 
 ### Top outgoing dependencies
 
-- `presenter/index.ts`: 62
+- `presenter/index.ts`: 63
 - `presenter/agentRuntimePresenter/index.ts`: 45
 - `presenter/sqlitePresenter/index.ts`: 40
 - `presenter/sqlitePresenter/schemaCatalog.ts`: 37
-- `routes/index.ts`: 29
+- `routes/index.ts`: 34
 - `presenter/configPresenter/index.ts`: 27
 - `presenter/lifecyclePresenter/hooks/index.ts`: 23
 - `presenter/toolPresenter/agentTools/agentToolManager.ts`: 22
 - `presenter/memoryPresenter/index.ts`: 19
 - `presenter/llmProviderPresenter/index.ts`: 17
 - `agent/acp/runtime/index.ts`: 15
-- `presenter/agentSessionPresenter/index.ts`: 15
 - `presenter/filePresenter/mime.ts`: 14
 - `presenter/remoteControlPresenter/index.ts`: 14
 - `presenter/agentRuntimePresenter/dispatch.ts`: 12
+- `presenter/skillSyncPresenter/adapters/index.ts`: 12
 
 ### Top incoming dependencies
 
 - `presenter/index.ts`: 49
-- `routes/publishDeepchatEvent.ts`: 42
+- `routes/publishDeepchatEvent.ts`: 44
 - `presenter/remoteControlPresenter/types.ts`: 38
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 38
-- `agent/shared/agentSessionIds.ts`: 31
 - `events.ts`: 30
 - `eventbus.ts`: 29
+- `agent/shared/agentSessionIds.ts`: 26
 - `presenter/memoryPresenter/types.ts`: 22
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
+- `presenter/sqlitePresenter/index.ts`: 22
 - `presenter/memoryPresenter/ports.ts`: 20
-- `presenter/sqlitePresenter/index.ts`: 19
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
 - `presenter/filePresenter/BaseFileAdapter.ts`: 13
 - `presenter/memoryPresenter/context.ts`: 12
-- `presenter/runtimePorts.ts`: 12
+- `presenter/sqlitePresenter/tables/deepchatTapeEntries.ts`: 12
 
 ### Cycle samples
 
 - `agent/acp/runtime/index.ts -> agent/acp/runtime/acpCompatibilityPromptBuilder.ts -> agent/acp/instance/ports.ts -> agent/acp/runtime/index.ts`
 - `agent/acp/client/acpRuntimeOwner.ts -> agent/acp/client/index.ts -> agent/acp/client/acpRuntimeOwner.ts`
 - `presenter/memoryPresenter/core/injectionPort.ts -> presenter/memoryPresenter/types.ts -> presenter/memoryPresenter/injection.ts -> presenter/memoryPresenter/core/injectionPort.ts`
-- `presenter/sqlitePresenter/index.ts -> presenter/agentSessionPresenter/legacyImportService.ts -> presenter/sqlitePresenter/index.ts`
-- `presenter/sqlitePresenter/index.ts -> presenter/agentSessionPresenter/legacyImportService.ts -> presenter/agentRuntimePresenter/messageStore.ts -> presenter/sqlitePresenter/index.ts`
+- `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> presenter/sqlitePresenter/index.ts`
+- `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> presenter/agentRuntimePresenter/messageStore.ts -> presenter/sqlitePresenter/index.ts`
 - `presenter/agentRuntimePresenter/messageStore.ts -> presenter/agentRuntimePresenter/tapeFacts.ts -> presenter/agentRuntimePresenter/tapeViewManifest.ts -> presenter/agentRuntimePresenter/contextBuilder.ts -> presenter/agentRuntimePresenter/messageStore.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/tabPresenter.ts -> presenter/index.ts`

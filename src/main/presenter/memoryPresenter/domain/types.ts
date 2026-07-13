@@ -9,6 +9,26 @@ import { AGENT_MEMORY_HEALTH_KIND_KEYS } from '@shared/types/agent-memory'
 
 export type MemoryModelRef = { providerId: string; modelId: string }
 
+export type VectorStoreCleanupDisposition = 'completed' | 'pending-restart'
+
+export interface MemoryClearResult {
+  removed: number
+  cleanupPendingRestart: boolean
+}
+
+export interface DeletedAgentMemoryCleanupResult {
+  cleanupPendingRestart: boolean
+}
+
+export class VectorStoreQuarantineMarkerError extends Error {
+  constructor(agentId: string, cause: unknown) {
+    super(`[Memory] failed to persist vector quarantine marker for ${agentId}: ${String(cause)}`, {
+      cause
+    })
+    this.name = 'VectorStoreQuarantineMarkerError'
+  }
+}
+
 export type AgentMemoryKind = (typeof AGENT_MEMORY_HEALTH_KIND_KEYS)[number]
 export type AgentMemoryStatus = LegacyAgentMemoryStatus
 export type { AgentMemoryEmbeddingState, AgentMemoryLifecycleState }

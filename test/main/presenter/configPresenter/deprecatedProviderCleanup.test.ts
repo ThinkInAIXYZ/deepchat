@@ -478,9 +478,10 @@ describe('setAgentRepository', () => {
 })
 
 describe('deleteDeepChatAgent cleanup', () => {
-  it('runs cleanup after deleting a removable DeepChat agent', async () => {
+  it('runs cleanup before deleting a removable DeepChat agent', async () => {
     const calls: string[] = []
     const repository = {
+      canDeleteDeepChatAgent: vi.fn(() => true),
       deleteDeepChatAgent: vi.fn(() => {
         calls.push('delete')
         return true
@@ -488,6 +489,7 @@ describe('deleteDeepChatAgent cleanup', () => {
     }
     const cleanup = vi.fn(async () => {
       calls.push('cleanup')
+      return { cleanupPendingRestart: false }
     })
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       deepChatAgentDeleteCleanup: cleanup,
@@ -500,12 +502,13 @@ describe('deleteDeepChatAgent cleanup', () => {
     expect(removed).toBe(true)
     expect(cleanup).toHaveBeenCalledWith('writer')
     expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
-    expect(calls).toEqual(['delete', 'cleanup'])
+    expect(calls).toEqual(['cleanup', 'delete'])
     expect(presenter.notifyAgentCatalogChanged).toHaveBeenCalledTimes(1)
   })
 
   it('does not cleanup memory when deletion is blocked', async () => {
     const repository = {
+      canDeleteDeepChatAgent: vi.fn(() => false),
       deleteDeepChatAgent: vi.fn(() => false)
     }
     const cleanup = vi.fn()
@@ -519,8 +522,47 @@ describe('deleteDeepChatAgent cleanup', () => {
 
     expect(removed).toBe(false)
     expect(cleanup).not.toHaveBeenCalled()
-    expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('deepchat')
+    expect(repository.deleteDeepChatAgent).not.toHaveBeenCalled()
     expect(presenter.notifyAgentCatalogChanged).not.toHaveBeenCalled()
+  })
+
+  it('keeps the agent when cleanup preflight cannot persist quarantine', async () => {
+    const repository = {
+      canDeleteDeepChatAgent: vi.fn(() => true),
+      deleteDeepChatAgent: vi.fn(() => true)
+    }
+    const cleanupError = new Error('marker disk is read-only')
+    const cleanup = vi.fn(async () => {
+      throw cleanupError
+    })
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      deepChatAgentDeleteCleanup: cleanup,
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAgentCatalogChanged: vi.fn()
+    })
+
+    await expect(
+      (presenter as ConfigPresenter).deleteDeepChatAgentWithCleanup('writer')
+    ).rejects.toBe(cleanupError)
+
+    expect(repository.deleteDeepChatAgent).not.toHaveBeenCalled()
+    expect(presenter.notifyAgentCatalogChanged).not.toHaveBeenCalled()
+  })
+
+  it('reports pending restart after preflight safely defers quarantined files', async () => {
+    const repository = {
+      canDeleteDeepChatAgent: vi.fn(() => true),
+      deleteDeepChatAgent: vi.fn(() => true)
+    }
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      deepChatAgentDeleteCleanup: vi.fn(async () => ({ cleanupPendingRestart: true })),
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAgentCatalogChanged: vi.fn()
+    })
+
+    await expect(
+      (presenter as ConfigPresenter).deleteDeepChatAgentWithCleanup('writer')
+    ).resolves.toEqual({ removed: true, cleanupPendingRestart: true })
   })
 })
 

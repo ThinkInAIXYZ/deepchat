@@ -48,6 +48,11 @@ jobs:
           pnpm run installRuntime:duckdb:vss:win:arm64
           pnpm run smoke:duckdb:vss -- --platform win32 --arch arm64
 
+      - name: Validate native memory vector storage
+        env:
+          DEEPCHAT_REQUIRE_NATIVE_DUCKDB_VSS: '1'
+        run: pnpm exec vitest --config vitest.config.memory-native.ts --run test/main/presenter/memoryVectorStoreV2Native.test.ts
+
       - name: Build Windows arm64 package
         run: |
           pnpm run build

@@ -9,6 +9,7 @@
     "test/main/presenter/memory/embeddingPipeline.test.ts",
     "test/main/presenter/memory/embeddingDiagnostics.test.ts",
     "test/main/presenter/memory/lifecycleRegression.test.ts",
+    "test/main/presenter/memory/legacyV1Reader.test.ts",
     "test/main/presenter/memory/maintenanceService.test.ts",
     "test/main/presenter/memory/maintenanceDiagnostics.test.ts",
     "test/main/presenter/memory/managementService.test.ts",
@@ -51,6 +52,7 @@
     "test/main/presenter/agentMemoryTable.test.ts",
     "test/main/presenter/agentRuntimePresenter/tapeService.test.ts",
     "test/main/presenter/memoryNativeMigration.test.ts",
+    "test/main/presenter/memoryVectorStoreV2Native.test.ts",
     "test/main/presenter/memoryUpdateNative.test.ts",
     "test/main/presenter/sqlitePresenter/deepchatMemoryIngestionProjection.test.ts"
   ],

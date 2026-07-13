@@ -34,6 +34,68 @@ describe('MemoryPresenter management', () => {
     expect(store.vectors.size).toBe(0)
   })
 
+  it('reports pending restart when quarantined vector files cannot be touched safely', async () => {
+    const repo = createFakeRepository()
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis' })
+    const markVectorStoreQuarantined = vi.fn()
+    const { presenter } = makePresenter(enabledConfig, repo, { markVectorStoreQuarantined })
+    const vectorStore = memoryRuntimeForTests(presenter).vectorStoreService
+
+    await expect(
+      vectorStore.withStoreLease(
+        'a',
+        { providerId: 'p', modelId: 'm' },
+        textToVector('').length,
+        async () => {
+          throw new Error('INTERNAL Error: database has been invalidated')
+        }
+      )
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+
+    await expect(presenter.clearMemoriesWithCleanup('a')).resolves.toEqual({
+      removed: 1,
+      cleanupPendingRestart: true
+    })
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(2)
+    expect(repo.countByAgent('a')).toBe(0)
+  })
+
+  it('surfaces quarantine marker persistence failure during clear', async () => {
+    const repo = createFakeRepository()
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis' })
+    const onMemoryChanged = vi.fn()
+    const markVectorStoreQuarantined = vi.fn(() => {
+      throw new Error('marker disk is read-only')
+    })
+    const { presenter } = makePresenter(enabledConfig, repo, {
+      markVectorStoreQuarantined,
+      onMemoryChanged
+    })
+    const runtime = memoryRuntimeForTests(presenter)
+    const vectorStore = runtime.vectorStoreService
+    await expect(
+      vectorStore.withStoreLease(
+        'a',
+        { providerId: 'p', modelId: 'm' },
+        textToVector('').length,
+        async () => {
+          throw new Error('INTERNAL Error: database has been invalidated')
+        }
+      )
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+    onMemoryChanged.mockClear()
+    const clearCooldown = vi.spyOn(runtime.maintenanceService, 'clearCooldown')
+    const cleanupDiagnostics = vi.spyOn(runtime.diagnosticsCollector, 'cleanupAgent')
+
+    await expect(presenter.clearMemoriesWithCleanup('a')).rejects.toMatchObject({
+      name: 'VectorStoreQuarantineMarkerError'
+    })
+    expect(repo.countByAgent('a')).toBe(0)
+    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'clear')
+    expect(clearCooldown).toHaveBeenCalledWith('a')
+    expect(cleanupDiagnostics).toHaveBeenCalledWith('a')
+  })
+
   it('clearMemories invalidates a cached working blob', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis working fact' }], {
@@ -176,6 +238,42 @@ describe('MemoryPresenter management', () => {
       'vector store did not recover after failed cleanup reset'
     )
     expect(createVectorStore).toHaveBeenCalledTimes(2)
+  })
+
+  it('defers quarantined deletion cleanup without awaiting a wedged native lease', async () => {
+    const markVectorStoreQuarantined = vi.fn()
+    const { presenter } = makePresenter(enabledConfig, createFakeRepository(), {
+      markVectorStoreQuarantined
+    })
+    const vectorStore = memoryRuntimeForTests(presenter).vectorStoreService
+    let markWedgedLeaseStarted!: () => void
+    const wedgedLeaseStarted = new Promise<void>((resolve) => {
+      markWedgedLeaseStarted = resolve
+    })
+    const neverSettles = new Promise<void>(() => undefined)
+    const wedgedLease = vectorStore
+      .withStoreLease('a', { providerId: 'p', modelId: 'm' }, textToVector('').length, async () => {
+        markWedgedLeaseStarted()
+        await neverSettles
+      })
+      .catch(() => undefined)
+    void wedgedLease
+    await wedgedLeaseStarted
+    await expect(
+      vectorStore.withStoreLease(
+        'a',
+        { providerId: 'p', modelId: 'm' },
+        textToVector('').length,
+        async () => {
+          throw new Error('INTERNAL Error: concurrent fatal failure')
+        }
+      )
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+
+    await expect(presenter.cleanupDeletedAgentResources('a')).resolves.toEqual({
+      cleanupPendingRestart: true
+    })
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(2)
   })
 
   it('cleanupDeletedAgentResources waits for in-flight embedding drains before clearing tracking', async () => {

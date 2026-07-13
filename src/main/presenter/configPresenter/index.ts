@@ -466,7 +466,9 @@ export class ConfigPresenter implements IConfigPresenter {
   private pendingAgentCatalogChanged = false
   private pendingAcpAgentModelsChanged = false
   private isAttachingAgentRepository = false
-  private deepChatAgentDeleteCleanup: ((agentId: string) => Promise<void>) | null = null
+  private deepChatAgentDeleteCleanup:
+    | ((agentId: string) => Promise<{ cleanupPendingRestart: boolean }>)
+    | null = null
   private deepChatAgentMemoryMaintenanceConfigChanged: ((agentId: string) => void) | null = null
   private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
@@ -689,7 +691,9 @@ export class ConfigPresenter implements IConfigPresenter {
     }
   }
 
-  setDeepChatAgentDeleteCleanup(cleanup: (agentId: string) => Promise<void>): void {
+  setDeepChatAgentDeleteCleanup(
+    cleanup: (agentId: string) => Promise<{ cleanupPendingRestart: boolean }>
+  ): void {
     this.deepChatAgentDeleteCleanup = cleanup
   }
 
@@ -2830,17 +2834,27 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async deleteDeepChatAgent(agentId: string): Promise<boolean> {
+    return (await this.deleteDeepChatAgentWithCleanup(agentId)).removed
+  }
+
+  async deleteDeepChatAgentWithCleanup(
+    agentId: string
+  ): Promise<{ removed: boolean; cleanupPendingRestart: boolean }> {
     const repository = this.getAgentRepositoryOrThrow()
-    const removed = repository.deleteDeepChatAgent(agentId)
-    if (removed) {
-      await this.deepChatAgentDeleteCleanup?.(agentId).catch((error) => {
-        logger.warn(`[Config] DeepChat agent memory cleanup failed: ${String(error)}`)
-      })
+    if (!repository.canDeleteDeepChatAgent(agentId)) {
+      return { removed: false, cleanupPendingRestart: false }
     }
+    const cleanup = this.deepChatAgentDeleteCleanup
+      ? await this.deepChatAgentDeleteCleanup(agentId)
+      : { cleanupPendingRestart: false }
+    const removed = repository.deleteDeepChatAgent(agentId)
     if (removed) {
       this.notifyAgentCatalogChanged()
     }
-    return removed
+    return {
+      removed,
+      cleanupPendingRestart: removed && cleanup.cleanupPendingRestart
+    }
   }
 
   async getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]> {

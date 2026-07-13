@@ -161,6 +161,7 @@
       "clearAll": "清空全部",
       "clearConfirmTitle": "清空全部记忆？",
       "clearConfirmBody": "将永久删除该助手的所有记忆，此操作无法撤销。",
+      "cleanupPendingRestart": "锁定的向量文件将在重启后删除",
       "emptyMemories": "暂无记忆。随着与该助手对话会逐渐积累。",
       "emptyPersona": "暂无自我模型版本。",
       "emptyActivity": "暂无记忆活动。",

@@ -2,6 +2,9 @@ import { vi } from 'vitest'
 
 import { MemoryPresenter as BaseMemoryPresenter } from '@/presenter/memoryPresenter'
 import type { ConflictService } from '@/presenter/memoryPresenter/services/conflictService'
+import type { MaintenanceService } from '@/presenter/memoryPresenter/services/maintenanceService'
+import type { MemoryDiagnosticsCollector } from '@/presenter/memoryPresenter/infra/diagnostics/memoryDiagnosticsCollector'
+import type { VectorStoreManager } from '@/presenter/memoryPresenter/infra/vectorStoreManager'
 import type { MemoryPresenterDeps } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
@@ -46,16 +49,13 @@ type MemoryPresenterRuntimeTestSeams = {
       agentId: string,
       embedding: { providerId: string; modelId: string }
     ): void
+    abandonAgent(agentId: string): void
+    cleanupAgent(agentId: string): Promise<void>
   }
-  vectorStore: {
-    clearReady(agentId: string): void
-    closeAgentStore(agentId: string): Promise<void>
-    hasReadyCertificate(
-      agentId: string,
-      embedding: { providerId: string; modelId: string }
-    ): boolean
-  }
+  vectorStore: VectorStoreManager
   conflict: Pick<ConflictService, 'repairConflictIntegrity' | 'runChallengeResolutionPass'>
+  maintenance: Pick<MaintenanceService, 'clearCooldown'>
+  diagnostics: Pick<MemoryDiagnosticsCollector, 'cleanupAgent'>
 }
 
 export function memoryRuntimeForTests(presenter: MemoryPresenter) {
@@ -64,6 +64,8 @@ export function memoryRuntimeForTests(presenter: MemoryPresenter) {
     embeddingService: internals.embedding,
     vectorStoreService: internals.vectorStore,
     conflictService: internals.conflict,
+    maintenanceService: internals.maintenance,
+    diagnosticsCollector: internals.diagnostics,
     isVectorReady: (
       agentId: string,
       embedding: { providerId: string; modelId: string } = { providerId: 'p', modelId: 'm' }

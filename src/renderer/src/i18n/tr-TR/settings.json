@@ -163,6 +163,7 @@
       "clearAll": "Tümünü temizle",
       "clearConfirmTitle": "Tüm anılar temizlensin mi?",
       "clearConfirmBody": "Bu, bu aracının tüm anılarını kalıcı olarak kaldırır. Geri alınamaz.",
+      "cleanupPendingRestart": "Kilitli vektör dosyaları yeniden başlatmanın ardından silinecek",
       "emptyMemories": "Henüz anı yok. Bu aracıyla sohbet ettikçe birikir.",
       "emptyPersona": "Henüz öz-model sürümü yok.",
       "personaActive": "Etkin",

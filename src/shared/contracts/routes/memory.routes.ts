@@ -726,7 +726,7 @@ export const memoryArchiveRoute = defineRouteContract({
 export const memoryClearRoute = defineRouteContract({
   name: 'memory.clear',
   input: z.object({ agentId: AgentIdSchema }),
-  output: z.object({ removed: z.number() })
+  output: z.object({ removed: z.number(), cleanupPendingRestart: z.boolean() })
 })
 
 export const memoryRestoreRoute = defineRouteContract({

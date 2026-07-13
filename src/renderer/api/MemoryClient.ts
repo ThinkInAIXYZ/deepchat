@@ -200,9 +200,10 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.ok
   }
 
-  async function clear(agentId: string): Promise<number> {
-    const result = await bridge.invoke(memoryClearRoute.name, { agentId })
-    return result.removed
+  async function clear(
+    agentId: string
+  ): Promise<{ removed: number; cleanupPendingRestart: boolean }> {
+    return bridge.invoke(memoryClearRoute.name, { agentId })
   }
 
   async function restore(agentId: string, memoryId: string): Promise<boolean> {

@@ -161,6 +161,7 @@
       "clearAll": "Clear all",
       "clearConfirmTitle": "Clear all memories?",
       "clearConfirmBody": "This permanently removes every memory for this agent. This cannot be undone.",
+      "cleanupPendingRestart": "Locked vector files will be deleted after restart",
       "emptyMemories": "No memories yet. They accumulate as you chat with this agent.",
       "emptyPersona": "No self-model versions yet.",
       "emptyActivity": "No memory activity yet.",

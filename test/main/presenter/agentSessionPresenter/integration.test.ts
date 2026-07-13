@@ -714,12 +714,6 @@ describe('Integration: createSession end-to-end', () => {
       acp: llmProvider
     })
     agentPresenter = new AgentSessionPresenter(
-      agentManager,
-      appSessionService,
-      llmProvider,
-      configPresenter,
-      sqlitePresenter,
-      sharedData,
       projection,
       sessionApplications.lifecycle,
       sessionApplications.assignment,
@@ -901,12 +895,6 @@ describe('Integration: ACP hooks bridge', () => {
       acp: llmProvider
     })
     agentPresenter = new AgentSessionPresenter(
-      agentManager,
-      appSessionService,
-      llmProvider,
-      configPresenter,
-      sqlitePresenter,
-      sharedData,
       projection,
       sessionApplications.lifecycle,
       sessionApplications.assignment,
@@ -1016,12 +1004,6 @@ describe('Integration: multi-turn context', () => {
       acp: llmProvider
     })
     agentPresenter = new AgentSessionPresenter(
-      agentManager,
-      appSessionService,
-      llmProvider,
-      configPresenter,
-      sqlitePresenter,
-      sharedData,
       projection,
       sessionApplications.lifecycle,
       sessionApplications.assignment,

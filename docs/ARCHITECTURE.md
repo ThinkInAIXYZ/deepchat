@@ -11,9 +11,10 @@ flowchart LR
     Client --> Bridge["window.deepchat / preload bridge"]
     Bridge --> Contracts["shared/contracts routes + events"]
     Contracts --> Routes["src/main/routes dispatcher"]
+    Routes --> SessionOwners["explicit session owners<br/>search / translation / export / usage / catalog"]
     Routes --> Services["SessionService / ChatService"]
     Services --> Coordinators["Lifecycle / Turn / Assignment / Projection"]
-    Compat["AgentSessionPresenter<br/>compatibility façade"] --> Coordinators
+    Compat["AgentSessionPresenter<br/>compatibility forwarding"] --> Coordinators
     Coordinators --> Manager["AgentManager<br/>descriptor.kind router"]
     Manager --> DeepBackend["typed DeepChat backend"]
     Manager --> AcpBackend["direct ACP backend"]
@@ -37,8 +38,11 @@ flowchart LR
   选择才进入 `AcpProvider` adapter。
 - 四个 `sessionApplication` coordinator 拥有 core session lifecycle、turn、assignment 和 projection；
   Session/Chat routes、Remote 和 Cron 通过 consumer-owned narrow ports 使用同一组实例。
-- `AgentSessionPresenter` 是 compatibility façade；core session methods 只 forwarding。当前 `dev` 上尚未
-  拆出的 import/export/search/dashboard 等 foreign capabilities 仍由其兼容承载。
+- `AgentSessionPresenter` 仅保留 compatibility forwarding，把兼容调用转发到同一组 coordinator；不再拥有
+  core session policy/state，也不再拥有 history、translation、export、usage、RTK、catalog 或 startup
+  migration behavior。
+- history、translation、export、usage、RTK、catalog 和 startup migrations 由 typed routes/lifecycle
+  hooks 直接组合各自 owner。
 - `AgentRuntimePresenter` 仍初始化 `DeepChatAgentRuntime`，并保留 DeepChat state/delegate、message、Tape、
   prompt/tool/provider adapter wiring；它不再实现 unified agent interface，也不负责 ACP runtime 构造。
 
@@ -48,7 +52,7 @@ flowchart LR
 | --- | --- | --- |
 | renderer clients | `src/renderer/api/` | typed renderer clients，吸收 bridge/channel 细节 |
 | shared contracts | `src/shared/contracts/` | route registry、schema、typed event catalog |
-| main routes | `src/main/routes/` | typed route dispatch、services、handlers |
+| main routes | `src/main/routes/` | typed route dispatch、services、handlers，以及 session history/translation owners |
 | `AgentManager` | `src/main/agent/manager/agentManager.ts` | executable descriptor lookup、app-session lookup、explicit kind routing |
 | backend contracts | `src/main/agent/manager/` | required common/kind facets、typed DeepChat backend、direct ACP backend |
 | shared agent data | `src/main/agent/shared/` | descriptor/codec、legacy DTO boundary、app-session shell、shared data ports |
@@ -57,7 +61,10 @@ flowchart LR
 | DeepChat Memory adapter | `src/main/agent/deepchat/memory/` | sole runtime coordinator、prompt contributor、background ingestion observer |
 | ACP runtime | `src/main/agent/acp/` | catalog、launch、client/process/session/protocol、direct instance/runtime |
 | session application | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection coordinators 与窄 dependency ports |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | compatibility forwarding 与尚未迁移的 foreign route capabilities |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | core session public compatibility forwarding；不拥有 application behavior |
+| session boundary owners | `src/main/routes/sessions/`, `src/main/presenter/exporter/agentSessionExporter.ts`, `src/main/presenter/usageStatsService.ts` | history、translation、current export、usage dashboard/backfill |
+| startup maintenance | `src/main/presenter/startupMigrations/` | default legacy import and stateless session-data migrations |
+| shared session policies | `src/main/agent/shared/` | available-agent catalog and assistant-model selection |
 | `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | retained DeepChat state/delegate façade及现有 message/Tape/provider/tool adapters |
 | `ToolPresenter` | `src/main/presenter/toolPresenter/` | MCP/local tool 聚合、collision policy、权限预检查、调用路由 |
 | `MemoryPresenter` | `src/main/presenter/memoryPresenter/` | Memory rows、retrieval、write、vector、maintenance kernel |
@@ -116,7 +123,9 @@ fresh resume run。外部 hook notifications 仍是 non-blocking observer。
 - migrated renderer 业务代码使用 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
 - `SessionPresenter` 仍是旧 conversations/messages、thread/export 与窗口清理的 compatibility/data façade，
   不是当前 agent runtime。
-- `LegacyChatImportService` 和旧数据表继续服务 import/export compatibility。
+- `startupMigrations/LegacyChatImportService` 和旧数据表继续服务 import compatibility；current
+  agent-session export 由 `AgentSessionExportService` 负责，旧 conversations/messages export 仍由
+  `SessionPresenter` compatibility path 负责。
 - `AcpProvider` 只为 DeepChat descriptor 选择 ACP provider 的兼容路径保留；direct `kind=acp` 不调用它来
   执行主 turn。
 
@@ -127,6 +136,10 @@ fresh resume run。外部 hook notifications 仍是 non-blocking observer。
   的 import，以及 direct ACP instance 到 DeepChat loop、`MemoryPresenter`、presenter root entry 或
   `SQLitePresenter` 的依赖。
 - 同一 guard 保持 Memory unique owner/structure、causal observation read-only 和 renderer typed boundary。
+- 同一 guard 阻止 removed session-boundary methods/interface declarations、foreign owner imports，以及五个
+  startup hook 中的 presenter dependency、unsafe cast 和 optional task probe 回流。
+- 同一 guard 阻止 Session/Chat、Remote、Cron 等 migrated consumer 重新依赖 session presenter、重复构造
+  coordinator、coordinator 反向导入 session-boundary owner，以及引入 combined session application façade。
 - `scripts/agent-cleanup-guard.mjs` 覆盖 `src/main/agent/**` 与 retained presenter/tool/skill hot paths，防止旧
   agent/session presenter import 回流。
 
