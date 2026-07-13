@@ -526,74 +526,6 @@ function createRuntime() {
     respondToolInteraction: vi.fn().mockResolvedValue({
       resumed: true
     }),
-    getAgents: vi.fn().mockResolvedValue([
-      {
-        id: 'deepchat',
-        name: 'DeepChat',
-        type: 'deepchat',
-        enabled: true
-      }
-    ]),
-    getUsageDashboard: vi.fn().mockResolvedValue({
-      recordingStartedAt: null,
-      backfillStatus: {
-        status: 'completed',
-        startedAt: null,
-        finishedAt: null,
-        error: null,
-        updatedAt: 123
-      },
-      summary: {
-        messageCount: 1,
-        sessionCount: 1,
-        inputTokens: 10,
-        outputTokens: 20,
-        totalTokens: 30,
-        cachedInputTokens: 0,
-        cacheHitRate: 0,
-        estimatedCostUsd: null,
-        mostActiveDay: {
-          date: '2026-06-11',
-          messageCount: 1
-        }
-      },
-      calendar: [
-        {
-          date: '2026-06-11',
-          messageCount: 1,
-          inputTokens: 10,
-          outputTokens: 20,
-          totalTokens: 30,
-          cachedInputTokens: 0,
-          estimatedCostUsd: null,
-          level: 1
-        }
-      ],
-      providerBreakdown: [],
-      modelBreakdown: [],
-      rtk: {
-        scope: 'deepchat',
-        enabled: true,
-        effectiveEnabled: true,
-        available: true,
-        health: 'healthy',
-        checkedAt: 123,
-        source: 'bundled',
-        failureStage: null,
-        failureMessage: null,
-        summary: {
-          totalCommands: 0,
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
-          totalSavedTokens: 0,
-          avgSavingsPct: 0,
-          totalTimeMs: 0,
-          avgTimeMs: 0
-        },
-        daily: []
-      }
-    }),
-    retryRtkHealthCheck: vi.fn().mockResolvedValue(undefined),
     clearSessionPermissions: vi.fn()
   } as unknown as IAgentSessionPresenter
 
@@ -1263,6 +1195,73 @@ function createRuntime() {
     previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null })),
     setRunSessionStarter: vi.fn()
   }
+  const usageStatsService = {
+    getDashboard: vi.fn().mockResolvedValue({
+      recordingStartedAt: null,
+      backfillStatus: {
+        status: 'completed',
+        startedAt: null,
+        finishedAt: null,
+        error: null,
+        updatedAt: 123
+      },
+      summary: {
+        messageCount: 1,
+        sessionCount: 1,
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+        cachedInputTokens: 0,
+        cacheHitRate: 0,
+        estimatedCostUsd: null,
+        mostActiveDay: { date: '2026-06-11', messageCount: 1 }
+      },
+      calendar: [],
+      providerBreakdown: [],
+      modelBreakdown: [],
+      rtk: {
+        scope: 'deepchat',
+        enabled: true,
+        effectiveEnabled: true,
+        available: true,
+        health: 'healthy',
+        checkedAt: 123,
+        source: 'bundled',
+        failureStage: null,
+        failureMessage: null,
+        summary: {
+          totalCommands: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalSavedTokens: 0,
+          avgSavingsPct: 0,
+          totalTimeMs: 0,
+          avgTimeMs: 0
+        },
+        daily: []
+      }
+    })
+  }
+  const rtkRuntimeService = {
+    retryHealthCheck: vi.fn().mockResolvedValue(undefined)
+  }
+  const sessionHistorySearch = {
+    search: vi.fn().mockResolvedValue([
+      {
+        kind: 'session',
+        sessionId: 'session-1',
+        title: 'Search Hit',
+        projectDir: null,
+        updatedAt: 1
+      }
+    ])
+  }
+  const agentSessionExportService = {
+    export: vi.fn().mockResolvedValue({ filename: 'session.md', content: '# Session' })
+  }
+  const sessionTranslation = {
+    translate: vi.fn().mockResolvedValue('translated')
+  }
 
   setDeepchatEventWindowPresenter(windowPresenter)
 
@@ -1289,7 +1288,12 @@ function createRuntime() {
       workspacePresenter,
       yoBrowserPresenter,
       tabPresenter,
-      cronJobs
+      cronJobs,
+      usageStatsService,
+      rtkRuntimeService,
+      sessionHistorySearch,
+      agentSessionExportService,
+      sessionTranslation
     }),
     configPresenter,
     llmProviderPresenter,
@@ -1311,7 +1315,12 @@ function createRuntime() {
     workspacePresenter,
     yoBrowserPresenter,
     tabPresenter,
-    cronJobs
+    cronJobs,
+    usageStatsService,
+    rtkRuntimeService,
+    sessionHistorySearch,
+    agentSessionExportService,
+    sessionTranslation
   }
 }
 
@@ -3775,8 +3784,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches agent dashboard routes through AgentSessionPresenter', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+  it('dispatches dashboard maintenance routes through explicit owners', async () => {
+    const { runtime, configPresenter, usageStatsService, rtkRuntimeService } = createRuntime()
     const context = {
       webContentsId: 88,
       windowId: 3
@@ -3796,9 +3805,9 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(agentSessionPresenter.getAgents).toHaveBeenCalledTimes(1)
-    expect(agentSessionPresenter.getUsageDashboard).toHaveBeenCalledTimes(1)
-    expect(agentSessionPresenter.retryRtkHealthCheck).toHaveBeenCalledTimes(1)
+    expect(configPresenter.listAgents).toHaveBeenCalledTimes(1)
+    expect(usageStatsService.getDashboard).toHaveBeenCalledTimes(1)
+    expect(rtkRuntimeService.retryHealthCheck).toHaveBeenCalledTimes(1)
     expect(agentsResult).toEqual({
       agents: [expect.objectContaining({ id: 'deepchat' })]
     })
@@ -3808,6 +3817,44 @@ describe('dispatchDeepchatRoute', () => {
       })
     })
     expect(retryResult).toEqual({ retried: true })
+  })
+
+  it('dispatches moved session read routes through explicit owners', async () => {
+    const {
+      runtime,
+      sessionHistorySearch,
+      sessionTranslation,
+      agentSessionExportService,
+      configPresenter
+    } = createRuntime()
+    const context = { webContentsId: 88, windowId: 3 }
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.searchHistory',
+      { query: 'release', options: { limit: 5 } },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.translateText',
+      { text: 'hello', locale: 'fr-FR', agentId: 'deepchat' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.export',
+      { sessionId: 'session-1', format: 'markdown' },
+      context
+    )
+    const agents = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
+
+    expect(sessionHistorySearch.search).toHaveBeenCalledWith('release', { limit: 5 })
+    expect(sessionTranslation.translate).toHaveBeenCalledWith('hello', 'fr-FR', 'deepchat')
+    expect(agentSessionExportService.export).toHaveBeenCalledWith('session-1', 'markdown')
+    expect(configPresenter.listAgents).toHaveBeenCalled()
+    expect(configPresenter.getAcpEnabled).toHaveBeenCalled()
+    expect(agents).toEqual({ agents: [expect.objectContaining({ id: 'deepchat' })] })
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {

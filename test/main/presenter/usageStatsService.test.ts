@@ -1,9 +1,7 @@
-import { AppSessionService } from '@/agent/shared/appSessionService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
-import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
+import { UsageStatsService } from '@/presenter/usageStatsService'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToMain: vi.fn(), on: vi.fn() }
@@ -134,34 +132,6 @@ function aggregateUsageRows(rows: UsageStatsRow[]) {
     totalTokens,
     cachedInputTokens,
     estimatedCostUsd: pricedMessages > 0 ? estimatedCostSum : null
-  }
-}
-
-function createMockDeepChatAgent() {
-  return {
-    initSession: vi.fn().mockResolvedValue(undefined),
-    destroySession: vi.fn().mockResolvedValue(undefined),
-    getSessionState: vi.fn().mockResolvedValue(null),
-    processMessage: vi.fn().mockResolvedValue(undefined),
-    cancelGeneration: vi.fn().mockResolvedValue(undefined),
-    getMessages: vi.fn().mockResolvedValue([]),
-    getMessageIds: vi.fn().mockResolvedValue([]),
-    getMessage: vi.fn().mockResolvedValue(null),
-    getSessionCompactionState: vi.fn().mockResolvedValue({
-      status: 'idle',
-      cursorOrderSeq: 1,
-      summaryUpdatedAt: null
-    })
-  }
-}
-
-function createMockLlmProviderPresenter() {
-  return {
-    summaryTitles: vi.fn().mockResolvedValue('Usage Dashboard'),
-    generateText: vi.fn().mockResolvedValue({ content: '' }),
-    setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
-    clearAcpSession: vi.fn().mockResolvedValue(undefined),
-    getAcpSessionCommands: vi.fn().mockResolvedValue([])
   }
 }
 
@@ -438,49 +408,25 @@ function createMockSqlitePresenter() {
   } as any
 }
 
-describe('AgentSessionPresenter usage dashboard', () => {
+describe('UsageStatsService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  function createPresenter() {
+  function createService() {
     const sqlitePresenter = createMockSqlitePresenter()
     const configPresenter = createMockConfigPresenter()
-    const deepChatAgent = createMockDeepChatAgent()
-    const presenter = new AgentSessionPresenter(
-      {
-        resolveBackend: () => ({
-          kind: 'deepchat',
-          descriptor: { id: 'deepchat', kind: 'deepchat', source: 'builtin', config: {} },
-          backend: createDeepChatAgentBackendFixture(deepChatAgent as never)
-        })
-      } as any,
-      new AppSessionService({
-        newSessionsTable: sqlitePresenter.newSessionsTable,
-        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-      }),
-      createMockLlmProviderPresenter() as any,
-      configPresenter as any,
-      sqlitePresenter,
-      {
-        sessionState: deepChatAgent,
-        transcript: deepChatAgent,
-        transcriptMutation: deepChatAgent,
-        tape: deepChatAgent
-      } as any
-    )
+    const service = new UsageStatsService(sqlitePresenter, configPresenter as any)
 
     return {
-      presenter,
+      service,
       sqlitePresenter,
       configPresenter
     }
   }
 
   it('backfills current deepchat_messages and uses session provider/model fallback', async () => {
-    const { presenter, sqlitePresenter, configPresenter } = createPresenter()
+    const { service, sqlitePresenter, configPresenter } = createService()
     const listAllSpy = vi.spyOn(
       sqlitePresenter.deepchatMessagesTable,
       'listAssistantUsageCandidates'
@@ -509,7 +455,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
       updatedAt: Date.UTC(2026, 2, 10, 8, 0, 1)
     })
 
-    await presenter.startUsageStatsBackfill()
+    await service.startBackfill()
 
     expect(listPageSpy).toHaveBeenCalled()
     expect(listAllSpy).not.toHaveBeenCalled()
@@ -532,8 +478,75 @@ describe('AgentSessionPresenter usage dashboard', () => {
     expect(status.finishedAt).toBeGreaterThan(0)
   })
 
+  it('keeps concurrent backfill requests single-flight', async () => {
+    const { service, sqlitePresenter, configPresenter } = createService()
+    sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
+    for (let index = 0; index < 50; index += 1) {
+      sqlitePresenter.deepchatMessagesTable.insert({
+        id: `message-${index}`,
+        sessionId: 'session-1',
+        orderSeq: index,
+        role: 'assistant',
+        content: '[]',
+        status: 'sent',
+        metadata: JSON.stringify({ inputTokens: 1, outputTokens: 1, totalTokens: 2 }),
+        createdAt: index,
+        updatedAt: index
+      })
+    }
+    let releaseYield: (() => void) | undefined
+    const blockedYield = new Promise<void>((resolve) => {
+      releaseYield = resolve
+    })
+    const taskContext = {
+      reportProgress: vi.fn(),
+      yield: vi.fn(() => blockedYield)
+    }
+
+    const first = service.startBackfill(taskContext as never)
+    await vi.waitFor(() => expect(taskContext.yield).toHaveBeenCalledTimes(1))
+    const second = service.startBackfill(taskContext as never)
+
+    const runningWrites = configPresenter.setSetting.mock.calls.filter(
+      ([key, value]) =>
+        key === DASHBOARD_STATS_BACKFILL_KEY &&
+        (value as { status?: string } | undefined)?.status === 'running' &&
+        (value as { processedCount?: number } | undefined)?.processedCount === 0
+    )
+    expect(runningWrites).toHaveLength(1)
+
+    releaseYield?.()
+    await Promise.all([first, second])
+    expect(sqlitePresenter.deepchatUsageStatsTable.count()).toBe(50)
+  })
+
+  it('normalizes stale running state before restarting backfill', async () => {
+    const { service, configPresenter } = createService()
+    configPresenter.store.set(DASHBOARD_STATS_BACKFILL_KEY, {
+      status: 'running',
+      startedAt: 1,
+      finishedAt: null,
+      error: null,
+      updatedAt: 1,
+      processedCount: 12
+    })
+
+    await service.startBackfill()
+
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(
+      DASHBOARD_STATS_BACKFILL_KEY,
+      expect.objectContaining({
+        status: 'failed',
+        error: 'Usage stats backfill timed out'
+      })
+    )
+    expect(configPresenter.store.get(DASHBOARD_STATS_BACKFILL_KEY)).toMatchObject({
+      status: 'completed'
+    })
+  })
+
   it('keeps a single stats row when live finalize updates a previously backfilled message', async () => {
-    const { presenter, sqlitePresenter } = createPresenter()
+    const { service, sqlitePresenter } = createService()
     const messageStore = new DeepChatMessageStore(sqlitePresenter)
 
     sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
@@ -553,7 +566,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
       updatedAt: Date.UTC(2026, 2, 10, 8, 0, 1)
     })
 
-    await presenter.startUsageStatsBackfill()
+    await service.startBackfill()
 
     messageStore.finalizeAssistantMessage(
       'message-1',
@@ -580,7 +593,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
   })
 
   it('reads dashboard data from deepchat_usage_stats only', async () => {
-    const { presenter, sqlitePresenter } = createPresenter()
+    const { service, sqlitePresenter } = createService()
 
     sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
     sqlitePresenter.deepchatMessagesTable.insert({
@@ -601,7 +614,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
       updatedAt: Date.UTC(2026, 2, 10, 8, 0, 1)
     })
 
-    const dashboard = await presenter.getUsageDashboard()
+    const dashboard = await service.getDashboard()
 
     expect(dashboard.summary.messageCount).toBe(0)
     expect(dashboard.summary.sessionCount).toBe(0)
@@ -612,7 +625,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
   })
 
   it('returns session count and most active day from usage stats summary', async () => {
-    const { presenter, sqlitePresenter } = createPresenter()
+    const { service, sqlitePresenter } = createService()
 
     sqlitePresenter.deepchatUsageStatsTable.upsert({
       messageId: 'message-1',
@@ -663,7 +676,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
       updatedAt: Date.UTC(2026, 2, 4, 8, 0, 1)
     })
 
-    const dashboard = await presenter.getUsageDashboard()
+    const dashboard = await service.getDashboard()
 
     expect(dashboard.summary.messageCount).toBe(3)
     expect(dashboard.summary.sessionCount).toBe(2)
@@ -674,7 +687,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
   })
 
   it('uses the earlier date when the most active day is tied on message count', async () => {
-    const { presenter, sqlitePresenter } = createPresenter()
+    const { service, sqlitePresenter } = createService()
 
     sqlitePresenter.deepchatUsageStatsTable.upsert({
       messageId: 'message-1',
@@ -741,7 +754,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
       updatedAt: Date.UTC(2026, 2, 6, 8, 1, 1)
     })
 
-    const dashboard = await presenter.getUsageDashboard()
+    const dashboard = await service.getDashboard()
 
     expect(dashboard.summary.mostActiveDay).toEqual({
       date: '2026-03-05',

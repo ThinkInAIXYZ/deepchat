@@ -39,8 +39,10 @@ DeepChat loop + `AcpProvider` compatibility。
 Memory runtime orchestration 已收敛到唯一 `MemoryRuntimeCoordinator`，通过 awaited
 `MemoryPromptContributor` 与 background `MemoryIngestionObserver` 接入；Tape tool facts 已迁到 stable
 per-fact `TapeRecorder` path，causal observation 只读联结现有 Tape/message/trace。`AgentSessionPresenter`
-保留 route/application/shared projection façade，`AgentRuntimePresenter` 保留 DeepChat state/delegate 与
-adapter wiring；两者不再构成 generic agent runtime。current docs、architecture guards 与 baseline generator
+只保留 core session lifecycle/turn/assignment/shared projection façade；typed routes 直接组合 history、
+translation、export、usage、RTK 与 catalog owner，startup hooks 直接调用 migration/maintenance owner。
+`AgentRuntimePresenter` 保留 DeepChat state/delegate 与 adapter wiring；两者不再构成 generic agent runtime。
+current docs、architecture guards 与 baseline generator
 已在 `ASLR-091` 收敛；`ASLR-092` 已完成 canonical baseline write、全量
 main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
 
@@ -202,6 +204,10 @@ typed routes / remote / cron
 Independent owners (not children of AgentManager):
   McpPresenter | SkillPresenter | MemoryPresenter | PluginPresenter | LLMProviderPresenter
         └─ expose narrow ports/adapters to the relevant backend
+
+Session boundary owners (composed by typed routes and lifecycle hooks):
+  SessionHistorySearch | SessionTranslation | AgentSessionExportService | UsageStatsService
+  LegacyChatImportService | session-data migrations | available-agent catalog | RTK runtime service
 ```
 
 DeepChat backend 内的 provider selection 独立于 agent kind：
@@ -410,6 +416,10 @@ renderer event 缺口；
 | skill catalog/content/runtime | `SkillPresenter` |
 | memory rows/vector/maintenance | `MemoryPresenter` |
 | Memory extraction chains/epochs/retry cooldown/injection-access dedupe | DeepChat `MemoryRuntimeCoordinator` adapter（现有 runtime orchestration 的唯一新 owner） |
+| session history search / translation / current export | typed session route owners / `AgentSessionExportService` |
+| usage backfill and dashboard | `UsageStatsService` |
+| legacy default import and session-data startup migrations | `LegacyChatImportService` / stateless startup migration functions |
+| available-agent filtering / RTK health | available-agent catalog policy / RTK runtime service |
 
 ## 实施原则
 

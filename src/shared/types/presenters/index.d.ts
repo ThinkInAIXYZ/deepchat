@@ -100,13 +100,7 @@ export type {
 } from './acp.presenter'
 
 // New agent architecture types
-export type {
-  IAgentSessionPresenter,
-  HistorySearchHit,
-  HistorySearchMessageHit,
-  HistorySearchOptions,
-  HistorySearchSessionHit
-} from './agent-session.presenter'
+export type { IAgentSessionPresenter } from './agent-session.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
   ChannelSettingsMap,

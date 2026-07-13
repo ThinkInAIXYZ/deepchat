@@ -1,5 +1,4 @@
 import type {
-  Agent,
   SessionListItem,
   SessionLightweightListResult,
   SessionPageCursor,
@@ -13,13 +12,11 @@ import type {
   PermissionMode,
   SessionGenerationSettings,
   SessionCompactionState,
-  LegacyImportStatus,
   PendingSessionInputRecord,
   SendMessageInput,
   MessageStartResult,
   ToolInteractionResponse,
   ToolInteractionResult,
-  UsageDashboardData,
   AgentTapeInfo,
   AgentTapeAnchorsOptions,
   AgentTapeContextOptions,
@@ -33,30 +30,6 @@ import type { DeepChatTapeViewManifestRecord } from '../tape-view-manifest'
 import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from '../tape-replay'
 import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
-
-export interface HistorySearchOptions {
-  limit?: number
-}
-
-export interface HistorySearchSessionHit {
-  kind: 'session'
-  sessionId: string
-  title: string
-  projectDir: string | null
-  updatedAt: number
-}
-
-export interface HistorySearchMessageHit {
-  kind: 'message'
-  sessionId: string
-  messageId: string
-  title: string
-  role: 'user' | 'assistant'
-  snippet: string
-  updatedAt: number
-}
-
-export type HistorySearchHit = HistorySearchSessionHit | HistorySearchMessageHit
 
 export interface IAgentSessionPresenter {
   createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
@@ -113,7 +86,6 @@ export interface IAgentSessionPresenter {
       cursor?: MessagePageCursor | null
     }
   ): Promise<ChatMessagePageResult>
-  searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]>
   getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
   compactSession(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
   getTapeInfo(sessionId: string): Promise<AgentTapeInfo>
@@ -147,8 +119,6 @@ export interface IAgentSessionPresenter {
     meta?: Record<string, unknown>
   ): Promise<void>
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
-  getLegacyImportStatus(): Promise<LegacyImportStatus>
-  retryLegacyImport(): Promise<LegacyImportStatus>
   listMessageTraces(messageId: string): Promise<MessageTraceRecord[]>
   listMessageViewManifests(messageId: string): Promise<DeepChatTapeViewManifestRecord[]>
   exportMessageTapeReplaySlice(
@@ -158,12 +128,10 @@ export interface IAgentSessionPresenter {
   getMessageTraceCount(messageId: string): Promise<number>
   getMessageIds(sessionId: string): Promise<string[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
-  translateText(text: string, locale?: string, agentId?: string): Promise<string>
   activateSession(webContentsId: number, sessionId: string): Promise<void>
   deactivateSession(webContentsId: number): Promise<void>
   getActiveSession(webContentsId: number): Promise<SessionWithState | null>
   getActiveSessionId(webContentsId: number): string | null
-  getAgents(): Promise<Agent[]>
   getLightweightSessionList(options?: {
     limit?: number
     cursor?: SessionPageCursor | null
@@ -175,10 +143,6 @@ export interface IAgentSessionPresenter {
   renameSession(sessionId: string, title: string): Promise<void>
   toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void>
   clearSessionMessages(sessionId: string): Promise<void>
-  exportSession(
-    sessionId: string,
-    format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
-  ): Promise<{ filename: string; content: string }>
   deleteSession(sessionId: string): Promise<void>
   getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact>
   moveAgentSessions(
@@ -222,6 +186,4 @@ export interface IAgentSessionPresenter {
     sessionId: string,
     settings: Partial<SessionGenerationSettings>
   ): Promise<SessionGenerationSettings>
-  getUsageDashboard(): Promise<UsageDashboardData>
-  retryRtkHealthCheck(): Promise<void>
 }

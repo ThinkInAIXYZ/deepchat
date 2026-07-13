@@ -434,6 +434,11 @@ import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { CronJobsService } from '@/presenter/cronJobs'
 import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
+import type { UsageStatsService } from '@/presenter/usageStatsService'
+import type { SessionHistorySearch } from './sessions/sessionHistorySearch'
+import type { SessionTranslation } from './sessions/sessionTranslation'
+import type { AgentSessionExportService } from '@/presenter/exporter/agentSessionExporter'
+import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
 type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
@@ -474,6 +479,11 @@ export type MainKernelRouteRuntime = {
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
   cronJobs: CronJobsService
+  usageStatsService: Pick<UsageStatsService, 'getDashboard'>
+  rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
+  sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
+  agentSessionExportService: Pick<AgentSessionExportService, 'export'>
+  sessionTranslation: Pick<SessionTranslation, 'translate'>
 }
 
 export function formatMemorySourceRecordContent(record: ChatMessageRecord): string {
@@ -747,6 +757,11 @@ export function createMainKernelRouteRuntime(deps: {
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
   cronJobs: CronJobsService
+  usageStatsService: Pick<UsageStatsService, 'getDashboard'>
+  rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
+  sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
+  agentSessionExportService: Pick<AgentSessionExportService, 'export'>
+  sessionTranslation: Pick<SessionTranslation, 'translate'>
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -910,7 +925,12 @@ export function createMainKernelRouteRuntime(deps: {
     pluginPresenter: deps.pluginPresenter,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     memoryPresenter: deps.memoryPresenter,
-    cronJobs: deps.cronJobs
+    cronJobs: deps.cronJobs,
+    usageStatsService: deps.usageStatsService,
+    rtkRuntimeService: deps.rtkRuntimeService,
+    sessionHistorySearch: deps.sessionHistorySearch,
+    agentSessionExportService: deps.agentSessionExportService,
+    sessionTranslation: deps.sessionTranslation
   }
 }
 
@@ -3050,7 +3070,7 @@ export async function dispatchDeepchatRoute(
 
     case sessionsSearchHistoryRoute.name: {
       const input = sessionsSearchHistoryRoute.input.parse(rawInput)
-      const hits = await runtime.agentSessionPresenter.searchHistory(input.query, input.options)
+      const hits = await runtime.sessionHistorySearch.search(input.query, input.options)
       return sessionsSearchHistoryRoute.output.parse({ hits })
     }
 
@@ -3093,7 +3113,7 @@ export async function dispatchDeepchatRoute(
 
     case sessionsTranslateTextRoute.name: {
       const input = sessionsTranslateTextRoute.input.parse(rawInput)
-      const text = await runtime.agentSessionPresenter.translateText(
+      const text = await runtime.sessionTranslation.translate(
         input.text,
         input.locale,
         input.agentId
@@ -3103,19 +3123,19 @@ export async function dispatchDeepchatRoute(
 
     case sessionsGetAgentsRoute.name: {
       sessionsGetAgentsRoute.input.parse(rawInput)
-      const agents = await runtime.agentSessionPresenter.getAgents()
+      const agents = await listAvailableAgents(runtime.configPresenter)
       return sessionsGetAgentsRoute.output.parse({ agents })
     }
 
     case sessionsGetUsageDashboardRoute.name: {
       sessionsGetUsageDashboardRoute.input.parse(rawInput)
-      const dashboard = await runtime.agentSessionPresenter.getUsageDashboard()
+      const dashboard = await runtime.usageStatsService.getDashboard()
       return sessionsGetUsageDashboardRoute.output.parse({ dashboard })
     }
 
     case sessionsRetryRtkHealthCheckRoute.name: {
       sessionsRetryRtkHealthCheckRoute.input.parse(rawInput)
-      await runtime.agentSessionPresenter.retryRtkHealthCheck()
+      await runtime.rtkRuntimeService.retryHealthCheck()
       return sessionsRetryRtkHealthCheckRoute.output.parse({ retried: true })
     }
 
@@ -3145,10 +3165,7 @@ export async function dispatchDeepchatRoute(
 
     case sessionsExportRoute.name: {
       const input = sessionsExportRoute.input.parse(rawInput)
-      const result = await runtime.agentSessionPresenter.exportSession(
-        input.sessionId,
-        input.format
-      )
+      const result = await runtime.agentSessionExportService.export(input.sessionId, input.format)
       return sessionsExportRoute.output.parse(result)
     }
 

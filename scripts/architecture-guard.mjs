@@ -72,6 +72,56 @@ const AGENT_RUNTIME_PRESENTER_ROOT = path.join(
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
+const AGENT_SESSION_PRESENTER_PATH = path.join(
+  ROOT,
+  'src/main/presenter/agentSessionPresenter/index.ts'
+)
+const AGENT_SESSION_PRESENTER_INTERFACE_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/agent-session.presenter.d.ts'
+)
+const SESSION_BOUNDARY_STARTUP_HOOK_PATHS = new Set(
+  [
+    'disabledSearchToolCleanupHook.ts',
+    'legacyImportHook.ts',
+    'rtkHealthCheckHook.ts',
+    'sqliteMainlineNormalizationHook.ts',
+    'usageStatsBackfillHook.ts'
+  ].map((fileName) =>
+    path.join(ROOT, 'src/main/presenter/lifecyclePresenter/hooks/after-start', fileName)
+  )
+)
+const REMOVED_AGENT_SESSION_CAPABILITY_METHODS = new Set([
+  'searchHistory',
+  'getLegacyImportStatus',
+  'retryLegacyImport',
+  'startLegacyImport',
+  'startLegacyImportTask',
+  'startUsageStatsBackfill',
+  'startUsageStatsBackfillTask',
+  'startMainlineNormalizationBackfill',
+  'startMainlineNormalizationBackfillTask',
+  'startDisabledSearchToolCleanupBackfill',
+  'startDisabledSearchToolCleanupBackfillTask',
+  'startRtkHealthCheck',
+  'startRtkHealthCheckTask',
+  'retryRtkHealthCheck',
+  'getUsageDashboard',
+  'repairImportedLegacySessionSkills',
+  'translateText',
+  'getAgents',
+  'exportSession'
+])
+const AGENT_SESSION_FORBIDDEN_IMPORTS = [
+  ['legacy import', /(?:^|\/)legacy(?:Chat)?ImportService$/],
+  ['startup migrations', /(?:^|\/)startupMigrations(?:\/|$)/],
+  ['usage owner or policy', /(?:^|\/)usageStats(?:Service)?$/],
+  ['RTK runtime', /(?:^|\/)rtkRuntimeService$/],
+  ['exporter formats', /(?:^|\/)exporter\/formats(?:\/|$)/],
+  ['history search', /(?:^|\/)sessionHistorySearch$/],
+  ['session translation', /(?:^|\/)sessionTranslation$/],
+  ['agent catalog', /(?:^|\/)availableAgentCatalog$/]
+]
 const PHASE_ORDER = new Map([
   ['P0', 0],
   ['P1', 1],
@@ -282,6 +332,75 @@ function findNamedClassDeclarations(sourceFile, className) {
   }
   visit(sourceFile)
   return declarations
+}
+
+function findNamedDeclarationMembers(source, filePath, declarationName) {
+  const sourceFile = sourceFileForAst(source, filePath)
+  const names = []
+  const visit = (node) => {
+    if (
+      (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) &&
+      node.name?.text === declarationName
+    ) {
+      for (const member of node.members) {
+        const name = member.name ? propertyNameText(member.name) : null
+        if (name) names.push(name)
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return names
+}
+
+function analyzeSessionBoundaryStartupHook(source, filePath) {
+  const sourceFile = sourceFileForAst(source, filePath)
+  let agentSessionPresenterDependencies = 0
+  let typeAssertions = 0
+  let optionalStartTaskProbes = 0
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && node.text === 'AgentSessionPresenter') {
+      agentSessionPresenterDependencies += 1
+    }
+    if (accessMemberName(node) === 'agentSessionPresenter') {
+      agentSessionPresenterDependencies += 1
+    }
+    if (
+      ts.isBindingElement(node) &&
+      ts.isObjectBindingPattern(node.parent) &&
+      propertyNameText(node.propertyName ?? node.name) === 'agentSessionPresenter'
+    ) {
+      agentSessionPresenterDependencies += 1
+    }
+    if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
+      typeAssertions += 1
+    }
+
+    const optionalCallName =
+      ts.isCallExpression(node) && node.questionDotToken
+        ? ts.isIdentifier(unwrapExpression(node.expression))
+          ? unwrapExpression(node.expression).text
+          : accessMemberName(unwrapExpression(node.expression))
+        : null
+    const memberName =
+      optionalCallName ?? (node.name ? propertyNameText(node.name) : accessMemberName(node))
+    if (
+      memberName &&
+      /^start[A-Z][A-Za-z0-9]*Task$/.test(memberName) &&
+      (node.questionToken || node.questionDotToken || node.parent?.questionDotToken)
+    ) {
+      optionalStartTaskProbes += 1
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+
+  return {
+    agentSessionPresenterDependencies,
+    typeAssertions,
+    optionalStartTaskProbes,
+    unknownDoubleCasts: countMatches(source, /\bas\s+unknown\s+as\b/g)
+  }
 }
 
 function classPropertiesByName(classDeclaration) {
@@ -995,6 +1114,66 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
   for (const filePath of [...fileSet].sort()) {
     const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
+
+    if (path.resolve(filePath) === path.resolve(AGENT_SESSION_PRESENTER_PATH)) {
+      const removedMethods = findNamedDeclarationMembers(
+        source,
+        filePath,
+        'AgentSessionPresenter'
+      ).filter((name) => REMOVED_AGENT_SESSION_CAPABILITY_METHODS.has(name))
+      if (removedMethods.length > 0) {
+        violations.push(
+          `[session-boundary-presenter-method] ${relativePath(filePath)} must not declare moved capabilities: ${removedMethods.join(', ')}`
+        )
+      }
+
+      for (const specifier of specifiers) {
+        for (const [owner, pattern] of AGENT_SESSION_FORBIDDEN_IMPORTS) {
+          if (pattern.test(specifier)) {
+            violations.push(
+              `[session-boundary-presenter-import] ${relativePath(filePath)} must not import ${owner}: ${specifier}`
+            )
+          }
+        }
+      }
+    }
+
+    if (path.resolve(filePath) === path.resolve(AGENT_SESSION_PRESENTER_INTERFACE_PATH)) {
+      const removedMethods = findNamedDeclarationMembers(
+        source,
+        filePath,
+        'IAgentSessionPresenter'
+      ).filter((name) => REMOVED_AGENT_SESSION_CAPABILITY_METHODS.has(name))
+      if (removedMethods.length > 0) {
+        violations.push(
+          `[session-boundary-interface-method] ${relativePath(filePath)} must not declare moved capabilities: ${removedMethods.join(', ')}`
+        )
+      }
+    }
+
+    if (SESSION_BOUNDARY_STARTUP_HOOK_PATHS.has(path.resolve(filePath))) {
+      const hook = analyzeSessionBoundaryStartupHook(source, filePath)
+      if (hook.agentSessionPresenterDependencies > 0) {
+        violations.push(
+          `[session-boundary-hook-presenter] ${relativePath(filePath)} must not reference AgentSessionPresenter`
+        )
+      }
+      if (hook.unknownDoubleCasts > 0) {
+        violations.push(
+          `[session-boundary-hook-unknown-cast] ${relativePath(filePath)} must not use as unknown as`
+        )
+      }
+      if (hook.typeAssertions > 0) {
+        violations.push(
+          `[session-boundary-hook-type-cast] ${relativePath(filePath)} must use typed owners without concrete casts`
+        )
+      }
+      if (hook.optionalStartTaskProbes > 0) {
+        violations.push(
+          `[session-boundary-hook-optional-task] ${relativePath(filePath)} must not use optional start*Task probes`
+        )
+      }
+    }
 
     if (isUnder(filePath, path.join(ROOT, 'src')) || isUnder(filePath, REGULAR_MAIN_TEST_ROOT)) {
       for (const [symbol, pattern] of RETIRED_AGENT_RUNTIME_PATTERNS) {

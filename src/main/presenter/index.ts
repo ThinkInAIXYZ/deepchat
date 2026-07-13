@@ -108,6 +108,13 @@ import {
 } from '@/routes/publishDeepchatEvent'
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
+import { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
+import { UsageStatsService } from './usageStatsService'
+import type { SessionDataMigrationSQLitePort } from './startupMigrations/sessionDataMigrations'
+import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
+import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
+import { AgentSessionExportService } from './exporter/agentSessionExporter'
 
 type MemoryMaintenanceConfigChangeTarget = Pick<
   MemoryPresenter,
@@ -171,6 +178,13 @@ export class Presenter implements IPresenter {
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  legacyChatImportService: LegacyChatImportService
+  usageStatsService: UsageStatsService
+  appSessionService: AppSessionService
+  sessionDataMigrationSQLite: SessionDataMigrationSQLitePort
+  sessionHistorySearch: SessionHistorySearch
+  agentSessionExportService: AgentSessionExportService
+  sessionTranslation: SessionTranslation
   private sessionMessageManager: MessageManager
   private sessionPresenterInternal?: SessionPresenter
   private acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
@@ -202,6 +216,10 @@ export class Presenter implements IPresenter {
     this.startupWorkloadCoordinator =
       (context.startupWorkloadCoordinator as StartupWorkloadCoordinator | undefined) ??
       new StartupWorkloadCoordinator()
+    const concreteSQLitePresenter = this.sqlitePresenter as unknown as SQLitePresenter
+    this.sessionDataMigrationSQLite = concreteSQLitePresenter
+    this.legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
+    this.usageStatsService = new UsageStatsService(concreteSQLitePresenter, this.configPresenter)
 
     // Initialize presenters and their dependencies.
     this.windowPresenter = new WindowPresenter(
@@ -482,12 +500,7 @@ export class Presenter implements IPresenter {
         sqlitePresenter.newEnvironmentsTable?.syncForSession(conversationId)
       },
       repairImportedLegacySessionSkills: async (conversationId) => {
-        const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
-          repairImportedLegacySessionSkills?: (sessionId: string) => Promise<string[]>
-        }
-        return (
-          (await agentSessionPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
-        )
+        return await this.legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
       }
     }
 
@@ -673,7 +686,7 @@ export class Presenter implements IPresenter {
     )
     const sqlitePresenter = this
       .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
-    const appSessionService = new AppSessionService({
+    this.appSessionService = new AppSessionService({
       newSessionsTable: sqlitePresenter.newSessionsTable,
       deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
       deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
@@ -685,6 +698,7 @@ export class Presenter implements IPresenter {
       transcriptMutation: agentRuntimePresenter,
       tape: agentRuntimePresenter
     }
+    const appSessionService = this.appSessionService
     this.agentManager = new AgentManager(agentRepository, appSessionService, {
       deepchat: createDeepChatAgentBackend({
         port: agentRuntimePresenter,
@@ -718,6 +732,18 @@ export class Presenter implements IPresenter {
           }
         }
       })
+    })
+    this.sessionHistorySearch = new SessionHistorySearch(sqlitePresenter, appSessionService)
+    this.agentSessionExportService = new AgentSessionExportService({
+      agentManager: this.agentManager,
+      appSessionService,
+      transcript: agentSharedData.transcript,
+      configPresenter: this.configPresenter
+    })
+    this.sessionTranslation = new SessionTranslation({
+      agentManager: this.agentManager,
+      configPresenter: this.configPresenter,
+      llmProviderPresenter: this.llmproviderPresenter
     })
     this.agentSessionPresenter = new AgentSessionPresenter(
       this.agentManager,
@@ -1169,7 +1195,12 @@ const buildMainKernelRouteRuntime = () =>
     pluginPresenter: presenter.pluginPresenter,
     databaseSecurityPresenter: presenter.databaseSecurityPresenter,
     memoryPresenter: presenter.memoryPresenter,
-    cronJobs: presenter.cronJobs
+    cronJobs: presenter.cronJobs,
+    usageStatsService: presenter.usageStatsService,
+    rtkRuntimeService,
+    sessionHistorySearch: presenter.sessionHistorySearch,
+    agentSessionExportService: presenter.agentSessionExportService,
+    sessionTranslation: presenter.sessionTranslation
   })
 
 export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelRouteRuntime> {

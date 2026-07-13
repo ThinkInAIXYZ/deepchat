@@ -37,9 +37,9 @@ sequenceDiagram
 - `src/main/agent/manager/directAcpAgentBackend.ts`
 - `src/main/presenter/agentSessionPresenter/index.ts`
 
-`AgentSessionPresenter` 仍是 route/application façade，但 agent kind resolution 和 executable backend
-selection 只发生在 `AgentManager`。`new_sessions.session_kind` 仍表示 `regular | subagent`，不决定
-DeepChat/ACP backend。
+`AgentSessionPresenter` 是 core session lifecycle/turn/assignment façade；agent kind resolution 和
+executable backend selection 只发生在 `AgentManager`。`new_sessions.session_kind` 仍表示
+`regular | subagent`，不决定 DeepChat/ACP backend。
 
 ## 2. DeepChat 消息处理主循环
 
@@ -144,6 +144,9 @@ sequenceDiagram
 - `deepchat_assistant_blocks` 存 assistant block 增量。
 - `deepchat_search_documents` / `_fts` 存历史搜索索引。
 
+`sessions.searchHistory` 不经过 `AgentSessionPresenter`；typed route 直接调用
+`src/main/routes/sessions/sessionHistorySearch.ts`，由该 owner 保持 FTS、LIKE 与 legacy SQL fallback。
+
 ## 5. ACP direct backend 与 provider compatibility
 
 ```mermaid
@@ -175,20 +178,30 @@ direct `kind=acp` 的 workdir、mode/config/commands、cancel 和 protocol permi
 sequenceDiagram
     participant UI as Spotlight overlay
     participant Store as spotlight store
-    participant Session as AgentSessionPresenter
+    participant Route as typed sessions route
+    participant Search as SessionHistorySearch
     participant Settings as settings navigation registry
 
     UI->>Store: open/query/select
-    Store->>Session: searchHistory(query)
-    Session-->>Store: sessions/messages hits
+    Store->>Route: sessions.searchHistory(query)
+    Route->>Search: search(query, limit)
+    Search-->>Store: sessions/messages hits
     Store->>Settings: merge settings/actions/agents
     Store-->>UI: mixed results
 ```
 
 Spotlight 默认由 `CommandOrControl+P` 打开，混排 recent sessions、agents、settings、actions
-和历史消息。消息命中会写入 pending jump，`ChatPage` 在目标消息加载完成后滚动并高亮。
+和历史消息。agent results 使用 shared available-agent catalog policy；消息命中会写入 pending jump，
+`ChatPage` 在目标消息加载完成后滚动并高亮。
 
-## 7. Provider Import And Deeplinks
+## 7. Startup Maintenance
+
+五个 lifecycle startup hooks 只负责调度，不经 `AgentSessionPresenter`：legacy import 调用
+`LegacyChatImportService`，usage backfill 调用 `UsageStatsService`，两类 session-data cleanup 调用 stateless
+startup migration functions，RTK health 调用 RTK runtime service。task id、priority、resource 与持久状态 key
+保持稳定。
+
+## 8. Provider Import And Deeplinks
 
 ```mermaid
 sequenceDiagram
@@ -212,7 +225,7 @@ sequenceDiagram
 - provider config import scan/apply，包括 Codex、Claude Code、Cherry Studio、CC Switch 等来源
 - model config import/export，以及 built-in/custom provider 的 credential-only import
 
-## 8. Scheduled Tasks
+## 9. Scheduled Tasks
 
 ```mermaid
 sequenceDiagram
@@ -235,7 +248,7 @@ sequenceDiagram
 Triggers 使用 cron 表达式。每次触发创建独立 detached session；Remote 投递只发送通知，不进入普通
 Remote 会话上下文。
 
-## 9. Remote Control
+## 10. Remote Control
 
 ```mermaid
 flowchart LR
@@ -253,7 +266,7 @@ flowchart LR
 渲染和工具交互提示。各 channel 的协议差异留在 `remoteControlPresenter/<channel>/`
 和 `remoteControlPresenter/services/*CommandRouter.ts`。
 
-## 10. Local Data Security
+## 11. Local Data Security
 
 SQLite 数据库加密由 `DatabaseSecurityPresenter` 管理：
 

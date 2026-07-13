@@ -1,10 +1,13 @@
 # 会话管理架构详解
 
-当前会话管理分成三个明确边界：
+当前会话管理分成四个明确边界：
 
 - app-session shell：`AppSessionService` 管理 `new_sessions`、window binding 和 shared CRUD；
 - agent execution routing：`AgentManager` 按 executable descriptor kind 返回 typed handle；
-- route/application façade：`AgentSessionPresenter` 保留 renderer API、shared projection 和跨模块操作。
+- route/application owners：typed session routes 直接组合 search、translation、export、usage、RTK 与 agent
+  catalog owner；
+- core session façade：`AgentSessionPresenter` 只保留 session lifecycle、turn、assignment 与 shared
+  projection 编排。
 
 `SessionPresenter` 是旧 conversations/messages 的 compatibility/data façade，不在当前 agent execution
 链路中。
@@ -13,7 +16,10 @@
 
 | 组件 | 位置 | 当前职责 |
 | --- | --- | --- |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | renderer session route/application façade；CRUD、draft、title、transfer/subagent、import/search/export/dashboard |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | core session façade；CRUD、draft、title、turn、transfer/subagent 与 shared projection |
+| Session route owners | `src/main/routes/sessions/` | history search、translation 与 typed route orchestration |
+| Session export | `src/main/presenter/exporter/agentSessionExporter.ts` | current agent-session export mapping and format dispatch |
+| Startup/maintenance owners | `src/main/presenter/startupMigrations/`, `usageStatsService.ts` | legacy import、session-data migrations、usage backfill/dashboard；RTK 由其 runtime service 自有 |
 | `AppSessionService` | `src/main/agent/shared/appSessionService.ts` | `new_sessions` row、window binding、activate/list/filter/shared CRUD |
 | `AgentManager` | `src/main/agent/manager/agentManager.ts` | session agent id -> strict descriptor -> explicit backend kind router |
 | DeepChat backend | `src/main/agent/manager/deepChatAgentBackend.ts` | typed handle over `DeepChatAgentRuntime`/instance和 required DeepChat delegate port |
@@ -71,7 +77,8 @@ legacy/direct runtime-kind branch。
 - `sessions.restore` 返回最近一页消息，默认 `100` 条；`sessions.listMessagesPage` keyset 分页拉取旧历史。
 - DeepChat structured message tables 和 direct ACP compatibility projection 共用同一 restore/search/export
   read model；`acp_turns` 只是远端 protocol metadata。
-- `deepchat_search_documents` / FTS5 提供历史搜索，失败时回退 `LIKE`。
+- `SessionHistorySearch` 使用 `deepchat_search_documents` / FTS5 提供 `sessions.searchHistory`，失败时
+  回退 `LIKE`，并保留 legacy SQL fallback。
 
 ## 关闭、删除与 transfer
 
@@ -109,10 +116,13 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 只有这些场景进入 `src/main/presenter/sessionPresenter/`：
 
 - 旧 conversations/messages 数据读取；
-- legacy import/export；
+- legacy conversations/messages export；
 - thread list 广播；
 - tab/window close compatibility；
 - exporter 的旧消息格式化。
 
 当前 session create/send/cancel/tool interaction 从 `AgentSessionPresenter -> AgentManager -> typed backend`
 开始追踪；DeepChat state/loop 看 `agent/deepchat`，direct ACP 看 `agent/acp/instance`。
+
+旧聊天数据导入由 `presenter/startupMigrations/legacyChatImportService.ts` 拥有；当前 agent-session export
+由 `presenter/exporter/agentSessionExporter.ts` 拥有。两者都不属于 `AgentSessionPresenter`。

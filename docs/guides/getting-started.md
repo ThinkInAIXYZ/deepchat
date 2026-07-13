@@ -127,7 +127,8 @@ src/
 
 优先看：
 
-- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
+- `src/main/presenter/startupMigrations/legacyChatImportService.ts`
+- `src/main/presenter/exporter/agentSessionExporter.ts`
 - `src/main/presenter/sessionPresenter/index.ts`
 - `src/main/presenter/exporter/formats/`
 

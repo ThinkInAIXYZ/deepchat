@@ -19,11 +19,12 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 4. `src/renderer/api/`
 5. `src/main/routes/index.ts`
 6. `src/main/routes/sessions/sessionService.ts`
-7. `src/main/routes/chat/chatService.ts`
-8. `src/main/routes/providers/providerService.ts`
-9. `src/main/routes/hotPathPorts.ts`
-10. `src/main/presenter/agentSessionPresenter/index.ts`
-11. `src/main/presenter/agentRuntimePresenter/index.ts`
+7. `src/main/routes/sessions/sessionHistorySearch.ts` / `sessionTranslation.ts`
+8. `src/main/routes/chat/chatService.ts`
+9. `src/main/routes/providers/providerService.ts`
+10. `src/main/routes/hotPathPorts.ts`
+11. `src/main/presenter/agentSessionPresenter/index.ts`
+12. `src/main/presenter/agentRuntimePresenter/index.ts`
 
 ## 按边界找代码
 
@@ -54,6 +55,10 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 | --- | --- | --- |
 | session route dispatch | `src/main/routes/index.ts` | `sessions.create` / `restore` / `listMessagesPage` / `activate` / `deactivate` / `getActive` |
 | session orchestration | `src/main/routes/sessions/sessionService.ts` | `Scheduler` + session/message repositories |
+| session history / translation | `src/main/routes/sessions/sessionHistorySearch.ts` / `sessionTranslation.ts` | route-owned search fallback and translation policy execution |
+| session export | `src/main/presenter/exporter/agentSessionExporter.ts` | current agent-session mapping and format dispatch |
+| usage / startup maintenance | `src/main/presenter/usageStatsService.ts` / `startupMigrations/` | dashboard/backfill、legacy import、session-data migrations |
+| available-agent catalog | `src/main/agent/shared/availableAgentCatalog.ts` | DeepChat/ACP visibility policy |
 | chat route dispatch | `src/main/routes/index.ts` | `chat.sendMessage` / `stopStream` / `respondToolInteraction` |
 | chat orchestration | `src/main/routes/chat/chatService.ts` | send / stop / permission response owner |
 | scheduler | `src/main/routes/scheduler.ts` | timeout / retry / abort 统一入口 |
@@ -73,7 +78,7 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| session runtime entry | `src/main/presenter/agentSessionPresenter/index.ts` | window/session 绑定、runtime delegation、legacy import |
+| session runtime entry | `src/main/presenter/agentSessionPresenter/index.ts` | window/session 绑定、turn/assignment 与 runtime delegation |
 | message runtime entry | `src/main/presenter/agentRuntimePresenter/index.ts` | `processMessage()`、暂停恢复、stream 生命周期 |
 | 主循环 | `src/main/presenter/agentRuntimePresenter/process.ts` | stream + tool loop |
 | 工具调度 | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | tool call / paused interaction |
@@ -94,9 +99,10 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| legacy import | `src/main/presenter/agentSessionPresenter/legacyImportService.ts` | 旧数据导入新表 |
+| legacy import | `src/main/presenter/startupMigrations/legacyChatImportService.ts` | default startup import 与 explicit legacy source import service |
+| current agent-session export | `src/main/presenter/exporter/agentSessionExporter.ts` | `new_sessions` / structured messages export |
 | legacy 会话兼容 | `src/main/presenter/sessionPresenter/index.ts` | main 内部 compatibility/data layer |
-| 用户消息格式化 | `src/main/presenter/sessionPresenter/messageFormatter.ts` | exporter 复用 |
+| legacy 用户消息格式化 | `src/main/presenter/sessionPresenter/messageFormatter.ts` | old conversations/messages exporter 复用 |
 
 ## 搜索建议
 
@@ -115,7 +121,7 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 | --- | --- |
 | `renderer/api/*Client` | migrated renderer boundary 的一线入口 |
 | `src/main/routes/*` | migrated settings/session/chat/provider path 的 active owner |
-| `agentSessionPresenter` | presenter-backed runtime collaborator，不是 migrated renderer 的直连入口 |
+| `agentSessionPresenter` | core session lifecycle/turn/assignment collaborator；不拥有 search/export/usage/startup/catalog |
 | `agentRuntimePresenter` | 当前聊天 runtime 与持久化 owner |
 | `SessionPresenter` | legacy conversation 兼容层，不是 migrated chat 主链路 |
 | `agentPresenter` | 已退休；只应出现在旧提交或已删除的历史 spec 里 |

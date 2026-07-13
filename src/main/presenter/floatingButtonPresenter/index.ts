@@ -12,6 +12,7 @@ import {
 } from './layout'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
 import type { Agent, SessionWithState } from '@shared/types/agent-interface'
+import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
 import { presenter } from '../index'
@@ -625,17 +626,7 @@ export class FloatingButtonPresenter {
   }
 
   private async loadAgents(): Promise<Agent[]> {
-    const agentSessionPresenter = presenter.agentSessionPresenter as
-      | {
-          getAgents?: () => Promise<Agent[]>
-        }
-      | undefined
-
-    if (!agentSessionPresenter?.getAgents) {
-      return []
-    }
-
-    return await agentSessionPresenter.getAgents()
+    return await listAvailableAgents(this.configPresenter)
   }
 
   private async openSession(sessionId: string): Promise<void> {

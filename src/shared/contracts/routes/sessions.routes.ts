@@ -8,7 +8,6 @@ import type {
   PendingSessionInputRecord,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type { HistorySearchHit } from '@shared/types/presenters/agent-session.presenter'
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import {
@@ -35,6 +34,30 @@ const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
 const AgentTapeContextResultSchema = z.custom<AgentTapeContextResult>()
 const DeepChatTapeViewManifestRecordSchema = z.custom<DeepChatTapeViewManifestRecord>()
 const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullable()
+export interface HistorySearchOptions {
+  limit?: number
+}
+
+export interface HistorySearchSessionHit {
+  kind: 'session'
+  sessionId: string
+  title: string
+  projectDir: string | null
+  updatedAt: number
+}
+
+export interface HistorySearchMessageHit {
+  kind: 'message'
+  sessionId: string
+  messageId: string
+  title: string
+  role: 'user' | 'assistant'
+  snippet: string
+  updatedAt: number
+}
+
+export type HistorySearchHit = HistorySearchSessionHit | HistorySearchMessageHit
+
 const HistorySearchHitSchema = z.custom<HistorySearchHit>()
 const SearchResultSchema = z.custom<SearchResult>()
 const AgentSchema = z.custom<Agent>()
