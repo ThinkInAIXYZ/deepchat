@@ -183,6 +183,85 @@ describe('direct ACP agent backend', () => {
     )
   })
 
+  it('rejects non-permission interactions before reading the transcript', async () => {
+    const harness = createHarness()
+    const handle = harness.backend.open(sessionId, descriptor)
+
+    await expect(
+      handle.toolInteractions.respond('assistant', 'tool-call', { kind: 'question_other' })
+    ).rejects.toThrow('Direct ACP sessions only accept permission interactions.')
+
+    expect(harness.transcript.getMessage).not.toHaveBeenCalled()
+    expect(harness.instance.resolvePermissionRequest).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a missing message', null],
+    [
+      'a message from another session',
+      { id: 'assistant', sessionId: toAppSessionId('other'), role: 'assistant', content: '[]' }
+    ],
+    ['a non-assistant message', { id: 'user', sessionId, role: 'user', content: '[]' }]
+  ])('rejects %s before resolving an ACP permission request', async (_caseName, message) => {
+    const harness = createHarness()
+    harness.transcript.getMessage.mockResolvedValueOnce(message)
+    const handle = harness.backend.open(sessionId, descriptor)
+
+    await expect(
+      handle.toolInteractions.respond('assistant', 'tool-call', {
+        kind: 'permission',
+        granted: true
+      })
+    ).rejects.toThrow('Assistant message not found: assistant')
+
+    expect(harness.instance.resolvePermissionRequest).not.toHaveBeenCalled()
+  })
+
+  it('requires a matching persisted tool-call permission request', async () => {
+    const harness = createHarness()
+    harness.transcript.getMessage.mockResolvedValueOnce({
+      id: 'assistant',
+      sessionId,
+      role: 'assistant',
+      content: JSON.stringify([
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          tool_call: { id: 'different-tool' },
+          extra: { permissionRequestId: 'permission-request' }
+        }
+      ])
+    })
+    const handle = harness.backend.open(sessionId, descriptor)
+
+    await expect(
+      handle.toolInteractions.respond('assistant', 'tool-call', {
+        kind: 'permission',
+        granted: false
+      })
+    ).rejects.toThrow('ACP permission request not found for tool call: tool-call')
+
+    expect(harness.instance.resolvePermissionRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects permission requests that are no longer hydrated', async () => {
+    const harness = createHarness()
+    harness.instance.resolvePermissionRequest.mockReturnValueOnce(false)
+    const handle = harness.backend.open(sessionId, descriptor)
+
+    await expect(
+      handle.toolInteractions.respond('assistant', 'tool-call', {
+        kind: 'permission',
+        granted: false
+      })
+    ).rejects.toThrow('Unknown ACP permission request: permission-request')
+
+    expect(harness.instance.resolvePermissionRequest).toHaveBeenCalledWith(
+      'permission-request',
+      false
+    )
+  })
+
   it('exposes direct transfer, subagent, generation, and close facets', async () => {
     const harness = createHarness()
     const handle = harness.backend.open(sessionId, descriptor)
