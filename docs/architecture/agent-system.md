@@ -74,6 +74,16 @@ agentSessionPresenter/
 ```text
 agentRuntimePresenter/
 ├── index.ts
+├── runtimeSharedState.ts
+├── sessionSettingsService.ts
+├── generationControlService.ts
+├── sessionLifecycleService.ts
+├── turnPreparationService.ts
+├── streamLifecycleService.ts
+├── interactionResumeService.ts
+├── memoryCompactionService.ts
+├── messageHistoryService.ts
+├── tapeAccessService.ts
 ├── process.ts
 ├── dispatch.ts
 ├── contextBuilder.ts
@@ -81,15 +91,18 @@ agentRuntimePresenter/
 ├── messageStore.ts
 ├── pendingInputStore.ts
 ├── pendingInputCoordinator.ts
+├── pendingInputService.ts
 ├── compactionService.ts
+├── noProgressToolLoopGuard.ts
 ├── echo.ts
 └── toolOutputGuard.ts
 ```
 
 职责：
 
-- 初始化 session runtime 状态
-- 处理 `processMessage()` / `respondToolInteraction()`
+- 通过 facade 装配 session、turn、stream、interaction、memory 与 persistence services
+- 通过专用 service 管理 session settings、generation control 和 pending-input orchestration
+- 委托 `processMessage()` / `respondToolInteraction()`，保持既有外部 contract
 - 执行 stream loop 与 tool loop
 - 持久化消息和运行时状态
 - 做 context compaction、tool output guard、实时 echo
@@ -99,13 +112,34 @@ agentRuntimePresenter/
 | 层 | 主文件 | 责任 |
 | --- | --- | --- |
 | Session orchestration | `src/main/presenter/agentSessionPresenter/index.ts` | session 生命周期与 IPC |
-| Agent runtime | `src/main/presenter/agentRuntimePresenter/index.ts` | run state、取消、恢复、模型/权限切换 |
+| Agent runtime facade | `src/main/presenter/agentRuntimePresenter/index.ts` | 依赖装配与外部 contract delegation |
+| Shared runtime state | `src/main/presenter/agentRuntimePresenter/runtimeSharedState.ts` | 跨 service 的 turn maps/sets |
+| Session lifecycle | `src/main/presenter/agentRuntimePresenter/sessionLifecycleService.ts` | init/destroy、readiness、agent/project context 与 status |
+| Session settings | `src/main/presenter/agentRuntimePresenter/sessionSettingsService.ts` | 模型、权限与 generation settings |
+| Generation control | `src/main/presenter/agentRuntimePresenter/generationControlService.ts` | run identity、abort、取消与 stale-run guard |
+| Turn preparation | `src/main/presenter/agentRuntimePresenter/turnPreparationService.ts` | input、tools、skills、prompt、context budget 与初始 tape view |
+| Stream lifecycle | `src/main/presenter/agentRuntimePresenter/streamLifecycleService.ts` | provider attempts、rate limit、context recovery、trace 与终态 |
+| Interaction resume | `src/main/presenter/agentRuntimePresenter/interactionResumeService.ts` | question/permission、deferred tool、tool result normalization 与 resume |
+| Memory/compaction | `src/main/presenter/agentRuntimePresenter/memoryCompactionService.ts` | memory injection/extraction、compaction state 与 orchestration |
+| Message history | `src/main/presenter/agentRuntimePresenter/messageHistoryService.ts` | clear、retry、delete、edit 与 fork 编排 |
+| Tape access | `src/main/presenter/agentRuntimePresenter/tapeAccessService.ts` | tape query、handoff、replay 与 subagent merge/discard |
 | Stream loop | `src/main/presenter/agentRuntimePresenter/process.ts` | 调用 provider、累计 blocks、驱动 tool loop |
 | Tool dispatch | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
 | Context build | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
 | Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化、分页读取、结构化内容重组与故障恢复 |
-| Compaction | `src/main/presenter/agentRuntimePresenter/compactionService.ts` | 手动/自动上下文压缩与压缩状态消息 |
-| Pending input | `src/main/presenter/agentRuntimePresenter/pendingInputStore.ts` | queued input、steer、重排与恢复 |
+| Compaction engine | `src/main/presenter/agentRuntimePresenter/compactionService.ts` | 压缩意图计算与 summary 生成 |
+| Pending input | `src/main/presenter/agentRuntimePresenter/pendingInputService.ts` | queued input、steer、drain、重排与恢复 |
+
+每个完成的 native Agent message metadata 记录 opaque `runId`、终态/stop reason、provider
+round、tool call 和累计 usage；相同 reason 也返回给 `ProcessResult` 与 terminal hooks。工具循环
+若连续得到相同规范化调用与实质结果，会先收到策略纠偏，第四次无进展时以 `no_progress`
+终止。guard 快照跨 permission/question pause 保留，结果中的常见时间戳和 generated ID 不影响
+比较；只有 `ok/success` 一类弱回执时不会直接硬熔断。既有 128-call hard cap 继续作为最终保护，
+超出预算而未执行的 tool block 会明确标记为 error。
+
+stream 开始后的 abort terminal persistence 由 `processStream` 单独负责；pre-stream 设置、provider
+解析或 context preflight 阶段的 abort/error 由 `StreamLifecycleService` 收尾，并写入 run identity、
+零起始 provider/tool 计数和 canonical stop reason。
 
 ## 持久化热路径
 

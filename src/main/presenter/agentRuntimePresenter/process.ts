@@ -9,22 +9,36 @@ import type {
   StreamState
 } from './types'
 import { createState } from './types'
-import { accumulate, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
+import { accumulate, commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
 import {
   executeTools,
   finalize,
   finalizeError,
   finalizePaused,
-  publishPlanUpdated,
-  persistAbortExceptionPlanState
+  publishPlanUpdated
 } from './dispatch'
 import { isContextWindowErrorLike } from './contextWindowError'
+import {
+  extractLatestCompletedToolBatch,
+  NoProgressToolLoopGuard,
+  NO_PROGRESS_TERMINAL_ERROR
+} from './noProgressToolLoopGuard'
 
 const MAX_TOOL_CALLS = 128
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
+const MAX_TOOL_CALLS_SKIPPED_ERROR =
+  'Tool call was not executed because the maximum tool-call limit was reached.'
+
+class MaxProviderRoundsError extends Error {
+  constructor(limit: number) {
+    super(`Maximum agent turns exceeded (${limit}).`)
+    this.name = 'MaxProviderRoundsError'
+  }
+}
+
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
 
@@ -47,6 +61,41 @@ function stripTrailingErrorBlock(state: StreamState, message: string): void {
   if (lastBlock?.type === 'error' && lastBlock.content === message) {
     state.blocks.pop()
   }
+}
+
+function stampRunOutcome(
+  state: StreamState,
+  outcome: 'completed' | 'paused' | 'aborted' | 'error',
+  stopReason: string
+): void {
+  state.metadata.runOutcome = outcome
+  state.metadata.runStopReason = stopReason
+}
+
+function markUnexecutedToolCallsForLimit(state: StreamState): void {
+  const unexecutedIds = new Set(state.completedToolCalls.map((toolCall) => toolCall.id))
+  for (const block of state.blocks) {
+    if (
+      block.type !== 'tool_call' ||
+      !block.tool_call?.id ||
+      !unexecutedIds.has(block.tool_call.id) ||
+      (block.status !== 'pending' && block.status !== 'loading')
+    ) {
+      continue
+    }
+
+    block.status = 'error'
+    block.tool_call.response = MAX_TOOL_CALLS_SKIPPED_ERROR
+    block.extra = {
+      ...block.extra,
+      toolCallSkippedReason: 'max_tool_calls'
+    }
+    state.dirty = true
+  }
+}
+
+function toNonNegativeNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 function parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
@@ -320,6 +369,24 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   } = params
 
   const state = createState()
+  const initialAccounting = params.initialAccounting
+  if (initialAccounting) {
+    state.metadata.inputTokens = toNonNegativeNumber(initialAccounting.inputTokens)
+    state.metadata.outputTokens = toNonNegativeNumber(initialAccounting.outputTokens)
+    state.metadata.totalTokens = toNonNegativeNumber(initialAccounting.totalTokens)
+    state.metadata.cachedInputTokens = toNonNegativeNumber(initialAccounting.cachedInputTokens)
+    state.metadata.cacheWriteInputTokens = toNonNegativeNumber(
+      initialAccounting.cacheWriteInputTokens
+    )
+    state.metadata.generationTime = toNonNegativeNumber(initialAccounting.generationTime)
+    state.metadata.firstTokenTime = toNonNegativeNumber(initialAccounting.firstTokenTime)
+    state.metadata.noProgressToolLoop = initialAccounting.noProgressToolLoop
+    state.providerRoundCount = Math.floor(
+      toNonNegativeNumber(initialAccounting.providerRounds) ?? 0
+    )
+    state.toolCallCount = Math.floor(toNonNegativeNumber(initialAccounting.toolCalls) ?? 0)
+  }
+  state.metadata.runId = io.requestId
   state.metadata.provider = providerId
   state.metadata.model = modelId
   if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
@@ -329,8 +396,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   const conversationMessages = [...messages]
   params.onConversationMessagesChange?.(conversationMessages)
   let currentTools = [...tools]
-  let toolCallCount = 0
-  let providerRoundCount = 0
+  let toolCallCount = state.toolCallCount
+  let providerRoundCount = state.providerRoundCount
+  const noProgressToolLoopGuard = new NoProgressToolLoopGuard(initialAccounting?.noProgressToolLoop)
   const maxProviderRounds =
     Number.isInteger(params.maxProviderRounds) && params.maxProviderRounds! > 0
       ? params.maxProviderRounds!
@@ -341,11 +409,42 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   let eventCount = 0
 
   try {
+    if (initialAccounting?.runOutcome === 'paused') {
+      const resumedToolBatch = extractLatestCompletedToolBatch(conversationMessages)
+      if (resumedToolBatch) {
+        const resumedObservation = noProgressToolLoopGuard.observe(
+          resumedToolBatch.toolCalls,
+          resumedToolBatch.batchMessages
+        )
+        state.metadata.noProgressToolLoop = resumedObservation.snapshot
+        if (resumedObservation.correctionAppended) {
+          logger.warn(
+            `[ProcessStream] repeated tool batch resumed count=${resumedObservation.repeatedBatchCount}; requesting a strategy change`
+          )
+        }
+        if (resumedObservation.shouldTerminate) {
+          logger.warn(
+            `[ProcessStream] ${NO_PROGRESS_TERMINAL_ERROR} session=${io.sessionId} message=${io.messageId}`
+          )
+          state.planTerminalReason = 'max_steps'
+          stampRunOutcome(state, 'error', 'no_progress')
+          finalizeError(state, io, NO_PROGRESS_TERMINAL_ERROR)
+          return {
+            status: 'error' as const,
+            terminalError: NO_PROGRESS_TERMINAL_ERROR,
+            stopReason: 'no_progress',
+            errorMessage: NO_PROGRESS_TERMINAL_ERROR,
+            usage: buildUsageSnapshot(state)
+          }
+        }
+      }
+    }
+
     while (true) {
-      providerRoundCount += 1
-      if (providerRoundCount > maxProviderRounds) {
-        const errorMessage = `Maximum agent turns exceeded (${maxProviderRounds}).`
+      if (providerRoundCount >= maxProviderRounds) {
+        const errorMessage = new MaxProviderRoundsError(maxProviderRounds).message
         logger.info(`[ProcessStream] ${errorMessage}`)
+        stampRunOutcome(state, 'error', 'max_turns')
         finalizeError(state, io, errorMessage)
         return {
           status: 'error' as const,
@@ -356,6 +455,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
       }
 
+      const markProviderRoundStarted = (): void => {
+        if (providerRoundCount >= maxProviderRounds) {
+          throw new MaxProviderRoundsError(maxProviderRounds)
+        }
+        providerRoundCount += 1
+        state.providerRoundCount = providerRoundCount
+      }
+      if (params.coreStreamReportsProviderStart !== true) {
+        markProviderRoundStarted()
+      }
+
       const prevBlockCount = state.blocks.length
 
       const stream = coreStream(
@@ -364,18 +474,22 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         modelConfig,
         temperature,
         maxTokens,
-        currentTools
+        currentTools,
+        params.coreStreamReportsProviderStart === true ? markProviderRoundStarted : undefined
       )
 
       // Reset per-iteration accumulator state
       state.completedToolCalls = []
       state.pendingToolCalls.clear()
+      let providerErrorObserved = false
 
       for await (const event of stream) {
         eventCount++
         if (io.abortSignal.aborted) {
           logger.info(`[ProcessStream] aborted after ${eventCount} events`)
           echo.stop()
+          commitRoundUsage(state)
+          stampRunOutcome(state, 'aborted', 'user_stop')
           finalizeUserCanceledErrorIfNeeded(state, io)
           return {
             status: 'aborted' as const,
@@ -401,6 +515,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
 
         accumulate(state, event)
+        if (event.type === 'error') providerErrorObserved = true
         if (event.type === 'plan' && state.latestAgentPlanSnapshot) {
           state.latestAgentPlanSnapshot = {
             ...state.latestAgentPlanSnapshot,
@@ -412,11 +527,15 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         echo.schedule()
       }
 
+      commitRoundUsage(state)
+      if (providerErrorObserved) state.stopReason = 'error'
+
       logger.info(
         `[ProcessStream] stream iteration done reason=${state.stopReason} events=${eventCount} blocks=${state.blocks.length}`
       )
 
       if (io.abortSignal.aborted) {
+        stampRunOutcome(state, 'aborted', 'user_stop')
         finalizeUserCanceledErrorIfNeeded(state, io)
         return {
           status: 'aborted' as const,
@@ -444,13 +563,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         logger.info(
           `[ProcessStream] max tool calls reached (${toolCallCount + state.completedToolCalls.length} > ${MAX_TOOL_CALLS}), stopping`
         )
+        state.stopReason = 'max_tool_calls'
         state.planTerminalReason = 'max_steps'
+        markUnexecutedToolCallsForLimit(state)
         break
       }
 
       // Execute tools and continue loop (toolPresenter is guaranteed non-null here
       // because completedToolCalls > 0 means tools were requested, which requires
       // tools.length > 0, which requires toolPresenter to be non-null)
+      const completedToolBatch = state.completedToolCalls.map((toolCall) => ({ ...toolCall }))
+      const toolBatchMessageStart = conversationMessages.length
       const executed = await executeTools(
         state,
         conversationMessages,
@@ -473,15 +596,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         providerId
       )
       toolCallCount += executed.executed
+      state.toolCallCount = toolCallCount
       echo.flush()
       io.messageStore.appendAssistantToolFactsSnapshot(io.messageId, 'tool_loop')
 
       if (executed.terminalError) {
+        stampRunOutcome(state, 'error', 'tool_error')
         finalizeError(state, io, executed.terminalError)
         return {
           status: 'error' as const,
           terminalError: executed.terminalError,
-          stopReason: 'error',
+          stopReason: 'tool_error',
           errorMessage: executed.terminalError,
           usage: buildUsageSnapshot(state)
         }
@@ -491,15 +616,18 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         logger.info(
           `[ProcessStream] paused for user interaction count=${executed.pendingInteractions.length}`
         )
+        stampRunOutcome(state, 'paused', 'interaction')
         finalizePaused(state, io)
         return {
           status: 'paused' as const,
-          pendingInteractions: executed.pendingInteractions
+          pendingInteractions: executed.pendingInteractions,
+          usage: buildUsageSnapshot(state)
         }
       }
 
       // Check abort after tool execution
       if (io.abortSignal.aborted) {
+        stampRunOutcome(state, 'aborted', 'user_stop')
         finalizeUserCanceledErrorIfNeeded(state, io)
         return {
           status: 'aborted' as const,
@@ -510,10 +638,37 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       }
 
       if (params.shouldYieldForPendingInput?.()) {
+        stampRunOutcome(state, 'completed', 'pending_input')
         finalize(state, io)
         return {
           status: 'completed' as const,
           stopReason: 'pending_input',
+          usage: buildUsageSnapshot(state)
+        }
+      }
+
+      const noProgressObservation = noProgressToolLoopGuard.observe(
+        completedToolBatch,
+        conversationMessages.slice(toolBatchMessageStart)
+      )
+      state.metadata.noProgressToolLoop = noProgressObservation.snapshot
+      if (noProgressObservation.correctionAppended) {
+        logger.warn(
+          `[ProcessStream] repeated tool batch detected count=${noProgressObservation.repeatedBatchCount}; requesting a strategy change`
+        )
+      }
+      if (noProgressObservation.shouldTerminate) {
+        logger.warn(
+          `[ProcessStream] ${NO_PROGRESS_TERMINAL_ERROR} session=${io.sessionId} message=${io.messageId}`
+        )
+        state.planTerminalReason = 'max_steps'
+        stampRunOutcome(state, 'error', 'no_progress')
+        finalizeError(state, io, NO_PROGRESS_TERMINAL_ERROR)
+        return {
+          status: 'error' as const,
+          terminalError: NO_PROGRESS_TERMINAL_ERROR,
+          stopReason: 'no_progress',
+          errorMessage: NO_PROGRESS_TERMINAL_ERROR,
           usage: buildUsageSnapshot(state)
         }
       }
@@ -546,6 +701,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
     // Finalize
     if (io.abortSignal.aborted) {
+      stampRunOutcome(state, 'aborted', 'user_stop')
       finalizeUserCanceledErrorIfNeeded(state, io)
       return {
         status: 'aborted' as const,
@@ -555,36 +711,49 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       }
     }
     if (state.stopReason === 'error') {
-      const streamErrorMessage = getLatestErrorMessage(state)
-      if (streamErrorMessage && isContextWindowErrorLike(streamErrorMessage)) {
+      const streamErrorMessage = getLatestErrorMessage(state) ?? NO_MODEL_RESPONSE_ERROR
+      const isContextWindowError = isContextWindowErrorLike(streamErrorMessage)
+      if (isContextWindowError) {
         stripTrailingErrorBlock(state, streamErrorMessage)
-        finalizeError(state, io, streamErrorMessage)
-        return {
-          status: 'error' as const,
-          terminalError: streamErrorMessage
-        }
+      }
+      stampRunOutcome(state, 'error', isContextWindowError ? 'context_window' : 'provider_error')
+      finalizeError(state, io, streamErrorMessage)
+      return {
+        status: 'error' as const,
+        terminalError: streamErrorMessage,
+        stopReason: isContextWindowError ? 'context_window' : 'provider_error',
+        errorMessage: streamErrorMessage,
+        usage: buildUsageSnapshot(state)
       }
     }
     if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
+      stampRunOutcome(state, 'error', 'empty_response')
       finalizeError(state, io, NO_MODEL_RESPONSE_ERROR)
       return {
         status: 'error' as const,
         terminalError: NO_MODEL_RESPONSE_ERROR,
-        stopReason: 'error',
+        stopReason: 'empty_response',
         errorMessage: NO_MODEL_RESPONSE_ERROR,
         usage: buildUsageSnapshot(state)
       }
     }
+    const stopReason =
+      state.stopReason === 'max_tokens' || state.stopReason === 'max_tool_calls'
+        ? state.stopReason
+        : 'complete'
+    stampRunOutcome(state, 'completed', stopReason)
     finalize(state, io)
     return {
       status: 'completed' as const,
-      stopReason: 'complete',
+      stopReason,
       usage: buildUsageSnapshot(state)
     }
   } catch (err) {
+    commitRoundUsage(state)
     if (io.abortSignal.aborted || isAbortError(err)) {
       logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
-      persistAbortExceptionPlanState(state, io)
+      stampRunOutcome(state, 'aborted', 'user_stop')
+      finalizeUserCanceledErrorIfNeeded(state, io)
       return {
         status: 'aborted' as const,
         stopReason: 'user_stop',
@@ -592,12 +761,28 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         usage: buildUsageSnapshot(state)
       }
     }
+    if (err instanceof MaxProviderRoundsError) {
+      logger.info(`[ProcessStream] ${err.message}`)
+      stampRunOutcome(state, 'error', 'max_turns')
+      finalizeError(state, io, err.message)
+      return {
+        status: 'error' as const,
+        terminalError: err.message,
+        stopReason: 'max_turns',
+        errorMessage: err.message,
+        usage: buildUsageSnapshot(state)
+      }
+    }
     console.error(`[ProcessStream] exception after ${eventCount} events:`, err)
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    const contextWindowError = isContextWindowErrorLike(err)
+    stampRunOutcome(state, 'error', contextWindowError ? 'context_window' : 'provider_error')
     finalizeError(state, io, err)
     return {
       status: 'error' as const,
-      stopReason: 'error',
-      errorMessage: err instanceof Error ? err.message : String(err),
+      terminalError: errorMessage,
+      stopReason: contextWindowError ? 'context_window' : 'provider_error',
+      errorMessage,
       usage: buildUsageSnapshot(state)
     }
   } finally {

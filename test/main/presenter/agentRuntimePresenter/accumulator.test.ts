@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
+import { accumulate, commitRoundUsage } from '@/presenter/agentRuntimePresenter/accumulator'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
 import type { StreamState } from '@/presenter/agentRuntimePresenter/types'
 
@@ -234,7 +234,7 @@ describe('accumulate', () => {
     expect(state.blocks[0].tool_call!.params).toBe('{"q":"full"}')
   })
 
-  it('usage sets metadata', () => {
+  it('usage keeps the latest round snapshot and commits it to metadata once', () => {
     accumulate(state, {
       type: 'usage',
       usage: {
@@ -246,11 +246,23 @@ describe('accumulate', () => {
       }
     })
 
+    expect(state.roundUsage).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      cachedInputTokens: 3,
+      cacheWriteInputTokens: 2
+    })
+    expect(state.metadata.totalTokens).toBeUndefined()
+
+    commitRoundUsage(state)
+
     expect(state.metadata.inputTokens).toBe(10)
     expect(state.metadata.outputTokens).toBe(5)
     expect(state.metadata.totalTokens).toBe(15)
     expect(state.metadata.cachedInputTokens).toBe(3)
     expect(state.metadata.cacheWriteInputTokens).toBe(2)
+    expect(state.roundUsage).toBeNull()
   })
 
   it('stop sets stopReason', () => {

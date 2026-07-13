@@ -67,12 +67,20 @@ const createAbortPromise = (
   }
 
   let abortHandler: (() => void) | null = null
+  let abortHandled = false
   const promise = new Promise<never>((_, reject) => {
     abortHandler = () => {
-      onAbort?.()
+      if (abortHandled) return
+      abortHandled = true
+      try {
+        onAbort?.()
+      } catch {
+        // Abort cleanup is best effort; the caller must still receive the cancellation error.
+      }
       reject(createAbortError())
     }
     signal.addEventListener('abort', abortHandler, { once: true })
+    if (signal.aborted) abortHandler()
   })
 
   return {
@@ -82,6 +90,15 @@ const createAbortPromise = (
         signal.removeEventListener('abort', abortHandler)
       }
     }
+  }
+}
+
+const closeAsyncIterator = <T>(stream: AsyncIterator<T>): void => {
+  try {
+    const closing = stream.return?.()
+    if (closing) void closing.catch(() => undefined)
+  } catch {
+    // Iterator teardown is best effort and must not replace the cancellation outcome.
   }
 }
 
@@ -359,17 +376,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
 
     const completionPromise = provider.completions(messages, modelId, temperature, maxTokens)
-    const abortPromise =
-      signal &&
-      new Promise<never>((_, reject) => {
-        const onAbort = () => reject(createAbortError())
-        signal.addEventListener('abort', onAbort, { once: true })
-        completionPromise.finally(() => signal.removeEventListener('abort', onAbort))
-      })
+    const abort = createAbortPromise(signal)
 
     try {
-      const llmResponse = await (abortPromise
-        ? Promise.race([completionPromise, abortPromise])
+      const llmResponse = await (abort.promise
+        ? Promise.race([completionPromise, abort.promise])
         : completionPromise)
       response = llmResponse.content
 
@@ -386,6 +397,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       }
 
       return ''
+    } finally {
+      abort.cleanup()
     }
   }
 
@@ -505,7 +518,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     )
     const images: StandaloneImageGenerationResult['images'] = []
     const abort = createAbortPromise(signal, () => {
-      void stream.return?.(undefined as never)
+      closeAsyncIterator(stream)
     })
 
     const collect = async () => {
@@ -585,7 +598,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     )
     const videos: StandaloneVideoGenerationResult['videos'] = []
     const abort = createAbortPromise(signal, () => {
-      void stream.return?.(undefined as never)
+      closeAsyncIterator(stream)
     })
 
     const collect = async () => {

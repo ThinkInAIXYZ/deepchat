@@ -26,6 +26,7 @@ import { app } from 'electron'
 import { getInMemoryServer } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import {
@@ -157,6 +158,10 @@ function isSessionError(error: unknown): error is SessionError {
     }
   }
   return false
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
 }
 
 function isUnsupportedCapabilityError(error: unknown): boolean {
@@ -309,9 +314,9 @@ export class McpClient {
     return this.waitForConnectSoftTimeout(connectPromise, attempt, options.phase)
   }
 
-  private async ensureConnectedForRequest(): Promise<void> {
+  private async ensureConnectedForRequest(signal?: AbortSignal): Promise<void> {
     if (!this.isConnected) {
-      await this.connect({ phase: 'manual', waitForConnection: true })
+      await awaitWithAbort(this.connect({ phase: 'manual', waitForConnection: true }), signal)
     }
 
     if (!this.isConnected || !this.client) {
@@ -839,33 +844,28 @@ export class McpClient {
 
     let decision: McpSamplingDecision
     if (signal) {
-      decision = await new Promise<McpSamplingDecision>((resolve, reject) => {
-        const onAbort = () => {
-          signal.removeEventListener('abort', onAbort)
-          void presenter.mcpPresenter
-            .cancelSamplingRequest(payload.requestId, 'cancelled by server')
-            .catch((error) => {
-              console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
-            })
-          reject(new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled'))
-        }
-
-        if (signal.aborted) {
-          onAbort()
-          return
-        }
-
-        signal.addEventListener('abort', onAbort, { once: true })
-        decisionPromise
-          .then((value) => {
-            signal.removeEventListener('abort', onAbort)
-            resolve(value)
-          })
+      let cancellationNotified = false
+      const notifyCancellation = () => {
+        if (cancellationNotified) return
+        cancellationNotified = true
+        void presenter.mcpPresenter
+          .cancelSamplingRequest(payload.requestId, 'cancelled by server')
           .catch((error) => {
-            signal.removeEventListener('abort', onAbort)
-            reject(error)
+            console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
           })
-      })
+      }
+      signal.addEventListener('abort', notifyCancellation, { once: true })
+      try {
+        decision = await awaitWithAbort(decisionPromise, signal)
+      } catch (error) {
+        if (signal.aborted) {
+          notifyCancellation()
+          throw new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled')
+        }
+        throw error
+      } finally {
+        signal.removeEventListener('abort', notifyCancellation)
+      }
     } else {
       decision = await decisionPromise
     }
@@ -1204,19 +1204,31 @@ export class McpClient {
   }
 
   // 调用 MCP 工具
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    options?: { signal?: AbortSignal }
+  ): Promise<ToolCallResult> {
     try {
-      await this.ensureConnectedForRequest()
+      options?.signal?.throwIfAborted()
+      await this.ensureConnectedForRequest(options?.signal)
+      options?.signal?.throwIfAborted()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
       // 调用工具
-      const result = (await this.client.callTool({
+      const request = {
         name: toolName,
         arguments: args
-      })) as ToolCallResult
+      }
+      const result = (
+        options?.signal
+          ? await this.client.callTool(request, undefined, { signal: options.signal })
+          : await this.client.callTool(request)
+      ) as ToolCallResult
+      options?.signal?.throwIfAborted()
 
       // 成功调用后重置重启标志
       this.hasRestarted = false
@@ -1234,8 +1246,13 @@ export class McpClient {
       }
       return result
     } catch (error) {
+      if (options?.signal?.aborted || isAbortError(error)) {
+        throw error
+      }
+
       // 检查并处理session错误
-      await this.checkAndHandleSessionError(error)
+      await awaitWithAbort(this.checkAndHandleSessionError(error), options?.signal)
+      options?.signal?.throwIfAborted()
 
       console.error(`Failed to call MCP tool ${toolName}:`, error)
       // 调用失败，清空工具缓存

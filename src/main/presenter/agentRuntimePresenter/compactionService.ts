@@ -502,6 +502,7 @@ export class CompactionService {
         reserveTokens: intent.reserveTokens,
         signal
       })
+      throwIfAbortRequested(signal)
       const summaryUpdatedAt = Date.now()
 
       const updatedState: SessionSummaryState = {
@@ -989,6 +990,7 @@ export class CompactionService {
       0.2,
       this.getSummaryOutputTokens(reserveTokens)
     )
+    throwIfAbortRequested(signal)
     const summary = sanitizeSummaryContent(response.content || '')
     if (!summary) {
       throw new Error('Compaction summary generation returned empty content.')

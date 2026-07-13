@@ -95,6 +95,7 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   questionMultiple?: boolean
   questionCustom?: boolean
   questionResolution?: 'asked' | 'replied' | 'rejected'
+  questionFollowUpPending?: boolean
   answerText?: string
   answerMessageId?: string
   skillDraftAction?: string

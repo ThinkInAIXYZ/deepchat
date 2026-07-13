@@ -230,6 +230,7 @@ function createMockSqlitePresenter() {
     insert: vi.fn(),
     updateContent: vi.fn(),
     updateStatus: vi.fn(),
+    updateMetadata: vi.fn(),
     incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
     getBySession: vi.fn().mockReturnValue([]),
@@ -724,6 +725,8 @@ describe('AgentRuntimePresenter', () => {
         sessionPermissionPort
       }
     )
+    let runToken = 0
+    ;(agent as any).generationControlService.createRunToken = () => `run-${++runToken}`
   })
 
   afterEach(async () => {
@@ -739,7 +742,7 @@ describe('AgentRuntimePresenter', () => {
   describe('memory injection', () => {
     it('keeps the injected prompt when the view anchor write fails', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         isEnabled: vi.fn(() => true),
         recordInjectionAccess: vi.fn(),
         buildInjection: vi.fn(async () => ({
@@ -762,7 +765,11 @@ describe('AgentRuntimePresenter', () => {
         throw new Error('anchor failed')
       })
 
-      const prompt = await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis')
+      const prompt = await (agent as any).memoryCompactionService.appendMemoryInjection(
+        's1',
+        'base prompt',
+        'redis'
+      )
 
       expect(prompt).toContain('base prompt')
       expect(prompt).toContain('## Relevant Memories')
@@ -775,7 +782,7 @@ describe('AgentRuntimePresenter', () => {
     it('records access only for selected injected memories and dedupes by message', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
       const recordInjectionAccess = vi.fn()
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         isEnabled: vi.fn(() => true),
         recordInjectionAccess,
         buildInjection: vi.fn(async () => ({
@@ -799,10 +806,30 @@ describe('AgentRuntimePresenter', () => {
         }))
       }
 
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', 'user-message-1')
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', 'user-message-1')
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', null)
-      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', null)
+      await (agent as any).memoryCompactionService.appendMemoryInjection(
+        's1',
+        'base prompt',
+        'redis',
+        'user-message-1'
+      )
+      await (agent as any).memoryCompactionService.appendMemoryInjection(
+        's1',
+        'base prompt',
+        'redis',
+        'user-message-1'
+      )
+      await (agent as any).memoryCompactionService.appendMemoryInjection(
+        's1',
+        'base prompt',
+        'redis',
+        null
+      )
+      await (agent as any).memoryCompactionService.appendMemoryInjection(
+        's1',
+        'base prompt',
+        'redis',
+        null
+      )
 
       expect(recordInjectionAccess.mock.calls).toEqual([
         ['a', ['selected']],
@@ -813,12 +840,12 @@ describe('AgentRuntimePresenter', () => {
 
     it('bounds injection access dedupe state per session and clears it on destroy', async () => {
       const recordInjectionAccess = vi.fn()
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         recordInjectionAccess
       }
 
       for (let index = 0; index < 130; index += 1) {
-        ;(agent as any).recordMemoryInjectionAccess(
+        ;(agent as any).memoryCompactionService.recordMemoryInjectionAccess(
           'a',
           's1',
           [{ id: `selected-${index}` }],
@@ -826,7 +853,8 @@ describe('AgentRuntimePresenter', () => {
         )
       }
 
-      const accessByTurn = (agent as any).memoryInjectionAccessByTurn as Map<string, unknown>
+      const accessByTurn = (agent as any).memoryCompactionService
+        .memoryInjectionAccessByTurn as Map<string, unknown>
       const sessionKeys = [...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))
       expect(sessionKeys).toHaveLength(128)
       expect(recordInjectionAccess).toHaveBeenCalledTimes(130)
@@ -837,15 +865,26 @@ describe('AgentRuntimePresenter', () => {
 
     it('expires old injection access dedupe turns for active sessions', () => {
       const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         recordInjectionAccess: vi.fn()
       }
 
-      ;(agent as any).recordMemoryInjectionAccess('a', 's1', [{ id: 'old' }], 'old-message')
+      ;(agent as any).memoryCompactionService.recordMemoryInjectionAccess(
+        'a',
+        's1',
+        [{ id: 'old' }],
+        'old-message'
+      )
       nowSpy.mockReturnValue(31 * 60 * 1000)
-      ;(agent as any).recordMemoryInjectionAccess('a', 's1', [{ id: 'new' }], 'new-message')
+      ;(agent as any).memoryCompactionService.recordMemoryInjectionAccess(
+        'a',
+        's1',
+        [{ id: 'new' }],
+        'new-message'
+      )
 
-      const accessByTurn = (agent as any).memoryInjectionAccessByTurn as Map<string, unknown>
+      const accessByTurn = (agent as any).memoryCompactionService
+        .memoryInjectionAccessByTurn as Map<string, unknown>
       expect([...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))).toEqual([
         's1\u0000new-message'
       ])
@@ -857,7 +896,7 @@ describe('AgentRuntimePresenter', () => {
     function installDeferredExtraction() {
       const extraction = deferred<{ ok: true; createdIds: string[] }>()
       const extractAndStore = vi.fn(() => extraction.promise)
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         isEnabled: vi.fn(() => true),
         extractAndStore
       }
@@ -866,7 +905,7 @@ describe('AgentRuntimePresenter', () => {
 
     function installResolvedExtraction() {
       const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: [] })
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         isEnabled: vi.fn(() => true),
         extractAndStore
       }
@@ -956,14 +995,18 @@ describe('AgentRuntimePresenter', () => {
     }
 
     async function triggerFallbackAndWait() {
-      ;(agent as any).triggerMemoryExtractionFallback('s1')
-      const chain = (agent as any).memoryExtractionChains.get('s1') as Promise<void> | undefined
+      ;(agent as any).memoryCompactionService.triggerMemoryExtractionFallback('s1')
+      const chain = (agent as any).memoryCompactionService.memoryExtractionChains.get('s1') as
+        | Promise<void>
+        | undefined
       await chain
     }
 
     function startExtraction(toOrderSeq = 10) {
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
-      return (agent as any).runMemoryExtractionChunks(
+      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
+        's1'
+      ) as number
+      return (agent as any).memoryCompactionService.runMemoryExtractionChunks(
         's1',
         {
           chunks: [
@@ -1007,7 +1050,9 @@ describe('AgentRuntimePresenter', () => {
 
     async function waitForExtractionChain() {
       while (true) {
-        const chain = (agent as any).memoryExtractionChains.get('s1') as Promise<void> | undefined
+        const chain = (agent as any).memoryCompactionService.memoryExtractionChains.get('s1') as
+          | Promise<void>
+          | undefined
         if (!chain) return
         await chain
         await Promise.resolve()
@@ -1095,7 +1140,7 @@ describe('AgentRuntimePresenter', () => {
     it('keeps the cursor unchanged when extraction returns ok:false', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = vi.fn().mockResolvedValue({ ok: false })
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         isEnabled: vi.fn(() => true),
         extractAndStore
       }
@@ -1114,10 +1159,12 @@ describe('AgentRuntimePresenter', () => {
     it('continues after four chunks on the same session extraction chain', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = installResolvedExtraction()
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
+        's1'
+      ) as number
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
 
-      await (agent as any).runMemoryExtractionChunks(
+      await (agent as any).memoryCompactionService.runMemoryExtractionChunks(
         's1',
         { chunks: [1, 2, 3, 4, 5].map(extractionChunk), reason: 'fallback' },
         epoch
@@ -1138,11 +1185,16 @@ describe('AgentRuntimePresenter', () => {
         .fn()
         .mockResolvedValueOnce({ ok: true, createdIds: [] })
         .mockResolvedValueOnce({ ok: false })
-      ;(agent as any).memoryPort = { isEnabled: vi.fn(() => true), extractAndStore }
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
+        isEnabled: vi.fn(() => true),
+        extractAndStore
+      }
+      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
+        's1'
+      ) as number
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
 
-      await (agent as any).runMemoryExtractionChunks(
+      await (agent as any).memoryCompactionService.runMemoryExtractionChunks(
         's1',
         { chunks: [1, 2, 3].map(extractionChunk), reason: 'fallback' },
         epoch
@@ -1161,11 +1213,16 @@ describe('AgentRuntimePresenter', () => {
     it('writes only the completed chunk lineage into the extraction anchor', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: ['memory-2'] })
-      ;(agent as any).memoryPort = { isEnabled: vi.fn(() => true), extractAndStore }
-      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
+        isEnabled: vi.fn(() => true),
+        extractAndStore
+      }
+      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
+        's1'
+      ) as number
       sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
 
-      await (agent as any).runMemoryExtractionChunks(
+      await (agent as any).memoryCompactionService.runMemoryExtractionChunks(
         's1',
         { chunks: [extractionChunk(2)], reason: 'compaction' },
         epoch
@@ -1191,7 +1248,7 @@ describe('AgentRuntimePresenter', () => {
       ])
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-      const window = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+      const window = (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 2)
 
       expect(window).toEqual(
         expect.objectContaining({
@@ -1243,7 +1300,11 @@ describe('AgentRuntimePresenter', () => {
         invalidateSession: vi.fn()
       }
 
-      const rebuiltWindow = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+      const rebuiltWindow = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
+        's1',
+        0,
+        2
+      )
       expect(rebuiltWindow).toEqual(
         expect.objectContaining({
           hadToolUse: true,
@@ -1254,7 +1315,11 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
-      const rangeWindow = (agent as any).buildMemoryExtractionWindow('s1', 0, 2)
+      const rangeWindow = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
+        's1',
+        0,
+        2
+      )
 
       expect(rangeWindow).toEqual(rebuiltWindow)
       expect(replaceSession).toHaveBeenCalledTimes(1)
@@ -1274,7 +1339,7 @@ describe('AgentRuntimePresenter', () => {
       }
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-      const window = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+      const window = (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
 
       expect(window).toEqual(
         expect.objectContaining({
@@ -1285,7 +1350,9 @@ describe('AgentRuntimePresenter', () => {
       expect(invalidateSession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
-      expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toBeNull()
+      expect(
+        (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
+      ).toBeNull()
       expect(
         sqlitePresenter.deepchatMemoryIngestionProjectionTable.readCurrentRange
       ).toHaveBeenCalledTimes(1)
@@ -1337,25 +1404,37 @@ describe('AgentRuntimePresenter', () => {
         }
         sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-        const fallback = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+        const fallback = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
+          's1',
+          0,
+          1
+        )
         expect(fallback.chunks.every((chunk: any) => chunk.cursorCommitOrderSeq === null)).toBe(
           true
         )
         expect(replaceSession).toHaveBeenCalledTimes(1)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
-        expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toBeNull()
+        expect(
+          (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
+        ).toBeNull()
         expect(readCurrentRange).toHaveBeenCalledTimes(1)
         expect(replaceSession).toHaveBeenCalledTimes(1)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
         now.mockReturnValue(31_000)
         failReplacement = false
-        const recovered = (agent as any).buildMemoryExtractionWindow('s1', 0, 1)
+        const recovered = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
+          's1',
+          0,
+          1
+        )
         expect(recovered.chunks.at(-1)?.cursorCommitOrderSeq).toBe(1)
         expect(replaceSession).toHaveBeenCalledTimes(2)
 
-        expect((agent as any).buildMemoryExtractionWindow('s1', 0, 1)).toEqual(recovered)
+        expect(
+          (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
+        ).toEqual(recovered)
         expect(readCurrentRange).toHaveBeenCalledTimes(3)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(2)
       } finally {
@@ -1364,7 +1443,7 @@ describe('AgentRuntimePresenter', () => {
     })
 
     it('bounds projection failure cooldown state and clears it with session lifecycle', async () => {
-      const internals = agent as any
+      const internals = (agent as any).memoryCompactionService
       internals.recordMemoryIngestionProjectionFailure('s1')
       expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(true)
 
@@ -2117,7 +2196,7 @@ describe('AgentRuntimePresenter', () => {
         })
         return {
           status: 'error',
-          stopReason: 'error',
+          stopReason: 'tool_error',
           errorMessage: 'permission denied'
         }
       })
@@ -2637,7 +2716,7 @@ describe('AgentRuntimePresenter', () => {
         blocks: []
       })
       expect(typedRateLimitShow).toMatchObject({
-        requestId: expect.stringMatching(/^s1:\d+$/),
+        requestId: expect.stringMatching(/^s1:[A-Za-z0-9_-]+$/),
         sessionId: 's1',
         blocks: [
           expect.objectContaining({
@@ -2648,7 +2727,7 @@ describe('AgentRuntimePresenter', () => {
         ]
       })
       expect(typedRateLimitClear).toMatchObject({
-        requestId: expect.stringMatching(/^s1:\d+$/),
+        requestId: expect.stringMatching(/^s1:[A-Za-z0-9_-]+$/),
         sessionId: 's1',
         blocks: []
       })
@@ -3806,23 +3885,21 @@ describe('AgentRuntimePresenter', () => {
         })
       )
 
-      const interleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
-        'openai',
-        'gpt-4',
-        disabled
-      )
+      const interleavedConfig = (
+        agent as any
+      ).turnPreparationService.resolveInterleavedReasoningConfig('openai', 'gpt-4', disabled)
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
       expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
-      const deepseekDisabledConfig = (agent as any).resolveInterleavedReasoningConfig(
-        'openai',
-        'deepseek-v4',
-        disabled
-      )
+      const deepseekDisabledConfig = (
+        agent as any
+      ).turnPreparationService.resolveInterleavedReasoningConfig('openai', 'deepseek-v4', disabled)
       expect(deepseekDisabledConfig.preserveReasoningContent).toBe(true)
       expect(deepseekDisabledConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const deepseekInterleavedConfig = (
+        agent as any
+      ).turnPreparationService.resolveInterleavedReasoningConfig(
         'deepseek',
         'deepseek-v4',
         defaults
@@ -3830,11 +3907,9 @@ describe('AgentRuntimePresenter', () => {
       expect(deepseekInterleavedConfig.preserveReasoningContent).toBe(true)
       expect(deepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const nonDeepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
-        'openai',
-        'gpt-4',
-        defaults
-      )
+      const nonDeepseekInterleavedConfig = (
+        agent as any
+      ).turnPreparationService.resolveInterleavedReasoningConfig('openai', 'gpt-4', defaults)
       expect(nonDeepseekInterleavedConfig.preserveReasoningContent).toBe(true)
       expect(nonDeepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
@@ -4337,12 +4412,15 @@ describe('AgentRuntimePresenter', () => {
 
     it('rejects model switching while the session is generating', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      ;((agent as any).runtimeState as Map<string, DeepChatSessionState>).set('s1', {
-        status: 'generating',
-        providerId: 'openai',
-        modelId: 'gpt-4',
-        permissionMode: 'full_access'
-      })
+      ;((agent as any).runtimeSharedState.runtimeState as Map<string, DeepChatSessionState>).set(
+        's1',
+        {
+          status: 'generating',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          permissionMode: 'full_access'
+        }
+      )
 
       await expect(agent.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')).rejects.toThrow(
         'Cannot switch model while session is generating.'
@@ -4393,20 +4471,28 @@ describe('AgentRuntimePresenter', () => {
 
   describe('cancelGeneration', () => {
     it('sets status back to idle', async () => {
+      const cancelManualCompaction = vi.spyOn(
+        (agent as any).memoryCompactionService,
+        'cancelManualCompaction'
+      )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.cancelGeneration('s1')
 
       const state = await agent.getSessionState('s1')
       expect(state!.status).toBe('idle')
+      expect(cancelManualCompaction).toHaveBeenCalledWith('s1')
     })
 
-    it('finalizes the active assistant message on stop', async () => {
+    it('aborts the active stream and leaves terminal persistence to processStream', async () => {
       let resolveRun: ((value: any) => void) | null = null
+      let streamSignal: AbortSignal | undefined
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
+        (params: { io: { abortSignal: AbortSignal } }) => {
+          streamSignal = params.io.abortSignal
+          return new Promise((resolve) => {
             resolveRun = resolve
           })
+        }
       )
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
         id: 'mock-msg-id',
@@ -4426,6 +4512,7 @@ describe('AgentRuntimePresenter', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
 
       await agent.cancelGeneration('s1')
+      expect(streamSignal?.aborted).toBe(true)
       resolveRun?.({
         status: 'aborted',
         stopReason: 'user_stop',
@@ -4433,18 +4520,7 @@ describe('AgentRuntimePresenter', () => {
       })
       await processPromise
 
-      const [messageId, contentJson, status] =
-        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
-      expect(messageId).toBe('mock-msg-id')
-      expect(status).toBe('error')
-      expect(JSON.parse(contentJson)).toEqual([
-        {
-          type: 'error',
-          content: 'common.error.userCanceledGeneration',
-          status: 'error',
-          timestamp: expect.any(Number)
-        }
-      ])
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
       expect((await agent.getSessionState('s1'))!.status).toBe('idle')
     })
 
@@ -4561,18 +4637,17 @@ describe('AgentRuntimePresenter', () => {
 
     it('cancels generation only when the event id matches the active assistant message', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const cancelSpy = vi.spyOn(agent, 'cancelGeneration').mockResolvedValue(undefined)
-      ;(agent as any).activeGenerations.set('s1', {
-        runId: 'run-1',
-        messageId: 'msg-active',
-        abortController: new AbortController()
-      })
+      const abortController = new AbortController()
+      ;(agent as any).generationControlService.registerActiveGeneration(
+        's1',
+        'msg-active',
+        abortController
+      )
 
       await expect(agent.cancelGenerationByEventId('s1', 'msg-other')).resolves.toBe(false)
+      expect(abortController.signal.aborted).toBe(false)
       await expect(agent.cancelGenerationByEventId('s1', 'msg-active')).resolves.toBe(true)
-
-      expect(cancelSpy).toHaveBeenCalledTimes(1)
-      expect(cancelSpy).toHaveBeenCalledWith('s1')
+      expect(abortController.signal.aborted).toBe(true)
     })
   })
 
@@ -4593,9 +4668,11 @@ describe('AgentRuntimePresenter', () => {
         updatedAt: 1
       }
       const queueSpy = vi
-        .spyOn((agent as any).pendingInputCoordinator, 'queuePendingInput')
+        .spyOn((agent as any).pendingInputService.coordinator, 'queuePendingInput')
         .mockReturnValue(claimedRecord)
-      const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
+      const processSpy = vi
+        .spyOn((agent as any).streamLifecycleService, 'processMessage')
+        .mockResolvedValue()
 
       const result = await agent.queuePendingInput('s1', 'Hello', {
         projectDir: '/tmp/workspace'
@@ -4629,11 +4706,19 @@ describe('AgentRuntimePresenter', () => {
         updatedAt: 1
       }
       const queueSpy = vi
-        .spyOn((agent as any).pendingInputCoordinator, 'queuePendingInput')
+        .spyOn((agent as any).pendingInputService.coordinator, 'queuePendingInput')
         .mockReturnValue(pendingRecord)
-      const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
-      vi.spyOn(agent as any, 'isAwaitingToolQuestionFollowUp').mockReturnValue(true)
-      vi.spyOn(agent as any, 'shouldStartQueuedInputImmediately').mockReturnValue(false)
+      const processSpy = vi
+        .spyOn((agent as any).streamLifecycleService, 'processMessage')
+        .mockResolvedValue()
+      vi.spyOn(
+        (agent as any).interactionResumeService,
+        'isAwaitingToolQuestionFollowUp'
+      ).mockReturnValue(true)
+      vi.spyOn(
+        (agent as any).pendingInputService,
+        'shouldStartQueuedInputImmediately'
+      ).mockReturnValue(false)
 
       const result = await agent.queuePendingInput('s1', 'Queued later', { source: 'queue' })
 
@@ -4650,8 +4735,8 @@ describe('AgentRuntimePresenter', () => {
       ;(nanoid as ReturnType<typeof vi.fn>)
         .mockReturnValueOnce('queued-1')
         .mockReturnValueOnce('queued-2')
-      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'First queued')
-      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'Second queued')
+      ;(agent as any).pendingInputService.coordinator.queuePendingInput('s1', 'First queued')
+      ;(agent as any).pendingInputService.coordinator.queuePendingInput('s1', 'Second queued')
 
       let resolveStreamStarted: () => void = () => {}
       const streamStarted = new Promise<void>((resolve) => {
@@ -4676,7 +4761,10 @@ describe('AgentRuntimePresenter', () => {
           stopReason: 'complete'
         })
 
-      const drainPromise = (agent as any).drainPendingQueueIfPossible('s1', 'enqueue')
+      const drainPromise = (agent as any).pendingInputService.drainPendingQueueIfPossible(
+        's1',
+        'enqueue'
+      )
       await streamStarted
 
       // Stopping the first (queue-launched) turn aborts it but must not bounce it back to the
@@ -4816,10 +4904,15 @@ describe('AgentRuntimePresenter', () => {
         makeDeepchatUserRow(5, 'pending text', 'pending-user')
       )
       const releaseSpy = vi
-        .spyOn((agent as any).pendingInputCoordinator, 'releaseClaimedQueueInput')
+        .spyOn((agent as any).pendingInputService.coordinator, 'releaseClaimedQueueInput')
         .mockImplementation(() => ({}) as any)
 
-      ;(agent as any).rollbackClaimedPendingInputTurn('s1', 'pending-1', 'queue', 'pending-user')
+      ;(agent as any).pendingInputService.rollbackClaimedInputTurn(
+        's1',
+        'pending-1',
+        'queue',
+        'pending-user'
+      )
 
       expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
         's1',
@@ -5212,7 +5305,7 @@ describe('AgentRuntimePresenter', () => {
     it('recovers when the first provider event is context overflow with memory disabled', async () => {
       const buildInjection = vi.fn()
       const extractAndStore = vi.fn()
-      ;(agent as any).memoryPort = {
+      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
         isEnabled: vi.fn(() => false),
         buildInjection,
         extractAndStore
@@ -5934,18 +6027,24 @@ describe('AgentRuntimePresenter', () => {
         }
       })
 
-      const getGenerationSettings = (agent as any).getEffectiveSessionGenerationSettings.bind(agent)
+      const getGenerationSettings = (
+        agent as any
+      ).sessionSettingsService.getEffectiveGenerationSettings.bind(
+        (agent as any).sessionSettingsService
+      )
       const generationSettingsSpy = vi
-        .spyOn(agent as any, 'getEffectiveSessionGenerationSettings')
+        .spyOn((agent as any).sessionSettingsService, 'getEffectiveGenerationSettings')
         .mockImplementation(async (sessionId: string) => {
-          expect((agent as any).runtimeState.get(sessionId).status).toBe('generating')
+          expect((agent as any).runtimeSharedState.runtimeState.get(sessionId).status).toBe(
+            'generating'
+          )
           return await getGenerationSettings(sessionId)
         })
 
       await agent.compactSession('s1')
 
       expect(generationSettingsSpy).toHaveBeenCalledWith('s1')
-      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+      expect((agent as any).runtimeSharedState.runtimeState.get('s1').status).toBe('idle')
     })
 
     it('restores idle status when manual compaction has no eligible history', async () => {
@@ -5963,7 +6062,7 @@ describe('AgentRuntimePresenter', () => {
       const result = await agent.compactSession('s1')
 
       expect(result.compacted).toBe(false)
-      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+      expect((agent as any).runtimeSharedState.runtimeState.get('s1').status).toBe('idle')
     })
 
     it('does not manually compact ACP sessions', async () => {
@@ -5985,7 +6084,7 @@ describe('AgentRuntimePresenter', () => {
         providerId: 'openai',
         modelId: 'gpt-4'
       })
-      ;(agent as any).runtimeState.get('s1').status = 'generating'
+      ;(agent as any).runtimeSharedState.runtimeState.get('s1').status = 'generating'
 
       await expect(agent.compactSession('s1')).rejects.toThrow(
         'Manual compaction is only available when the session is idle.'
@@ -6035,18 +6134,16 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
     })
 
-    it('treats aborted compaction signals as cancellation even for non-abort errors', async () => {
+    it('rejects pre-aborted compaction without creating transient state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       sqlitePresenter.deepchatMessagesTable.delete.mockClear()
 
       const abortController = new AbortController()
       abortController.abort()
-      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValueOnce(
-        new Error('late failure')
-      )
+      const applyCompaction = vi.spyOn((agent as any).compactionService, 'applyCompaction')
 
       await expect(
-        (agent as any).applyCompactionIntent(
+        (agent as any).memoryCompactionService.applyCompactionIntent(
           's1',
           {
             sessionId: 's1',
@@ -6066,15 +6163,11 @@ describe('AgentRuntimePresenter', () => {
           },
           { signal: abortController.signal }
         )
-      ).rejects.toThrow('late failure')
+      ).rejects.toMatchObject({ name: 'AbortError' })
 
-      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
-      expectPublished('sessions.compaction.changed', {
-        sessionId: 's1',
-        status: 'idle',
-        cursorOrderSeq: 1,
-        summaryUpdatedAt: null
-      })
+      expect(applyCompaction).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.delete).not.toHaveBeenCalled()
+      expect(getPublishedPayloads('sessions.compaction.changed')).toEqual([])
     })
 
     it('emits idle when clearMessages resets compaction state', async () => {
@@ -6257,6 +6350,7 @@ describe('AgentRuntimePresenter', () => {
       orderSeq?: number
       status?: 'pending' | 'sent' | 'error'
       blocks?: unknown[]
+      metadata?: Record<string, unknown>
     }) => {
       const row = {
         id: overrides?.id ?? 'm1',
@@ -6266,7 +6360,7 @@ describe('AgentRuntimePresenter', () => {
         content: JSON.stringify(overrides?.blocks ?? []),
         status: overrides?.status ?? 'pending',
         is_context_edge: 0,
-        metadata: '{}',
+        metadata: JSON.stringify(overrides?.metadata ?? {}),
         created_at: Date.now(),
         updated_at: Date.now()
       }
@@ -6494,21 +6588,42 @@ describe('AgentRuntimePresenter', () => {
 
     it('treats an aborted resume signal as cancellation even for non-abort errors', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      makeAssistantRow({ blocks: [] })
-      vi.spyOn(agent as any, 'resolveCompactionStateForResumeTurn').mockResolvedValue({
+      makeAssistantRow({
+        blocks: [],
+        metadata: {
+          runId: 'paused-run',
+          runOutcome: 'paused',
+          runStopReason: 'interaction',
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          providerRounds: 2,
+          toolCalls: 3
+        }
+      })
+      vi.spyOn(
+        (agent as any).memoryCompactionService,
+        'resolveCompactionStateForResumeTurn'
+      ).mockResolvedValue({
         summaryText: null,
         summaryCursorOrderSeq: 1,
         summaryUpdatedAt: null
       })
-      vi.spyOn(agent as any, 'runStreamForMessage').mockImplementation(async () => {
-        ;(agent as any).abortControllers.get('s1')?.abort()
-        throw new Error('late failure')
-      })
+      vi.spyOn((agent as any).streamLifecycleService, 'runStreamForMessage').mockImplementation(
+        async () => {
+          ;(agent as any).runtimeSharedState.abortControllers.get('s1')?.abort()
+          throw new Error('late failure')
+        }
+      )
 
-      const resumed = await (agent as any).resumeAssistantMessage('s1', 'm1', [])
+      const resumed = await (agent as any).interactionResumeService.resumeAssistantMessage(
+        's1',
+        'm1',
+        []
+      )
 
       expect(resumed).toBe(false)
-      const [messageId, contentJson, status] =
+      const [messageId, contentJson, status, metadataJson] =
         sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.at(-1)
       expect(messageId).toBe('m1')
       expect(status).toBe('error')
@@ -6520,6 +6635,16 @@ describe('AgentRuntimePresenter', () => {
           timestamp: expect.any(Number)
         }
       ])
+      expect(JSON.parse(metadataJson)).toMatchObject({
+        runId: 'paused-run',
+        runOutcome: 'aborted',
+        runStopReason: 'user_stop',
+        inputTokens: 10,
+        outputTokens: 2,
+        totalTokens: 12,
+        providerRounds: 2,
+        toolCalls: 3
+      })
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
@@ -6603,8 +6728,14 @@ describe('AgentRuntimePresenter', () => {
         skillName: 'draft-skill',
         installedSkillName: 'draft-skill'
       })
-      const invalidateSystemPromptCache = vi.spyOn(agent as any, 'invalidateSystemPromptCache')
-      const invalidateToolProfileCache = vi.spyOn(agent as any, 'invalidateToolProfileCache')
+      const invalidateSystemPromptCache = vi.spyOn(
+        (agent as any).turnPreparationService,
+        'invalidateSystemPromptCache'
+      )
+      const invalidateToolProfileCache = vi.spyOn(
+        (agent as any).turnPreparationService,
+        'invalidateToolProfileCache'
+      )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       invalidateSystemPromptCache.mockClear()
       invalidateToolProfileCache.mockClear()
@@ -6719,6 +6850,16 @@ describe('AgentRuntimePresenter', () => {
     it('handles question_other and waits for user message without resume', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
+        metadata: {
+          runId: 'paused-run',
+          runOutcome: 'paused',
+          runStopReason: 'interaction',
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          providerRounds: 1,
+          toolCalls: 1
+        },
         blocks: [
           {
             type: 'tool_call',
@@ -6757,6 +6898,19 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('success')
+      const metadata = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateMetadata.mock.calls[0][1]
+      )
+      expect(metadata).toMatchObject({
+        runId: 'paused-run',
+        runOutcome: 'completed',
+        runStopReason: 'user_follow_up',
+        inputTokens: 10,
+        outputTokens: 2,
+        totalTokens: 12,
+        providerRounds: 1,
+        toolCalls: 1
+      })
     })
 
     it('enforces pending interaction queue order', async () => {
@@ -6858,6 +7012,16 @@ describe('AgentRuntimePresenter', () => {
     it('handles permission grant by executing deferred tool and resuming', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
+        metadata: {
+          runId: 'paused-run',
+          runOutcome: 'paused',
+          runStopReason: 'interaction',
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          providerRounds: 2,
+          toolCalls: 3
+        },
         blocks: [
           {
             type: 'tool_call',
@@ -6919,6 +7083,17 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+      expect(
+        (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].initialAccounting
+      ).toEqual(
+        expect.objectContaining({
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          providerRounds: 2,
+          toolCalls: 4
+        })
+      )
     })
 
     it('fails loudly when a confirmed permission grant has no session permission port', async () => {
@@ -7238,7 +7413,7 @@ describe('AgentRuntimePresenter', () => {
         ]
       })
 
-      ;(agent as any).activeProviderPermissions.set('acp-req-1', {
+      ;(agent as any).interactionResumeService.activeProviderPermissions.set('acp-req-1', {
         requestId: 'acp-req-1',
         sessionId: 's1',
         messageId: 'm1',
@@ -7303,12 +7478,14 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
-      expect((agent as any).activeProviderPermissions.has('acp-req-1')).toBe(false)
+      expect(
+        (agent as any).interactionResumeService.activeProviderPermissions.has('acp-req-1')
+      ).toBe(false)
     })
 
     it('cancels live ACP permission resolvers when clearing a session', async () => {
       const resolve = vi.fn().mockResolvedValue(undefined)
-      ;(agent as any).activeProviderPermissions.set('acp-req-1', {
+      ;(agent as any).interactionResumeService.activeProviderPermissions.set('acp-req-1', {
         requestId: 'acp-req-1',
         sessionId: 's1',
         messageId: 'm1',
@@ -7317,7 +7494,7 @@ describe('AgentRuntimePresenter', () => {
         permissionType: 'command',
         resolve
       })
-      ;(agent as any).activeProviderPermissions.set('acp-req-2', {
+      ;(agent as any).interactionResumeService.activeProviderPermissions.set('acp-req-2', {
         requestId: 'acp-req-2',
         sessionId: 's2',
         messageId: 'm2',
@@ -7327,12 +7504,16 @@ describe('AgentRuntimePresenter', () => {
         resolve: vi.fn().mockResolvedValue(undefined)
       })
 
-      ;(agent as any).clearActiveProviderPermissionsForSession('s1')
+      ;(agent as any).interactionResumeService.clearActiveProviderPermissionsForSession('s1')
       await Promise.resolve()
 
       expect(resolve).toHaveBeenCalledWith(false)
-      expect((agent as any).activeProviderPermissions.has('acp-req-1')).toBe(false)
-      expect((agent as any).activeProviderPermissions.has('acp-req-2')).toBe(true)
+      expect(
+        (agent as any).interactionResumeService.activeProviderPermissions.has('acp-req-1')
+      ).toBe(false)
+      expect(
+        (agent as any).interactionResumeService.activeProviderPermissions.has('acp-req-2')
+      ).toBe(true)
     })
 
     it('falls back to direct ACP permission resolve when live resolver is missing', async () => {
@@ -7389,7 +7570,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('clears stale ACP permission modals when the provider request no longer exists', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
-      ;(agent as any).runtimeState.get('s1').status = 'generating'
+      ;(agent as any).runtimeSharedState.runtimeState.get('s1').status = 'generating'
       llmProvider.resolveAgentPermission.mockRejectedValueOnce(
         new Error('Unknown ACP permission request: acp-stale-req')
       )
@@ -7442,7 +7623,7 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].content).toBe('Permission request expired.')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m1', 'sent')
-      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+      expect((agent as any).runtimeSharedState.runtimeState.get('s1').status).toBe('idle')
     })
   })
 
@@ -7486,7 +7667,9 @@ describe('AgentRuntimePresenter', () => {
     it('falls back to ask_user when auto-review returns invalid JSON', async () => {
       llmProvider.generateCompletionStandalone.mockResolvedValueOnce('not json')
 
-      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+      const result = await (
+        agent as any
+      ).interactionResumeService.reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7523,7 +7706,9 @@ describe('AgentRuntimePresenter', () => {
         })
       )
 
-      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+      const result = await (
+        agent as any
+      ).interactionResumeService.reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7562,7 +7747,9 @@ describe('AgentRuntimePresenter', () => {
           })
       )
 
-      const resultPromise = (agent as any).reviewToolPermissionForAutoApprove(
+      const resultPromise = (
+        agent as any
+      ).interactionResumeService.reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7604,7 +7791,9 @@ describe('AgentRuntimePresenter', () => {
         }
       )
 
-      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+      const result = await (
+        agent as any
+      ).interactionResumeService.reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7646,7 +7835,9 @@ describe('AgentRuntimePresenter', () => {
         }
       )
 
-      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+      const result = await (
+        agent as any
+      ).interactionResumeService.reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7681,11 +7872,15 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc1',
-        name: 'exec',
-        params: '{"command":"npm test"}'
-      })
+      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
+        's1',
+        'm1',
+        {
+          id: 'tc1',
+          name: 'exec',
+          params: '{"command":"npm test"}'
+        }
+      )
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -7727,11 +7922,15 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc1',
-        name: 'view_image',
-        params: '{}'
-      })
+      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
+        's1',
+        'm1',
+        {
+          id: 'tc1',
+          name: 'view_image',
+          params: '{}'
+        }
+      )
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -7785,7 +7984,16 @@ describe('AgentRuntimePresenter', () => {
         ]),
         status: 'pending',
         is_context_edge: 0,
-        metadata: '{}',
+        metadata: JSON.stringify({
+          runId: 'paused-run',
+          runOutcome: 'paused',
+          runStopReason: 'interaction',
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          providerRounds: 2,
+          toolCalls: 3
+        }),
         created_at: Date.now(),
         updated_at: Date.now()
       }
@@ -7795,10 +8003,11 @@ describe('AgentRuntimePresenter', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
 
       const executeDeferredToolCallSpy = vi
-        .spyOn(agent as any, 'executeDeferredToolCall')
+        .spyOn((agent as any).interactionResumeService, 'executeDeferredToolCall')
         .mockResolvedValue({
           responseText: 'terminal failure',
           isError: true,
+          countedToolCall: true,
           terminalError: 'terminal failure'
         })
 
@@ -7818,6 +8027,21 @@ describe('AgentRuntimePresenter', () => {
             error: 'terminal failure'
           })
         )
+        const metadata = JSON.parse(
+          sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+            (call) => call[0] === 'm1' && call[2] === 'error'
+          )?.[3] ?? '{}'
+        )
+        expect(metadata).toMatchObject({
+          runId: 'paused-run',
+          runOutcome: 'error',
+          runStopReason: 'tool_error',
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          providerRounds: 2,
+          toolCalls: 4
+        })
       } finally {
         executeDeferredToolCallSpy.mockRestore()
       }
@@ -7842,7 +8066,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      await (agent as any).executeDeferredToolCall('s1', 'm1', {
+      await (agent as any).interactionResumeService.executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'echo',
         params: '{}'
@@ -7890,11 +8114,15 @@ describe('AgentRuntimePresenter', () => {
         modelId: 'gpt-4o'
       })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc1',
-        name: 'cdp_send',
-        params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
-      })
+      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
+        's1',
+        'm1',
+        {
+          id: 'tc1',
+          name: 'cdp_send',
+          params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
+        }
+      )
 
       expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
         'openai',
@@ -7968,28 +8196,27 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const executionPromise = (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc-subagent',
-        name: 'subagent_orchestrator',
-        params: '{}'
-      })
+      const executionPromise = (agent as any).interactionResumeService.executeDeferredToolCall(
+        's1',
+        'm1',
+        {
+          id: 'tc-subagent',
+          name: 'subagent_orchestrator',
+          params: '{}'
+        }
+      )
 
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(capturedSignal).toBeDefined()
       expect(capturedSignal?.aborted).toBe(false)
-      expect((agent as any).deferredToolAbortControllers.size).toBe(1)
+      expect((agent as any).runtimeSharedState.deferredToolAbortControllers.size).toBe(1)
 
       await agent.cancelGeneration('s1')
 
       expect(capturedSignal?.aborted).toBe(true)
-      await expect(executionPromise).resolves.toEqual(
-        expect.objectContaining({
-          isError: true,
-          responseText: 'Error: Aborted'
-        })
-      )
-      expect((agent as any).deferredToolAbortControllers.size).toBe(0)
+      await expect(executionPromise).rejects.toMatchObject({ name: 'AbortError' })
+      expect((agent as any).runtimeSharedState.deferredToolAbortControllers.size).toBe(0)
     })
 
     it('persists final-only deferred subagent snapshots', async () => {
@@ -8053,11 +8280,15 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc-final',
-        name: 'subagent_orchestrator',
-        params: '{}'
-      })
+      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
+        's1',
+        'm1',
+        {
+          id: 'tc-final',
+          name: 'subagent_orchestrator',
+          params: '{}'
+        }
+      )
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -8137,7 +8368,7 @@ describe('AgentRuntimePresenter', () => {
         }
       ])
       const emitMessageRefreshSpy = vi
-        .spyOn(agent as any, 'emitMessageRefresh')
+        .spyOn((agent as any).streamLifecycleService, 'emitMessageRefresh')
         .mockImplementation(() => {})
       toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
         options?.onProgress?.({
@@ -8162,11 +8393,15 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc1',
-        name: 'subagent_orchestrator',
-        params: '{}'
-      })
+      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
+        's1',
+        'm1',
+        {
+          id: 'tc1',
+          name: 'subagent_orchestrator',
+          params: '{}'
+        }
+      )
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -8213,7 +8448,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const normalized = await (agent as any).normalizeToolResultContent({
+      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',
@@ -8248,7 +8483,7 @@ describe('AgentRuntimePresenter', () => {
       const abortController = new AbortController()
       abortController.abort()
 
-      const normalized = await (agent as any).normalizeToolResultContent({
+      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',
@@ -8284,7 +8519,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const normalized = await (agent as any).normalizeToolResultContent({
+      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',
@@ -8309,7 +8544,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const normalized = await (agent as any).normalizeToolResultContent({
+      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',

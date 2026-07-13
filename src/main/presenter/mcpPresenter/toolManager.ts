@@ -18,8 +18,12 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -460,7 +464,9 @@ export class ToolManager {
    */
   async preCheckToolPermission(
     toolCall: MCPToolCall,
-    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'> & {
+      signal?: AbortSignal
+    }
   ): Promise<{
     needsPermission: true
     toolName: string
@@ -477,10 +483,12 @@ export class ToolManager {
       baseCommand?: string
     }
   } | null> {
+    access?.signal?.throwIfAborted()
     const finalName = toolCall.function.name
 
     // Ensure definitions and map are loaded/cached
-    await this.getAllToolDefinitions()
+    await awaitWithAbort(this.getAllToolDefinitions(), access?.signal)
+    access?.signal?.throwIfAborted()
 
     if (!this.toolNameToTargetMap) {
       console.error('[ToolManager] Tool target map is not available for permission check.')
@@ -498,7 +506,8 @@ export class ToolManager {
     const toolServerName = targetInfo.client.serverName
 
     // Get server config to check auto-approve settings
-    const servers = await this.configPresenter.getMcpServers()
+    const servers = await awaitWithAbort(this.configPresenter.getMcpServers(), access?.signal)
+    access?.signal?.throwIfAborted()
     const serverConfig = servers[toolServerName]
     const accessContext = normalizeToolAccessContext({
       agentId: access?.agentId,
@@ -542,9 +551,12 @@ export class ToolManager {
 
   async callTool(
     toolCall: MCPToolCall,
-    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'> & {
+      signal?: AbortSignal
+    }
   ): Promise<MCPToolResponse> {
     try {
+      access?.signal?.throwIfAborted()
       const finalName = toolCall.function.name
       const argsString = toolCall.function.arguments
 
@@ -556,7 +568,8 @@ export class ToolManager {
       })
 
       // Ensure definitions and map are loaded/cached
-      await this.getAllToolDefinitions()
+      await awaitWithAbort(this.getAllToolDefinitions(), access?.signal)
+      access?.signal?.throwIfAborted()
 
       if (!this.toolNameToTargetMap) {
         console.error('Tool target map is not available.')
@@ -592,12 +605,19 @@ export class ToolManager {
       // ACP agent-level MCP access control resolves from session context, not global chat mode.
       if (shouldResolveAcpContext && toolCall.conversationId) {
         try {
-          const acpContext = await this.resolveAcpSessionContext(toolCall.conversationId)
+          const acpContext = await awaitWithAbort(
+            this.resolveAcpSessionContext(toolCall.conversationId),
+            access?.signal
+          )
           if (acpContext?.providerId === 'acp' && acpContext.agentId) {
-            const acpAgents = await this.configPresenter.getAcpAgents()
+            const acpAgents = await awaitWithAbort(
+              this.configPresenter.getAcpAgents(),
+              access?.signal
+            )
             if (acpAgents.some((item) => item.id === acpContext.agentId)) {
-              const selections = await this.configPresenter.getAgentMcpSelections(
-                acpContext.agentId
+              const selections = await awaitWithAbort(
+                this.configPresenter.getAgentMcpSelections(acpContext.agentId),
+                access?.signal
               )
               if (!selections?.length || !selections.includes(toolServerName)) {
                 return {
@@ -609,12 +629,14 @@ export class ToolManager {
             }
           }
         } catch (error) {
+          if (access?.signal?.aborted || isAbortError(error)) throw error
           console.warn(
             '[ToolManager] Failed to resolve ACP agent context for MCP access control:',
             error
           )
         }
       }
+      access?.signal?.throwIfAborted()
 
       // Log the call details including original name
       console.info('[MCP] ToolManager calling tool', {
@@ -644,7 +666,8 @@ export class ToolManager {
       }
 
       // Get server configuration
-      const servers = await this.configPresenter.getMcpServers()
+      const servers = await awaitWithAbort(this.configPresenter.getMcpServers(), access?.signal)
+      access?.signal?.throwIfAborted()
       const serverConfig = servers[toolServerName]
       if (!serverConfig) {
         console.error(`Configuration for server '${toolServerName}' not found.`)
@@ -709,8 +732,10 @@ export class ToolManager {
         targetClient,
         serverConfig,
         originalName,
-        args || {}
+        args || {},
+        access?.signal
       )
+      access?.signal?.throwIfAborted()
       if (!preparedArgs.ok) {
         return {
           toolCallId: toolCall.id,
@@ -720,7 +745,10 @@ export class ToolManager {
       }
 
       // Call the tool on the target client using the ORIGINAL name
-      const result = await targetClient.callTool(originalName, preparedArgs.args)
+      const result = access?.signal
+        ? await targetClient.callTool(originalName, preparedArgs.args, { signal: access.signal })
+        : await targetClient.callTool(originalName, preparedArgs.args)
+      access?.signal?.throwIfAborted()
 
       // Format response
       let formattedContent: string | MCPContentItem[] = ''
@@ -757,6 +785,10 @@ export class ToolManager {
 
       return response
     } catch (error: unknown) {
+      if (access?.signal?.aborted || isAbortError(error)) {
+        throw error
+      }
+
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('Unhandled error during tool call:', error)
       return {
@@ -771,7 +803,8 @@ export class ToolManager {
     client: McpClient,
     serverConfig: MCPServerConfig,
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
     if (
       toolName !== 'launch_app' ||
@@ -781,12 +814,13 @@ export class ToolManager {
       return { ok: true, args }
     }
 
-    return await this.prepareCuaWindowsLaunchArgs(client, args)
+    return await this.prepareCuaWindowsLaunchArgs(client, args, signal)
   }
 
   private async prepareCuaWindowsLaunchArgs(
     client: McpClient,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
     const normalizedArgs = { ...args }
     const bundleId = this.readStringArg(normalizedArgs.bundle_id)
@@ -818,7 +852,7 @@ export class ToolManager {
       return { ok: true, args: normalizedArgs }
     }
 
-    const apps = await this.listCuaWindowsApps(client)
+    const apps = await this.listCuaWindowsApps(client, signal)
     if (!apps) {
       return {
         ok: false,
@@ -850,13 +884,19 @@ export class ToolManager {
   }
 
   private async listCuaWindowsApps(
-    client: McpClient
+    client: McpClient,
+    signal?: AbortSignal
   ): Promise<Array<Record<string, unknown>> | null> {
     try {
-      const result = (await client.callTool('list_apps', {})) as {
+      const result = (
+        signal
+          ? await client.callTool('list_apps', {}, { signal })
+          : await client.callTool('list_apps', {})
+      ) as {
         structuredContent?: unknown
         content?: unknown
       }
+      signal?.throwIfAborted()
       const structured = result.structuredContent
       if (
         structured &&
@@ -871,6 +911,7 @@ export class ToolManager {
         return parsed.apps as Array<Record<string, unknown>>
       }
     } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
       console.warn('[MCP] Failed to preflight CUA Windows launch target:', error)
     }
     return null

@@ -361,6 +361,81 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(response.length).toBeGreaterThan(0)
     }, 15000)
 
+    it('observes a completion failure that arrives after standalone cancellation', async () => {
+      let rejectCompletion!: (reason?: unknown) => void
+      const completion = new Promise<never>((_, reject) => {
+        rejectCompletion = reject
+      })
+      const provider = llmProviderPresenter.getProviderInstance('mock-openai-api')
+      const completionsSpy = vi.spyOn(provider, 'completions').mockReturnValue(completion)
+      const abortController = new AbortController()
+      const lateError = new Error('late standalone completion failure')
+      const unhandled = vi.fn()
+
+      try {
+        const generating = llmProviderPresenter.generateCompletionStandalone(
+          'mock-openai-api',
+          [{ role: 'user', content: 'cancel me' }],
+          'mock-gpt-thinking',
+          undefined,
+          undefined,
+          { signal: abortController.signal }
+        )
+        abortController.abort()
+
+        await expect(generating).rejects.toMatchObject({ name: 'AbortError' })
+
+        process.on('unhandledRejection', unhandled)
+        try {
+          rejectCompletion(lateError)
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
+        } finally {
+          process.off('unhandledRejection', unhandled)
+        }
+      } finally {
+        completionsSpy.mockRestore()
+      }
+    })
+
+    it('consumes an iterator teardown failure during standalone image cancellation', async () => {
+      const lateError = new Error('image iterator teardown failed')
+      const stream = {
+        next: vi.fn(() => new Promise<IteratorResult<never>>(() => undefined)),
+        return: vi.fn().mockRejectedValue(lateError),
+        [Symbol.asyncIterator]() {
+          return this
+        }
+      }
+      const provider = llmProviderPresenter.getProviderInstance('mock-openai-api')
+      const coreStreamSpy = vi.spyOn(provider, 'coreStream').mockReturnValue(stream as any)
+      const abortController = new AbortController()
+      const unhandled = vi.fn()
+
+      process.on('unhandledRejection', unhandled)
+      try {
+        const generating = llmProviderPresenter.generateImageStandalone(
+          'mock-openai-api',
+          'cancel me',
+          'mock-gpt-thinking',
+          undefined,
+          { signal: abortController.signal }
+        )
+        await vi.waitFor(() => expect(coreStreamSpy).toHaveBeenCalledOnce())
+        abortController.abort()
+
+        await expect(generating).rejects.toMatchObject({ name: 'AbortError' })
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        expect(stream.return).toHaveBeenCalledOnce()
+        expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
+      } finally {
+        process.off('unhandledRejection', unhandled)
+        coreStreamSpy.mockRestore()
+      }
+    })
+
     it('falls back to completion transcription when audio endpoint is unsupported', async () => {
       vi.stubGlobal(
         'fetch',

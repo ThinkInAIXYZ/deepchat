@@ -74,8 +74,14 @@ flowchart LR
 ### 3. Agent Runtime
 
 - `AgentSessionPresenter` 创建/恢复/激活 session，并把执行交给 `AgentRuntimePresenter`。
-- `AgentRuntimePresenter` 拥有 stream loop、tool loop、pending input、manual/auto compaction、
-  message trace 和结构化消息持久化。
+- `AgentRuntimePresenter` 是依赖装配和外部 contract facade；stream/tool loop、pending input、
+  manual/auto compaction、message trace 和结构化消息持久化由专用 service 协作完成。
+- `RuntimeSharedState` 只保存真正跨 service 的 turn 状态；`SessionLifecycleService`、
+  `TurnPreparationService`、`StreamLifecycleService`、`InteractionResumeService`、
+  `MemoryCompactionService`、`SessionSettingsService`、`GenerationControlService` 与
+  `PendingInputService` 各自拥有对应流程和可变状态。
+- native Agent 的确定性行为基线由 `pnpm run test:agent:eval` 执行，并作为 PR Check 门禁；
+  它覆盖直接回复、工具循环、权限暂停、取消、pending yield、循环上限和无进展终止。
 - `DeepChatMessageStore` 采用头表 + 结构化子表模型，并在读路径缺行时回退旧 JSON。
 - 历史搜索使用 `deepchat_search_documents` 与 FTS5，FTS 不可用时回退 `LIKE`。
 - Agent progress 使用 `agent-core/update_plan`、`chat.plan.updated` 和 renderer 浮层展示任务计划；
@@ -106,7 +112,8 @@ flowchart LR
   compatibility quarantine。确有兼容需要时，应先定义窄 typed route/event 或专用 preload API。
 - `scripts/architecture-guard.mjs` 检测 direct legacy transport、已退休 legacy 目录、
   并读取 `docs/architecture/baselines/main-kernel-bridge-register.json`。
-- `scripts/agent-cleanup-guard.mjs` 用于防止已退休 agent runtime 入口回流。
+- `scripts/agent-cleanup-guard.mjs` 用于防止已退休 agent runtime 入口回流，并拒绝
+  `agentRuntimePresenter/index.ts` 增长到 1000 行或以上。
 
 ## 推荐阅读顺序
 
@@ -117,3 +124,4 @@ flowchart LR
 5. [architecture/tool-system.md](./architecture/tool-system.md)
 6. [architecture/session-management.md](./architecture/session-management.md)
 7. [architecture/agent-memory-system/spec.md](./architecture/agent-memory-system/spec.md)
+8. [architecture/native-agent-evaluation/spec.md](./architecture/native-agent-evaluation/spec.md)

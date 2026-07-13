@@ -43,6 +43,11 @@ const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresen
 const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')
 const SKILL_PRESENTER_DIR = path.join(ROOT, 'src/main/presenter/skillPresenter')
 const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')
+const AGENT_RUNTIME_FACADE_FILE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/index.ts'
+)
+const AGENT_RUNTIME_FACADE_LINE_LIMIT = 1000
 
 const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionManager',
@@ -89,8 +94,10 @@ function extractModuleSpecifiers(source) {
   const specifiers = new Set()
   const patterns = [
     /\bimport\s+(?:type\s+)?[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*['"]([^'"]+)['"]/g,
     /\bexport\s+[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
   ]
 
   for (const pattern of patterns) {
@@ -184,6 +191,20 @@ async function findViolations() {
   const violations = []
   for (const filePath of [...fileSet].sort()) {
     const source = await fs.readFile(filePath, 'utf8')
+
+    if (filePath === AGENT_RUNTIME_FACADE_FILE) {
+      const lineCount =
+        source.length === 0 ? 0 : (source.match(/\n/g)?.length ?? 0) + (source.endsWith('\n') ? 0 : 1)
+      if (lineCount >= AGENT_RUNTIME_FACADE_LINE_LIMIT) {
+        violations.push(
+          buildViolation(
+            'agent-runtime-facade-size',
+            filePath,
+            `${lineCount} lines (must stay below ${AGENT_RUNTIME_FACADE_LINE_LIMIT})`
+          )
+        )
+      }
+    }
 
     for (const specifier of extractModuleSpecifiers(source)) {
       if (isLegacyMainImport(filePath, specifier)) {

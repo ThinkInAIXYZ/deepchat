@@ -48,9 +48,18 @@ export interface StreamState {
   >
   completedToolCalls: ToolCallResult[]
   pendingInteractions?: PendingToolInteraction[]
-  stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens'
+  stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens' | 'max_tool_calls'
   latestAgentPlanSnapshot?: AgentPlanSnapshot
   planTerminalReason?: AgentPlanTerminalReason
+  roundUsage: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+    cachedInputTokens?: number
+    cacheWriteInputTokens?: number
+  } | null
+  providerRoundCount: number
+  toolCallCount: number
   dirty: boolean
 }
 
@@ -203,8 +212,10 @@ export interface ProcessParams {
     modelConfig: ModelConfig,
     temperature: number,
     maxTokens: number,
-    tools: MCPToolDefinition[]
+    tools: MCPToolDefinition[],
+    onProviderRequestStart?: () => void
   ) => AsyncGenerator<LLMCoreStreamEvent>
+  coreStreamReportsProviderStart?: boolean
   providerId: string
   modelId: string
   modelConfig: ModelConfig
@@ -214,6 +225,20 @@ export interface ProcessParams {
   permissionMode: PermissionMode
   toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
+  initialAccounting?: Pick<
+    MessageMetadata,
+    | 'inputTokens'
+    | 'outputTokens'
+    | 'totalTokens'
+    | 'cachedInputTokens'
+    | 'cacheWriteInputTokens'
+    | 'providerRounds'
+    | 'toolCalls'
+    | 'generationTime'
+    | 'firstTokenTime'
+    | 'runOutcome'
+    | 'noProgressToolLoop'
+  >
   onFirstProviderRoundReady?: () => void
   onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean
@@ -231,6 +256,9 @@ export function createState(): StreamState {
     pendingToolCalls: new Map(),
     completedToolCalls: [],
     stopReason: 'complete',
+    roundUsage: null,
+    providerRoundCount: 0,
+    toolCallCount: 0,
     dirty: false
   }
 }

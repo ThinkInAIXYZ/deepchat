@@ -9,23 +9,20 @@ instead of letting every extracted service own its own copies.
 | Field | Owner After Split |
 | --- | --- |
 | `llmProviderPresenter`, `configPresenter`, `sqlitePresenter`, `toolPresenter` | constructor wiring / facade |
-| `sessionStore`, `messageStore`, `tapeService` | message/tape facade services |
-| `pendingInputStore`, `pendingInputCoordinator` | pending-input service |
-| `compactionService`, `toolOutputGuard`, `hooksBridge` | injected collaborators retained by facade |
-| `providerCatalogPort`, `sessionPermissionPort`, `sessionUiPort`, `memoryPort`, `skillPresenter` | injected ports retained by facade |
+| `sessionStore`, `messageStore`, `tapeService` | constructor wiring; consumed by focused services |
+| `pendingInputStore`, `pendingInputCoordinator`, `pendingInputService` | pending-input service |
+| `compactionService`, `toolOutputGuard`, `hooksBridge` | constructor wiring for focused services |
+| `providerCatalogPort`, `sessionPermissionPort`, `sessionUiPort`, `memoryPort`, `skillPresenter` | injected ports routed to their owning services |
 
 ## Shared Runtime State
 
 | Field | Primary Writer | Readers |
 | --- | --- | --- |
-| `runtimeState` | session lifecycle / turn runner | turn runner, pending input, message/tape helpers |
-| `abortControllers` | generation control | turn runner, deferred tools, cancellation APIs |
-| `deferredToolAbortControllers` | deferred tool service | cancellation APIs, deferred tool executor |
-| `activeGenerations` | generation control | turn runner, pending queue drain, public status APIs |
-| `activeSteerPendingInputIds` | pending-input service | turn runner, rollback/release helpers |
-| `interactionLocks` | turn runner / interaction resolver | provider permission and question handlers |
-| `activeProviderPermissions` | provider permission service | deferred tool execution, interaction completion |
-| `resumingMessages` | message/tape facade | retry/resume flows |
+| `runtimeState` | session lifecycle | preparation, stream, pending input, interaction resume |
+| `abortControllers` | generation control | stream lifecycle, deferred tools, cancellation APIs |
+| `deferredToolAbortControllers` | generation control | cancellation APIs, deferred tool executor |
+| `activeGenerations` | generation control | stream lifecycle, pending queue drain, public status APIs |
+| `activeSteerPendingInputIds` | pending-input service | pending queue orchestration |
 | `drainingPendingQueues` | pending-input service | queue drain guards |
 
 Use a `RuntimeTurnState`/`RuntimeSharedState` object for these fields before extracting stateful
@@ -38,14 +35,28 @@ services. Passing individual maps around would just hide coupling.
 | `sessionGenerationSettings` | `sessionSettingsService` |
 | `sessionAgentIds`, `sessionProjectDirs` | `sessionLifecycleService` |
 | `firstTurnReadySessions`, `firstTurnReadyWaiters` | `sessionLifecycleService` |
-| `systemPromptCache`, `toolProfileCache`, `toolRegistryRevision` | `contextBuilder` / `toolProfileService` |
-| `runtimeActivatedSkillsBySession` | `skillRuntimeService` |
-| `sessionCompactionStates` | `compactionService` wrapper |
-| `memoryExtractionChains`, `memoryExtractionEpochs` | `memoryExtractionService` |
-| `nextRunSequence` | `turnRunner` |
+| `systemPromptCache`, `toolProfileCache`, `toolRegistryRevision` | `TurnPreparationService` |
+| `runtimeActivatedSkillsBySession` | `TurnPreparationService` |
+| `interactionLocks`, `activeProviderPermissions`, `resumingMessages` | `InteractionResumeService` |
+| `sessionCompactionStates` | `MemoryCompactionService` |
+| `memoryExtractionChains`, `memoryExtractionEpochs`, `memoryInjectionAccessByTurn` | `MemoryCompactionService` |
+
+`generationControlService` owns active-run registration and issues opaque, collision-resistant
+`${sessionId}:${nanoid()}` run IDs. Consumers must compare or forward run IDs without parsing them.
+
+`pendingInputCoordinator` remains the store-facing transition layer. `pendingInputService` owns the
+queue-facing presenter API, steer/drain orchestration, and the shared active-steer/drain guards.
+
+`cacheImage` is an injected immutable callback, not runtime state, and remains constructor wiring.
+Project-directory, readiness, and agent-context maps are owned by `SessionLifecycleService`;
+`SessionSettingsService` owns permission, model, and generation settings.
+
+Facade composition passes lazy callbacks to services that are assigned later in the constructor.
+Every callback-bound service constructor must therefore retain dependencies without invoking or
+dereferencing them. `serviceConstruction.test.ts` enforces that ordering contract with fail-on-access
+ports and fail-on-call callbacks.
 
 ## Sequencing Decision
 
-Do not split `agentSessionPresenter` in the same effort. Its shape is related, but coupling it to
-this split would double the review surface. Sequence it after the runtime facade is below 1000
-lines and the turn-runner boundary is stable.
+`agentSessionPresenter` was intentionally left unchanged. Its split is a follow-up goal now that
+the runtime facade is below 1000 lines and its service boundaries are stable.

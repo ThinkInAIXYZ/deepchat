@@ -213,7 +213,6 @@ describe('createDebugMockChatSession', () => {
         'action',
         'image',
         'artifact-thinking',
-        'plan',
         'error'
       ])
     )

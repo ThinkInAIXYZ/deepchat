@@ -121,4 +121,67 @@ describe('extractToolCallImagePreviews', () => {
       }
     ])
   })
+
+  it('does not start image caching when already cancelled', async () => {
+    const cacheImage = vi.fn(async () => 'imgcache://should-not-run.png')
+    const abortController = new AbortController()
+    abortController.abort()
+
+    await expect(
+      extractToolCallImagePreviews({
+        content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
+        cacheImage,
+        signal: abortController.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(cacheImage).not.toHaveBeenCalled()
+  })
+
+  it('rejects promptly when cancellation lands during image caching', async () => {
+    const cacheImage = vi.fn(() => new Promise<string>(() => {}))
+    const abortController = new AbortController()
+
+    const extracting = extractToolCallImagePreviews({
+      content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
+      cacheImage,
+      signal: abortController.signal
+    })
+    await vi.waitFor(() => expect(cacheImage).toHaveBeenCalledOnce())
+
+    abortController.abort()
+
+    await expect(extracting).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('observes a late cache failure when caching synchronously cancels', async () => {
+    let rejectCache!: (reason?: unknown) => void
+    const cachePromise = new Promise<string>((_, reject) => {
+      rejectCache = reject
+    })
+    const abortController = new AbortController()
+    const lateError = new Error('late cache failure')
+    const unhandled = vi.fn()
+    const cacheImage = vi.fn(() => {
+      abortController.abort()
+      return cachePromise
+    })
+
+    await expect(
+      extractToolCallImagePreviews({
+        content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
+        cacheImage,
+        signal: abortController.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    process.on('unhandledRejection', unhandled)
+    try {
+      rejectCache(lateError)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
 })

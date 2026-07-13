@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { app } from 'electron'
 import { approximateTokenSize } from 'tokenx'
 import type {
   InterleavedReasoningConfig,
@@ -64,8 +63,7 @@ vi.mock('@/presenter', () => ({
 import {
   executeTools as executeToolsInternal,
   finalize,
-  finalizeError,
-  persistAbortExceptionPlanState
+  finalizeError
 } from '@/presenter/agentRuntimePresenter/dispatch'
 import type { EchoHandle } from '@/presenter/agentRuntimePresenter/echo'
 import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
@@ -227,7 +225,7 @@ describe('dispatch', () => {
   let state: StreamState
   let io: IoParams
   let tempHome: string | null = null
-  let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
+  let homeDirSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -236,8 +234,8 @@ describe('dispatch', () => {
   })
 
   afterEach(async () => {
-    getPathSpy?.mockRestore()
-    getPathSpy = null
+    homeDirSpy?.mockRestore()
+    homeDirSpy = null
     if (tempHome) {
       await fs.rm(tempHome, { recursive: true, force: true })
       tempHome = null
@@ -1603,7 +1601,7 @@ describe('dispatch', () => {
 
       expect(toolPresenter.preCheckToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-write' }),
-        { permissionMode: 'full_access' }
+        { permissionMode: 'full_access', signal: io.abortSignal }
       )
       expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2188,9 +2186,10 @@ describe('dispatch', () => {
         { id: 'tc2', name: 'tool_b', arguments: '{}' }
       ]
 
-      const executed = await executeTools(
+      const conversation: any[] = []
+      const executing = executeTools(
         state,
-        [],
+        conversation,
         0,
         tools,
         toolPresenter,
@@ -2202,9 +2201,13 @@ describe('dispatch', () => {
         1024
       )
 
-      // Only first tool should have been called
-      expect(executed.executed).toBe(1)
+      await expect(executing).rejects.toMatchObject({ name: 'AbortError' })
       expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(conversation.some((message) => message.role === 'tool')).toBe(false)
+      expect(state.blocks.find((block) => block.tool_call?.id === 'tc1')).toMatchObject({
+        status: 'pending',
+        tool_call: { response: '' }
+      })
     })
 
     it('flushes to renderer and DB after each tool execution', async () => {
@@ -2530,7 +2533,7 @@ describe('dispatch', () => {
 
     it('offloads large yo_browser responses into a stub', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -2645,7 +2648,7 @@ describe('dispatch', () => {
 
     it('turns offload write failures into tool errors instead of falling back to raw content', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-fail-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
       const writeFileSpy = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('disk full'))
 
       const tools = [makeTool('cdp_send')]
@@ -2856,7 +2859,7 @@ describe('dispatch', () => {
 
     it('cleans offload files when a tail tool is downgraded during batch fitting', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-tail-offload-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('read'), makeTool('exec')]
       const toolPresenter = createMockToolPresenter()
@@ -2997,7 +3000,7 @@ describe('dispatch', () => {
 
     it('marks the tool as error when offload succeeds but context budget cannot fit the result', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -3048,7 +3051,7 @@ describe('dispatch', () => {
 
     it('returns terminalError when even the minimal tool failure stub cannot fit', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-terminal-clean-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -3296,75 +3299,6 @@ describe('dispatch', () => {
       expectDeepchatEvent('chat.plan.updated', {
         terminalReason: 'aborted'
       })
-    })
-  })
-
-  describe('persistAbortExceptionPlanState', () => {
-    it('publishes the aborted terminal marker for abort-exception early returns', () => {
-      state.latestAgentPlanSnapshot = {
-        sessionId: 's1',
-        messageId: 'm1',
-        plan: [{ step: 'Still running', status: 'in_progress' }],
-        revision: 1,
-        updatedAt: '2026-05-18T00:00:00.000Z'
-      }
-
-      persistAbortExceptionPlanState(state, io)
-
-      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('aborted')
-      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
-      expectDeepchatEvent('chat.plan.updated', {
-        sessionId: 's1',
-        messageId: 'm1',
-        terminalReason: 'aborted'
-      })
-    })
-
-    it('persists existing non-plan blocks for abort-exception early returns', () => {
-      state.blocks.push({
-        type: 'content',
-        content: 'Partial answer',
-        status: 'success',
-        timestamp: Date.now()
-      })
-      state.latestAgentPlanSnapshot = {
-        sessionId: 's1',
-        messageId: 'm1',
-        plan: [{ step: 'Still running', status: 'in_progress' }],
-        revision: 1,
-        updatedAt: '2026-05-18T00:00:00.000Z'
-      }
-
-      persistAbortExceptionPlanState(state, io)
-
-      expect(io.messageStore.updateAssistantContent).toHaveBeenCalledWith('m1', state.blocks)
-      expectDeepchatEvent('chat.stream.updated', {
-        sessionId: 's1',
-        messageId: 'm1',
-        requestId: 'req-1'
-      })
-      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
-    })
-
-    it('is idempotent for already stamped plan snapshots', () => {
-      state.latestAgentPlanSnapshot = {
-        sessionId: 's1',
-        messageId: 'm1',
-        plan: [{ step: 'Still running', status: 'in_progress' }],
-        revision: 1,
-        updatedAt: '2026-05-18T00:00:00.000Z'
-      }
-
-      persistAbortExceptionPlanState(state, io)
-      publishDeepchatEventMock.mockClear()
-      ;(io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mockClear()
-
-      persistAbortExceptionPlanState(state, io)
-
-      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
-      expect(
-        publishDeepchatEventMock.mock.calls.some(([eventName]) => eventName === 'chat.plan.updated')
-      ).toBe(false)
     })
   })
 })

@@ -24,7 +24,7 @@ import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core
 import { nanoid } from 'nanoid'
 import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
 import { buildTerminalErrorBlocks } from './messageStore'
-import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
+import { commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
 import { cloneBlocksForRenderer } from './echo'
 import {
@@ -125,6 +125,28 @@ type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRe
 
 const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
+
+function isToolCancellation(error: unknown, signal: AbortSignal): boolean {
+  return (
+    signal.aborted ||
+    (error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError'))
+  )
+}
+
+function finalizeRunMetadata(state: StreamState): void {
+  const endTime = Date.now()
+  state.metadata.providerRounds = state.providerRoundCount
+  state.metadata.toolCalls = state.toolCallCount
+  state.metadata.generationTime = (state.metadata.generationTime ?? 0) + (endTime - state.startTime)
+  if (state.firstTokenTime !== null && state.metadata.firstTokenTime === undefined) {
+    state.metadata.firstTokenTime = state.firstTokenTime - state.startTime
+  }
+  if (state.metadata.outputTokens && state.metadata.generationTime > 0) {
+    state.metadata.tokensPerSecond = Math.round(
+      (state.metadata.outputTokens / state.metadata.generationTime) * 1000
+    )
+  }
+}
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -939,6 +961,7 @@ async function reviewAutoApproveAction(params: {
       permission,
       reason
     })
+    io.abortSignal.throwIfAborted()
 
     if (!result || result.decision === 'ask_user') {
       return 'ask_user'
@@ -1158,6 +1181,7 @@ async function runToolCall(params: {
   const { completedToolCall, toolCall, toolContext } = execution
 
   try {
+    io.abortSignal.throwIfAborted()
     const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
       if (
         update.kind === 'agent_plan' &&
@@ -1196,14 +1220,18 @@ async function runToolCall(params: {
       scheduleRendererFlush(state, rendererFlushHandle)
     }
 
-    const callTool = async () =>
-      await toolPresenter.callTool(toolCall, {
+    const callTool = async () => {
+      io.abortSignal.throwIfAborted()
+      const result = await toolPresenter.callTool(toolCall, {
         onProgress: applyProgressUpdate,
         signal: io.abortSignal,
         permissionMode: toolPermissionMode,
         activeSkillNames: hooks?.getActiveSkillNames?.(),
         enabledSkillNames: hooks?.getEnabledSkillNames?.()
       })
+      io.abortSignal.throwIfAborted()
+      return result
+    }
 
     let toolCallResult = await callTool()
     let toolRawData = toolCallResult.rawData
@@ -1273,7 +1301,8 @@ async function runToolCall(params: {
         toolName: completedToolCall.name,
         toolArgs: completedToolCall.arguments,
         content: toolRawData.content,
-        cacheImage: hooks?.cacheImage
+        cacheImage: hooks?.cacheImage,
+        signal: io.abortSignal
       }))
 
     if (hooks?.normalizeToolResult) {
@@ -1288,6 +1317,7 @@ async function runToolCall(params: {
           isError: toolRawData.isError === true
         })
       }
+      io.abortSignal.throwIfAborted()
     }
 
     const searchPayload = extractSearchPayload(
@@ -1303,6 +1333,7 @@ async function runToolCall(params: {
       toolName: toolContext.name,
       rawContent: responseText
     })
+    io.abortSignal.throwIfAborted()
     const stagedResponseText =
       preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
     const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
@@ -1310,6 +1341,7 @@ async function runToolCall(params: {
     const activatedSkill = extractActivatedSkillAfterCall(completedToolCall.name, toolRawData)
     if (activatedSkill) {
       await hooks?.activateSkill?.(activatedSkill)
+      io.abortSignal.throwIfAborted()
     }
 
     return {
@@ -1334,6 +1366,7 @@ async function runToolCall(params: {
       toolsChanged: Boolean(activatedSkill)
     }
   } catch (err) {
+    if (isToolCancellation(err, io.abortSignal)) throw err
     return buildToolErrorOutcome(execution, err)
   }
 }
@@ -1443,7 +1476,8 @@ export async function executeTools(
         try {
           if (toolPresenter.preCheckToolPermission) {
             const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall, {
-              permissionMode: toolPermissionMode
+              permissionMode: toolPermissionMode,
+              signal: io.abortSignal
             })
             if (preChecked?.needsPermission) {
               const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
@@ -1476,6 +1510,7 @@ export async function executeTools(
             allowProgressUpdates: false
           })
         } catch (error) {
+          if (isToolCancellation(error, io.abortSignal)) throw error
           return buildToolErrorOutcome(execution, error)
         }
       })
@@ -1519,6 +1554,7 @@ export async function executeTools(
         contextLength,
         maxTokens
       })
+      io.abortSignal.throwIfAborted()
 
       applyFinalizedToolResults({
         stagedResults,
@@ -1588,7 +1624,8 @@ export async function executeTools(
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
       if (toolPresenter.preCheckToolPermission) {
         const preChecked = await toolPresenter.preCheckToolPermission(toolCall, {
-          permissionMode: toolPermissionMode
+          permissionMode: toolPermissionMode,
+          signal: io.abortSignal
         })
         if (preChecked?.needsPermission) {
           preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
@@ -1715,6 +1752,7 @@ export async function executeTools(
       toolsChanged = toolsChanged || outcome.toolsChanged
       executed += 1
     } catch (err) {
+      if (isToolCancellation(err, io.abortSignal)) throw err
       const errorText = err instanceof Error ? err.message : String(err)
       stagedResults.push({
         toolCallId: tc.id,
@@ -1743,6 +1781,7 @@ export async function executeTools(
       contextLength,
       maxTokens
     })
+    io.abortSignal.throwIfAborted()
 
     applyFinalizedToolResults({
       stagedResults,
@@ -1774,6 +1813,7 @@ export async function executeTools(
 }
 
 export function finalizePaused(state: StreamState, io: IoParams): void {
+  commitRoundUsage(state)
   for (const block of state.blocks) {
     if (
       block.type === 'action' &&
@@ -1787,7 +1827,8 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
     }
   }
 
-  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+  finalizeRunMetadata(state)
+  io.messageStore.updateAssistantContent(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
   publishDeepchatEvent('chat.stream.completed', {
     requestId: io.requestId,
@@ -1798,21 +1839,13 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
 }
 
 export function finalize(state: StreamState, io: IoParams): void {
+  commitRoundUsage(state)
   for (const block of state.blocks) {
     if (block.status === 'pending') block.status = 'success'
   }
   stampPlanTerminalIfOpen(state, io, state.planTerminalReason)
 
-  const endTime = Date.now()
-  state.metadata.generationTime = endTime - state.startTime
-  if (state.firstTokenTime !== null) {
-    state.metadata.firstTokenTime = state.firstTokenTime - state.startTime
-  }
-  if (state.metadata.outputTokens && state.metadata.generationTime > 0) {
-    state.metadata.tokensPerSecond = Math.round(
-      (state.metadata.outputTokens / state.metadata.generationTime) * 1000
-    )
-  }
+  finalizeRunMetadata(state)
 
   io.messageStore.finalizeAssistantMessage(
     io.messageId,
@@ -1829,24 +1862,18 @@ export function finalize(state: StreamState, io: IoParams): void {
 }
 
 export function finalizeError(state: StreamState, io: IoParams, error: unknown): void {
+  commitRoundUsage(state)
   const errorMessage = error instanceof Error ? error.message : String(error)
   state.blocks = buildTerminalErrorBlocks(state.blocks, errorMessage)
   stampPlanTerminalIfOpen(
     state,
     io,
-    errorMessage === USER_CANCELED_GENERATION_ERROR ? 'aborted' : 'error'
+    errorMessage === USER_CANCELED_GENERATION_ERROR
+      ? 'aborted'
+      : (state.planTerminalReason ?? 'error')
   )
 
-  const endTime = Date.now()
-  state.metadata.generationTime = endTime - state.startTime
-  if (state.firstTokenTime !== null) {
-    state.metadata.firstTokenTime = state.firstTokenTime - state.startTime
-  }
-  if (state.metadata.outputTokens && state.metadata.generationTime > 0) {
-    state.metadata.tokensPerSecond = Math.round(
-      (state.metadata.outputTokens / state.metadata.generationTime) * 1000
-    )
-  }
+  finalizeRunMetadata(state)
 
   io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
@@ -1857,16 +1884,4 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
     failedAt: Date.now(),
     error: errorMessage
   })
-}
-
-export function persistAbortExceptionPlanState(state: StreamState, io: IoParams): void {
-  const hadPlanSnapshot = Boolean(state.latestAgentPlanSnapshot)
-  stampPlanTerminalIfOpen(state, io, 'aborted')
-
-  if (!hadPlanSnapshot || state.blocks.length === 0) {
-    return
-  }
-
-  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
-  flushBlocksToRenderer(io, state.blocks)
 }

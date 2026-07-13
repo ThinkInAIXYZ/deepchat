@@ -1,4 +1,5 @@
 import type { MCPContentItem, ToolCallImagePreview } from '@shared/types/core/mcp'
+import { awaitWithAbort } from './awaitWithAbort'
 
 type ImagePreviewInput = {
   data: string
@@ -12,6 +13,7 @@ type ExtractToolCallImagePreviewsParams = {
   toolArgs?: string
   content: string | MCPContentItem[]
   cacheImage?: (data: string) => Promise<string>
+  signal?: AbortSignal
 }
 
 const DATA_IMAGE_URL_PATTERN = /data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=\r\n]+/g
@@ -88,17 +90,20 @@ function normalizeImagePayload(data: string, mimeType: string): string {
 
 async function cachePreviewData(
   data: string,
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage?: (data: string) => Promise<string>,
+  signal?: AbortSignal
 ): Promise<string | undefined> {
   if (!cacheImage) {
     return undefined
   }
 
   try {
-    const cachedData = await cacheImage(data)
+    signal?.throwIfAborted()
+    const cachedData = await awaitWithAbort(cacheImage(data), signal)
     const cachedDataTrimmed = cachedData.trim().toLowerCase()
     return cachedDataTrimmed.startsWith('data:image/') ? undefined : cachedData
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error
     return undefined
   }
 }
@@ -216,6 +221,7 @@ function extractStructuredImagePreviews(content: MCPContentItem[]): ImagePreview
 export async function extractToolCallImagePreviews(
   params: ExtractToolCallImagePreviewsParams
 ): Promise<ToolCallImagePreview[]> {
+  params.signal?.throwIfAborted()
   const inputs: ImagePreviewInput[] = []
   const screenshotPreview = extractScreenshotPreview(
     params.toolName,
@@ -235,7 +241,8 @@ export async function extractToolCallImagePreviews(
   const previews: ToolCallImagePreview[] = []
   const seen = new Set<string>()
   for (const input of inputs) {
-    const data = await cachePreviewData(input.data, params.cacheImage)
+    params.signal?.throwIfAborted()
+    const data = await cachePreviewData(input.data, params.cacheImage, params.signal)
     if (data && seen.has(data)) {
       continue
     }
@@ -251,5 +258,6 @@ export async function extractToolCallImagePreviews(
     })
   }
 
+  params.signal?.throwIfAborted()
   return previews
 }

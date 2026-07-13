@@ -457,6 +457,7 @@ export interface AssistantMessageExtra {
   questionMultiple?: boolean
   questionCustom?: boolean
   questionResolution?: 'asked' | 'replied' | 'rejected'
+  questionFollowUpPending?: boolean
   answerText?: string
   answerMessageId?: string
   skillDraftAction?: string
@@ -498,12 +499,24 @@ export interface AssistantMessageBlock {
   action_type?: 'tool_call_permission' | 'question_request' | 'rate_limit'
 }
 
+export interface AgentNoProgressToolLoopMetadata {
+  fingerprint: string
+  repeatedBatchCount: number
+  evidence: 'strong' | 'weak'
+}
+
 export interface MessageMetadata {
+  runId?: string
+  runOutcome?: 'completed' | 'paused' | 'aborted' | 'error'
+  runStopReason?: string
+  noProgressToolLoop?: AgentNoProgressToolLoopMetadata
   totalTokens?: number
   inputTokens?: number
   outputTokens?: number
   cachedInputTokens?: number
   cacheWriteInputTokens?: number
+  providerRounds?: number
+  toolCalls?: number
   generationTime?: number
   firstTokenTime?: number
   reasoningStartTime?: number

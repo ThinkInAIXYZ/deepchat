@@ -83,6 +83,9 @@ jobs:
       - name: Check translations
         run: pnpm run i18n
 
+      - name: Native Agent behavior eval
+        run: pnpm run test:agent:eval
+
       - name: Build
         run: pnpm run build
 

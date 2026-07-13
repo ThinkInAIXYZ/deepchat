@@ -9,6 +9,7 @@ import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.pres
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { ToolMapper, type ToolSource } from './toolMapper'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
@@ -85,7 +86,7 @@ export interface IToolPresenter {
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
     request: MCPToolCall,
-    options?: { permissionMode?: PermissionMode }
+    options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
   ): Promise<PreCheckedPermissionResult | null>
   clearConversationToolMapping?(conversationId: string): void
   clearAgentPlanState?(conversationId: string): void
@@ -378,7 +379,8 @@ export class ToolPresenter implements IToolPresenter {
     const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
     return await this.options.mcpPresenter.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
-      enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds
+      enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
+      signal: options?.signal
     })
   }
 
@@ -388,8 +390,9 @@ export class ToolPresenter implements IToolPresenter {
    */
   async preCheckToolPermission(
     request: MCPToolCall,
-    options?: { permissionMode?: PermissionMode }
+    options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
   ): Promise<PreCheckedPermissionResult | null> {
+    options?.signal?.throwIfAborted()
     const toolName = request.function.name
     const source = this.getToolSource(toolName, request.conversationId)
 
@@ -426,13 +429,11 @@ export class ToolPresenter implements IToolPresenter {
         }
       }
 
-      const result = await this.agentToolManager.preCheckToolPermission(
-        toolName,
-        args,
-        request.conversationId,
-        {
+      const result = await awaitWithAbort(
+        this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
           allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode)
-        }
+        }),
+        options?.signal
       )
       if (!result) {
         return null
@@ -445,7 +446,8 @@ export class ToolPresenter implements IToolPresenter {
       const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
       return await this.options.mcpPresenter.preCheckToolPermission(request, {
         agentId: storedAccess?.agentId,
-        enabledServerIds: storedAccess?.enabledMcpServerIds
+        enabledServerIds: storedAccess?.enabledMcpServerIds,
+        signal: options?.signal
       })
     }
 

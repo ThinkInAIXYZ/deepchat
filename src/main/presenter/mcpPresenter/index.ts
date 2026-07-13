@@ -767,15 +767,22 @@ export class McpPresenter implements IMCPPresenter {
 
   async callTool(
     request: MCPToolCall,
-    options?: { agentId?: string; enabledServerIds?: string[] }
+    options?: {
+      signal?: AbortSignal
+      agentId?: string
+      enabledServerIds?: string[]
+    }
   ): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request, options)
+    options?.signal?.throwIfAborted()
     const imagePreviews = await extractToolCallImagePreviews({
       toolName: request.function.name,
       toolArgs: request.function.arguments,
       content: toolCallResult.content,
-      cacheImage: this.cacheImage
+      cacheImage: this.cacheImage,
+      signal: options?.signal
     })
+    options?.signal?.throwIfAborted()
 
     // Format tool call results into strings that are easy for large models to parse
     let formattedContent = ''
@@ -832,7 +839,11 @@ export class McpPresenter implements IMCPPresenter {
    */
   async preCheckToolPermission(
     request: MCPToolCall,
-    options?: { agentId?: string; enabledServerIds?: string[] }
+    options?: {
+      signal?: AbortSignal
+      agentId?: string
+      enabledServerIds?: string[]
+    }
   ): Promise<{
     needsPermission: true
     toolName: string

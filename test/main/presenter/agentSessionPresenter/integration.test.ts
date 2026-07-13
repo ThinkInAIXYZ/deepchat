@@ -358,11 +358,18 @@ function createMockSqlitePresenter() {
         const msg = messagesStore.get(id)
         if (msg) msg.status = status
       }),
+      updateMetadata: vi.fn((id: string, metadata: string) => {
+        const msg = messagesStore.get(id)
+        if (msg) msg.metadata = metadata
+      }),
       getBySession: vi.fn((sessionId: string) => {
         return messagesList
           .filter((m) => m.session_id === sessionId)
           .sort((a: any, b: any) => a.order_seq - b.order_seq)
       }),
+      hasBySession: vi.fn((sessionId: string) =>
+        messagesList.some((message) => message.session_id === sessionId)
+      ),
       getBySessionUpToOrderSeq: vi.fn((sessionId: string, maxOrderSeq: number) => {
         return messagesList
           .filter((m) => m.session_id === sessionId && m.order_seq <= maxOrderSeq)
@@ -1223,7 +1230,7 @@ describe('Integration: multi-turn context', () => {
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
     await deepchatAgent.initSession('s-follow-up', { providerId: 'openai', modelId: 'gpt-4' })
-    ;(deepchatAgent as any).runtimeState.get('s-follow-up').status = 'generating'
+    ;(deepchatAgent as any).runtimeSharedState.runtimeState.get('s-follow-up').status = 'generating'
 
     await deepchatAgent.queuePendingInput('s-follow-up', 'Older queued prompt')
     expect(await deepchatAgent.listPendingInputs('s-follow-up')).toHaveLength(1)

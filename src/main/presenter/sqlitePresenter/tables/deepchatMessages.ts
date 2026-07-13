@@ -113,6 +113,12 @@ export class DeepChatMessagesTable extends BaseTable {
       .run(status, Date.now(), messageId)
   }
 
+  updateMetadata(messageId: string, metadata: string): void {
+    this.db
+      .prepare('UPDATE deepchat_messages SET metadata = ?, updated_at = ? WHERE id = ?')
+      .run(metadata, Date.now(), messageId)
+  }
+
   incrementOrderSeqFrom(sessionId: string, fromOrderSeq: number): void {
     this.db
       .prepare(

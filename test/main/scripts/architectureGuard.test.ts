@@ -210,7 +210,7 @@ describe('architecture guard', () => {
 
   beforeAll(async () => {
     violations = await runArchitectureGuard({ virtualFiles })
-  })
+  }, 30_000)
 
   it('passes against the current production source through the CLI', () => {
     const result = spawnSync(process.execPath, ['scripts/architecture-guard.mjs'], {

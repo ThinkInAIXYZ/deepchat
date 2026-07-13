@@ -6,9 +6,22 @@ import { OpenAICodexAuth } from '../../../src/main/presenter/openaiCodexAuth'
 import { OpenAICodexCredentialStore } from '../../../src/main/presenter/openaiCodexAuth/credentialStore'
 import { createOpenAICodexPkcePair } from '../../../src/main/presenter/openaiCodexAuth/pkce'
 
+const { startOAuthLoopbackCallbackSessionMock } = vi.hoisted(() => ({
+  startOAuthLoopbackCallbackSessionMock: vi.fn()
+}))
+
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
 }))
+
+vi.mock('../../../src/main/presenter/oauthLoopbackCallback', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../src/main/presenter/oauthLoopbackCallback')>()
+  return {
+    ...actual,
+    startOAuthLoopbackCallbackSession: startOAuthLoopbackCallbackSessionMock
+  }
+})
 
 describe('OpenAI Codex auth', () => {
   let tempDir: string
@@ -26,6 +39,7 @@ describe('OpenAI Codex auth', () => {
     vi.mocked(fs.rmSync).mockImplementation((file) => {
       files.delete(String(file))
     })
+    startOAuthLoopbackCallbackSessionMock.mockReset()
     vi.mocked(shell.openExternal).mockClear()
     delete process.env.DEEPCHAT_OPENAI_CODEX_DISABLED
   })
@@ -153,6 +167,44 @@ describe('OpenAI Codex auth', () => {
   })
 
   it('opens browser login externally and completes from a pasted callback URL', async () => {
+    startOAuthLoopbackCallbackSessionMock.mockImplementationOnce(
+      async (options: { expectedState: string; path: string }) => {
+        const callbackPath = options.path.startsWith('/') ? options.path : `/${options.path}`
+        const redirectUri = `http://localhost:43123${callbackPath}`
+        let resolveCallback!: (value: { code: string }) => void
+        let rejectCallback!: (error: Error) => void
+        const callbackPromise = new Promise<{ code: string }>((resolve, reject) => {
+          resolveCallback = resolve
+          rejectCallback = reject
+        })
+
+        return {
+          redirectUri,
+          waitForCallback: vi.fn(() => callbackPromise),
+          resolveCallbackUrl: vi.fn((rawUrl: string) => {
+            const callbackUrl = new URL(rawUrl)
+            const code = callbackUrl.searchParams.get('code')
+            const state = callbackUrl.searchParams.get('state')
+            if (!code || state !== options.expectedState) {
+              const error = new Error('Invalid OAuth callback')
+              rejectCallback(error)
+              return { kind: 'failure' as const, error, url: callbackUrl.toString() }
+            }
+
+            const result = {
+              kind: 'success' as const,
+              code,
+              state,
+              url: callbackUrl.toString()
+            }
+            resolveCallback(result)
+            return result
+          }),
+          close: vi.fn()
+        }
+      }
+    )
+
     const store = new OpenAICodexCredentialStore(path.join(tempDir, 'browser.json'))
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

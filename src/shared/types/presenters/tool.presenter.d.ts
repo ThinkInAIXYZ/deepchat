@@ -73,6 +73,7 @@ export interface IToolPresenter {
     request: MCPToolCall,
     options?: {
       permissionMode?: PermissionMode
+      signal?: AbortSignal
     }
   ): Promise<{
     needsPermission: true
