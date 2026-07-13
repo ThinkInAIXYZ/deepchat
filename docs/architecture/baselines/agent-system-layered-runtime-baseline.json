@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "1e79ddc017a0e71d851f50d536b0ac59b5881105",
+  "headCommit": "56fac76458c97ca0055417d8bcd20286be82d509",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -77,6 +77,8 @@
     "src/main/agent/shared/agentSessionIds.ts",
     "src/main/agent/shared/agentSharedData.ts",
     "src/main/agent/shared/appSessionService.ts",
+    "src/main/agent/shared/assistantModelSelection.ts",
+    "src/main/agent/shared/availableAgentCatalog.ts",
     "src/main/agent/shared/process/backgroundExecLogger.ts",
     "src/main/agent/shared/process/backgroundExecSessionManager.ts",
     "src/main/agent/shared/process/backgroundExecUtilityHost.ts",
@@ -302,7 +304,7 @@
       "src/shared/contracts/routes/window.routes.ts",
       "src/shared/contracts/routes/workspace.routes.ts"
     ],
-    "sha256": "38ab13b229502d09977b531d58ba33498f80b01e63656ea00b451e20fb33f594"
+    "sha256": "ab4fcf04f5091ca2f897def98f392ece99a85aea3e9a9f4a569be419a4caa9d9"
   },
   "storage": {
     "sqlite": {
@@ -315,6 +317,7 @@
         "src/main/presenter/sqlitePresenter/tables/agentMemory.ts",
         "src/main/presenter/sqlitePresenter/tables/agentMemoryAudit.ts",
         "src/main/presenter/sqlitePresenter/tables/agentMemoryFtsPolicy.ts",
+        "src/main/presenter/sqlitePresenter/tables/agentMemoryStateSql.ts",
         "src/main/presenter/sqlitePresenter/tables/agents.ts",
         "src/main/presenter/sqlitePresenter/tables/attachments.ts",
         "src/main/presenter/sqlitePresenter/tables/baseTable.ts",
@@ -403,7 +406,7 @@
         "providers",
         "settings_activity"
       ],
-      "sha256": "eb97de4264ffe061beaaaa7870051c8a808b81a056221de1f552e0c14f123e7f"
+      "sha256": "ca9306d19cb9066d6447268aac2e9485ca867fc65f89abda5a1e4b54d4f21974"
     },
     "memoryDuckDbSidecar": {
       "files": [
@@ -424,7 +427,7 @@
       "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
       "src/main/presenter/lifecyclePresenter/index.ts"
     ],
-    "sha256": "daf7a167e849af16f739ac5244ca1a444caecd6250c71f7e19af3fc75763732a"
+    "sha256": "de762ce51ecfdecca2501bb24e6039900940d8775e16719c76369b2dd7eadd77"
   },
   "dependencyMetrics": {
     "loopFiles": [

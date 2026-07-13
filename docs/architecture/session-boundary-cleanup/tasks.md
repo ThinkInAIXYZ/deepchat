@@ -52,14 +52,14 @@
 - [x] Add architecture guards for removed methods, forbidden imports, and unsafe startup-hook probes.
 - [x] Update session management and layered-runtime architecture references.
 - [x] Update current architecture, flows, and code navigation where affected.
-- [ ] Review the dependency diff; regenerate maintained baselines only when intentional.
+- [x] Review the dependency diff; regenerate maintained baselines only when intentional.
 
 ## 6. Validation
 
-- [ ] Run focused owner, route, lifecycle, floating-button, and composition tests.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run `pnpm run typecheck`.
-- [ ] Run `pnpm run test:main`.
-- [ ] Confirm every `spec.md` acceptance criterion and close this task list.
+- [x] Run focused owner, route, lifecycle, floating-button, and composition tests.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.
+- [x] Run `pnpm run test:main`.
+- [x] Confirm every `spec.md` acceptance criterion and close this task list.
