@@ -208,27 +208,33 @@ Rebuild cost is acceptable: memory rows live in SQLite and are untouched; re-emb
 memories runs in a handful of 50-item batches under existing 30s gateway deadlines, and recall
 degrades to FTS-only in the meantime.
 
-### 2. Bound the recall vector query with a soft timeout
+### 2. Bound manager-owned vector operations with a soft timeout
 
 **Ownership: the deadline state machine lives entirely inside `VectorStoreManager`** — the
 current `VectorStoreRetrievalPort` has no pause/resume/quarantine surface and the manager does
 not know db paths, so spreading the machinery across the retrieval layer would be an interface
 gap, not a detail:
 
-- `VectorStoreManager.query` / `queryBatch` enforce the soft deadline internally
+- `VectorStoreManager.query` / `queryBatch` enforce the recall soft deadline internally
   (`RECALL_VECTOR_QUERY_TIMEOUT_MS = 2_000` in
   `src/main/presenter/memoryPresenter/runtimeConstants.ts`) and throw a typed
   `VectorStoreQueryTimeoutError` on expiry; the manager keeps observing the lease promise in
   the background.
+- The deadline starts before lease admission, identity-transition waiting, the per-agent lock,
+  and native store open. Starting it only inside the lease callback leaves the original
+  open/reopen wedge unbounded. All other manager-owned store leases use a longer typed operation
+  deadline so maintenance mutations cannot remain healthy and block shutdown forever;
+  neighbor recall uses the 2s recall deadline.
 - `RetrievalService` only catches the typed error, records a `storeTimeout` degradation cause
   (extend `MemoryRetrievalDegradationCause`), and falls back to FTS-only for the turn — no
   admission control in the retrieval layer.
 - Lease state gains an explicit health field — `'healthy' | 'suspect' | 'quarantined'` — rather
   than reusing `accepting`: the existing identity-transition `finally` blocks re-enable
   `accepting`, which could silently resurrect admission after a late settlement.
-- Resuming from `suspect` to `healthy` requires all of: still `suspect` (not terminal
-  `quarantined`), lease epoch and store generation unchanged, and the embedding identity
-  unchanged since the timeout was observed.
+- `suspect` means "native completion is still unknown", not "the file is corrupt". Marker
+  persistence is permitted only for a fatal native error or an operation that remains unsettled
+  through grace. A reset, config transition, settlement, or presenter shutdown must never turn a
+  merely slow operation into a quarantine marker by itself.
 - Quarantine needs the store path, which only the factory knows: extend the factory port with
   `markVectorStoreQuarantined(agentId)` (writes the marker; the manager calls it, never touches
   paths itself).
@@ -248,15 +254,26 @@ too, while piling up unsettled promises and undrainable leases):
   error surfaces to retrieval → FTS-only for the turn + `storeTimeout` degradation + warn.
 - The manager keeps observing the original promise with a grace deadline
   (`RECALL_VECTOR_QUERY_GRACE_MS = 30_000`, unref'd timer):
-  - settles successfully within grace → the store was merely slow (AV scan, cold disk):
-    transition back to `healthy` (subject to the resume validation above); the late result is
-    discarded. One-off slowness costs one degraded turn, nothing permanent.
-  - settles with an error within grace → route through the layer-1 fatal-error classifier
-    (fatal → `quarantined`; transient → resume, same validation).
+  - all captured operations settle successfully within grace → the store was merely slow (AV
+    scan, cold disk): clear the grace timer immediately and return to non-terminal handling. If
+    epoch/generation/identity are unchanged, resume admission. If identity changed, run the normal
+    identity transition after the old operation is known settled. If another owner had already
+    closed admission (reset/retire), leave admission to that owner. None of these paths writes a
+    marker.
+  - all captured operations settle with a non-fatal error within grace → the same non-terminal
+    handling. A fatal error alone transitions to `quarantined`.
   - still unsettled at the grace deadline → the wedge is real: transition to `quarantined`
     (terminal for the process), call `markVectorStoreQuarantined(agentId)` so the next launch
     rebuilds the store, recall stays FTS-only, log an error stating vector recall is disabled
     until restart (a late settlement after quarantine is logged but never resumes admission).
+- `queryBatch` checks its lease epoch after every native query. Once timeout/quarantine changes
+  the epoch, a late result cannot start the next query on the isolated handle.
+- Shutdown is bounded without converting slowness into corruption: stopped admission detaches
+  suspect/in-flight agents from close/drain/lock waits and relies on process exit to release the
+  handle, but writes no marker. Explicit reset/retire waits for the existing grace result; it may
+  proceed normally after non-fatal settlement or return pending-restart after a confirmed wedge.
+- Timeout callbacks retain the exact lease-state object they started with and no-op after manager
+  teardown; they must not recreate a state entry or write a marker through a disposed factory.
 - Rejected alternatives: immediate evict/reset/reopen (races the in-flight native call and its
   file handles); lock-on-first-timeout (a single AV-induced slow query permanently degrades
   vector recall until restart); a second probe query next turn to confirm the wedge (measures
@@ -269,7 +286,7 @@ In `MemoryRuntimeCoordinator.contribute()`
 by the initial prompt, mid-stream refresh, resume, and context-pressure recovery paths, so all
 of them are guarded at once:
 
-- Add `MEMORY_INJECTION_TIMEOUT_MS = 3_000` and race `memoryPort.buildInjection(...)` against
+- Add `MEMORY_INJECTION_TIMEOUT_MS = 4_000` and race `memoryPort.buildInjection(...)` against
   it. On timeout: log
   `[DeepChatAgent] memory injection timed out; sending without memory section` and return the
   base prompt.
@@ -277,6 +294,14 @@ of them are guarded at once:
   (`recordInjectionAccess`) and no tape anchor (`appendTapeAnchor`) for a result that was never
   injected. A late `buildInjection` result is discarded — never appended to a prompt that
   already shipped.
+- The extra second is an explicit FTS/revalidation reserve after the existing 800ms query
+  embedding and 2s vector deadlines. The coordinator aborts an injection-scoped signal on timeout;
+  retrieval checks it after every await and before later stages so an abandoned pipeline cannot
+  continue through revalidation, fusion, working-memory, and assembly after its current native or
+  provider call settles.
+- Normal cold-start `vectorCold` diagnostics do not enter the injection manifest or tape anchor.
+  `suspect` maps to `storeTimeout` and `quarantined` to `storeUnusable`, and neither state starts a
+  guaranteed-to-fail warmup.
 - Invariant after this change: **no state of the memory subsystem can delay a user turn by more
   than the injection deadline.**
 
@@ -308,7 +333,8 @@ step completes (and only when it exceeded 500ms) — a step that never settles i
 - Introduce a step-wrapper helper in `agentRuntimePresenter/index.ts` used for every **awaited
   async** pre-stream step in `processMessage` (and the equivalent spots in
   `resumeAssistantMessage` / `retry`): `generation-settings`, `active-skills`,
-  `tool-definitions`, `system-prompt`, `compaction-prepare`, `memory-injection`.
+  `tool-definitions`, `system-prompt`, `compaction-prepare`, `compaction-apply`, and
+  `memory-injection`.
   - On completion it keeps the existing `logSlowPreStreamStep` behavior (single warn when
     > 500ms).
   - While pending, an unref'd watchdog timer fires at `PRE_STREAM_STUCK_WARN_MS = 5_000` and
@@ -321,9 +347,15 @@ step completes (and only when it exceeded 500ms) — a step that never settles i
   - `context-build` (`buildTapeChatView`) is synchronous — a stall there blocks the event loop
     and no timer can fire mid-step. It gets completion-time slow logging only; the watchdog
     makes no real-time claim for synchronous steps.
-  - The final segment (last step → provider start) is closed by the existing beforeStream
-    boundary hook (`logPreStreamBoundary`), not by `processStream` returning — otherwise every
-    normal long generation would be misreported as STUCK.
+  - Synchronous tape readiness and user/assistant message creation receive the same completion-time
+    slow logging. The original cumulative pre-stream duration remains available as a separate
+    `pre-stream-total` completion metric.
+  - The final segment is closed immediately before the explicit provider rate-limit wait. Rate
+    limiting has its own queued UI/log state and is not a stuck pre-stream step. The provider
+    `beforeStream` hook remains an idempotent fallback boundary, and `processStream` completion is
+    never used — otherwise every normal long generation would be misreported as STUCK.
+  - Mandatory resume offload cleanup does not inherit the normal pre-step abort gate; cancellation
+    cannot skip file cleanup or the terminal-error settlement sequence.
 - Log one info line when memory injection degrades: timeout (layer 3) or recall degradation
   causes, so "memory was skipped or degraded this turn" is visible without enabling
   diagnostics. To make the causes available (and persisted into the tape via the
@@ -336,7 +368,7 @@ step completes (and only when it exceeded 500ms) — a step that never settles i
   layer-2/3 deadlines every previously-silent stall now settles as a timeout and is therefore
   captured both in diagnostics and in the log.
 
-With this layer, the failure investigated here would have produced, within 3 seconds, the
+With this layer, the failure investigated here would have produced, within 4 seconds, the
 injection-timeout warn with its degradation cause and a normally-sent message — turning a
 multi-hour code-reading session into a single grep. The STUCK watchdog covers whatever the next
 unbounded await turns out to be.
@@ -372,10 +404,10 @@ unbounded await turns out to be.
       `health: 'healthy' | 'suspect' | 'quarantined'` (not reusing `accepting`);
       `RetrievalService` catches the typed error → `storeTimeout` degradation (added to
       `@shared/types/agent-memory`) + FTS fallback.
-- [x] Post-timeout policy in the manager: grace observation
-      (`RECALL_VECTOR_QUERY_GRACE_MS = 30_000`) of the same promise; resume requires
-      still-suspect + unchanged lease epoch / store generation / embedding identity; grace
-      expiry → `quarantined` + `markVectorStoreQuarantined` (never evict/reset in-process).
+- [ ] Post-timeout policy in the manager: grace observation
+      (`RECALL_VECTOR_QUERY_GRACE_MS = 30_000`) of the same promise; every non-fatal settlement
+      exits suspect into resume/identity-transition/existing-cleanup ownership, while only fatal
+      rejection or a still-unsettled grace expiry persists quarantine.
 - [x] Add `MEMORY_INJECTION_TIMEOUT_MS` deadline race around `buildInjection` in
       `MemoryRuntimeCoordinator.contribute()`; on timeout skip access accounting and tape
       anchor; discard late results.
@@ -383,12 +415,22 @@ unbounded await turns out to be.
       `buildInjection()`.
 - [x] Implement store format v2 + one-time migration per
       [docs/architecture/memory-vector-store-v2/tasks.md](../../architecture/memory-vector-store-v2/tasks.md).
-- [x] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
-      `agentRuntimePresenter/index.ts`; async awaited steps only; final segment cleared by the
-      existing beforeStream boundary hook; sync steps get completion-time slow logs only.
+- [ ] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
+      `agentRuntimePresenter/index.ts`; async awaited steps only; final segment clears before the
+      rate-limit wait with provider beforeStream as fallback; sync steps get completion-time slow
+      logs only.
 - [x] Info log when memory injection is skipped/degraded (timeout or recall degradation causes).
-- [x] Unit tests (see Validation).
-- [x] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
+- [ ] Start manager deadlines before admission/locks/open, cover non-recall leases with a typed
+      operation timeout, and fence sequential native work after every await.
+- [ ] Make shutdown detach suspect/in-flight agents without marker persistence, prevent late timer
+      state resurrection, and make explicit reset/retire await the existing grace result.
+- [ ] Reserve injection fallback time, abort abandoned retrieval pipelines, suppress normal
+      `vectorCold` anchors, and map suspect/quarantined admission without failed warmup churn.
+- [ ] Cover compaction apply and synchronous tape/message gaps, retain cumulative pre-stream
+      latency, move the provider boundary ahead of rate-limit waiting, and preserve mandatory
+      offload cleanup after abort.
+- [ ] Unit tests (see Validation).
+- [ ] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
       `mise exec -- pnpm run lint`, `mise exec -- pnpm run typecheck`, targeted suites,
       `mise exec -- pnpm run test:memory`, and the native V2 suite.
 - [ ] Full `mise exec -- pnpm test`: 5,313 tests pass and 2 skip; the three unrelated
