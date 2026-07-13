@@ -1,7 +1,8 @@
 # AgentManager 与顶层控制面
 
-> 状态：已实施到 `ASLR-090`；production `kind=acp` direct switch、legacy ACP contract retirement、
-> DeepChat typed backend 与 `IAgentImplementation` retirement 已完成。
+> 状态：目标合同，不是 current API reference。ASLR-020..026 已接入 catalog/app-session lookup、explicit
+> kind router、typed handles、required facets 和 manager ports；ASLR-090 已删除 unified implementation 与
+> reflection legacy backend。下文类型与伪代码用于说明边界，不保证与 concrete API 逐项同名。
 > 上位合同：[总体设计](../README.md) · [规格](../spec.md) ·
 > [迁移与验证](../migration-and-validation.md)
 

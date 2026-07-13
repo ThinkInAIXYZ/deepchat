@@ -47,9 +47,33 @@ const ACP_INSTANCE_FIXTURE = path.join(
   ROOT,
   'src/main/agent/acp/instance/__architecture_guard_fixture__.ts'
 )
-const RETIRED_ACP_BACKEND_FIXTURE = path.join(
+const RETIRED_AGENT_RUNTIME_FIXTURE = path.join(
   ROOT,
-  'src/main/agent/__architecture_guard_retired_acp_backend_fixture__.ts'
+  'test/main/agent/__architecture_guard_retired_runtime_fixture__.ts'
+)
+const RETIRED_AGENT_RUNTIME_KIND_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/manager/__architecture_guard_retired_runtime_kind_fixture__.ts'
+)
+const RETIRED_AGENT_RUNTIME_KIND_TYPE_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/manager/__architecture_guard_retired_runtime_kind_type_fixture__.ts'
+)
+const AGENT_KIND_ALIAS_FALLBACK_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/__architecture_guard_kind_alias_fixture__.ts'
+)
+const AGENT_KIND_OPTIONAL_ALIAS_FALLBACK_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/__architecture_guard_optional_kind_alias_fixture__.ts'
+)
+const PROVIDER_RUNTIME_KIND_FIXTURE = path.join(
+  ROOT,
+  'test/main/presenter/llmProviderPresenter/__architecture_guard_runtime_kind_fixture__.ts'
+)
+const DEEPCHAT_LOOP_IMPORT_FIXTURE = path.join(
+  ROOT,
+  'src/main/agent/deepchat/loop/__architecture_guard_import_fixture__.ts'
 )
 const RETIRED_MEMORY_OWNER_FIXTURE = path.join(
   ROOT,
@@ -83,6 +107,23 @@ const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
   ROOT,
   'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_arrow_fixture__.ts'
 )
+
+const retiredAgentRuntimeSymbols = [
+  ['IAgent', 'Implementation'].join(''),
+  ['createLegacy', 'AgentBackend'].join(''),
+  ['LegacyDeepChat', 'SessionBackend'].join(''),
+  ['LegacyAcp', 'SessionBackend'].join(''),
+  ['LegacyAcp', 'SessionHandle'].join(''),
+  ['LegacyToolFacts', 'SnapshotPort'].join(''),
+  ['appendAssistantToolFacts', 'Snapshot'].join('')
+]
+const retiredAgentRuntimeSource = retiredAgentRuntimeSymbols
+  .map((symbol, index) => `export const retired${index} = '${symbol}'`)
+  .join('\n')
+const retiredRuntimeKindSource = ['leg', 'acy', 'dir', 'ect']
+const runtimeKindProperty = ['runtime', 'Kind'].join('')
+const kindAliasProperty = ['agent', 'Type'].join('')
+const typeProperty = ['ty', 'pe'].join('')
 
 const virtualFiles = new Map<string, string>([
   [
@@ -238,16 +279,59 @@ const virtualFiles = new Map<string, string>([
       export type Fixture = LoopRun<unknown> | MemoryPresenter | Presenter | SQLitePresenter
     `
   ],
+  [RETIRED_AGENT_RUNTIME_FIXTURE, retiredAgentRuntimeSource],
   [
-    RETIRED_ACP_BACKEND_FIXTURE,
+    RETIRED_AGENT_RUNTIME_KIND_FIXTURE,
     `
-      import type { LegacyAcpSessionBackend } from './manager/legacyAgentBackends'
-      import { createLegacyAgentBackend } from './manager/legacyAgentBackends'
-      const compatibilityImplementation = {}
-      export const fixture: LegacyAcpSessionBackend = createLegacyAgentBackend(
-        'acp',
-        compatibilityImplementation as never
-      )
+      declare const handle: { ${runtimeKindProperty}: string }
+      export const first = { ${runtimeKindProperty}: '${retiredRuntimeKindSource[0]}${retiredRuntimeKindSource[1]}' }
+      export class Third {
+        ${runtimeKindProperty} = '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}'
+      }
+      export const forward = handle.${runtimeKindProperty} !== '${retiredRuntimeKindSource[0]}${retiredRuntimeKindSource[1]}'
+    `
+  ],
+  [
+    RETIRED_AGENT_RUNTIME_KIND_TYPE_FIXTURE,
+    `
+      type Handle = { ${runtimeKindProperty}?: '${retiredRuntimeKindSource[0]}${retiredRuntimeKindSource[1]}' | '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}' }
+      declare const handle: { ${runtimeKindProperty}: string }
+      export const reverse = '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}' === handle.${runtimeKindProperty}
+      export const assign = () => (handle.${runtimeKindProperty} = '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}')
+    `
+  ],
+  [
+    AGENT_KIND_ALIAS_FALLBACK_FIXTURE,
+    `
+      declare const row: { ${kindAliasProperty}?: string; ${typeProperty}?: string }
+      export const kind = row.${kindAliasProperty} ?? row.${typeProperty}
+    `
+  ],
+  [
+    AGENT_KIND_OPTIONAL_ALIAS_FALLBACK_FIXTURE,
+    `
+      declare const row: { ${kindAliasProperty}?: string; ${typeProperty}?: string }
+      export const optionalKind = row?.${typeProperty} ?? row?.${kindAliasProperty}
+    `
+  ],
+  [
+    PROVIDER_RUNTIME_KIND_FIXTURE,
+    `export const providerDefinition = { ${runtimeKindProperty}: '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}' }`
+  ],
+  [
+    DEEPCHAT_LOOP_IMPORT_FIXTURE,
+    `
+      import type { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter'
+      import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+      import type { AcpAgentInstance } from '@/agent/acp/instance'
+      import type { SessionService } from '@/routes/sessions/sessionService'
+      import type { BrowserWindow } from 'electron'
+      export type Fixture =
+        | AgentRuntimePresenter
+        | SQLitePresenter
+        | AcpAgentInstance
+        | SessionService
+        | BrowserWindow
     `
   ],
   [
@@ -495,10 +579,51 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[acp-direct-instance-sqlite]')
   })
 
-  it('keeps retired legacy ACP backend symbols and factories out of main source', () => {
-    expect(forFile(violations, RETIRED_ACP_BACKEND_FIXTURE).join('\n')).toContain(
-      '[acp-retired-legacy-backend]'
+  it('keeps retired agent runtime symbols out of production and regular tests', () => {
+    const fixtureViolations = forFile(violations, RETIRED_AGENT_RUNTIME_FIXTURE).filter(
+      (violation) => violation.includes('[agent-retired-runtime-symbol]')
     )
+    expect(fixtureViolations).toHaveLength(retiredAgentRuntimeSymbols.length)
+  })
+
+  it('keeps legacy/direct runtimeKind literals out of agent handles and backends', () => {
+    expect(forFile(violations, RETIRED_AGENT_RUNTIME_KIND_FIXTURE).join('\n')).toContain(
+      'found 3'
+    )
+  })
+
+  it('detects retired runtimeKind type declarations, reverse comparisons, and assignments', () => {
+    expect(forFile(violations, RETIRED_AGENT_RUNTIME_KIND_TYPE_FIXTURE).join('\n')).toContain(
+      'found 3'
+    )
+  })
+
+  it('leaves provider runtimeKind definitions outside the agent handle guard', () => {
+    expect(forFile(violations, PROVIDER_RUNTIME_KIND_FIXTURE)).toEqual([])
+  })
+
+  it('keeps legacy kind alias fallback outside internal agent routing', () => {
+    const fixtureViolations = forFile(violations, AGENT_KIND_ALIAS_FALLBACK_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[agent-kind-alias-fallback]')
+    expect(fixtureViolations).toContain('found 1')
+  })
+
+  it('detects optional and reverse internal agent kind alias fallback', () => {
+    const fixtureViolations = forFile(
+      violations,
+      AGENT_KIND_OPTIONAL_ALIAS_FALLBACK_FIXTURE
+    ).join('\n')
+    expect(fixtureViolations).toContain('[agent-kind-alias-fallback]')
+    expect(fixtureViolations).toContain('found 1')
+  })
+
+  it('keeps the DeepChat loop out of presenters, SQLite, routes, Electron, and ACP', () => {
+    const fixtureViolations = forFile(violations, DEEPCHAT_LOOP_IMPORT_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[deepchat-loop-presenter]')
+    expect(fixtureViolations).toContain('[deepchat-loop-sqlite]')
+    expect(fixtureViolations).toContain('[deepchat-loop-routes]')
+    expect(fixtureViolations).toContain('[deepchat-loop-electron]')
+    expect(fixtureViolations).toContain('[deepchat-loop-acp]')
   })
 
   it('allows read-only causal observation code despite Memory types and CREATE documentation', () => {

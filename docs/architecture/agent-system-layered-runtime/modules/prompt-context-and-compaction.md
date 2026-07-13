@@ -1,22 +1,24 @@
 # Prompt、Context 与 Compaction
 
-> 状态：目标设计。顺序与 budget policy 是兼容合同，不在重构中优化。
+> 状态：目标设计，不是 current API reference。顺序与 budget policy 是兼容合同，不在重构中优化；
+> 下文 contributor/type 伪代码表达边界，current concrete API 以实施进度和 loop source 为准。
 
 > 实施进度：ASLR-046 已把 session-scoped compaction in-flight projection 迁入
 > `DeepChatAgentInstance`，persisted summary 仍是事实源，`compacting` projection 仍优先。ASLR-053
 > 增加了 scoped `BasePromptAssembler` 与固定 `PostCompactionPromptAssembler`：initial、resume 和
 > manual compaction 都在 intent preparation 前完成原有 base/runtime/env/skills/tooling/permission/
 > verification 组合；normal initial/resume/pressure paths 在 compaction 后固定按
-> summary -> reconstruction -> awaited fail-open legacy Memory 顺序组合。initial tool-skill refresh
+> summary -> reconstruction -> awaited fail-open Memory 顺序组合。initial tool-skill refresh
 > 重用两个 phase；resume later-round refresh 继续保留原有 base-only 差异。manual compaction 仍只消费
 > base prompt，不新增 post-compaction request assembly。ASLR-054 introduced typed
 > `InputPreparationCoordinator` and `DeepChatContextCoordinator` seams. They now own the existing
 > initial/resume/pressure compaction order, post-compaction Tape view assembly, provider preflight,
 > pressure recovery, strict retry, request sequence and synchronous fail-open ViewManifest attempt.
-> Existing `CompactionService`, `buildTape*View`, context-budget, message/Tape and legacy Memory
-> adapters remain the algorithms and data owners. Only initial and context-pressure normal compaction
-> returns call the legacy extraction trigger; resume/manual compaction retain their no-trigger baseline.
-> No prompt, budget, schema, cache or Memory-map policy changed.
+> Existing `CompactionService`, `buildTape*View`, context-budget and message/Tape adapters remain the
+> algorithms and data owners. ASLR-060 replaced the fixed awaited Memory call with
+> `MemoryPromptContributor`; ASLR-061 routes only initial/context-pressure normal compaction returns through
+> `MemoryIngestionObserver.afterCompactionApplyReturned`, while resume/manual compaction retain their
+> no-trigger baseline. No prompt, budget, schema or cache policy changed.
 
 ## 1. 模块目的
 

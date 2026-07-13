@@ -70,7 +70,8 @@ flowchart TD
     MC["MemoryClient / ConfigClient"]
   end
   subgraph Main["Electron main process"]
-    RT["AgentRuntimePresenter<br/>(injection + extraction seam)"]
+    ARP["AgentRuntimePresenter<br/>(construction + thin delegates)"]
+    RC["MemoryRuntimeCoordinator<br/>(runtime seam owner)"]
     MEM["MemoryPresenter<br/>(the memory kernel)"]
     TAPE["DeepChatTapeService<br/>(tape projection / search / context)"]
     TOOLS["Agent tools<br/>(memory_* · tape_*)"]
@@ -80,8 +81,10 @@ flowchart TD
     end
   end
   UI --> MC --> MEM
-  RT -->|buildInjection / extractAndStore| MEM
-  RT -->|append memory section + view_assembled anchor| SQL
+  ARP --> RC
+  RC -->|MemoryPromptContributor<br/>buildInjection| MEM
+  RC -->|afterTurnSettled / afterCompactionApplyReturned<br/>then extractAndStore when admitted| MEM
+  RC -->|view/extract anchors + cursor/projection| SQL
   TOOLS -->|remember/recall/forget| MEM
   TOOLS -->|tape_search/tape_context| TAPE
   MEM --> SQL
@@ -94,12 +97,19 @@ flowchart TD
 
 - The renderer settings UI talks to the kernel only through typed IPC (`MemoryClient` for management,
   `ConfigClient` for config).
-- `AgentRuntimePresenter` owns the *seam*: it decides when to inject and when to extract, and it owns the
-  per-session extraction queue and the monotonic cursor. It does not own memory logic.
+- `MemoryRuntimeCoordinator` is the sole runtime seam owner. It owns per-session extraction chains/queue,
+  epochs, projection-retry cooldown, injection-access dedupe and cursor/window orchestration; it directly
+  implements `MemoryPromptContributor` and `MemoryIngestionObserver`.
+- `AgentRuntimePresenter` retains only coordinator construction, dependency wiring and thin lifecycle delegates.
+  A `DeepChatAgentInstance` keeps one stable Memory session handle; neither presenter nor instance duplicates
+  coordinator state.
 - `MemoryPresenter` is the single public memory facade. Internal services own write decisions,
   recall, scheduling, lifecycle, persona, conflicts, embeddings, and DuckDB orchestration; external
   callers still reach those capabilities only through the facade.
 - `DeepChatTapeService` owns the searchable tape projection (the log-as-memory read model).
+- `DeepChatTapeService.readCausalObservationSlice()` is a pure-read Tape/message/trace join. Architecture
+  guards prevent it from calling Memory or storage mutation APIs, and non-interference tests prove it does not
+  change ingestion projection/cursor state.
 
 ---
 
@@ -143,7 +153,9 @@ flowchart TD
 | Storage | `sqlitePresenter/tables/agentMemoryAudit.ts` | `agent_memory_audit` content-free maintenance ledger |
 | Storage | `sqlitePresenter/tables/deepchatTapeSearchProjection.ts` | `deepchat_tape_search_projection` (+ meta + FTS) evidence projection |
 | Storage | `sqlitePresenter/tables/deepchatMemoryIngestionProjection.ts` | Versioned effective-message range projection used only by memory extraction |
-| Runtime seam | `agentRuntimePresenter/index.ts` | `appendMemoryInjection`, `enqueueSessionExtraction`, span builder, cursor, memory anchors |
+| Runtime seam | `agent/deepchat/memory/memoryRuntimeCoordinator.ts` | sole extraction queue/epoch/cooldown/access/cursor owner; direct prompt contributor + ingestion observer |
+| Runtime contracts | `agent/deepchat/memory/memoryPromptContributor.ts`, `memoryIngestionObserver.ts` | stable session handle, awaited prompt contribution, discriminated terminal/compaction ingestion outcomes, bounded drain result |
+| Runtime wiring | `agentRuntimePresenter/index.ts` | coordinator construction/dependencies and thin instance/lifecycle delegates; no duplicate orchestration maps |
 | Runtime | `agentRuntimePresenter/tapeService.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
 | Tools | `toolPresenter/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
 | Tools | `toolPresenter/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
@@ -222,12 +234,12 @@ lineage).
 
 Recall runs before each send and adds a read-only memory section to the system prompt. All three runtime
 entry points — normal send, context-pressure compaction recovery, and resume — funnel through one
-`appendMemoryInjection` seam so injection is identical across paths; a disabled agent short-circuits and
+`MemoryPromptContributor.contribute()` seam so injection is identical across paths; a disabled agent short-circuits and
 the system prompt is returned byte-for-byte unchanged.
 
 ```mermaid
 flowchart TD
-  Q[user query] --> AP["appendMemoryInjection<br/>(normal · compaction-recovery · resume)"]
+  Q[user query] --> AP["MemoryPromptContributor.contribute<br/>(normal · compaction-recovery · resume)"]
   AP --> EN{memory enabled?}
   EN -- no --> SP0[system prompt unchanged]
   EN -- yes --> BI[buildInjection]
@@ -256,10 +268,10 @@ flowchart TD
   post-flush epoch, and only then reads the **active** persona and working blob. Draft/rejected persona is
   never injected and working reads do not bump `access_count`.
 - Performs one final enabled/managed/disposed/epoch gate and returns immediately without another await. Any
-  concurrent semantic mutation fails the whole injection closed; runtime separately re-checks enablement
+  concurrent semantic mutation fails the whole injection closed; the coordinator separately re-checks enablement
   before prompt append, access accounting, and the `memory/view_assembled` anchor.
 - Produces a `MemoryInjectionPayload` (selfModel + working + memories + `tokenBudget`) and a manifest
-  (selected/dropped/queryHash). The runtime appends the section and persists a `memory/view_assembled`
+  (selected/dropped/queryHash). The coordinator appends the section and persists a `memory/view_assembled`
   anchor.
 
 **Sanitization (`sanitizeForInjection`).** Persona and recalled bodies are neutralized before injection by
@@ -281,8 +293,15 @@ final boundary and never trusts an upstream size cap.
 
 ## 7. The write path
 
-Extraction is triggered after a turn/resume completes or on compaction, serialized per session, and never
-on the hot path. It builds its span from the **effective** tape view (after retract/replace/tool-dedup),
+`MemoryIngestionObserver.afterTurnSettled()` receives discriminated initial/resume turn outcomes;
+`afterCompactionApplyReturned()` receives every normally returned initial/context-pressure compaction apply
+that has a compaction intent, including `succeeded: false`; a thrown apply or a cycle with no intent does not
+trigger the observer.
+Session close uses coordinator `beginSessionDestroy()` / `finishSessionDestroy()` fencing; app shutdown calls
+`MemoryIngestionObserver.drainAndFence()` to close global ingestion admission and await the bounded outstanding
+session chains. The coordinator applies the frozen trigger matrix, serializes admitted work per session, and
+never runs extraction on the hot path. It builds its span from the **effective** tape view (after
+retract/replace/tool-dedup),
 not from raw messages. The span carries only user-visible text: a user entry contributes its message text and
 an assistant entry contributes only its `content` blocks — assistant reasoning (`reasoning_content` /
 `reasoning` blocks) is deliberately excluded so internal chain-of-thought never becomes a durable memory. The
@@ -299,7 +318,11 @@ Compaction-triggered extraction keeps its old behavior.
 
 ```mermaid
 flowchart TD
-  T["turn / resume done or compaction"] --> EQ["enqueueSessionExtraction<br/>(per-session serial chain, epoch-guarded)"]
+  T["initial / resume turn outcome"] --> TS["MemoryIngestionObserver.afterTurnSettled"]
+  C["initial / context-pressure<br/>compaction apply returned"] --> CS["MemoryIngestionObserver.afterCompactionApplyReturned"]
+  TS --> EQ["MemoryRuntimeCoordinator<br/>(per-session serial chain, epoch-guarded)"]
+  CS --> EQ
+  D["app shutdown"] --> DF["MemoryIngestionObserver.drainAndFence<br/>(stop admission + bounded drain)"]
   EQ --> CUR["read cursor + validate/rebuild ingestion projection<br/>range-read effective messages (from,to]"]
   CUR --> TRI{"triage gate<br/>(cheap KEEP/SKIP, fail-open)"}
   TRI -- SKIP --> ADV0["advance cursor, no write"]
@@ -825,13 +848,18 @@ selectively ignored, so the v32 backfill is safe against DBs that already have t
 
 ```text
 enable memory (top-level Memory page / agent toggle)
-→ appendMemoryInjection (unified across normal / compaction-recovery / resume)
+→ MemoryPromptContributor.contribute (unified across normal / compaction-recovery / resume)
 → buildInjection: active persona (drafts excluded) + working L1 (no bump) + recall
 → recall = FTS5/BM25 ∪ DuckDB vector → RRF fusion (retrievalScore dominant; FTS-only + bg reindex on dim change)
 → Context Assembler: sanitize + CJK-aware hard token budget (persona > working > units > episodic)
 → <context-data kind="memory"> appended; persist memory/view_assembled manifest anchor
 → model replies
-→ turn/resume/compaction → enqueueSessionExtraction (per-session serial, epoch-guarded)
+→ initial/resume terminal outcome → MemoryIngestionObserver.afterTurnSettled
+→ initial/context-pressure compaction apply normally returns with intent (`succeeded` true or false;
+  thrown apply / no intent excluded) → MemoryIngestionObserver.afterCompactionApplyReturned
+→ session close → MemoryRuntimeCoordinator.beginSessionDestroy / finishSessionDestroy fencing
+→ app shutdown → MemoryIngestionObserver.drainAndFence (stop admission + bounded drain)
+→ admitted extraction stays per-session serial and epoch-guarded
 → cursor + validated/rebuilt ingestion projection range + message-aligned CJK-aware chunks + exact lineage
 → fallback admission (visible text + tool/backstop/substantive text) or compaction
 → same complete chunk through triage → extraction → stable dedupe/2k cap → batched neighbor recall/decision

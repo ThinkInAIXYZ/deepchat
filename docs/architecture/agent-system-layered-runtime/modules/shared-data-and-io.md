@@ -1,7 +1,8 @@
 # Shared Data / IO 边界
 
-> 状态：已实施到 `ASLR-073`。共享的是物理数据与投影能力，不是两个 runtime 的领域实现；
-> Memory coordinator extraction 仍待后续 phase。
+> 状态：目标合同，不是 current API reference。ASLR-010..013、ASLR-021 与 ASLR-070..073 已接入 typed
+> catalog/repository、app-session shell 和 shared projection ports；ASLR-060..061 已把 Memory prompt/
+> ingestion ports 接入 DeepChat lifecycle。共享的是物理数据与投影能力，不是两个 runtime 的领域实现。
 
 ## 1. 模块目的
 

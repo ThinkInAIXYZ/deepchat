@@ -1,8 +1,9 @@
 # ACP 独立 Runtime
 
-> 状态：已实施到 `ASLR-073`。production router 仅将 `kind=acp` 选择到 typed direct runtime；
-> DeepChat 选择 ACP provider 的兼容路径仍保留，并通过显式 session-control、permission 和 admin ports
-> 使用 ACP-only 能力，不再扩张 generic LLM provider contract。
+> 状态：目标合同，不是 current API reference。ASLR-030..034 已收拢 ACP catalog、launch、client、
+> process、session、protocol 与 persistence owner；ASLR-070..073 已接入 typed direct runtime，并让
+> production router 只对 `kind=acp` 选择该路径。DeepChat 选择 ACP provider 的兼容路径仍保留。
+> 下文 interface、adapter 和迁移步骤是边界合同；只有实施进度明确列出的 slice 才代表当前代码。
 
 ## 1. 模块目的
 

@@ -1,7 +1,8 @@
 # Agent System Layered Runtime — 总体设计
 
-> 状态：implementation in progress；当前进度以 [tasks.md](./tasks.md) 为准。  
-> 代码基线：`dev@1a57d15b99a6`（2026-07-11）  
+> 状态：implementation complete through `ASLR-091`；最终全量验证与受控 baseline regeneration
+> 仍属于 `ASLR-092`。当前进度以 [tasks.md](./tasks.md) 为准。
+> 代码基线：`dev@1a57d15b99a6`（2026-07-11）
 > 本文是目标架构的总入口。`spec.md` 定义验收合同，`plan.md` 和 `tasks.md` 定义实施顺序；
 > `modules/` 描述各模块的本地合同。
 
@@ -28,21 +29,19 @@ ACP 又被包装成 LLM provider，穿过 DeepChat loop 后再进入 ACP 自己�
 - 现有 Tape 继续作为 append-only semantic ledger，不另建第二套 Tape，也不把 raw token stream
   伪装成可重放事实。
 
-当前实施边界：DeepChat loop extraction 已完成到 `ASLR-057`；`ASLR-070..072` 已建立 direct ACP
-typed instance/runtime，并把 production `AgentManager` 的 `kind=acp` 原子切换到该 backend。direct path
-复用现有 prompt resource、pending input、message/Tape/event projection、trace、rate gate、hook observer 与
-mode/config/command capability；`AgentSessionPresenter` 通过 discriminated session handle 和独立的
-session-state、transcript-mutation、Tape ports 工作，不再把 ACP route 解析成
-`IAgentImplementation`/`AgentRuntimePresenter` 执行入口。descriptor、alias、enabled ACP config 和 cached
-identity 均严格校验，失败不会 fallback 到 DeepChat。direct runtime 和 ACP-provider compatibility adapter
-仍共享 composition-owned client/session/process runtime；`kind=deepchat + providerId=acp` 继续进入 DeepChat
-LoopEngine 与 `AcpProvider`。owner shutdown 使用不可逆 lifecycle fence，并在 shared session/process 前等待
-direct hydration、prepare/send terminal 与 instance close。`ASLR-073` 已把 compatibility-only ACP session
-control、permission 和 admin operations 从 generic provider contract 迁到显式 ports，并删除不再可达的
-legacy ACP backend glue；DeepChat 的 legacy backend/`IAgentImplementation` 仍留到 `ASLR-090`。Memory seam 未接入
-direct ACP，现有 Memory 注入、失效、提取与 shutdown 行为在本阶段未改动。session delete 不再依赖
-当前 catalog row 可执行：manager 无 descriptor/session routing 地清理两个 backend 的已存在状态，direct
-ACP 同时删除 durable remote binding；随后 façade 依次清理 shared state、permission、skills 和 app row。
+当前实施边界：`AgentManager` 已按 strict `AgentDescriptor.kind` 路由 typed DeepChat backend 与 direct ACP
+backend；fake registry、unified optional implementation、reflection legacy backend 和 agent handle
+legacy/direct runtime-kind 分支均已退休。DeepChat 使用 lazy `DeepChatAgentRuntime`、per-session
+`DeepChatAgentInstance`、per-turn `LoopRun` 与 fixed awaited `DeepChatLoopEngine` lifecycle；`kind=acp` 使用
+`AcpAgentRuntime`/`AcpAgentInstance` 和 external protocol loop。`kind=deepchat + providerId=acp` 仍明确走
+DeepChat loop + `AcpProvider` compatibility。
+
+Memory runtime orchestration 已收敛到唯一 `MemoryRuntimeCoordinator`，通过 awaited
+`MemoryPromptContributor` 与 background `MemoryIngestionObserver` 接入；Tape tool facts 已迁到 stable
+per-fact `TapeRecorder` path，causal observation 只读联结现有 Tape/message/trace。`AgentSessionPresenter`
+保留 route/application/shared projection façade，`AgentRuntimePresenter` 保留 DeepChat state/delegate 与
+adapter wiring；两者不再构成 generic agent runtime。current docs、architecture guards 与 baseline generator
+已在 `ASLR-091` 收敛；最终 full gates 和 canonical baseline write 仍待 `ASLR-092`。
 
 ## 文档地图
 
@@ -263,11 +262,11 @@ src/main/agent/
     ├── loop/                  # provider round + tool loop state machine
     ├── resources/             # explicit adapters/contributors
     ├── memory/                # runtime coordinator + prompt/ingestion ports; MemoryPresenter stays owner
-    ├── tape/                  # existing Tape service/recorder/view policy
-    └── interaction/           # permission/question pause-resume
+    └── pending/               # durable pending input coordination
 
 src/main/presenter/
-└── agentSessionPresenter/     # transitional compatibility façade, removed/renamed last
+├── agentSessionPresenter/     # retained route/application/shared-projection façade
+└── agentRuntimePresenter/     # retained DeepChat state/delegate + message/Tape/resource adapters
 ```
 
 最终路径名可以在每个机械 move PR 中按仓库约定微调，但以下依赖方向不可改变：

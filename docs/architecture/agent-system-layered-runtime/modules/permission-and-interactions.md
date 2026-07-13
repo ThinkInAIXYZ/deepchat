@@ -1,8 +1,8 @@
 # Permission 与可恢复交互
 
-> 状态：DeepChat ordered batch 已由 ASLR-056 接入；external notification observer 已由 ASLR-057
-> 隔离；ACP direct continuation 仍属于 Phase 7。
-> 两者共享 decision UI，不共享 continuation 实现。
+> 状态：目标合同，不是 current API reference。DeepChat ordered batch 已由 ASLR-056 接入，external
+> notification observer 已由 ASLR-057 隔离；ASLR-070..073 已接入 direct ACP permission continuation。
+> 两者共享 decision UI，不共享 continuation 实现；下文类型是合同伪代码。
 
 ## 1. 模块目的
 
@@ -52,7 +52,7 @@ pre-check policy 可以 allow/deny/pause，但不是唯一来源。question 在�
 tool 调用后通过 `rawData.requiresPermission` 产生 interaction；skill draft 在 tool 成功后产生 confirmation。
 dispatcher 保留已经发生的 execution state，避免 resume 重做 side effect。
 
-ASLR-056 的 production seam 位于 `agent/deepchat/loop/ports.ts`。legacy dispatcher 仍负责现有
+ASLR-056 的 production seam 位于 `agent/deepchat/loop/ports.ts`。retained dispatcher 仍负责现有
 permission policy、question interception、tool execution 与 block projection，但它现在只返回
 `completed` 或 `paused` discriminated outcome。`paused` outcome 的 interaction 带内部 origin/order；
 `PersistedToolBatchState` 记录 call order、已经调用、已经提交 result 与仍 pending 的 call ids，并由

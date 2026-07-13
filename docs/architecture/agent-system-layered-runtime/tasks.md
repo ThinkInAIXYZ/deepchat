@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-059..062、ASLR-070..073、ASLR-080..081、ASLR-090 completed。
+> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-059..062、ASLR-070..073、ASLR-080..081、ASLR-090..091 completed；ASLR-092 final validation pending。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -125,7 +125,7 @@
 
 - [x] `ASLR-090` Remove `IAgentImplementation`, legacy backends and old runtime façade internals.
   Depends on: `ASLR-062`, `ASLR-073`, `ASLR-081`.
-- [ ] `ASLR-091` Update current architecture/flow/tool/session docs and architecture guards.
+- [x] `ASLR-091` Update current architecture/flow/tool/session docs and architecture guards.
   Depends on: `ASLR-090`.
 - [ ] `ASLR-092` Run full validation, regenerate final architecture baseline and close the goal.
   Depends on: `ASLR-091`.

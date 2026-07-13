@@ -23,6 +23,19 @@ const MAIN_GUARD_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/agent')
 ]
+const REGULAR_MAIN_TEST_ROOT = path.join(ROOT, 'test/main')
+const INTERNAL_AGENT_KIND_ROOTS = [
+  path.join(ROOT, 'src/main/agent'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
+  path.join(ROOT, 'test/main/agent'),
+  path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'test/main/presenter/agentRuntimePresenter')
+]
+const AGENT_HANDLE_BACKEND_RUNTIME_KIND_ROOTS = [
+  path.join(ROOT, 'src/main/agent/manager'),
+  path.join(ROOT, 'test/main/agent/manager')
+]
 
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
 const RENDERER_SETTINGS_ROOT = path.join(ROOT, 'src/renderer/settings')
@@ -34,7 +47,10 @@ const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
   path.join(ROOT, 'src/renderer/src/composables/usePresenter.ts'),
   RENDERER_QUARANTINE_ROOT
 ]
-const RETIRED_MAIN_PATHS = [path.join(ROOT, 'src/main/lib/agentRuntime')]
+const RETIRED_MAIN_PATHS = [
+  path.join(ROOT, 'src/main/lib/agentRuntime'),
+  path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts')
+]
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
@@ -42,6 +58,9 @@ const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const SHARED_SOURCE_ROOT = path.join(ROOT, 'src/shared')
 const ACP_DIRECT_INSTANCE_ROOT = path.join(ROOT, 'src/main/agent/acp/instance')
 const DEEPCHAT_LOOP_ROOT = path.join(ROOT, 'src/main/agent/deepchat/loop')
+const ACP_ROOT = path.join(ROOT, 'src/main/agent/acp')
+const MAIN_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter')
+const MAIN_ROUTES_ROOT = path.join(ROOT, 'src/main/routes')
 const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
   ROOT,
   'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
@@ -119,10 +138,20 @@ const LEGACY_PRESENTER_IMPORT_PATTERN =
   /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]|\bimport\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]/g
 const LEGACY_RUNTIME_IMPORT_PATTERN =
   /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*legacy\/runtime['"]|\bimport\s*['"][^'"]*legacy\/runtime['"]/g
-const RETIRED_ACP_BACKEND_SYMBOL_PATTERN =
-  /\b(?:LegacyAcpSessionBackend|LegacyAcpSessionHandle|compatibilityImplementation)\b/g
-const RETIRED_ACP_BACKEND_FACTORY_PATTERN =
-  /\bcreateLegacyAgentBackend\s*\(\s*['"]acp['"]/g
+const RETIRED_AGENT_RUNTIME_SYMBOLS = [
+  'IAgentImplementation',
+  'createLegacyAgentBackend',
+  'LegacyDeepChatSessionBackend',
+  'LegacyAcpSessionBackend',
+  'LegacyAcpSessionHandle',
+  'LegacyToolFactsSnapshotPort',
+  'appendAssistantToolFactsSnapshot'
+]
+const RETIRED_AGENT_RUNTIME_PATTERNS = RETIRED_AGENT_RUNTIME_SYMBOLS.map((symbol) => [
+  symbol,
+  new RegExp(`\\b${symbol}\\b`, 'g')
+])
+const RETIRED_AGENT_HANDLE_RUNTIME_KINDS = new Set(['legacy', 'direct'])
 const RETIRED_MEMORY_ORCHESTRATION_OWNER_NAMES = new Set([
   'memoryExtractionChains',
   'memoryExtractionQueue',
@@ -373,6 +402,115 @@ function accessMemberName(node) {
     return node.argumentExpression.text
   }
   return null
+}
+
+function unwrapExpression(node) {
+  let current = node
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current)
+  ) {
+    current = current.expression
+  }
+  return current
+}
+
+function expressionMemberName(node) {
+  const expression = unwrapExpression(node)
+  if (ts.isIdentifier(expression)) return expression.text
+  return accessMemberName(expression)
+}
+
+function isRetiredAgentRuntimeKindLiteral(node) {
+  const expression = unwrapExpression(node)
+  return (
+    ts.isStringLiteralLike(expression) &&
+    RETIRED_AGENT_HANDLE_RUNTIME_KINDS.has(expression.text)
+  )
+}
+
+function typeContainsRetiredAgentRuntimeKind(node) {
+  if (ts.isLiteralTypeNode(node)) {
+    return (
+      ts.isStringLiteralLike(node.literal) &&
+      RETIRED_AGENT_HANDLE_RUNTIME_KINDS.has(node.literal.text)
+    )
+  }
+  if (ts.isUnionTypeNode(node)) {
+    return node.types.some(typeContainsRetiredAgentRuntimeKind)
+  }
+  if (ts.isParenthesizedTypeNode(node)) {
+    return typeContainsRetiredAgentRuntimeKind(node.type)
+  }
+  return false
+}
+
+function findRetiredAgentRuntimeKindUsages(source, filePath) {
+  const sourceFile = sourceFileForAst(source, filePath)
+  const findings = []
+  const equalityOperators = new Set([
+    ts.SyntaxKind.EqualsEqualsToken,
+    ts.SyntaxKind.EqualsEqualsEqualsToken,
+    ts.SyntaxKind.ExclamationEqualsToken,
+    ts.SyntaxKind.ExclamationEqualsEqualsToken
+  ])
+
+  const visit = (node) => {
+    if (
+      (ts.isPropertyDeclaration(node) ||
+        ts.isPropertySignature(node) ||
+        ts.isPropertyAssignment(node)) &&
+      node.name &&
+      propertyNameText(node.name) === 'runtimeKind'
+    ) {
+      const initializer = 'initializer' in node ? node.initializer : undefined
+      const declaredType = 'type' in node ? node.type : undefined
+      if (
+        (initializer && isRetiredAgentRuntimeKindLiteral(initializer)) ||
+        (declaredType && typeContainsRetiredAgentRuntimeKind(declaredType))
+      ) {
+        findings.push(node)
+      }
+    }
+
+    if (ts.isBinaryExpression(node)) {
+      const operator = node.operatorToken.kind
+      const leftIsRuntimeKind = expressionMemberName(node.left) === 'runtimeKind'
+      const rightIsRuntimeKind = expressionMemberName(node.right) === 'runtimeKind'
+      if (
+        (operator === ts.SyntaxKind.EqualsToken &&
+          leftIsRuntimeKind &&
+          isRetiredAgentRuntimeKindLiteral(node.right)) ||
+        (equalityOperators.has(operator) &&
+          ((leftIsRuntimeKind && isRetiredAgentRuntimeKindLiteral(node.right)) ||
+            (rightIsRuntimeKind && isRetiredAgentRuntimeKindLiteral(node.left))))
+      ) {
+        findings.push(node)
+      }
+    }
+
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return findings
+}
+
+function findInternalAgentKindAliasFallbacks(source, filePath) {
+  const sourceFile = sourceFileForAst(source, filePath)
+  const findings = []
+  const visit = (node) => {
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+      const names = new Set([expressionMemberName(node.left), expressionMemberName(node.right)])
+      if (names.size === 2 && names.has('agentType') && names.has('type')) {
+        findings.push(node)
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return findings
 }
 
 function forbiddenObservationMember(name) {
@@ -804,7 +942,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
   const normalizedVirtualFiles = new Map(
     [...virtualFiles].map(([filePath, source]) => [path.resolve(filePath), source])
   )
-  const scanRoots = [path.join(ROOT, 'src'), path.join(ROOT, 'docs')]
+  const scanRoots = [path.join(ROOT, 'src'), REGULAR_MAIN_TEST_ROOT]
   const fileSet = new Set()
 
   for (const root of scanRoots) {
@@ -819,10 +957,13 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     normalizedVirtualFiles.get(path.resolve(filePath)) ?? fs.readFile(filePath, 'utf8')
   const violations = []
   const memoryCoordinatorOwners = []
+  const memoryArchitectureFileSet = new Set(
+    [...fileSet].filter((filePath) => isUnder(filePath, path.join(ROOT, 'src')))
+  )
   violations.push(
     ...(await analyzeMemoryArchitecture({
       root: ROOT,
-      fileSet,
+      fileSet: memoryArchitectureFileSet,
       readSource,
       resolveImport: (specifier, importer) =>
         resolveImport(specifier, importer, MAIN_SOURCE_ROOT, normalizedVirtualFiles),
@@ -855,6 +996,35 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
 
+    if (isUnder(filePath, path.join(ROOT, 'src')) || isUnder(filePath, REGULAR_MAIN_TEST_ROOT)) {
+      for (const [symbol, pattern] of RETIRED_AGENT_RUNTIME_PATTERNS) {
+        const count = countMatches(source, pattern)
+        if (count > 0) {
+          violations.push(
+            `[agent-retired-runtime-symbol] ${relativePath(filePath)} expected 0 ${symbol}, found ${count}`
+          )
+        }
+      }
+    }
+
+    if (AGENT_HANDLE_BACKEND_RUNTIME_KIND_ROOTS.some((root) => isUnder(filePath, root))) {
+      const retiredRuntimeKinds = findRetiredAgentRuntimeKindUsages(source, filePath).length
+      if (retiredRuntimeKinds > 0) {
+        violations.push(
+          `[agent-retired-handle-runtime-kind] ${relativePath(filePath)} expected 0 legacy/direct agent runtimeKind literals, found ${retiredRuntimeKinds}`
+        )
+      }
+    }
+
+    if (INTERNAL_AGENT_KIND_ROOTS.some((root) => isUnder(filePath, root))) {
+      const kindAliasFallbacks = findInternalAgentKindAliasFallbacks(source, filePath).length
+      if (kindAliasFallbacks > 0) {
+        violations.push(
+          `[agent-kind-alias-fallback] ${relativePath(filePath)} expected 0 agentType/type fallback expressions, found ${kindAliasFallbacks}`
+        )
+      }
+    }
+
     if (isUnder(filePath, MAIN_SOURCE_ROOT)) {
       if (source.includes('MemoryRuntimeCoordinator')) {
         const coordinatorClasses = findNamedClassDeclarations(
@@ -876,14 +1046,6 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       if (legacyListCalls > allowedCalls) {
         violations.push(
           `[memory-legacy-list-caller] ${relativePath(filePath)} expected <= ${allowedCalls}, found ${legacyListCalls}; use memory.page or an owner-scoped lookup`
-        )
-      }
-
-      const retiredAcpSymbols = countMatches(source, RETIRED_ACP_BACKEND_SYMBOL_PATTERN)
-      const retiredAcpFactories = countMatches(source, RETIRED_ACP_BACKEND_FACTORY_PATTERN)
-      if (retiredAcpSymbols > 0 || retiredAcpFactories > 0) {
-        violations.push(
-          `[acp-retired-legacy-backend] ${relativePath(filePath)} expected 0 retired symbols/factories, found ${retiredAcpSymbols + retiredAcpFactories}`
         )
       }
 
@@ -1055,6 +1217,35 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         }
         if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
           violations.push(`[acp-direct-instance-sqlite] ${relativePath(filePath)} -> ${specifier}`)
+        }
+      }
+    }
+
+    if (isUnder(filePath, DEEPCHAT_LOOP_ROOT)) {
+      for (const specifier of specifiers) {
+        if (specifier === 'electron' || specifier.startsWith('electron/')) {
+          violations.push(`[deepchat-loop-electron] ${relativePath(filePath)} -> ${specifier}`)
+          continue
+        }
+
+        const resolved = await resolveImport(
+          specifier,
+          filePath,
+          MAIN_SOURCE_ROOT,
+          normalizedVirtualFiles
+        )
+        if (!resolved) continue
+
+        if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
+          violations.push(`[deepchat-loop-sqlite] ${relativePath(filePath)} -> ${specifier}`)
+        } else if (isUnder(resolved, MAIN_PRESENTER_ROOT)) {
+          violations.push(`[deepchat-loop-presenter] ${relativePath(filePath)} -> ${specifier}`)
+        }
+        if (isUnder(resolved, MAIN_ROUTES_ROOT)) {
+          violations.push(`[deepchat-loop-routes] ${relativePath(filePath)} -> ${specifier}`)
+        }
+        if (isUnder(resolved, ACP_ROOT)) {
+          violations.push(`[deepchat-loop-acp] ${relativePath(filePath)} -> ${specifier}`)
         }
       }
     }

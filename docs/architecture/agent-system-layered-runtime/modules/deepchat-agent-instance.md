@@ -1,6 +1,8 @@
 # DeepChatAgentInstance
 
-> 状态：目标设计。一个 active/hydrated DeepChat app session 对应一个实例。
+> 状态：目标设计，不是 current API reference。一个 active/hydrated DeepChat app session 对应一个实例；
+> 下文 class/interface 与流程伪代码描述目标边界，当前事实只以“实施进度”和 current architecture docs
+> 明确列出的 slice 为准。
 
 > 实施进度：ASLR-040..046 已接入 lazy runtime/instance shell，并迁入 identity、project、effective
 > generation settings、status、first-turn readiness、pre-stream abort controller、active generation 与
@@ -9,8 +11,9 @@
 > selection、prompt/tool snapshot caches 和 compaction in-flight projection。持久 pending rows 已归入
 > `agent/deepchat/pending`，持久 interaction blocks、Skill/Tool/MCP owners、configured selections 和
 > persisted summary 仍是事实源。ASLR-090 让 typed DeepChat backend 直接组合 runtime/instance 与 required
-> presenter port，并删除 reflection-based legacy backend；instance 只持有 stable Memory session handle，
-> Memory schema、cursor、trigger timing 和 presenter ownership 保持不变。
+> presenter port，并删除 reflection-based legacy backend；instance 只持有 stable Memory session handle。
+> Memory kernel/schema 保持在 `MemoryPresenter`，cursor/queue/epoch orchestration 已迁到
+> `MemoryRuntimeCoordinator`，既有 trigger policy 保持不变。
 
 ## 1. 模块目的
 
@@ -195,8 +198,8 @@ job 或旧 async callback 回写新 lineage。
    origin/order 与 persisted execution-state ownership）
 7. 迁移 message-scoped runtime skill selection 与 prompt/tool snapshot caches；resource owner revision
    只使对应 snapshot 失效，不复制 Skill/Tool/MCP owner 内部状态。（ASLR-045 已完成）
-8. 迁移 compaction in-flight projection；persisted summary 继续作为事实源，并只给 instance 一个 stable
-   legacy Memory session handle，不迁移四组 Memory maps。（ASLR-046 已完成）
+8. 迁移 compaction in-flight projection；persisted summary 继续作为事实源。ASLR-046 当时只给 instance
+   stable Memory session handle；ASLR-059 后续把四组 orchestration state 迁到唯一 coordinator。
 9. 让 route/runtime cache 只通过 instance 操作 session。（`ASLR-090` 已完成 typed backend 接线）
 10. 对每个旧 Map 做“无读写引用”检查后逐个删除。
 11. 最后把 loop orchestration 迁入 `LoopEngine`；Memory 接线在其他状态稳定后迁移。

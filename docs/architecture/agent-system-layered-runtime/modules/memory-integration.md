@@ -1,12 +1,13 @@
 # Memory 集成与不可回归合同
 
-> 状态：目标设计。Memory 在所有其他 ownership/lifecycle 稳定后最后迁移。  
+> 状态：目标合同，不是 current API reference。ASLR-059..062 已接入 coordinator、prompt contributor、
+> ingestion observer 并完成 Memory 专项门禁；下文类型和流程仍是不可回归合同，不是 concrete API 清单。
 > 本模块只改变接线位置，不改变 `MemoryPresenter`、schema、retrieval、projection 或 maintenance。
 
 > 实施进度：ASLR-046 在 instance 上建立 identity-only、per-instance stable Memory session handle；
 > ASLR-054 固定 `MEM-14` 的 existing entry-point asymmetry。ASLR-059 已将 prompt/accounting、
 > extraction queue/chains/counter、epoch/cursor、projection fallback/cooldown 与 injection-access dedupe
-> 机械提取到唯一 runtime-scoped `MemoryRuntimeCoordinator`。legacy Presenter 只保留构造接线和调用委托，
+> 机械提取到唯一 runtime-scoped `MemoryRuntimeCoordinator`。retained Presenter 只保留构造接线和调用委托，
 > `MemoryPresenter` data orchestration 未迁移。AST architecture guard 以 class/property structure 固定唯一
 > owner，并拒绝 Presenter owner 回流；public seam tests 覆盖 128-turn access cap 与 256-session cooldown
 > cap。ASLR-060 已让 coordinator 直接实现最小 `MemoryPromptContributor`，PostCompaction 固定 slot 传入

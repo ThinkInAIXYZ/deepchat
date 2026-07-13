@@ -22,6 +22,7 @@ const LEGACY_MAIN_DIRS = [
 ]
 
 const PRIMARY_MAIN_GUARD_PATHS = [
+  path.join(ROOT, 'src/main/agent'),
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
@@ -152,6 +153,7 @@ function buildViolation(kind, filePath, specifier) {
 
 async function findViolations() {
   const scanRoots = [
+    path.join(ROOT, 'src/main/agent'),
     path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
     path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
     path.join(ROOT, 'src/main/presenter/skillPresenter'),

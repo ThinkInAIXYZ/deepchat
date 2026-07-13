@@ -10,16 +10,19 @@ sequenceDiagram
     participant R as Renderer
     participant C as SessionClient/ChatClient
     participant Route as src/main/routes
-    participant N as AgentSessionPresenter
-    participant D as AgentRuntimePresenter
-    participant S as NewSessionManager
+    participant F as AgentSessionPresenter
+    participant S as AppSessionService
+    participant M as AgentManager
+    participant B as Typed Backend
 
     R->>C: create/send/restore
     C->>Route: window.deepchat.invoke(route)
-    Route->>N: createSession/restore/listMessagesPage
-    N->>S: create/bind/read session
-    N->>D: initSession/processMessage
-    D-->>R: chat.stream.* typed events
+    Route->>F: createSession/restore/send/listMessagesPage
+    F->>S: create/bind/read app-session shell
+    F->>M: resolve executable descriptor/session handle
+    M->>B: switch descriptor.kind and open handle
+    F->>B: initialize/send/snapshot
+    B-->>R: existing message projection + chat.stream.* events
 ```
 
 关键文件：
@@ -28,25 +31,37 @@ sequenceDiagram
 - `src/renderer/api/ChatClient.ts`
 - `src/main/routes/sessions/sessionService.ts`
 - `src/main/routes/chat/chatService.ts`
+- `src/main/agent/shared/appSessionService.ts`
+- `src/main/agent/manager/agentManager.ts`
+- `src/main/agent/manager/deepChatAgentBackend.ts`
+- `src/main/agent/manager/directAcpAgentBackend.ts`
 - `src/main/presenter/agentSessionPresenter/index.ts`
-- `src/main/presenter/agentRuntimePresenter/index.ts`
+
+`AgentSessionPresenter` 仍是 route/application façade，但 agent kind resolution 和 executable backend
+selection 只发生在 `AgentManager`。`new_sessions.session_kind` 仍表示 `regular | subagent`，不决定
+DeepChat/ACP backend。
 
 ## 2. DeepChat 消息处理主循环
 
 ```mermaid
 flowchart TD
-    Start["processMessage"] --> Context["buildContext / buildResumeContext"]
-    Context --> Stream["processStream"]
-    Stream --> Acc["accumulate stream events"]
-    Acc --> ToolCheck{"tool calls?"}
-    ToolCheck -->|no| Finalize["finalize assistant message"]
-    ToolCheck -->|yes| Dispatch["dispatch.executeTools"]
-    Dispatch --> Resume{"paused for interaction?"}
-    Resume -->|yes| Wait["wait respondToolInteraction"]
-    Resume -->|no| Continue["append tool results"]
-    Wait --> Continue
-    Continue --> Context
-    Finalize --> Persist["messageStore / sessionStore / trace"]
+    Start["DeepChat backend.send"] --> Instance["DeepChatAgentInstance"]
+    Instance --> Prepare["input preparation<br/>Tape/user fact/compaction"]
+    Prepare --> Prompt["base + post-compaction context contributors<br/>including MemoryPromptContributor"]
+    Prompt --> Run["create LoopRun / register active generation"]
+    Run --> Engine["DeepChatLoopEngine"]
+    Engine --> Attempt["request sequence<br/>ViewManifest -> rate gate -> provider stream"]
+    Attempt --> Acc["accumulator + throttled output projection"]
+    Acc --> ToolCheck{"typed tool batch?"}
+    ToolCheck -->|no| Settle["settleTurn"]
+    ToolCheck -->|yes| Tools["ToolCatalog/Execution/Result ports"]
+    Tools --> Outcome{"ordered interaction outcome?"}
+    Outcome -->|yes| Pause["persist batch, settle run, wait for UI"]
+    Outcome -->|no| Tape["message commit -> TapeRecorder tool facts"]
+    Tape --> Engine
+    Pause --> Fresh["final item -> fresh resume LoopRun"]
+    Fresh --> Engine
+    Settle --> Observe["terminal projection + pending drain<br/>background MemoryIngestionObserver"]
 ```
 
 关键语义：
@@ -55,6 +70,12 @@ flowchart TD
   temperature、topP、max tokens、reasoning effort、verbosity 等运行时设置。
 - `sessions.compact` 触发手动上下文压缩；自动压缩设置保存在 agent/session 配置中。
 - message trace 独立落库，renderer 通过 `sessions.listMessageTraces` 查询。
+- `providerRoundCount` 按 outer round 递增，`requestSeq` 按实际 provider attempt 递增；strict retry 不会
+  伪造新的 outer round。
+- `afterRoundPersisted` 可以 await，并在 message projection 后通过稳定的
+  `TapeRecorder.appendToolFact` 写 terminal tool call/result；失败保持 fail-open。
+- Memory prompt contribution 是 awaited、sanitized、hard-budgeted、fail-open；terminal extraction 是
+  background observer，并保持 epoch/cursor/fence 合同。
 - 失败消息会保留恢复上下文，tool output guard 会限制过大的工具输出进入后续上下文。
 - `agent-core/update_plan` 工具只更新实时 plan snapshot 和 `chat.plan.updated` event；plan 是
   生成中的临时浮窗 UI，不写入 assistant 正文 block。renderer 按 session 保存当前 app
@@ -65,33 +86,36 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant D as AgentRuntimePresenter
+    participant L as DeepChatLoopEngine
+    participant PA as Presenter Tool Adapters
     participant T as ToolPresenter
     participant M as MCP Presenter
-    participant A as AgentToolManager
+    participant AT as AgentToolManager
     participant P as Permission Services
     participant R as Renderer
 
-    D->>T: getAllToolDefinitions()
-    D->>T: preCheckToolPermission()/callTool()
+    L->>PA: ToolCatalogPort / ToolExecutionPort
+    PA->>T: getAllToolDefinitions / preCheck / callTool
 
     alt MCP tool
         T->>M: callTool(request)
         M-->>T: result
     else local agent tool
-        T->>A: callTool(name, args, conversationId)
-        A->>P: check/consume approvals
-        A-->>T: result
+        T->>AT: callTool(name, args, conversationId)
+        AT->>P: check/consume approvals
+        AT-->>T: result
     end
 
     alt requires interaction
-        D-->>R: paused interaction event
-        R->>D: respondToolInteraction()
+        L-->>R: persisted ordered interaction batch
+        R->>PA: respondToolInteraction()
+        PA-->>L: stay paused or create fresh resume run
     end
 ```
 
 当前本地 agent tools 包括文件系统、命令执行、chat settings、subagent orchestration 等能力。
 Subagent 会话以 `sessionKind='subagent'` 存储，父会话通过 tape merge/discard 处理子会话结果。
+MCP/Skill/ToolPresenter 继续拥有资源和执行策略；LoopEngine 只依赖窄 port，不 import presenter。
 
 ## 4. 会话恢复、分页和搜索
 
@@ -120,27 +144,30 @@ sequenceDiagram
 - `deepchat_assistant_blocks` 存 assistant block 增量。
 - `deepchat_search_documents` / `_fts` 存历史搜索索引。
 
-## 5. ACP Session / Runtime Preparation
+## 5. ACP direct backend 与 provider compatibility
 
 ```mermaid
-sequenceDiagram
-    participant R as Renderer
-    participant N as AgentSessionPresenter
-    participant D as AgentRuntimePresenter
-    participant L as LLMProviderPresenter
-    participant A as ACP helpers
-
-    R->>N: ensureAcpDraftSession(agentId, projectDir)
-    N->>D: initSession(providerId='acp')
-    N->>L: prepareAcpSession(sessionId, agentId, projectDir)
-    L->>A: process/session persistence + config options
-    L-->>N: ACP session ready
-    N-->>R: SessionWithState
+flowchart TD
+    Route["AgentSessionPresenter"] --> Manager["AgentManager"]
+    Manager --> Kind{"descriptor.kind"}
+    Kind -->|acp| Direct["DirectAcpSessionBackend"]
+    Direct --> AcpRuntime["AcpAgentRuntime"]
+    AcpRuntime --> AcpInstance["AcpAgentInstance"]
+    AcpInstance --> Protocol["ACP session/prompt/permission loop"]
+    AcpInstance --> Projection["message/Tape/event/trace adapters"]
+    Kind -->|deepchat| Deep["DeepChat backend + LoopEngine"]
+    Deep --> Provider{"providerId"}
+    Provider -->|acp| Compat["AcpProvider compatibility adapter"]
+    Provider -->|other| LLM["ordinary LLM provider"]
 ```
 
 ACP 配置选项走 `sessions.getAcpSessionConfigOptions` /
 `sessions.setAcpSessionConfigOption`；远程控制创建 ACP session 时会使用 channel
 `defaultWorkdir` 或全局默认项目路径，并拒绝没有 workdir 的 ACP 默认 agent。
+
+direct `kind=acp` 的 workdir、mode/config/commands、cancel 和 protocol permission 由 ACP instance/runtime
+拥有；它不进入 DeepChat LoopEngine。现有 `AcpProvider` 仅保留给
+`kind=deepchat + providerId=acp`，该组合仍使用 DeepChat prompt/tool/Tape outer lifecycle。
 
 ## 6. Spotlight Search
 

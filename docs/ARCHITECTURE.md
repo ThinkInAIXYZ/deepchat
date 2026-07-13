@@ -1,7 +1,7 @@
 # DeepChat 当前架构概览
 
-本文档描述 `2026-06-13` 的主架构。当前目标是维持 typed renderer-main boundary，
-并把新增能力接到既有 route/runtime owner 上。
+本文档描述 `2026-07-13` 的当前主架构。renderer-main boundary 使用 typed routes/events；agent
+执行层使用显式 kind router、两个 typed backend，以及 DeepChat 专属 loop。
 
 ## 主链路
 
@@ -11,109 +11,126 @@ flowchart LR
     Client --> Bridge["window.deepchat / preload bridge"]
     Bridge --> Contracts["shared/contracts routes + events"]
     Contracts --> Routes["src/main/routes dispatcher"]
-    Routes --> Services["route services / handlers"]
-    Services --> Ports["presenter-backed ports"]
-    Ports --> AgentSession["agentSessionPresenter"]
-    AgentSession --> Runtime["agentRuntimePresenter"]
-    Runtime --> Tool["toolPresenter"]
-    Runtime --> SQLite["sqlitePresenter"]
-    Tool --> Mcp["mcpPresenter"]
-    Tool --> AgentTools["toolPresenter/agentTools"]
-    Ports --> Provider["llmProviderPresenter"]
-    Provider --> Acp["llmProviderPresenter/acp"]
+    Routes --> Ports["route services / presenter-backed ports"]
+    Ports --> SessionFacade["AgentSessionPresenter<br/>route/application façade"]
+    SessionFacade --> Manager["AgentManager<br/>descriptor.kind router"]
+    Manager --> DeepBackend["typed DeepChat backend"]
+    Manager --> AcpBackend["direct ACP backend"]
+    DeepBackend --> DeepRuntime["DeepChatAgentRuntime"]
+    DeepRuntime --> DeepInstance["DeepChatAgentInstance"]
+    DeepInstance --> Loop["DeepChatLoopEngine + LoopRun"]
+    AcpBackend --> AcpRuntime["AcpAgentRuntime"]
+    AcpRuntime --> AcpInstance["AcpAgentInstance"]
+    Loop --> Tools["ToolPresenter ports"]
+    Loop --> Tape["TapeRecorder / message projection"]
+    Loop --> Memory["MemoryRuntimeCoordinator"]
+    AcpInstance --> Projection["ACP message/Tape/event/trace adapters"]
 ```
 
-主结论：
+关键边界：
 
-- renderer 业务代码优先经过 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
-- `src/main/routes/index.ts` 是 typed route dispatcher，并装配 settings、sessions、chat、
-  providers、models、config、MCP、plugins、skills、skill sync、sync、browser、workspace、
-  onboarding、OAuth、knowledge、upgrade、dialog、tools、database security、scheduled tasks 等 route。
-- presenter 仍是 runtime owner，但 route services 只通过窄 port 或明确 client 依赖使用它们。
-- `SessionPresenter` 仍保留为 legacy 数据访问、导出和兼容边界，不再是当前聊天主链路 owner。
+- `AgentManager` 只解析 executable descriptor 和 app session 的 `agentId`，再按 canonical
+  `descriptor.kind` 选择 backend；它不拥有 prompt、tool、Tape 或 Memory。
+- `kind=acp` 使用 direct ACP backend 和外部 ACP protocol loop，不进入 `DeepChatLoopEngine`。
+- `kind=deepchat + providerId=acp` 仍是受支持的兼容组合：session 走 DeepChat backend/loop，provider
+  选择才进入 `AcpProvider` adapter。
+- `AgentSessionPresenter` 仍是 renderer route/application façade，保留 session CRUD、title、transfer、
+  import/export/search/dashboard，以及 shared projection 编排。
+- `AgentRuntimePresenter` 仍初始化 `DeepChatAgentRuntime`，并保留 DeepChat state/delegate、message、Tape、
+  prompt/tool/provider adapter wiring；它不再实现 unified agent interface，也不负责 ACP runtime 构造。
 
 ## 模块职责
 
 | 模块 | 位置 | 职责 |
 | --- | --- | --- |
-| `renderer/api` | `src/renderer/api/` | typed renderer clients，吸收 bridge/channel 细节 |
+| renderer clients | `src/renderer/api/` | typed renderer clients，吸收 bridge/channel 细节 |
 | shared contracts | `src/shared/contracts/` | route registry、schema、typed event catalog |
-| preload bridge | `src/preload/createBridge.ts` / `src/preload/index.ts` | 暴露 `window.deepchat.invoke/on` |
 | main routes | `src/main/routes/` | typed route dispatch、services、handlers |
-| hot path ports | `src/main/routes/hotPathPorts.ts` / `src/main/presenter/runtimePorts.ts` | route runtime 到 presenter 的最小接口 |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | session registry、window binding、legacy import、runtime delegation |
-| `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | 聊天 loop、stream、tool interaction、message/session persistence |
-| `ToolPresenter` | `src/main/presenter/toolPresenter/` | MCP tools 与本地 agent tools 聚合、权限预检查、调用路由 |
-| `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider 实例、model/runtime 管理、ACP helper、AI SDK runtime |
-| `StartupWorkloadCoordinator` | `src/main/presenter/startupWorkloadCoordinator/` | startup/settings/floating 等目标的分阶段后台任务调度 |
-| `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink 远程控制 |
-| `CronJobsService` | `src/main/presenter/cronJobs/` | 定时任务持久化、cron 调度、Agent run 执行和 Remote 投递 |
-| `DatabaseSecurityPresenter` | `src/main/presenter/databaseSecurityPresenter/` | SQLCipher 启用、改密、关闭、safeStorage/manual unlock |
-| Spotlight search | `src/renderer/src/stores/ui/spotlight.ts` | 全局搜索、会话/消息跳转、设置导航和非破坏性 action |
+| `AgentManager` | `src/main/agent/manager/agentManager.ts` | executable descriptor lookup、app-session lookup、explicit kind routing |
+| backend contracts | `src/main/agent/manager/` | required common/kind facets、typed DeepChat backend、direct ACP backend |
+| shared agent data | `src/main/agent/shared/` | descriptor/codec、legacy DTO boundary、app-session shell、shared data ports |
+| DeepChat runtime | `src/main/agent/deepchat/instance/` | lazy per-session instance cache与 session-owned state |
+| DeepChat loop | `src/main/agent/deepchat/loop/` | `LoopRun`、provider/tool round state machine、fixed awaited commits与窄 ports |
+| DeepChat Memory adapter | `src/main/agent/deepchat/memory/` | sole runtime coordinator、prompt contributor、background ingestion observer |
+| ACP runtime | `src/main/agent/acp/` | catalog、launch、client/process/session/protocol、direct instance/runtime |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | route/application façade与 shared session/projection operations |
+| `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | retained DeepChat state/delegate façade及现有 message/Tape/provider/tool adapters |
+| `ToolPresenter` | `src/main/presenter/toolPresenter/` | MCP/local tool 聚合、collision policy、权限预检查、调用路由 |
+| `MemoryPresenter` | `src/main/presenter/memoryPresenter/` | Memory rows、retrieval、write、vector、maintenance kernel |
+| `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider/model runtime和 DeepChat ACP-provider compatibility adapter |
+| `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | remote channel control，generation control 走 manager port |
+| `CronJobsService` | `src/main/presenter/cronJobs/` | detached session run、cron 调度和 Remote 投递 |
 
-## 当前分层
+## Agent runtime 分层
 
-### 1. Renderer-Main Boundary
+### Control plane
 
-- `src/shared/contracts/routes*.ts` 与 `events*.ts` 是 migrated path 的契约真源。
-- `src/preload/createBridge.ts` 统一 route invoke 和 typed event subscribe。
-- `src/renderer/api/*Client.ts` 是组件和 store 的默认入口。
-- `src/renderer/api/legacy/**` 已退休并从当前树删除；guard 会阻止它被重新创建。
-- raw IPC 只允许存在于 `createBridge`、`window.api` dedicated preload API 这类明确边界内，
-  业务层不得直接调用 `presenter:call`、`remoteControlPresenter:call` 或
-  `window.electron.ipcRenderer`。
+`AgentDescriptor` 是 `DeepChatAgentDescriptor | AcpAgentDescriptor`。catalog list 对 legacy/malformed row
+保持兼容读取，backend open 使用 capability-strict decode；unknown、disabled、malformed 或 kind mismatch
+失败关闭，不 fallback 到 DeepChat。
 
-### 2. Main Route Runtime
+`AgentSessionHandle` 只保留双方真实共有的 lifecycle、send/cancel/snapshot/close、pending、settings 与
+tool-interaction facet。transfer、subagent、generation control 和 ACP controls 使用 required
+kind-specific facet；agent handle/backend 不再有 `legacy/direct runtimeKind` 分支。
 
-- `src/main/routes/index.ts` 根据 route registry 分发请求。
-- `SessionService`、`ChatService`、`ProviderService` 负责 migrated chat/session/provider hot path。
-- `ProviderImportService` 负责外部 provider 配置扫描与应用。
-- models routes 提供 model catalog、runtime list、config import/export、audio transcription。
-- database security 与 scheduled tasks 已经是 typed route，renderer 通过专用 client 调用。
+### DeepChat instance 与 loop
 
-### 3. Agent Runtime
+一个 active/hydrated app session 对应一个 `DeepChatAgentInstance`。instance 持有 identity/config、status、
+pre-stream cancellation、active run、pending/steer、ordered interactions、skill/tool cache 和 compaction
+projection。每个 turn 使用独立 `LoopRun` 保存 abort、request sequence、provider-round count、round
+messages 与 stream state。
 
-- `AgentSessionPresenter` 创建/恢复/激活 session，并把执行交给 `AgentRuntimePresenter`。
-- `AgentRuntimePresenter` 拥有 stream loop、tool loop、pending input、manual/auto compaction、
-  message trace 和结构化消息持久化。
-- `DeepChatMessageStore` 采用头表 + 结构化子表模型，并在读路径缺行时回退旧 JSON。
-- 历史搜索使用 `deepchat_search_documents` 与 FTS5，FTS 不可用时回退 `LIKE`。
-- Agent progress 使用 `agent-core/update_plan`、`chat.plan.updated` 和 renderer 浮层展示任务计划；
-  plan 是按 session 保存的 transient progress UI，不作为 assistant 正文历史持久化或
-  rehydrate。切换 session 只显示当前 session 的 live plan，reload 后不恢复旧 plan。
+`DeepChatLoopEngine` 的固定核心顺序是：
 
-### 4. Provider And Media Runtime
+```text
+enterProviderRound
+  -> consumeProviderRound
+  -> updateOutput
+  -> executeToolBatch
+  -> afterRoundPersisted
+  -> settleTurn
+```
 
-- `ModelType` 当前包含 chat、embedding、rerank、imageGeneration、videoGeneration、tts。
-- OpenAI-compatible image/video generation 和 TTS 通过 model config、provider route meta、
-  AI SDK runtime 与消息渲染协作。
-- 本地录音转写走 `ModelClient.transcribeAudio()` / `models.transcribeAudio`，由 provider runtime 完成。
-- provider deeplink 与 provider config import 都会在写入前做 preview、校验、冲突处理和脱敏展示。
+input/context preparation、prompt contributors、ViewManifest/rate gate 和 tool adapters 在固定入口接线；
+内部 commit 可 await。只有 typed ordered tool-interaction outcome 会形成持久 pause，最后一项解决后创建
+fresh resume run。外部 hook notifications 仍是 non-blocking observer。
 
-### 5. Compatibility Boundary
+### Tape、Memory 与 observability
 
-仍保留但只承担兼容职责：
+- Tape 是现有 append-only semantic ledger；message store 是 mutable renderer projection；trace store 保存
+  可选的 request diagnostics。
+- tool round 在 message projection commit 后通过 `TapeRecorder.appendToolFact` 按 call→result 顺序写入，
+  保持 provenance、idempotency、pending exclusion 和 fail-open。
+- causal observation 是 Tape/ViewManifest + message terminal status + trace 的 pure-read join；历史 renderer
+  event 没有 durable store，明确返回 `not_persisted`。
+- `MemoryRuntimeCoordinator` 是 extraction chains/epochs/cooldown/access dedupe/cursor orchestration 的唯一
+  runtime owner，同时实现 `MemoryPromptContributor` 与 `MemoryIngestionObserver`。`MemoryPresenter` 继续拥有
+  Memory kernel/schema/vector/maintenance；instance 只持有 stable session handle。
 
-- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
-- 旧 `conversations/messages` 数据域，作为 import-only 与导出数据源
-- `src/main/presenter/sessionPresenter/`，作为 main 内部 compatibility/data facade
-- `src/main/eventbus.ts`，继续服务未迁移路径；migrated UI 通知优先走 typed events
+## Renderer-main 与兼容边界
+
+- migrated renderer 业务代码使用 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
+- `SessionPresenter` 仍是旧 conversations/messages、thread/export 与窗口清理的 compatibility/data façade，
+  不是当前 agent runtime。
+- `LegacyChatImportService` 和旧数据表继续服务 import/export compatibility。
+- `AcpProvider` 只为 DeepChat descriptor 选择 ACP provider 的兼容路径保留；direct `kind=acp` 不调用它来
+  执行主 turn。
 
 ## 防回归规则
 
-- 新 renderer-main 能力默认走 `renderer/api/*Client` + `window.deepchat` + shared contracts。
-- legacy transport 已退休；不要重新创建 `src/renderer/api/legacy/**`，也不要新增第二个
-  compatibility quarantine。确有兼容需要时，应先定义窄 typed route/event 或专用 preload API。
-- `scripts/architecture-guard.mjs` 检测 direct legacy transport、已退休 legacy 目录、
-  并读取 `docs/architecture/baselines/main-kernel-bridge-register.json`。
-- `scripts/agent-cleanup-guard.mjs` 用于防止已退休 agent runtime 入口回流。
+- `scripts/architecture-guard.mjs` 阻止 retired agent backend/path/symbol、agent handle legacy/direct
+  `runtimeKind`、internal `agentType ?? type` fallback、DeepChat loop 到 presenter/routes/Electron/SQLite/ACP
+  的 import，以及 direct ACP instance 到 DeepChat loop、`MemoryPresenter`、presenter root entry 或
+  `SQLitePresenter` 的依赖。
+- 同一 guard 保持 Memory unique owner/structure、causal observation read-only 和 renderer typed boundary。
+- `scripts/agent-cleanup-guard.mjs` 覆盖 `src/main/agent/**` 与 retained presenter/tool/skill hot paths，防止旧
+  agent/session presenter import 回流。
 
 ## 推荐阅读顺序
 
-1. [README.md](./README.md)
-2. [guides/code-navigation.md](./guides/code-navigation.md)
-3. [FLOWS.md](./FLOWS.md)
-4. [architecture/agent-system.md](./architecture/agent-system.md)
-5. [architecture/tool-system.md](./architecture/tool-system.md)
-6. [architecture/session-management.md](./architecture/session-management.md)
-7. [architecture/agent-memory-system/spec.md](./architecture/agent-memory-system/spec.md)
+1. [FLOWS.md](./FLOWS.md)
+2. [architecture/agent-system.md](./architecture/agent-system.md)
+3. [architecture/tool-system.md](./architecture/tool-system.md)
+4. [architecture/session-management.md](./architecture/session-management.md)
+5. [architecture/agent-memory-system/spec.md](./architecture/agent-memory-system/spec.md)
+6. [architecture/agent-system-layered-runtime/README.md](./architecture/agent-system-layered-runtime/README.md)

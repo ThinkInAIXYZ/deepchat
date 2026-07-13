@@ -1,6 +1,8 @@
 # Tape 与可观测性
 
-> 状态：已实施到 `ASLR-090`。继续使用现有 Tape；不新建 event store 或 entry kind。
+> 状态：目标合同，不是 current API reference。ASLR-052、ASLR-054、ASLR-080..081 与 ASLR-090 已接入
+> 下述 round commit、ViewManifest、causal observation 和 stable per-fact recorder slice。继续使用现有
+> Tape；不新建 event store 或 entry kind。
 
 > Implementation progress: ASLR-052 placed the existing tool-round snapshot behind the fixed
 > `afterRoundPersisted` callback. ASLR-090 retired that snapshot adapter: after the message projection

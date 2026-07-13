@@ -1,6 +1,7 @@
 # Tools、Skills 与 MCP 资源接线
 
-> 状态：目标设计。资源 owner 保持独立；loop 只消费解析后的能力。
+> 状态：目标设计，不是 current API reference。资源 owner 保持独立，loop 只消费解析后的能力；下文
+> resource model、adapter 和迁移步骤是目标合同，当前 concrete API 以实施进度明确列出的 slice 为准。
 
 > 实施进度：ASLR-045 已把 message-scoped runtime skill selection、prompt snapshot 和 final tool-definition
 > snapshot cache 迁入 `DeepChatAgentInstance`，全局 tool registry revision 由 `DeepChatAgentRuntime`

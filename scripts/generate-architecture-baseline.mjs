@@ -4,24 +4,127 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
+import { fileURLToPath } from 'node:url'
 
 const ROOT = process.cwd()
 const REPORT_DIR = path.join(ROOT, 'docs/architecture/baselines')
 const execFileAsync = promisify(execFile)
-const AGENT_SYSTEM_BASELINE_PATH = path.join(
-  REPORT_DIR,
-  'agent-system-layered-runtime-baseline.json'
-)
-const AGENT_SYSTEM_OWNER_PATHS = [
-  'src/main/presenter/agentRepository/index.ts',
-  'src/main/presenter/agentSessionPresenter/agentRegistry.ts',
+const AGENT_SYSTEM_SOURCE_ROOTS = [
+  'src/main/agent/shared',
+  'src/main/agent/manager',
+  'src/main/agent/deepchat',
+  'src/main/agent/acp'
+]
+const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
+  'src/main/presenter/index.ts',
   'src/main/presenter/agentSessionPresenter/index.ts',
   'src/main/presenter/agentRuntimePresenter/index.ts',
   'src/main/presenter/agentRuntimePresenter/process.ts',
   'src/main/presenter/agentRuntimePresenter/dispatch.ts',
-  'src/main/presenter/llmProviderPresenter/providers/acpProvider.ts',
-  'src/main/presenter/acpClientPresenter/index.ts'
+  'src/main/presenter/agentRuntimePresenter/messageStore.ts',
+  'src/main/presenter/agentRuntimePresenter/tapeService.ts',
+  'src/main/presenter/llmProviderPresenter/providers/acpProvider.ts'
 ]
+const AGENT_SYSTEM_EXPECTED_FILES = [
+  'src/main/agent/shared/agentDescriptors.ts',
+  'src/main/agent/shared/agentCatalogCodec.ts',
+  'src/main/agent/shared/appSessionService.ts',
+  'src/main/agent/manager/agentManager.ts',
+  'src/main/agent/manager/sessionHandles.ts',
+  'src/main/agent/manager/deepChatAgentBackend.ts',
+  'src/main/agent/manager/directAcpAgentBackend.ts',
+  'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
+  'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
+  'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
+  'src/main/agent/deepchat/loop/ports.ts',
+  'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
+  'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
+  'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
+  'src/main/agent/acp/instance/acpAgentRuntime.ts',
+  'src/main/agent/acp/instance/acpAgentInstance.ts',
+  ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES
+]
+const AGENT_SYSTEM_OWNER_EVIDENCE = [
+  ['agentManager', 'src/main/agent/manager/agentManager.ts', /\bclass AgentManager\b/g],
+  [
+    'typedDeepChatBackend',
+    'src/main/agent/manager/deepChatAgentBackend.ts',
+    /\bfunction createDeepChatAgentBackend\b/g
+  ],
+  [
+    'directAcpBackend',
+    'src/main/agent/manager/directAcpAgentBackend.ts',
+    /\b(?:function|const) createDirectAcpAgentBackend\b/g
+  ],
+  [
+    'deepChatRuntime',
+    'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
+    /\bclass DeepChatAgentRuntime\b/g
+  ],
+  [
+    'deepChatInstance',
+    'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
+    /\bclass DeepChatAgentInstance\b/g
+  ],
+  [
+    'deepChatLoopEngine',
+    'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
+    /\bclass DeepChatLoopEngine\b/g
+  ],
+  ['tapeRecorder', 'src/main/agent/deepchat/loop/ports.ts', /\binterface TapeRecorder\b/g],
+  [
+    'memoryRuntimeCoordinator',
+    'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
+    /\bclass MemoryRuntimeCoordinator\b/g
+  ],
+  [
+    'memoryPromptContributor',
+    'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
+    /\binterface MemoryPromptContributor\b/g
+  ],
+  [
+    'memoryIngestionObserver',
+    'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
+    /\binterface MemoryIngestionObserver\b/g
+  ],
+  [
+    'acpRuntime',
+    'src/main/agent/acp/instance/acpAgentRuntime.ts',
+    /\bclass AcpAgentRuntime\b/g
+  ],
+  [
+    'acpInstance',
+    'src/main/agent/acp/instance/acpAgentInstance.ts',
+    /\bclass AcpAgentInstance\b/g
+  ],
+  [
+    'retainedAgentSessionFacade',
+    'src/main/presenter/agentSessionPresenter/index.ts',
+    /\bclass AgentSessionPresenter\b/g
+  ],
+  [
+    'retainedDeepChatStateDelegateFacade',
+    'src/main/presenter/agentRuntimePresenter/index.ts',
+    /\bclass AgentRuntimePresenter\b/g
+  ]
+]
+const AGENT_SYSTEM_RETIRED_PATHS = [
+  'src/main/agent/manager/legacyAgentBackends.ts',
+  'src/main/lib/agentRuntime',
+  'src/main/presenter/agentSessionPresenter/agentRegistry.ts'
+]
+const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
+  ['AgentRegistry', /\bAgentRegistry\b/g],
+  ['IAgentImplementation', /\bIAgentImplementation\b/g],
+  ['createLegacyAgentBackend', /\bcreateLegacyAgentBackend\b/g],
+  ['LegacyDeepChatSessionBackend', /\bLegacyDeepChatSessionBackend\b/g],
+  ['LegacyAcpSessionBackend', /\bLegacyAcpSessionBackend\b/g],
+  ['LegacyAcpSessionHandle', /\bLegacyAcpSessionHandle\b/g],
+  ['LegacyToolFactsSnapshotPort', /\bLegacyToolFactsSnapshotPort\b/g],
+  ['appendAssistantToolFactsSnapshot', /\bappendAssistantToolFactsSnapshot\b/g]
+]
+const AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN =
+  /\bruntimeKind\b\s*(?::|={1,3}|!==?)\s*['"](?:legacy|direct)['"]/g
 const AGENT_SYSTEM_CONTRACT_ROOTS = [
   'src/shared/contracts/routes',
   'src/shared/contracts/events'
@@ -40,32 +143,6 @@ const COMPOSITION_LIFECYCLE_FILES = [
   'src/main/presenter/lifecyclePresenter/index.ts',
   'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/mcpShutdownHook.ts',
   'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts'
-]
-const AGENT_SYSTEM_SESSION_MAP_FIELDS = [
-  'runtimeState',
-  'sessionGenerationSettings',
-  'abortControllers',
-  'deferredToolAbortControllers',
-  'activeGenerations',
-  'firstTurnReadySessions',
-  'firstTurnReadyWaiters',
-  'activeSteerPendingInputIds',
-  'sessionAgentIds',
-  'sessionProjectDirs',
-  'systemPromptCache',
-  'toolProfileCache',
-  'runtimeActivatedSkillsBySession',
-  'sessionCompactionStates',
-  'interactionLocks',
-  'resumingMessages',
-  'drainingPendingQueues',
-  'activeProviderPermissions'
-]
-const AGENT_SYSTEM_MEMORY_MAP_FIELDS = [
-  'memoryExtractionChains',
-  'memoryExtractionEpochs',
-  'memoryIngestionProjectionRetryAfter',
-  'memoryInjectionAccessByTurn'
 ]
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])
@@ -240,17 +317,6 @@ async function getRelevantDirtyFiles(relativeRoots) {
     .sort()
 }
 
-function countCollectionFieldDeclarations(source, fields) {
-  return Object.fromEntries(
-    [...fields].sort().map((field) => {
-      const declaration = source
-        .split('\n')
-        .find((line) => new RegExp(`\\b${field}\\b`).test(line) && line.includes('= new '))
-      return [field, declaration && /new (?:Map|Set)[<(]/.test(declaration) ? 1 : 0]
-    })
-  )
-}
-
 function collectSqlTableIdentifiers(sources) {
   const identifiers = new Set()
   for (const source of sources) {
@@ -262,32 +328,66 @@ function collectSqlTableIdentifiers(sources) {
 }
 
 async function buildAgentSystemBaseline() {
-  const ownerPaths = Object.fromEntries(
+  const expectedFiles = Object.fromEntries(
     await Promise.all(
-      [...AGENT_SYSTEM_OWNER_PATHS].sort().map(async (file) => [file, await pathExists(path.join(ROOT, file))])
+      [...new Set(AGENT_SYSTEM_EXPECTED_FILES)]
+        .sort()
+        .map(async (file) => [file, await pathExists(path.join(ROOT, file))])
     )
   )
-  const runtimePath = 'src/main/presenter/agentRuntimePresenter/index.ts'
-  const runtimeSource = await fs.readFile(path.join(ROOT, runtimePath), 'utf8')
-  const ownerSources = await Promise.all(
-    AGENT_SYSTEM_OWNER_PATHS.filter((file) => ownerPaths[file]).map((file) =>
-      fs.readFile(path.join(ROOT, file), 'utf8')
+  const ownerEvidence = Object.fromEntries(
+    await Promise.all(
+      AGENT_SYSTEM_OWNER_EVIDENCE.map(async ([owner, file, pattern]) => {
+        const exists = await pathExists(path.join(ROOT, file))
+        const source = exists ? await fs.readFile(path.join(ROOT, file), 'utf8') : ''
+        return [owner, { file, exists, declarationCount: countMatches(source, pattern) }]
+      })
     )
   )
-  const ownerSource = ownerSources.join('\n')
-  const loopFiles = [
-    'src/main/presenter/agentRuntimePresenter/process.ts',
-    'src/main/presenter/agentRuntimePresenter/dispatch.ts'
+  const agentSourceFiles = [
+    ...(await collectRelativeSourceFiles(AGENT_SYSTEM_SOURCE_ROOTS)),
+    ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES
   ]
-  const loopSpecifiers = []
+  const productionFiles = await collectRelativeSourceFiles(['src/main', 'src/shared'])
+  const productionSource = (
+    await Promise.all(productionFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8')))
+  ).join('\n')
+  const agentManagerFiles = await collectRelativeSourceFiles(['src/main/agent/manager'])
+  const agentManagerSource = (
+    await Promise.all(agentManagerFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8')))
+  ).join('\n')
+  const retiredPaths = Object.fromEntries(
+    await Promise.all(
+      AGENT_SYSTEM_RETIRED_PATHS.sort().map(async (retiredPath) => [
+        retiredPath,
+        (await collectRelativeSourceFiles([retiredPath])).length
+      ])
+    )
+  )
+  const retiredSymbols = Object.fromEntries(
+    AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS.map(([symbol, pattern]) => [
+      symbol,
+      countMatches(productionSource, pattern)
+    ])
+  )
+  retiredSymbols.agentHandleLegacyDirectRuntimeKind = countMatches(
+    agentManagerSource,
+    AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN
+  )
+  const loopFiles = await collectRelativeSourceFiles(['src/main/agent/deepchat/loop'])
+  const loopImports = []
   for (const file of loopFiles) {
     const source = await fs.readFile(path.join(ROOT, file), 'utf8')
     for (const specifier of extractSpecifiers(source)) {
-      loopSpecifiers.push({ file, specifier })
+      const resolved = await resolveImport(specifier, path.join(ROOT, file), MAIN_SOURCE_ROOT)
+      loopImports.push({
+        file,
+        specifier,
+        resolved: resolved ? relativePath(resolved) : null
+      })
     }
   }
   const contractFiles = await collectRelativeSourceFiles(AGENT_SYSTEM_CONTRACT_ROOTS)
-  const agentRuntimeLibFiles = await collectRelativeSourceFiles(['src/main/lib/agentRuntime'])
   const sqliteSchemaFiles = await collectRelativeSourceFiles(SQLITE_SCHEMA_ROOTS)
   const sqliteSchemaSources = await Promise.all(
     sqliteSchemaFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8'))
@@ -298,43 +398,61 @@ async function buildAgentSystemBaseline() {
   )
   const compositionLifecycleFiles = [...COMPOSITION_LIFECYCLE_FILES].sort()
   const relevantRoots = [
-    ...AGENT_SYSTEM_OWNER_PATHS,
+    ...AGENT_SYSTEM_SOURCE_ROOTS,
+    ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES,
     ...AGENT_SYSTEM_CONTRACT_ROOTS,
     ...SQLITE_SCHEMA_ROOTS,
     ...MEMORY_SIDECAR_SCHEMA_FILES,
     ...COMPOSITION_LIFECYCLE_FILES,
-    'src/main/lib/agentRuntime',
-    'src/main/agent'
+    ...AGENT_SYSTEM_RETIRED_PATHS,
+    'scripts/generate-architecture-baseline.mjs',
+    'scripts/architecture-guard.mjs',
+    'scripts/agent-cleanup-guard.mjs'
   ]
   const relevantDirtyFiles = await getRelevantDirtyFiles(relevantRoots)
+  const presenterRoot = path.join(ROOT, 'src/main/presenter')
+  const routesRoot = path.join(ROOT, 'src/main/routes')
+  const sqliteRoot = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
+  const acpRoot = path.join(ROOT, 'src/main/agent/acp')
+  const resolvedLoopImports = loopImports.map((entry) => ({
+    ...entry,
+    absolute: entry.resolved ? path.join(ROOT, entry.resolved) : null
+  }))
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     goal: 'agent-system-layered-runtime',
     headCommit: await getHeadCommit(),
     relevantWorkingTree: {
       dirty: relevantDirtyFiles.length > 0,
       files: relevantDirtyFiles
     },
-    sourceRoots: ['src/main', 'src/shared/contracts'],
-    currentOwners: {
-      paths: ownerPaths,
-      agentRuntimeLibFiles,
-      symbols: {
-        AgentRegistry: ownerSource.includes('AgentRegistry') ? 1 : 0,
-        IAgentImplementation: ownerSource.includes('IAgentImplementation') ? 1 : 0
-      }
+    sourceRoots: [...AGENT_SYSTEM_SOURCE_ROOTS, 'src/shared/contracts'],
+    sourceFiles: [...new Set(agentSourceFiles)].sort(),
+    expectedFiles,
+    ownerEvidence,
+    retiredSurfaces: {
+      paths: retiredPaths,
+      symbols: retiredSymbols
     },
-    runtimeState: {
-      owner: runtimePath,
-      sessionKeyedCollectionFields: countCollectionFieldDeclarations(
-        runtimeSource,
-        AGENT_SYSTEM_SESSION_MAP_FIELDS
-      ),
-      memoryOrchestrationMapFields: countCollectionFieldDeclarations(
-        runtimeSource,
-        AGENT_SYSTEM_MEMORY_MAP_FIELDS
-      )
+    runtimeOwnership: {
+      deepchat: {
+        runtime: ownerEvidence.deepChatRuntime.file,
+        instance: ownerEvidence.deepChatInstance.file,
+        loopEngine: ownerEvidence.deepChatLoopEngine.file,
+        backend: ownerEvidence.typedDeepChatBackend.file
+      },
+      acp: {
+        runtime: ownerEvidence.acpRuntime.file,
+        instance: ownerEvidence.acpInstance.file,
+        backend: ownerEvidence.directAcpBackend.file
+      },
+      memory: {
+        coordinator: ownerEvidence.memoryRuntimeCoordinator.file,
+        promptContributor: ownerEvidence.memoryPromptContributor.file,
+        ingestionObserver: ownerEvidence.memoryIngestionObserver.file
+      },
+      presenterBoundaries: [...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES].sort()
     },
     contracts: {
       files: contractFiles,
@@ -359,11 +477,20 @@ async function buildAgentSystemBaseline() {
     },
     dependencyMetrics: {
       loopFiles,
-      loopToPresenterRoot: loopSpecifiers.filter(({ specifier }) =>
-        ['@/presenter', '@/presenter/index', '../index', '../../index'].includes(specifier)
+      loopToPresenter: resolvedLoopImports.filter(
+        ({ absolute }) => absolute && isUnder(absolute, presenterRoot)
       ).length,
-      loopToElectronOrRoutes: loopSpecifiers.filter(({ specifier }) =>
-        /(^electron$|electron\/|\/routes(?:\/|$)|^@\/routes(?:\/|$))/.test(specifier)
+      loopToSqlite: resolvedLoopImports.filter(
+        ({ absolute }) => absolute && isUnder(absolute, sqliteRoot)
+      ).length,
+      loopToElectron: loopImports.filter(({ specifier }) =>
+        /^electron(?:\/|$)/.test(specifier)
+      ).length,
+      loopToRoutes: resolvedLoopImports.filter(
+        ({ absolute }) => absolute && isUnder(absolute, routesRoot)
+      ).length,
+      loopToAcp: resolvedLoopImports.filter(
+        ({ absolute }) => absolute && isUnder(absolute, acpRoot)
       ).length
     }
   }
@@ -1110,8 +1237,34 @@ function renderBridgeRegisterReport(register, bridgeSummary) {
   return lines.join('\n')
 }
 
-async function main() {
-  await ensureDir(REPORT_DIR)
+export function assertBaselineOutputSafety(outputDir, relevantDirtyFiles) {
+  if (
+    path.resolve(outputDir) === path.resolve(REPORT_DIR) &&
+    relevantDirtyFiles.length > 0
+  ) {
+    throw new Error(
+      `Refusing to update canonical architecture baselines from a dirty relevant tree: ${relevantDirtyFiles.join(', ')}`
+    )
+  }
+}
+
+function parseOutputDir(argv) {
+  let outputDir = REPORT_DIR
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index]
+    if (argument !== '--output-dir') {
+      throw new Error(`Unknown argument: ${argument}`)
+    }
+    const value = argv[index + 1]
+    if (!value) throw new Error('--output-dir requires a path')
+    outputDir = path.resolve(ROOT, value)
+    index += 1
+  }
+  return outputDir
+}
+
+export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = {}) {
+  await ensureDir(outputDir)
   const scopes = []
 
   for (const target of ANALYSIS_TARGETS) {
@@ -1137,6 +1290,7 @@ async function main() {
   const bridgeRegister = await loadBridgeRegister()
   const bridgeSummary = summarizeBridges(bridgeRegister)
   const agentSystemBaseline = await buildAgentSystemBaseline()
+  assertBaselineOutputSafety(outputDir, agentSystemBaseline.relevantWorkingTree.files)
   const p2PresenterCounts = await collectPresenterFamilyCounts(
     rendererBusinessFiles,
     PRESENTER_PHASE_GATES.P2
@@ -1282,21 +1436,24 @@ async function main() {
   }
 
   await Promise.all([
-    fs.writeFile(AGENT_SYSTEM_BASELINE_PATH, `${JSON.stringify(agentSystemBaseline, null, 2)}\n`),
     fs.writeFile(
-      path.join(REPORT_DIR, 'dependency-report.md'),
+      path.join(outputDir, 'agent-system-layered-runtime-baseline.json'),
+      `${JSON.stringify(agentSystemBaseline, null, 2)}\n`
+    ),
+    fs.writeFile(
+      path.join(outputDir, 'dependency-report.md'),
       `${renderDependencyReport(scopes)}\n`
     ),
     fs.writeFile(
-      path.join(REPORT_DIR, 'zero-inbound-candidates.md'),
+      path.join(outputDir, 'zero-inbound-candidates.md'),
       `${renderZeroInboundReport(scopes)}\n`
     ),
     fs.writeFile(
-      path.join(REPORT_DIR, 'archive-reference-report.md'),
+      path.join(outputDir, 'archive-reference-report.md'),
       `${renderArchiveReferenceReport(archiveReferences)}\n`
     ),
     fs.writeFile(
-      path.join(REPORT_DIR, 'main-kernel-boundary-baseline.md'),
+      path.join(outputDir, 'main-kernel-boundary-baseline.md'),
       `${renderBoundaryBaselineReport({
         currentPhase: bridgeRegister.currentPhase,
         metrics,
@@ -1312,7 +1469,7 @@ async function main() {
       })}\n`
     ),
     fs.writeFile(
-      path.join(REPORT_DIR, 'main-kernel-migration-scoreboard.md'),
+      path.join(outputDir, 'main-kernel-migration-scoreboard.md'),
       `${renderMigrationScoreboardReport({
         currentPhase: bridgeRegister.currentPhase,
         metrics,
@@ -1320,19 +1477,26 @@ async function main() {
       })}\n`
     ),
     fs.writeFile(
-      path.join(REPORT_DIR, 'main-kernel-migration-scoreboard.json'),
+      path.join(outputDir, 'main-kernel-migration-scoreboard.json'),
       `${JSON.stringify(scoreboardPayload, null, 2)}\n`
     ),
     fs.writeFile(
-      path.join(REPORT_DIR, 'main-kernel-bridge-register.md'),
+      path.join(outputDir, 'main-kernel-bridge-register.md'),
       `${renderBridgeRegisterReport(bridgeRegister, bridgeSummary)}\n`
     )
   ])
 
-  console.log('Architecture baseline reports updated in docs/architecture/baselines.')
+  console.log(`Architecture baseline reports updated in ${relativePath(outputDir) || '.'}.`)
 }
 
-main().catch((error) => {
-  console.error('Failed to generate architecture baseline reports:', error)
-  process.exit(1)
-})
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+
+if (isDirectRun) {
+  generateArchitectureBaseline({ outputDir: parseOutputDir(process.argv.slice(2)) }).catch(
+    (error) => {
+      console.error('Failed to generate architecture baseline reports:', error)
+      process.exit(1)
+    }
+  )
+}

@@ -469,8 +469,10 @@ Implementation progress:
 - Tool-round Tape persistence now calls the stable per-fact `TapeRecorder.appendToolFact` port from
   `afterRoundPersisted`, preserving projection-before-Tape order, provenance, pending exclusion,
   idempotency and fail-open behavior without adding a schema or entry kind.
-- Current-document convergence, architecture guards and final baseline regeneration remain assigned to
-  `ASLR-091..092`.
+- `ASLR-091` converged the current architecture/flow/tool/session/DeepChat-vs-ACP/Memory docs, expanded guards
+  over the new agent roots and retired surfaces, and changed the baseline generator to record current owner
+  evidence with safe deterministic temporary output. Final full validation and canonical baseline regeneration
+  remain assigned to `ASLR-092`.
 
 Exit gate:
 

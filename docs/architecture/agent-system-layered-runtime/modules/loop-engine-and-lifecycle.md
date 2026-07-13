@@ -1,6 +1,8 @@
 # LoopEngine 与可等待生命周期
 
-> 状态：目标设计。此 loop 只属于 `kind=deepchat` session；其中 provider 仍可按兼容合同选择 ACP。
+> 状态：目标设计，不是 current API reference。此 loop 只属于 `kind=deepchat` session，其中 provider
+> 仍可按兼容合同选择 ACP。下文 stage/type 伪代码表达生命周期合同；当前 concrete API 以实施进度和
+> `src/main/agent/deepchat/loop/` 为准。
 
 > Implementation progress: ASLR-050 introduced the per-turn `LoopRun` and narrow provider, tool,
 > Tape, output, and context port contracts. That slice left the legacy `processStream` control flow
@@ -11,13 +13,13 @@
 > compatibility `processStream` adapter still owns the existing accumulator, dispatch, interaction,
 > and skill-refresh details in their original order. ASLR-052 added fixed `updateOutput`,
 > `afterRoundPersisted`, and `settleTurn` callbacks. The engine now controls those commit points while
-> the compatibility adapter continues to use the existing echo, message projection, tool-fact
-> snapshot, and terminal writers. The engine invokes `settleTurn` exactly once. Within that adapter,
+> the retained adapter continues to use the existing echo, message projection, stable per-fact
+> `TapeRecorder`, and terminal writers. The engine invokes `settleTurn` exactly once. Within that adapter,
 > a normal settlement write failure still enters the legacy error/abort fallback; a settlement
 > failure while already handling a thrown round error is not replayed. ASLR-053 added separate
 > `BasePromptAssembler` and `PostCompactionPromptAssembler` seams. The first is scoped to the
 > captured DeepChat instance and remains before compaction intent preparation; the second fixes
-> summary, reconstruction, and the awaited fail-open legacy Memory call after normal compaction
+> summary, reconstruction, and the awaited fail-open `MemoryPromptContributor` after normal compaction
 > completion. ASLR-054 extracted typed input-preparation and context coordinators. Initial input now
 > has a source-level history -> nullable intent -> compaction projection/user fact -> apply ->
 > normal-return Memory-trigger order; resume passes the stale/abort checkpoint before refreshing
@@ -25,13 +27,13 @@
 > the extraction-enabled return/throw boundary. Manual
 > compaction also remains outside compaction extraction. The context coordinator owns
 > post-compaction view assembly and actual provider-attempt preflight, recovery, strict retry,
-> request-sequence, ViewManifest, rate-gate and stream order. Presenter code supplies narrow legacy
+> request-sequence, ViewManifest, rate-gate and stream order. Presenter code supplies narrow retained
 > algorithm/data adapters, while assistant placeholder creation and active-run registration remain
 > at their existing late boundary. ASLR-055 connected the session-scoped `ToolCatalogPort`,
 > `ToolExecutionPort`, and `ToolResultPort`: `processStream` and legacy dispatch now consume those
 > capabilities instead of `IToolPresenter`, a normalization callback, or concrete `ToolOutputGuard`.
 > ToolPresenter remains the sole merged/collision-resolved catalog and execution owner. ASLR-056
-> made the legacy dispatcher return a discriminated `ToolBatchOutcome`: only pre-check permission,
+> made the retained dispatcher return a discriminated `ToolBatchOutcome`: only pre-check permission,
 > question interception, post-call permission, and post-success skill-draft confirmation can pause a
 > batch. The outcome carries ordered interactions plus the persisted call/invocation/result state;
 > the instance owns that state until the final response creates one fresh resume run. ASLR-057
