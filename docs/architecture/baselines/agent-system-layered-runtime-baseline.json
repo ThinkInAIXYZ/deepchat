@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "56fac76458c97ca0055417d8bcd20286be82d509",
+  "headCommit": "1122b240619afae1bd97c2395f0c820c41ecf048",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -75,6 +75,7 @@
     "src/main/agent/shared/agentRowStore.ts",
     "src/main/agent/shared/agentSessionHandle.ts",
     "src/main/agent/shared/agentSessionIds.ts",
+    "src/main/agent/shared/agentSessionNormalization.ts",
     "src/main/agent/shared/agentSharedData.ts",
     "src/main/agent/shared/appSessionService.ts",
     "src/main/agent/shared/assistantModelSelection.ts",
@@ -304,7 +305,7 @@
       "src/shared/contracts/routes/window.routes.ts",
       "src/shared/contracts/routes/workspace.routes.ts"
     ],
-    "sha256": "ab4fcf04f5091ca2f897def98f392ece99a85aea3e9a9f4a569be419a4caa9d9"
+    "sha256": "a7eef369f151c3679ba6f36e12041fed36fab124f5cd33a897c2c06c9925bcb8"
   },
   "storage": {
     "sqlite": {
@@ -417,7 +418,7 @@
         "memory_vector"
       ],
       "versionContract": "embedding identity stored in embedding_meta; no numeric schema version",
-      "sha256": "56d7d6a66e770ff389431935b67505199a7b8c01abc2fdf7be20f98bde8cf0c6"
+      "sha256": "fdcb17375f3c938763aff162c179f04bc98f0392feebdc0b30b1fd9f48cdc025"
     }
   },
   "compositionAndShutdown": {
@@ -427,7 +428,7 @@
       "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
       "src/main/presenter/lifecyclePresenter/index.ts"
     ],
-    "sha256": "de762ce51ecfdecca2501bb24e6039900940d8775e16719c76369b2dd7eadd77"
+    "sha256": "90836b4d0ef4078293ac7d001ef2992f572809a10c67d35fdd8a972e8a66fb86"
   },
   "dependencyMetrics": {
     "loopFiles": [
