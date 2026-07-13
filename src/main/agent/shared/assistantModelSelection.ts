@@ -10,7 +10,15 @@ export async function resolveAssistantModelSelection(
   fallbackProviderId: string,
   fallbackModelId: string
 ): Promise<{ providerId: string; modelId: string }> {
-  if (dependencies.agentManager.resolveBackend(agentId).kind === 'deepchat') {
+  const fallback = { providerId: fallbackProviderId, modelId: fallbackModelId }
+  let isDeepChatAgent: boolean
+  try {
+    isDeepChatAgent = dependencies.agentManager.resolveBackend(agentId).kind === 'deepchat'
+  } catch {
+    return fallback
+  }
+
+  if (isDeepChatAgent) {
     const config =
       typeof dependencies.configPresenter.resolveDeepChatAgentConfig === 'function'
         ? await dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
@@ -22,5 +30,5 @@ export async function resolveAssistantModelSelection(
     }
   }
 
-  return { providerId: fallbackProviderId, modelId: fallbackModelId }
+  return fallback
 }

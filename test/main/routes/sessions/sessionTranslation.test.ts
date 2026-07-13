@@ -68,6 +68,24 @@ describe('SessionTranslation', () => {
     )
   })
 
+  it('falls back to the default model when the agent cannot be resolved', async () => {
+    const fixture = createFixture()
+    fixture.resolveBackend.mockImplementation(() => {
+      throw new Error('Agent not found')
+    })
+
+    await fixture.service.translate('hello', 'en-US', 'unknown-agent')
+
+    expect(fixture.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
+    expect(fixture.generateCompletion).toHaveBeenCalledWith(
+      'default-provider',
+      expect.any(Array),
+      'default-model',
+      0.2,
+      1024
+    )
+  })
+
   it('returns empty input without model work and rejects a missing model', async () => {
     const fixture = createFixture()
     await expect(fixture.service.translate('   ')).resolves.toBe('')
