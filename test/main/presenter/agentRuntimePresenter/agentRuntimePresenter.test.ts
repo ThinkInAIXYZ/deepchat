@@ -898,6 +898,8 @@ describe('AgentRuntimePresenter', () => {
     it('clears the final boundary when the provider stream begins', async () => {
       vi.useFakeTimers()
       const warn = vi.mocked(logger.warn)
+      const syncStepSpy = vi.spyOn(agent as any, 'runSynchronousPreStreamStep')
+      const slowLogSpy = vi.spyOn(agent as any, 'logSlowPreStreamStep')
       const providerStarted = deferred<void>()
       const providerDone = deferred<void>()
       const provider = llmProvider.getProviderInstance('openai')
@@ -926,7 +928,46 @@ describe('AgentRuntimePresenter', () => {
         expect(
           stuckWarnings().filter((message) => message.includes('step=pre-stream-provider-start'))
         ).toHaveLength(0)
+        expect(syncStepSpy.mock.calls.map(([, step]) => step)).toEqual(
+          expect.arrayContaining(['tape-ready', 'user-message-create', 'assistant-message-create'])
+        )
+        expect(slowLogSpy).toHaveBeenCalledWith('s1', 'pre-stream-total', expect.any(Number))
         providerDone.resolve(undefined)
+        await processing
+      } finally {
+        warn.mockClear()
+        syncStepSpy.mockRestore()
+        slowLogSpy.mockRestore()
+      }
+    })
+
+    it('clears the final boundary before rate-limit admission waits', async () => {
+      vi.useFakeTimers()
+      const warn = vi.mocked(logger.warn)
+      const rateAdmission = deferred<void>()
+      llmProvider.executeWithRateLimit.mockReturnValueOnce(rateAdmission.promise)
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed' }
+      })
+
+      try {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        const processing = agent.processMessage('s1', 'Hello')
+        await vi.waitFor(() => expect(llmProvider.executeWithRateLimit).toHaveBeenCalledTimes(1))
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
+        expect(
+          stuckWarnings().filter((message) => message.includes('step=pre-stream-provider-start'))
+        ).toHaveLength(0)
+        rateAdmission.resolve(undefined)
         await processing
       } finally {
         warn.mockClear()
@@ -953,6 +994,20 @@ describe('AgentRuntimePresenter', () => {
         consoleErrorSpy.mockRestore()
         runStreamSpy.mockRestore()
       }
+    })
+
+    it('does not revive a cancelled provider boundary with a late completion', () => {
+      const slowLogSpy = vi.spyOn(agent as any, 'logSlowPreStreamStep')
+      const boundary = (agent as any).startPreStreamProviderBoundaryWatchdog(
+        { sessionId: 's1', messageId: 'm1', step: 'pre-stream-provider-start' },
+        Date.now()
+      )
+
+      boundary.cancel()
+      boundary.complete()
+
+      expect(slowLogSpy).not.toHaveBeenCalledWith('s1', 'pre-stream-total', expect.any(Number))
+      slowLogSpy.mockRestore()
     })
   })
 
@@ -3533,6 +3588,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('keeps initial and skill-refresh prompt phases around compaction in fixed order', async () => {
       const order: string[] = []
+      const preStreamStepSpy = vi.spyOn(agent as any, 'runPreStreamStep')
       const skillPresenter = getSkillPresenterMock()
       skillPresenter.getMetadataList.mockResolvedValue([
         { name: 'skill-a', description: 'phase skill' }
@@ -3690,6 +3746,10 @@ describe('AgentRuntimePresenter', () => {
       }
       expect(refreshedSystemPrompt).toContain('SKILL_PHASE_CONTENT')
       expect(buildInjection).toHaveBeenCalledTimes(2)
+      expect(preStreamStepSpy.mock.calls.some(([input]) => input.step === 'compaction-apply')).toBe(
+        true
+      )
+      preStreamStepSpy.mockRestore()
     })
 
     it.each([
@@ -7245,6 +7305,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('assembles resume context after compaction and preserves base-only round refresh', async () => {
       const order: string[] = []
+      const preStreamStepSpy = vi.spyOn(agent as any, 'runPreStreamStep')
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const assistantRow = makeAssistantRow({ orderSeq: 2, blocks: [] })
       const userRow = makeDeepchatUserRow(1, 'resume query', 'resume-user')
@@ -7368,6 +7429,10 @@ describe('AgentRuntimePresenter', () => {
       expect(refreshedSystemPrompt).not.toContain('## Tape Handoff State')
       expect(refreshedSystemPrompt).not.toContain('## Relevant Memories')
       expect(buildInjection).toHaveBeenCalledTimes(1)
+      expect(preStreamStepSpy.mock.calls.some(([input]) => input.step === 'compaction-apply')).toBe(
+        true
+      )
+      preStreamStepSpy.mockRestore()
     })
 
     it('handles question_option and resumes assistant message', async () => {
@@ -8666,6 +8731,10 @@ describe('AgentRuntimePresenter', () => {
           }),
           expect.any(Function)
         )
+        const cleanupStepInput = preStreamStepSpy.mock.calls.find(
+          ([input]) => input.step === 'tool-output-cleanup'
+        )?.[0]
+        expect(cleanupStepInput).not.toHaveProperty('signal')
         expect(processStream).toHaveBeenCalledTimes(1)
       } finally {
         hasContextBudgetSpy.mockRestore()

@@ -415,7 +415,7 @@ unbounded await turns out to be.
       `buildInjection()`.
 - [x] Implement store format v2 + one-time migration per
       [docs/architecture/memory-vector-store-v2/tasks.md](../../architecture/memory-vector-store-v2/tasks.md).
-- [ ] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
+- [x] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
       `agentRuntimePresenter/index.ts`; async awaited steps only; final segment clears before the
       rate-limit wait with provider beforeStream as fallback; sync steps get completion-time slow
       logs only.
@@ -426,14 +426,14 @@ unbounded await turns out to be.
       state resurrection, and make explicit reset/retire await the existing grace result.
 - [x] Reserve injection fallback time, abort abandoned retrieval pipelines, suppress normal
       `vectorCold` anchors, and map suspect/quarantined admission without failed warmup churn.
-- [ ] Cover compaction apply and synchronous tape/message gaps, retain cumulative pre-stream
+- [x] Cover compaction apply and synchronous tape/message gaps, retain cumulative pre-stream
       latency, move the provider boundary ahead of rate-limit waiting, and preserve mandatory
       offload cleanup after abort.
-- [ ] Unit tests (see Validation).
-- [ ] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
+- [x] Unit tests (see Validation).
+- [x] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
       `mise exec -- pnpm run lint`, `mise exec -- pnpm run typecheck`, targeted suites,
       `mise exec -- pnpm run test:memory`, and the native V2 suite.
-- [ ] Full `mise exec -- pnpm test`: 5,313 tests pass and 2 skip; the three unrelated
+- [ ] Full `mise exec -- pnpm test`: 5,320 tests pass and 2 skip; the three unrelated
       `SpotlightOverlay.test.ts` cases currently fail because their fixture does not install an
       active Pinia. The file fails identically when run alone and is outside this issue's scope.
 

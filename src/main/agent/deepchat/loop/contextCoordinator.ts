@@ -122,6 +122,7 @@ export interface ProviderAttemptManifestPort<TSelection> {
 }
 
 export interface ProviderRateGatePort {
+  beforeWait(): void
   wait(signal: AbortSignal): Promise<void>
   clearWaiting(): void
 }
@@ -383,6 +384,7 @@ export class DeepChatContextCoordinator {
           strictProviderOverflowRetry
         })
 
+        input.rateGate.beforeWait()
         await input.rateGate.wait(input.run.abortController.signal)
         input.rateGate.clearWaiting()
         if (input.run.abortController.signal.aborted) {

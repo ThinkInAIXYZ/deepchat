@@ -137,6 +137,7 @@ function createAttemptInput(options?: {
         onAppendError: (error: unknown) => manifestErrors.push(error)
       },
       rateGate: {
+        beforeWait: () => order.push('before-rate'),
         wait: async () => {
           waiting = true
           order.push('rate')
@@ -264,6 +265,7 @@ describe('DeepChatContextCoordinator', () => {
     expect(events).toEqual([{ type: 'text', content: 'ok' }])
     expect(fixture.order).toEqual([
       'manifest:1',
+      'before-rate',
       'rate',
       'rate-clear',
       'before-provider',

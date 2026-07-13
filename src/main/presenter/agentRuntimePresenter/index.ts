@@ -1547,6 +1547,7 @@ export class AgentRuntimePresenter {
     let streamRunId: string | undefined
 
     try {
+      const preStreamStartedAt = Date.now()
       this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.runPreStreamStep(
         {
@@ -1639,8 +1640,10 @@ export class AgentRuntimePresenter {
 
       const preparedInput = await this.inputPreparationCoordinator.prepareInitial({
         ensureHistory: () =>
-          getTapeContextHistoryRecords(
-            this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
+          this.runSynchronousPreStreamStep(sessionId, 'tape-ready', () =>
+            getTapeContextHistoryRecords(
+              this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
+            )
           ),
         prepareIntent: async (historyRecords) => {
           if (!useContextBudget) {
@@ -1681,10 +1684,12 @@ export class AgentRuntimePresenter {
             intent.previousState.summaryUpdatedAt
           ),
         appendUserFact: () =>
-          this.messageStore.createUserMessage(
-            sessionId,
-            this.messageStore.getNextOrderSeq(sessionId),
-            userContent
+          this.runSynchronousPreStreamStep(sessionId, 'user-message-create', () =>
+            this.messageStore.createUserMessage(
+              sessionId,
+              this.messageStore.getNextOrderSeq(sessionId),
+              userContent
+            )
           ),
         beginCompaction: (intent) => {
           this.emitCompactionState(
@@ -1698,15 +1703,24 @@ export class AgentRuntimePresenter {
           )
         },
         applyCompaction: async (intent, compactionMessageId) =>
-          await this.applyCompactionIntent(
-            sessionId,
-            intent,
+          await this.runPreStreamStep(
             {
-              compactionMessageId,
-              startedExternally: true,
+              sessionId,
+              messageId: userMessageId,
+              step: 'compaction-apply',
               signal: preStreamAbortSignal
             },
-            instance
+            () =>
+              this.applyCompactionIntent(
+                sessionId,
+                intent,
+                {
+                  compactionMessageId,
+                  startedExternally: true,
+                  signal: preStreamAbortSignal
+                },
+                instance
+              )
           ),
         readSummary: () => this.sessionStore.getSummaryState(sessionId),
         afterCompactionApplyReturned: (intent) =>
@@ -1788,7 +1802,11 @@ export class AgentRuntimePresenter {
 
       const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
       this.throwIfStaleDeepChatInstance(sessionId, instance)
-      assistantMessageId = this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
+      assistantMessageId = this.runSynchronousPreStreamStep(
+        sessionId,
+        'assistant-message-create',
+        () => this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
+      )
       this.toolPresenter?.clearAgentPlanState?.(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
 
@@ -1802,12 +1820,15 @@ export class AgentRuntimePresenter {
       }
 
       this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const providerBoundary = this.startPreStreamStepWatchdog({
-        sessionId,
-        messageId: assistantMessageId,
-        step: 'pre-stream-provider-start',
-        signal: preStreamAbortSignal
-      })
+      const providerBoundary = this.startPreStreamProviderBoundaryWatchdog(
+        {
+          sessionId,
+          messageId: assistantMessageId,
+          step: 'pre-stream-provider-start',
+          signal: preStreamAbortSignal
+        },
+        preStreamStartedAt
+      )
       let streamResult: { runId: string; result: ProcessResult }
       try {
         streamResult = await this.runStreamForMessage({
@@ -2073,6 +2094,42 @@ export class AgentRuntimePresenter {
     } catch (error) {
       watchdog.cancel()
       throw error
+    }
+  }
+
+  private runSynchronousPreStreamStep<T>(sessionId: string, step: string, operation: () => T): T {
+    const startedAt = Date.now()
+    try {
+      return operation()
+    } finally {
+      this.logSlowPreStreamStep(sessionId, step, startedAt)
+    }
+  }
+
+  private startPreStreamProviderBoundaryWatchdog(
+    input: PreStreamStepInput,
+    preStreamStartedAt: number
+  ): PreStreamStepWatchdog {
+    const watchdog = this.startPreStreamStepWatchdog(input)
+    let crossed = false
+    const close = (completed: boolean) => {
+      if (crossed) return false
+      crossed = true
+      if (completed) {
+        watchdog.complete()
+      } else {
+        watchdog.cancel()
+      }
+      return true
+    }
+    return {
+      complete: () => {
+        if (!close(true)) return
+        this.logSlowPreStreamStep(input.sessionId, 'pre-stream-total', preStreamStartedAt)
+      },
+      cancel: () => {
+        close(false)
+      }
     }
   }
 
@@ -3775,6 +3832,7 @@ export class AgentRuntimePresenter {
                 )
             },
             rateGate: {
+              beforeWait: crossPreStreamBoundary,
               wait: async (signal) => {
                 await llmProviderPresenter.executeWithRateLimit(state.providerId, {
                   signal,
@@ -4360,6 +4418,7 @@ export class AgentRuntimePresenter {
       this.setSessionStatusForInstance(sessionId, instance, 'generating')
       preStreamAbortController = this.ensureSessionAbortController(sessionId)
       preStreamAbortSignal = preStreamAbortController.signal
+      const preStreamStartedAt = Date.now()
       this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.runPreStreamStep(
         {
@@ -4415,9 +4474,19 @@ export class AgentRuntimePresenter {
       let resumeTargetOrderSeq: number | undefined
       const preparedInput = await this.inputPreparationCoordinator.prepareExisting({
         ensureHistory: () =>
-          this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords,
+          this.runSynchronousPreStreamStep(
+            sessionId,
+            'tape-ready',
+            () =>
+              this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
+          ),
         refreshHistory: () =>
-          this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords,
+          this.runSynchronousPreStreamStep(
+            sessionId,
+            'tape-ready',
+            () =>
+              this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
+          ),
         prepareIntent: async (historyRecords) => {
           resumeTargetOrderSeq =
             historyRecords.find((record) => record.id === messageId)?.orderSeq ??
@@ -4448,15 +4517,24 @@ export class AgentRuntimePresenter {
           )
         },
         applyCompaction: async (intent) =>
-          await this.applyCompactionIntent(
-            sessionId,
-            intent,
+          await this.runPreStreamStep(
             {
-              compactionMessageOrderSeq: resumeTargetOrderSeq,
-              shiftMessagesFromCompactionOrderSeq: resumeTargetOrderSeq !== undefined,
+              sessionId,
+              messageId,
+              step: 'compaction-apply',
               signal: preStreamAbortSignal
             },
-            instance
+            () =>
+              this.applyCompactionIntent(
+                sessionId,
+                intent,
+                {
+                  compactionMessageOrderSeq: resumeTargetOrderSeq,
+                  shiftMessagesFromCompactionOrderSeq: resumeTargetOrderSeq !== undefined,
+                  signal: preStreamAbortSignal
+                },
+                instance
+              )
           ),
         readSummary: () => this.sessionStore.getSummaryState(sessionId),
         checkpoints: {
@@ -4523,9 +4601,8 @@ export class AgentRuntimePresenter {
         })
 
         if (resumeBudget?.kind === 'tool_error') {
-          await this.runPreStreamStep(
-            { sessionId, messageId, step: 'tool-output-cleanup', signal: preStreamAbortSignal },
-            () => this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
+          await this.runPreStreamStep({ sessionId, messageId, step: 'tool-output-cleanup' }, () =>
+            this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           )
           this.throwIfStaleDeepChatInstance(sessionId, instance)
           this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
@@ -4537,9 +4614,8 @@ export class AgentRuntimePresenter {
             resumeBudget.message
           )
         } else if (resumeBudget?.kind === 'terminal_error') {
-          await this.runPreStreamStep(
-            { sessionId, messageId, step: 'tool-output-cleanup', signal: preStreamAbortSignal },
-            () => this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
+          await this.runPreStreamStep({ sessionId, messageId, step: 'tool-output-cleanup' }, () =>
+            this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           )
           this.throwIfStaleDeepChatInstance(sessionId, instance)
           this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
@@ -4564,12 +4640,15 @@ export class AgentRuntimePresenter {
 
       this.throwIfAbortRequested(preStreamAbortSignal)
       this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const providerBoundary = this.startPreStreamStepWatchdog({
-        sessionId,
-        messageId,
-        step: 'pre-stream-provider-start',
-        signal: preStreamAbortSignal
-      })
+      const providerBoundary = this.startPreStreamProviderBoundaryWatchdog(
+        {
+          sessionId,
+          messageId,
+          step: 'pre-stream-provider-start',
+          signal: preStreamAbortSignal
+        },
+        preStreamStartedAt
+      )
       let streamResult: { runId: string; result: ProcessResult }
       try {
         streamResult = await this.runStreamForMessage({
