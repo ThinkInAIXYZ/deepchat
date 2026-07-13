@@ -14,7 +14,7 @@ import {
   VECTOR_STORE_SOFT_CAP,
   VECTOR_STORE_SWEEP_INTERVAL_MS
 } from '../runtimeConstants'
-import { MemoryVectorStoreMigrationPendingError } from './vectorStoreErrors'
+import { MemoryVectorStoreQuarantineRequiredError } from './vectorStoreErrors'
 
 export interface LockedVectorStorePort {
   open(embedding: MemoryModelRef, dimensions: number): Promise<IMemoryVectorStore>
@@ -28,6 +28,7 @@ interface VectorStoreLeaseState {
   configFingerprint: string | null | undefined
   logicalIdentity: string | null
   accepting: boolean
+  quarantined: boolean
   active: number
   openInFlight: number
   lastUsedAt: number
@@ -46,7 +47,7 @@ export interface VectorReadyCertificate {
 
 export class VectorStoreLeaseUnavailableError extends Error {
   constructor(
-    readonly reason: 'stopped' | 'admission-closed' | 'stale-identity',
+    readonly reason: 'stopped' | 'admission-closed' | 'quarantined' | 'stale-identity',
     message: string
   ) {
     super(message)
@@ -80,6 +81,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   private readonly vectorMutationLocks = new Map<string, Promise<unknown>>()
   private readonly leaseStates = new Map<string, VectorStoreLeaseState>()
   private readonly identityTransitions = new Map<string, Promise<void>>()
+  private readonly quarantinedAgents = new Set<string>()
   private resourceSweepTimer: ReturnType<typeof setInterval> | null = null
   private resourceConvergenceTimer: ReturnType<typeof setTimeout> | null = null
   private resourceConvergence: Promise<void> | null = null
@@ -156,6 +158,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   private beginConfigIdentityTransition(agentId: string): Promise<void> {
+    if (this.quarantinedAgents.has(agentId)) return Promise.resolve()
     const state = this.leaseState(agentId)
     state.accepting = false
     state.leaseEpoch += 1
@@ -172,13 +175,16 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       .finally(() => {
         if (this.identityTransitions.get(agentId) !== tracked) return
         this.identityTransitions.delete(agentId)
-        if (!this.stopped && state.leaseEpoch === transitionEpoch) state.accepting = true
+        if (!this.stopped && !state.quarantined && state.leaseEpoch === transitionEpoch) {
+          state.accepting = true
+        }
       })
     this.identityTransitions.set(agentId, tracked)
     return tracked
   }
 
   hasReadyCertificate(agentId: string, embedding: MemoryModelRef): boolean {
+    if (this.quarantinedAgents.has(agentId)) return false
     const currentEmbedding = this.resolveCurrentEmbedding(agentId)
     if (this.syncConfigIdentity(agentId, currentEmbedding)) {
       void this.beginConfigIdentityTransition(agentId).catch((error) => {
@@ -214,6 +220,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     dimensions: number,
     leaseEpoch?: number
   ): void {
+    if (this.quarantinedAgents.has(agentId)) return
     const currentEmbedding = this.resolveCurrentEmbedding(agentId)
     if (this.syncConfigIdentity(agentId, currentEmbedding)) {
       void this.beginConfigIdentityTransition(agentId).catch((error) => {
@@ -280,7 +287,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         configGeneration: 1,
         configFingerprint: undefined,
         logicalIdentity: null,
-        accepting: true,
+        accepting: !this.quarantinedAgents.has(agentId),
+        quarantined: this.quarantinedAgents.has(agentId),
         active: 0,
         openInFlight: 0,
         lastUsedAt: Date.now(),
@@ -290,6 +298,17 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       this.leaseStates.set(agentId, state)
     }
     return state
+  }
+
+  private assertLeaseAdmission(state: VectorStoreLeaseState): void {
+    if (!this.stopped && !state.quarantined && state.accepting) return
+    const reason = this.stopped ? 'stopped' : state.quarantined ? 'quarantined' : 'admission-closed'
+    throw new VectorStoreLeaseUnavailableError(
+      reason,
+      reason === 'quarantined'
+        ? '[Memory] vector store is quarantined for the remainder of this process'
+        : '[Memory] vector store lease admission is closed'
+    )
   }
 
   private withAgentLock<T>(
@@ -354,6 +373,12 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     task: (store: IMemoryVectorStore, generation: number) => Promise<T>,
     options: { allowHistoricalIdentity?: boolean } = {}
   ): Promise<T> {
+    if (this.quarantinedAgents.has(agentId)) {
+      throw new VectorStoreLeaseUnavailableError(
+        'quarantined',
+        '[Memory] vector store is quarantined for the remainder of this process'
+      )
+    }
     while (true) {
       const currentEmbedding = this.resolveCurrentEmbedding(agentId)
       if (this.syncConfigIdentity(agentId, currentEmbedding)) {
@@ -379,23 +404,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       break
     }
     const state = this.leaseState(agentId)
-    if (this.stopped || !state.accepting) {
-      throw new VectorStoreLeaseUnavailableError(
-        this.stopped ? 'stopped' : 'admission-closed',
-        '[Memory] vector store lease admission is closed'
-      )
-    }
+    this.assertLeaseAdmission(state)
     state.openInFlight += 1
     state.lastUsedAt = Date.now()
     let store: IMemoryVectorStore
     try {
       store = await this.withAgentLock(agentId, async (locked) => {
-        if (this.stopped || !state.accepting) {
-          throw new VectorStoreLeaseUnavailableError(
-            this.stopped ? 'stopped' : 'admission-closed',
-            '[Memory] vector store lease admission is closed'
-          )
-        }
+        this.assertLeaseAdmission(state)
         this.syncLogicalIdentity(agentId, embedding, dimensions)
         const desiredIdentity = this.cacheKey(agentId, embedding, dimensions)
         const openIdentity = this.vectorStoreIdentities.get(agentId)
@@ -407,15 +422,12 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
             await this.waitForLeaseDrain(state)
             await this.closeVectorStoreLocked(agentId, true)
           } finally {
-            if (!this.stopped && state.leaseEpoch === transitionEpoch) state.accepting = true
+            if (!this.stopped && !state.quarantined && state.leaseEpoch === transitionEpoch) {
+              state.accepting = true
+            }
           }
         }
-        if (this.stopped || !state.accepting) {
-          throw new VectorStoreLeaseUnavailableError(
-            this.stopped ? 'stopped' : 'admission-closed',
-            '[Memory] vector store lease admission is closed'
-          )
-        }
+        this.assertLeaseAdmission(state)
         if (state.requiresReset) {
           await this.ports.vectorStoreFactory.resetVectorStore(agentId)
           state.requiresReset = false
@@ -425,12 +437,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     } finally {
       state.openInFlight -= 1
     }
-    if (this.stopped || !state.accepting) {
-      throw new VectorStoreLeaseUnavailableError(
-        this.stopped ? 'stopped' : 'admission-closed',
-        '[Memory] vector store lease admission is closed'
-      )
-    }
+    this.assertLeaseAdmission(state)
     const generation = state.leaseEpoch
     state.active += 1
     this.observeResources()
@@ -620,12 +627,16 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     const pending = this.ports.vectorStoreFactory
       .createVectorStore(agentId, embedding, dimensions)
       .catch((error) => {
+        if (error instanceof MemoryVectorStoreQuarantineRequiredError) {
+          this.quarantineAgent(agentId, error)
+          throw new VectorStoreLeaseUnavailableError(
+            'quarantined',
+            '[Memory] vector store migration failed and was quarantined'
+          )
+        }
         this.vectorStores.delete(agentId)
         this.vectorStoreIdentities.delete(agentId)
         this.clearReady(agentId)
-        if (error instanceof MemoryVectorStoreMigrationPendingError) {
-          throw new VectorStoreLeaseUnavailableError('admission-closed', error.message)
-        }
         throw error
       })
     this.vectorStores.set(agentId, pending)
@@ -637,6 +648,29 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     )
     this.ensureResourceSweep()
     return pending
+  }
+
+  private quarantineAgent(agentId: string, error: MemoryVectorStoreQuarantineRequiredError): void {
+    const firstQuarantine = !this.quarantinedAgents.has(agentId)
+    this.quarantinedAgents.add(agentId)
+    const state = this.leaseState(agentId)
+    state.quarantined = true
+    state.accepting = false
+    state.leaseEpoch += 1
+    state.storeGeneration += 1
+    state.logicalIdentity = null
+    state.requiresReset = false
+    this.vectorStores.delete(agentId)
+    this.vectorStoreIdentities.delete(agentId)
+    this.clearReady(agentId)
+    if (!firstQuarantine) return
+    try {
+      this.ports.vectorStoreFactory.markVectorStoreQuarantined(agentId)
+    } catch (markerError) {
+      logger.error(
+        `[Memory] failed to persist vector quarantine marker for ${agentId}: ${String(markerError)}; original migration failure: ${String(error)}`
+      )
+    }
   }
 
   async resetAgentStore(agentId: string): Promise<void> {
@@ -653,6 +687,12 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
 
   private async drainAndClose(agentId: string, reset: boolean, permanent = false): Promise<void> {
     const state = this.leaseState(agentId)
+    if (state.quarantined || this.quarantinedAgents.has(agentId)) {
+      throw new VectorStoreLeaseUnavailableError(
+        'quarantined',
+        '[Memory] quarantined vector store cannot be closed or reset in this process'
+      )
+    }
     state.accepting = false
     state.leaseEpoch += 1
     const closeEpoch = state.leaseEpoch
@@ -676,7 +716,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         }
       })
     } finally {
-      if (!permanent && !this.stopped && state.leaseEpoch === closeEpoch) state.accepting = true
+      if (!permanent && !this.stopped && !state.quarantined && state.leaseEpoch === closeEpoch) {
+        state.accepting = true
+      }
     }
   }
 
@@ -845,7 +887,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       this.vectorMutationLocks.delete(agentId)
     }
     this.vectorStoreReady.delete(agentId)
-    this.leaseStates.delete(agentId)
+    if (!this.quarantinedAgents.has(agentId)) this.leaseStates.delete(agentId)
     this.observeResources()
   }
 

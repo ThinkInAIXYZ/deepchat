@@ -11,6 +11,7 @@ vi.mock('@duckdb/node-api', () => ({
 }))
 
 import logger from '@shared/logger'
+import { MigrationAbandonFence } from '@/presenter/memoryPresenter/infra/legacyV1Reader'
 import { loadLegacyVss } from '@/presenter/memoryPresenter/infra/legacyVssLoader'
 import {
   createMemoryVectorStorePaths,
@@ -39,6 +40,16 @@ interface QueryableStore {
   query: ReturnType<typeof vi.fn>
   queryByMemoryId(
     memoryId: string,
+    options: { topK: number }
+  ): Promise<Array<{ memoryId: string; distance: number }>>
+}
+
+interface ExactQueryableStore {
+  connection: { runAndReadAll: ReturnType<typeof vi.fn> }
+  vectorTable: string
+  metric: 'cosine'
+  query(
+    embedding: number[],
     options: { topK: number }
   ): Promise<Array<{ memoryId: string; distance: number }>>
 }
@@ -96,7 +107,7 @@ describe('MemoryVectorStore.upsert transaction (C4, AC-4.2)', () => {
 describe('MemoryVectorStore.queryByMemoryId', () => {
   it('reads the stored source vector, reuses parameterized query, and excludes itself', async () => {
     const connection = {
-      runAndReadAll: vi.fn(async () => ({
+      runAndReadAll: vi.fn(async (_sql: string, _params: unknown[]) => ({
         getRowObjectsJson: () => [{ embedding: [0.1, 0.2] }]
       }))
     }
@@ -141,6 +152,32 @@ describe('MemoryVectorStore.queryByMemoryId', () => {
     })
     await expect(store.queryByMemoryId('bad', { topK: 2 })).resolves.toEqual([])
     expect(store.query).not.toHaveBeenCalled()
+  })
+})
+
+describe('MemoryVectorStore.query exact scan', () => {
+  it('uses core array distance ordering without VSS statements', async () => {
+    const connection = {
+      runAndReadAll: vi.fn(async (_sql: string, _params: unknown[]) => ({
+        getRowObjectsJson: () => [
+          { memory_id: 'm2', distance: 0.1 },
+          { memory_id: 'm1', distance: 0.2 }
+        ]
+      }))
+    }
+    const store = Object.create(MemoryVectorStore.prototype) as ExactQueryableStore
+    store.connection = connection
+    store.vectorTable = 'memory_vector'
+    store.metric = 'cosine'
+
+    await expect(store.query([0.1, 0.2], { topK: 2 })).resolves.toEqual([
+      { memoryId: 'm2', distance: 0.1 },
+      { memoryId: 'm1', distance: 0.2 }
+    ])
+    const sql = String(connection.runAndReadAll.mock.calls[0][0])
+    expect(sql).toContain('array_cosine_distance')
+    expect(sql).toContain('ORDER BY distance')
+    expect(sql).not.toMatch(/LOAD|INSTALL|HNSW/i)
   })
 })
 
@@ -231,35 +268,83 @@ function mockV2DuckDbLifecycle(
     failFinalOpen?: boolean
     onFinalOpen?: () => void
     leaveStagingWal?: boolean
+    legacyRows?: MemoryVectorRecord[]
+    legacyReadError?: Error
+    legacyReadGate?: Promise<void>
+    onLegacyRead?: () => void
+    failTargetInsert?: Error
+    targetRowCountOverride?: number
   } = {}
 ) {
   const dimensions = options.dimensions ?? 2
   const sql: string[] = []
+  const legacySql: string[] = []
   const connections: Array<{ closeSync: ReturnType<typeof vi.fn> }> = []
+  let targetRowCount = 0
   duckDbMocks.create.mockImplementation(async (dbPath: string) => {
+    if (dbPath === ':memory:') {
+      const connection = {
+        run: vi.fn(async (statement: string) => {
+          legacySql.push(statement)
+          return undefined
+        }),
+        runAndReadAll: vi.fn(async (statement: string, params: unknown[] = []) => {
+          legacySql.push(statement)
+          options.onLegacyRead?.()
+          if (options.legacyReadGate) await options.legacyReadGate
+          if (options.legacyReadError) throw options.legacyReadError
+          const rows = options.legacyRows ?? []
+          if (statement.includes('count(*) AS row_count')) {
+            return { getRowObjectsJson: () => [{ row_count: rows.length }] }
+          }
+          const afterId = statement.includes('memory_id > ?') ? String(params[0]) : null
+          const limit = Number(params[params.length - 1])
+          const page = rows
+            .filter((row) => afterId === null || row.memoryId > afterId)
+            .slice(0, limit)
+            .map((row) => ({ memory_id: row.memoryId, embedding: row.embedding }))
+          return { getRowObjectsJson: () => page }
+        }),
+        closeSync: vi.fn()
+      }
+      connections.push(connection)
+      return {
+        connect: vi.fn(async () => connection),
+        closeSync: vi.fn()
+      }
+    }
     if (dbPath === paths.current && options.failFinalOpen) throw new Error('final open failed')
     if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, '')
     if (dbPath === paths.current) options.onFinalOpen?.()
     const connection = {
-      run: vi.fn(async (statement: string) => {
+      run: vi.fn(async (statement: string, params: unknown[] = []) => {
         sql.push(statement)
+        if (statement.includes('INSERT INTO memory_vector')) {
+          if (options.failTargetInsert) throw options.failTargetInsert
+          targetRowCount += params.length / 2
+        }
         if (statement.includes('CHECKPOINT') && options.leaveStagingWal) {
           fs.writeFileSync(`${paths.staging}.wal`, 'wal')
         }
         return undefined
       }),
       runAndReadAll: vi.fn(async (statement: string) => ({
-        getRowObjectsJson: () =>
-          statement.includes('information_schema.columns')
-            ? v2SchemaRows(dimensions, options.includeFormatVersion ?? true)
-            : [
-                {
-                  provider: 'p',
-                  model: 'm',
-                  dim: dimensions,
-                  format_version: 2
-                }
-              ]
+        getRowObjectsJson: () => {
+          if (statement.includes('information_schema.columns')) {
+            return v2SchemaRows(dimensions, options.includeFormatVersion ?? true)
+          }
+          if (statement.includes('count(*) AS row_count')) {
+            return [{ row_count: options.targetRowCountOverride ?? targetRowCount }]
+          }
+          return [
+            {
+              provider: 'p',
+              model: 'm',
+              dim: dimensions,
+              format_version: 2
+            }
+          ]
+        }
       })),
       closeSync: vi.fn()
     }
@@ -269,7 +354,7 @@ function mockV2DuckDbLifecycle(
       closeSync: vi.fn()
     }
   })
-  return { sql, connections }
+  return { sql, legacySql, connections }
 }
 
 async function setupRealFileSystem() {
@@ -433,23 +518,137 @@ describe('MemoryVectorStore v2 staged publish', () => {
     expect(new Set(Object.values(paths)).size).toBe(4)
   })
 
-  it('keeps a legacy-only store untouched until migration support lands', async () => {
+  it('rebuilds a legacy store with WAL without opening the suspect v1 database', async () => {
     const actualFs = await setupRealFileSystem()
     const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-v1-'))
     const paths = createMemoryVectorStorePaths(root, 'agent-a')
     fs.writeFileSync(paths.legacy, 'legacy')
     fs.writeFileSync(`${paths.legacy}.wal`, 'wal')
+    mockV2DuckDbLifecycle(paths)
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(fs.existsSync(paths.legacy)).toBe(false)
+      expect(fs.existsSync(`${paths.legacy}.wal`)).toBe(false)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(duckDbMocks.create).not.toHaveBeenCalledWith(':memory:')
+      await store.close()
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves a WAL-free legacy store through read-only keyset paging', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-preserve-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    const legacyRows = Array.from({ length: 51 }, (_, index) => ({
+      memoryId: `m${String(index + 1).padStart(3, '0')}`,
+      embedding: [index, index + 1]
+    }))
+    const { legacySql } = mockV2DuckDbLifecycle(paths, { legacyRows })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(store.isUsable()).toBe(true)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.legacy)).toBe(false)
+      expect(legacySql.some((statement) => /ATTACH .*\(READ_ONLY\)/.test(statement))).toBe(true)
+      expect(legacySql.some((statement) => statement.includes('memory_id > ?'))).toBe(true)
+      await store.close()
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('abandons native preserve failures without rollback, close, or file deletion', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-preserve-fail-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    const { connections, sql } = mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }],
+      failTargetInsert: new Error('target insert failed')
+    })
 
     try {
       await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreMigrationPendingError'
+        name: 'MemoryVectorStoreQuarantineRequiredError'
       })
-      expect(fs.readFileSync(paths.legacy, 'utf8')).toBe('legacy')
-      expect(fs.readFileSync(`${paths.legacy}.wal`, 'utf8')).toBe('wal')
+      expect(fs.existsSync(paths.legacy)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(true)
       expect(fs.existsSync(paths.current)).toBe(false)
-      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(fs.existsSync(paths.quarantine)).toBe(false)
+      expect(sql.some((statement) => statement.includes('ROLLBACK'))).toBe(false)
+      expect(connections.every((connection) => !connection.closeSync.mock.calls.length)).toBe(true)
     } finally {
-      fs.rmSync(root, { recursive: true, force: true })
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('quarantines a preserve row-count mismatch before rename', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-count-mismatch-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }],
+      targetRowCountOverride: 0
+    })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStoreQuarantineRequiredError'
+      })
+      expect(fs.existsSync(paths.current)).toBe(false)
+      expect(fs.existsSync(paths.staging)).toBe(true)
+      expect(fs.existsSync(paths.legacy)).toBe(true)
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('fences a preserve timeout so a late read cannot resume migration side effects', async () => {
+    vi.useFakeTimers()
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-preserve-timeout-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    let releaseRead!: () => void
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve
+    })
+    let notifyReadStarted!: () => void
+    const readStarted = new Promise<void>((resolve) => {
+      notifyReadStarted = resolve
+    })
+    const { connections } = mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }],
+      legacyReadGate: readGate,
+      onLegacyRead: notifyReadStarted
+    })
+
+    try {
+      const pending = MemoryVectorStore.create(paths, 2, EMB)
+      const rejection = expect(pending).rejects.toMatchObject({
+        name: 'MemoryVectorStoreQuarantineRequiredError'
+      })
+      await readStarted
+      await vi.advanceTimersByTimeAsync(60_000)
+      await rejection
+
+      releaseRead()
+      await vi.runAllTimersAsync()
+      await Promise.resolve()
+      expect(fs.existsSync(paths.legacy)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(fs.existsSync(paths.current)).toBe(false)
+      expect(connections.every((connection) => !connection.closeSync.mock.calls.length)).toBe(true)
+    } finally {
+      vi.useRealTimers()
+      actualFs.rmSync(root, { recursive: true, force: true })
     }
   })
 
@@ -465,6 +664,30 @@ describe('MemoryVectorStore v2 staged publish', () => {
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(false)
       expect(fs.existsSync(`${paths.staging}.wal`)).toBe(false)
+      await store.close()
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('discards torn staging and restarts preserve from the intact legacy store', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-torn-preserve-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    fs.writeFileSync(paths.staging, 'torn')
+    fs.writeFileSync(`${paths.staging}.wal`, 'torn-wal')
+    mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }]
+    })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(store.isUsable()).toBe(true)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(fs.existsSync(`${paths.staging}.wal`)).toBe(false)
+      expect(fs.existsSync(paths.legacy)).toBe(false)
       await store.close()
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
@@ -498,6 +721,30 @@ describe('MemoryVectorStore v2 staged publish', () => {
       await store.close()
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('retries marker recovery after a pre-commit publish failure', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-marker-retry-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.quarantine, 'old')
+    mockV2DuckDbLifecycle(paths, { leaveStagingWal: true })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toThrow('staged v2 WAL remains')
+      expect(fs.existsSync(paths.quarantine)).toBe(true)
+      expect(fs.existsSync(paths.current)).toBe(false)
+
+      duckDbMocks.create.mockReset()
+      mockV2DuckDbLifecycle(paths)
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(store.isUsable()).toBe(true)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.quarantine)).toBe(false)
+      await store.close()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
     }
   })
 
@@ -564,6 +811,29 @@ describe('MemoryVectorStore v2 staged publish', () => {
       expect(fs.existsSync(paths.staging)).toBe(false)
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('does not quarantine a preserved store after the rename commit point', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-preserve-commit-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }],
+      failFinalOpen: true
+    })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStorePostCommitError'
+      })
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(fs.existsSync(paths.legacy)).toBe(true)
+      expect(fs.existsSync(paths.quarantine)).toBe(false)
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
     }
   })
 
@@ -898,6 +1168,44 @@ describe('Legacy VSS loading', () => {
 
     expect(store.connection.run).toHaveBeenCalledTimes(1)
     expect(store.connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
+  })
+
+  it('stops after a native load settles when the migration fence was abandoned', async () => {
+    mutableApp.isPackaged = true
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    let releaseLoad!: () => void
+    let markLoadStarted!: () => void
+    const loadStarted = new Promise<void>((resolve) => {
+      markLoadStarted = resolve
+    })
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve
+    })
+    const connection = {
+      run: vi.fn(async (sql: string) => {
+        if (sql.startsWith('LOAD ')) {
+          markLoadStarted()
+          await loadGate
+        }
+        return undefined as never
+      })
+    }
+    const fence = new MigrationAbandonFence()
+    const pendingLoad = loadLegacyVss(connection, '/tmp/legacy.duckdb', fence)
+    const rejection = expect(pendingLoad).rejects.toMatchObject({
+      name: 'LegacyV1MigrationAbandonedError'
+    })
+
+    await loadStarted
+    fence.abandon()
+    releaseLoad()
+
+    await rejection
+    expect(connection.run).toHaveBeenCalledTimes(1)
+    expect(connection.run).not.toHaveBeenCalledWith(
+      'SET hnsw_enable_experimental_persistence = true;'
+    )
   })
 
   it('keeps the network fallback for development builds', async () => {

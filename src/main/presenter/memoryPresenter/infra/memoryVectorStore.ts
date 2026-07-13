@@ -5,13 +5,18 @@ import path from 'node:path'
 import { DuckDBConnection, DuckDBInstance, arrayValue } from '@duckdb/node-api'
 
 import type { MemoryPerfObserver } from '../ports'
+import { V1_PRESERVE_TIMEOUT_MS } from '../runtimeConstants'
 import type {
   IMemoryVectorStore,
   MemoryVectorMatch,
   MemoryVectorQueryOptions,
   MemoryVectorRecord
 } from '../types'
-import { MemoryVectorStoreMigrationPendingError } from './vectorStoreErrors'
+import { LegacyV1Reader, MigrationAbandonFence } from './legacyV1Reader'
+import {
+  MemoryVectorStorePostCommitError,
+  MemoryVectorStoreQuarantineRequiredError
+} from './vectorStoreErrors'
 
 const MEMORY_VECTOR_STORE_FORMAT_VERSION = 2
 
@@ -26,6 +31,18 @@ interface EmbeddingMeta {
   dim: number
   formatVersion: number
 }
+
+interface PublishFreshV2Options {
+  fence?: MigrationAbandonFence
+  preserveOnFailure?: boolean
+  populate?: (staging: MemoryVectorStore) => Promise<number>
+  beforeCommit?: () => void
+}
+
+type LegacyPreserveOutcome =
+  | { status: 'succeeded'; store: MemoryVectorStore }
+  | { status: 'failed'; error: unknown }
+  | { status: 'timed-out' }
 
 export interface MemoryVectorStorePaths {
   current: string
@@ -142,8 +159,13 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       return store
     }
 
-    if (fs.existsSync(paths.legacy) || fs.existsSync(`${paths.legacy}.wal`)) {
-      throw new MemoryVectorStoreMigrationPendingError()
+    if (fs.existsSync(`${paths.legacy}.wal`)) {
+      removeFiles(filesWithWal(paths.legacy))
+      return MemoryVectorStore.publishFreshV2(paths, dimensions, embedding, metric, perfObserver)
+    }
+
+    if (fs.existsSync(paths.legacy)) {
+      return MemoryVectorStore.migrateLegacyV1(paths, dimensions, embedding, metric, perfObserver)
     }
 
     return MemoryVectorStore.publishFreshV2(paths, dimensions, embedding, metric, perfObserver)
@@ -188,28 +210,146 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     }
   }
 
-  private static async publishFreshV2(
+  private static async migrateLegacyV1(
     paths: MemoryVectorStorePaths,
     dimensions: number,
     embedding: EmbeddingIdentity,
     metric: 'cosine' | 'l2sq' | 'ip',
     perfObserver?: MemoryPerfObserver
   ): Promise<MemoryVectorStore> {
+    const fence = new MigrationAbandonFence()
+    const preserve = MemoryVectorStore.preserveLegacyV1(
+      paths,
+      dimensions,
+      embedding,
+      metric,
+      perfObserver,
+      fence
+    )
+    const guarded: Promise<LegacyPreserveOutcome> = preserve.then(
+      (store): LegacyPreserveOutcome => ({ status: 'succeeded', store }),
+      (error): LegacyPreserveOutcome => ({ status: 'failed', error })
+    )
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<LegacyPreserveOutcome>((resolve) => {
+      timeoutId = setTimeout(() => {
+        if (fence.isCommitted()) return
+        fence.abandon()
+        resolve({ status: 'timed-out' })
+      }, V1_PRESERVE_TIMEOUT_MS)
+      if (typeof timeoutId.unref === 'function') timeoutId.unref()
+    })
+
+    const outcome = await Promise.race([guarded, timeout])
+    if (timeoutId) clearTimeout(timeoutId)
+    if (outcome.status === 'succeeded') return outcome.store
+    if (outcome.status === 'failed') {
+      if (outcome.error instanceof MemoryVectorStorePostCommitError) throw outcome.error
+      fence.abandon()
+      throw new MemoryVectorStoreQuarantineRequiredError(
+        `[MemoryVectorStore] legacy v1 preserve failed: ${String(outcome.error)}`,
+        { cause: outcome.error }
+      )
+    }
+
+    void guarded.then((lateOutcome) => {
+      logger.warn(
+        `[MemoryVectorStore] abandoned legacy v1 preserve settled late with status=${lateOutcome.status}; no migration side effects resumed`
+      )
+    })
+    throw new MemoryVectorStoreQuarantineRequiredError(
+      `[MemoryVectorStore] legacy v1 preserve timed out after ${V1_PRESERVE_TIMEOUT_MS}ms`
+    )
+  }
+
+  private static async preserveLegacyV1(
+    paths: MemoryVectorStorePaths,
+    dimensions: number,
+    embedding: EmbeddingIdentity,
+    metric: 'cosine' | 'l2sq' | 'ip',
+    perfObserver: MemoryPerfObserver | undefined,
+    fence: MigrationAbandonFence
+  ): Promise<MemoryVectorStore> {
+    const reader = await LegacyV1Reader.open(paths.legacy, dimensions, fence)
+    fence.assertActive()
+    const sourceRowCount = await reader.countRows(fence)
+    fence.assertActive()
+    const store = await MemoryVectorStore.publishFreshV2(
+      paths,
+      dimensions,
+      embedding,
+      metric,
+      perfObserver,
+      {
+        fence,
+        preserveOnFailure: true,
+        populate: async (staging) => {
+          let copied = 0
+          let afterId: string | null = null
+          while (copied < sourceRowCount) {
+            const page = await reader.readPage(afterId, fence)
+            fence.assertActive()
+            if (!page.length || copied + page.length > sourceRowCount) break
+            await staging.upsertForMigration(page, fence)
+            fence.assertActive()
+            copied += page.length
+            afterId = page[page.length - 1].memoryId
+          }
+          if (copied !== sourceRowCount) {
+            throw new Error(
+              `[MemoryVectorStore] legacy v1 row count changed during preserve: expected ${sourceRowCount}, copied ${copied}`
+            )
+          }
+          return sourceRowCount
+        },
+        beforeCommit: () => reader.closeForCommit(fence)
+      }
+    )
+    sweepLegacyBestEffort(paths)
+    return store
+  }
+
+  private static async publishFreshV2(
+    paths: MemoryVectorStorePaths,
+    dimensions: number,
+    embedding: EmbeddingIdentity,
+    metric: 'cosine' | 'l2sq' | 'ip',
+    perfObserver?: MemoryPerfObserver,
+    options: PublishFreshV2Options = {}
+  ): Promise<MemoryVectorStore> {
+    options.fence?.assertActive()
     removeFiles(filesWithWal(paths.staging))
     let committed = false
     const staging = new MemoryVectorStore(paths.staging, metric, perfObserver)
     try {
-      await staging.initialize(dimensions, embedding)
-      if (!(await staging.matchesExpectedFormat(dimensions, embedding))) {
+      await staging.initialize(dimensions, embedding, options.fence)
+      options.fence?.assertActive()
+      const expectedRowCount = options.populate ? await options.populate(staging) : 0
+      options.fence?.assertActive()
+      if (!(await staging.matchesExpectedFormat(dimensions, embedding, options.fence))) {
         throw new Error('[MemoryVectorStore] staged v2 verification failed')
       }
+      options.fence?.assertActive()
+      const actualRowCount = await staging.countRows(options.fence)
+      options.fence?.assertActive()
+      if (actualRowCount !== expectedRowCount) {
+        throw new Error(
+          `[MemoryVectorStore] staged v2 row count mismatch: expected ${expectedRowCount}, found ${actualRowCount}`
+        )
+      }
       await staging.connection.run('CHECKPOINT;')
-      staging.closeStrict()
+      options.fence?.assertActive()
+      staging.closeStrict(options.fence)
+      options.beforeCommit?.()
+      options.fence?.assertActive()
       if (fs.existsSync(`${paths.staging}.wal`)) {
         throw new Error('[MemoryVectorStore] staged v2 WAL remains after checkpoint and close')
       }
+      options.fence?.assertActive()
       fs.renameSync(paths.staging, paths.current)
       committed = true
+      options.fence?.markCommitted()
       const current = await MemoryVectorStore.openCurrent(
         paths.current,
         dimensions,
@@ -223,7 +363,8 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       }
       return current
     } catch (error) {
-      if (!committed) {
+      if (committed) throw new MemoryVectorStorePostCommitError(error)
+      if (!options.preserveOnFailure) {
         await staging.close()
         removeFiles(filesWithWal(paths.staging))
       }
@@ -235,22 +376,30 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     return this.usable
   }
 
-  private async connect(): Promise<void> {
+  private async connect(fence?: MigrationAbandonFence): Promise<void> {
+    fence?.assertActive()
     this.dbInstance = await DuckDBInstance.create(this.dbPath)
     this.instanceOpen = true
+    fence?.assertActive()
     this.connection = await this.dbInstance.connect()
     this.connectionOpen = true
+    fence?.assertActive()
   }
 
-  private async initialize(dimensions: number, embedding: EmbeddingIdentity): Promise<void> {
+  private async initialize(
+    dimensions: number,
+    embedding: EmbeddingIdentity,
+    fence?: MigrationAbandonFence
+  ): Promise<void> {
     logger.info(`[MemoryVectorStore] initializing v2 at ${this.dbPath} (dim=${dimensions})`)
-    await this.connect()
+    await this.connect(fence)
     await this.connection.run(
       `CREATE TABLE ${this.vectorTable} (
          memory_id VARCHAR PRIMARY KEY,
          embedding FLOAT[${dimensions}]
        );`
     )
+    fence?.assertActive()
     await this.connection.run(
       `CREATE TABLE ${this.metaTable} (
          provider VARCHAR NOT NULL,
@@ -259,10 +408,12 @@ export class MemoryVectorStore implements IMemoryVectorStore {
          format_version INTEGER NOT NULL
        );`
     )
+    fence?.assertActive()
     await this.connection.run(
       `INSERT INTO ${this.metaTable} (provider, model, dim, format_version) VALUES (?, ?, ?, ?);`,
       [embedding.providerId, embedding.modelId, dimensions, MEMORY_VECTOR_STORE_FORMAT_VERSION]
     )
+    fence?.assertActive()
   }
 
   private async open(expectedDim: number, embedding: EmbeddingIdentity): Promise<void> {
@@ -290,9 +441,10 @@ export class MemoryVectorStore implements IMemoryVectorStore {
 
   private async matchesExpectedFormat(
     expectedDim: number,
-    embedding: EmbeddingIdentity
+    embedding: EmbeddingIdentity,
+    fence?: MigrationAbandonFence
   ): Promise<boolean> {
-    const meta = await this.readEmbeddingMeta(expectedDim)
+    const meta = await this.readEmbeddingMeta(expectedDim, fence)
     return (
       meta?.formatVersion === MEMORY_VECTOR_STORE_FORMAT_VERSION &&
       meta.provider === embedding.providerId &&
@@ -301,7 +453,11 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     )
   }
 
-  private async readEmbeddingMeta(expectedDim: number): Promise<EmbeddingMeta | null> {
+  private async readEmbeddingMeta(
+    expectedDim: number,
+    fence?: MigrationAbandonFence
+  ): Promise<EmbeddingMeta | null> {
+    fence?.assertActive()
     const columnsReader = await this.connection.runAndReadAll(
       `SELECT table_name, column_name, data_type
        FROM information_schema.columns
@@ -309,6 +465,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
        ORDER BY table_name, ordinal_position;`,
       [this.vectorTable, this.metaTable]
     )
+    fence?.assertActive()
     const columns = columnsReader.getRowObjectsJson()
     const metaColumns = new Set(
       columns
@@ -334,6 +491,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     const reader = await this.connection.runAndReadAll(
       `SELECT provider, model, dim, format_version FROM ${this.metaTable} LIMIT 2;`
     )
+    fence?.assertActive()
     const rows = reader.getRowObjectsJson()
     if (rows.length !== 1) return null
     const row = rows[0]
@@ -354,8 +512,24 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   }
 
   async upsert(records: MemoryVectorRecord[]): Promise<void> {
+    return this.upsertRecords(records)
+  }
+
+  private async upsertForMigration(
+    records: MemoryVectorRecord[],
+    fence: MigrationAbandonFence
+  ): Promise<void> {
+    return this.upsertRecords(records, fence)
+  }
+
+  private async upsertRecords(
+    records: MemoryVectorRecord[],
+    fence?: MigrationAbandonFence
+  ): Promise<void> {
     if (!records.length) return
+    fence?.assertActive()
     await this.connection.run('BEGIN TRANSACTION;')
+    fence?.assertActive()
     try {
       const deletePlaceholders = records.map(() => '?').join(', ')
       this.perfObserver?.increment('duckDbStatements')
@@ -363,6 +537,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         `DELETE FROM ${this.vectorTable} WHERE memory_id IN (${deletePlaceholders});`,
         records.map((record) => record.memoryId)
       )
+      fence?.assertActive()
       const insertPlaceholders = records.map(() => '(?, ?::FLOAT[])').join(', ')
       const insertParams = records.flatMap((record) => [
         record.memoryId,
@@ -373,11 +548,27 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES ${insertPlaceholders};`,
         insertParams
       )
+      fence?.assertActive()
       await this.connection.run('COMMIT;')
+      fence?.assertActive()
     } catch (error) {
+      if (fence) throw error
       await this.connection.run('ROLLBACK;').catch(() => undefined)
       throw error
     }
+  }
+
+  private async countRows(fence?: MigrationAbandonFence): Promise<number> {
+    fence?.assertActive()
+    const reader = await this.connection.runAndReadAll(
+      `SELECT count(*) AS row_count FROM ${this.vectorTable};`
+    )
+    fence?.assertActive()
+    const rowCount = Number(reader.getRowObjectsJson()[0]?.row_count)
+    if (!Number.isSafeInteger(rowCount) || rowCount < 0) {
+      throw new Error(`[MemoryVectorStore] invalid v2 row count: ${String(rowCount)}`)
+    }
+    return rowCount
   }
 
   async query(
@@ -457,7 +648,21 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     return rows.map((row: Record<string, unknown>) => String(row.memory_id))
   }
 
-  private closeStrict(): void {
+  private closeStrict(fence?: MigrationAbandonFence): void {
+    if (fence) {
+      if (this.connectionOpen) {
+        fence.assertActive()
+        this.connection.closeSync()
+        this.connectionOpen = false
+      }
+      if (this.instanceOpen) {
+        fence.assertActive()
+        this.dbInstance.closeSync()
+        this.instanceOpen = false
+      }
+      return
+    }
+
     const errors: unknown[] = []
     if (this.connectionOpen) {
       try {

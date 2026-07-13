@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryRuntimeContext } from '@/presenter/memoryPresenter/context'
 import { VectorStoreManager } from '@/presenter/memoryPresenter/infra/vectorStoreManager'
-import { MemoryVectorStoreMigrationPendingError } from '@/presenter/memoryPresenter/infra/vectorStoreErrors'
+import { MemoryVectorStoreQuarantineRequiredError } from '@/presenter/memoryPresenter/infra/vectorStoreErrors'
 import type {
   IMemoryVectorStore,
   MemoryEmbeddingRepositoryPort
@@ -99,7 +99,7 @@ describe('VectorStoreManager certificate generations', () => {
 })
 
 describe('VectorStoreManager open failures', () => {
-  it('maps a deferred v1 migration to lease-unavailable without quarantining data', async () => {
+  it('persists quarantine and permanently closes same-process admission', async () => {
     const embedding = { providerId: 'p', modelId: 'm' }
     const policy = {
       resolveAgentConfig: () =>
@@ -110,23 +110,72 @@ describe('VectorStoreManager open failures', () => {
       providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
     })
     const markVectorStoreQuarantined = vi.fn()
+    const createVectorStore = vi.fn(async () => {
+      throw new MemoryVectorStoreQuarantineRequiredError('preserve failed')
+    })
+    const resetVectorStore = vi.fn(async () => undefined)
     const manager = new VectorStoreManager({
       ctx,
       policy,
       repository: {} as MemoryEmbeddingRepositoryPort,
       vectorStoreFactory: {
-        createVectorStore: async () => {
-          throw new MemoryVectorStoreMigrationPendingError()
-        },
-        resetVectorStore: async () => undefined,
+        createVectorStore,
+        resetVectorStore,
         markVectorStoreQuarantined
       }
     })
 
     await expect(
       manager.withStoreLease('agent', embedding, 4, async () => undefined)
-    ).rejects.toMatchObject({ name: 'VectorStoreLeaseUnavailableError' })
-    expect(markVectorStoreQuarantined).not.toHaveBeenCalled()
+    ).rejects.toMatchObject({ name: 'VectorStoreLeaseUnavailableError', reason: 'quarantined' })
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+    await expect(manager.resetAgentStore('agent')).rejects.toMatchObject({ reason: 'quarantined' })
+    manager.markReady('agent', embedding, 4)
+    expect(manager.hasReadyCertificate('agent', embedding)).toBe(false)
+    await manager.settleAgent('agent')
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(1)
+    expect(resetVectorStore).not.toHaveBeenCalled()
+    await manager.closeAllStores()
+  })
+
+  it('keeps admission quarantined when marker persistence itself fails', async () => {
+    const embedding = { providerId: 'p', modelId: 'm' }
+    const policy = {
+      resolveAgentConfig: () =>
+        ({ memoryEnabled: true, memoryEmbedding: embedding }) as DeepChatAgentConfig
+    }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const manager = new VectorStoreManager({
+      ctx,
+      policy,
+      repository: {} as MemoryEmbeddingRepositoryPort,
+      vectorStoreFactory: {
+        createVectorStore: async () => {
+          throw new MemoryVectorStoreQuarantineRequiredError('preserve failed')
+        },
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined: () => {
+          throw new Error('disk read-only')
+        }
+      }
+    })
+
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ reason: 'quarantined' })
     await manager.closeAllStores()
   })
 })

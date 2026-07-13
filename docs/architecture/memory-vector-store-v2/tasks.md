@@ -4,7 +4,7 @@
       index creation and `hnsw_enable_experimental_persistence`; keep `format_version = 2` in
       `embedding_meta` as a post-open self-check; remove `LOAD vss` from v2
       create/open/query paths.
-- [ ] `publishFreshV2()` — the single publish primitive for every creation path (fresh create,
+- [x] `publishFreshV2()` — the single publish primitive for every creation path (fresh create,
       quarantine recovery, rebuild, preserve): clean stale staging main + wal → build complete
       v2 at `stagingPath` → verify (schema, `format_version = 2`, embedding identity, and for
       preserve source/target row counts) → `CHECKPOINT`, close, assert `${stagingPath}.wal`
@@ -19,26 +19,26 @@
       unconditionally (never a commit point) before continuing the decision tree.
 - [x] Committed-v2 authority: `v2Path` present → open it; leftover v1 files are swept
       best-effort (failure logs and retries next launch) — never discard a committed v2.
-- [ ] Migration (rebuild): v1 store with residual `.wal` → destroy v1 files without opening
+- [x] Migration (rebuild): v1 store with residual `.wal` → destroy v1 files without opening
       them, `publishFreshV2()`. (Preserve failures do NOT rebuild in-process — they take the
       marker path below and recover at the next launch.)
-- [ ] `LegacyV1Reader`: VSS loaded on a neutral in-memory DuckDB connection + read-only
+- [x] `LegacyV1Reader`: VSS loaded on a neutral in-memory DuckDB connection + read-only
       `ATTACH` of the v1 file; keyset-paged reads of `memory_id, embedding` ordered by
       `memory_id` (bounded JS heap on the read side).
-- [ ] Migration (preserve): v1 store without WAL → `LegacyV1Reader` pages rows into
+- [x] Migration (preserve): v1 store without WAL → `LegacyV1Reader` pages rows into
       `publishFreshV2()` (staging build → verify incl. row counts → checkpoint → rename
       commit), then best-effort delete of v1 files; whole step under
       `V1_PRESERVE_TIMEOUT_MS = 60_000`.
-- [ ] Preserve failure handling (native error or deadline expiry): write quarantine marker,
+- [x] Preserve failure handling (native error or deadline expiry): write quarantine marker,
       close vector admission for the agent, FTS-only for the process, nothing closed or deleted
       in-process.
-- [ ] Preserve abandon fence: per-attempt epoch marked abandoned at deadline expiry; fence
+- [x] Preserve abandon fence: per-attempt epoch marked abandoned at deadline expiry; fence
       re-checked after every native await and before every filesystem side effect; abandoned
       attempts may not query/close/checkpoint/rename/delete; late settlements are logged only
       and never resume admission; the original promise stays observed (no unhandled rejection).
 - [x] `resetVectorStore` / `destroyFile` target v2 paths and sweep staging and legacy v1 files
       (main + wal each).
-- [ ] Unit tests:
+- [x] Unit tests:
   - `publishFreshV2()` builds at staging and renames; `v2Path` never observable in a
     half-built state; `format_version = 2` recorded; a v1 file renamed to `v2Path` fails the
     post-open self-check and routes to rebuild.
