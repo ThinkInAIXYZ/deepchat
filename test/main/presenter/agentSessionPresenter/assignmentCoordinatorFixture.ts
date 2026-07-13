@@ -12,6 +12,7 @@ import { SessionAgentAssignmentCoordinator } from '@/presenter/sessionApplicatio
 import { SessionDeletionTransaction } from '@/presenter/sessionApplication/lifecycleDeletionTransaction'
 import type { SessionProjectionCoordinator } from '@/presenter/sessionApplication/projectionCoordinator'
 import { SessionTurnCoordinator } from '@/presenter/sessionApplication/turnCoordinator'
+import { SessionLifecycleCoordinator } from '@/presenter/sessionApplication/lifecycleCoordinator'
 
 export const createAssignmentCoordinatorFixture = (input: {
   agentManager: AgentManager
@@ -21,12 +22,13 @@ export const createAssignmentCoordinatorFixture = (input: {
   sharedData: AgentSharedDataPorts
   projection: SessionProjectionCoordinator
   acp: AcpAsLlmProviderSessionControlPort
-  skillPresenter?: Pick<ISkillPresenter, 'clearNewAgentSessionSkills'>
+  skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   sessionPermissionPort?: Pick<SessionPermissionPort, 'clearSessionPermissions'>
 }): {
   policy: SessionAgentAssignmentPolicy
   assignment: SessionAgentAssignmentCoordinator
   turn: SessionTurnCoordinator
+  lifecycle: SessionLifecycleCoordinator
   deletion: SessionDeletionTransaction
 } => {
   const policy = new SessionAgentAssignmentPolicy(
@@ -118,6 +120,42 @@ export const createAssignmentCoordinatorFixture = (input: {
     workdir: assignment,
     projection: input.projection
   })
+  const lifecycle = new SessionLifecycleCoordinator({
+    sessions: input.appSessionService,
+    runtime: {
+      resolveSession: (sessionId) => {
+        const { handle } = input.agentManager.resolveSessionHandle(sessionId)
+        return {
+          kind: handle.kind,
+          initialize: (config) => handle.lifecycle.initialize(config),
+          isInitialized: () => handle.lifecycle.isInitialized(),
+          snapshot: () => handle.snapshot(),
+          getGenerationSettings: () => handle.settings.getGenerationSettings(),
+          setPermissionMode: (mode) => handle.settings.setPermissionMode(mode),
+          close: () => handle.close()
+        }
+      }
+    },
+    transcript: {
+      hasMessages: (sessionId) => input.sharedData.transcript.hasMessages(sessionId),
+      forkSessionFromMessage: (sourceSessionId, targetSessionId, targetMessageId) =>
+        input.sharedData.transcriptMutation.forkSessionFromMessage(
+          sourceSessionId,
+          targetSessionId,
+          targetMessageId
+        )
+    },
+    skills: {
+      setActiveSkills: async (sessionId, activeSkills) => {
+        await input.skillPresenter?.setActiveSkills?.(sessionId, activeSkills)
+      }
+    },
+    assignmentPolicy: policy,
+    workdir: assignment,
+    initialTurn: turn,
+    projection: input.projection,
+    deletion
+  })
 
-  return { policy, assignment, turn, deletion }
+  return { policy, assignment, turn, lifecycle, deletion }
 }

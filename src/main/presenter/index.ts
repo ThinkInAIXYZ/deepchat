@@ -81,6 +81,7 @@ import { SessionAgentAssignmentPolicy } from './sessionApplication/agentAssignme
 import { SessionAgentAssignmentCoordinator } from './sessionApplication/agentAssignmentCoordinator'
 import { SessionDeletionTransaction } from './sessionApplication/lifecycleDeletionTransaction'
 import { SessionTurnCoordinator } from './sessionApplication/turnCoordinator'
+import { SessionLifecycleCoordinator } from './sessionApplication/lifecycleCoordinator'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
@@ -166,6 +167,7 @@ export class Presenter implements IPresenter {
   sessionAgentAssignmentPolicy: SessionAgentAssignmentPolicy
   sessionAgentAssignmentCoordinator: SessionAgentAssignmentCoordinator
   sessionTurnCoordinator: SessionTurnCoordinator
+  sessionLifecycleCoordinator: SessionLifecycleCoordinator
   sessionDeletionTransaction: SessionDeletionTransaction
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
@@ -845,6 +847,42 @@ export class Presenter implements IPresenter {
       workdir: this.sessionAgentAssignmentCoordinator,
       projection: this.sessionProjectionCoordinator
     })
+    this.sessionLifecycleCoordinator = new SessionLifecycleCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        resolveSession: (sessionId) => {
+          const { handle } = this.agentManager.resolveSessionHandle(sessionId)
+          return {
+            kind: handle.kind,
+            initialize: (config) => handle.lifecycle.initialize(config),
+            isInitialized: () => handle.lifecycle.isInitialized(),
+            snapshot: () => handle.snapshot(),
+            getGenerationSettings: () => handle.settings.getGenerationSettings(),
+            setPermissionMode: (mode) => handle.settings.setPermissionMode(mode),
+            close: () => handle.close()
+          }
+        }
+      },
+      transcript: {
+        hasMessages: (sessionId) => agentSharedData.transcript.hasMessages(sessionId),
+        forkSessionFromMessage: (sourceSessionId, targetSessionId, targetMessageId) =>
+          agentSharedData.transcriptMutation.forkSessionFromMessage(
+            sourceSessionId,
+            targetSessionId,
+            targetMessageId
+          )
+      },
+      skills: {
+        setActiveSkills: async (sessionId, activeSkills) => {
+          await this.skillPresenter.setActiveSkills(sessionId, activeSkills)
+        }
+      },
+      assignmentPolicy: this.sessionAgentAssignmentPolicy,
+      workdir: this.sessionAgentAssignmentCoordinator,
+      initialTurn: this.sessionTurnCoordinator,
+      projection: this.sessionProjectionCoordinator,
+      deletion: this.sessionDeletionTransaction
+    })
     this.agentSessionPresenter = new AgentSessionPresenter(
       this.agentManager,
       appSessionService,
@@ -853,13 +891,9 @@ export class Presenter implements IPresenter {
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       agentSharedData,
       this.sessionProjectionCoordinator,
-      this.sessionAgentAssignmentPolicy,
-      this.sessionAgentAssignmentCoordinator,
+      this.sessionLifecycleCoordinator,
       this.sessionAgentAssignmentCoordinator,
       this.sessionTurnCoordinator,
-      this.sessionTurnCoordinator,
-      this.sessionDeletionTransaction,
-      this.skillPresenter,
       {
         sessionPermissionPort
       }

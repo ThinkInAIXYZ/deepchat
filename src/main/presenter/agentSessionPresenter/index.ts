@@ -30,7 +30,6 @@ import type {
   PermissionMode,
   SessionCompactionState,
   SessionGenerationSettings,
-  DeepChatSubagentMeta,
   ToolInteractionResponse,
   ToolInteractionResult,
   UsageDashboardData,
@@ -52,7 +51,6 @@ import type {
   HistorySearchSessionHit,
   HistorySearchMessageHit,
   ILlmProviderPresenter,
-  ISkillPresenter,
   CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -68,15 +66,12 @@ import { LegacyChatImportService } from './legacyImportService'
 import { SessionProjectionCoordinator } from '../sessionApplication/projectionCoordinator'
 import type {
   SessionAgentAssignmentPort,
-  SessionAssignmentPolicyPort,
-  SessionAssignmentWorkdirPort,
-  SessionInitialTurnPort,
-  SessionLifecycleDeletionPort,
+  SessionLifecyclePort,
+  SessionLifecycleSubagentInput,
   SessionTurnPort
 } from '../sessionApplication/ports'
 import {
   normalizeActiveSkills,
-  normalizeCreateSessionInput,
   normalizeDisabledAgentTools
 } from '@/agent/shared/agentSessionNormalization'
 import {
@@ -115,7 +110,6 @@ type SearchableMessageRow = {
   updatedAt: number
 }
 
-const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
 
@@ -253,13 +247,9 @@ export class AgentSessionPresenter {
   private sharedData: AgentSharedDataPorts
   private legacyImportService: LegacyChatImportService
   private sessionProjection: SessionProjectionCoordinator
-  private sessionAssignmentPolicy: SessionAssignmentPolicyPort
+  private sessionLifecycle: SessionLifecyclePort
   private sessionAssignment: SessionAgentAssignmentPort
-  private sessionAssignmentWorkdir: SessionAssignmentWorkdirPort
   private sessionTurn: SessionTurnPort
-  private sessionInitialTurn: SessionInitialTurnPort
-  private sessionDeletion: SessionLifecycleDeletionPort
-  private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   private sessionPermissionPort?: SessionPermissionPort
   private usageStatsBackfillPromise: Promise<void> | null = null
   private mainlineNormalizationPromise: Promise<void> | null = null
@@ -273,13 +263,9 @@ export class AgentSessionPresenter {
     sqlitePresenter: SQLitePresenter,
     sharedData: AgentSharedDataPorts,
     sessionProjection: SessionProjectionCoordinator,
-    sessionAssignmentPolicy: SessionAssignmentPolicyPort,
+    sessionLifecycle: SessionLifecyclePort,
     sessionAssignment: SessionAgentAssignmentPort,
-    sessionAssignmentWorkdir: SessionAssignmentWorkdirPort,
     sessionTurn: SessionTurnPort,
-    sessionInitialTurn: SessionInitialTurnPort,
-    sessionDeletion: SessionLifecycleDeletionPort,
-    skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
     runtimePorts?: {
       sessionPermissionPort?: SessionPermissionPort
     }
@@ -290,13 +276,9 @@ export class AgentSessionPresenter {
     this.configPresenter = configPresenter
     this.sharedData = sharedData
     this.sessionProjection = sessionProjection
-    this.sessionAssignmentPolicy = sessionAssignmentPolicy
+    this.sessionLifecycle = sessionLifecycle
     this.sessionAssignment = sessionAssignment
-    this.sessionAssignmentWorkdir = sessionAssignmentWorkdir
     this.sessionTurn = sessionTurn
-    this.sessionInitialTurn = sessionInitialTurn
-    this.sessionDeletion = sessionDeletion
-    this.skillPresenter = skillPresenter
     this.sessionManager = appSessionService
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
@@ -305,289 +287,15 @@ export class AgentSessionPresenter {
   // ---- IPC-facing methods ----
 
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
-    const requestedAgentId = input.agentId || 'deepchat'
-    const assignment = await this.sessionAssignmentPolicy.resolveCreateAssignment({
-      agentId: requestedAgentId,
-      providerId: input.providerId,
-      modelId: input.modelId,
-      projectDir: input.projectDir,
-      permissionMode: input.permissionMode,
-      generationSettings: input.generationSettings,
-      disabledAgentTools: input.disabledAgentTools,
-      subagentEnabled: input.subagentEnabled,
-      preserveExplicitNullProjectDir: true
-    })
-    const {
-      agentId,
-      providerId,
-      modelId,
-      projectDir,
-      permissionMode,
-      generationSettings,
-      disabledAgentTools,
-      subagentEnabled
-    } = assignment
-    logger.info(
-      `[AgentSessionPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`
-    )
-    const normalizedInput = normalizeCreateSessionInput(input)
-    logger.info(`[AgentSessionPresenter] resolved provider=${providerId} model=${modelId}`)
-
-    // Create session record
-    const title = normalizedInput.text.slice(0, 50) || 'New Chat'
-    const sessionId = this.sessionManager.create(agentId, title, projectDir, {
-      isDraft: false,
-      disabledAgentTools,
-      subagentEnabled
-    })
-    logger.info(`[AgentSessionPresenter] session created id=${sessionId} title="${title}"`)
-
-    // Initialize agent-side session
-    const initConfig: {
-      agentId?: string
-      providerId: string
-      modelId: string
-      projectDir: string | null
-      permissionMode: PermissionMode
-      generationSettings?: Partial<SessionGenerationSettings>
-    } = {
-      agentId,
-      providerId,
-      modelId,
-      projectDir,
-      permissionMode
-    }
-    if (generationSettings) {
-      initConfig.generationSettings = generationSettings
-    }
-    try {
-      await this.initializeSessionRuntime(sessionId, initConfig)
-    } catch (error) {
-      await this.cleanupFailedSessionInitialization(sessionId, providerId)
-      throw error
-    }
-    logger.info(`[AgentSessionPresenter] agent.initSession done`)
-
-    // Bind to the window and publish the created session projection.
-    this.sessionProjection.bindWindow(webContentsId, sessionId)
-    this.sessionProjection.notify({
-      sessionIds: [sessionId],
-      reason: 'created',
-      activeSessionId: sessionId,
-      webContentsId
-    })
-
-    // Return enriched session first
-    const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
-    const state = await handle.snapshot()
-    const sessionResult: SessionWithState = {
-      id: sessionId,
-      agentId,
-      title,
-      projectDir,
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled,
-      subagentMeta: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? providerId,
-      modelId: state?.modelId ?? modelId
-    }
-
-    this.sessionInitialTurn.startInitialTurn({
-      sessionId,
-      content: normalizedInput,
-      projectDir,
-      initialTitle: title,
-      fallbackProviderId: providerId,
-      fallbackModelId: modelId
-    })
-
-    return sessionResult
+    return await this.sessionLifecycle.createSession(input, webContentsId)
   }
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
-    const requestedAgentId = input.agentId?.trim() || 'deepchat'
-    const title = input.title?.trim() || 'New Chat'
-    const {
-      agentId,
-      providerId,
-      modelId,
-      projectDir,
-      permissionMode,
-      generationSettings,
-      disabledAgentTools,
-      subagentEnabled
-    } = await this.sessionAssignmentPolicy.resolveCreateAssignment({
-      agentId: requestedAgentId,
-      providerId: input.providerId,
-      modelId: input.modelId,
-      projectDir: input.projectDir,
-      permissionMode: input.permissionMode,
-      generationSettings: input.generationSettings,
-      disabledAgentTools: input.disabledAgentTools,
-      subagentEnabled: input.subagentEnabled,
-      preserveExplicitNullProjectDir: false
-    })
-
-    const sessionId = this.sessionManager.create(agentId, title, projectDir, {
-      isDraft: false,
-      disabledAgentTools,
-      subagentEnabled,
-      metadata: input.metadata ?? null
-    })
-
-    try {
-      await this.initializeSessionRuntime(sessionId, {
-        agentId,
-        providerId,
-        modelId,
-        projectDir,
-        permissionMode,
-        generationSettings
-      })
-    } catch (error) {
-      await this.cleanupFailedSessionInitialization(sessionId, providerId)
-      throw error
-    }
-
-    if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
-      await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
-    }
-
-    this.sessionProjection.notify({
-      sessionIds: [sessionId],
-      reason: 'created'
-    })
-
-    const state = await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.snapshot()
-    return {
-      id: sessionId,
-      agentId,
-      title,
-      projectDir,
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled,
-      subagentMeta: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      ...(input.metadata ? { metadata: input.metadata } : {}),
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? providerId,
-      modelId: state?.modelId ?? modelId
-    }
+    return await this.sessionLifecycle.createDetachedSession(input)
   }
 
-  async createSubagentSession(input: {
-    parentSessionId: string
-    agentId: string
-    slotId: string
-    displayName: string
-    targetAgentId?: string | null
-    projectDir?: string | null
-    providerId: string
-    modelId: string
-    permissionMode: PermissionMode
-    generationSettings?: Partial<SessionGenerationSettings>
-    disabledAgentTools?: string[]
-    activeSkills?: string[]
-  }): Promise<SessionWithState> {
-    const parentSessionId = input.parentSessionId?.trim()
-    if (!parentSessionId) {
-      throw new Error('Subagent session requires a parentSessionId.')
-    }
-
-    const slotId = input.slotId?.trim()
-    if (!slotId) {
-      throw new Error('Subagent session requires a slotId.')
-    }
-
-    const displayName = input.displayName?.trim() || 'Subagent'
-    const agentId = input.agentId?.trim()
-    if (!agentId) {
-      throw new Error('Subagent session requires an agentId.')
-    }
-
-    const projectDir = input.projectDir?.trim() || null
-    const runtimeConfig = await this.sessionAssignmentPolicy.resolveSubagentAssignment({
-      agentId,
-      targetAgentId: input.targetAgentId,
-      projectDir,
-      providerId: input.providerId,
-      modelId: input.modelId,
-      generationSettings: input.generationSettings,
-      disabledAgentTools: input.disabledAgentTools,
-      activeSkills: input.activeSkills
-    })
-    const subagentMeta: DeepChatSubagentMeta = {
-      slotId,
-      displayName,
-      targetAgentId: runtimeConfig.targetAgentId || null
-    }
-    let lastError: unknown = null
-
-    for (let attempt = 1; attempt <= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS; attempt += 1) {
-      const sessionId = this.sessionManager.create(runtimeConfig.agentId, displayName, projectDir, {
-        isDraft: false,
-        disabledAgentTools: runtimeConfig.disabledAgentTools,
-        subagentEnabled: false,
-        sessionKind: 'subagent',
-        parentSessionId,
-        subagentMeta
-      })
-
-      try {
-        await this.initializeSessionRuntime(sessionId, {
-          agentId: runtimeConfig.agentId,
-          providerId: runtimeConfig.providerId,
-          modelId: runtimeConfig.modelId,
-          projectDir,
-          permissionMode: input.permissionMode,
-          generationSettings: runtimeConfig.generationSettings
-        })
-
-        if (runtimeConfig.activeSkills.length > 0 && this.skillPresenter) {
-          await this.skillPresenter.setActiveSkills(sessionId, runtimeConfig.activeSkills)
-        }
-
-        const record = this.sessionManager.get(sessionId)
-        if (!record) {
-          throw new Error(`Subagent session not found after creation: ${sessionId}`)
-        }
-
-        const session = await this.sessionProjection.materializeRequired(sessionId)
-        this.sessionProjection.notify({
-          sessionIds: [session.id],
-          reason: 'created'
-        })
-        return session
-      } catch (error) {
-        lastError = error
-        await this.cleanupFailedSessionInitialization(sessionId, runtimeConfig.providerId)
-
-        if (attempt >= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS) {
-          throw error
-        }
-
-        console.warn(
-          `[AgentSessionPresenter] Retrying subagent session initialization (${attempt}/${SUBAGENT_SESSION_INIT_MAX_ATTEMPTS - 1} retry used) for agent=${runtimeConfig.agentId} slot=${slotId}:`,
-          error
-        )
-      }
-    }
-
-    throw lastError instanceof Error
-      ? lastError
-      : new Error(`Failed to create subagent session for slot ${slotId}.`)
+  async createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState> {
+    return await this.sessionLifecycle.createSubagentSession(input)
   }
 
   async ensureAcpDraftSession(input: {
@@ -595,68 +303,7 @@ export class AgentSessionPresenter {
     projectDir: string
     permissionMode?: PermissionMode
   }): Promise<SessionWithState> {
-    const agentId = input.agentId?.trim()
-    if (!agentId) {
-      throw new Error('ACP draft session requires an agentId.')
-    }
-
-    const projectDir = input.projectDir?.trim()
-    if (!projectDir) {
-      throw new Error('ACP draft session requires a non-empty projectDir.')
-    }
-
-    const { agentId: canonicalAgentId, permissionMode } =
-      this.sessionAssignmentPolicy.resolveAcpDraftAssignment(agentId, input.permissionMode)
-
-    let record = await this.findReusableDraftSession(canonicalAgentId, projectDir)
-    let createdDraftSession = false
-    if (!record) {
-      const sessionId = this.sessionManager.create(canonicalAgentId, 'New Chat', projectDir, {
-        isDraft: true,
-        subagentEnabled: false
-      })
-      try {
-        await this.ensureSessionRuntimeInitialized(sessionId, {
-          agentId: canonicalAgentId,
-          providerId: 'acp',
-          modelId: canonicalAgentId,
-          projectDir,
-          permissionMode
-        })
-      } catch (error) {
-        await this.cleanupFailedSessionInitialization(sessionId, 'acp')
-        throw error
-      }
-      record = this.sessionManager.get(sessionId)
-      if (!record) {
-        throw new Error(`Failed to read created ACP draft session: ${sessionId}`)
-      }
-      createdDraftSession = true
-    } else {
-      await this.ensureSessionRuntimeInitialized(record.id, {
-        agentId: canonicalAgentId,
-        providerId: 'acp',
-        modelId: canonicalAgentId,
-        projectDir,
-        permissionMode
-      })
-    }
-
-    await this.sessionAssignmentWorkdir.prepareDirectAcpSession(record.id)
-    this.sessionProjection.notify({
-      sessionIds: [record.id],
-      reason: createdDraftSession ? 'created' : 'updated'
-    })
-
-    const state = await this.agentManager
-      .resolveSessionHandle(toAppSessionId(record.id))
-      .handle.snapshot()
-    return {
-      ...record,
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? 'acp',
-      modelId: state?.modelId ?? canonicalAgentId
-    }
+    return await this.sessionLifecycle.ensureAcpDraftSession(input)
   }
 
   async sendMessage(
@@ -720,75 +367,7 @@ export class AgentSessionPresenter {
     targetMessageId: string,
     newTitle?: string
   ): Promise<SessionWithState> {
-    const sourceSession = this.sessionManager.get(sourceSessionId)
-    if (!sourceSession) {
-      throw new Error(`Session not found: ${sourceSessionId}`)
-    }
-
-    const sourceHandle = this.agentManager.resolveSessionHandle(
-      toAppSessionId(sourceSessionId)
-    ).handle
-    const sourceState = await sourceHandle.snapshot()
-    if (!sourceState) {
-      throw new Error(`Session state not found: ${sourceSessionId}`)
-    }
-
-    const generationSettings = await sourceHandle.settings.getGenerationSettings()
-
-    const title = this.buildForkTitle(sourceSession.title, newTitle)
-    const targetSessionId = this.sessionManager.create(
-      sourceSession.agentId,
-      title,
-      sourceSession.projectDir ?? null,
-      { isDraft: false }
-    )
-
-    try {
-      await this.initializeSessionRuntime(targetSessionId, {
-        agentId: sourceSession.agentId,
-        providerId: sourceState.providerId,
-        modelId: sourceState.modelId,
-        projectDir: sourceSession.projectDir ?? null,
-        permissionMode: sourceState.permissionMode,
-        generationSettings: generationSettings ?? undefined
-      })
-      await this.sharedData.transcriptMutation.forkSessionFromMessage(
-        sourceSessionId,
-        targetSessionId,
-        targetMessageId
-      )
-    } catch (error) {
-      try {
-        await this.agentManager.resolveSessionHandle(toAppSessionId(targetSessionId)).handle.close()
-      } catch (cleanupError) {
-        console.warn(
-          `[AgentSessionPresenter] Failed to cleanup forked session runtime ${targetSessionId}:`,
-          cleanupError
-        )
-      }
-      this.sessionManager.delete(targetSessionId)
-      throw error
-    }
-
-    this.sessionProjection.notify({
-      sessionIds: [targetSessionId],
-      reason: 'created'
-    })
-
-    const record = this.sessionManager.get(targetSessionId)
-    if (!record) {
-      throw new Error(`Forked session not found: ${targetSessionId}`)
-    }
-
-    const targetState = await this.agentManager
-      .resolveSessionHandle(toAppSessionId(targetSessionId))
-      .handle.snapshot()
-    return {
-      ...record,
-      status: targetState?.status ?? 'idle',
-      providerId: targetState?.providerId ?? sourceState.providerId,
-      modelId: targetState?.modelId ?? sourceState.modelId
-    }
+    return await this.sessionLifecycle.forkSession(sourceSessionId, targetMessageId, newTitle)
   }
 
   async getSessionList(filters?: {
@@ -1381,11 +960,7 @@ export class AgentSessionPresenter {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const deletedSessionIds = await this.sessionDeletion.deleteSessionTree(sessionId)
-    this.sessionProjection.notify({
-      sessionIds: deletedSessionIds,
-      reason: 'deleted'
-    })
+    await this.sessionLifecycle.deleteSession(sessionId)
   }
 
   async getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact> {
@@ -1529,113 +1104,6 @@ export class AgentSessionPresenter {
       providerId: fallbackProviderId,
       modelId: fallbackModelId
     }
-  }
-
-  private async findReusableDraftSession(
-    agentId: string,
-    projectDir: string
-  ): Promise<SessionRecord | null> {
-    const candidates = this.sessionManager.list({ agentId, projectDir })
-    for (const session of candidates) {
-      if (!session.isDraft) continue
-      const hasMessages = await this.hasSessionMessages(session.id)
-      if (!hasMessages) {
-        return session
-      }
-    }
-    return null
-  }
-
-  private async hasSessionMessages(sessionId: string): Promise<boolean> {
-    try {
-      return await this.sharedData.transcript.hasMessages(sessionId)
-    } catch (error) {
-      console.warn(
-        `[AgentSessionPresenter] Failed to inspect messages for session=${sessionId}:`,
-        error
-      )
-      return true
-    }
-  }
-
-  private async ensureSessionRuntimeInitialized(
-    sessionId: string,
-    config: {
-      agentId?: string
-      providerId: string
-      modelId: string
-      projectDir: string
-      permissionMode: PermissionMode
-    }
-  ): Promise<void> {
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (!(await handle.lifecycle.isInitialized())) {
-      await this.initializeSessionRuntime(sessionId, config)
-      return
-    }
-    const state = await handle.snapshot()
-    if (!state) throw new Error(`Session ${sessionId} not found`)
-
-    if (state.permissionMode && state.permissionMode !== config.permissionMode) {
-      await handle.settings.setPermissionMode(config.permissionMode)
-    }
-
-    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
-      config.providerId,
-      sessionId,
-      config.agentId ?? config.modelId,
-      config.projectDir
-    )
-  }
-
-  private async initializeSessionRuntime(
-    sessionId: string,
-    config: {
-      agentId?: string
-      providerId: string
-      modelId: string
-      projectDir?: string | null
-      permissionMode: PermissionMode
-      generationSettings?: Partial<SessionGenerationSettings>
-    }
-  ): Promise<void> {
-    await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.lifecycle.initialize(config)
-    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
-      config.providerId,
-      sessionId,
-      config.agentId ?? config.modelId,
-      config.projectDir ?? null
-    )
-  }
-
-  private async cleanupFailedSessionInitialization(
-    sessionId: string,
-    providerId?: string
-  ): Promise<void> {
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (providerId === 'acp' && handle.kind !== 'acp') {
-      try {
-        await this.sessionAssignmentWorkdir.clearCompatibilityAcpSession(sessionId)
-      } catch (error) {
-        console.warn(
-          `[AgentSessionPresenter] Failed to clear ACP session after initialization error ${sessionId}:`,
-          error
-        )
-      }
-    }
-
-    try {
-      await handle.close()
-    } catch (cleanupError) {
-      console.warn(
-        `[AgentSessionPresenter] Failed to cleanup session runtime after initialization error ${sessionId}:`,
-        cleanupError
-      )
-    }
-
-    this.sessionManager.delete(sessionId)
   }
 
   private async buildExportConversation(
@@ -2370,18 +1838,6 @@ export class AgentSessionPresenter {
 
   private async yieldToEventLoop(): Promise<void> {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
-  }
-
-  private buildForkTitle(sourceTitle: string, customTitle?: string): string {
-    const normalizedCustom = customTitle?.trim()
-    if (normalizedCustom) {
-      return normalizedCustom
-    }
-    const base = sourceTitle?.trim() || 'New Chat'
-    if (base.length >= 60) {
-      return base.slice(0, 60).trim()
-    }
-    return `${base} - Fork`
   }
 
   private resolveTranslateLanguage(locale?: string): string {

@@ -19,7 +19,10 @@ import type {
 import type {
   AgentTransferImpact,
   ChatMessageRecord,
+  CreateDetachedSessionInput,
+  CreateSessionInput,
   DeepChatAgentConfig,
+  DeepChatSubagentMeta,
   DeepChatSessionState,
   MessageStartResult,
   PendingSessionInputRecord,
@@ -27,11 +30,13 @@ import type {
   SendMessageInput,
   SessionCompactionState,
   SessionGenerationSettings,
+  SessionKind,
   SessionLightweightListResult,
   SessionListItem,
   SessionPageCursor,
   SessionRecord,
   SessionWithState,
+  SessionMetadata,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -394,6 +399,95 @@ export interface SessionAssignmentWorkdirPort {
   ): Promise<void>
   prepareDirectAcpSession(sessionId: string): Promise<void>
   clearCompatibilityAcpSession(sessionId: string): Promise<void>
+}
+
+export interface SessionLifecycleStorePort {
+  create(
+    agentId: string,
+    title: string,
+    projectDir: string | null,
+    options?: {
+      isDraft?: boolean
+      disabledAgentTools?: string[]
+      subagentEnabled?: boolean
+      sessionKind?: SessionKind
+      parentSessionId?: string | null
+      subagentMeta?: DeepChatSubagentMeta | null
+      metadata?: SessionMetadata | null
+    }
+  ): AppSessionId
+  get(sessionId: string): SessionRecord | null
+  list(filters?: SessionListFilters): SessionRecord[]
+  delete(sessionId: string): void
+}
+
+export interface SessionLifecycleRuntimeConfig {
+  agentId?: string
+  providerId: string
+  modelId: string
+  projectDir?: string | null
+  permissionMode: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+}
+
+export interface SessionLifecycleRuntimeSession {
+  readonly kind: 'deepchat' | 'acp'
+  initialize(config: SessionLifecycleRuntimeConfig): Promise<void>
+  isInitialized(): Promise<boolean>
+  snapshot(): Promise<DeepChatSessionState | null>
+  getGenerationSettings(): Promise<SessionGenerationSettings | null>
+  setPermissionMode(mode: PermissionMode): Promise<void>
+  close(): Promise<void>
+}
+
+export interface SessionLifecycleRuntimePort {
+  resolveSession(sessionId: AppSessionId): SessionLifecycleRuntimeSession
+}
+
+export type SessionLifecycleTranscriptPort = Pick<AgentTranscriptReadPort, 'hasMessages'> &
+  Pick<AgentTranscriptMutationPort, 'forkSessionFromMessage'>
+
+export interface SessionLifecycleSkillPort {
+  setActiveSkills(sessionId: string, activeSkills: string[]): Promise<void>
+}
+
+export type SessionLifecycleProjectionPort = Pick<
+  SessionProjectionMutationPort,
+  'bindWindow' | 'notify'
+> & {
+  materializeRequired(sessionId: string): Promise<SessionWithState>
+}
+
+export interface SessionLifecycleSubagentInput {
+  parentSessionId: string
+  agentId: string
+  slotId: string
+  displayName: string
+  targetAgentId?: string | null
+  projectDir?: string | null
+  providerId: string
+  modelId: string
+  permissionMode: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+  disabledAgentTools?: string[]
+  activeSkills?: string[]
+}
+
+export interface SessionLifecyclePort {
+  createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+  createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
+  createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState>
+  ensureAcpDraftSession(input: {
+    agentId: string
+    projectDir: string
+    permissionMode?: PermissionMode
+  }): Promise<SessionWithState>
+  forkSession(
+    sourceSessionId: string,
+    targetMessageId: string,
+    newTitle?: string
+  ): Promise<SessionWithState>
+  deleteSession(sessionId: string): Promise<void>
 }
 
 export interface SessionAgentAssignmentPort {

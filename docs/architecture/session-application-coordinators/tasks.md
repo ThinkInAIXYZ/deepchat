@@ -44,10 +44,10 @@
 
 ## 5. SessionLifecycleCoordinator
 
-- [ ] Extract create, detached, subagent, ACP draft, fork, and recursive delete transactions.
-- [ ] Extract runtime initialization, workdir sync, and failed-create cleanup.
-- [ ] Connect real Assignment policy, Turn initial-message, and Projection mutation owners.
-- [ ] Rewire compatibility presenter forwarding and move owner tests.
+- [x] Extract create, detached, subagent, ACP draft, fork, and recursive delete transactions.
+- [x] Extract runtime initialization, workdir sync, and failed-create cleanup.
+- [x] Connect real Assignment policy, Turn initial-message, and Projection mutation owners.
+- [x] Rewire compatibility presenter forwarding and move owner tests.
 
 ## 6. SessionService and ChatService
 

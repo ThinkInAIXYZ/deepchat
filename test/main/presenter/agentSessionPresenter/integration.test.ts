@@ -721,12 +721,9 @@ describe('Integration: createSession end-to-end', () => {
       sqlitePresenter,
       sharedData,
       projection,
-      sessionApplications.policy,
+      sessionApplications.lifecycle,
       sessionApplications.assignment,
-      sessionApplications.assignment,
-      sessionApplications.turn,
-      sessionApplications.turn,
-      sessionApplications.deletion
+      sessionApplications.turn
     )
   })
 
@@ -911,12 +908,9 @@ describe('Integration: ACP hooks bridge', () => {
       sqlitePresenter,
       sharedData,
       projection,
-      sessionApplications.policy,
+      sessionApplications.lifecycle,
       sessionApplications.assignment,
-      sessionApplications.assignment,
-      sessionApplications.turn,
-      sessionApplications.turn,
-      sessionApplications.deletion
+      sessionApplications.turn
     )
   })
 
@@ -1029,12 +1023,9 @@ describe('Integration: multi-turn context', () => {
       sqlitePresenter,
       sharedData,
       projection,
-      sessionApplications.policy,
+      sessionApplications.lifecycle,
       sessionApplications.assignment,
-      sessionApplications.assignment,
-      sessionApplications.turn,
-      sessionApplications.turn,
-      sessionApplications.deletion
+      sessionApplications.turn
     )
   })
 

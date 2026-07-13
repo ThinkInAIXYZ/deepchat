@@ -606,13 +606,9 @@ function createDescriptorIndependentDeleteHarness(options: {
     sqliteWithAgents,
     sharedData,
     projection,
-    sessionApplications.policy,
-    sessionApplications.assignment,
+    sessionApplications.lifecycle,
     sessionApplications.assignment,
     sessionApplications.turn,
-    sessionApplications.turn,
-    sessionApplications.deletion,
-    skillPresenter,
     { sessionPermissionPort }
   )
 
@@ -767,14 +763,9 @@ describe('AgentSessionPresenter', () => {
       sqlitePresenter,
       sharedData,
       projection,
-      sessionApplications.policy,
+      sessionApplications.lifecycle,
       sessionApplications.assignment,
-      sessionApplications.assignment,
-      sessionApplications.turn,
-      sessionApplications.turn,
-      sessionApplications.deletion,
-      skillPresenter,
-      undefined
+      sessionApplications.turn
     )
   })
 
@@ -1030,13 +1021,9 @@ describe('AgentSessionPresenter', () => {
       sqliteWithAgents,
       integratedSharedData,
       projection,
-      sessionApplications.policy,
+      sessionApplications.lifecycle,
       sessionApplications.assignment,
-      sessionApplications.assignment,
-      sessionApplications.turn,
-      sessionApplications.turn,
-      sessionApplications.deletion,
-      skillPresenter
+      sessionApplications.turn
     )
 
     await expect(integratedPresenter.sendMessage('deepchat-session', 'Hello')).resolves.toEqual({
@@ -2050,11 +2037,11 @@ describe('AgentSessionPresenter', () => {
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
       expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Failed to clear ACP session after initialization error mock-session-id:',
+        '[SessionLifecycleCoordinator] Failed to clear ACP session after initialization error mock-session-id:',
         clearError
       )
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Failed to cleanup session runtime after initialization error mock-session-id:',
+        '[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error mock-session-id:',
         closeError
       )
       warnSpy.mockRestore()
@@ -3023,7 +3010,7 @@ describe('AgentSessionPresenter', () => {
       expect(rows.has('mock-session-id')).toBe(false)
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[AgentSessionPresenter] Failed to cleanup forked session runtime mock-session-id:',
+        '[SessionLifecycleCoordinator] Failed to cleanup forked session runtime mock-session-id:',
         closeError
       )
       warnSpy.mockRestore()

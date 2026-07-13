@@ -494,12 +494,9 @@ describe('AgentSessionPresenter usage dashboard', () => {
       sqlitePresenter,
       sharedData,
       projection,
-      sessionApplications.policy,
+      sessionApplications.lifecycle,
       sessionApplications.assignment,
-      sessionApplications.assignment,
-      sessionApplications.turn,
-      sessionApplications.turn,
-      sessionApplications.deletion
+      sessionApplications.turn
     )
 
     return {
