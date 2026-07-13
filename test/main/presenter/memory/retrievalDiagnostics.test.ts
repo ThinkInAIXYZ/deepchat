@@ -38,6 +38,20 @@ function createPresenter(options: { enabled?: boolean; embedding?: boolean } = {
 }
 
 describe('RetrievalService diagnostics', () => {
+  it('keeps normal vector cold diagnostics out of empty injection manifests', async () => {
+    const { presenter, repository } = createPresenter()
+    vi.spyOn(repository, 'searchWithStrategy').mockReturnValue({
+      rows: [],
+      strategy: 'fts-only'
+    })
+
+    await expect(presenter.buildInjection('agent', 'redis')).resolves.toBeNull()
+    expect(
+      presenter.getHealth('agent').runtime.agent.retrieval.injection.degradationCounts.vectorCold
+    ).toBe(1)
+    await presenter.dispose()
+  })
+
   it('records multiple degradations once without mixing retrieval purposes', async () => {
     const { presenter, repository } = createPresenter()
     vi.spyOn(repository, 'searchWithStrategy').mockReturnValue({

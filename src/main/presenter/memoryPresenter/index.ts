@@ -2,6 +2,7 @@ import {
   appendMemorySection,
   appendMemorySectionWithManifest,
   buildMemorySection,
+  type MemoryInjectionOptions,
   type MemoryInjectionPayload,
   type MemoryInjectionPort,
   type MemoryInjectionResult,
@@ -68,6 +69,7 @@ import type {
 export { appendMemorySection, appendMemorySectionWithManifest, buildMemorySection, isSafeAgentId }
 export type {
   MemoryInjectionPayload,
+  MemoryInjectionOptions,
   MemoryInjectionPort,
   MemoryInjectionResult,
   MemoryRuntimePort
@@ -472,8 +474,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.management.updateMemory(agentId, memoryId, patch)
   }
 
-  async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
-    return this.retrieval.buildInjection(agentId, query)
+  async buildInjection(
+    agentId: string,
+    query: string,
+    options?: MemoryInjectionOptions
+  ): Promise<MemoryInjectionResult | null> {
+    return this.retrieval.buildInjection(agentId, query, options)
   }
 
   recordInjectionAccess(

@@ -7,6 +7,7 @@ export {
 } from './core/injectionPort'
 export type {
   MemoryInjectionManifest,
+  MemoryInjectionOptions,
   MemoryInjectionPayload,
   MemoryInjectionPort,
   MemoryInjectionResult,

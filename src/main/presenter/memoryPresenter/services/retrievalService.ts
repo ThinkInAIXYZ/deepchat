@@ -12,6 +12,7 @@ import {
   fuse,
   resolveRetrieval
 } from '../core/scoring'
+import { withSoftDeadline } from '../core/asyncDeadline'
 import {
   buildRecallKeywordQuery,
   extractRecallKeywordCandidates,
@@ -20,6 +21,7 @@ import {
 import {
   resolveInjectionTokenBudget,
   type MemoryInjectionManifest,
+  type MemoryInjectionOptions,
   type MemoryInjectionPayload,
   type MemoryInjectionResult
 } from '../core/injectionPort'
@@ -49,8 +51,6 @@ import type {
   VectorStoreRetrievalPort,
   WorkingMemoryReadPort
 } from '../ports'
-
-type SoftTimeoutResult<T> = { timedOut: true } | { timedOut: false; value: T }
 
 type QueryEmbeddingInFlight = {
   startedAt: number
@@ -95,6 +95,10 @@ function clampRetrievalTopK(value: number): number {
   return Math.min(MAX_TOP_K, Math.max(1, Math.floor(value)))
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+  signal?.throwIfAborted()
+}
+
 function vectorStoreDegradation(
   error: unknown,
   health: ReturnType<VectorStoreRetrievalPort['getRecallHealth']>,
@@ -109,23 +113,6 @@ function vectorStoreDegradation(
     return 'storeUnusable'
   }
   return activeStage === 'queryEmbedding' ? 'embeddingError' : 'storeError'
-}
-
-async function withSoftTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number
-): Promise<SoftTimeoutResult<T>> {
-  let timeoutId: NodeJS.Timeout | undefined
-  const guarded = promise.then((value) => ({ timedOut: false, value }) as SoftTimeoutResult<T>)
-  guarded.catch(() => undefined)
-  const timeout = new Promise<SoftTimeoutResult<T>>((resolve) => {
-    timeoutId = setTimeout(() => resolve({ timedOut: true }), timeoutMs)
-  })
-  try {
-    return await Promise.race([guarded, timeout])
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId)
-  }
 }
 
 export class RetrievalService {
@@ -563,6 +550,7 @@ export class RetrievalService {
       enableInlinePrune?: boolean
       excludeConflictParticipants?: boolean
       degradationCollector?: Set<MemoryRetrievalDegradationCause>
+      signal?: AbortSignal
     }
   ): Promise<MemoryRecallItem[]> {
     const totalStartedAt = performance.now()
@@ -578,6 +566,7 @@ export class RetrievalService {
         outcome = 'disabled'
         return []
       }
+      throwIfAborted(options.signal)
       const config = this.ports.policy.resolveAgentConfig(agentId)
       const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
       const normalizedQuery = query.trim()
@@ -607,6 +596,7 @@ export class RetrievalService {
       )
       if (keywordSearch?.strategy === 'like-fallback') degradations.add('ftsUnavailable')
       latencyMs.keyword = performance.now() - keywordStartedAt
+      throwIfAborted(options.signal)
 
       const vecCandidates: { memoryId: string; similarity: number }[] = []
       let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
@@ -638,10 +628,11 @@ export class RetrievalService {
             } else {
               const embeddingStartedAt = performance.now()
               activeStage = 'queryEmbedding'
-              const vectorsResult = await withSoftTimeout(
+              const vectorsResult = await withSoftDeadline(
                 queryEmbedding,
                 RECALL_QUERY_EMBEDDING_TIMEOUT_MS
               )
+              throwIfAborted(options.signal)
               latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
               if (vectorsResult.timedOut) {
                 degradations.add('embeddingTimeout')
@@ -669,6 +660,7 @@ export class RetrievalService {
                     vector,
                     candidateLimit
                   )
+                  throwIfAborted(options.signal)
                   latencyMs.vector = performance.now() - vectorStartedAt
                   if (!this.ctx.canReadAgentMemory(agentId)) {
                     outcome = 'cancelled'
@@ -706,6 +698,7 @@ export class RetrievalService {
               }
             }
           } catch (error) {
+            if (options.signal?.aborted) throwIfAborted(options.signal)
             if (!this.ctx.canReadAgentMemory(agentId)) {
               outcome = 'cancelled'
               return []
@@ -733,6 +726,7 @@ export class RetrievalService {
         ...ftsRows.map((row) => row.id),
         ...vecCandidates.map((candidate) => candidate.memoryId)
       ]
+      throwIfAborted(options.signal)
       const revalidationStartedAt = performance.now()
       activeStage = 'authoritativeRevalidation'
       const authoritativeRows = candidateIds.length
@@ -760,6 +754,7 @@ export class RetrievalService {
             : null
         })
         .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
+      throwIfAborted(options.signal)
       ftsCandidates = authoritativeFtsRows.length
       vectorCandidates = authoritativeVecMatches.length
 
@@ -768,6 +763,7 @@ export class RetrievalService {
         vectorContext &&
         this.ctx.canReadAgentMemory(agentId)
       ) {
+        throwIfAborted(options.signal)
         const liveVectorIds = new Set(authoritativeVecMatches.map((match) => match.row.id))
         const deadVectorIds = [
           ...new Set(
@@ -792,6 +788,7 @@ export class RetrievalService {
 
       const assemblyStartedAt = performance.now()
       activeStage = 'assembly'
+      throwIfAborted(options.signal)
       const results = fuse(authoritativeFtsRows, authoritativeVecMatches, {
         topK: effectiveTopK,
         rrfK,
@@ -810,7 +807,7 @@ export class RetrievalService {
       outcome = 'completed'
       return results
     } catch (error) {
-      if (!this.ctx.canReadAgentMemory(agentId)) outcome = 'cancelled'
+      if (options.signal?.aborted || !this.ctx.canReadAgentMemory(agentId)) outcome = 'cancelled'
       else {
         outcome = 'failed'
         degradations.add(
@@ -834,7 +831,12 @@ export class RetrievalService {
     }
   }
 
-  async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
+  async buildInjection(
+    agentId: string,
+    query: string,
+    options: MemoryInjectionOptions = {}
+  ): Promise<MemoryInjectionResult | null> {
+    throwIfAborted(options.signal)
     const readEpoch = this.ctx.captureReadEpoch(agentId)
     const config = this.ports.policy.resolveAgentConfig(agentId)
     const degradations = new Set<MemoryRetrievalDegradationCause>()
@@ -842,23 +844,31 @@ export class RetrievalService {
       purpose: 'injection',
       keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
       keywordMatchMode: 'any',
-      degradationCollector: degradations
+      degradationCollector: degradations,
+      signal: options.signal
     })
+    throwIfAborted(options.signal)
     if (!this.ctx.canReadAgentMemory(agentId) || !this.ctx.isReadEpochCurrent(agentId, readEpoch)) {
       return null
     }
     this.ports.workingMemory.flushWorkingMemoryIfDirty(agentId)
+    throwIfAborted(options.signal)
     const finalizedEpoch = this.ctx.captureReadEpoch(agentId)
     const persona = this.ports.repository.getActivePersona(agentId)
     const working = this.ports.workingMemory.readWorkingMemory(agentId)
     if (!working) this.ports.workingMemory.scheduleWorkingRefresh(agentId)
+    throwIfAborted(options.signal)
     if (
       !this.ctx.canReadAgentMemory(agentId) ||
       !this.ctx.isReadEpochCurrent(agentId, finalizedEpoch)
     ) {
       return null
     }
-    if (!persona && !working && recalled.length === 0 && degradations.size === 0) return null
+    const manifestDegradations = [...degradations].filter(
+      (degradation) => degradation !== 'vectorCold'
+    )
+    if (!persona && !working && recalled.length === 0 && manifestDegradations.length === 0)
+      return null
     const tokenBudget = resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
     const payload: MemoryInjectionPayload = {
       selfModel: persona?.content ?? null,
@@ -883,7 +893,7 @@ export class RetrievalService {
       queryHash: query.trim()
         ? buildMemoryProvenanceKey(agentId, 'query', query.trim())
         : undefined,
-      ...(degradations.size > 0 ? { degradations: [...degradations] } : {})
+      ...(manifestDegradations.length > 0 ? { degradations: manifestDegradations } : {})
     }
     return { payload, manifest }
   }

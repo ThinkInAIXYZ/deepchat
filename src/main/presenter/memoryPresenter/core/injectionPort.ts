@@ -55,6 +55,10 @@ export interface MemoryInjectionResult {
   manifest: MemoryInjectionManifest
 }
 
+export interface MemoryInjectionOptions {
+  signal?: AbortSignal
+}
+
 // Default token ceiling for the assembled memory injection (persona + working + recalled).
 export const DEFAULT_INJECTION_TOKEN_BUDGET = 1200
 const MIN_INJECTION_TOKEN_BUDGET = 64
@@ -94,7 +98,11 @@ export function resolveInjectionTokenBudget(value: number | null | undefined): n
 // and tests can supply a fake implementation.
 export interface MemoryInjectionPort {
   isEnabled(agentId: string): boolean
-  buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null>
+  buildInjection(
+    agentId: string,
+    query: string,
+    options?: MemoryInjectionOptions
+  ): Promise<MemoryInjectionResult | null>
 }
 
 // Adds extraction entry points on top of injection. Extraction is an independent cheap

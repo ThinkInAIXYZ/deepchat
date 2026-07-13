@@ -5,6 +5,7 @@ import {
   buildMemoryProvenanceKey
 } from '@/presenter/memoryPresenter/core/scoring'
 import { WORKING_PROVENANCE_SEED } from '@/presenter/memoryPresenter/runtimeConstants'
+import type { MemoryVectorMatch } from '@/presenter/memoryPresenter/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   FakeVectorStore,
@@ -22,6 +23,7 @@ import {
 } from './serviceTestSupport'
 
 import { MemoryPresenter, embeddingDimensions, waitForMemoryCondition } from './serviceTestSupport'
+import { createControlledPromise } from './serviceHarness'
 
 describe('working-memory L1 (T5)', () => {
   it('refreshes one working blob and injects it at session open without recall', async () => {
@@ -377,6 +379,44 @@ describe('working-memory L1 (T5)', () => {
     releaseQuery()
 
     await expect(injection).resolves.toBeNull()
+  })
+
+  it('stops an aborted injection before authoritative revalidation and assembly', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    const queryGate = createControlledPromise<MemoryVectorMatch[]>()
+    const queryStarted = createControlledPromise<void>()
+    vi.spyOn(store, 'query').mockImplementation(() => {
+      queryStarted.resolve(undefined)
+      return queryGate.promise
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_providerId, _modelId, texts) => texts.map(textToVector),
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 's1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis private fact',
+      status: 'pending_embedding'
+    })
+    await presenter.processPendingEmbeddings('a')
+    const listByIds = vi.spyOn(repo, 'listByIds')
+    const abort = new AbortController()
+
+    const injection = presenter.buildInjection('a', 'redis', { signal: abort.signal })
+    await queryStarted.promise
+    abort.abort()
+    queryGate.resolve([{ memoryId: 's1', distance: 0 }])
+
+    await expect(injection).rejects.toMatchObject({ name: 'AbortError' })
+    expect(listByIds).not.toHaveBeenCalled()
+    await presenter.dispose()
   })
 
   it('fails injection closed when a candidate commits during an awaited vector query', async () => {

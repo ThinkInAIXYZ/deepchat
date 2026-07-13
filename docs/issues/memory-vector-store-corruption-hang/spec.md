@@ -341,7 +341,7 @@ step completes (and only when it exceeded 500ms) — a step that never settles i
     escalates once at `30_000`, logging
     `[DeepChatAgent] pre-stream step STUCK session=<id> step=<name> elapsedMs=<n>`.
   - Scope honesty: the watchdog is for async steps **without their own deadline**. With layer 3
-    in place, `memory-injection` resolves at its 3s deadline before the 5s watchdog can fire —
+    in place, `memory-injection` resolves at its 4s deadline before the 5s watchdog can fire —
     a memory stall surfaces as the timeout/degradation log, not as STUCK; STUCK catches the
     steps (and future regressions) that have no deadline of their own.
   - `context-build` (`buildTapeChatView`) is synchronous — a stall there blocks the event loop
@@ -424,7 +424,7 @@ unbounded await turns out to be.
       operation timeout, and fence sequential native work after every await.
 - [x] Make shutdown detach suspect/in-flight agents without marker persistence, prevent late timer
       state resurrection, and make explicit reset/retire await the existing grace result.
-- [ ] Reserve injection fallback time, abort abandoned retrieval pipelines, suppress normal
+- [x] Reserve injection fallback time, abort abandoned retrieval pipelines, suppress normal
       `vectorCold` anchors, and map suspect/quarantined admission without failed warmup churn.
 - [ ] Cover compaction apply and synchronous tape/message gaps, retain cumulative pre-stream
       latency, move the provider boundary ahead of rate-limit waiting, and preserve mandatory

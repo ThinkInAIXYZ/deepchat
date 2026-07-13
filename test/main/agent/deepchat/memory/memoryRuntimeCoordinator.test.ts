@@ -73,7 +73,7 @@ function createHarness() {
   const port = {
     isEnabled: vi.fn(() => true),
     buildInjection: vi
-      .fn<(agentId: string, query: string) => Promise<any>>()
+      .fn<(agentId: string, query: string, options?: { signal?: AbortSignal }) => Promise<any>>()
       .mockResolvedValue(null),
     recordInjectionAccess: vi.fn(),
     extractAndStore: vi.fn().mockResolvedValue({ ok: true, createdIds: [] }),
@@ -291,6 +291,7 @@ describe('MemoryRuntimeCoordinator', () => {
     await vi.advanceTimersByTimeAsync(1)
 
     await expect(contribution).resolves.toBe(input.basePrompt)
+    expect(port.buildInjection.mock.calls[0][2]?.signal?.aborted).toBe(true)
     expect(port.recordInjectionAccess).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('memory injection timed out'))
