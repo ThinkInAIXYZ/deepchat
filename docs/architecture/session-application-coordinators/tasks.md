@@ -10,11 +10,11 @@
 
 ## 1. Characterization and Ports
 
-- [ ] Add missing lifecycle rollback and deletion error-precedence characterization.
-- [ ] Add pending/message mutation, fork, compaction, and tool-interaction characterization.
-- [ ] Lock assignment transfer, setting mutation, and subagent Tape behavior.
-- [ ] Lock projection cache/window/title/read fallback behavior.
-- [ ] Lock Remote status/output and Cron metadata/max-turn/output behavior.
+- [x] Add missing lifecycle rollback and deletion error-precedence characterization.
+- [x] Add pending/message mutation, fork, compaction, and tool-interaction characterization.
+- [x] Lock assignment transfer, setting mutation, and subagent Tape behavior.
+- [x] Lock projection cache/window/title/read fallback behavior.
+- [x] Lock Remote status/output and Cron metadata/max-turn/output behavior.
 - [ ] Define consumer-owned narrow ports without `Pick<IAgentSessionPresenter, ...>`.
 
 ## 2. SessionProjectionCoordinator
