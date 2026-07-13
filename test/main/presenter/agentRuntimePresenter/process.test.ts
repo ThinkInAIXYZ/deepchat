@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { app } from 'electron'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -17,6 +16,7 @@ import {
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { DeepChatLoopNotification } from '@/agent/deepchat/loop/ports'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -109,7 +109,7 @@ describe('processStream', () => {
   let messageStore: ReturnType<typeof createMockMessageStore>
   let tapeRecorder: { appendToolFact: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
-  let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
+  let homedirSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -125,8 +125,8 @@ describe('processStream', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    getPathSpy?.mockRestore()
-    getPathSpy = null
+    homedirSpy?.mockRestore()
+    homedirSpy = null
     if (tempHome) {
       return fs.rm(tempHome, { recursive: true, force: true }).then(() => {
         tempHome = null
@@ -1352,7 +1352,7 @@ describe('processStream', () => {
 
   it('offloads large tool results before the next provider call', async () => {
     tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-process-offload-'))
-    getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+    homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
     let callCount = 0
     const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -1392,10 +1392,11 @@ describe('processStream', () => {
 
     const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
     const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
+    const offloadPath = resolveToolOffloadPath('s1', 'function.cdp_send:11')
     expect(toolResultMsg.content).toContain('[Tool output offloaded]')
-    expect(toolResultMsg.content).toMatch(/tool_function\.cdp_send_11(?:_[a-f0-9]+)?\.offload/)
+    expect(toolResultMsg.content).toContain(`Offload file: ${offloadPath}`)
     expect(toolResultMsg.content).not.toContain(':11.offload')
-    expect(toolResultMsg.content).not.toContain(tempHome!)
+    await expect(fs.readFile(offloadPath!, 'utf-8')).resolves.toBe(longScreenshot)
   })
 
   it('multiple tool calls in one turn', async () => {

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { app } from 'electron'
 import { approximateTokenSize } from 'tokenx'
 import type {
   InterleavedReasoningConfig,
@@ -27,6 +26,7 @@ import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
+import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -268,7 +268,7 @@ describe('dispatch', () => {
   let state: StreamState
   let io: IoParams
   let tempHome: string | null = null
-  let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
+  let homedirSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -277,8 +277,8 @@ describe('dispatch', () => {
   })
 
   afterEach(async () => {
-    getPathSpy?.mockRestore()
-    getPathSpy = null
+    homedirSpy?.mockRestore()
+    homedirSpy = null
     if (tempHome) {
       await fs.rm(tempHome, { recursive: true, force: true })
       tempHome = null
@@ -2693,7 +2693,7 @@ describe('dispatch', () => {
 
     it('offloads large yo_browser responses into a stub', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -2736,10 +2736,11 @@ describe('dispatch', () => {
 
       expect(executed.terminalError).toBeUndefined()
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
+      const offloadPath = resolveToolOffloadPath('s1', 'function.cdp_send:11')
       expect(toolMessage.content).toContain('[Tool output offloaded]')
-      expect(toolMessage.content).toMatch(/tool_function\.cdp_send_11(?:_[a-f0-9]+)?\.offload/)
+      expect(toolMessage.content).toContain(`Offload file: ${offloadPath}`)
       expect(toolMessage.content).not.toContain(':11.offload')
-      expect(toolMessage.content).not.toContain(tempHome!)
+      await expect(fs.readFile(offloadPath!, 'utf-8')).resolves.toBe(longScreenshot)
       expect(state.blocks[0].tool_call?.response).toContain('[Tool output offloaded]')
       expect(state.blocks[0].status).toBe('success')
     })
@@ -2808,7 +2809,7 @@ describe('dispatch', () => {
 
     it('turns offload write failures into tool errors instead of falling back to raw content', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-fail-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
       const writeFileSpy = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('disk full'))
 
       const tools = [makeTool('cdp_send')]
@@ -3019,7 +3020,7 @@ describe('dispatch', () => {
 
     it('cleans offload files when a tail tool is downgraded during batch fitting', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-tail-offload-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('read'), makeTool('exec')]
       const toolPresenter = createMockToolPresenter()
@@ -3071,9 +3072,7 @@ describe('dispatch', () => {
       expect(executed.terminalError).toBeUndefined()
       expect(state.blocks[1].tool_call?.response).toContain('remaining context window is too small')
       expect(state.blocks[1].tool_call?.response).not.toContain('[Tool output offloaded]')
-      await expect(
-        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc2.offload'))
-      ).rejects.toThrow()
+      await expect(fs.access(resolveToolOffloadPath('s1', 'tc2')!)).rejects.toThrow()
     })
 
     it('drops search side effects for downgraded tail tool results', async () => {
@@ -3160,7 +3159,7 @@ describe('dispatch', () => {
 
     it('marks the tool as error when offload succeeds but context budget cannot fit the result', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -3204,14 +3203,12 @@ describe('dispatch', () => {
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
       expect(toolMessage.content).toContain('remaining context window is too small')
       expect(state.blocks[0].status).toBe('error')
-      await expect(
-        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
-      ).rejects.toThrow()
+      await expect(fs.access(resolveToolOffloadPath('s1', 'tc1')!)).rejects.toThrow()
     })
 
     it('returns terminalError when even the minimal tool failure stub cannot fit', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-terminal-clean-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -3268,9 +3265,7 @@ describe('dispatch', () => {
         params: '{"method":"Page.captureScreenshot"}',
         error: expect.stringContaining('remaining context window is too small')
       })
-      await expect(
-        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
-      ).rejects.toThrow()
+      await expect(fs.access(resolveToolOffloadPath('s1', 'tc1')!)).rejects.toThrow()
     })
   })
 

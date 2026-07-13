@@ -367,7 +367,7 @@ export class ToolOutputGuard {
     return [
       '[Tool output offloaded]',
       `Total characters: ${rawContent.length}`,
-      `Offload file: ${path.basename(filePath)}`,
+      `Offload file: ${filePath}`,
       `first ${preview.length} chars:`,
       preview
     ].join('\n')
