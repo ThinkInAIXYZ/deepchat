@@ -120,6 +120,7 @@ export interface ToolDispatchCollaborators {
   notificationObserver?: DeepChatLoopNotificationObserver
   controls?: ProcessControlCollaborators
   diagnostics?: ProcessInternalDiagnostics
+  onToolCallStarted?: (toolCallId: string) => void
 }
 
 export interface ToolPermissionReviewRequest {
@@ -210,8 +211,11 @@ export interface ProcessParams {
     modelConfig: ModelConfig,
     temperature: number,
     maxTokens: number,
-    tools: MCPToolDefinition[]
+    tools: MCPToolDefinition[],
+    onProviderRequestStart?: () => void,
+    assertProviderRequestAvailable?: () => void
   ) => AsyncGenerator<LLMCoreStreamEvent>
+  coreStreamReportsProviderStart?: boolean
   providerId: string
   modelId: string
   modelConfig: ModelConfig
@@ -220,6 +224,7 @@ export interface ProcessParams {
   interleavedReasoning: InterleavedReasoningConfig
   permissionMode: PermissionMode
   initialBlocks?: AssistantMessageBlock[]
+  initialAccounting?: MessageMetadata
   onFirstProviderRoundReady?: () => void
   onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean

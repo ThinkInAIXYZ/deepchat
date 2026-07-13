@@ -231,8 +231,12 @@ describe('ACP compatibility adapters', () => {
     const blocks = JSON.parse(message?.content ?? '[]')
     const tapeRecord = harness.getAssistantTapeRecord()
 
-    expect(settlement).toEqual({ status: 'completed', stopReason: 'complete' })
-    expect(message?.status).toBe('sent')
+    expect(settlement).toEqual({
+      status: 'error',
+      stopReason: 'error',
+      errorMessage: 'ACP: prompt failed'
+    })
+    expect(message?.status).toBe('error')
     expect(blocks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'content', content: 'from-events', status: 'success' })
@@ -337,14 +341,17 @@ describe('ACP compatibility adapters', () => {
     expect(blocks).toEqual([
       expect.objectContaining({ type: 'error', content: 'ACP: prompt failed', status: 'error' })
     ])
-    expect(tapeRecord?.status).toBe('sent')
+    expect(tapeRecord?.status).toBe('error')
     expect(JSON.parse(tapeRecord?.content ?? '[]')).toEqual(blocks)
     expect(publishDeepchatEvent).toHaveBeenCalledWith(
-      'chat.stream.completed',
-      expect.objectContaining({ messageId: harness.handle.messageId })
+      'chat.stream.failed',
+      expect.objectContaining({
+        messageId: harness.handle.messageId,
+        error: 'ACP: prompt failed'
+      })
     )
     expect(publishDeepchatEvent).not.toHaveBeenCalledWith(
-      'chat.stream.failed',
+      'chat.stream.completed',
       expect.objectContaining({ messageId: harness.handle.messageId })
     )
   })

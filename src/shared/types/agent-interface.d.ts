@@ -315,6 +315,7 @@ export interface MessageMetadata {
   cachedInputTokens?: number
   cacheWriteInputTokens?: number
   providerRounds?: number
+  maxProviderRounds?: number
   toolCalls?: number
   generationTime?: number
   firstTokenTime?: number

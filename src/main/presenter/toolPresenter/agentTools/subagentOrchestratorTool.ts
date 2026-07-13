@@ -5,6 +5,7 @@ import type { DeepChatSubagentSlot } from '@shared/types/agent-interface'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolCallResult } from './agentToolManager'
 import type { AgentToolRuntimePort, ConversationSessionInfo } from '../runtimePorts'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
 const DEFAULT_RUN_TIMEOUT_MS = 300000
@@ -160,6 +161,20 @@ const summarizeResult = (value: string): string | undefined => {
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
+
+const awaitWithSubagentCancellation = async <T>(
+  promise: Promise<T>,
+  signal?: AbortSignal
+): Promise<T> => {
+  try {
+    return await awaitWithAbort(promise, signal)
+  } catch (error) {
+    if (signal?.aborted) {
+      throw new Error('subagent_orchestrator cancelled.')
+    }
+    throw error
+  }
+}
 
 const hasTapeFinalizeError = (tasks: MutableTaskState[]): boolean =>
   tasks.some((task) => Boolean(task.tapeFinalizeError?.trim()))
@@ -674,19 +689,20 @@ export class SubagentOrchestratorTool {
     timeoutMs: number,
     signal?: AbortSignal
   ): Promise<void> {
+    if (signal?.aborted) {
+      throw new Error('subagent_orchestrator cancelled.')
+    }
+
     let abortListener: (() => void) | undefined
+    let timeout: ReturnType<typeof setTimeout> | undefined
     const pending = [
       run.completion,
       new Promise<void>((resolve) => {
-        setTimeout(resolve, timeoutMs)
+        timeout = setTimeout(resolve, timeoutMs)
       })
     ]
 
     if (signal) {
-      if (signal.aborted) {
-        throw new Error('subagent_orchestrator cancelled.')
-      }
-
       pending.push(
         new Promise<void>((_, reject) => {
           abortListener = () => {
@@ -700,6 +716,7 @@ export class SubagentOrchestratorTool {
     try {
       await Promise.race(pending)
     } finally {
+      if (timeout !== undefined) clearTimeout(timeout)
       if (signal && abortListener) {
         signal.removeEventListener('abort', abortListener)
       }
@@ -884,7 +901,14 @@ export class SubagentOrchestratorTool {
       throw new Error('subagent_orchestrator requires a conversationId.')
     }
 
-    const parent = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+    if (options?.signal?.aborted) {
+      throw new Error('subagent_orchestrator cancelled.')
+    }
+
+    const parent = await awaitWithSubagentCancellation(
+      this.runtimePort.resolveConversationSessionInfo(conversationId),
+      options?.signal
+    )
     if (!parent) {
       throw new Error(`Conversation not found: ${conversationId}`)
     }
@@ -906,7 +930,12 @@ export class SubagentOrchestratorTool {
     const mode = args.mode ?? 'parallel'
     const taskSpecs = args.tasks ?? []
     const inheritedWorkspace =
-      (await this.runtimePort.resolveConversationWorkdir(parent.sessionId))?.trim() ||
+      (
+        await awaitWithSubagentCancellation(
+          this.runtimePort.resolveConversationWorkdir(parent.sessionId),
+          options?.signal
+        )
+      )?.trim() ||
       parent.projectDir?.trim() ||
       null
 

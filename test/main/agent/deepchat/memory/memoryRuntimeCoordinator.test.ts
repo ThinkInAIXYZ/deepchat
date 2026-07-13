@@ -396,6 +396,16 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(deps.getTapeRows).toHaveBeenCalledTimes(2)
   })
 
+  it.each([
+    ['a JSON string', JSON.stringify('  Remember Redis.  ')],
+    ['non-JSON plain text', '  Remember Redis.  ']
+  ])('reads the latest user query from %s content', (_format, content) => {
+    const { coordinator, setRows } = createHarness()
+    setRows([{ ...createRecord('u1', 1, ''), content }])
+
+    expect(coordinator.getLatestUserQuery('s1')).toBe('Remember Redis.')
+  })
+
   it('dedupes non-null injection access, keeps null access, expires turns and clears on destroy', () => {
     const { coordinator, port } = createHarness()
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)

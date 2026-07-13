@@ -841,79 +841,77 @@ export class McpClient {
 
     const decisionPromise = presenter.mcpPresenter.handleSamplingRequest(payload)
     const signal = extra?.signal as AbortSignal | undefined
+    const decisionWait = awaitWithAbort(decisionPromise, signal)
+    let abortListener: (() => void) | undefined
 
-    let decision: McpSamplingDecision
     if (signal) {
-      decision = await new Promise<McpSamplingDecision>((resolve, reject) => {
-        const onAbort = () => {
-          signal.removeEventListener('abort', onAbort)
-          void presenter.mcpPresenter
-            .cancelSamplingRequest(payload.requestId, 'cancelled by server')
-            .catch((error) => {
-              console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
-            })
-          reject(new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled'))
-        }
-
-        if (signal.aborted) {
-          onAbort()
-          return
-        }
-
-        signal.addEventListener('abort', onAbort, { once: true })
-        decisionPromise
-          .then((value) => {
-            signal.removeEventListener('abort', onAbort)
-            resolve(value)
-          })
+      abortListener = () => {
+        void presenter.mcpPresenter
+          .cancelSamplingRequest(payload.requestId, 'cancelled by server')
           .catch((error) => {
-            signal.removeEventListener('abort', onAbort)
-            reject(error)
+            console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
           })
-      })
-    } else {
-      decision = await decisionPromise
-    }
-
-    if (!decision.approved) {
-      throw new McpError(ErrorCode.InvalidRequest, 'User rejected sampling request')
-    }
-
-    if (!decision.providerId || !decision.modelId) {
-      throw new McpError(ErrorCode.InvalidParams, 'No model selected for sampling request')
-    }
-
-    let assistantText = ''
-    try {
-      assistantText = await presenter.llmproviderPresenter.generateCompletionStandalone(
-        decision.providerId,
-        chatMessages,
-        decision.modelId,
-        undefined,
-        params.maxTokens
-      )
-    } catch (error) {
-      console.error(`[MCP] Sampling request failed for server ${this.serverName}:`, error)
-      throw new McpError(
-        ErrorCode.InternalError,
-        error instanceof Error ? error.message : 'Sampling request failed'
-      )
-    }
-
-    const modelName =
-      this.resolveModelDisplayName(decision.providerId, decision.modelId) ?? decision.modelId
-
-    const result: CreateMessageResult = {
-      role: 'assistant',
-      model: modelName,
-      stopReason: 'endTurn',
-      content: {
-        type: 'text',
-        text: assistantText ?? ''
       }
+      signal.addEventListener('abort', abortListener, { once: true })
+      if (signal.aborted) abortListener()
     }
 
-    return result
+    try {
+      let decision: McpSamplingDecision
+      try {
+        decision = await decisionWait
+      } catch (error) {
+        if (signal?.aborted || isAbortError(error)) {
+          throw new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled')
+        }
+        throw error
+      }
+
+      if (!decision.approved) {
+        throw new McpError(ErrorCode.InvalidRequest, 'User rejected sampling request')
+      }
+
+      if (!decision.providerId || !decision.modelId) {
+        throw new McpError(ErrorCode.InvalidParams, 'No model selected for sampling request')
+      }
+
+      let assistantText = ''
+      try {
+        assistantText = await presenter.llmproviderPresenter.generateCompletionStandalone(
+          decision.providerId,
+          chatMessages,
+          decision.modelId,
+          undefined,
+          params.maxTokens,
+          { signal, swallowErrors: false }
+        )
+        signal?.throwIfAborted()
+      } catch (error) {
+        if (signal?.aborted || isAbortError(error)) throw error
+        console.error(`[MCP] Sampling request failed for server ${this.serverName}:`, error)
+        throw new McpError(
+          ErrorCode.InternalError,
+          error instanceof Error ? error.message : 'Sampling request failed'
+        )
+      }
+
+      const modelName =
+        this.resolveModelDisplayName(decision.providerId, decision.modelId) ?? decision.modelId
+
+      const result: CreateMessageResult = {
+        role: 'assistant',
+        model: modelName,
+        stopReason: 'endTurn',
+        content: {
+          type: 'text',
+          text: assistantText ?? ''
+        }
+      }
+
+      return result
+    } finally {
+      if (signal && abortListener) signal.removeEventListener('abort', abortListener)
+    }
   }
 
   private resolveSamplingRequestId(extra: RequestHandlerContext): string {

@@ -362,6 +362,13 @@ function createMockSqlitePresenter() {
         const msg = messagesStore.get(id)
         if (msg) msg.status = status
       }),
+      updateMetadata: vi.fn((id: string, metadata: string) => {
+        const msg = messagesStore.get(id)
+        if (msg) {
+          msg.metadata = metadata
+          msg.updated_at = Date.now()
+        }
+      }),
       getBySession: vi.fn((sessionId: string) => {
         return messagesList
           .filter((m) => m.session_id === sessionId)
@@ -1017,7 +1024,7 @@ describe('Integration: multi-turn context', () => {
       modelId: 'gpt-4',
       generationSettings: { contextLength: 8192, maxTokens: 4096 }
     })
-    await deepchatAgent.processMessage(sessionId, 'Hello', { maxProviderRounds: 1 })
+    await deepchatAgent.processMessage(sessionId, 'Hello', { maxProviderRounds: 2 })
 
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
     expect(observedRuns).toHaveLength(2)

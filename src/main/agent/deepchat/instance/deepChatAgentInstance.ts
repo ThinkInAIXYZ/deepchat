@@ -179,6 +179,10 @@ export class DeepChatAgentInstance {
   }
 
   registerActiveGeneration<TStreamState>(run: LoopRun<TStreamState>): LoopRun<TStreamState> {
+    const previousController = this.activeRun?.abortController ?? this.abortController
+    if (previousController && previousController !== run.abortController) {
+      previousController.abort()
+    }
     this.activeRun = run
     this.abortController = run.abortController
     return run

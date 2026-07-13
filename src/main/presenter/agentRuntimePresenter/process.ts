@@ -16,11 +16,14 @@ import {
   finalize,
   finalizeError,
   finalizePaused,
-  publishPlanUpdated,
-  persistAbortExceptionPlanState
+  publishPlanUpdated
 } from './dispatch'
 import { isContextWindowErrorLike } from './contextWindowError'
-import { NoProgressToolLoopGuard, NO_PROGRESS_TERMINAL_ERROR } from './noProgressToolLoopGuard'
+import {
+  extractLatestCompletedToolBatch,
+  NoProgressToolLoopGuard,
+  NO_PROGRESS_TERMINAL_ERROR
+} from './noProgressToolLoopGuard'
 import {
   DeepChatLoopEngine,
   type DeepChatLoopCommitCallbacks,
@@ -37,6 +40,13 @@ const deepChatLoopEngine = new DeepChatLoopEngine()
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
 type ToolRoundBatch = { prevBlockCount: number }
+
+class MaxProviderRoundsError extends Error {
+  constructor(limit: number) {
+    super(`Maximum agent turns exceeded (${limit}).`)
+    this.name = 'MaxProviderRoundsError'
+  }
+}
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -74,6 +84,14 @@ function stampRunOutcome(
 ): void {
   state.metadata.runOutcome = outcome
   state.metadata.runStopReason = stopReason
+}
+
+function toNonNegativeNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function toPositiveInteger(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
 }
 
 function markUnexecutedToolCallsForLimit(state: StreamState): void {
@@ -369,6 +387,21 @@ function replaceLeadingSystemMessage(messages: ChatMessage[], systemPrompt: stri
   messages.unshift({ role: 'system', content: systemPrompt })
 }
 
+function commitCorrectedToolMessage(
+  conversationMessages: ChatMessage[],
+  batchMessages: ChatMessage[]
+): void {
+  const correctedMessage = batchMessages.findLast((message) => message.role === 'tool')
+  if (!correctedMessage?.tool_call_id) return
+
+  const messageIndex = conversationMessages.findLastIndex(
+    (message) => message.role === 'tool' && message.tool_call_id === correctedMessage.tool_call_id
+  )
+  if (messageIndex >= 0) {
+    conversationMessages[messageIndex] = correctedMessage
+  }
+}
+
 export function markStreamingProviderPermissionResolved(
   block: AssistantMessageBlock,
   granted: boolean,
@@ -399,11 +432,29 @@ function settleLoopOutcome(
     if (io.abortSignal.aborted || isAbortError(outcome.error)) {
       logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
       stampRunOutcome(state, 'aborted', 'user_stop')
-      persistAbortExceptionPlanState(state, io)
+      finalizeUserCanceledErrorIfNeeded(state, io)
       return {
         status: 'aborted',
         stopReason: 'user_stop',
         errorMessage: USER_CANCELED_GENERATION_ERROR,
+        usage: buildUsageSnapshot(state)
+      }
+    }
+
+    if (outcome.error instanceof MaxProviderRoundsError) {
+      logger.info(`[ProcessStream] ${outcome.error.message}`)
+      stampRunOutcome(state, 'error', 'max_turns')
+      outputSink.fail({
+        runId: run.runId,
+        sessionId: run.sessionId,
+        messageId: run.messageId,
+        error: outcome.error
+      })
+      return {
+        status: 'error',
+        terminalError: outcome.error.message,
+        stopReason: 'max_turns',
+        errorMessage: outcome.error.message,
         usage: buildUsageSnapshot(state)
       }
     }
@@ -567,22 +618,51 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
 
   const state = run.streamState
+  const initialAccounting = params.initialAccounting
+  const maxProviderRounds =
+    toPositiveInteger(params.maxProviderRounds) ??
+    toPositiveInteger(initialAccounting?.maxProviderRounds)
+  if (initialAccounting) {
+    const initialGenerationTime = toNonNegativeNumber(initialAccounting.generationTime)
+    const initialFirstTokenTime = toNonNegativeNumber(initialAccounting.firstTokenTime)
+    state.metadata.inputTokens = toNonNegativeNumber(initialAccounting.inputTokens)
+    state.metadata.outputTokens = toNonNegativeNumber(initialAccounting.outputTokens)
+    state.metadata.totalTokens = toNonNegativeNumber(initialAccounting.totalTokens)
+    state.metadata.cachedInputTokens = toNonNegativeNumber(initialAccounting.cachedInputTokens)
+    state.metadata.cacheWriteInputTokens = toNonNegativeNumber(
+      initialAccounting.cacheWriteInputTokens
+    )
+    state.metadata.generationTime = initialGenerationTime
+    state.metadata.firstTokenTime = initialFirstTokenTime
+    state.metadata.reasoningStartTime = toNonNegativeNumber(initialAccounting.reasoningStartTime)
+    state.metadata.reasoningEndTime = toNonNegativeNumber(initialAccounting.reasoningEndTime)
+    state.metadata.noProgressToolLoop = initialAccounting.noProgressToolLoop
+    state.providerRoundCount = Math.floor(
+      toNonNegativeNumber(initialAccounting.providerRounds) ?? 0
+    )
+    state.toolCallCount = Math.floor(toNonNegativeNumber(initialAccounting.toolCalls) ?? 0)
+    if (initialGenerationTime !== undefined) {
+      state.startTime -= initialGenerationTime
+    }
+    if (initialFirstTokenTime !== undefined) {
+      state.firstTokenTime = state.startTime + initialFirstTokenTime
+    }
+  }
   state.metadata.provider = providerId
   state.metadata.model = modelId
+  if (maxProviderRounds !== undefined) {
+    state.metadata.maxProviderRounds = maxProviderRounds
+  }
   if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
     state.blocks = JSON.parse(JSON.stringify(initialBlocks)) as typeof state.blocks
   }
-  if (!state.metadata.runId) {
-    state.metadata.runId = run.runId
-  }
+  state.metadata.runId = run.runId
   const echo = startEcho(state, io)
   const conversationMessages = run.messages
   params.onConversationMessagesChange?.(conversationMessages)
   let currentTools = run.resources.toolDefinitions
   let firstProviderRoundReady = false
-  const noProgressToolLoopGuard = new NoProgressToolLoopGuard({
-    initialSnapshot: state.metadata.noProgressToolLoop
-  })
+  const noProgressToolLoopGuard = new NoProgressToolLoopGuard(state.metadata.noProgressToolLoop)
   const outputSink: OutputSink = {
     update: () => echo.flush(),
     complete: () => finalize(state, io),
@@ -643,19 +723,76 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
 
   try {
+    if (initialAccounting?.runOutcome === 'paused') {
+      const resumedToolBatch = extractLatestCompletedToolBatch(conversationMessages)
+      if (resumedToolBatch) {
+        const resumedObservation = noProgressToolLoopGuard.observe(
+          resumedToolBatch.toolCalls,
+          resumedToolBatch.batchMessages
+        )
+        state.metadata.noProgressToolLoop = resumedObservation.snapshot
+        if (resumedObservation.correctionAppended) {
+          commitCorrectedToolMessage(conversationMessages, resumedToolBatch.batchMessages)
+          logger.warn(
+            `[ProcessStream] repeated resumed tool batch detected count=${resumedObservation.repeatedBatchCount}; requesting a strategy change`
+          )
+        }
+        if (resumedObservation.shouldTerminate) {
+          state.planTerminalReason = 'max_steps'
+          return settleLoopOutcome(
+            {
+              type: 'halted',
+              result: {
+                status: 'error',
+                terminalError: NO_PROGRESS_TERMINAL_ERROR,
+                stopReason: 'no_progress',
+                errorMessage: NO_PROGRESS_TERMINAL_ERROR,
+                usage: buildUsageSnapshot(state)
+              }
+            },
+            state,
+            io,
+            eventCount,
+            run,
+            outputSink
+          )
+        }
+      }
+    }
+
     return await deepChatLoopEngine.run<StreamState, ToolRoundBatch, ProcessResult, ProcessResult>(
       run,
       {
-        maxProviderRounds: params.maxProviderRounds,
+        maxProviderRounds,
+        initialExecutedToolCount: state.toolCallCount,
         consumeProviderRound: async () => {
           const prevBlockCount = state.blocks.length
+          const assertProviderRequestAvailable = (): void => {
+            if (maxProviderRounds !== undefined && state.providerRoundCount >= maxProviderRounds) {
+              throw new MaxProviderRoundsError(maxProviderRounds)
+            }
+          }
+          const markProviderRequestStarted = (): void => {
+            assertProviderRequestAvailable()
+            state.providerRoundCount += 1
+            state.metadata.providerRounds = state.providerRoundCount
+          }
+          if (params.coreStreamReportsProviderStart !== true) {
+            markProviderRequestStarted()
+          } else {
+            assertProviderRequestAvailable()
+          }
           const stream = coreStream(
             conversationMessages,
             modelId,
             modelConfig,
             temperature,
             maxTokens,
-            currentTools
+            currentTools,
+            params.coreStreamReportsProviderStart === true ? markProviderRequestStarted : undefined,
+            params.coreStreamReportsProviderStart === true
+              ? assertProviderRequestAvailable
+              : undefined
           )
 
           // Reset per-iteration accumulator state
@@ -668,10 +805,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               logger.info(`[ProcessStream] aborted after ${eventCount} events`)
               echo.stop()
               commitRoundUsage(state)
-              if (eventCount > 0 && state.providerRoundCount === 0) {
-                state.providerRoundCount = 1
-                state.metadata.providerRounds = state.providerRoundCount
-              }
               return {
                 type: 'halted',
                 result: {
@@ -723,8 +856,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           )
 
           commitRoundUsage(state)
-          state.providerRoundCount += 1
-          state.metadata.providerRounds = state.providerRoundCount
 
           if (io.abortSignal.aborted) {
             return {
@@ -752,31 +883,41 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           // A completed tool call implies that the tool presenter and definitions were available.
           const completedToolBatch = state.completedToolCalls.map((toolCall) => ({ ...toolCall }))
           const toolBatchMessageStart = conversationMessages.length
-          const executed = await executeTools(
-            state,
-            conversationMessages,
-            batch.prevBlockCount,
-            currentTools,
-            toolExecution!,
-            modelId,
-            interleavedReasoning,
-            io,
-            permissionMode,
-            toolResults,
-            providerId === 'acp'
-              ? Number.MAX_SAFE_INTEGER
-              : modelConfig.contextLength > 0
-                ? modelConfig.contextLength
-                : UNKNOWN_CONTEXT_LIMIT,
-            maxTokens,
-            echo,
-            {
-              notificationObserver,
-              controls,
-              diagnostics
-            },
-            providerId
-          )
+          let startedToolCallCount = 0
+          let executed: Awaited<ReturnType<typeof executeTools>>
+          try {
+            executed = await executeTools(
+              state,
+              conversationMessages,
+              batch.prevBlockCount,
+              currentTools,
+              toolExecution!,
+              modelId,
+              interleavedReasoning,
+              io,
+              permissionMode,
+              toolResults,
+              providerId === 'acp'
+                ? Number.MAX_SAFE_INTEGER
+                : modelConfig.contextLength > 0
+                  ? modelConfig.contextLength
+                  : UNKNOWN_CONTEXT_LIMIT,
+              maxTokens,
+              echo,
+              {
+                notificationObserver,
+                controls,
+                diagnostics,
+                onToolCallStarted: () => {
+                  startedToolCallCount += 1
+                }
+              },
+              providerId
+            )
+          } finally {
+            state.toolCallCount += startedToolCallCount
+            state.metadata.toolCalls = state.toolCallCount
+          }
 
           if (executed.type === 'completed' && executed.terminalError) {
             return {
@@ -795,12 +936,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             logger.info(
               `[ProcessStream] paused for user interaction count=${executed.interactions.length}`
             )
-            // Observe the completed batch so resume continues the no-progress streak.
-            const noProgressObservation = noProgressToolLoopGuard.observe(
-              completedToolBatch,
-              conversationMessages.slice(toolBatchMessageStart)
-            )
-            state.metadata.noProgressToolLoop = noProgressObservation.snapshot
             return {
               type: 'halted',
               result: {
@@ -812,14 +947,14 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           }
 
           if (executed.type === 'completed') {
-            state.toolCallCount += executed.executed
-            state.metadata.toolCalls = state.toolCallCount
+            const completedBatchMessages = conversationMessages.slice(toolBatchMessageStart)
             const noProgressObservation = noProgressToolLoopGuard.observe(
               completedToolBatch,
-              conversationMessages.slice(toolBatchMessageStart)
+              completedBatchMessages
             )
             state.metadata.noProgressToolLoop = noProgressObservation.snapshot
             if (noProgressObservation.correctionAppended) {
+              commitCorrectedToolMessage(conversationMessages, completedBatchMessages)
               logger.warn(
                 `[ProcessStream] repeated tool batch detected count=${noProgressObservation.repeatedBatchCount}; requesting a strategy change`
               )
@@ -890,7 +1025,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             }
           }
 
-          return { type: 'continue', executedToolCount: executed.executed }
+          return { type: 'continue', executedToolCount: startedToolCallCount }
         }
       },
       commits

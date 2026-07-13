@@ -450,6 +450,114 @@ describe('ToolManager', () => {
     definitions.resolve([])
   })
 
+  it('does not commit tool definitions after their refresh is cancelled', async () => {
+    const client = createClient('stale-server')
+    const tools = deferred<Awaited<ReturnType<typeof client.listTools>>>()
+    client.listTools.mockReturnValue(tools.promise)
+    const manager = new ToolManager(
+      createConfigPresenter('stale-server') as never,
+      createServerManager([client]) as never
+    )
+    const abortController = new AbortController()
+
+    const refresh = manager.getAllToolDefinitions(undefined, {
+      signal: abortController.signal
+    })
+    await vi.waitFor(() => expect(client.listTools).toHaveBeenCalledOnce())
+
+    abortController.abort()
+
+    await expect(refresh).rejects.toMatchObject({ name: 'AbortError' })
+    tools.resolve([
+      {
+        name: 'stale_tool',
+        description: 'Stale tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect((manager as any).cachedToolDefinitions).toBeNull()
+    expect((manager as any).toolNameToTargetMap).toBeNull()
+  })
+
+  it('discards a refresh superseded by a configuration cache clear', async () => {
+    const staleClient = createClient('stale-server')
+    const currentClient = createClient('current-server', [
+      {
+        name: 'current_tool',
+        description: 'Current tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    const staleTools = deferred<Awaited<ReturnType<typeof staleClient.listTools>>>()
+    staleClient.listTools.mockReturnValueOnce(staleTools.promise).mockResolvedValueOnce([
+      {
+        name: 'stale_tool',
+        description: 'Stale tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    const serverManager = createServerManager([staleClient])
+    const manager = new ToolManager(
+      createConfigPresenter('current-server') as never,
+      serverManager as never
+    )
+
+    const refresh = manager.getAllToolDefinitions()
+    await vi.waitFor(() => expect(staleClient.listTools).toHaveBeenCalledOnce())
+    ;(manager as any).handleConfigChange()
+    serverManager.getRunningClients.mockResolvedValue([currentClient])
+    staleTools.resolve([
+      {
+        name: 'stale_tool',
+        description: 'Stale tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+
+    const definitions = await refresh
+
+    expect(definitions.map((definition) => definition.function.name)).toEqual(['current_tool'])
+    expect((manager as any).toolNameToTargetMap.has('current_tool')).toBe(true)
+    expect((manager as any).toolNameToTargetMap.has('stale_tool')).toBe(false)
+  })
+
+  it('wakes refresh waiters when configuration invalidates a blocked refresh', async () => {
+    const staleClient = createClient('stale-server')
+    const currentClient = createClient('current-server', [
+      {
+        name: 'current_tool',
+        description: 'Current tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    const staleTools = deferred<Awaited<ReturnType<typeof staleClient.listTools>>>()
+    staleClient.listTools.mockReturnValue(staleTools.promise)
+    const serverManager = createServerManager([staleClient])
+    const manager = new ToolManager(
+      createConfigPresenter('current-server') as never,
+      serverManager as never
+    )
+
+    const blockedRefresh = manager.getAllToolDefinitions()
+    await vi.waitFor(() => expect(staleClient.listTools).toHaveBeenCalledOnce())
+    const waitingRefresh = manager.getAllToolDefinitions()
+
+    serverManager.getRunningClients.mockResolvedValue([currentClient])
+    ;(manager as any).handleConfigChange()
+
+    await expect(waitingRefresh).resolves.toEqual([
+      expect.objectContaining({ function: expect.objectContaining({ name: 'current_tool' }) })
+    ])
+    expect(currentClient.listTools).toHaveBeenCalled()
+
+    staleTools.resolve([])
+    await expect(blockedRefresh).resolves.toEqual([
+      expect.objectContaining({ function: expect.objectContaining({ name: 'current_tool' }) })
+    ])
+  })
+
   it('observes a definition failure after refresh synchronously cancels the call', async () => {
     const client = createClient('open-server')
     const manager = new ToolManager(

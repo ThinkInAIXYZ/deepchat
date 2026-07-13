@@ -31,7 +31,22 @@ export type ResumableToolBatch = {
 const WEAK_ACKNOWLEDGEMENTS = new Set(['ok', 'success', 'succeeded', 'done', 'true', 'completed'])
 const ISO_TIMESTAMP_PATTERN =
   /\b\d{4}-\d{2}-\d{2}[tT]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[zZ]|[+-]\d{2}:?\d{2})\b/g
-const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi
+const VOLATILE_UUID_LABEL_PATTERN = [
+  'request(?:[\\s_-]?id)?',
+  'tool[\\s_-]?call(?:[\\s_-]?id)?',
+  'trace(?:[\\s_-]?id)?',
+  'run(?:[\\s_-]?id)?',
+  'call(?:[\\s_-]?id)?',
+  'invocation(?:[\\s_-]?id)?',
+  'execution(?:[\\s_-]?id)?',
+  'event(?:[\\s_-]?id)?',
+  'nonce'
+].join('|')
+const UUID_TOKEN_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+const LABELED_VOLATILE_UUID_PATTERN = new RegExp(
+  `\\b(${VOLATILE_UUID_LABEL_PATTERN})\\b\\s*[:=#-]?\\s*(${UUID_TOKEN_PATTERN})\\b`,
+  'gi'
+)
 const VOLATILE_RESULT_KEYS = new Set([
   'timestamp',
   'time',
@@ -66,7 +81,9 @@ function stableJsonStringify(value: unknown): string {
 }
 
 function normalizeVolatileString(value: string): string {
-  return value.replace(ISO_TIMESTAMP_PATTERN, '<timestamp>').replace(UUID_PATTERN, '<generated-id>')
+  return value
+    .replace(ISO_TIMESTAMP_PATTERN, '<timestamp>')
+    .replace(LABELED_VOLATILE_UUID_PATTERN, '$1 <generated-id>')
 }
 
 function normalizeResultValue(value: unknown, key?: string): unknown {
@@ -75,7 +92,7 @@ function normalizeResultValue(value: unknown, key?: string): unknown {
     return '<volatile>'
   }
   if (typeof value === 'string') {
-    return value
+    return normalizeVolatileString(value)
   }
   if (Array.isArray(value)) {
     return value.map((item) => normalizeResultValue(item))
@@ -165,20 +182,18 @@ function buildToolBatchFingerprint(
 }
 
 function appendCorrection(messages: ChatMessage[]): boolean {
-  const lastToolMessage = messages.findLast((message) => message.role === 'tool')
-  if (!lastToolMessage) {
+  const lastToolMessageIndex = messages.findLastIndex((message) => message.role === 'tool')
+  if (lastToolMessageIndex < 0) {
     return false
   }
 
+  const lastToolMessage = messages[lastToolMessageIndex]
   const correction = JSON.stringify(NO_PROGRESS_CORRECTION)
-  if (typeof lastToolMessage.content === 'string') {
-    lastToolMessage.content = `${lastToolMessage.content}\n\n${correction}`
-  } else {
-    lastToolMessage.content = [
-      ...(lastToolMessage.content ?? []),
-      { type: 'text', text: correction }
-    ]
-  }
+  const content =
+    typeof lastToolMessage.content === 'string'
+      ? `${lastToolMessage.content}\n\n${correction}`
+      : [...(lastToolMessage.content ?? []), { type: 'text' as const, text: correction }]
+  messages[lastToolMessageIndex] = { ...lastToolMessage, content }
   return true
 }
 

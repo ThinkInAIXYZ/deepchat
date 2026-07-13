@@ -39,7 +39,7 @@ export type ToolExecutionOptions = ToolCallOptions
 export interface ToolExecutionPort {
   preCheck?(
     call: MCPToolCall,
-    options?: Pick<ToolExecutionOptions, 'permissionMode'>
+    options?: Pick<ToolExecutionOptions, 'permissionMode' | 'signal'>
   ): Promise<ToolPermissionPreCheckResult | null>
   execute(
     call: MCPToolCall,

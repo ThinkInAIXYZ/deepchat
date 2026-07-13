@@ -179,6 +179,29 @@ export class DeepChatSessionStore {
     this.sqlitePresenter.deepchatSessionsTable.updateGenerationSettings(id, settings)
   }
 
+  updateSessionConfiguration(
+    id: string,
+    providerId: string,
+    modelId: string,
+    generationSettings: Partial<SessionGenerationSettings>,
+    permissionMode?: PermissionMode
+  ): void {
+    const update = (): void => {
+      this.sqlitePresenter.deepchatSessionsTable.updateSessionModel(id, providerId, modelId)
+      if (permissionMode !== undefined) {
+        this.sqlitePresenter.deepchatSessionsTable.updatePermissionMode(id, permissionMode)
+      }
+      this.sqlitePresenter.deepchatSessionsTable.updateGenerationSettings(id, generationSettings)
+    }
+
+    const db = this.sqlitePresenter.getDatabase?.()
+    if (db) {
+      db.transaction(update)()
+      return
+    }
+    update()
+  }
+
   getSummaryState(id: string): SessionSummaryState {
     const tapeTable = this.sqlitePresenter.deepchatTapeEntriesTable
     const tapeState = summaryStateFromTapeAnchor(

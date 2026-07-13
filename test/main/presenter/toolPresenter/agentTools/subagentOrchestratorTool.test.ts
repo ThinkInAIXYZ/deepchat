@@ -1170,4 +1170,49 @@ describe('SubagentOrchestratorTool', () => {
       vi.useRealTimers()
     }
   })
+
+  it('returns cancellation while the parent workdir lookup remains blocked', async () => {
+    const parentSession = buildSessionInfo()
+    const workdir = createDeferredPromise<string | null>()
+    const abortController = new AbortController()
+    const runtimePort = buildRuntimePort(parentSession, {
+      resolveConversationWorkdir: vi.fn(() => workdir.promise)
+    })
+    const tool = new SubagentOrchestratorTool(runtimePort as any)
+
+    const running = tool.call(
+      {
+        mode: 'chain',
+        tasks: [
+          {
+            slotId: 'reviewer',
+            title: 'Blocked parent lookup',
+            prompt: 'Do not start after cancellation.'
+          }
+        ]
+      },
+      parentSession.sessionId,
+      { signal: abortController.signal }
+    )
+    await vi.waitFor(() => expect(runtimePort.resolveConversationWorkdir).toHaveBeenCalledOnce())
+
+    abortController.abort()
+
+    await expect(running).rejects.toThrow('subagent_orchestrator cancelled.')
+    expect(runtimePort.createSubagentSession).not.toHaveBeenCalled()
+    workdir.resolve(parentSession.projectDir)
+  })
+
+  it('clears a wait timeout when run completion wins the race', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const tool = new SubagentOrchestratorTool({} as any)
+      await (tool as any).waitForRunCompletion({ completion: Promise.resolve() }, 300000)
+
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

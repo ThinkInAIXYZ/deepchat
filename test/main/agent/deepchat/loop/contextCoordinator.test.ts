@@ -341,6 +341,30 @@ describe('DeepChatContextCoordinator', () => {
     })
   })
 
+  it('checks retry availability before context recovery or another manifest', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [[{ type: 'error', error_message: 'context overflow' }]]
+    })
+    const limitError = new Error('provider attempt limit reached')
+    fixture.input.provider.assertAvailable = vi
+      .fn()
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw limitError
+      })
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).rejects.toBe(limitError)
+
+    expect(fixture.input.provider.assertAvailable).toHaveBeenCalledTimes(2)
+    expect(fixture.input.recovery.recover).not.toHaveBeenCalled()
+    expect(fixture.providerRequests).toHaveLength(1)
+    expect(fixture.manifests).toHaveLength(1)
+    expect(fixture.order.filter((entry) => entry === 'rate')).toHaveLength(1)
+    expect(fixture.run.requestSeq).toBe(1)
+  })
+
   it('runs pressure recovery before manifesting the provider request', async () => {
     const fixture = createAttemptInput()
     const preflight = vi

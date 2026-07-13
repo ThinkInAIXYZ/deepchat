@@ -14,6 +14,7 @@ import type {
   ChatMessagePageResult,
   ChatMessageRecord,
   DeepChatSessionState,
+  MessageMetadata,
   MessagePageCursor,
   MessageStartResult,
   MessageFile,
@@ -178,6 +179,8 @@ import type {
   SessionUiPort
 } from '../runtimePorts'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { parseMessageMetadata } from '../usageStats'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import {
   buildAssistantDeliverySegments,
@@ -253,7 +256,43 @@ const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 
 function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
-  return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+  return mode === 'auto_approve' || mode === 'full_access' ? mode : 'default'
+}
+
+function incrementToolCallAccounting(metadata: MessageMetadata): MessageMetadata {
+  const currentToolCalls =
+    typeof metadata.toolCalls === 'number' &&
+    Number.isFinite(metadata.toolCalls) &&
+    metadata.toolCalls >= 0
+      ? Math.floor(metadata.toolCalls)
+      : 0
+  return { ...metadata, toolCalls: currentToolCalls + 1 }
+}
+
+function stampTerminalMetadata(
+  metadata: MessageMetadata,
+  runOutcome: 'completed' | 'aborted' | 'error',
+  runStopReason: string,
+  runId?: string
+): MessageMetadata {
+  return { ...metadata, ...(runId ? { runId } : {}), runOutcome, runStopReason }
+}
+
+function buildUsageFromMetadata(metadata: MessageMetadata): Record<string, number> | undefined {
+  const usage: Record<string, number> = {}
+  for (const key of [
+    'totalTokens',
+    'inputTokens',
+    'outputTokens',
+    'cachedInputTokens',
+    'cacheWriteInputTokens'
+  ] as const) {
+    const value = metadata[key]
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+      usage[key] = value
+    }
+  }
+  return Object.keys(usage).length > 0 ? usage : undefined
 }
 
 function stableStringify(value: unknown): string {
@@ -347,6 +386,15 @@ function normalizeReviewDecision(rawText: string, actionHash: string): ToolPermi
         riskLevel,
         userAuthorization,
         rationale: 'Auto-review action hash mismatch.',
+        actionHash
+      }
+    }
+
+    if (!riskLevel) {
+      return {
+        decision: 'ask_user',
+        userAuthorization,
+        rationale: 'Auto-review returned an invalid risk level.',
         actionHash
       }
     }
@@ -537,7 +585,13 @@ type ProviderPermissionInteractionInput = {
   requestId: string
   permissionType: 'read' | 'write' | 'all' | 'command'
   granted: boolean
+  ownerRun?: LoopRun<unknown>
+  signal?: AbortSignal
 }
+
+type ProviderPermissionProjection =
+  | { status: 'resolved'; granted: boolean }
+  | { status: 'error'; message: string }
 
 type PersistedSessionGenerationRow = {
   provider_id: string
@@ -672,6 +726,16 @@ export class AgentRuntimePresenter {
     this.configPresenter = configPresenter
     this.sqlitePresenter = sqlitePresenter
     this.toolPresenter = toolPresenter ?? null
+    this.hookNotificationObserver = hookNotificationObserver
+    this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
+      getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
+      getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
+    }
+    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
+    this.acpAsLlmProviderPermission = runtimePorts?.acpAsLlmProviderPermission
+    this.sessionUiPort = runtimePorts?.sessionUiPort
+    this.cacheImage = runtimePorts?.cacheImage
+    this.skillPresenter = runtimePorts?.skillPresenter
     this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
     this.messageStore = new DeepChatMessageStore(sqlitePresenter)
     this.tapeService = new DeepChatTapeService(sqlitePresenter)
@@ -753,17 +817,6 @@ export class AgentRuntimePresenter {
           abortSignal: tool.signal
         })
     })
-    this.hookNotificationObserver = hookNotificationObserver
-    this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
-      getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
-      getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
-    }
-    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
-    this.acpAsLlmProviderPermission = runtimePorts?.acpAsLlmProviderPermission
-    this.sessionUiPort = runtimePorts?.sessionUiPort
-    this.cacheImage = runtimePorts?.cacheImage
-    this.skillPresenter = runtimePorts?.skillPresenter
-
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
       logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
@@ -821,14 +874,14 @@ export class AgentRuntimePresenter {
       promptResources: {
         resolve: async ({ content, scope, workdir, signal }) => {
           this.throwIfAbortRequested(signal)
-          const state = await this.getSessionState(sessionId)
+          const state = await awaitWithAbort(this.getSessionState(sessionId), signal)
           if (!state) throw new Error(`Session ${sessionId} not found`)
           const resourceInstance = this.getDeepChatInstance(sessionId)
           resourceInstance.setAgentId(session.descriptor.id)
           resourceInstance.setProjectDir(workdir)
-          const generationSettings = await this.getEffectiveSessionGenerationSettings(
-            sessionId,
-            resourceInstance
+          const generationSettings = await awaitWithAbort(
+            this.getEffectiveSessionGenerationSettings(sessionId, resourceInstance),
+            signal
           )
           const normalizedInput = this.normalizeUserMessageInput(content)
           resourceInstance.replaceRuntimeActivatedSkills(normalizedInput.activeSkills ?? [])
@@ -836,26 +889,32 @@ export class AgentRuntimePresenter {
           let tools: MCPToolDefinition[] = []
           let systemPrompt = ''
           if (scope === 'regular') {
-            const sessionSkills = await this.resolveActiveSkillNamesForToolProfile(
-              sessionId,
-              resourceInstance
+            const sessionSkills = await awaitWithAbort(
+              this.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance),
+              signal
             )
             const activeSkills = this.resolveEffectiveActiveSkillNames(
               sessionSkills,
               resourceInstance
             )
-            tools = await this.loadToolDefinitionsForSession(
-              sessionId,
-              workdir,
-              activeSkills,
-              resourceInstance
+            tools = await awaitWithAbort(
+              this.loadToolDefinitionsForSession(
+                sessionId,
+                workdir,
+                activeSkills,
+                resourceInstance
+              ),
+              signal
             )
-            systemPrompt = await this.buildSystemPromptWithSkills(
-              sessionId,
-              generationSettings.systemPrompt,
-              tools,
-              activeSkills,
-              resourceInstance
+            systemPrompt = await awaitWithAbort(
+              this.buildSystemPromptWithSkills(
+                sessionId,
+                generationSettings.systemPrompt,
+                tools,
+                activeSkills,
+                resourceInstance
+              ),
+              signal
             )
           }
 
@@ -1201,7 +1260,7 @@ export class AgentRuntimePresenter {
     const projectDir = this.normalizeProjectDir(config.projectDir)
     const permissionMode = normalizePermissionMode(config.permissionMode)
     logger.info(
-      `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} projectDir=${projectDir ?? '<none>'}`
+      `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} hasProjectDir=${projectDir !== null}`
     )
     const generationSettings = await this.sanitizeGenerationSettings(
       config.providerId,
@@ -1265,13 +1324,13 @@ export class AgentRuntimePresenter {
     const state = instance.getRuntimeState()
     if (state) {
       this.getSessionAgentId(sessionId)
-      if (this.hasPendingInteractions(sessionId)) {
-        state.status = 'generating'
-      }
       if (hydrationMode === 'full') {
         await this.getEffectiveSessionGenerationSettings(sessionId)
       }
-      return { ...state }
+      return {
+        ...state,
+        ...(this.hasPendingInteractions(sessionId) ? { status: 'generating' as const } : {})
+      }
     }
 
     const dbSession = this.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
@@ -1281,8 +1340,9 @@ export class AgentRuntimePresenter {
     }
 
     this.getSessionAgentId(sessionId)
+    const hasPendingInteractions = this.hasPendingInteractions(sessionId)
     const rebuilt: DeepChatSessionState = {
-      status: this.hasPendingInteractions(sessionId) ? 'generating' : 'idle',
+      status: 'idle',
       providerId: dbSession.provider_id,
       modelId: dbSession.model_id,
       permissionMode: normalizePermissionMode(dbSession.permission_mode)
@@ -1291,7 +1351,10 @@ export class AgentRuntimePresenter {
     if (hydrationMode === 'full') {
       await this.getEffectiveSessionGenerationSettings(sessionId)
     }
-    return { ...rebuilt }
+    return {
+      ...rebuilt,
+      ...(hasPendingInteractions ? { status: 'generating' as const } : {})
+    }
   }
 
   async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
@@ -1519,7 +1582,7 @@ export class AgentRuntimePresenter {
     const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
     const projectDir = this.resolveProjectDir(sessionId, context?.projectDir, instance)
     logger.info(
-      `[DeepChatAgent] processMessage session=${sessionId} content="${normalizedInput.text.slice(0, 60)}" projectDir=${projectDir ?? '<none>'}`
+      `[DeepChatAgent] processMessage session=${sessionId} promptLength=${normalizedInput.text.length} fileCount=${normalizedInput.files?.length ?? 0} hasProjectDir=${projectDir !== null}`
     )
 
     this.setSessionStatus(sessionId, 'generating')
@@ -1535,9 +1598,9 @@ export class AgentRuntimePresenter {
       const preStreamStartedAt = Date.now()
       this.throwIfAbortRequested(preStreamAbortSignal)
       let stepStartedAt = Date.now()
-      const generationSettings = await this.getEffectiveSessionGenerationSettings(
-        sessionId,
-        instance
+      const generationSettings = await awaitWithAbort(
+        this.getEffectiveSessionGenerationSettings(sessionId, instance),
+        preStreamAbortSignal
       )
       this.logSlowPreStreamStep(sessionId, 'generation-settings', stepStartedAt)
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
@@ -1561,9 +1624,9 @@ export class AgentRuntimePresenter {
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       stepStartedAt = Date.now()
       instance.replaceRuntimeActivatedSkills(normalizedInput.activeSkills ?? [])
-      const sessionActiveSkillNames = await this.resolveActiveSkillNamesForToolProfile(
-        sessionId,
-        instance
+      const sessionActiveSkillNames = await awaitWithAbort(
+        this.resolveActiveSkillNamesForToolProfile(sessionId, instance),
+        preStreamAbortSignal
       )
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       const effectiveActiveSkillNames = this.resolveEffectiveActiveSkillNames(
@@ -1572,23 +1635,29 @@ export class AgentRuntimePresenter {
       )
       this.logSlowPreStreamStep(sessionId, 'active-skills', stepStartedAt)
       stepStartedAt = Date.now()
-      const tools = await this.loadToolDefinitionsForSession(
-        sessionId,
-        projectDir,
-        effectiveActiveSkillNames,
-        instance
+      const tools = await awaitWithAbort(
+        this.loadToolDefinitionsForSession(
+          sessionId,
+          projectDir,
+          effectiveActiveSkillNames,
+          instance
+        ),
+        preStreamAbortSignal
       )
       this.logSlowPreStreamStep(sessionId, 'tool-definitions', stepStartedAt)
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
       stepStartedAt = Date.now()
       const basePromptAssembler = this.createBasePromptAssembler(instance)
-      const baseSystemPrompt = await basePromptAssembler.assemble({
-        sessionId: toAppSessionId(sessionId),
-        configuredPrompt: generationSettings.systemPrompt,
-        toolDefinitions: tools,
-        activeSkillNames: effectiveActiveSkillNames
-      })
+      const baseSystemPrompt = await awaitWithAbort(
+        basePromptAssembler.assemble({
+          sessionId: toAppSessionId(sessionId),
+          configuredPrompt: generationSettings.systemPrompt,
+          toolDefinitions: tools,
+          activeSkillNames: effectiveActiveSkillNames
+        }),
+        preStreamAbortSignal
+      )
       this.logSlowPreStreamStep(sessionId, 'system-prompt', stepStartedAt)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const userContent: UserMessageContent = {
@@ -1700,14 +1769,17 @@ export class AgentRuntimePresenter {
       stepStartedAt = Date.now()
       const preparedContext = await this.contextCoordinator.assemble({
         assemblePostCompactionPrompt: async () => {
-          const systemPrompt = await this.postCompactionPromptAssembler.assemble({
-            memorySession: instance.getMemorySessionHandle(),
-            basePrompt: baseSystemPrompt,
-            summaryText: summaryState.summaryText,
-            reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-            memoryQuery: normalizedInput.text,
-            memoryMessageId: userMessageId
-          })
+          const systemPrompt = await awaitWithAbort(
+            this.postCompactionPromptAssembler.assemble({
+              memorySession: instance.getMemorySessionHandle(),
+              basePrompt: baseSystemPrompt,
+              summaryText: summaryState.summaryText,
+              reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
+              memoryQuery: normalizedInput.text,
+              memoryMessageId: userMessageId
+            }),
+            preStreamAbortSignal
+          )
           this.logSlowPreStreamStep(sessionId, 'memory-injection', stepStartedAt)
           stepStartedAt = Date.now()
           return systemPrompt
@@ -1764,6 +1836,7 @@ export class AgentRuntimePresenter {
         tools,
         baseSystemPrompt,
         resourceInstance: instance,
+        abortController: preStreamAbortController,
         maxProviderRounds: context?.maxProviderRounds,
         refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
           const refreshedBasePrompt = await basePromptAssembler.assemble({
@@ -1838,9 +1911,8 @@ export class AgentRuntimePresenter {
       if (result?.status === 'completed') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
       } else if (result?.status === 'aborted') {
-        // Return-path abort: applyProcessResultStatus already dispatched terminal hooks + idle (guarded
-        // by active run). Append the canceled block, then continue the queue with the next item.
-        this.writeCanceledTerminalBlock(sessionId, assistantMessageId)
+        // processStream owns terminal persistence once streaming starts. The lifecycle layer only
+        // projects hooks/status and advances queued input after the returned abort.
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
       if (result) {
@@ -1905,7 +1977,23 @@ export class AgentRuntimePresenter {
           this.emitMessageRefresh(sessionId, userMessageId)
         }
         this.clearSessionAbortController(sessionId, preStreamAbortController)
-        this.settleAbortedTurn(sessionId, assistantMessageId, streamRunId)
+        const abortMetadata = stampTerminalMetadata(
+          {
+            ...(streamRunId ? { runId: streamRunId } : {}),
+            provider: state.providerId,
+            model: state.modelId,
+            providerRounds: 0,
+            toolCalls: 0
+          },
+          'aborted',
+          'user_stop'
+        )
+        this.settleAbortedTurn(
+          sessionId,
+          assistantMessageId,
+          streamRunId,
+          JSON.stringify(abortMetadata)
+        )
         // Stop/steer: continue the queue automatically with the next item (steer items first).
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
         return {
@@ -1914,27 +2002,51 @@ export class AgentRuntimePresenter {
         }
       }
       const errorMessage = err instanceof Error ? err.message : String(err)
+      const stopReason = isContextWindowErrorLike(err) ? 'context_window' : 'pre_stream_error'
+      const terminalMetadata = stampTerminalMetadata(
+        {
+          ...(streamRunId ? { runId: streamRunId } : {}),
+          provider: state.providerId,
+          model: state.modelId,
+          providerRounds: 0,
+          toolCalls: 0
+        },
+        'error',
+        stopReason
+      )
       if (assistantMessageId) {
         const existingAssistant = this.messageStore.getMessage(assistantMessageId)
         const blocks = buildTerminalErrorBlocks(
           existingAssistant ? this.parseAssistantBlocks(existingAssistant.content) : [],
           errorMessage
         )
-        this.messageStore.setMessageError(assistantMessageId, blocks)
+        this.messageStore.setMessageError(
+          assistantMessageId,
+          blocks,
+          JSON.stringify(terminalMetadata)
+        )
         this.emitMessageRefresh(sessionId, assistantMessageId)
+        publishDeepchatEvent('chat.stream.failed', {
+          requestId: this.resolveStreamRequestId(sessionId, assistantMessageId),
+          sessionId,
+          messageId: assistantMessageId,
+          failedAt: Date.now(),
+          error: errorMessage
+        })
       }
       this.dispatchHook('Stop', {
         sessionId,
         providerId: state.providerId,
         modelId: state.modelId,
         projectDir,
-        stop: { reason: 'error', userStop: false }
+        stop: { reason: stopReason, userStop: false }
       })
       this.dispatchHook('SessionEnd', {
         sessionId,
         providerId: state.providerId,
         modelId: state.modelId,
         projectDir,
+        usage: buildUsageFromMetadata(terminalMetadata) ?? null,
         error: { message: errorMessage }
       })
       this.setSessionStatus(sessionId, 'error')
@@ -2148,7 +2260,21 @@ export class AgentRuntimePresenter {
       return { resumed: false }
     }
 
+    const interactionOwnerRun = instance.getActiveGeneration()
+    const interactionOwnedByActiveRun = interactionOwnerRun?.messageId === messageId
+    let interactionAbortController: AbortController | null = null
+    let interactionAbortSignal: AbortSignal | undefined
     try {
+      if (interactionOwnedByActiveRun && interactionOwnerRun.abortController.signal.aborted) {
+        return { resumed: false }
+      }
+      if (interactionOwnedByActiveRun) {
+        interactionAbortSignal = interactionOwnerRun.abortController.signal
+      } else if (!interactionOwnerRun) {
+        interactionAbortController = this.ensureSessionAbortController(sessionId)
+        interactionAbortSignal = interactionAbortController.signal
+      }
+      this.throwIfAbortRequested(interactionAbortSignal)
       const message = await this.messageStore.getMessage(messageId)
       if (!message || message.role !== 'assistant') {
         throw new Error(`Assistant message not found: ${messageId}`)
@@ -2179,6 +2305,8 @@ export class AgentRuntimePresenter {
       let waitingForUserMessage = false
       let resumeBudgetToolCall: ResumeBudgetToolCall | null = null
       let emitResolvedToolHook: (() => void) | null = null
+      let resumeAccounting = parseMessageMetadata(message.metadata)
+      let accountingChanged = false
       const actionBlock = blocks[currentEntry.blockIndex]
       const toolCall = actionBlock.tool_call
       if (!toolCall?.id) {
@@ -2191,13 +2319,16 @@ export class AgentRuntimePresenter {
         }
 
         if (this.isSkillDraftConfirmationBlock(actionBlock)) {
-          const result = await this.handleSkillDraftInteraction(
-            sessionId,
-            instance,
-            blocks,
-            actionBlock,
-            toolCall,
-            response
+          const result = await awaitWithAbort(
+            this.handleSkillDraftInteraction(
+              sessionId,
+              instance,
+              blocks,
+              actionBlock,
+              toolCall,
+              response
+            ),
+            interactionAbortSignal
           )
           if (!this.isCurrentDeepChatInstance(sessionId, instance)) {
             return { resumed: false }
@@ -2213,7 +2344,7 @@ export class AgentRuntimePresenter {
           instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
         } else if (response.kind === 'question_other') {
           const deferredResult = 'User chose to answer with a follow-up message.'
-          this.markQuestionResolved(actionBlock, '')
+          this.markQuestionResolved(actionBlock, '', true)
           this.updateToolCallResponse(blocks, toolCall.id, deferredResult, false)
           instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
           waitingForUserMessage = true
@@ -2237,14 +2368,19 @@ export class AgentRuntimePresenter {
         const requestId = permissionPayload?.requestId?.trim()
         const providerId = permissionPayload?.providerId?.trim()
         if (providerId === 'acp' && requestId) {
-          await this.resolveProviderPermissionInteraction({
-            sessionId,
-            messageId,
-            toolCallId: toolCall.id,
-            requestId,
-            permissionType,
-            granted: response.granted
-          })
+          await awaitWithAbort(
+            this.resolveProviderPermissionInteraction({
+              sessionId,
+              messageId,
+              toolCallId: toolCall.id,
+              requestId,
+              permissionType,
+              granted: response.granted,
+              ownerRun: interactionOwnerRun,
+              signal: interactionAbortSignal
+            }),
+            interactionAbortSignal
+          )
           return { resumed: false }
         }
         const state = this.getDeepChatRuntimeState(sessionId)
@@ -2253,7 +2389,10 @@ export class AgentRuntimePresenter {
 
         if (response.granted) {
           this.markPermissionResolved(actionBlock, true, permissionType)
-          await this.grantPermissionForPayload(sessionId, permissionPayload, toolCall)
+          await awaitWithAbort(
+            this.grantPermissionForPayload(sessionId, permissionPayload, toolCall),
+            interactionAbortSignal
+          )
           this.dispatchHook('PreToolUse', {
             sessionId,
             messageId,
@@ -2266,11 +2405,30 @@ export class AgentRuntimePresenter {
               params: toolCall.params
             }
           })
-          const execution = await this.executeDeferredToolCall(sessionId, messageId, toolCall)
+          let deferredToolCallCounted = false
+          const markDeferredToolCallStarted = () => {
+            if (deferredToolCallCounted) {
+              return
+            }
+            deferredToolCallCounted = true
+            resumeAccounting = incrementToolCallAccounting(resumeAccounting)
+            accountingChanged = true
+            this.messageStore.updateAssistantMetadata(messageId, JSON.stringify(resumeAccounting))
+          }
+          const execution = await this.executeDeferredToolCall(
+            sessionId,
+            messageId,
+            toolCall,
+            markDeferredToolCallStarted
+          )
+          if ((execution.invoked || execution.terminalError) && !deferredToolCallCounted) {
+            markDeferredToolCallStarted()
+          }
           if (execution.invoked) {
             instance.advancePendingToolBatch({ invokedCallId: toolCall.id })
           }
           if (execution.terminalError) {
+            const terminalMetadata = stampTerminalMetadata(resumeAccounting, 'error', 'tool_error')
             instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
             this.dispatchHook('PostToolUseFailure', {
               sessionId,
@@ -2286,7 +2444,7 @@ export class AgentRuntimePresenter {
               }
             })
             this.updateToolCallResponse(blocks, toolCall.id, execution.terminalError, true)
-            this.messageStore.setMessageError(messageId, blocks)
+            this.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
             this.emitMessageRefresh(sessionId, messageId)
             publishDeepchatEvent('chat.stream.failed', {
               requestId: this.resolveStreamRequestId(sessionId, messageId),
@@ -2301,7 +2459,7 @@ export class AgentRuntimePresenter {
               providerId: state?.providerId,
               modelId: state?.modelId,
               projectDir,
-              stop: { reason: 'error', userStop: false }
+              stop: { reason: 'tool_error', userStop: false }
             })
             this.dispatchHook('SessionEnd', {
               sessionId,
@@ -2309,6 +2467,7 @@ export class AgentRuntimePresenter {
               providerId: state?.providerId,
               modelId: state?.modelId,
               projectDir,
+              usage: buildUsageFromMetadata(terminalMetadata) ?? null,
               error: { message: execution.terminalError }
             })
             this.setSessionStatus(sessionId, 'error')
@@ -2404,10 +2563,19 @@ export class AgentRuntimePresenter {
         throw new Error(`Unsupported action type: ${actionBlock.action_type}`)
       }
 
-      this.messageStore.updateAssistantContent(messageId, blocks)
       const remainingPending = this.reconcilePendingInteractionEntries(
         instance,
         this.collectPendingInteractionEntries(messageId, blocks)
+      )
+      const awaitsUserFollowUp = waitingForUserMessage || this.hasQuestionFollowUpIntent(blocks)
+      const finishesForUserFollowUp = awaitsUserFollowUp && remainingPending.length === 0
+      const persistedMetadata = finishesForUserFollowUp
+        ? stampTerminalMetadata(resumeAccounting, 'completed', 'user_follow_up')
+        : resumeAccounting
+      this.messageStore.updateAssistantContent(
+        messageId,
+        blocks,
+        finishesForUserFollowUp || accountingChanged ? JSON.stringify(persistedMetadata) : undefined
       )
       this.replacePendingInteractions(instance, remainingPending)
       this.emitMessageRefresh(sessionId, messageId)
@@ -2419,22 +2587,54 @@ export class AgentRuntimePresenter {
         return { resumed: false }
       }
 
-      if (waitingForUserMessage) {
+      if (awaitsUserFollowUp) {
         emitResolvedToolHook?.()
         this.messageStore.updateMessageStatus(messageId, 'sent')
+        this.dispatchTerminalHooks(sessionId, this.getDeepChatRuntimeState(sessionId), {
+          status: 'completed',
+          stopReason: 'user_follow_up',
+          usage: buildUsageFromMetadata(persistedMetadata)
+        })
         this.setSessionStatus(sessionId, 'idle')
         return { resumed: false, waitingForUserMessage: true }
       }
 
+      this.clearSessionAbortController(sessionId, interactionAbortController)
       const resumed = await this.resumeAssistantMessage(
         sessionId,
         messageId,
         blocks,
-        resumeBudgetToolCall
+        resumeBudgetToolCall,
+        resumeAccounting
       )
       emitResolvedToolHook?.()
       return { resumed }
+    } catch (error) {
+      if (this.isAbortError(error) || interactionAbortSignal?.aborted) {
+        if (interactionOwnedByActiveRun) {
+          return { resumed: false }
+        }
+        const accounting = parseMessageMetadata(
+          this.messageStore.getMessage(messageId)?.metadata ?? '{}'
+        )
+        if (interactionAbortController) {
+          this.clearSessionAbortController(sessionId, interactionAbortController)
+        }
+        instance.replacePendingInteractions([])
+        this.settleAbortedTurn(
+          sessionId,
+          messageId,
+          undefined,
+          JSON.stringify(stampTerminalMetadata(accounting, 'aborted', 'user_stop'))
+        )
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
+        return { resumed: false }
+      }
+      throw error
     } finally {
+      if (interactionAbortController) {
+        this.clearSessionAbortController(sessionId, interactionAbortController)
+      }
       instance.unlockInteraction(messageId, toolCallId)
     }
   }
@@ -2442,10 +2642,10 @@ export class AgentRuntimePresenter {
   async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void> {
     const normalizedMode = normalizePermissionMode(mode)
     const state = this.getDeepChatRuntimeState(sessionId)
+    this.sessionStore.updatePermissionMode(sessionId, normalizedMode)
     if (state) {
       state.permissionMode = normalizedMode
     }
-    this.sessionStore.updatePermissionMode(sessionId, normalizedMode)
   }
 
   async setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<void> {
@@ -2470,24 +2670,26 @@ export class AgentRuntimePresenter {
       systemPrompt: currentGeneration.systemPrompt
     })
 
+    this.sessionStore.updateSessionConfiguration(
+      sessionId,
+      nextProviderId,
+      nextModelId,
+      this.buildPersistedGenerationSettingsReplacement(sanitized)
+    )
+
+    const instance = this.getDeepChatInstance(sessionId)
     if (state) {
       state.providerId = nextProviderId
       state.modelId = nextModelId
     } else {
-      this.getDeepChatInstance(sessionId).setRuntimeState({
+      instance.setRuntimeState({
         status: 'idle',
         providerId: nextProviderId,
         modelId: nextModelId,
         permissionMode: normalizePermissionMode(dbSession?.permission_mode)
       })
     }
-
-    this.sessionStore.updateSessionModel(sessionId, nextProviderId, nextModelId)
-    this.sessionStore.updateGenerationSettings(
-      sessionId,
-      this.buildPersistedGenerationSettingsReplacement(sanitized)
-    )
-    this.getDeepChatInstance(sessionId).setGenerationSettings(sanitized)
+    instance.setGenerationSettings(sanitized)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }
@@ -2520,6 +2722,14 @@ export class AgentRuntimePresenter {
       config.generationSettings ?? {}
     )
 
+    this.sessionStore.updateSessionConfiguration(
+      sessionId,
+      nextProviderId,
+      nextModelId,
+      this.buildPersistedGenerationSettingsReplacement(sanitizedGenerationSettings),
+      permissionMode
+    )
+
     const instance = this.getDeepChatInstance(sessionId)
     instance.setRuntimeState({
       status: state?.status ?? 'idle',
@@ -2527,12 +2737,6 @@ export class AgentRuntimePresenter {
       modelId: nextModelId,
       permissionMode
     })
-    this.sessionStore.updateSessionModel(sessionId, nextProviderId, nextModelId)
-    this.sessionStore.updatePermissionMode(sessionId, permissionMode)
-    this.sessionStore.updateGenerationSettings(
-      sessionId,
-      this.buildPersistedGenerationSettingsReplacement(sanitizedGenerationSettings)
-    )
     instance.setAgentId(nextAgentId)
     instance.setProjectDir(this.normalizeProjectDir(config.projectDir))
     instance.setGenerationSettings(sanitizedGenerationSettings)
@@ -2588,11 +2792,11 @@ export class AgentRuntimePresenter {
 
     const current = await this.getEffectiveSessionGenerationSettings(sessionId)
     const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, settings, current)
-    this.getDeepChatInstance(sessionId).setGenerationSettings(sanitized)
     this.sessionStore.updateGenerationSettings(
       sessionId,
       this.buildPersistedGenerationSettingsPatch(settings, sanitized)
     )
+    this.getDeepChatInstance(sessionId).setGenerationSettings(sanitized)
     if (Object.prototype.hasOwnProperty.call(settings, 'systemPrompt')) {
       this.invalidateSystemPromptCache(sessionId)
     }
@@ -2600,21 +2804,52 @@ export class AgentRuntimePresenter {
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
-    // Single responsibility: request the abort and release controllers/permissions. Terminal
-    // settlement (canceled block + Stop/SessionEnd hooks + idle status + queue drain) is owned by the
-    // in-flight processMessage / resumeAssistantMessage handler, which always observes the abort and
-    // settles exactly once. cancelGeneration deliberately does NOT clear the active generation, write
-    // the terminal block, dispatch hooks, or set status.
-    this.getHydratedDeepChatInstance(sessionId)?.requestGenerationAbort()
+    const instance = this.getHydratedDeepChatInstance(sessionId)
+    if (!instance) {
+      return
+    }
+
+    if (!instance.hasPendingInteractions()) {
+      this.refreshPendingInteractionsFromStore(sessionId)
+    }
+    const pendingInteractions = instance.getPendingInteractions()
+    const hasDeferredHandler = pendingInteractions.some((interaction) =>
+      instance.hasDeferredToolAbortController(interaction.toolCallId)
+    )
+    const hasAsyncSettlementOwner = Boolean(
+      instance.getActiveGeneration() || instance.getAbortController() || hasDeferredHandler
+    )
+
+    instance.requestGenerationAbort()
     this.abortDeferredToolAbortControllers(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
+
+    if (hasAsyncSettlementOwner || pendingInteractions.length === 0) {
+      return
+    }
+
+    const messageId = pendingInteractions[0].messageId
+    const metadata = parseMessageMetadata(this.messageStore.getMessage(messageId)?.metadata ?? '{}')
+    const terminalMetadata = stampTerminalMetadata(metadata, 'aborted', 'user_stop')
+    instance.replacePendingInteractions([])
+    this.settleAbortedTurn(
+      sessionId,
+      messageId,
+      terminalMetadata.runId,
+      JSON.stringify(terminalMetadata)
+    )
+    void this.drainPendingQueueIfPossible(sessionId, 'completed')
   }
 
   /**
    * Append the canceled terminal block to an assistant message after a stop/steer abort. Idempotent
    * via buildTerminalErrorBlocks (won't duplicate the block).
    */
-  private writeCanceledTerminalBlock(sessionId: string, messageId: string | null): void {
+  private writeCanceledTerminalBlock(
+    sessionId: string,
+    messageId: string | null,
+    metadata?: string
+  ): void {
     if (!messageId) {
       return
     }
@@ -2626,7 +2861,7 @@ export class AgentRuntimePresenter {
       this.parseAssistantBlocks(assistantMessage.content),
       'common.error.userCanceledGeneration'
     )
-    this.messageStore.setMessageError(messageId, blocks)
+    this.messageStore.setMessageError(messageId, blocks, metadata)
     this.emitMessageRefresh(sessionId, messageId)
   }
 
@@ -2635,12 +2870,19 @@ export class AgentRuntimePresenter {
    * terminal block + terminal hooks + idle status. The return-path settles via applyProcessResultStatus
    * instead. The caller remains responsible for draining the queue.
    */
-  private settleAbortedTurn(sessionId: string, messageId: string | null, runId?: string): void {
-    this.writeCanceledTerminalBlock(sessionId, messageId)
+  private settleAbortedTurn(
+    sessionId: string,
+    messageId: string | null,
+    runId?: string,
+    metadata?: string
+  ): void {
+    this.writeCanceledTerminalBlock(sessionId, messageId, metadata)
+    const usage = metadata ? buildUsageFromMetadata(parseMessageMetadata(metadata)) : undefined
     this.dispatchTerminalHooks(sessionId, this.getDeepChatRuntimeState(sessionId), {
       status: 'aborted',
       stopReason: 'user_stop',
-      errorMessage: 'common.error.userCanceledGeneration'
+      errorMessage: 'common.error.userCanceledGeneration',
+      usage
     })
     const instance = this.getHydratedDeepChatInstance(sessionId)
     const activeGeneration = instance?.getActiveGeneration()
@@ -3131,10 +3373,13 @@ export class AgentRuntimePresenter {
     }
 
     this.setSessionStatusForInstance(sessionId, instance, 'generating')
+    const compactionAbortController = this.ensureSessionAbortController(sessionId)
+    const compactionAbortSignal = compactionAbortController.signal
     try {
-      const generationSettings = await this.getEffectiveSessionGenerationSettings(
-        sessionId,
-        instance
+      this.throwIfAbortRequested(compactionAbortSignal)
+      const generationSettings = await awaitWithAbort(
+        this.getEffectiveSessionGenerationSettings(sessionId, instance),
+        compactionAbortSignal
       )
       const interleavedReasoning = this.resolveInterleavedReasoningConfig(
         state.providerId,
@@ -3148,22 +3393,27 @@ export class AgentRuntimePresenter {
         state.modelId
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
-      const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId, instance)
+      const activeSkillNames = await awaitWithAbort(
+        this.resolveActiveSkillNamesForToolProfile(sessionId, instance),
+        compactionAbortSignal
+      )
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       const projectDir = this.resolveProjectDir(sessionId, undefined, instance)
-      const tools = await this.loadToolDefinitionsForSession(
-        sessionId,
-        projectDir,
-        activeSkillNames,
-        instance
+      const tools = await awaitWithAbort(
+        this.loadToolDefinitionsForSession(sessionId, projectDir, activeSkillNames, instance),
+        compactionAbortSignal
       )
       const toolReserveTokens = estimateToolReserveTokens(tools)
-      const baseSystemPrompt = await this.createBasePromptAssembler(instance).assemble({
-        sessionId: toAppSessionId(sessionId),
-        configuredPrompt: generationSettings.systemPrompt,
-        toolDefinitions: tools,
-        activeSkillNames
-      })
+      const baseSystemPrompt = await awaitWithAbort(
+        this.createBasePromptAssembler(instance).assemble({
+          sessionId: toAppSessionId(sessionId),
+          configuredPrompt: generationSettings.systemPrompt,
+          toolDefinitions: tools,
+          activeSkillNames
+        }),
+        compactionAbortSignal
+      )
+      this.throwIfAbortRequested(compactionAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
 
       const intent = await this.compactionService.prepareForManualCompaction({
@@ -3179,8 +3429,10 @@ export class AgentRuntimePresenter {
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
         preserveEmptyInterleavedReasoning:
           interleavedReasoning.preserveEmptyReasoningContent === true,
-        historyRecords: tapeReady.historyRecords
+        historyRecords: tapeReady.historyRecords,
+        signal: compactionAbortSignal
       })
+      this.throwIfAbortRequested(compactionAbortSignal)
       this.throwIfStaleDeepChatInstance(sessionId, instance)
 
       if (!intent) {
@@ -3190,7 +3442,13 @@ export class AgentRuntimePresenter {
         }
       }
 
-      const summaryState = await this.applyCompactionIntent(sessionId, intent, undefined, instance)
+      const summaryState = await this.applyCompactionIntent(
+        sessionId,
+        intent,
+        { signal: compactionAbortSignal },
+        instance
+      )
+      this.throwIfAbortRequested(compactionAbortSignal)
       this.throwIfStaleDeepChatInstance(sessionId, instance)
       const compacted = summaryState.summaryUpdatedAt !== intent.previousState.summaryUpdatedAt
       return {
@@ -3198,7 +3456,13 @@ export class AgentRuntimePresenter {
         state: await this.getSessionCompactionStateForInstance(sessionId, instance)
       }
     } finally {
-      this.setSessionStatusForInstance(sessionId, instance, 'idle')
+      const currentController = instance.getAbortController()
+      const stillOwnsLifecycle =
+        currentController === undefined || currentController === compactionAbortController
+      this.clearSessionAbortController(sessionId, compactionAbortController)
+      if (stillOwnsLifecycle) {
+        this.setSessionStatusForInstance(sessionId, instance, 'idle')
+      }
     }
   }
 
@@ -3362,6 +3626,7 @@ export class AgentRuntimePresenter {
     tools?: MCPToolDefinition[]
     baseSystemPrompt?: string
     initialBlocks?: AssistantMessageBlock[]
+    initialAccounting?: MessageMetadata
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
     viewContext?: PendingTapeViewContext
@@ -3372,6 +3637,7 @@ export class AgentRuntimePresenter {
     maxProviderRounds?: number
     preStreamStartedAt?: number
     onRunRegistered?: (runId: string) => void
+    abortController?: AbortController
   }): Promise<{ runId: string; result: ProcessResult }> {
     const {
       sessionId,
@@ -3382,16 +3648,21 @@ export class AgentRuntimePresenter {
       tools: providedTools,
       baseSystemPrompt,
       initialBlocks,
+      initialAccounting,
       promptPreview,
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
       refreshSystemPrompt,
       maxProviderRounds,
       preStreamStartedAt,
-      onRunRegistered
+      onRunRegistered,
+      abortController: providedAbortController
     } = args
     const resourceInstance = providedResourceInstance ?? this.getDeepChatInstance(sessionId)
     this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
+    const abortController = providedAbortController ?? this.ensureSessionAbortController(sessionId)
+    const abortSignal = abortController.signal
+    this.throwIfAbortRequested(abortSignal)
     const state = resourceInstance.getRuntimeState()
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
@@ -3415,9 +3686,9 @@ export class AgentRuntimePresenter {
       }
     ).getProviderInstance(state.providerId)
 
-    const generationSettings = await this.getEffectiveSessionGenerationSettings(
-      sessionId,
-      resourceInstance
+    const generationSettings = await awaitWithAbort(
+      this.getEffectiveSessionGenerationSettings(sessionId, resourceInstance),
+      abortSignal
     )
     const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
     const interleavedReasoning =
@@ -3466,14 +3737,14 @@ export class AgentRuntimePresenter {
     const temperature = generationSettings.temperature
     const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
 
-    const streamSessionActiveSkillNames = await this.resolveActiveSkillNamesForToolProfile(
-      sessionId,
-      resourceInstance
+    const streamSessionActiveSkillNames = await awaitWithAbort(
+      this.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance),
+      abortSignal
     )
     this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-    const streamExtensionPolicy = await this.resolveAgentExtensionPolicy(
-      sessionId,
-      resourceInstance
+    const streamExtensionPolicy = await awaitWithAbort(
+      this.resolveAgentExtensionPolicy(sessionId, resourceInstance),
+      abortSignal
     )
     this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
     const getEffectiveRuntimeSkillNames = (baseSkillNames = streamSessionActiveSkillNames) =>
@@ -3481,12 +3752,15 @@ export class AgentRuntimePresenter {
     const toolCatalog = this.createSessionToolCatalogPort(sessionId, projectDir, resourceInstance)
     const tools =
       providedTools ??
-      (await toolCatalog.resolve({ activeSkillNames: getEffectiveRuntimeSkillNames() }))
+      (await awaitWithAbort(
+        toolCatalog.resolve({ activeSkillNames: getEffectiveRuntimeSkillNames() }),
+        abortSignal
+      ))
     this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
     const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
 
-    const abortController = new AbortController()
+    abortController.signal.throwIfAborted()
     const loopRun = createLoopRun<StreamState>({
       runId: `${sessionId}:${++this.nextRunSequence}`,
       sessionId: toAppSessionId(sessionId),
@@ -3576,7 +3850,9 @@ export class AgentRuntimePresenter {
           requestModelConfig,
           requestTemperature,
           requestMaxTokens,
-          requestTools
+          requestTools,
+          onProviderRequestStart,
+          assertProviderRequestAvailable
         ) {
           const requestBypassesContextBudget = shouldBypassContextBudget(
             state.providerId,
@@ -3684,15 +3960,20 @@ export class AgentRuntimePresenter {
               }
             },
             provider: {
+              assertAvailable: assertProviderRequestAvailable,
               stream: ({ messages, modelId, modelConfig, temperature, maxTokens, tools }) =>
                 provider.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools),
-              beforeStream: logPreStreamBoundary
+              beforeStream: () => {
+                onProviderRequestStart?.()
+                logPreStreamBoundary()
+              }
             },
             isContextOverflowEvent: isFirstProviderContextOverflowEvent,
             isContextOverflowError: isContextWindowErrorLike,
             createAbortError
           })
         },
+        coreStreamReportsProviderStart: true,
         providerId: state.providerId,
         modelId: state.modelId,
         modelConfig,
@@ -3701,6 +3982,7 @@ export class AgentRuntimePresenter {
         interleavedReasoning,
         permissionMode: state.permissionMode,
         initialBlocks,
+        initialAccounting,
         onFirstProviderRoundReady: () => {
           if (
             !abortController.signal.aborted &&
@@ -4226,7 +4508,8 @@ export class AgentRuntimePresenter {
     sessionId: string,
     messageId: string,
     initialBlocks: AssistantMessageBlock[],
-    budgetToolCall?: ResumeBudgetToolCall | null
+    budgetToolCall?: ResumeBudgetToolCall | null,
+    initialAccounting?: MessageMetadata
   ): Promise<boolean> {
     const instance = this.getDeepChatInstance(sessionId)
     if (!instance.tryBeginResume(messageId)) {
@@ -4235,6 +4518,9 @@ export class AgentRuntimePresenter {
     let preStreamAbortController: AbortController | null = null
     let preStreamAbortSignal: AbortSignal | undefined
     let streamRunId: string | undefined
+    const resumeAccounting =
+      initialAccounting ??
+      parseMessageMetadata(this.messageStore.getMessage(messageId)?.metadata ?? '{}')
 
     try {
       this.throwIfStaleDeepChatInstance(sessionId, instance)
@@ -4247,9 +4533,9 @@ export class AgentRuntimePresenter {
       preStreamAbortController = this.ensureSessionAbortController(sessionId)
       preStreamAbortSignal = preStreamAbortController.signal
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const generationSettings = await this.getEffectiveSessionGenerationSettings(
-        sessionId,
-        instance
+      const generationSettings = await awaitWithAbort(
+        this.getEffectiveSessionGenerationSettings(sessionId, instance),
+        preStreamAbortSignal
       )
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
       const useContextBudget = this.shouldUseDeepChatContextBudget(
@@ -4271,22 +4557,26 @@ export class AgentRuntimePresenter {
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const projectDir = this.resolveProjectDir(sessionId, undefined, instance)
-      const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId, instance)
+      const activeSkillNames = await awaitWithAbort(
+        this.resolveActiveSkillNamesForToolProfile(sessionId, instance),
+        preStreamAbortSignal
+      )
       this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const tools = await this.loadToolDefinitionsForSession(
-        sessionId,
-        projectDir,
-        activeSkillNames,
-        instance
+      const tools = await awaitWithAbort(
+        this.loadToolDefinitionsForSession(sessionId, projectDir, activeSkillNames, instance),
+        preStreamAbortSignal
       )
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const baseSystemPrompt = await this.createBasePromptAssembler(instance).assemble({
-        sessionId: toAppSessionId(sessionId),
-        configuredPrompt: generationSettings.systemPrompt,
-        toolDefinitions: tools,
-        activeSkillNames
-      })
+      const baseSystemPrompt = await awaitWithAbort(
+        this.createBasePromptAssembler(instance).assemble({
+          sessionId: toAppSessionId(sessionId),
+          configuredPrompt: generationSettings.systemPrompt,
+          toolDefinitions: tools,
+          activeSkillNames
+        }),
+        preStreamAbortSignal
+      )
       this.throwIfAbortRequested(preStreamAbortSignal)
       let resumeTargetOrderSeq: number | undefined
       const preparedInput = await this.inputPreparationCoordinator.prepareExisting({
@@ -4343,14 +4633,17 @@ export class AgentRuntimePresenter {
       this.throwIfAbortRequested(preStreamAbortSignal)
       const preparedContext = await this.contextCoordinator.assemble({
         assemblePostCompactionPrompt: async () =>
-          await this.postCompactionPromptAssembler.assemble({
-            memorySession: instance.getMemorySessionHandle(),
-            basePrompt: baseSystemPrompt,
-            summaryText: summaryState.summaryText,
-            reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-            memoryQuery: this.memoryCoordinator.getLatestUserQuery(sessionId),
-            memoryMessageId: messageId
-          }),
+          await awaitWithAbort(
+            this.postCompactionPromptAssembler.assemble({
+              memorySession: instance.getMemorySessionHandle(),
+              basePrompt: baseSystemPrompt,
+              summaryText: summaryState.summaryText,
+              reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
+              memoryQuery: this.memoryCoordinator.getLatestUserQuery(sessionId),
+              memoryMessageId: messageId
+            }),
+            preStreamAbortSignal
+          ),
         buildView: (systemPrompt) =>
           buildTapeResumeView({
             sessionId,
@@ -4400,7 +4693,16 @@ export class AgentRuntimePresenter {
           await this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           this.throwIfStaleDeepChatInstance(sessionId, instance)
           this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
-          this.messageStore.setMessageError(messageId, initialBlocks)
+          const terminalMetadata = stampTerminalMetadata(
+            resumeAccounting,
+            'error',
+            'context_window'
+          )
+          this.messageStore.setMessageError(
+            messageId,
+            initialBlocks,
+            JSON.stringify(terminalMetadata)
+          )
           this.emitMessageRefresh(sessionId, messageId)
           publishDeepchatEvent('chat.stream.failed', {
             requestId: this.resolveStreamRequestId(sessionId, messageId),
@@ -4408,6 +4710,12 @@ export class AgentRuntimePresenter {
             messageId,
             failedAt: Date.now(),
             error: resumeBudget.message
+          })
+          this.dispatchTerminalHooks(sessionId, state, {
+            status: 'error',
+            stopReason: 'context_window',
+            errorMessage: resumeBudget.message,
+            usage: buildUsageFromMetadata(terminalMetadata)
           })
           this.setSessionStatus(sessionId, 'error')
           this.memoryIngestionObserver.afterTurnSettled({
@@ -4427,9 +4735,12 @@ export class AgentRuntimePresenter {
         messages: resumeContext,
         projectDir,
         resourceInstance: instance,
+        abortController: preStreamAbortController,
         tools,
         baseSystemPrompt,
         initialBlocks,
+        initialAccounting: resumeAccounting,
+        maxProviderRounds: resumeAccounting.maxProviderRounds,
         interleavedReasoning,
         viewContext: {
           taskType: 'resume',
@@ -4451,10 +4762,6 @@ export class AgentRuntimePresenter {
         this.applyProcessResultStatus(sessionId, result, runId)
       } finally {
         this.clearActiveGeneration(sessionId, runId)
-      }
-      if (result?.status === 'aborted') {
-        // Return-path abort: applyProcessResultStatus already handled hooks + idle.
-        this.writeCanceledTerminalBlock(sessionId, messageId)
       }
       if (result?.status === 'completed' || result?.status === 'aborted') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
@@ -4479,15 +4786,42 @@ export class AgentRuntimePresenter {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
       if (this.isAbortError(error) || preStreamAbortSignal?.aborted) {
         this.clearSessionAbortController(sessionId, preStreamAbortController ?? undefined)
-        this.settleAbortedTurn(sessionId, messageId, streamRunId)
+        this.settleAbortedTurn(
+          sessionId,
+          messageId,
+          streamRunId,
+          JSON.stringify(
+            stampTerminalMetadata(resumeAccounting, 'aborted', 'user_stop', streamRunId)
+          )
+        )
         // Stop/steer: continue the queue automatically with the next item (steer items first).
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
         return false
       }
       const errorMessage = error instanceof Error ? error.message : String(error)
+      const stopReason = isContextWindowErrorLike(error) ? 'context_window' : 'pre_stream_error'
+      const terminalMetadata = stampTerminalMetadata(
+        resumeAccounting,
+        'error',
+        stopReason,
+        streamRunId
+      )
       const blocks = buildTerminalErrorBlocks(initialBlocks, errorMessage)
-      this.messageStore.setMessageError(messageId, blocks)
+      this.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
       this.emitMessageRefresh(sessionId, messageId)
+      publishDeepchatEvent('chat.stream.failed', {
+        requestId: this.resolveStreamRequestId(sessionId, messageId),
+        sessionId,
+        messageId,
+        failedAt: Date.now(),
+        error: errorMessage
+      })
+      this.dispatchTerminalHooks(sessionId, this.getDeepChatRuntimeState(sessionId), {
+        status: 'error',
+        stopReason,
+        errorMessage,
+        usage: buildUsageFromMetadata(terminalMetadata)
+      })
       this.setSessionStatus(sessionId, 'error')
       throw error
     } finally {
@@ -6055,45 +6389,132 @@ export class AgentRuntimePresenter {
     input: ProviderPermissionInteractionInput
   ): Promise<void> {
     const instance = this.getHydratedDeepChatInstance(input.sessionId)
-    const active = instance?.getActiveProviderPermission(input.requestId)
-    let resolution: { status: 'resolved' } | { status: 'stale'; error: unknown }
+    const activeCandidate = instance?.getActiveProviderPermission(input.requestId)
+    const active =
+      activeCandidate?.messageId === input.messageId &&
+      activeCandidate.toolCallId === input.toolCallId
+        ? activeCandidate
+        : undefined
+    const hasConflictingActive = Boolean(activeCandidate && !active)
+    const ownerRun = input.ownerRun?.messageId === input.messageId ? input.ownerRun : undefined
+
+    if (input.signal?.aborted || ownerRun?.abortController.signal.aborted) {
+      return
+    }
+
+    if (ownerRun) {
+      if (hasConflictingActive) {
+        const projection: ProviderPermissionProjection = {
+          status: 'error',
+          message: 'ACP permission request ownership changed.'
+        }
+        this.updateActiveProviderPermissionState(ownerRun, input, projection)
+        this.updatePersistedProviderPermissionState(input, projection)
+        if (instance) {
+          this.removePendingProviderPermission(instance, input)
+        }
+        return
+      }
+
+      let resolution: { status: 'resolved' } | { status: 'stale'; error: unknown }
+
+      try {
+        resolution = await this.resolveProviderPermissionSafely(
+          active
+            ? () => active.resolve(input.granted)
+            : () =>
+                this.requireAcpAsLlmProviderPermission().resolveAgentPermission(
+                  input.requestId,
+                  input.granted
+                )
+        )
+      } finally {
+        instance?.clearActiveProviderPermission(input.requestId, active)
+      }
+
+      if (
+        input.signal?.aborted ||
+        ownerRun.abortController.signal.aborted ||
+        !instance?.isActiveRun(ownerRun.runId)
+      ) {
+        return
+      }
+
+      if (resolution.status === 'stale') {
+        console.warn(
+          `[DeepChatAgent] ACP permission request expired while its generation remained active: ${input.requestId}`,
+          resolution.error
+        )
+      }
+
+      if (!active || resolution.status === 'stale') {
+        const projection: ProviderPermissionProjection =
+          resolution.status === 'resolved'
+            ? { status: 'resolved', granted: input.granted }
+            : { status: 'error', message: 'Permission request expired.' }
+        this.updateActiveProviderPermissionState(ownerRun, input, projection)
+        this.updatePersistedProviderPermissionState(input, projection)
+      }
+
+      this.removePendingProviderPermission(instance, input)
+      return
+    }
+
+    if (hasConflictingActive) {
+      this.failProviderPermissionInteraction(
+        input,
+        'ACP permission request ownership changed.',
+        instance
+      )
+      return
+    }
+
+    let resolution:
+      | { status: 'resolved' }
+      | { status: 'stale'; error: unknown }
+      | { status: 'failed'; error: unknown }
 
     try {
-      resolution = await this.resolveProviderPermissionSafely(
-        active
-          ? () => active.resolve(input.granted)
-          : () =>
-              this.requireAcpAsLlmProviderPermission().resolveAgentPermission(
-                input.requestId,
-                input.granted
-              )
-      )
+      try {
+        resolution = await this.resolveProviderPermissionSafely(
+          active
+            ? () => active.resolve(false)
+            : () =>
+                this.requireAcpAsLlmProviderPermission().resolveAgentPermission(
+                  input.requestId,
+                  false
+                )
+        )
+      } catch (error) {
+        resolution = { status: 'failed', error }
+      }
     } finally {
       instance?.clearActiveProviderPermission(input.requestId, active)
     }
 
-    if (active && resolution.status === 'resolved') {
-      this.refreshPendingInteractionsFromStore(input.sessionId)
+    if (input.signal?.aborted) {
       return
     }
 
     if (resolution.status === 'stale') {
       console.warn(
-        `[DeepChatAgent] Clearing stale ACP permission request ${input.requestId}:`,
+        `[DeepChatAgent] Failing stale ACP permission request ${input.requestId}:`,
+        resolution.error
+      )
+    } else if (resolution.status === 'failed') {
+      console.warn(
+        `[DeepChatAgent] Failed to deny orphaned ACP permission request ${input.requestId}:`,
         resolution.error
       )
     }
 
-    this.updatePersistedProviderPermissionState(
-      input.messageId,
-      input.toolCallId,
-      input.requestId,
-      input.permissionType,
-      resolution.status === 'resolved' ? input.granted : false,
-      resolution.status === 'stale' ? 'Permission request expired.' : undefined
+    this.failProviderPermissionInteraction(
+      input,
+      resolution.status === 'stale'
+        ? 'Permission request expired.'
+        : 'ACP permission request lost its active generation.',
+      instance
     )
-    this.finishProviderPermissionInteraction(input.sessionId, input.messageId)
-    this.refreshPendingInteractionsFromStore(input.sessionId)
   }
 
   private async resolveProviderPermissionSafely(
@@ -6116,43 +6537,128 @@ export class AgentRuntimePresenter {
     return Boolean(message?.startsWith('Unknown ACP permission request:'))
   }
 
-  private finishProviderPermissionInteraction(sessionId: string, messageId: string): void {
-    this.messageStore.updateMessageStatus(messageId, 'sent')
-    this.setSessionStatus(sessionId, 'idle')
-    this.emitMessageRefresh(sessionId, messageId)
-  }
-
   private updatePersistedProviderPermissionState(
-    messageId: string,
-    toolCallId: string,
-    requestId: string,
-    permissionType: 'read' | 'write' | 'all' | 'command',
-    granted: boolean,
-    deniedMessage = 'User denied the request.'
+    input: ProviderPermissionInteractionInput,
+    projection: ProviderPermissionProjection
   ): void {
-    const message = this.messageStore.getMessage(messageId)
+    const message = this.messageStore.getMessage(input.messageId)
     if (!message || message.role !== 'assistant') {
       return
     }
 
     const blocks = this.parseAssistantBlocks(message.content)
+    if (!this.applyProviderPermissionProjection(blocks, input, projection)) {
+      return
+    }
+    this.messageStore.updateAssistantContent(input.messageId, blocks)
+  }
+
+  private updateActiveProviderPermissionState(
+    ownerRun: LoopRun<unknown>,
+    input: ProviderPermissionInteractionInput,
+    projection: ProviderPermissionProjection
+  ): void {
+    const streamState = ownerRun.streamState as StreamState
+    if (!Array.isArray(streamState.blocks)) {
+      return
+    }
+    if (this.applyProviderPermissionProjection(streamState.blocks, input, projection)) {
+      streamState.dirty = true
+    }
+  }
+
+  private applyProviderPermissionProjection(
+    blocks: AssistantMessageBlock[],
+    input: ProviderPermissionInteractionInput,
+    projection: ProviderPermissionProjection
+  ): boolean {
     const actionBlock = blocks.find(
       (block) =>
         block.type === 'action' &&
         block.action_type === 'tool_call_permission' &&
-        block.tool_call?.id === toolCallId &&
-        (block.extra?.permissionRequestId === requestId || requestId === '')
+        block.tool_call?.id === input.toolCallId &&
+        (block.extra?.permissionRequestId === input.requestId || input.requestId === '')
     )
 
     if (!actionBlock) {
+      return false
+    }
+
+    if (projection.status === 'resolved') {
+      this.markPermissionResolved(actionBlock, projection.granted, input.permissionType)
+      return true
+    }
+
+    actionBlock.status = 'error'
+    actionBlock.content = projection.message
+    actionBlock.extra = {
+      ...actionBlock.extra,
+      needsUserAction: false
+    }
+    this.updateToolCallResponse(blocks, input.toolCallId, projection.message, true)
+    return true
+  }
+
+  private failProviderPermissionInteraction(
+    input: ProviderPermissionInteractionInput,
+    errorMessage: string,
+    instance?: DeepChatAgentInstance
+  ): void {
+    const message = this.messageStore.getMessage(input.messageId)
+    if (!message || message.role !== 'assistant') {
       return
     }
 
-    this.markPermissionResolved(actionBlock, granted, permissionType)
-    if (!granted) {
-      actionBlock.content = deniedMessage
+    const blocks = this.parseAssistantBlocks(message.content)
+    this.applyProviderPermissionProjection(blocks, input, {
+      status: 'error',
+      message: errorMessage
+    })
+    const terminalBlocks = buildTerminalErrorBlocks(blocks, errorMessage)
+    const terminalMetadata = stampTerminalMetadata(
+      parseMessageMetadata(message.metadata),
+      'error',
+      'provider_error'
+    )
+    this.messageStore.setMessageError(
+      input.messageId,
+      terminalBlocks,
+      JSON.stringify(terminalMetadata)
+    )
+    this.emitMessageRefresh(input.sessionId, input.messageId)
+    publishDeepchatEvent('chat.stream.failed', {
+      requestId: this.resolveStreamRequestId(input.sessionId, input.messageId),
+      sessionId: input.sessionId,
+      messageId: input.messageId,
+      failedAt: Date.now(),
+      error: errorMessage
+    })
+    this.dispatchTerminalHooks(input.sessionId, this.getDeepChatRuntimeState(input.sessionId), {
+      status: 'error',
+      stopReason: 'provider_error',
+      errorMessage,
+      usage: buildUsageFromMetadata(terminalMetadata)
+    })
+    if (instance) {
+      this.removePendingProviderPermission(instance, input)
+      if (!instance.getActiveGeneration()) {
+        this.setSessionStatus(input.sessionId, 'error')
+      }
     }
-    this.messageStore.updateAssistantContent(messageId, blocks)
+  }
+
+  private removePendingProviderPermission(
+    instance: DeepChatAgentInstance,
+    input: ProviderPermissionInteractionInput
+  ): void {
+    instance.replacePendingInteractions(
+      instance
+        .getPendingInteractions()
+        .filter(
+          (interaction) =>
+            interaction.messageId !== input.messageId || interaction.toolCallId !== input.toolCallId
+        )
+    )
   }
 
   private clearActiveProviderPermissionsForSession(sessionId: string): void {
@@ -6167,14 +6673,31 @@ export class AgentRuntimePresenter {
     }
   }
 
-  private markQuestionResolved(block: AssistantMessageBlock, answerText: string): void {
+  private markQuestionResolved(
+    block: AssistantMessageBlock,
+    answerText: string,
+    awaitsUserFollowUp = false
+  ): void {
     block.status = 'success'
     block.extra = {
       ...block.extra,
       needsUserAction: false,
       questionResolution: 'replied',
+      questionFollowUpPending: awaitsUserFollowUp,
       ...(answerText ? { answerText } : {})
     }
+  }
+
+  private hasQuestionFollowUpIntent(blocks: AssistantMessageBlock[]): boolean {
+    return blocks.some(
+      (block) =>
+        block.type === 'action' &&
+        block.action_type === 'question_request' &&
+        block.status === 'success' &&
+        block.extra?.needsUserAction === false &&
+        block.extra?.questionResolution === 'replied' &&
+        block.extra?.questionFollowUpPending === true
+    )
   }
 
   private markPermissionResolved(
@@ -6331,7 +6854,8 @@ export class AgentRuntimePresenter {
   private async executeDeferredToolCall(
     sessionId: string,
     messageId: string,
-    toolCall: NonNullable<AssistantMessageBlock['tool_call']>
+    toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
+    onToolCallStarted?: () => void
   ): Promise<DeferredToolExecutionResult> {
     if (!this.toolExecutionPort) {
       return {
@@ -6348,46 +6872,6 @@ export class AgentRuntimePresenter {
       }
     }
 
-    const projectDir = this.resolveProjectDir(sessionId)
-    const sessionState = await this.getSessionState(sessionId)
-    const toolDefinitions = await this.loadToolDefinitionsForSession(sessionId, projectDir)
-
-    const toolDefinition = toolDefinitions.find((definition) => {
-      if (definition.function.name !== toolName) {
-        return false
-      }
-      if (toolCall.server_name) {
-        return definition.server.name === toolCall.server_name
-      }
-      return true
-    })
-
-    if (!toolDefinition) {
-      const disabledAgentTools = this.getDisabledAgentTools(sessionId)
-      if (disabledAgentTools.includes(toolName)) {
-        return {
-          responseText: `Tool '${toolName}' is disabled for the current session.`,
-          isError: true
-        }
-      }
-
-      return {
-        responseText: `Tool '${toolName}' is no longer available in the current session.`,
-        isError: true
-      }
-    }
-
-    const request: MCPToolCall = {
-      id: toolCall.id || '',
-      type: 'function',
-      function: {
-        name: toolName,
-        arguments: toolCall.params || '{}'
-      },
-      server: toolDefinition?.server,
-      conversationId: sessionId,
-      providerId: sessionState?.providerId?.trim() || undefined
-    }
     const deferredAbortController = toolCall.id
       ? this.registerDeferredToolAbortController(sessionId, toolCall.id)
       : null
@@ -6396,8 +6880,57 @@ export class AgentRuntimePresenter {
     let invoked = false
 
     try {
-      const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
+      this.throwIfAbortRequested(deferredAbortSignal)
+      const projectDir = this.resolveProjectDir(sessionId)
+      const sessionState = await awaitWithAbort(
+        this.getSessionState(sessionId),
+        deferredAbortSignal
+      )
+      const toolDefinitions = await awaitWithAbort(
+        this.loadToolDefinitionsForSession(sessionId, projectDir),
+        deferredAbortSignal
+      )
+      this.throwIfAbortRequested(deferredAbortSignal)
+
+      const toolDefinition = toolDefinitions.find((definition) => {
+        if (definition.function.name !== toolName) {
+          return false
+        }
+        if (toolCall.server_name) {
+          return definition.server.name === toolCall.server_name
+        }
+        return true
+      })
+
+      if (!toolDefinition) {
+        const disabledAgentTools = this.getDisabledAgentTools(sessionId)
+        return {
+          responseText: disabledAgentTools.includes(toolName)
+            ? `Tool '${toolName}' is disabled for the current session.`
+            : `Tool '${toolName}' is no longer available in the current session.`,
+          isError: true
+        }
+      }
+
+      const request: MCPToolCall = {
+        id: toolCall.id || '',
+        type: 'function',
+        function: {
+          name: toolName,
+          arguments: toolCall.params || '{}'
+        },
+        server: toolDefinition.server,
+        conversationId: sessionId,
+        providerId: sessionState?.providerId?.trim() || undefined
+      }
+
+      const extensionPolicy = await awaitWithAbort(
+        this.resolveAgentExtensionPolicy(sessionId),
+        deferredAbortSignal
+      )
+      this.throwIfAbortRequested(deferredAbortSignal)
       invoked = true
+      onToolCallStarted?.()
       const result = await this.toolExecutionPort.execute(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
         enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
@@ -6419,6 +6952,7 @@ export class AgentRuntimePresenter {
         },
         signal: deferredAbortSignal
       })
+      this.throwIfAbortRequested(deferredAbortSignal)
       const rawData = result.rawData as MCPToolResponse
       if (rawData.requiresPermission) {
         return {
@@ -6460,8 +6994,10 @@ export class AgentRuntimePresenter {
           toolName,
           toolArgs: toolCall.params || '{}',
           content: rawData.content,
-          cacheImage: this.cacheImage
+          cacheImage: this.cacheImage,
+          signal: deferredAbortSignal
         }))
+      this.throwIfAbortRequested(deferredAbortSignal)
       const normalizedContent = await this.toolResultPort.normalize({
         sessionId,
         toolCallId: toolCall.id || '',
@@ -6471,13 +7007,18 @@ export class AgentRuntimePresenter {
         isError: rawData.isError === true,
         signal: deferredAbortSignal
       })
+      this.throwIfAbortRequested(deferredAbortSignal)
       const responseText = this.toolContentToText(normalizedContent)
-      const prepared = await this.toolResultPort.prepare({
-        sessionId,
-        toolCallId: toolCall.id || '',
-        toolName,
-        rawContent: responseText
-      })
+      const prepared = await awaitWithAbort(
+        this.toolResultPort.prepare({
+          sessionId,
+          toolCallId: toolCall.id || '',
+          toolName,
+          rawContent: responseText
+        }),
+        deferredAbortSignal
+      )
+      this.throwIfAbortRequested(deferredAbortSignal)
       if (prepared.kind === 'tool_error') {
         return {
           responseText: prepared.message,
@@ -6498,6 +7039,9 @@ export class AgentRuntimePresenter {
         imagePreviews
       }
     } catch (error) {
+      if (deferredAbortSignal?.aborted || this.isAbortError(error)) {
+        throw error
+      }
       const errorText = error instanceof Error ? error.message : String(error)
       return {
         responseText: `Error: ${errorText}`,
@@ -7007,7 +7551,7 @@ export class AgentRuntimePresenter {
           block.status === 'success' &&
           block.extra?.needsUserAction === false &&
           block.extra?.questionResolution === 'replied' &&
-          typeof block.extra?.answerText !== 'string'
+          block.extra?.questionFollowUpPending === true
       )
     })
   }
@@ -7074,6 +7618,7 @@ export class AgentRuntimePresenter {
           this.summaryStateToCompactionState(intent.previousState),
           expectedInstance
         )
+        this.throwIfAbortRequested(options?.signal)
       }
       throw error
     }
@@ -7271,7 +7816,9 @@ export class AgentRuntimePresenter {
     const instance = expectedInstance
     if (incoming !== undefined) {
       const normalized = this.normalizeProjectDir(incoming)
-      const previous = instance.getProjectDir()
+      const previous = instance.hasProjectDir()
+        ? instance.getProjectDir()
+        : this.resolvePersistedSessionProjectDir(sessionId)
       instance.setProjectDir(normalized)
       if (previous !== normalized) {
         instance.invalidateResourceCaches()

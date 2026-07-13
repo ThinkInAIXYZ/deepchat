@@ -82,7 +82,7 @@ describe('NoProgressToolLoopGuard', () => {
     expect(second).toMatchObject({ repeatedBatchCount: 1, correctionAppended: false })
   })
 
-  it('normalizes timestamps and generated IDs in unstructured result text', () => {
+  it('normalizes timestamps and explicitly labeled generated IDs in unstructured text', () => {
     const guard = new NoProgressToolLoopGuard()
     guard.observe(
       [toolCall('call-1')],
@@ -102,6 +102,70 @@ describe('NoProgressToolLoopGuard', () => {
     const second = guard.observe([toolCall('call-2')], secondMessages)
 
     expect(second).toMatchObject({ repeatedBatchCount: 2, correctionAppended: true })
+  })
+
+  it('normalizes volatile strings nested in structured results', () => {
+    const guard = new NoProgressToolLoopGuard()
+    guard.observe(
+      [toolCall('call-1')],
+      [
+        toolMessage(
+          'call-1',
+          JSON.stringify({
+            content: [
+              'unchanged',
+              'finished 2026-07-13T10:00:00.000Z',
+              'request 3e9b1f2d-b83d-4c7c-9c39-5d3a35f0a920'
+            ]
+          })
+        )
+      ]
+    )
+    const secondMessages = [
+      toolMessage(
+        'call-2',
+        JSON.stringify({
+          content: [
+            'unchanged',
+            'finished 2026-07-13T10:01:00.000Z',
+            'request cbf1a435-68a5-4f30-bbf8-42ec2c0ce6fe'
+          ]
+        })
+      )
+    ]
+
+    const second = guard.observe([toolCall('call-2')], secondMessages)
+
+    expect(second).toMatchObject({ repeatedBatchCount: 2, correctionAppended: true })
+  })
+
+  it('treats changing business UUIDs in unstructured results as progress', () => {
+    const guard = new NoProgressToolLoopGuard()
+    const first = guard.observe(
+      [toolCall('call-1')],
+      [toolMessage('call-1', 'Created record 3e9b1f2d-b83d-4c7c-9c39-5d3a35f0a920')]
+    )
+    const second = guard.observe(
+      [toolCall('call-2')],
+      [toolMessage('call-2', 'Created record cbf1a435-68a5-4f30-bbf8-42ec2c0ce6fe')]
+    )
+
+    expect(first.snapshot.fingerprint).not.toBe(second.snapshot.fingerprint)
+    expect(second).toMatchObject({ repeatedBatchCount: 1, correctionAppended: false })
+  })
+
+  it('replaces the corrected tool message instead of mutating a shared message object', () => {
+    const guard = new NoProgressToolLoopGuard()
+    guard.observe([toolCall('call-1')], [toolMessage('call-1', 'stable file contents')])
+    const sourceMessages = [toolMessage('call-2', 'stable file contents')]
+    const shallowCopy = sourceMessages.slice()
+
+    const observation = guard.observe([toolCall('call-2')], shallowCopy)
+
+    expect(observation.correctionAppended).toBe(true)
+    expect(sourceMessages[0].content).toBe('stable file contents')
+    expect(shallowCopy[0]).not.toBe(sourceMessages[0])
+    expect(shallowCopy[0].content).toContain('agent_no_progress')
   })
 
   it('corrects but does not hard-stop repeated acknowledgement-only results', () => {

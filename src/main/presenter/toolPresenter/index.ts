@@ -46,7 +46,7 @@ export interface IToolPresenter {
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
     request: MCPToolCall,
-    options?: { permissionMode?: PermissionMode }
+    options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
   ): Promise<ToolPermissionPreCheckResult | null>
   clearConversationToolMapping?(conversationId: string): void
   clearAgentPlanState?(conversationId: string): void

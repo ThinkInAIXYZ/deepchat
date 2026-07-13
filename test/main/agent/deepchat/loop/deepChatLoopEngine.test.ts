@@ -158,6 +158,35 @@ describe('DeepChatLoopEngine', () => {
     expect(executeToolBatch).not.toHaveBeenCalled()
   })
 
+  it('includes previously executed tools when enforcing the global tool-call limit', async () => {
+    const run = createRun()
+    const executeToolBatch = vi.fn(async () => ({
+      type: 'continue' as const,
+      executedToolCount: 1
+    }))
+
+    const outcome = await new DeepChatLoopEngine().run(
+      run,
+      {
+        initialExecutedToolCount: 128,
+        consumeProviderRound: async () => ({
+          type: 'tool_batch' as const,
+          batch: 'resumed-overflow',
+          toolCallCount: 1
+        }),
+        executeToolBatch
+      },
+      createCommitCallbacks()
+    )
+
+    expect(outcome).toEqual({
+      type: 'max_tool_calls',
+      attemptedToolCount: 129,
+      limit: 128
+    })
+    expect(executeToolBatch).not.toHaveBeenCalled()
+  })
+
   it('propagates a paused tool batch without entering another provider round', async () => {
     const run = createRun()
     const order: string[] = []

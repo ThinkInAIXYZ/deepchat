@@ -947,7 +947,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         ],
         'model-42',
         undefined,
-        256
+        256,
+        { signal: undefined, swallowErrors: false }
       )
 
       expect(result).toEqual({
@@ -1020,6 +1021,53 @@ describe('McpClient Runtime Command Processing Tests', () => {
       } finally {
         process.off('unhandledRejection', unhandled)
       }
+    })
+
+    it('forwards cancellation through sampling generation without wrapping AbortError', async () => {
+      const client = new McpClient('code-reviewer', { type: 'stdio' })
+      const abortController = new AbortController()
+      mockHandleSamplingRequest.mockResolvedValue({
+        requestId: 'rpc-generation-cancelled',
+        approved: true,
+        providerId: 'provider-1',
+        modelId: 'model-42'
+      })
+      mockCancelSamplingRequest.mockResolvedValue(undefined)
+      mockGenerateCompletionStandalone.mockImplementation(
+        (...args: unknown[]) =>
+          new Promise((_, reject) => {
+            const options = args[5] as { signal?: AbortSignal } | undefined
+            options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+              once: true
+            })
+          })
+      )
+
+      const generating = (client as any).handleSamplingCreateMessage(
+        {
+          params: {
+            messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }]
+          }
+        },
+        { requestId: 'rpc-generation-cancelled', signal: abortController.signal }
+      )
+      await vi.waitFor(() => expect(mockGenerateCompletionStandalone).toHaveBeenCalledOnce())
+
+      abortController.abort()
+
+      await expect(generating).rejects.toMatchObject({ name: 'AbortError' })
+      expect(mockGenerateCompletionStandalone).toHaveBeenCalledWith(
+        'provider-1',
+        expect.any(Array),
+        'model-42',
+        undefined,
+        undefined,
+        { signal: abortController.signal, swallowErrors: false }
+      )
+      expect(mockCancelSamplingRequest).toHaveBeenCalledWith(
+        'rpc-generation-cancelled',
+        'cancelled by server'
+      )
     })
   })
 })

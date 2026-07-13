@@ -733,6 +733,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   private extractPlainText(record: Pick<ChatMessageRecord, 'role' | 'content'>): string {
     try {
       const parsed = JSON.parse(record.content) as unknown
+      if (typeof parsed === 'string') return parsed.trim()
       if (record.role === 'user') {
         const text = (parsed as { text?: unknown })?.text
         return typeof text === 'string' ? text.trim() : ''
@@ -751,7 +752,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       }
       return ''
     } catch {
-      return ''
+      return record.content.trim()
     }
   }
 }
