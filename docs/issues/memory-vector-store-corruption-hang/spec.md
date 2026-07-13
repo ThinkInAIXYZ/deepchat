@@ -383,14 +383,17 @@ unbounded await turns out to be.
       `buildInjection()`.
 - [x] Implement store format v2 + one-time migration per
       [docs/architecture/memory-vector-store-v2/tasks.md](../../architecture/memory-vector-store-v2/tasks.md).
-- [ ] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
+- [x] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
       `agentRuntimePresenter/index.ts`; async awaited steps only; final segment cleared by the
       existing beforeStream boundary hook; sync steps get completion-time slow logs only.
 - [x] Info log when memory injection is skipped/degraded (timeout or recall degradation causes).
-- [ ] Unit tests (see Validation).
-- [ ] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
-      `mise exec -- pnpm run lint`, `mise exec -- pnpm run typecheck`, and
-      `mise exec -- pnpm test`.
+- [x] Unit tests (see Validation).
+- [x] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
+      `mise exec -- pnpm run lint`, `mise exec -- pnpm run typecheck`, targeted suites,
+      `mise exec -- pnpm run test:memory`, and the native V2 suite.
+- [ ] Full `mise exec -- pnpm test`: 5,313 tests pass and 2 skip; the three unrelated
+      `SpotlightOverlay.test.ts` cases currently fail because their fixture does not install an
+      active Pinia. The file fails identically when run alone and is outside this issue's scope.
 
 ## Validation
 

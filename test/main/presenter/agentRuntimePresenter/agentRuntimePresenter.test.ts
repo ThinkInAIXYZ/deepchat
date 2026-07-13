@@ -9,7 +9,11 @@ import type {
   DeepChatSessionState
 } from '@shared/types/agent-interface'
 import { ApiEndpointType, ModelType } from '@shared/model'
-import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
+import {
+  AgentRuntimePresenter,
+  PRE_STREAM_STUCK_ESCALATION_MS,
+  PRE_STREAM_STUCK_WARN_MS
+} from '@/presenter/agentRuntimePresenter/index'
 import logger from '@shared/logger'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
@@ -764,6 +768,192 @@ describe('AgentRuntimePresenter', () => {
       await fs.rm(tempHome, { recursive: true, force: true })
       tempHome = null
     }
+  })
+
+  describe('pre-stream stuck watchdog', () => {
+    const stuckWarnings = () =>
+      vi
+        .mocked(logger.warn)
+        .mock.calls.map(([message]) => String(message))
+        .filter((message) => message.includes('pre-stream step STUCK'))
+
+    it('warns once at each threshold and clears the timers on abort', async () => {
+      vi.useFakeTimers()
+      const warn = vi.mocked(logger.warn)
+      const controller = new AbortController()
+      const pending = deferred<void>()
+      const privateContent = 'PRIVATE_USER_CONTENT'
+      const step = (agent as any).runPreStreamStep(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          step: 'active-skills',
+          signal: controller.signal
+        },
+        () => {
+          void privateContent
+          return pending.promise
+        }
+      ) as Promise<void>
+
+      try {
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_WARN_MS - 1)
+        expect(stuckWarnings()).toHaveLength(0)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(stuckWarnings()).toHaveLength(1)
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS - PRE_STREAM_STUCK_WARN_MS)
+        expect(stuckWarnings()).toHaveLength(2)
+        expect(stuckWarnings()[0]).toContain('step=active-skills')
+        expect(stuckWarnings()[1]).toContain('STUCK escalation')
+        expect(stuckWarnings().join('\n')).not.toContain(privateContent)
+
+        controller.abort()
+        pending.resolve(undefined)
+        await step
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
+        expect(stuckWarnings()).toHaveLength(2)
+      } finally {
+        warn.mockClear()
+      }
+    })
+
+    it('clears watchdog timers when a step resolves or rejects', async () => {
+      vi.useFakeTimers()
+      const warn = vi.mocked(logger.warn)
+
+      try {
+        await (agent as any).runPreStreamStep(
+          { sessionId: 's1', messageId: 'm1', step: 'resolved-step' },
+          async () => 'done'
+        )
+        await expect(
+          (agent as any).runPreStreamStep(
+            { sessionId: 's1', messageId: 'm1', step: 'rejected-step' },
+            async () => {
+              throw new Error('PRIVATE_REJECTION_CONTENT')
+            }
+          )
+        ).rejects.toThrow('PRIVATE_REJECTION_CONTENT')
+
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
+        expect(stuckWarnings()).toHaveLength(0)
+        expect(warn.mock.calls.map(([message]) => String(message)).join('\n')).not.toContain(
+          'PRIVATE_REJECTION_CONTENT'
+        )
+      } finally {
+        warn.mockClear()
+      }
+    })
+
+    it('protects initial-send and resume generation settings', async () => {
+      vi.useFakeTimers()
+      const warn = vi.mocked(logger.warn)
+
+      try {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        const settings = await agent.getGenerationSettings('s1')
+        const initialSettings = deferred<any>()
+        const settingsSpy = vi
+          .spyOn(agent as any, 'getEffectiveSessionGenerationSettings')
+          .mockReturnValue(initialSettings.promise)
+
+        const initialSend = agent.processMessage('s1', 'PRIVATE_INITIAL_MESSAGE')
+        await vi.waitFor(() => expect(settingsSpy).toHaveBeenCalled())
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_WARN_MS)
+        expect(stuckWarnings()).toEqual([
+          expect.stringContaining('message=<pending> step=generation-settings')
+        ])
+        initialSettings.resolve(settings)
+        await initialSend
+
+        warn.mockClear()
+        const assistantRow = makeDeepchatAssistantRow(2, '', 'm1', 'pending')
+        sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+          id === assistantRow.id ? assistantRow : undefined
+        )
+        sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+          makeDeepchatUserRow(1, 'resume query', 'resume-user'),
+          assistantRow
+        ])
+        const resumeSettings = deferred<any>()
+        settingsSpy.mockReturnValue(resumeSettings.promise)
+        const callsBeforeResume = settingsSpy.mock.calls.length
+
+        const resume = (agent as any).resumeAssistantMessage('s1', 'm1', []) as Promise<boolean>
+        await vi.waitFor(() =>
+          expect(settingsSpy.mock.calls.length).toBeGreaterThan(callsBeforeResume)
+        )
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_WARN_MS)
+        expect(stuckWarnings()).toEqual([
+          expect.stringContaining('message=m1 step=generation-settings')
+        ])
+        resumeSettings.resolve(settings)
+        await expect(resume).resolves.toBe(true)
+        expect(stuckWarnings().join('\n')).not.toContain('PRIVATE_INITIAL_MESSAGE')
+      } finally {
+        warn.mockClear()
+      }
+    })
+
+    it('clears the final boundary when the provider stream begins', async () => {
+      vi.useFakeTimers()
+      const warn = vi.mocked(logger.warn)
+      const providerStarted = deferred<void>()
+      const providerDone = deferred<void>()
+      const provider = llmProvider.getProviderInstance('openai')
+      provider.coreStream.mockImplementationOnce(async function* () {
+        providerStarted.resolve(undefined)
+        await providerDone.promise
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed' }
+      })
+
+      try {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        const processing = agent.processMessage('s1', 'Hello')
+        await providerStarted.promise
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
+        expect(
+          stuckWarnings().filter((message) => message.includes('step=pre-stream-provider-start'))
+        ).toHaveLength(0)
+        providerDone.resolve(undefined)
+        await processing
+      } finally {
+        warn.mockClear()
+      }
+    })
+
+    it('clears the final boundary when streaming setup rejects', async () => {
+      vi.useFakeTimers()
+      const warn = vi.mocked(logger.warn)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const runStreamSpy = vi
+        .spyOn(agent as any, 'runStreamForMessage')
+        .mockRejectedValueOnce(new Error('stream setup failed'))
+
+      try {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        await agent.processMessage('s1', 'Hello')
+        await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
+        expect(
+          stuckWarnings().filter((message) => message.includes('step=pre-stream-provider-start'))
+        ).toHaveLength(0)
+      } finally {
+        warn.mockClear()
+        consoleErrorSpy.mockRestore()
+        runStreamSpy.mockRestore()
+      }
+    })
   })
 
   describe('memory extraction lifecycle', () => {
@@ -5277,13 +5467,20 @@ describe('AgentRuntimePresenter', () => {
       ])
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq('s1', 8)
       sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq.mockClear()
+      const preStreamStepSpy = vi.spyOn(agent as any, 'runPreStreamStep')
 
-      await agent.retryMessage('s1', 'retry-assistant')
+      try {
+        await agent.retryMessage('s1', 'retry-assistant')
 
-      expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
-        's1',
-        4
-      )
+        expect(
+          preStreamStepSpy.mock.calls.filter(([input]) => input.step === 'generation-settings')
+        ).toHaveLength(1)
+        expect(
+          sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq
+        ).toHaveBeenCalledWith('s1', 4)
+      } finally {
+        preStreamStepSpy.mockRestore()
+      }
     })
 
     it('rewinds the memory cursor when editing a consumed user message', async () => {
@@ -8426,6 +8623,7 @@ describe('AgentRuntimePresenter', () => {
 
       const hasContextBudgetSpy = vi.spyOn((agent as any).toolOutputGuard, 'hasContextBudget')
       hasContextBudgetSpy.mockReturnValueOnce(false).mockReturnValueOnce(true)
+      const preStreamStepSpy = vi.spyOn(agent as any, 'runPreStreamStep')
 
       try {
         const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
@@ -8460,9 +8658,18 @@ describe('AgentRuntimePresenter', () => {
         await expect(
           fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
         ).rejects.toThrow()
+        expect(preStreamStepSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 's1',
+            messageId: 'm1',
+            step: 'tool-output-cleanup'
+          }),
+          expect.any(Function)
+        )
         expect(processStream).toHaveBeenCalledTimes(1)
       } finally {
         hasContextBudgetSpy.mockRestore()
+        preStreamStepSpy.mockRestore()
       }
     })
 
