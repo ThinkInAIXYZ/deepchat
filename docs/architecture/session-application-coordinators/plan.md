@@ -12,8 +12,9 @@ The migration uses a strangler sequence inside the existing compatibility façad
 6. replace route, Remote, and Cron presenter dependencies;
 7. reduce the presenter to forwarding, add guards, and update current docs.
 
-The implementation is performed on `task/session-application-coordinators`, based directly on
-`dev@28e2a0e92`. It does not cherry-pick stage 1.
+The implementation was performed on `task/session-application-coordinators`, based directly on
+`dev@28e2a0e92`, without cherry-picking stage 1. After independent implementation and review, the
+branch merged `dev@135779210` and reconciled both ownership changes file by file.
 
 ## Planned Module Shape
 
@@ -32,7 +33,7 @@ src/main/routes/
 └── hotPathPorts.ts                # provider-only adapters; no session presenter adapter
 
 src/main/presenter/
-├── agentSessionPresenter/index.ts # compatibility forwarding + stage-1 foreign behavior on dev
+├── agentSessionPresenter/index.ts # compatibility forwarding; stage-1 owners stay independent
 ├── remoteControlPresenter/        # four explicit remote session ports
 └── cronJobs/                      # starter factory over lifecycle + turn ports
 ```
@@ -166,7 +167,7 @@ integration tasks by themselves.
 1. Move `sessionStatusSnapshots`, session/message/Tape/trace read projection, active window operations,
    rename/pin, event publication, UI refresh, materialization, lightweight mapping, and title generation
    into `SessionProjectionCoordinator`.
-2. Keep stage-1 history search and export code outside this coordinator on the `dev` baseline.
+2. Keep stage-1 history search and export code outside this coordinator after integration.
 3. Add owner tests for full vs lightweight behavior, status cache, per-window binding, missing/malformed
    reads, title generation, and update events.
 4. Add forwarding methods in `AgentSessionPresenter` without duplicating policy/state.
@@ -234,8 +235,8 @@ integration tasks by themselves.
 ## Slice 8 — Façade Cleanup, Guards, and Documentation
 
 1. Remove migrated state, policy, private helpers, imports, and direct implementations from
-   `AgentSessionPresenter`; leave only forwarding for the four domains plus stage-1 foreign behavior
-   still present on `dev`.
+   `AgentSessionPresenter`; leave only forwarding for the four domains while stage-1 foreign behavior
+   remains with its explicit owners.
 2. Keep `IAgentSessionPresenter` public signatures unchanged in stage 2.
 3. Move behavior tests to coordinator suites; presenter tests cover forwarding/compatibility only.
 4. Add architecture guards that reject:
@@ -299,8 +300,9 @@ clean relevant tree.
 - Each coordinator slice keeps façade forwarding, so later slices can be reverted independently.
 - Do not remove a façade implementation until owner tests and all migrated consumers call the new
   owner.
-- Stage-1 integration requires a deliberate rebase. Preserve stage-1 foreign owner wiring and stage-2
-  coordinator wiring file by file; never accept either side wholesale for presenter/composition/routes.
+- Stage-1 integration was completed by merging `dev@135779210`. The resolution preserved stage-1
+  foreign owner wiring and stage-2 coordinator wiring file by file; no presenter, composition, or
+  route conflict was accepted wholesale.
 
 ## Exit Gate
 

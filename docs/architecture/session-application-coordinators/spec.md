@@ -1,7 +1,8 @@
 # Session Application Coordinators
 
-> Status: implemented and validated
-> Base: `dev@28e2a0e92`  
+> Status: implemented, integrated, and pending final validation
+> Original base: `dev@28e2a0e92`
+> Integrated base: `dev@135779210` via merge commit `1122b2406`
 > Branch: `task/session-application-coordinators`
 
 ## Context
@@ -26,14 +27,14 @@ only one or two operations.
 
 This goal is stage 2 of the session boundary cleanup sequence:
 
-1. foreign capability cleanup (`codex/session-boundary-cleanup`, complete but not merged into `dev`);
+1. foreign capability cleanup (`codex/session-boundary-cleanup`, merged in PR #1957);
 2. **session application coordinators** (this goal);
 3. presenter retirement after all remaining compatibility consumers are rewired.
 
-This branch intentionally starts from `dev`, not from stage 1. Stage-1 capabilities remain untouched
-here so both branches can be reviewed independently. Whichever branch merges second must preserve
-both ownership splits while resolving composition-root, presenter, route, guard, test, and current-doc
-conflicts.
+This branch was developed from `dev@28e2a0e92`, independently of stage 1, so both ownership changes
+could be reviewed separately. It later merged `dev@135779210`; the integration preserves both splits
+across the composition root, presenter, routes, guards, tests, current docs, and architecture
+baselines.
 
 ## Problem
 
@@ -71,8 +72,8 @@ The current façade produces five concrete architecture failures:
 
 ## Non-goals
 
-- Merging or modifying stage-1 history, import, migration, usage, RTK, export, translation, or
-  catalog ownership. Those methods remain on the compatibility façade on this `dev` baseline.
+- Reimplementing or absorbing stage-1 history, import, migration, usage, RTK, export, translation, or
+  catalog ownership. After integration those capabilities remain with their explicit stage-1 owners.
 - Removing `AgentSessionPresenter`, deleting `IAgentSessionPresenter`, or rewiring every remaining
   compatibility caller. That is stage 3.
 - Moving runtime state out of `DeepChatAgentInstance`, `AcpAgentInstance`, or `LoopRun`.
@@ -154,8 +155,8 @@ Owns renderer-facing projection state and projection operations:
 It is a composition-owned singleton. Creating one instance per consumer is forbidden because window
 bindings and status snapshots must remain coherent.
 
-History search and export remain stage-1 foreign capabilities on this base and must not be absorbed
-into Projection.
+History search and export remain stage-1 foreign capabilities after integration and must not be
+absorbed into Projection.
 
 ## Target Dependency Shape
 
@@ -205,7 +206,7 @@ defined as `Pick<IAgentSessionPresenter, ...>` and must not be grouped under a r
 8. Cron starter construction occurs in the composition root, not as a route-runtime side effect.
 9. Required dependencies fail fast. No optional coordinator methods, capability probes, no-op
    fallbacks, or `as unknown as` wiring are permitted.
-10. Phase-1 foreign methods are left unchanged on this branch and are not imported by the new
+10. Stage-1 foreign owners remain independent after integration and are not imported by the new
     coordinators.
 
 ## Compatibility Invariants
