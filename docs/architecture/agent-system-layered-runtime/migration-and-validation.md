@@ -362,6 +362,52 @@ republication, and stale expected-handle cleanup preserves the replacement bound
 
 ## 8. Command gates
 
+### ASLR-062 Memory close-out record
+
+Comparison range: `c600f51b2adedb2147008bd1822cf8c72dac5f6c` (the parent of `ASLR-059`) through
+the Phase 9 implementation head `c435746fc`. The ASLR-062 commit itself changes only documentation and test
+stability, so the production comparison remains valid after it is applied.
+
+Contract comparison:
+
+- the complete `src/shared/contracts/routes` and `src/shared/contracts/events` trees are unchanged
+  (`1ac2dbd3c0aa3f91ab8a86ddf56bb3f52bea9b95` and
+  `3a62c4fa3a29e9883b39848ce26d2764360b79d5` respectively), proving no route/event DTO or Memory wire diff;
+- `schemaCatalog.ts`, `schemaCatalogMetadata.ts`, `schemaTypes.ts` and the complete SQLite `tables` tree have
+  identical Git object IDs before and after Phase 9; the tables tree remains
+  `98e855ee04a5a362d4b62b76ef160b2fb51851d3`;
+- Memory config surfaces remain identical: `agent-interface.d.ts`, `configPresenter/index.ts`,
+  `sqlitePresenter/tables/agents.ts` and `shared/types/agent-memory.ts` have no diff;
+- the DuckDB sidecar implementation remains blob `cd2c68de92681b57c0075eca4aedc69750dae917`;
+- `DEEPCHAT_MEMORY_INGESTION_PROJECTION_VERSION` is `1` at both endpoints and its source file has no diff.
+
+Validation results:
+
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint` and `pnpm run typecheck`: pass;
+- focused coordinator/contributor/observer coverage: 3 files, 242 tests passed;
+- `pnpm run test:memory:scope`: 56 classified, 4 exempt, pass;
+- `pnpm run test:memory`: 43 files, 601 tests passed;
+- native SQLite smoke plus `DEEPCHAT_REQUIRE_NATIVE_SQLITE=1` native suite: 6 files, 150 tests passed after
+  rebuilding the installed binding for local Node ABI 137 with the repository's CI command; no lockfile or
+  dependency manifest changed;
+- `pnpm run test:memory:eval`: 1 file, 7 tests passed; hybrid Recall@5 `1.0`, MRR@10 `0.95`, nDCG@10
+  `0.9630929753571458`;
+- `pnpm run test:main:memory-perf`: the first run shared the machine with other suites and hit one recall-growth
+  timing assertion (`3.3584 > 3.3380`); the required isolated rerun passed 6 files and 12 tests. The same
+  implementation head also passed the isolated CI performance gate;
+- `pnpm run test:main -- --run`: 353 files, 3850 tests passed;
+- `pnpm run test:renderer -- --run`: 165 files, 1244 tests passed;
+- `git diff --check`: pass.
+
+The local native rebuild exposed two pre-existing full-main test-harness assumptions. The Cron fixture now uses
+the real temporary-directory API instead of the global mocked `fs`, and receipt assertions keep exact cardinality
+plus both success/failure outcomes without assuming an order for equal timestamps. Production code and behavior
+contracts are unchanged. The same implementation head is independently covered by
+[PR run 29214356434, memory-native-validation job 86707391042](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/29214356434/job/86707391042),
+where scope, portable Memory, native rebuild/smoke/storage, retrieval eval and performance all passed. The x64
+build-check for that head also passed. This slice does not regenerate the architecture baseline; final baseline
+regeneration remains assigned to `ASLR-092`.
+
 ### Phase 3 composition order
 
 The mechanical owner moves retain the existing lifecycle ordering:

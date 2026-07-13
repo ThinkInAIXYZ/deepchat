@@ -15,6 +15,8 @@
 > shutdown 先同步关闭 ingestion admission、fence epoch，再由 `MemoryPresenter.dispose()` abort provider-bound
 > work，再 bounded-await existing chains 后关闭 SQLite；timeout 返回 typed pending diagnostics，不冒充
 > settled。coordinator epoch 与 disposed Memory operation fence 共同禁止 late commit。
+> ASLR-062 已完成 correctness/privacy/performance/native 收口，并证明 Phase 9 未改变 Memory schema、config、
+> route/event DTO、DuckDB sidecar 或 ingestion projection version。
 
 ## 1. 模块目的
 
@@ -234,8 +236,8 @@ reject/timeout 都不能重新开放写入。
 7. [ASLR-061 已完成] 保留 edit/delete/retry/rollback/clear/destroy fence，并将 shutdown 接到两阶段
    fence/dispose/bounded-drain-outcome/SQLite close 顺序；timeout 记录 pending diagnostics，late work 由两层
    operation fence 拒绝。
-8. [ASLR-061 已完成] 删除 legacy runtime ingestion trigger 接线；最终 Memory correctness/privacy/performance/
-   native gates 仍由 ASLR-062 统一收口。
+8. [ASLR-062 已完成] 删除 legacy runtime ingestion trigger 接线后统一运行 Memory correctness/privacy/
+   performance/native gates，并对比 Phase 9 前后的 schema/config/wire/projection contracts。
 
 ## 12. 验证矩阵
 
