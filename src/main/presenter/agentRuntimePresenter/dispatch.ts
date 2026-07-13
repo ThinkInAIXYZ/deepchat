@@ -1949,11 +1949,7 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
     }
   }
 
-  io.messageStore.updateAssistantContent(
-    io.messageId,
-    state.blocks,
-    JSON.stringify(state.metadata)
-  )
+  io.messageStore.updateAssistantContent(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
   publishDeepchatEvent('chat.stream.completed', {
     requestId: io.requestId,

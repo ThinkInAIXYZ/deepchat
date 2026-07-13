@@ -258,9 +258,7 @@ describe('DeepChatMessageStore', () => {
         'm1',
         metadata
       )
-      expect(
-        sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage
-      ).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).not.toHaveBeenCalled()
     })
   })

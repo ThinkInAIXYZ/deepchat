@@ -228,8 +228,7 @@ function createMessageStore(): {
         state.blocks = clone(blocks)
         captureMetadata(metadata)
       }
-    ),
-    appendAssistantToolFactsSnapshot: vi.fn()
+    )
   }
 
   return {

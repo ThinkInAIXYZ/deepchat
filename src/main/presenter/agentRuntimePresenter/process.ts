@@ -20,10 +20,7 @@ import {
   persistAbortExceptionPlanState
 } from './dispatch'
 import { isContextWindowErrorLike } from './contextWindowError'
-import {
-  NoProgressToolLoopGuard,
-  NO_PROGRESS_TERMINAL_ERROR
-} from './noProgressToolLoopGuard'
+import { NoProgressToolLoopGuard, NO_PROGRESS_TERMINAL_ERROR } from './noProgressToolLoopGuard'
 import {
   DeepChatLoopEngine,
   type DeepChatLoopCommitCallbacks,
