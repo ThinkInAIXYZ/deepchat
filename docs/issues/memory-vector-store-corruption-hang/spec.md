@@ -99,6 +99,30 @@ stuck operations until its 5s cap expired, while every other presenter disposed 
 | **Vector store query (DuckDB native)**      | **none**                           | **silent**         |
 | **`buildInjection` as a whole (send path)** | **none**                           | **silent**         |
 
+### Implementation reconciliation (2026-07-13)
+
+The store-format v2 architecture work has landed on `dev`. Its review follow-ups already cover
+the fatal-store and file-lifecycle foundation that this issue originally planned to build:
+
+- Legacy preserve validates the v1 embedding identity, uses fence-neutral VSS materialization,
+  avoids network extension installation, applies a no-progress deadline, and safely rebuilds
+  mismatched or WAL-bearing stores.
+- Current/staging/legacy/WAL recovery failures have terminal outcomes; marker recovery is
+  two-phase, orphan current WAL files are removed, and fatal native failures never trigger an
+  unsafe close or same-process file retry.
+- Quarantine marker persistence is a required production dependency. Clear, reindex, agent
+  deletion, presenter shutdown, and deleted-agent startup sweeping all honor quarantined handles
+  without waiting on or closing potentially wedged native work.
+- Native tests cover a genuine renamed HNSW v1 store reaching format metadata validation, while
+  migration and crash fixtures share the production schema/publish contract closely enough to
+  detect protocol drift.
+
+This reconciles the 15 findings from the v2 review with the merged implementation: findings 1-10
+and 12 are closed by the correctness changes above, finding 11 is fixed as a native reachability
+regression, and findings 13-15 are covered by the migration batching/transaction work and shared
+test helpers. The remaining work in this issue is therefore the vector-query timeout state
+machine, the whole-injection deadline, degradation propagation, and the pre-stream watchdog.
+
 ## Fix Plan
 
 Five layers. Layer 4 is the root fix — it removes the corruption class itself by dropping
@@ -111,8 +135,9 @@ future pre-stream stall diagnosable from `main.log` alone instead of requiring c
 
 ### 1. Classify DuckDB fatal errors and quarantine + rebuild the store (self-heal)
 
-New helper in `src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts` (exported for the
-manager and pipeline):
+The merged classifier lives in
+`src/main/presenter/memoryPresenter/infra/vectorStoreErrors.ts` and is consumed by both the store
+and manager:
 
 ```ts
 isDuckDbFatalError(error): boolean
@@ -338,8 +363,9 @@ unbounded await turns out to be.
 - [x] Quarantined clear/delete lifecycle: no drain/lock/native waits, marker durability
       preflight before repository deletion, and public `cleanupPendingRestart` result surfaced
       in Settings UI.
-- [ ] Fatal-error handling in `embeddingPipeline.ts` warm/verify flows → same quarantine path
-      (no in-process reset).
+- [x] Fatal errors from `embeddingPipeline.ts` warm/verify work already flow through
+      `VectorStoreManager.withStoreLease` into the same quarantine path (no in-process reset);
+      retain this with a focused regression test rather than duplicating classifier logic.
 - [ ] Manager-owned query deadline: `VectorStoreManager.query`/`queryBatch` enforce
       `RECALL_VECTOR_QUERY_TIMEOUT_MS` internally and throw typed
       `VectorStoreQueryTimeoutError`; lease state gains
@@ -362,7 +388,9 @@ unbounded await turns out to be.
       existing beforeStream boundary hook; sync steps get completion-time slow logs only.
 - [ ] Info log when memory injection is skipped/degraded (timeout or recall degradation causes).
 - [ ] Unit tests (see Validation).
-- [ ] `pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck && pnpm test`.
+- [ ] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
+      `mise exec -- pnpm run lint`, `mise exec -- pnpm run typecheck`, and
+      `mise exec -- pnpm test`.
 
 ## Validation
 
