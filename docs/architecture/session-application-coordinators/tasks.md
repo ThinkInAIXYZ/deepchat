@@ -85,3 +85,12 @@
 - [x] Run `pnpm run test:main`.
 - [x] Run `pnpm run lint:architecture` and `git diff --check`.
 - [x] Confirm every acceptance criterion in `spec.md` and close this task list.
+
+## 10. Stage 1 Integration
+
+- [ ] Merge the latest `dev`, including Stage 1 PR #1957 and subsequent #1958/#1960 changes.
+- [ ] Preserve Stage 1 foreign owners and Stage 2 coordinators across composition, routes, and the
+      compatibility façade.
+- [ ] Reconcile tests, guards, current docs, and architecture baselines without restoring a broad
+      presenter dependency.
+- [ ] Run focused and full validation, push the merge commit, and confirm PR #1961 is mergeable.
