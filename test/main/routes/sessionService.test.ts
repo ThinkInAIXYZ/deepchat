@@ -7,31 +7,27 @@ describe('SessionService', () => {
     retry: vi.fn(async <T>({ task }: { task: () => Promise<T> }) => await task())
   })
 
-  it('restores session snapshots through the scheduler and repositories', async () => {
+  it('restores session snapshots through the scheduler and projection port', async () => {
     const scheduler = createScheduler()
-    const sessionRepository = {
-      create: vi.fn(),
-      get: vi.fn().mockResolvedValue({
+    const lifecycle = { createSession: vi.fn() }
+    const projection = {
+      getSession: vi.fn().mockResolvedValue({
         id: 'session-1'
       }),
-      list: vi.fn(),
-      activate: vi.fn(),
-      deactivate: vi.fn(),
-      getActive: vi.fn()
-    }
-    const messageRepository = {
-      listBySession: vi.fn(),
-      listPageBySession: vi.fn().mockResolvedValue({
+      listSessions: vi.fn(),
+      listMessagesPage: vi.fn().mockResolvedValue({
         messages: [{ id: 'message-1', sessionId: 'session-1' }],
         nextCursor: null,
         hasMore: false
       }),
-      get: vi.fn()
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      getActive: vi.fn()
     }
 
     const service = new SessionService({
-      sessionRepository,
-      messageRepository,
+      lifecycle,
+      projection,
       scheduler
     })
 
@@ -60,8 +56,8 @@ describe('SessionService', () => {
         reason: 'sessions.restore:session-1:messages'
       })
     )
-    expect(sessionRepository.get).toHaveBeenCalledWith('session-1')
-    expect(messageRepository.listPageBySession).toHaveBeenCalledWith('session-1', {
+    expect(projection.getSession).toHaveBeenCalledWith('session-1')
+    expect(projection.listMessagesPage).toHaveBeenCalledWith('session-1', {
       limit: 100
     })
     expect(result).toEqual({
@@ -74,51 +70,43 @@ describe('SessionService', () => {
 
   it('uses an explicit restore message limit when provided', async () => {
     const scheduler = createScheduler()
-    const sessionRepository = {
-      create: vi.fn(),
-      get: vi.fn().mockResolvedValue({ id: 'session-1' }),
-      list: vi.fn(),
-      activate: vi.fn(),
-      deactivate: vi.fn(),
-      getActive: vi.fn()
-    }
-    const messageRepository = {
-      listBySession: vi.fn(),
-      listPageBySession: vi.fn().mockResolvedValue({
+    const lifecycle = { createSession: vi.fn() }
+    const projection = {
+      getSession: vi.fn().mockResolvedValue({ id: 'session-1' }),
+      listSessions: vi.fn(),
+      listMessagesPage: vi.fn().mockResolvedValue({
         messages: [],
         nextCursor: null,
         hasMore: false
       }),
-      get: vi.fn()
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      getActive: vi.fn()
     }
-    const service = new SessionService({ sessionRepository, messageRepository, scheduler })
+    const service = new SessionService({ lifecycle, projection, scheduler })
 
     await service.restoreSession('session-1', 25)
 
-    expect(messageRepository.listPageBySession).toHaveBeenCalledWith('session-1', {
+    expect(projection.listMessagesPage).toHaveBeenCalledWith('session-1', {
       limit: 25
     })
   })
 
   it('returns an empty restore payload when the session no longer exists', async () => {
     const scheduler = createScheduler()
-    const sessionRepository = {
-      create: vi.fn(),
-      get: vi.fn().mockResolvedValue(null),
-      list: vi.fn(),
+    const lifecycle = { createSession: vi.fn() }
+    const projection = {
+      getSession: vi.fn().mockResolvedValue(null),
+      listSessions: vi.fn(),
+      listMessagesPage: vi.fn(),
       activate: vi.fn(),
       deactivate: vi.fn(),
       getActive: vi.fn()
     }
-    const messageRepository = {
-      listBySession: vi.fn(),
-      listPageBySession: vi.fn(),
-      get: vi.fn()
-    }
 
     const service = new SessionService({
-      sessionRepository,
-      messageRepository,
+      lifecycle,
+      projection,
       scheduler
     })
 
@@ -128,30 +116,26 @@ describe('SessionService', () => {
       nextCursor: null,
       hasMore: false
     })
-    expect(messageRepository.listPageBySession).not.toHaveBeenCalled()
+    expect(projection.listMessagesPage).not.toHaveBeenCalled()
   })
 
   it('routes session lifecycle operations through five-second scheduler boundaries', async () => {
     const scheduler = createScheduler()
     const session = { id: 'session-1' }
-    const sessionRepository = {
-      create: vi.fn().mockResolvedValue(session),
-      get: vi.fn(),
-      list: vi.fn().mockResolvedValue([session]),
-      activate: vi.fn().mockResolvedValue(undefined),
-      deactivate: vi.fn().mockResolvedValue(undefined),
-      getActive: vi.fn().mockResolvedValue(session)
-    }
-    const messageRepository = {
-      listBySession: vi.fn(),
-      listPageBySession: vi.fn().mockResolvedValue({
+    const lifecycle = { createSession: vi.fn().mockResolvedValue(session) }
+    const projection = {
+      getSession: vi.fn(),
+      listSessions: vi.fn().mockResolvedValue([session]),
+      listMessagesPage: vi.fn().mockResolvedValue({
         messages: [],
         nextCursor: null,
         hasMore: false
       }),
-      get: vi.fn()
+      activate: vi.fn().mockResolvedValue(undefined),
+      deactivate: vi.fn().mockResolvedValue(undefined),
+      getActive: vi.fn().mockResolvedValue(session)
     }
-    const service = new SessionService({ sessionRepository, messageRepository, scheduler })
+    const service = new SessionService({ lifecycle, projection, scheduler })
     const context = { webContentsId: 42, windowId: 7 }
     const input = { agentId: 'deepchat', message: 'hello' }
     const filters = { agentId: 'deepchat' }
@@ -168,12 +152,12 @@ describe('SessionService', () => {
     await expect(service.deactivateSession(context)).resolves.toBeUndefined()
     await expect(service.getActiveSession(context)).resolves.toEqual(session)
 
-    expect(sessionRepository.create).toHaveBeenCalledWith(input, 42)
-    expect(sessionRepository.list).toHaveBeenCalledWith(filters)
-    expect(messageRepository.listPageBySession).toHaveBeenCalledWith('session-1', pageOptions)
-    expect(sessionRepository.activate).toHaveBeenCalledWith(42, 'session-1')
-    expect(sessionRepository.deactivate).toHaveBeenCalledWith(42)
-    expect(sessionRepository.getActive).toHaveBeenCalledWith(42)
+    expect(lifecycle.createSession).toHaveBeenCalledWith(input, 42)
+    expect(projection.listSessions).toHaveBeenCalledWith(filters)
+    expect(projection.listMessagesPage).toHaveBeenCalledWith('session-1', pageOptions)
+    expect(projection.activate).toHaveBeenCalledWith(42, 'session-1')
+    expect(projection.deactivate).toHaveBeenCalledWith(42)
+    expect(projection.getActive).toHaveBeenCalledWith(42)
     expect(scheduler.timeout.mock.calls.map(([options]) => [options.ms, options.reason])).toEqual([
       [5_000, 'sessions.create'],
       [5_000, 'sessions.list'],

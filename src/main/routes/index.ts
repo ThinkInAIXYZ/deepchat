@@ -403,7 +403,11 @@ import {
 } from '@shared/contracts/routes/memory.routes'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { buildEffectiveTapeView } from '../presenter/agentRuntimePresenter/tapeEffectiveView'
-import { ChatService } from './chat/chatService'
+import {
+  ChatService,
+  type ChatServiceProjectionPort,
+  type ChatServiceTurnPort
+} from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import { createPresenterHotPathPorts } from './hotPathPorts'
 import { dispatchModelRoute } from './models/modelRouteHandler'
@@ -420,7 +424,11 @@ import { ProviderImportService } from './providers/providerImportService'
 import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
-import { SessionService } from './sessions/sessionService'
+import {
+  SessionService,
+  type SessionServiceLifecyclePort,
+  type SessionServiceProjectionPort
+} from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
@@ -432,7 +440,7 @@ import type { AgentMemoryAuditRow } from '@/presenter/memoryPresenter/domain/aud
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { CronJobsService } from '@/presenter/cronJobs'
-import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
+import type { AcpProviderAdminPort, SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
@@ -722,6 +730,10 @@ export function createMainKernelRouteRuntime(deps: {
   llmProviderPresenter: ILlmProviderPresenter
   acpProviderAdminPort: AcpProviderAdminPort
   agentSessionPresenter: IAgentSessionPresenter
+  sessionLifecyclePort: SessionServiceLifecyclePort
+  sessionProjectionPort: SessionServiceProjectionPort & ChatServiceProjectionPort
+  sessionTurnPort: ChatServiceTurnPort
+  sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   exporter: IConversationExporter
@@ -750,24 +762,20 @@ export function createMainKernelRouteRuntime(deps: {
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
-    agentSessionPresenter: deps.agentSessionPresenter as IAgentSessionPresenter & {
-      clearSessionPermissions: (sessionId: string) => void | Promise<void>
-    },
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter
   })
 
   const sessionService = new SessionService({
-    sessionRepository: hotPathPorts.sessionRepository,
-    messageRepository: hotPathPorts.messageRepository,
+    lifecycle: deps.sessionLifecyclePort,
+    projection: deps.sessionProjectionPort,
     scheduler
   })
   const chatService = new ChatService({
-    sessionRepository: hotPathPorts.sessionRepository,
-    messageRepository: hotPathPorts.messageRepository,
-    providerExecutionPort: hotPathPorts.providerExecutionPort,
+    turn: deps.sessionTurnPort,
+    projection: deps.sessionProjectionPort,
     providerCatalogPort: hotPathPorts.providerCatalogPort,
-    sessionPermissionPort: hotPathPorts.sessionPermissionPort,
+    sessionPermissionPort: deps.sessionPermissionPort,
     scheduler
   })
 

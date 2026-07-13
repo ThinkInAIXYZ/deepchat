@@ -169,6 +169,7 @@ export class Presenter implements IPresenter {
   sessionTurnCoordinator: SessionTurnCoordinator
   sessionLifecycleCoordinator: SessionLifecycleCoordinator
   sessionDeletionTransaction: SessionDeletionTransaction
+  sessionPermissionPort: SessionPermissionPort
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
   memoryPresenter: MemoryPresenter
@@ -586,6 +587,7 @@ export class Presenter implements IPresenter {
         }
       }
     }
+    this.sessionPermissionPort = sessionPermissionPort
     // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
     const memoryDbDir = path.join(dbDir, 'AgentMemory')
     const memoryVectorDbPath = (agentId: string) => path.join(memoryDbDir, `${agentId}.duckdb`)
@@ -1310,6 +1312,10 @@ const buildMainKernelRouteRuntime = () =>
     llmProviderPresenter: presenter.llmproviderPresenter,
     acpProviderAdminPort: presenter.acpProviderAdminPort,
     agentSessionPresenter: presenter.agentSessionPresenter,
+    sessionLifecyclePort: presenter.sessionLifecycleCoordinator,
+    sessionProjectionPort: presenter.sessionProjectionCoordinator,
+    sessionTurnPort: presenter.sessionTurnCoordinator,
+    sessionPermissionPort: presenter.sessionPermissionPort,
     skillPresenter: presenter.skillPresenter,
     skillSyncPresenter: presenter.skillSyncPresenter,
     exporter: presenter.exporter,
