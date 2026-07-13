@@ -1,6 +1,6 @@
 # Tasks: Store Format v2 and Migration
 
-- [ ] Format v2 in `memoryVectorStore.ts`: store lives at `<agentId>.v2.duckdb`; drop HNSW
+- [x] Format v2 in `memoryVectorStore.ts`: store lives at `<agentId>.v2.duckdb`; drop HNSW
       index creation and `hnsw_enable_experimental_persistence`; keep `format_version = 2` in
       `embedding_meta` as a post-open self-check; remove `LOAD vss` from v2
       create/open/query paths.
@@ -9,15 +9,15 @@
       v2 at `stagingPath` → verify (schema, `format_version = 2`, embedding identity, and for
       preserve source/target row counts) → `CHECKPOINT`, close, assert `${stagingPath}.wal`
       absent → atomic rename → open final. `initialize()` never runs against `v2Path`.
-- [ ] Path scheme in `presenter/index.ts` (`memoryVectorDbPath`): v2 / staging / marker /
+- [x] Path scheme in `presenter/index.ts` (`memoryVectorDbPath`): v2 / staging / marker /
       legacy-v1 paths; factory port gains `markVectorStoreQuarantined(agentId)` (issue scope
       uses it; path ownership stays in the factory).
-- [ ] Open decision tree step 0 (marker-last recovery): marker present → destroy all agent
+- [x] Open decision tree step 0 (marker-last recovery): marker present → destroy all agent
       store files (v2 main+wal, staging main+wal, legacy v1 main+wal) **keeping the marker** →
       `publishFreshV2()` → delete marker last; rebuild via coverage verification.
-- [ ] Staging cleanup rule: `stagingPath` or `${stagingPath}.wal` present → delete both
+- [x] Staging cleanup rule: `stagingPath` or `${stagingPath}.wal` present → delete both
       unconditionally (never a commit point) before continuing the decision tree.
-- [ ] Committed-v2 authority: `v2Path` present → open it; leftover v1 files are swept
+- [x] Committed-v2 authority: `v2Path` present → open it; leftover v1 files are swept
       best-effort (failure logs and retries next launch) — never discard a committed v2.
 - [ ] Migration (rebuild): v1 store with residual `.wal` → destroy v1 files without opening
       them, `publishFreshV2()`. (Preserve failures do NOT rebuild in-process — they take the
@@ -36,7 +36,7 @@
       re-checked after every native await and before every filesystem side effect; abandoned
       attempts may not query/close/checkpoint/rename/delete; late settlements are logged only
       and never resume admission; the original promise stays observed (no unhandled rejection).
-- [ ] `resetVectorStore` / `destroyFile` target v2 paths and sweep staging and legacy v1 files
+- [x] `resetVectorStore` / `destroyFile` target v2 paths and sweep staging and legacy v1 files
       (main + wal each).
 - [ ] Unit tests:
   - `publishFreshV2()` builds at staging and renames; `v2Path` never observable in a

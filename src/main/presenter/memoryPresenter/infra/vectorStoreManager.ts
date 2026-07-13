@@ -14,6 +14,7 @@ import {
   VECTOR_STORE_SOFT_CAP,
   VECTOR_STORE_SWEEP_INTERVAL_MS
 } from '../runtimeConstants'
+import { MemoryVectorStoreMigrationPendingError } from './vectorStoreErrors'
 
 export interface LockedVectorStorePort {
   open(embedding: MemoryModelRef, dimensions: number): Promise<IMemoryVectorStore>
@@ -622,6 +623,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         this.vectorStores.delete(agentId)
         this.vectorStoreIdentities.delete(agentId)
         this.clearReady(agentId)
+        if (error instanceof MemoryVectorStoreMigrationPendingError) {
+          throw new VectorStoreLeaseUnavailableError('admission-closed', error.message)
+        }
         throw error
       })
     this.vectorStores.set(agentId, pending)

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryRuntimeContext } from '@/presenter/memoryPresenter/context'
 import { VectorStoreManager } from '@/presenter/memoryPresenter/infra/vectorStoreManager'
+import { MemoryVectorStoreMigrationPendingError } from '@/presenter/memoryPresenter/infra/vectorStoreErrors'
 import type {
   IMemoryVectorStore,
   MemoryEmbeddingRepositoryPort
@@ -37,7 +38,8 @@ describe('VectorStoreManager certificate generations', () => {
       repository: {} as MemoryEmbeddingRepositoryPort,
       vectorStoreFactory: {
         createVectorStore: async () => createStore(),
-        resetVectorStore: async () => undefined
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined: () => undefined
       }
     })
     const first = { providerId: 'p', modelId: 'm1' }
@@ -80,7 +82,8 @@ describe('VectorStoreManager certificate generations', () => {
       repository: {} as MemoryEmbeddingRepositoryPort,
       vectorStoreFactory: {
         createVectorStore: async () => createStore(),
-        resetVectorStore: async () => undefined
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined: () => undefined
       }
     })
     await manager.withStoreLease('agent', embedding, 4, async (_store, epoch) => {
@@ -91,6 +94,39 @@ describe('VectorStoreManager certificate generations', () => {
     await manager.withStoreLease('agent', embedding, 8, async () => undefined)
 
     expect(manager.hasReadyCertificate('agent', embedding)).toBe(false)
+    await manager.closeAllStores()
+  })
+})
+
+describe('VectorStoreManager open failures', () => {
+  it('maps a deferred v1 migration to lease-unavailable without quarantining data', async () => {
+    const embedding = { providerId: 'p', modelId: 'm' }
+    const policy = {
+      resolveAgentConfig: () =>
+        ({ memoryEnabled: true, memoryEmbedding: embedding }) as DeepChatAgentConfig
+    }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const markVectorStoreQuarantined = vi.fn()
+    const manager = new VectorStoreManager({
+      ctx,
+      policy,
+      repository: {} as MemoryEmbeddingRepositoryPort,
+      vectorStoreFactory: {
+        createVectorStore: async () => {
+          throw new MemoryVectorStoreMigrationPendingError()
+        },
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined
+      }
+    })
+
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => undefined)
+    ).rejects.toMatchObject({ name: 'VectorStoreLeaseUnavailableError' })
+    expect(markVectorStoreQuarantined).not.toHaveBeenCalled()
     await manager.closeAllStores()
   })
 })

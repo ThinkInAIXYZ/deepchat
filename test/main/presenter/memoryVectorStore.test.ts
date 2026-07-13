@@ -11,7 +11,12 @@ vi.mock('@duckdb/node-api', () => ({
 }))
 
 import logger from '@shared/logger'
-import { MemoryVectorStore } from '@/presenter/memoryPresenter/infra/memoryVectorStore'
+import { loadLegacyVss } from '@/presenter/memoryPresenter/infra/legacyVssLoader'
+import {
+  createMemoryVectorStorePaths,
+  MemoryVectorStore,
+  type MemoryVectorStorePaths
+} from '@/presenter/memoryPresenter/infra/memoryVectorStore'
 import type { MemoryVectorRecord } from '@/presenter/memoryPresenter/types'
 import { app } from 'electron'
 import fs from 'node:fs'
@@ -175,6 +180,7 @@ interface EmbeddingMeta {
   provider: string
   model: string
   dim: number
+  formatVersion: number
 }
 
 interface OpenableStore {
@@ -184,7 +190,6 @@ interface OpenableStore {
   dbPath: string
   connection: { runAndReadAll: ReturnType<typeof vi.fn> }
   connect(): Promise<void>
-  loadVss(): Promise<void>
   open(expectedDim: number, embedding: { providerId: string; modelId: string }): Promise<void>
   isUsable(): boolean
 }
@@ -195,20 +200,87 @@ interface VssLoadableStore {
   loadVss(): Promise<void>
 }
 
-function mockDuckDbHandles(onRun: (sql: string) => void = () => {}) {
-  const connection = {
-    run: vi.fn(async (sql: string) => {
-      onRun(sql)
-      return undefined
-    }),
-    closeSync: vi.fn()
-  }
-  const dbInstance = {
-    connect: vi.fn(async () => connection),
-    closeSync: vi.fn()
-  }
-  duckDbMocks.create.mockResolvedValue(dbInstance)
-  return { connection, dbInstance }
+function v2SchemaRows(dimensions: number, includeFormatVersion = true) {
+  return [
+    { table_name: 'memory_vector', column_name: 'memory_id', data_type: 'VARCHAR' },
+    {
+      table_name: 'memory_vector',
+      column_name: 'embedding',
+      data_type: `FLOAT[${dimensions}]`
+    },
+    { table_name: 'embedding_meta', column_name: 'provider', data_type: 'VARCHAR' },
+    { table_name: 'embedding_meta', column_name: 'model', data_type: 'VARCHAR' },
+    { table_name: 'embedding_meta', column_name: 'dim', data_type: 'INTEGER' },
+    ...(includeFormatVersion
+      ? [
+          {
+            table_name: 'embedding_meta',
+            column_name: 'format_version',
+            data_type: 'INTEGER'
+          }
+        ]
+      : [])
+  ]
+}
+
+function mockV2DuckDbLifecycle(
+  paths: MemoryVectorStorePaths,
+  options: {
+    dimensions?: number
+    includeFormatVersion?: boolean
+    failFinalOpen?: boolean
+    onFinalOpen?: () => void
+    leaveStagingWal?: boolean
+  } = {}
+) {
+  const dimensions = options.dimensions ?? 2
+  const sql: string[] = []
+  const connections: Array<{ closeSync: ReturnType<typeof vi.fn> }> = []
+  duckDbMocks.create.mockImplementation(async (dbPath: string) => {
+    if (dbPath === paths.current && options.failFinalOpen) throw new Error('final open failed')
+    if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, '')
+    if (dbPath === paths.current) options.onFinalOpen?.()
+    const connection = {
+      run: vi.fn(async (statement: string) => {
+        sql.push(statement)
+        if (statement.includes('CHECKPOINT') && options.leaveStagingWal) {
+          fs.writeFileSync(`${paths.staging}.wal`, 'wal')
+        }
+        return undefined
+      }),
+      runAndReadAll: vi.fn(async (statement: string) => ({
+        getRowObjectsJson: () =>
+          statement.includes('information_schema.columns')
+            ? v2SchemaRows(dimensions, options.includeFormatVersion ?? true)
+            : [
+                {
+                  provider: 'p',
+                  model: 'm',
+                  dim: dimensions,
+                  format_version: 2
+                }
+              ]
+      })),
+      closeSync: vi.fn()
+    }
+    connections.push(connection)
+    return {
+      connect: vi.fn(async () => connection),
+      closeSync: vi.fn()
+    }
+  })
+  return { sql, connections }
+}
+
+async function setupRealFileSystem() {
+  const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+  vi.spyOn(fs, 'existsSync').mockImplementation(actualFs.existsSync)
+  vi.spyOn(fs, 'readFileSync').mockImplementation(actualFs.readFileSync)
+  vi.spyOn(fs, 'writeFileSync').mockImplementation(actualFs.writeFileSync)
+  vi.spyOn(fs, 'mkdirSync').mockImplementation(actualFs.mkdirSync)
+  vi.spyOn(fs, 'rmSync').mockImplementation(actualFs.rmSync)
+  vi.spyOn(fs, 'renameSync').mockImplementation(actualFs.renameSync)
+  return actualFs
 }
 
 // meta: undefined => meta table missing (legacy file); null => present but empty; object => stored identity.
@@ -219,13 +291,42 @@ function makeOpenableStore(opts: { meta?: EmbeddingMeta | null }) {
   store.metaTable = 'embedding_meta'
   store.dbPath = '/tmp/agent-x.duckdb'
   store.connection = {
-    runAndReadAll: vi.fn(async () => {
-      if (opts.meta === undefined) throw new Error('Catalog Error: embedding_meta does not exist')
-      return { getRowObjectsJson: () => (opts.meta ? [opts.meta] : []) }
+    runAndReadAll: vi.fn(async (sql: string) => {
+      if (sql.includes('information_schema.columns')) {
+        const rows = [
+          { table_name: 'memory_vector', column_name: 'memory_id', data_type: 'VARCHAR' },
+          { table_name: 'memory_vector', column_name: 'embedding', data_type: 'FLOAT[2]' },
+          ...(opts.meta === undefined
+            ? []
+            : [
+                { table_name: 'embedding_meta', column_name: 'provider', data_type: 'VARCHAR' },
+                { table_name: 'embedding_meta', column_name: 'model', data_type: 'VARCHAR' },
+                { table_name: 'embedding_meta', column_name: 'dim', data_type: 'INTEGER' },
+                {
+                  table_name: 'embedding_meta',
+                  column_name: 'format_version',
+                  data_type: 'INTEGER'
+                }
+              ])
+        ]
+        return { getRowObjectsJson: () => rows }
+      }
+      return {
+        getRowObjectsJson: () =>
+          opts.meta
+            ? [
+                {
+                  provider: opts.meta.provider,
+                  model: opts.meta.model,
+                  dim: opts.meta.dim,
+                  format_version: opts.meta.formatVersion
+                }
+              ]
+            : []
+      }
     })
   }
   store.connect = async () => undefined
-  store.loadVss = async () => undefined
   return store
 }
 
@@ -235,15 +336,17 @@ function makeVssLoadableStore(
   onRun: (sql: string) => void = () => {},
   dbPath = '/tmp/agent.duckdb'
 ) {
-  const store = Object.create(MemoryVectorStore.prototype) as unknown as VssLoadableStore
-  store.dbPath = dbPath
-  store.connection = {
+  const connection = {
     run: vi.fn(async (sql: string) => {
       onRun(sql)
       return undefined
     })
   }
-  return store
+  return {
+    dbPath,
+    connection,
+    loadVss: () => loadLegacyVss(connection, dbPath)
+  } satisfies VssLoadableStore
 }
 
 async function setupPackagedBase64Fixture(asset: Buffer) {
@@ -297,10 +400,242 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+describe('MemoryVectorStore v2 staged publish', () => {
+  it('builds at staging, checkpoints, renames, and opens without VSS or HNSW', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-v2-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    const { sql } = mockV2DuckDbLifecycle(paths)
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(sql.some((statement) => statement.includes('CHECKPOINT'))).toBe(true)
+      expect(sql.some((statement) => /LOAD|INSTALL|HNSW|hnsw_/i.test(statement))).toBe(false)
+      expect(sql.some((statement) => statement.includes('format_version'))).toBe(true)
+      await store.close()
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('uses a static and disjoint path for every store role', () => {
+    const paths = createMemoryVectorStorePaths('/data/AgentMemory', 'agent-a')
+
+    expect(paths).toEqual({
+      current: path.join('/data/AgentMemory', 'agent-a.v2.duckdb'),
+      staging: path.join('/data/AgentMemory', 'agent-a.v2.duckdb.migrating'),
+      quarantine: path.join('/data/AgentMemory', 'agent-a.v2.duckdb.quarantine'),
+      legacy: path.join('/data/AgentMemory', 'agent-a.duckdb')
+    })
+    expect(new Set(Object.values(paths)).size).toBe(4)
+  })
+
+  it('keeps a legacy-only store untouched until migration support lands', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-v1-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    fs.writeFileSync(`${paths.legacy}.wal`, 'wal')
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStoreMigrationPendingError'
+      })
+      expect(fs.readFileSync(paths.legacy, 'utf8')).toBe('legacy')
+      expect(fs.readFileSync(`${paths.legacy}.wal`, 'utf8')).toBe('wal')
+      expect(fs.existsSync(paths.current)).toBe(false)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('cleans either kind of staging residue before a fresh publish', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-staging-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(`${paths.staging}.wal`, 'torn')
+    mockV2DuckDbLifecycle(paths)
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(fs.existsSync(`${paths.staging}.wal`)).toBe(false)
+      await store.close()
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the quarantine marker until the final v2 store opens successfully', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-marker-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    for (const filePath of [
+      paths.current,
+      `${paths.current}.wal`,
+      paths.staging,
+      `${paths.staging}.wal`,
+      paths.legacy,
+      `${paths.legacy}.wal`,
+      paths.quarantine
+    ]) {
+      fs.writeFileSync(filePath, 'old')
+    }
+    mockV2DuckDbLifecycle(paths, {
+      onFinalOpen: () => expect(fs.existsSync(paths.quarantine)).toBe(true)
+    })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.quarantine)).toBe(false)
+      expect(fs.existsSync(paths.legacy)).toBe(false)
+      await store.close()
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('returns the healthy store when marker cleanup fails after commit', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-marker-failure-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.quarantine, 'old')
+    mockV2DuckDbLifecycle(paths)
+    vi.mocked(fs.rmSync).mockImplementation((target, options) => {
+      if (String(target) === paths.quarantine) {
+        throw Object.assign(new Error('marker busy'), { code: 'EBUSY' })
+      }
+      return actualFs.rmSync(target, options)
+    })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(store.isUsable()).toBe(true)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.quarantine)).toBe(true)
+      await store.close()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('opens a committed v2 with residual WAL and treats legacy cleanup as best effort', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-authority-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.current, 'v2')
+    fs.writeFileSync(`${paths.current}.wal`, 'safe-wal')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    mockV2DuckDbLifecycle(paths)
+    vi.mocked(fs.rmSync).mockImplementation((target, options) => {
+      if (String(target) === paths.legacy) {
+        throw Object.assign(new Error('legacy busy'), { code: 'EBUSY' })
+      }
+      return actualFs.rmSync(target, options)
+    })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      expect(store.isUsable()).toBe(true)
+      expect(fs.readFileSync(paths.current, 'utf8')).toBe('v2')
+      expect(fs.readFileSync(`${paths.current}.wal`, 'utf8')).toBe('safe-wal')
+      expect(fs.readFileSync(paths.legacy, 'utf8')).toBe('legacy')
+      await store.close()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('leaves the committed final file when post-rename open fails', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-commit-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    mockV2DuckDbLifecycle(paths, { failFinalOpen: true })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toThrow('final open failed')
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects and removes staging when a WAL remains before the commit point', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-wal-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    mockV2DuckDbLifecycle(paths, { leaveStagingWal: true })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toThrow('staged v2 WAL remains')
+      expect(fs.existsSync(paths.current)).toBe(false)
+      expect(fs.existsSync(paths.staging)).toBe(false)
+      expect(fs.existsSync(`${paths.staging}.wal`)).toBe(false)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('sweeps every store role and marker during an explicit reset', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-reset-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    const files = [
+      paths.current,
+      `${paths.current}.wal`,
+      paths.staging,
+      `${paths.staging}.wal`,
+      paths.legacy,
+      `${paths.legacy}.wal`,
+      paths.quarantine
+    ]
+    for (const filePath of files) fs.writeFileSync(filePath, 'old')
+
+    try {
+      MemoryVectorStore.destroyFiles(paths)
+      expect(files.every((filePath) => !fs.existsSync(filePath))).toBe(true)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects invalid dimensions before interpolating them into schema SQL', async () => {
+    const paths = createMemoryVectorStorePaths('/tmp/AgentMemory', 'agent-a')
+
+    await expect(MemoryVectorStore.create(paths, Number.NaN, EMB)).rejects.toThrow(
+      'invalid vector dimensions'
+    )
+    expect(duckDbMocks.create).not.toHaveBeenCalled()
+  })
+
+  it('creates the quarantine marker idempotently in a missing parent directory', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-mark-'))
+    const paths = createMemoryVectorStorePaths(path.join(root, 'nested'), 'agent-a')
+
+    try {
+      MemoryVectorStore.markQuarantined(paths)
+      MemoryVectorStore.markQuarantined(paths)
+      expect(fs.existsSync(paths.quarantine)).toBe(true)
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('MemoryVectorStore.open identity guard (C5, AC-5.2/5.3)', () => {
   it('stays usable when stored identity matches', async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
-    const store = makeOpenableStore({ meta: { provider: 'p', model: 'm', dim: 2 } })
+    const store = makeOpenableStore({
+      meta: { provider: 'p', model: 'm', dim: 2, formatVersion: 2 }
+    })
     await store.open(2, EMB)
     expect(store.isUsable()).toBe(true)
     expect(warn).not.toHaveBeenCalled()
@@ -309,7 +644,9 @@ describe('MemoryVectorStore.open identity guard (C5, AC-5.2/5.3)', () => {
 
   it('disables and warns when the stored dim differs', async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
-    const store = makeOpenableStore({ meta: { provider: 'p', model: 'm', dim: 4 } })
+    const store = makeOpenableStore({
+      meta: { provider: 'p', model: 'm', dim: 4, formatVersion: 2 }
+    })
     await store.open(2, EMB)
     expect(store.isUsable()).toBe(false)
     expect(warn).toHaveBeenCalledTimes(1)
@@ -318,7 +655,9 @@ describe('MemoryVectorStore.open identity guard (C5, AC-5.2/5.3)', () => {
 
   it('disables and warns when the stored model differs (same dim)', async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
-    const store = makeOpenableStore({ meta: { provider: 'p', model: 'OLD', dim: 2 } })
+    const store = makeOpenableStore({
+      meta: { provider: 'p', model: 'OLD', dim: 2, formatVersion: 2 }
+    })
     await store.open(2, EMB)
     expect(store.isUsable()).toBe(false)
     expect(warn).toHaveBeenCalledTimes(1)
@@ -342,45 +681,26 @@ describe('MemoryVectorStore.open identity guard (C5, AC-5.2/5.3)', () => {
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
   })
+
+  it('disables a renamed v1 store that lacks format_version', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const store = makeOpenableStore({})
+    await store.open(2, EMB)
+    expect(store.isUsable()).toBe(false)
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates native schema inspection failures instead of misclassifying them', async () => {
+    const store = makeOpenableStore({
+      meta: { provider: 'p', model: 'm', dim: 2, formatVersion: 2 }
+    })
+    store.connection.runAndReadAll.mockRejectedValueOnce(new Error('INTERNAL catalog failure'))
+
+    await expect(store.open(2, EMB)).rejects.toThrow('INTERNAL catalog failure')
+  })
 })
 
-describe('MemoryVectorStore VSS loading', () => {
-  it('closes opened DuckDB handles when packaged create fails on a missing bundled extension', async () => {
-    mutableApp.isPackaged = true
-    vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
-      if (/(^|[/\\])vss\.duckdb_extension(?:\..+)?$/.test(String(target))) return false
-      return true
-    })
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
-    const { connection, dbInstance } = mockDuckDbHandles()
-
-    await expect(MemoryVectorStore.create('/tmp/agent.duckdb', 2, EMB)).rejects.toThrow(
-      /bundled VSS extension missing/
-    )
-
-    expect(connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
-    expect(connection.closeSync).toHaveBeenCalledTimes(1)
-    expect(dbInstance.closeSync).toHaveBeenCalledTimes(1)
-  })
-
-  it('closes opened DuckDB handles when packaged create fails during bundled VSS LOAD', async () => {
-    mutableApp.isPackaged = true
-    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
-    const { connection, dbInstance } = mockDuckDbHandles((sql) => {
-      if (sql.includes('LOAD')) throw new Error('bad extension')
-    })
-
-    await expect(MemoryVectorStore.create('/tmp/agent.duckdb', 2, EMB)).rejects.toThrow(
-      'bad extension'
-    )
-
-    expect(connection.run).toHaveBeenCalledTimes(1)
-    expect(connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
-    expect(connection.closeSync).toHaveBeenCalledTimes(1)
-    expect(dbInstance.closeSync).toHaveBeenCalledTimes(1)
-  })
-
+describe('Legacy VSS loading', () => {
   it('fails closed in packaged builds when the bundled extension is missing', async () => {
     mutableApp.isPackaged = true
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)

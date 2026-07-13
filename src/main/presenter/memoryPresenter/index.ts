@@ -138,7 +138,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     })
     const vectorStoreFactory: MemoryVectorStoreFactoryPort = {
       createVectorStore: deps.createVectorStore,
-      resetVectorStore: deps.resetVectorStore
+      resetVectorStore: deps.resetVectorStore,
+      markVectorStoreQuarantined: deps.markVectorStoreQuarantined ?? (() => undefined)
     }
 
     this.runtime = new MemoryRuntimeContext({

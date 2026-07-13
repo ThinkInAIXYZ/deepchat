@@ -1,48 +1,92 @@
 import logger from '@shared/logger'
-import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { promisify } from 'node:util'
-import { gunzip } from 'node:zlib'
 
 import { DuckDBConnection, DuckDBInstance, arrayValue } from '@duckdb/node-api'
-import { app } from 'electron'
 
+import type { MemoryPerfObserver } from '../ports'
 import type {
   IMemoryVectorStore,
   MemoryVectorMatch,
   MemoryVectorQueryOptions,
   MemoryVectorRecord
 } from '../types'
-import type { MemoryPerfObserver } from '../ports'
+import { MemoryVectorStoreMigrationPendingError } from './vectorStoreErrors'
 
-const runtimeBasePath = path
-  .join(app.getAppPath(), 'runtime')
-  .replace('app.asar', 'app.asar.unpacked')
-const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
-const extensionSuffix = '.duckdb_extension'
-const VSS_EXTENSION_NAME = `vss${extensionSuffix}`
-const PACKAGED_VSS_ASSET_SUFFIX = '.b64'
-const GUNZIP_ASYNC = promisify(gunzip)
-const PACKAGED_VSS_MATERIALIZATION_PROMISES = new Map<string, Promise<string>>()
-
-function escapeSqlPath(filePath: string): string {
-  return filePath.replace(/\\/g, '\\\\').replace(/'/g, "''")
-}
-
-function materializationCacheKey(assetPath: string, materializationRoot: string): string {
-  return `${path.resolve(assetPath)}\0${path.resolve(materializationRoot)}`
-}
+const MEMORY_VECTOR_STORE_FORMAT_VERSION = 2
 
 interface EmbeddingIdentity {
   providerId: string
   modelId: string
 }
 
+interface EmbeddingMeta {
+  provider: string
+  model: string
+  dim: number
+  formatVersion: number
+}
+
+export interface MemoryVectorStorePaths {
+  current: string
+  staging: string
+  quarantine: string
+  legacy: string
+}
+
+export function createMemoryVectorStorePaths(
+  memoryDbDir: string,
+  agentId: string
+): MemoryVectorStorePaths {
+  const current = path.join(memoryDbDir, `${agentId}.v2.duckdb`)
+  return {
+    current,
+    staging: `${current}.migrating`,
+    quarantine: `${current}.quarantine`,
+    legacy: path.join(memoryDbDir, `${agentId}.duckdb`)
+  }
+}
+
+function filesWithWal(filePath: string): string[] {
+  return [filePath, `${filePath}.wal`]
+}
+
+function removeFiles(filePaths: readonly string[]): void {
+  const failures: string[] = []
+  for (const filePath of filePaths) {
+    try {
+      fs.rmSync(filePath, { force: true })
+    } catch (error) {
+      failures.push(`${filePath}: ${String(error)}`)
+    }
+  }
+  if (failures.length) {
+    throw new Error(`[MemoryVectorStore] failed to delete ${failures.join('; ')}`)
+  }
+}
+
+function sweepLegacyBestEffort(paths: MemoryVectorStorePaths): void {
+  try {
+    removeFiles(filesWithWal(paths.legacy))
+  } catch (error) {
+    logger.warn(
+      `[MemoryVectorStore] committed v2 store is authoritative; legacy cleanup will retry later: ${String(error)}`
+    )
+  }
+}
+
+function assertValidDimensions(dimensions: number): void {
+  if (!Number.isSafeInteger(dimensions) || dimensions <= 0) {
+    throw new Error(`[MemoryVectorStore] invalid vector dimensions: ${String(dimensions)}`)
+  }
+}
+
 // DuckDB-backed memory vector store, isolated per agent and linked to SQLite by memory_id.
 export class MemoryVectorStore implements IMemoryVectorStore {
   private dbInstance!: DuckDBInstance
   private connection!: DuckDBConnection
+  private connectionOpen = false
+  private instanceOpen = false
   private readonly vectorTable = 'memory_vector'
   private readonly metaTable = 'embedding_meta'
   private usable = true
@@ -54,28 +98,137 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   ) {}
 
   static async create(
-    dbPath: string,
+    paths: MemoryVectorStorePaths,
     dimensions: number,
     embedding: EmbeddingIdentity,
     metric: 'cosine' | 'l2sq' | 'ip' = 'cosine',
     perfObserver?: MemoryPerfObserver
   ): Promise<MemoryVectorStore> {
-    const parentDir = path.dirname(dbPath)
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true })
+    assertValidDimensions(dimensions)
+    fs.mkdirSync(path.dirname(paths.current), { recursive: true })
+
+    if (fs.existsSync(paths.quarantine)) {
+      MemoryVectorStore.destroyFiles(paths, { includeQuarantine: false })
+      const store = await MemoryVectorStore.publishFreshV2(
+        paths,
+        dimensions,
+        embedding,
+        metric,
+        perfObserver
+      )
+      try {
+        removeFiles([paths.quarantine])
+      } catch (error) {
+        logger.warn(
+          `[MemoryVectorStore] healthy v2 store published but quarantine marker cleanup failed; next launch will rebuild once: ${String(error)}`
+        )
+      }
+      return store
     }
+
+    if (fs.existsSync(paths.staging) || fs.existsSync(`${paths.staging}.wal`)) {
+      removeFiles(filesWithWal(paths.staging))
+    }
+
+    if (fs.existsSync(paths.current)) {
+      const store = await MemoryVectorStore.openCurrent(
+        paths.current,
+        dimensions,
+        embedding,
+        metric,
+        perfObserver
+      )
+      sweepLegacyBestEffort(paths)
+      return store
+    }
+
+    if (fs.existsSync(paths.legacy) || fs.existsSync(`${paths.legacy}.wal`)) {
+      throw new MemoryVectorStoreMigrationPendingError()
+    }
+
+    return MemoryVectorStore.publishFreshV2(paths, dimensions, embedding, metric, perfObserver)
+  }
+
+  static destroyFiles(
+    paths: MemoryVectorStorePaths,
+    options: { includeQuarantine?: boolean } = {}
+  ): void {
+    const includeQuarantine = options.includeQuarantine ?? true
+    removeFiles([
+      ...filesWithWal(paths.current),
+      ...filesWithWal(paths.staging),
+      ...filesWithWal(paths.legacy),
+      ...(includeQuarantine ? [paths.quarantine] : [])
+    ])
+  }
+
+  static markQuarantined(paths: MemoryVectorStorePaths): void {
+    fs.mkdirSync(path.dirname(paths.quarantine), { recursive: true })
+    try {
+      fs.writeFileSync(paths.quarantine, '', { flag: 'wx' })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    }
+  }
+
+  private static async openCurrent(
+    dbPath: string,
+    dimensions: number,
+    embedding: EmbeddingIdentity,
+    metric: 'cosine' | 'l2sq' | 'ip',
+    perfObserver?: MemoryPerfObserver
+  ): Promise<MemoryVectorStore> {
     const store = new MemoryVectorStore(dbPath, metric, perfObserver)
     try {
-      if (fs.existsSync(dbPath)) {
-        await store.open(dimensions, embedding)
-      } else {
-        await store.initialize(dimensions, embedding)
-      }
+      await store.open(dimensions, embedding)
+      return store
     } catch (error) {
-      await store.close().catch(() => undefined)
+      await store.close()
       throw error
     }
-    return store
+  }
+
+  private static async publishFreshV2(
+    paths: MemoryVectorStorePaths,
+    dimensions: number,
+    embedding: EmbeddingIdentity,
+    metric: 'cosine' | 'l2sq' | 'ip',
+    perfObserver?: MemoryPerfObserver
+  ): Promise<MemoryVectorStore> {
+    removeFiles(filesWithWal(paths.staging))
+    let committed = false
+    const staging = new MemoryVectorStore(paths.staging, metric, perfObserver)
+    try {
+      await staging.initialize(dimensions, embedding)
+      if (!(await staging.matchesExpectedFormat(dimensions, embedding))) {
+        throw new Error('[MemoryVectorStore] staged v2 verification failed')
+      }
+      await staging.connection.run('CHECKPOINT;')
+      staging.closeStrict()
+      if (fs.existsSync(`${paths.staging}.wal`)) {
+        throw new Error('[MemoryVectorStore] staged v2 WAL remains after checkpoint and close')
+      }
+      fs.renameSync(paths.staging, paths.current)
+      committed = true
+      const current = await MemoryVectorStore.openCurrent(
+        paths.current,
+        dimensions,
+        embedding,
+        metric,
+        perfObserver
+      )
+      if (!current.isUsable()) {
+        await current.close()
+        throw new Error('[MemoryVectorStore] published v2 store failed its post-open self-check')
+      }
+      return current
+    } catch (error) {
+      if (!committed) {
+        await staging.close()
+        removeFiles(filesWithWal(paths.staging))
+      }
+      throw error
+    }
   }
 
   isUsable(): boolean {
@@ -84,196 +237,111 @@ export class MemoryVectorStore implements IMemoryVectorStore {
 
   private async connect(): Promise<void> {
     this.dbInstance = await DuckDBInstance.create(this.dbPath)
+    this.instanceOpen = true
     this.connection = await this.dbInstance.connect()
-  }
-
-  private async loadVssFromPath(extensionPath: string, source: string): Promise<void> {
-    await this.connection.run(`LOAD '${escapeSqlPath(extensionPath)}';`)
-    logger.info(`[MemoryVectorStore] loaded ${source} VSS extension: ${extensionPath}`)
-    await this.connection.run('SET hnsw_enable_experimental_persistence = true;')
-  }
-
-  private async inflatePackagedVssExtension(
-    assetPath: string,
-    materializationRoot: string
-  ): Promise<string> {
-    const asset = await fs.promises.readFile(assetPath)
-    const digest = createHash('sha256').update(asset).digest('hex').slice(0, 16)
-    const targetDir = path.join(materializationRoot, 'duckdb', 'extensions', digest)
-    const targetPath = path.join(targetDir, VSS_EXTENSION_NAME)
-
-    if (fs.existsSync(targetPath)) {
-      return targetPath
-    }
-
-    await fs.promises.mkdir(targetDir, { recursive: true })
-    const tempPath = path.join(
-      targetDir,
-      `.${VSS_EXTENSION_NAME}.${process.pid}.${randomUUID()}.tmp`
-    )
-    try {
-      const compressed = Buffer.from(asset.toString('utf8'), 'base64')
-      await fs.promises.writeFile(tempPath, await GUNZIP_ASYNC(compressed))
-      if (fs.existsSync(targetPath)) {
-        await fs.promises.rm(tempPath, { force: true })
-        return targetPath
-      }
-      await fs.promises.rename(tempPath, targetPath)
-    } catch (error) {
-      if (fs.existsSync(targetPath)) {
-        try {
-          await fs.promises.rm(tempPath, { force: true })
-        } catch {
-          // best effort cleanup only
-        }
-        return targetPath
-      }
-      try {
-        await fs.promises.rm(tempPath, { force: true })
-      } catch {
-        // best effort cleanup only
-      }
-      throw error
-    }
-    return targetPath
-  }
-
-  private async materializePackagedVssExtension(assetPath: string): Promise<string> {
-    const resolvedAssetPath = path.resolve(assetPath)
-    const materializationRoot = path.resolve(app.getPath('userData') || path.dirname(this.dbPath))
-    const cacheKey = materializationCacheKey(resolvedAssetPath, materializationRoot)
-    const existing = PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey)
-    if (existing) {
-      const existingPath = await existing
-      if (fs.existsSync(existingPath)) {
-        return existingPath
-      }
-      if (PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey) === existing) {
-        PACKAGED_VSS_MATERIALIZATION_PROMISES.delete(cacheKey)
-      } else {
-        return this.materializePackagedVssExtension(resolvedAssetPath)
-      }
-    }
-
-    let materializationPromise: Promise<string>
-    materializationPromise = this.inflatePackagedVssExtension(
-      resolvedAssetPath,
-      materializationRoot
-    ).catch((error) => {
-      if (PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey) === materializationPromise) {
-        PACKAGED_VSS_MATERIALIZATION_PROMISES.delete(cacheKey)
-      }
-      throw error
-    })
-    PACKAGED_VSS_MATERIALIZATION_PROMISES.set(cacheKey, materializationPromise)
-    return materializationPromise
-  }
-
-  private async loadVss(): Promise<void> {
-    const extensionPath = path.join(extensionDir, VSS_EXTENSION_NAME)
-    const packagedAssetPath = `${extensionPath}${PACKAGED_VSS_ASSET_SUFFIX}`
-    if (fs.existsSync(extensionPath)) {
-      try {
-        await this.loadVssFromPath(extensionPath, 'bundled')
-        return
-      } catch (error) {
-        const message = `[MemoryVectorStore] bundled VSS extension failed to load from ${extensionPath}: ${String(error)}`
-        if (app.isPackaged) {
-          logger.error(`${message}. Vector recall disabled until a valid bundled extension ships.`)
-          throw error
-        }
-        logger.warn(`${message}; falling back to network INSTALL vss in development.`)
-      }
-    } else if (app.isPackaged && fs.existsSync(packagedAssetPath)) {
-      try {
-        const materializedPath = await this.materializePackagedVssExtension(packagedAssetPath)
-        await this.loadVssFromPath(materializedPath, 'materialized packaged')
-        return
-      } catch (error) {
-        logger.error(
-          `[MemoryVectorStore] packaged VSS extension failed to materialize/load from ${packagedAssetPath}: ${String(error)}. Vector recall disabled until a valid bundled extension ships.`
-        )
-        throw error
-      }
-    } else {
-      const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath} or ${packagedAssetPath}. Run installRuntime:duckdb:vss before packaging.`
-      if (app.isPackaged) {
-        logger.error(`${message} Vector recall disabled until a valid bundled extension ships.`)
-        throw new Error(message)
-      }
-      logger.warn(`${message} Falling back to network INSTALL vss in development.`)
-    }
-    await this.connection.run('INSTALL vss;')
-    await this.connection.run('LOAD vss;')
-    await this.connection.run('SET hnsw_enable_experimental_persistence = true;')
+    this.connectionOpen = true
   }
 
   private async initialize(dimensions: number, embedding: EmbeddingIdentity): Promise<void> {
-    logger.info(`[MemoryVectorStore] initializing at ${this.dbPath} (dim=${dimensions})`)
+    logger.info(`[MemoryVectorStore] initializing v2 at ${this.dbPath} (dim=${dimensions})`)
     await this.connect()
-    await this.loadVss()
     await this.connection.run(
-      `CREATE TABLE IF NOT EXISTS ${this.vectorTable} (
+      `CREATE TABLE ${this.vectorTable} (
          memory_id VARCHAR PRIMARY KEY,
          embedding FLOAT[${dimensions}]
        );`
     )
     await this.connection.run(
-      `CREATE INDEX IF NOT EXISTS idx_${this.vectorTable}_emb
-         ON ${this.vectorTable}
-         USING HNSW (embedding)
-         WITH (metric='${this.metric}', M=16, ef_construction=200);`
+      `CREATE TABLE ${this.metaTable} (
+         provider VARCHAR NOT NULL,
+         model VARCHAR NOT NULL,
+         dim INTEGER NOT NULL,
+         format_version INTEGER NOT NULL
+       );`
     )
     await this.connection.run(
-      `CREATE TABLE IF NOT EXISTS ${this.metaTable} (provider VARCHAR, model VARCHAR, dim INTEGER);`
-    )
-    await this.connection.run(
-      `INSERT INTO ${this.metaTable} (provider, model, dim) VALUES (?, ?, ?);`,
-      [embedding.providerId, embedding.modelId, dimensions]
+      `INSERT INTO ${this.metaTable} (provider, model, dim, format_version) VALUES (?, ?, ?, ?);`,
+      [embedding.providerId, embedding.modelId, dimensions, MEMORY_VECTOR_STORE_FORMAT_VERSION]
     )
   }
 
   private async open(expectedDim: number, embedding: EmbeddingIdentity): Promise<void> {
     await this.connect()
-    await this.loadVss()
-
-    const meta = await this.readEmbeddingMeta()
+    const meta = await this.readEmbeddingMeta(expectedDim)
     if (!meta) {
-      // Legacy store without persisted identity: the embedding model cannot be verified,
-      // so disable vector recall instead of risking stale results. Clearing memories
-      // rebuilds the store with the current identity.
       this.usable = false
       logger.warn(
-        `[MemoryVectorStore] no embedding identity recorded at ${this.dbPath}; cannot verify the embedding model. Vector recall disabled until reindex (FTS still active).`
+        `[MemoryVectorStore] invalid or missing v2 metadata at ${this.dbPath}; vector recall disabled until reindex (FTS still active).`
       )
       return
     }
     if (
+      meta.formatVersion !== MEMORY_VECTOR_STORE_FORMAT_VERSION ||
       meta.provider !== embedding.providerId ||
       meta.model !== embedding.modelId ||
       meta.dim !== expectedDim
     ) {
       this.usable = false
       logger.warn(
-        `[MemoryVectorStore] embedding identity mismatch at ${this.dbPath}: stored ${meta.provider}/${meta.model}/${meta.dim}, requested ${embedding.providerId}/${embedding.modelId}/${expectedDim}. Vector recall disabled until reindex (FTS still active).`
+        `[MemoryVectorStore] v2 identity mismatch at ${this.dbPath}: stored format=${meta.formatVersion} ${meta.provider}/${meta.model}/${meta.dim}, requested format=${MEMORY_VECTOR_STORE_FORMAT_VERSION} ${embedding.providerId}/${embedding.modelId}/${expectedDim}. Vector recall disabled until reindex (FTS still active).`
       )
     }
   }
 
-  private async readEmbeddingMeta(): Promise<{
-    provider: string
-    model: string
-    dim: number
-  } | null> {
-    try {
-      const reader = await this.connection.runAndReadAll(
-        `SELECT provider, model, dim FROM ${this.metaTable} LIMIT 1;`
-      )
-      const row = reader.getRowObjectsJson()[0]
-      if (!row) return null
-      return { provider: String(row.provider), model: String(row.model), dim: Number(row.dim) }
-    } catch {
+  private async matchesExpectedFormat(
+    expectedDim: number,
+    embedding: EmbeddingIdentity
+  ): Promise<boolean> {
+    const meta = await this.readEmbeddingMeta(expectedDim)
+    return (
+      meta?.formatVersion === MEMORY_VECTOR_STORE_FORMAT_VERSION &&
+      meta.provider === embedding.providerId &&
+      meta.model === embedding.modelId &&
+      meta.dim === expectedDim
+    )
+  }
+
+  private async readEmbeddingMeta(expectedDim: number): Promise<EmbeddingMeta | null> {
+    const columnsReader = await this.connection.runAndReadAll(
+      `SELECT table_name, column_name, data_type
+       FROM information_schema.columns
+       WHERE table_schema = 'main' AND table_name IN (?, ?)
+       ORDER BY table_name, ordinal_position;`,
+      [this.vectorTable, this.metaTable]
+    )
+    const columns = columnsReader.getRowObjectsJson()
+    const metaColumns = new Set(
+      columns
+        .filter((row: Record<string, unknown>) => String(row.table_name) === this.metaTable)
+        .map((row: Record<string, unknown>) => String(row.column_name))
+    )
+    const vectorColumns = new Map(
+      columns
+        .filter((row: Record<string, unknown>) => String(row.table_name) === this.vectorTable)
+        .map((row: Record<string, unknown>) => [
+          String(row.column_name),
+          String(row.data_type).toUpperCase()
+        ])
+    )
+    if (
+      !['provider', 'model', 'dim', 'format_version'].every((column) => metaColumns.has(column)) ||
+      vectorColumns.get('memory_id') !== 'VARCHAR' ||
+      vectorColumns.get('embedding') !== `FLOAT[${expectedDim}]`
+    ) {
       return null
+    }
+
+    const reader = await this.connection.runAndReadAll(
+      `SELECT provider, model, dim, format_version FROM ${this.metaTable} LIMIT 2;`
+    )
+    const rows = reader.getRowObjectsJson()
+    if (rows.length !== 1) return null
+    const row = rows[0]
+    return {
+      provider: String(row.provider),
+      model: String(row.model),
+      dim: Number(row.dim),
+      formatVersion: Number(row.format_version)
     }
   }
 
@@ -389,31 +457,34 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     return rows.map((row: Record<string, unknown>) => String(row.memory_id))
   }
 
-  /**
-   * Delete an agent's store files from disk without needing an open instance (e.g. after
-   * restart). `force` ignores missing files; a real failure (lock/permission) is thrown so
-   * callers can surface that the on-disk store still persists instead of assuming success.
-   */
-  static destroyFile(dbPath: string): void {
-    const failures: string[] = []
-    for (const file of [dbPath, `${dbPath}.wal`]) {
+  private closeStrict(): void {
+    const errors: unknown[] = []
+    if (this.connectionOpen) {
       try {
-        fs.rmSync(file, { force: true })
+        this.connection.closeSync()
+        this.connectionOpen = false
       } catch (error) {
-        failures.push(`${file}: ${String(error)}`)
+        errors.push(error)
       }
     }
-    if (failures.length) {
-      throw new Error(`[MemoryVectorStore] failed to delete ${failures.join('; ')}`)
+    if (this.instanceOpen) {
+      try {
+        this.dbInstance.closeSync()
+        this.instanceOpen = false
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length) {
+      throw new Error(`[MemoryVectorStore] close error: ${errors.map(String).join('; ')}`)
     }
   }
 
   async close(): Promise<void> {
     try {
-      if (this.connection) this.connection.closeSync()
-      if (this.dbInstance) this.dbInstance.closeSync()
+      this.closeStrict()
     } catch (error) {
-      logger.warn(`[MemoryVectorStore] close error: ${String(error)}`)
+      logger.warn(String(error))
     }
   }
 }
