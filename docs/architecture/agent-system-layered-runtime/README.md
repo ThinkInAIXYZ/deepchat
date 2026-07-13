@@ -39,8 +39,9 @@ DeepChat loop + `AcpProvider` compatibility。
 Memory runtime orchestration 已收敛到唯一 `MemoryRuntimeCoordinator`，通过 awaited
 `MemoryPromptContributor` 与 background `MemoryIngestionObserver` 接入；Tape tool facts 已迁到 stable
 per-fact `TapeRecorder` path，causal observation 只读联结现有 Tape/message/trace。`AgentSessionPresenter`
-保留 route/application/shared projection façade，`AgentRuntimePresenter` 保留 DeepChat state/delegate 与
-adapter wiring；两者不再构成 generic agent runtime。current docs、architecture guards 与 baseline generator
+保留 compatibility façade；core lifecycle、turn、assignment 与 projection 已由四个 composition-owned
+session application coordinators 承担。`AgentRuntimePresenter` 保留 DeepChat state/delegate 与 adapter
+wiring；两者不再构成 generic agent runtime。current docs、architecture guards 与 baseline generator
 已在 `ASLR-091` 收敛；`ASLR-092` 已完成 canonical baseline write、全量
 main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
 
@@ -167,15 +168,18 @@ accept input / claim pending item
 ## AFTER：已实现的当前架构
 
 ```text
-typed routes / remote / cron
-              │
-              ▼
-      AgentManager (control plane)
-      ├─ AgentCatalog
-      │   ├─ DeepChatAgentRepository ─┐
-      │   └─ AcpAgentRepository      ├─ shared agents table + typed codecs
-      ├─ AppSessionService ──────────┴─ new_sessions / transcript projection
-      └─ explicit switch(agent.kind)
+typed routes -> SessionService / ChatService -- narrow ports ─┐
+remote -> RemoteConversationRunner -- four narrow ports ─────┤
+cron -> Cron session starter -- Lifecycle / Turn ports ──────┤
+AgentSessionPresenter compatibility façade -- forwarding ─────┘
+                                                              ▼
+Lifecycle / Turn / AgentAssignment / Projection
+├─ AppSessionService ─ new_sessions / window binding / shared CRUD
+└─ AgentManager (control plane)
+    ├─ AgentCatalog
+    │   ├─ DeepChatAgentRepository ─┐
+    │   └─ AcpAgentRepository      ├─ shared agents table + typed codecs
+    └─ explicit switch(agent.kind)
           │
           ├─ kind=deepchat
           │    ▼
@@ -264,7 +268,8 @@ src/main/agent/
     └── pending/               # durable pending input coordination
 
 src/main/presenter/
-├── agentSessionPresenter/     # retained route/application/shared-projection façade
+├── sessionApplication/        # lifecycle/turn/assignment/projection coordinators
+├── agentSessionPresenter/     # retained compatibility façade
 └── agentRuntimePresenter/     # retained DeepChat state/delegate + message/Tape/resource adapters
 ```
 
@@ -401,6 +406,7 @@ renderer event 缺口；
 | --- | --- |
 | agent identity、kind、display summary | `AgentCatalog` |
 | app session title/project/pin/draft/window binding | shared `AppSessionService` / `new_sessions` |
+| lifecycle transaction / turn commands / assignment policy / renderer projection | four `sessionApplication` coordinators over narrow owner ports |
 | DeepChat effective config、status、pending inputs、ordered interactions | `DeepChatAgentInstance` |
 | pre-stream cancellation before active generation registration | `DeepChatAgentInstance` preparation state |
 | active run、abort signal、per-attempt requestSeq、outer providerRoundCount、round messages、overflow retry flags | per-turn `LoopRun` |

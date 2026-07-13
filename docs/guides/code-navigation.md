@@ -20,10 +20,11 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 5. `src/main/routes/index.ts`
 6. `src/main/routes/sessions/sessionService.ts`
 7. `src/main/routes/chat/chatService.ts`
-8. `src/main/routes/providers/providerService.ts`
-9. `src/main/routes/hotPathPorts.ts`
-10. `src/main/presenter/agentSessionPresenter/index.ts`
-11. `src/main/presenter/agentRuntimePresenter/index.ts`
+8. `src/main/presenter/sessionApplication/`
+9. `src/main/routes/providers/providerService.ts`
+10. `src/main/routes/hotPathPorts.ts`
+11. `src/main/presenter/agentSessionPresenter/index.ts`
+12. `src/main/presenter/agentRuntimePresenter/index.ts`
 
 ## 按边界找代码
 
@@ -53,11 +54,12 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
 | session route dispatch | `src/main/routes/index.ts` | `sessions.create` / `restore` / `listMessagesPage` / `activate` / `deactivate` / `getActive` |
-| session orchestration | `src/main/routes/sessions/sessionService.ts` | `Scheduler` + session/message repositories |
+| session orchestration | `src/main/routes/sessions/sessionService.ts` | `Scheduler` + Lifecycle/Projection consumer ports |
 | chat route dispatch | `src/main/routes/index.ts` | `chat.sendMessage` / `stopStream` / `respondToolInteraction` |
-| chat orchestration | `src/main/routes/chat/chatService.ts` | send / stop / permission response owner |
+| chat orchestration | `src/main/routes/chat/chatService.ts` | request lock/timeout/stop + Turn/Projection/permission ports |
 | scheduler | `src/main/routes/scheduler.ts` | timeout / retry / abort 统一入口 |
-| presenter-backed ports | `src/main/routes/hotPathPorts.ts` | route services 依赖的最小 runtime port |
+| session application | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection owner |
+| provider hot-path ports | `src/main/routes/hotPathPorts.ts` | provider catalog/connection adapter；不承载 session façade |
 
 ### Provider / Permission
 
@@ -73,7 +75,8 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| session runtime entry | `src/main/presenter/agentSessionPresenter/index.ts` | window/session 绑定、runtime delegation、legacy import |
+| session application entry | `src/main/presenter/sessionApplication/` | core session transaction/policy/projection owners |
+| compatibility session façade | `src/main/presenter/agentSessionPresenter/index.ts` | core forwarding 与 legacy/foreign route compatibility |
 | message runtime entry | `src/main/presenter/agentRuntimePresenter/index.ts` | `processMessage()`、暂停恢复、stream 生命周期 |
 | 主循环 | `src/main/presenter/agentRuntimePresenter/process.ts` | stream + tool loop |
 | 工具调度 | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | tool call / paused interaction |
@@ -115,7 +118,7 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 | --- | --- |
 | `renderer/api/*Client` | migrated renderer boundary 的一线入口 |
 | `src/main/routes/*` | migrated settings/session/chat/provider path 的 active owner |
-| `agentSessionPresenter` | presenter-backed runtime collaborator，不是 migrated renderer 的直连入口 |
+| `agentSessionPresenter` | core session compatibility forwarding 与 foreign route façade，不是 migrated renderer 的直连入口 |
 | `agentRuntimePresenter` | 当前聊天 runtime 与持久化 owner |
 | `SessionPresenter` | legacy conversation 兼容层，不是 migrated chat 主链路 |
 | `agentPresenter` | 已退休；只应出现在旧提交或已删除的历史 spec 里 |

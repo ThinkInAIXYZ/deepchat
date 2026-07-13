@@ -15,7 +15,7 @@
 - [x] Lock assignment transfer, setting mutation, and subagent Tape behavior.
 - [x] Lock projection cache/window/title/read fallback behavior.
 - [x] Lock Remote status/output and Cron metadata/max-turn/output behavior.
-- [ ] Define consumer-owned narrow ports without `Pick<IAgentSessionPresenter, ...>`.
+- [x] Define consumer-owned narrow ports without `Pick<IAgentSessionPresenter, ...>`.
 
 ## 2. SessionProjectionCoordinator
 
@@ -51,10 +51,10 @@
 
 ## 6. SessionService and ChatService
 
-- [ ] Inject Lifecycle/Projection ports into `SessionService`.
-- [ ] Inject Turn/Projection and existing permission/catalog ports into `ChatService`.
-- [ ] Remove the `IAgentSessionPresenter` hot-path adapter, unused message adapter, and permission cast.
-- [ ] Preserve route schemas, timeout/retry/lock/cleanup semantics, and add integration tests.
+- [x] Inject Lifecycle/Projection ports into `SessionService`.
+- [x] Inject Turn/Projection and existing permission/catalog ports into `ChatService`.
+- [x] Remove the `IAgentSessionPresenter` hot-path adapter, unused message adapter, and permission cast.
+- [x] Preserve route schemas, timeout/retry/lock/cleanup semantics, and add integration tests.
 
 ## 7. Remote and Cron
 
@@ -72,7 +72,7 @@
 - [x] Exhaust production/test searches for presenter dependencies in migrated consumers.
 - [x] Add architecture guards for consumer imports, duplicate construction, foreign-owner imports,
       and combined façade regression.
-- [ ] Update current architecture, session management, flows, and code navigation.
+- [x] Update current architecture, session management, flows, and code navigation.
 - [ ] Review the dependency diff and regenerate maintained baselines only when intentional.
 
 ## 9. Validation
