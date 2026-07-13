@@ -27,12 +27,12 @@
 
 ## 3. SessionAgentAssignmentCoordinator
 
-- [ ] Extract focused create/subagent/transfer assignment policy.
-- [ ] Extract transfer impact, batch/single transfer, and agent-session deletion orchestration.
-- [ ] Extract model/project/permission/generation/tools/subagent settings and ACP controls.
-- [ ] Extract subagent Tape merge/discard.
-- [ ] Use narrow lifecycle deletion and projection mutation ports without circular construction.
-- [ ] Rewire compatibility presenter forwarding and move owner tests.
+- [x] Extract focused create/subagent/transfer assignment policy.
+- [x] Extract transfer impact, batch/single transfer, and agent-session deletion orchestration.
+- [x] Extract model/project/permission/generation/tools/subagent settings and ACP controls.
+- [x] Extract subagent Tape merge/discard.
+- [x] Use narrow lifecycle deletion and projection mutation ports without circular construction.
+- [x] Rewire compatibility presenter forwarding and move owner tests.
 
 ## 4. SessionTurnCoordinator
 

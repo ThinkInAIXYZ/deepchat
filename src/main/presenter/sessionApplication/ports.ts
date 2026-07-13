@@ -1,13 +1,27 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type { AgentTapePort, AgentTranscriptReadPort } from '@/agent/shared/agentSharedData'
 import type {
+  AgentSessionStatePort,
+  AgentTapePort,
+  AgentTranscriptReadPort
+} from '@/agent/shared/agentSharedData'
+import type {
+  ResolvedAgentSession,
+  ResolvedDeepChatTransferTarget,
+  ResolvedSubagentFacet,
+  ResolvedTransferSource
+} from '@/agent/manager/agentManager'
+import type {
+  DeepChatAgentConfig,
   DeepChatSessionState,
+  PermissionMode,
+  SessionGenerationSettings,
   SessionLightweightListResult,
   SessionListItem,
   SessionPageCursor,
   SessionRecord,
   SessionWithState
 } from '@shared/types/agent-interface'
+import type { AcpAsLlmProviderSessionControlPort } from '../runtimePorts'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../sqlitePresenter/tables/deepchatMessageSearchResults'
 import type { DeepChatMessageTraceRow } from '../sqlitePresenter/tables/deepchatMessageTraces'
@@ -150,3 +164,156 @@ export interface SessionProjectionMutationPort {
   forgetStatus(sessionIds: string[]): void
   scheduleTitleGeneration(input: TitleGenerationInput): void
 }
+
+export interface SessionAssignmentCatalogPort {
+  resolveAgent(agentId: string): { id: string; kind: 'deepchat' | 'acp' }
+}
+
+export interface SessionAssignmentConfigPort {
+  getDefaultModel(): { providerId: string; modelId: string } | null | undefined
+  getDefaultProjectPath(): string | null
+  resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null>
+}
+
+export interface CreateAssignmentInput {
+  agentId: string
+  providerId?: string
+  modelId?: string
+  projectDir?: string | null
+  permissionMode?: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+  disabledAgentTools?: string[]
+  subagentEnabled?: boolean
+  preserveExplicitNullProjectDir: boolean
+}
+
+export interface ResolvedSessionAssignment {
+  agentId: string
+  agentType: 'deepchat' | 'acp'
+  providerId: string
+  modelId: string
+  projectDir: string | null
+  permissionMode: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+  disabledAgentTools: string[]
+  subagentEnabled: boolean
+}
+
+export interface SubagentAssignmentInput {
+  agentId: string
+  targetAgentId?: string | null
+  projectDir: string | null
+  providerId: string
+  modelId: string
+  generationSettings?: Partial<SessionGenerationSettings>
+  disabledAgentTools?: string[]
+  activeSkills?: string[]
+}
+
+export interface ResolvedSubagentAssignment {
+  agentId: string
+  targetAgentId: string | null
+  providerId: string
+  modelId: string
+  generationSettings?: Partial<SessionGenerationSettings>
+  disabledAgentTools: string[]
+  activeSkills: string[]
+}
+
+export interface ResolvedTransferTarget {
+  agentId: string
+  providerId: string
+  modelId: string
+  projectDir: string | null
+  permissionMode: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+  disabledAgentTools: string[]
+  subagentEnabled: boolean
+}
+
+export interface SessionAssignmentPolicyPort {
+  resolveCreateAssignment(input: CreateAssignmentInput): Promise<ResolvedSessionAssignment>
+  resolveAcpDraftAssignment(
+    agentId: string,
+    permissionMode?: PermissionMode
+  ): { agentId: string; permissionMode: PermissionMode }
+  resolveSubagentAssignment(input: SubagentAssignmentInput): Promise<ResolvedSubagentAssignment>
+  resolveTransferTarget(
+    targetAgentId: string,
+    currentProjectDir: string | null
+  ): Promise<ResolvedTransferTarget>
+  assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void
+  normalizeDisabledAgentTools(
+    disabledAgentTools?: string[],
+    options?: { dropLegacySearchTools?: boolean }
+  ): string[]
+  normalizeActiveSkills(activeSkills?: string[]): string[]
+}
+
+export interface SessionAssignmentStorePort {
+  get(sessionId: string): SessionRecord | null
+  list(filters?: SessionListFilters): SessionRecord[]
+  update(
+    sessionId: string,
+    fields: Partial<Pick<SessionRecord, 'projectDir' | 'subagentEnabled'>>
+  ): void
+  updateAgentId(sessionId: string, agentId: string): void
+  getDisabledAgentTools(sessionId: string): string[]
+  updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
+}
+
+export interface SessionAssignmentRuntimePort {
+  resolveSession(sessionId: AppSessionId): ResolvedAgentSession
+  resolveTransferSource(sessionId: AppSessionId): ResolvedTransferSource
+  resolveDeepChatTransferTarget(agentId: string): ResolvedDeepChatTransferTarget
+  resolveSubagentFacet(sessionId: AppSessionId): ResolvedSubagentFacet
+}
+
+export interface SessionAssignmentEnvironmentPort {
+  syncPath(projectDir: string): void
+}
+
+export type SessionAssignmentProjectionPort = Pick<
+  SessionProjectionMutationPort,
+  'materialize' | 'notify'
+>
+
+export interface SessionLifecycleDeletionPort {
+  deleteSessionTree(sessionId: string): Promise<string[]>
+}
+
+export interface SessionAssignmentWorkdirPort {
+  assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void
+  syncAcpSessionWorkdir(
+    providerId: string,
+    sessionId: string,
+    agentId: string,
+    projectDir?: string | null
+  ): Promise<void>
+  prepareDirectAcpSession(sessionId: string): Promise<void>
+  clearCompatibilityAcpSession(sessionId: string): Promise<void>
+}
+
+export interface SessionDeletionStorePort {
+  get(sessionId: string): SessionRecord | null
+  list(filters?: SessionListFilters): SessionRecord[]
+  delete(sessionId: string): void
+}
+
+export interface SessionDeletionRuntimePort {
+  cleanupSessionBackends(sessionId: AppSessionId): Promise<void>
+}
+
+export type SessionDeletionStatePort = Pick<AgentSessionStatePort, 'destroySession'>
+
+export interface SessionDeletionPermissionPort {
+  clearSessionPermissions(sessionId: string): void
+}
+
+export interface SessionDeletionSkillPort {
+  clearNewAgentSessionSkills(sessionId: string): Promise<void>
+}
+
+export type SessionDeletionProjectionPort = Pick<SessionProjectionMutationPort, 'forgetStatus'>
+
+export type SessionAssignmentAcpControlPort = AcpAsLlmProviderSessionControlPort

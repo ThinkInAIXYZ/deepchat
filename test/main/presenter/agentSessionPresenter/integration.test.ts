@@ -11,6 +11,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
+import { createAssignmentCoordinatorFixture } from './assignmentCoordinatorFixture'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -695,6 +696,23 @@ describe('Integration: createSession end-to-end', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
+    const projection = createProjectionCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      llmProviderPresenter: llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      sharedData
+    })
+    const sessionApplications = createAssignmentCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      configPresenter,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProvider
+    })
     agentPresenter = new AgentSessionPresenter(
       agentManager,
       appSessionService,
@@ -702,14 +720,10 @@ describe('Integration: createSession end-to-end', () => {
       configPresenter,
       sqlitePresenter,
       sharedData,
-      createProjectionCoordinatorFixture({
-        agentManager,
-        appSessionService,
-        llmProviderPresenter: llmProvider,
-        configPresenter,
-        sqlitePresenter,
-        sharedData
-      })
+      projection,
+      sessionApplications.policy,
+      sessionApplications.assignment,
+      sessionApplications.deletion
     )
   })
 
@@ -869,6 +883,23 @@ describe('Integration: ACP hooks bridge', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
+    const projection = createProjectionCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      llmProviderPresenter: llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      sharedData
+    })
+    const sessionApplications = createAssignmentCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      configPresenter,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProvider
+    })
     agentPresenter = new AgentSessionPresenter(
       agentManager,
       appSessionService,
@@ -876,16 +907,10 @@ describe('Integration: ACP hooks bridge', () => {
       configPresenter,
       sqlitePresenter,
       sharedData,
-      createProjectionCoordinatorFixture({
-        agentManager,
-        appSessionService,
-        llmProviderPresenter: llmProvider,
-        configPresenter,
-        sqlitePresenter,
-        sharedData
-      }),
-      undefined,
-      { acpAsLlmProviderSessionControl: llmProvider }
+      projection,
+      sessionApplications.policy,
+      sessionApplications.assignment,
+      sessionApplications.deletion
     )
   })
 
@@ -973,6 +998,23 @@ describe('Integration: multi-turn context', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
+    const projection = createProjectionCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      llmProviderPresenter: llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      sharedData
+    })
+    const sessionApplications = createAssignmentCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      configPresenter,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProvider
+    })
     agentPresenter = new AgentSessionPresenter(
       agentManager,
       appSessionService,
@@ -980,14 +1022,10 @@ describe('Integration: multi-turn context', () => {
       configPresenter,
       sqlitePresenter,
       sharedData,
-      createProjectionCoordinatorFixture({
-        agentManager,
-        appSessionService,
-        llmProviderPresenter: llmProvider,
-        configPresenter,
-        sqlitePresenter,
-        sharedData
-      })
+      projection,
+      sessionApplications.policy,
+      sessionApplications.assignment,
+      sessionApplications.deletion
     )
   })
 

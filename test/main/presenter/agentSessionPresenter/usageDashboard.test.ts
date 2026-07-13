@@ -5,6 +5,7 @@ import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageS
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
 import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
+import { createAssignmentCoordinatorFixture } from './assignmentCoordinatorFixture'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToMain: vi.fn(), on: vi.fn() }
@@ -468,6 +469,23 @@ describe('AgentSessionPresenter usage dashboard', () => {
       transcriptMutation: deepChatAgent,
       tape: deepChatAgent
     } as any
+    const projection = createProjectionCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      llmProviderPresenter,
+      configPresenter: configPresenter as any,
+      sqlitePresenter,
+      sharedData
+    })
+    const sessionApplications = createAssignmentCoordinatorFixture({
+      agentManager,
+      appSessionService,
+      configPresenter: configPresenter as any,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProviderPresenter
+    })
     const presenter = new AgentSessionPresenter(
       agentManager,
       appSessionService,
@@ -475,14 +493,10 @@ describe('AgentSessionPresenter usage dashboard', () => {
       configPresenter as any,
       sqlitePresenter,
       sharedData,
-      createProjectionCoordinatorFixture({
-        agentManager,
-        appSessionService,
-        llmProviderPresenter,
-        configPresenter: configPresenter as any,
-        sqlitePresenter,
-        sharedData
-      })
+      projection,
+      sessionApplications.policy,
+      sessionApplications.assignment,
+      sessionApplications.deletion
     )
 
     return {

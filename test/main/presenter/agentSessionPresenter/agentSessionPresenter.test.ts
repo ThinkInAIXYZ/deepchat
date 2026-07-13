@@ -11,6 +11,7 @@ import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
+import { createAssignmentCoordinatorFixture } from './assignmentCoordinatorFixture'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
@@ -578,6 +579,25 @@ function createDescriptorIndependentDeleteHarness(options: {
     transcriptMutation: deepchatImplementation,
     tape: deepchatImplementation
   } as any
+  const projection = createProjectionCoordinatorFixture({
+    agentManager: manager,
+    appSessionService,
+    llmProviderPresenter,
+    configPresenter,
+    sqlitePresenter: sqliteWithAgents,
+    sharedData
+  })
+  const sessionApplications = createAssignmentCoordinatorFixture({
+    agentManager: manager,
+    appSessionService,
+    configPresenter,
+    sqlitePresenter: sqliteWithAgents,
+    sharedData,
+    projection,
+    acp: llmProviderPresenter,
+    skillPresenter,
+    sessionPermissionPort
+  })
   const presenter = new AgentSessionPresenter(
     manager,
     appSessionService,
@@ -585,14 +605,10 @@ function createDescriptorIndependentDeleteHarness(options: {
     configPresenter,
     sqliteWithAgents,
     sharedData,
-    createProjectionCoordinatorFixture({
-      agentManager: manager,
-      appSessionService,
-      llmProviderPresenter,
-      configPresenter,
-      sqlitePresenter: sqliteWithAgents,
-      sharedData
-    }),
+    projection,
+    sessionApplications.policy,
+    sessionApplications.assignment,
+    sessionApplications.deletion,
     skillPresenter,
     { sessionPermissionPort }
   )
@@ -721,6 +737,25 @@ describe('AgentSessionPresenter', () => {
       transcriptMutation: deepChatAgent,
       tape: deepChatAgent
     } as any
+    const projection = createProjectionCoordinatorFixture({
+      agentManager: agentManager as any,
+      appSessionService,
+      llmProviderPresenter,
+      configPresenter,
+      sqlitePresenter,
+      sharedData,
+      sessionUiPort
+    })
+    const sessionApplications = createAssignmentCoordinatorFixture({
+      agentManager: agentManager as any,
+      appSessionService,
+      configPresenter,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProviderPresenter,
+      skillPresenter
+    })
     presenter = new AgentSessionPresenter(
       agentManager as any,
       appSessionService,
@@ -728,17 +763,12 @@ describe('AgentSessionPresenter', () => {
       configPresenter,
       sqlitePresenter,
       sharedData,
-      createProjectionCoordinatorFixture({
-        agentManager: agentManager as any,
-        appSessionService,
-        llmProviderPresenter,
-        configPresenter,
-        sqlitePresenter,
-        sharedData,
-        sessionUiPort
-      }),
+      projection,
+      sessionApplications.policy,
+      sessionApplications.assignment,
+      sessionApplications.deletion,
       skillPresenter,
-      { acpAsLlmProviderSessionControl: llmProviderPresenter }
+      undefined
     )
   })
 
@@ -968,6 +998,24 @@ describe('AgentSessionPresenter', () => {
       transcriptMutation: deepchatImplementation,
       tape: deepchatImplementation
     } as any
+    const projection = createProjectionCoordinatorFixture({
+      agentManager: realManager,
+      appSessionService,
+      llmProviderPresenter,
+      configPresenter,
+      sqlitePresenter: sqliteWithAgents,
+      sharedData: integratedSharedData
+    })
+    const sessionApplications = createAssignmentCoordinatorFixture({
+      agentManager: realManager,
+      appSessionService,
+      configPresenter,
+      sqlitePresenter: sqliteWithAgents,
+      sharedData: integratedSharedData,
+      projection,
+      acp: llmProviderPresenter,
+      skillPresenter
+    })
     const integratedPresenter = new AgentSessionPresenter(
       realManager,
       appSessionService,
@@ -975,14 +1023,10 @@ describe('AgentSessionPresenter', () => {
       configPresenter,
       sqliteWithAgents,
       integratedSharedData,
-      createProjectionCoordinatorFixture({
-        agentManager: realManager,
-        appSessionService,
-        llmProviderPresenter,
-        configPresenter,
-        sqlitePresenter: sqliteWithAgents,
-        sharedData: integratedSharedData
-      }),
+      projection,
+      sessionApplications.policy,
+      sessionApplications.assignment,
+      sessionApplications.deletion,
       skillPresenter
     )
 

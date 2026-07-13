@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
 import type { AgentManager } from '@/agent/manager/agentManager'
-import type { DirectAcpSessionHandle } from '@/agent/manager/sessionHandles'
 import type {
   Agent,
   AgentTapeAnchorResult,
@@ -10,9 +9,7 @@ import type {
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
-  AgentTransferBlockReason,
   AgentTransferImpact,
-  AgentTransferImpactSample,
   ChatMessagePageResult,
   SessionListItem,
   SessionLightweightListResult,
@@ -69,6 +66,11 @@ import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { LegacyChatImportService } from './legacyImportService'
 import { SessionProjectionCoordinator } from '../sessionApplication/projectionCoordinator'
+import { SessionAgentAssignmentCoordinator } from '../sessionApplication/agentAssignmentCoordinator'
+import type {
+  SessionAssignmentPolicyPort,
+  SessionLifecycleDeletionPort
+} from '../sessionApplication/ports'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -87,8 +89,7 @@ import {
   resolveUsageProviderId
 } from '../usageStats'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
-import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import type { AcpAsLlmProviderSessionControlPort, SessionPermissionPort } from '../runtimePorts'
+import type { SessionPermissionPort } from '../runtimePorts'
 
 type SearchableSessionRow = {
   id: string
@@ -106,33 +107,9 @@ type SearchableMessageRow = {
   updatedAt: number
 }
 
-type AgentTransferTargetContext = {
-  agentId: string
-  agentType: 'deepchat'
-  providerId: string
-  modelId: string
-  projectDir: string | null
-  permissionMode: PermissionMode
-  generationSettings?: Partial<SessionGenerationSettings>
-  disabledAgentTools: string[]
-  subagentEnabled: boolean
-}
-
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
-
-function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
-  return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
-}
-
-const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'ls'])
-const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
-const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
-  yo_browser_cdp_send: 'cdp_send',
-  yo_browser_window_open: 'load_url',
-  yo_browser_window_list: 'get_browser_status'
-}
 
 const clampHistorySearchLimit = (value: number | undefined): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -268,8 +245,10 @@ export class AgentSessionPresenter {
   private sharedData: AgentSharedDataPorts
   private legacyImportService: LegacyChatImportService
   private sessionProjection: SessionProjectionCoordinator
+  private sessionAssignmentPolicy: SessionAssignmentPolicyPort
+  private sessionAssignment: SessionAgentAssignmentCoordinator
+  private sessionDeletion: SessionLifecycleDeletionPort
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
-  private acpAsLlmProviderSessionControl?: AcpAsLlmProviderSessionControlPort
   private sessionPermissionPort?: SessionPermissionPort
   private usageStatsBackfillPromise: Promise<void> | null = null
   private mainlineNormalizationPromise: Promise<void> | null = null
@@ -283,9 +262,11 @@ export class AgentSessionPresenter {
     sqlitePresenter: SQLitePresenter,
     sharedData: AgentSharedDataPorts,
     sessionProjection: SessionProjectionCoordinator,
+    sessionAssignmentPolicy: SessionAssignmentPolicyPort,
+    sessionAssignment: SessionAgentAssignmentCoordinator,
+    sessionDeletion: SessionLifecycleDeletionPort,
     skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
     runtimePorts?: {
-      acpAsLlmProviderSessionControl?: AcpAsLlmProviderSessionControlPort
       sessionPermissionPort?: SessionPermissionPort
     }
   ) {
@@ -295,10 +276,12 @@ export class AgentSessionPresenter {
     this.configPresenter = configPresenter
     this.sharedData = sharedData
     this.sessionProjection = sessionProjection
+    this.sessionAssignmentPolicy = sessionAssignmentPolicy
+    this.sessionAssignment = sessionAssignment
+    this.sessionDeletion = sessionDeletion
     this.skillPresenter = skillPresenter
     this.sessionManager = appSessionService
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
-    this.acpAsLlmProviderSessionControl = runtimePorts?.acpAsLlmProviderSessionControl
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
   }
 
@@ -306,61 +289,32 @@ export class AgentSessionPresenter {
 
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
     const requestedAgentId = input.agentId || 'deepchat'
-    const resolvedAgent = this.agentManager.resolveBackend(requestedAgentId)
-    const agentId = resolvedAgent.descriptor.id
+    const assignment = await this.sessionAssignmentPolicy.resolveCreateAssignment({
+      agentId: requestedAgentId,
+      providerId: input.providerId,
+      modelId: input.modelId,
+      projectDir: input.projectDir,
+      permissionMode: input.permissionMode,
+      generationSettings: input.generationSettings,
+      disabledAgentTools: input.disabledAgentTools,
+      subagentEnabled: input.subagentEnabled,
+      preserveExplicitNullProjectDir: true
+    })
+    const {
+      agentId,
+      providerId,
+      modelId,
+      projectDir,
+      permissionMode,
+      generationSettings,
+      disabledAgentTools,
+      subagentEnabled
+    } = assignment
     logger.info(
       `[AgentSessionPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`
     )
     const normalizedInput = this.normalizeCreateSessionInput(input)
-    const agentType = resolvedAgent.kind
-    const deepChatAgentConfig =
-      agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
-    const projectDir = this.resolveCreateSessionProjectDir(
-      input.projectDir,
-      deepChatAgentConfig?.defaultProjectPath
-    )
-    const disabledAgentTools =
-      agentType === 'deepchat'
-        ? this.normalizeDisabledAgentTools(
-            input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
-          )
-        : []
-    const subagentEnabled = this.resolveSessionSubagentEnabled(
-      agentType,
-      input.subagentEnabled,
-      deepChatAgentConfig?.subagentEnabled
-    )
-
-    // Resolve provider/model
-    const defaultModel = this.configPresenter.getDefaultModel()
-    const providerId =
-      agentType === 'acp'
-        ? 'acp'
-        : (input.providerId ??
-          deepChatAgentConfig?.defaultModelPreset?.providerId ??
-          defaultModel?.providerId ??
-          '')
-    const modelId =
-      agentType === 'acp'
-        ? agentId
-        : (input.modelId ??
-          deepChatAgentConfig?.defaultModelPreset?.modelId ??
-          defaultModel?.modelId ??
-          '')
-    const permissionMode =
-      input.permissionMode !== undefined
-        ? normalizePermissionMode(input.permissionMode)
-        : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
-    const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
-      deepChatAgentConfig,
-      input.generationSettings
-    )
     logger.info(`[AgentSessionPresenter] resolved provider=${providerId} model=${modelId}`)
-
-    if (!providerId || !modelId) {
-      throw new Error('No provider or model configured. Please set a default model in settings.')
-    }
-    this.assertAcpSessionHasWorkdir(providerId, projectDir)
 
     // Create session record
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
@@ -454,56 +408,27 @@ export class AgentSessionPresenter {
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
     const requestedAgentId = input.agentId?.trim() || 'deepchat'
-    const resolvedAgent = this.agentManager.resolveBackend(requestedAgentId)
-    const agentId = resolvedAgent.descriptor.id
     const title = input.title?.trim() || 'New Chat'
-    const agentType = resolvedAgent.kind
-    const deepChatAgentConfig =
-      agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
-    const projectDir =
-      input.projectDir?.trim() ||
-      deepChatAgentConfig?.defaultProjectPath?.trim() ||
-      this.getDefaultProjectPathCompat() ||
-      null
-    const disabledAgentTools =
-      agentType === 'deepchat'
-        ? this.normalizeDisabledAgentTools(
-            input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
-          )
-        : []
-    const subagentEnabled = this.resolveSessionSubagentEnabled(
-      agentType,
-      input.subagentEnabled,
-      deepChatAgentConfig?.subagentEnabled
-    )
-    const defaultModel = this.configPresenter.getDefaultModel()
-    const providerId =
-      agentType === 'acp'
-        ? 'acp'
-        : (input.providerId ??
-          deepChatAgentConfig?.defaultModelPreset?.providerId ??
-          defaultModel?.providerId ??
-          '')
-    const modelId =
-      agentType === 'acp'
-        ? agentId
-        : (input.modelId ??
-          deepChatAgentConfig?.defaultModelPreset?.modelId ??
-          defaultModel?.modelId ??
-          '')
-    const permissionMode =
-      input.permissionMode !== undefined
-        ? normalizePermissionMode(input.permissionMode)
-        : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
-    const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
-      deepChatAgentConfig,
-      input.generationSettings
-    )
-
-    if (!providerId || !modelId) {
-      throw new Error('No provider or model configured. Please set a default model in settings.')
-    }
-    this.assertAcpSessionHasWorkdir(providerId, projectDir)
+    const {
+      agentId,
+      providerId,
+      modelId,
+      projectDir,
+      permissionMode,
+      generationSettings,
+      disabledAgentTools,
+      subagentEnabled
+    } = await this.sessionAssignmentPolicy.resolveCreateAssignment({
+      agentId: requestedAgentId,
+      providerId: input.providerId,
+      modelId: input.modelId,
+      projectDir: input.projectDir,
+      permissionMode: input.permissionMode,
+      generationSettings: input.generationSettings,
+      disabledAgentTools: input.disabledAgentTools,
+      subagentEnabled: input.subagentEnabled,
+      preserveExplicitNullProjectDir: false
+    })
 
     const sessionId = this.sessionManager.create(agentId, title, projectDir, {
       isDraft: false,
@@ -588,15 +513,22 @@ export class AgentSessionPresenter {
       throw new Error('Subagent session requires an agentId.')
     }
 
-    const runtimeConfig = await this.resolveSubagentSessionRuntimeConfig(input)
     const projectDir = input.projectDir?.trim() || null
+    const runtimeConfig = await this.sessionAssignmentPolicy.resolveSubagentAssignment({
+      agentId,
+      targetAgentId: input.targetAgentId,
+      projectDir,
+      providerId: input.providerId,
+      modelId: input.modelId,
+      generationSettings: input.generationSettings,
+      disabledAgentTools: input.disabledAgentTools,
+      activeSkills: input.activeSkills
+    })
     const subagentMeta: DeepChatSubagentMeta = {
       slotId,
       displayName,
       targetAgentId: runtimeConfig.targetAgentId || null
     }
-    this.assertAcpSessionHasWorkdir(runtimeConfig.providerId, projectDir)
-
     let lastError: unknown = null
 
     for (let attempt = 1; attempt <= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS; attempt += 1) {
@@ -669,12 +601,8 @@ export class AgentSessionPresenter {
       throw new Error('ACP draft session requires a non-empty projectDir.')
     }
 
-    const resolvedAgent = this.agentManager.resolveBackend(agentId)
-    if (resolvedAgent.kind !== 'acp') {
-      throw new Error(`Agent ${agentId} is not an ACP agent.`)
-    }
-    const canonicalAgentId = resolvedAgent.descriptor.id
-    const permissionMode = normalizePermissionMode(input.permissionMode)
+    const { agentId: canonicalAgentId, permissionMode } =
+      this.sessionAssignmentPolicy.resolveAcpDraftAssignment(agentId, input.permissionMode)
 
     let record = await this.findReusableDraftSession(canonicalAgentId, projectDir)
     let createdDraftSession = false
@@ -710,8 +638,7 @@ export class AgentSessionPresenter {
       })
     }
 
-    const handle = this.requireDirectAcpHandle(record.id)
-    await handle.acp.prepare()
+    await this.sessionAssignment.prepareDirectAcpSession(record.id)
     this.sessionProjection.notify({
       sessionIds: [record.id],
       reason: createdDraftSession ? 'created' : 'updated'
@@ -754,8 +681,8 @@ export class AgentSessionPresenter {
     const hadMessages = await this.sharedData.transcript.hasMessages(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.syncAcpSessionWorkdir(
+    this.sessionAssignment.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.sessionAssignment.syncAcpSessionWorkdir(
       providerId,
       sessionId,
       session.agentId,
@@ -803,8 +730,8 @@ export class AgentSessionPresenter {
     const state = await handle.snapshot()
     let providerId = state?.providerId ?? ''
     if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.syncAcpSessionWorkdir(
+    this.sessionAssignment.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.sessionAssignment.syncAcpSessionWorkdir(
       providerId,
       sessionId,
       session.agentId,
@@ -845,8 +772,8 @@ export class AgentSessionPresenter {
     const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
     let providerId = (await handle.snapshot())?.providerId ?? ''
     if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.assertAcpSessionHasWorkdir(providerId, currentSession.projectDir ?? null)
-    await this.syncAcpSessionWorkdir(
+    this.sessionAssignment.assertAcpSessionHasWorkdir(providerId, currentSession.projectDir ?? null)
+    await this.sessionAssignment.syncAcpSessionWorkdir(
       providerId,
       sessionId,
       currentSession.agentId,
@@ -1315,36 +1242,7 @@ export class AgentSessionPresenter {
     childSessionId: string,
     meta: Record<string, unknown> = {}
   ): Promise<void> {
-    const parentSession = this.sessionManager.get(parentSessionId)
-    if (!parentSession) {
-      throw new Error(`Session not found: ${parentSessionId}`)
-    }
-
-    const childSession = this.sessionManager.get(childSessionId)
-    if (!childSession) {
-      throw new Error(`Session not found: ${childSessionId}`)
-    }
-    if (childSession.parentSessionId !== parentSessionId) {
-      throw new Error(`Session ${childSessionId} is not a child of ${parentSessionId}.`)
-    }
-
-    const resolved = this.agentManager.resolveSubagentFacet(toAppSessionId(parentSessionId))
-    switch (resolved.kind) {
-      case 'deepchat':
-        await resolved.facet.mergeTape(
-          toAppSessionId(parentSessionId),
-          toAppSessionId(childSessionId),
-          meta
-        )
-        break
-      case 'acp':
-        await resolved.facet.mergeTape(
-          toAppSessionId(parentSessionId),
-          toAppSessionId(childSessionId),
-          meta
-        )
-        break
-    }
+    await this.sessionAssignment.mergeSubagentTape(parentSessionId, childSessionId, meta)
   }
 
   async discardSubagentTape(
@@ -1352,36 +1250,7 @@ export class AgentSessionPresenter {
     childSessionId: string,
     meta: Record<string, unknown> = {}
   ): Promise<void> {
-    const parentSession = this.sessionManager.get(parentSessionId)
-    if (!parentSession) {
-      throw new Error(`Session not found: ${parentSessionId}`)
-    }
-
-    const childSession = this.sessionManager.get(childSessionId)
-    if (!childSession) {
-      throw new Error(`Session not found: ${childSessionId}`)
-    }
-    if (childSession.parentSessionId !== parentSessionId) {
-      throw new Error(`Session ${childSessionId} is not a child of ${parentSessionId}.`)
-    }
-
-    const resolved = this.agentManager.resolveSubagentFacet(toAppSessionId(parentSessionId))
-    switch (resolved.kind) {
-      case 'deepchat':
-        await resolved.facet.discardTape(
-          toAppSessionId(parentSessionId),
-          toAppSessionId(childSessionId),
-          meta
-        )
-        break
-      case 'acp':
-        await resolved.facet.discardTape(
-          toAppSessionId(parentSessionId),
-          toAppSessionId(childSessionId),
-          meta
-        )
-        break
-    }
+    await this.sessionAssignment.discardSubagentTape(parentSessionId, childSessionId, meta)
   }
 
   async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
@@ -1708,7 +1577,7 @@ export class AgentSessionPresenter {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const deletedSessionIds = await this.deleteSessionInternal(sessionId)
+    const deletedSessionIds = await this.sessionDeletion.deleteSessionTree(sessionId)
     this.sessionProjection.notify({
       sessionIds: deletedSessionIds,
       reason: 'deleted'
@@ -1716,204 +1585,22 @@ export class AgentSessionPresenter {
   }
 
   async getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact> {
-    const normalizedAgentId = agentId.trim()
-    if (!normalizedAgentId) {
-      throw new Error('Agent id is required.')
-    }
-
-    const sessions = this.sessionManager.list({
-      agentId: normalizedAgentId,
-      includeSubagents: true
-    })
-    const samples: AgentTransferImpactSample[] = []
-    let emptyDrafts = 0
-    let movableSessions = 0
-    let blockedSessions = 0
-
-    for (const session of sessions) {
-      const assessment = await this.assessTransferSession(session)
-      if (assessment.isEmptyDraft) {
-        emptyDrafts += 1
-      }
-      if (assessment.blockReason) {
-        blockedSessions += 1
-      } else if (!assessment.isEmptyDraft) {
-        movableSessions += 1
-      }
-
-      if (samples.length < 6 && (!assessment.isEmptyDraft || assessment.blockReason)) {
-        samples.push({
-          id: session.id,
-          title: session.title,
-          sessionKind: session.sessionKind,
-          isDraft: Boolean(session.isDraft),
-          projectDir: session.projectDir,
-          status: assessment.status,
-          blockReason: assessment.blockReason
-        })
-      }
-    }
-
-    return {
-      agentId: normalizedAgentId,
-      totalSessions: sessions.length,
-      regularSessions: sessions.filter((session) => session.sessionKind === 'regular').length,
-      subagentSessions: sessions.filter((session) => session.sessionKind === 'subagent').length,
-      emptyDrafts,
-      movableSessions,
-      blockedSessions,
-      samples
-    }
+    return await this.sessionAssignment.getAgentTransferImpact(agentId)
   }
 
   async moveAgentSessions(
     fromAgentId: string,
     toAgentId: string
   ): Promise<{ movedSessionIds: string[]; deletedSessionIds: string[] }> {
-    const sourceAgentId = fromAgentId.trim()
-    const targetAgentId = toAgentId.trim()
-    if (!sourceAgentId || !targetAgentId) {
-      throw new Error('Source and target agent ids are required.')
-    }
-    if (sourceAgentId === targetAgentId) {
-      throw new Error('Source and target agents cannot be the same.')
-    }
-    await this.resolveTransferTargetContext(targetAgentId, null)
-
-    const sessions = this.sessionManager.list({
-      agentId: sourceAgentId,
-      includeSubagents: true
-    })
-    const transferSessionIds: string[] = []
-    const emptyDraftSessionIds: string[] = []
-    const movedSessionIds: string[] = []
-    const deletedSessionIds: string[] = []
-    const deletedSessionIdSet = new Set<string>()
-
-    for (const session of sessions) {
-      const assessment = await this.assessTransferSession(session)
-      if (assessment.blockReason) {
-        throw new Error(`Session ${session.id} cannot be moved: ${assessment.blockReason}`)
-      }
-      if (assessment.isEmptyDraft) {
-        emptyDraftSessionIds.push(session.id)
-        continue
-      }
-
-      await this.resolveTransferTargetContext(targetAgentId, session.projectDir)
-      transferSessionIds.push(session.id)
-    }
-
-    try {
-      for (const sessionId of transferSessionIds) {
-        if (deletedSessionIdSet.has(sessionId)) {
-          continue
-        }
-        if (!this.sessionManager.get(sessionId)) {
-          throw new Error(`Session ${sessionId} is no longer available.`)
-        }
-        await this.moveSessionToAgentInternal(sessionId, targetAgentId, true)
-        movedSessionIds.push(sessionId)
-      }
-
-      for (const sessionId of emptyDraftSessionIds) {
-        if (deletedSessionIdSet.has(sessionId)) {
-          continue
-        }
-        if (!this.sessionManager.get(sessionId)) {
-          throw new Error(`Session ${sessionId} is no longer available.`)
-        }
-        const deleted = await this.deleteSessionInternal(sessionId)
-        deleted.forEach((deletedSessionId) => deletedSessionIdSet.add(deletedSessionId))
-        deletedSessionIds.push(...deleted)
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      const partialCounts = [
-        movedSessionIds.length > 0 ? `${movedSessionIds.length} moved` : '',
-        deletedSessionIds.length > 0 ? `${deletedSessionIds.length} deleted` : ''
-      ].filter(Boolean)
-
-      if (partialCounts.length > 0) {
-        if (movedSessionIds.length > 0) {
-          this.sessionProjection.notify({
-            sessionIds: movedSessionIds,
-            reason: 'updated'
-          })
-        }
-        if (deletedSessionIds.length > 0) {
-          this.sessionProjection.notify({
-            sessionIds: deletedSessionIds,
-            reason: 'deleted'
-          })
-        }
-        throw new Error(`${message} Partial transfer completed: ${partialCounts.join(', ')}.`)
-      }
-      throw error
-    }
-
-    if (movedSessionIds.length > 0) {
-      this.sessionProjection.notify({
-        sessionIds: movedSessionIds,
-        reason: 'updated'
-      })
-    }
-    if (deletedSessionIds.length > 0) {
-      this.sessionProjection.notify({
-        sessionIds: deletedSessionIds,
-        reason: 'deleted'
-      })
-    }
-
-    return { movedSessionIds, deletedSessionIds }
+    return await this.sessionAssignment.moveAgentSessions(fromAgentId, toAgentId)
   }
 
   async deleteAgentSessions(agentId: string): Promise<string[]> {
-    const normalizedAgentId = agentId.trim()
-    if (!normalizedAgentId) {
-      throw new Error('Agent id is required.')
-    }
-
-    const sessions = this.sessionManager.list({
-      agentId: normalizedAgentId,
-      includeSubagents: true
-    })
-    const deletedSessionIds: string[] = []
-    const deletedSessionIdSet = new Set<string>()
-
-    for (const session of sessions) {
-      const assessment = await this.assessTransferSession(session)
-      if (assessment.blockReason) {
-        throw new Error(`Session ${session.id} cannot be deleted: ${assessment.blockReason}`)
-      }
-    }
-
-    for (const session of sessions) {
-      if (deletedSessionIdSet.has(session.id) || !this.sessionManager.get(session.id)) {
-        continue
-      }
-      const deleted = await this.deleteSessionInternal(session.id)
-      deleted.forEach((sessionId) => deletedSessionIdSet.add(sessionId))
-      deletedSessionIds.push(...deleted)
-    }
-
-    if (deletedSessionIds.length > 0) {
-      this.sessionProjection.notify({
-        sessionIds: deletedSessionIds,
-        reason: 'deleted'
-      })
-    }
-
-    return deletedSessionIds
+    return await this.sessionAssignment.deleteAgentSessions(agentId)
   }
 
   async moveSessionToAgent(sessionId: string, toAgentId: string): Promise<SessionWithState> {
-    const updated = await this.moveSessionToAgentInternal(sessionId, toAgentId)
-    this.sessionProjection.notify({
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
-    return updated
+    return await this.sessionAssignment.moveSessionToAgent(sessionId, toAgentId)
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
@@ -1948,31 +1635,11 @@ export class AgentSessionPresenter {
       input?: { hint: string } | null
     }>
   > {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) return []
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind === 'acp') {
-      return await handle.acp.getCommands()
-    }
-    if ((await handle.snapshot())?.providerId !== 'acp') {
-      return []
-    }
-    return await this.requireAcpAsLlmProviderSessionControl().getAcpSessionCommands(sessionId)
+    return await this.sessionAssignment.getAcpSessionCommands(sessionId)
   }
 
   async getAcpSessionConfigOptions(sessionId: string): Promise<AcpConfigState | null> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      return null
-    }
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind === 'acp') {
-      return await handle.acp.getConfigOptions()
-    }
-    if ((await handle.snapshot())?.providerId !== 'acp') {
-      return null
-    }
-    return await this.requireAcpAsLlmProviderSessionControl().getAcpSessionConfigOptions(sessionId)
+    return await this.sessionAssignment.getAcpSessionConfigOptions(sessionId)
   }
 
   async setAcpSessionConfigOption(
@@ -1980,75 +1647,19 @@ export class AgentSessionPresenter {
     configId: string,
     value: string | boolean
   ): Promise<AcpConfigState | null> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind === 'acp') {
-      return await handle.acp.setConfigOption(configId, value)
-    }
-    if ((await handle.snapshot())?.providerId !== 'acp') {
-      throw new Error('ACP session config options are only available for ACP sessions.')
-    }
-    return await this.requireAcpAsLlmProviderSessionControl().setAcpSessionConfigOption(
-      sessionId,
-      configId,
-      value
-    )
+    return await this.sessionAssignment.setAcpSessionConfigOption(sessionId, configId, value)
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.settings.getPermissionMode()
+    return await this.sessionAssignment.getPermissionMode(sessionId)
   }
 
   async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.settings.setPermissionMode(mode)
+    await this.sessionAssignment.setPermissionMode(sessionId, mode)
   }
 
   async setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<SessionWithState> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    if (session.sessionKind !== 'regular') {
-      throw new Error('Only regular sessions can change subagent state.')
-    }
-
-    const { descriptor } = this.agentManager.resolveSessionBackend(toAppSessionId(sessionId))
-    if (descriptor.kind !== 'deepchat') {
-      throw new Error('Only DeepChat sessions can change subagent state.')
-    }
-
-    this.sessionManager.update(sessionId, { subagentEnabled: enabled })
-    const updated = this.sessionManager.get(sessionId)
-    if (!updated) {
-      throw new Error(`Session not found after update: ${sessionId}`)
-    }
-
-    this.sessionProjection.notify({
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
-    const sessionWithState = await this.sessionProjection.materialize(sessionId)
-    if (!sessionWithState) {
-      throw new Error(`Failed to build session state for sessionId: ${sessionId}`)
-    }
-
-    return sessionWithState
+    return await this.sessionAssignment.setSessionSubagentEnabled(sessionId, enabled)
   }
 
   async setSessionModel(
@@ -2056,140 +1667,39 @@ export class AgentSessionPresenter {
     providerId: string,
     modelId: string
   ): Promise<SessionWithState> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const nextProviderId = providerId?.trim()
-    const nextModelId = modelId?.trim()
-    if (!nextProviderId || !nextModelId) {
-      throw new Error('setSessionModel requires providerId and modelId.')
-    }
-
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind !== 'deepchat') {
-      throw new Error('ACP session model is locked.')
-    }
-    await handle.deepchat.setModel(nextProviderId, nextModelId)
-    const state = await handle.snapshot()
-    const updated: SessionWithState = {
-      ...session,
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? nextProviderId,
-      modelId: state?.modelId ?? nextModelId
-    }
-    this.sessionProjection.notify({
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
-    return updated
+    return await this.sessionAssignment.setSessionModel(sessionId, providerId, modelId)
   }
 
   async setSessionProjectDir(
     sessionId: string,
     projectDir: string | null
   ): Promise<SessionWithState> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    const state = await handle.snapshot()
-    const providerId = state?.providerId?.trim() || (handle.kind === 'acp' ? 'acp' : '')
-    const normalizedProjectDir = projectDir?.trim() || null
-    this.assertAcpSessionHasWorkdir(providerId, normalizedProjectDir)
-
-    this.sessionManager.update(sessionId, { projectDir: normalizedProjectDir })
-
-    // Sync environment for new project dir
-    if (normalizedProjectDir) {
-      this.sqlitePresenter.newEnvironmentsTable.syncPath(normalizedProjectDir)
-    }
-
-    await handle.settings.setProjectDir(normalizedProjectDir)
-    await this.syncAcpSessionWorkdir(providerId, sessionId, session.agentId, normalizedProjectDir)
-
-    const updated = this.sessionManager.get(sessionId)
-    if (!updated) {
-      throw new Error(`Session not found after update: ${sessionId}`)
-    }
-
-    this.sessionProjection.notify({
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
-    const sessionWithState = await this.sessionProjection.materialize(sessionId)
-    if (!sessionWithState) {
-      throw new Error(`Failed to build session state after project update: ${sessionId}`)
-    }
-    return sessionWithState
+    return await this.sessionAssignment.setSessionProjectDir(sessionId, projectDir)
   }
 
   async getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.settings.getGenerationSettings()
+    return await this.sessionAssignment.getSessionGenerationSettings(sessionId)
   }
 
   async getSessionDisabledAgentTools(sessionId: string): Promise<string[]> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    return this.sessionManager.getDisabledAgentTools(sessionId)
+    return await this.sessionAssignment.getSessionDisabledAgentTools(sessionId)
   }
 
   async updateSessionDisabledAgentTools(
     sessionId: string,
     disabledAgentTools: string[]
   ): Promise<string[]> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const normalized = this.normalizeDisabledAgentTools(disabledAgentTools)
-    this.sessionManager.updateDisabledAgentTools(sessionId, normalized)
-
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind === 'deepchat') handle.deepchat.invalidateSystemPromptCache()
-
-    return normalized
+    return await this.sessionAssignment.updateSessionDisabledAgentTools(
+      sessionId,
+      disabledAgentTools
+    )
   }
 
   async updateSessionGenerationSettings(
     sessionId: string,
     settings: Partial<SessionGenerationSettings>
   ): Promise<SessionGenerationSettings> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.settings.updateGenerationSettings(settings)
-  }
-
-  private requireDirectAcpHandle(sessionId: string): DirectAcpSessionHandle {
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind !== 'acp') {
-      throw new Error(`Session ${sessionId} is not a direct ACP session.`)
-    }
-    return handle
-  }
-
-  private requireAcpAsLlmProviderSessionControl(): AcpAsLlmProviderSessionControlPort {
-    if (this.acpAsLlmProviderSessionControl) {
-      return this.acpAsLlmProviderSessionControl
-    }
-    throw new Error('ACP-as-LLM provider session control is not available.')
+    return await this.sessionAssignment.updateSessionGenerationSettings(sessionId, settings)
   }
 
   private async resolveDeepChatAgentConfigCompat(
@@ -2200,30 +1710,6 @@ export class AgentSessionPresenter {
     }
 
     return await this.configPresenter.resolveDeepChatAgentConfig(agentId)
-  }
-
-  private getDefaultProjectPathCompat(): string | null {
-    if (typeof this.configPresenter.getDefaultProjectPath !== 'function') {
-      return null
-    }
-
-    return this.configPresenter.getDefaultProjectPath() ?? null
-  }
-
-  private resolveCreateSessionProjectDir(
-    inputProjectDir: string | null | undefined,
-    agentDefaultProjectDir: string | null | undefined
-  ): string | null {
-    if (inputProjectDir === null) {
-      return null
-    }
-
-    return (
-      inputProjectDir?.trim() ||
-      agentDefaultProjectDir?.trim() ||
-      this.getDefaultProjectPathCompat() ||
-      null
-    )
   }
 
   private async resolveAssistantModelSelection(
@@ -2247,312 +1733,6 @@ export class AgentSessionPresenter {
       providerId: fallbackProviderId,
       modelId: fallbackModelId
     }
-  }
-
-  private mergeDeepChatDefaultGenerationSettings(
-    config: Awaited<ReturnType<IConfigPresenter['resolveDeepChatAgentConfig']>> | null,
-    overrides?: Partial<SessionGenerationSettings>
-  ): Partial<SessionGenerationSettings> | undefined {
-    const defaults: Partial<SessionGenerationSettings> = {}
-
-    if (typeof config?.systemPrompt === 'string') {
-      defaults.systemPrompt = config.systemPrompt
-    }
-
-    const merged = {
-      ...defaults,
-      ...overrides
-    }
-
-    return Object.keys(merged).length > 0 ? merged : undefined
-  }
-
-  private resolveSessionSubagentEnabled(
-    agentType: 'deepchat' | 'acp' | null,
-    inputEnabled?: boolean,
-    configEnabled?: boolean
-  ): boolean {
-    if (agentType !== 'deepchat') {
-      return false
-    }
-
-    if (typeof inputEnabled === 'boolean') {
-      return inputEnabled
-    }
-
-    return configEnabled === true
-  }
-
-  private async resolveSubagentSessionRuntimeConfig(input: {
-    agentId: string
-    targetAgentId?: string | null
-    providerId: string
-    modelId: string
-    generationSettings?: Partial<SessionGenerationSettings>
-    disabledAgentTools?: string[]
-    activeSkills?: string[]
-  }): Promise<{
-    agentId: string
-    targetAgentId: string | null
-    providerId: string
-    modelId: string
-    generationSettings?: Partial<SessionGenerationSettings>
-    disabledAgentTools: string[]
-    activeSkills: string[]
-  }> {
-    const trimmedAgentId = input.agentId.trim()
-    const resolvedAgentId = resolveAcpAgentAlias(trimmedAgentId)
-    let descriptor
-    try {
-      descriptor = this.agentManager.resolveBackend(resolvedAgentId).descriptor
-    } catch {
-      throw new Error(`Agent ${input.agentId} is not a valid subagent target.`)
-    }
-
-    if (descriptor.kind === 'acp') {
-      return {
-        agentId: descriptor.id,
-        targetAgentId: input.targetAgentId?.trim() ? descriptor.id : null,
-        providerId: 'acp',
-        modelId: descriptor.id,
-        generationSettings: {
-          systemPrompt: ''
-        },
-        disabledAgentTools: [],
-        activeSkills: []
-      }
-    }
-
-    return {
-      agentId: descriptor.id,
-      targetAgentId: input.targetAgentId?.trim() ? descriptor.id : null,
-      providerId: input.providerId,
-      modelId: input.modelId,
-      generationSettings: input.generationSettings,
-      disabledAgentTools: this.normalizeDisabledAgentTools(input.disabledAgentTools),
-      activeSkills: this.normalizeActiveSkills(input.activeSkills)
-    }
-  }
-
-  private async assessTransferSession(session: SessionRecord): Promise<{
-    status: SessionWithState['status']
-    isEmptyDraft: boolean
-    blockReason?: AgentTransferBlockReason
-  }> {
-    const { handle, facet } = this.agentManager.resolveTransferSource(toAppSessionId(session.id))
-    const state = await handle.snapshot()
-    const status = state?.status ?? 'idle'
-    let hasMessages = true
-    try {
-      hasMessages = await facet.hasMessages(toAppSessionId(session.id))
-    } catch (error) {
-      console.warn(
-        `[AgentSessionPresenter] Failed to inspect messages for session=${session.id}:`,
-        error
-      )
-    }
-    let hasPendingInput = false
-    try {
-      hasPendingInput = (await facet.listPendingInputs(toAppSessionId(session.id))).length > 0
-    } catch (error) {
-      console.warn(
-        `[AgentSessionPresenter] Failed to inspect pending input for session=${session.id}:`,
-        error
-      )
-      hasPendingInput = true
-    }
-    const hasSubagentChildren =
-      session.sessionKind === 'regular' &&
-      this.sessionManager.list({ includeSubagents: true, parentSessionId: session.id }).length > 0
-    const isEmptyDraft = Boolean(session.isDraft) && !hasMessages && !hasSubagentChildren
-
-    if (status === 'generating') {
-      return { status, isEmptyDraft, blockReason: 'active' }
-    }
-    if (hasPendingInput) {
-      return { status, isEmptyDraft, blockReason: 'pending-input' }
-    }
-
-    return { status, isEmptyDraft }
-  }
-
-  private async moveSessionToAgentInternal(
-    sessionId: string,
-    toAgentId: string,
-    allowSubagent: boolean = false
-  ): Promise<SessionWithState> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    if (!allowSubagent && session.sessionKind !== 'regular') {
-      throw new Error('Only regular conversations can be moved from the conversation menu.')
-    }
-
-    const targetAgentId = toAgentId.trim()
-    if (!targetAgentId) {
-      throw new Error('Target agent id is required.')
-    }
-    if (session.agentId === targetAgentId) {
-      throw new Error('Conversation is already assigned to the selected agent.')
-    }
-
-    const assessment = await this.assessTransferSession(session)
-    if (assessment.blockReason) {
-      throw new Error(`Session ${sessionId} cannot be moved: ${assessment.blockReason}`)
-    }
-
-    const targetContext = await this.resolveTransferTargetContext(targetAgentId, session.projectDir)
-    const source = this.agentManager.resolveTransferSource(toAppSessionId(sessionId))
-    const sourceState = await source.handle.snapshot()
-    const previousDirectAcp = source.handle.kind === 'acp'
-    const previousCompatibilityAcp =
-      source.handle.kind === 'deepchat' && sourceState?.providerId === 'acp'
-    const { facet: transferTarget } = this.agentManager.resolveDeepChatTransferTarget(
-      targetContext.agentId
-    )
-
-    await transferTarget.setSessionAgentContext(toAppSessionId(sessionId), {
-      agentId: targetContext.agentId,
-      providerId: targetContext.providerId,
-      modelId: targetContext.modelId,
-      projectDir: targetContext.projectDir,
-      permissionMode: targetContext.permissionMode,
-      generationSettings: targetContext.generationSettings
-    })
-
-    this.sessionManager.updateAgentId(sessionId, targetContext.agentId)
-    this.sessionManager.update(sessionId, {
-      projectDir: targetContext.projectDir,
-      subagentEnabled: session.sessionKind === 'regular' ? targetContext.subagentEnabled : false
-    })
-    this.sessionManager.updateDisabledAgentTools(sessionId, targetContext.disabledAgentTools)
-
-    await this.syncAcpSessionWorkdir(
-      targetContext.providerId,
-      sessionId,
-      targetContext.agentId,
-      targetContext.projectDir
-    )
-
-    const updated = this.sessionManager.get(sessionId)
-    if (!updated) {
-      throw new Error(`Session not found after transfer: ${sessionId}`)
-    }
-
-    const sessionWithState = await this.sessionProjection.materialize(sessionId)
-    if (!sessionWithState) {
-      throw new Error(`Failed to build session state after transfer: ${sessionId}`)
-    }
-
-    if (previousDirectAcp && source.closeRuntime) {
-      try {
-        await source.closeRuntime()
-      } catch (error) {
-        console.warn(
-          `[AgentSessionPresenter] Failed to close direct ACP runtime after transfer ${sessionId}:`,
-          error
-        )
-      }
-    } else if (previousCompatibilityAcp) {
-      try {
-        await this.requireAcpAsLlmProviderSessionControl().clearAcpSession(sessionId)
-      } catch (error) {
-        console.warn(
-          `[AgentSessionPresenter] Failed to clear stale ACP binding after transfer ${sessionId}:`,
-          error
-        )
-      }
-    }
-
-    return sessionWithState
-  }
-
-  private async resolveTransferTargetContext(
-    targetAgentId: string,
-    currentProjectDir: string | null
-  ): Promise<AgentTransferTargetContext> {
-    const resolvedAgentId = resolveAcpAgentAlias(targetAgentId.trim())
-    let descriptor
-    try {
-      descriptor = this.agentManager.resolveBackend(resolvedAgentId).descriptor
-    } catch {
-      throw new Error(`Target agent not found: ${targetAgentId}`)
-    }
-    if (descriptor.kind === 'acp') {
-      throw new Error('Conversation history cannot be moved to ACP agents.')
-    }
-
-    const currentProject = currentProjectDir?.trim() || null
-    const config = await this.resolveDeepChatAgentConfigCompat(descriptor.id)
-    const defaultModel = this.configPresenter.getDefaultModel()
-    const providerId =
-      config?.defaultModelPreset?.providerId?.trim() || defaultModel?.providerId?.trim() || ''
-    const modelId =
-      config?.defaultModelPreset?.modelId?.trim() || defaultModel?.modelId?.trim() || ''
-    if (!providerId || !modelId) {
-      throw new Error('Target DeepChat agent does not have a default model.')
-    }
-    if (providerId.toLowerCase() === 'acp') {
-      throw new Error('Conversation history cannot be moved to ACP agents.')
-    }
-
-    return {
-      agentId: descriptor.id,
-      agentType: 'deepchat',
-      providerId,
-      modelId,
-      projectDir:
-        currentProject ||
-        config?.defaultProjectPath?.trim() ||
-        this.getDefaultProjectPathCompat() ||
-        null,
-      permissionMode: normalizePermissionMode(config?.permissionMode),
-      generationSettings: this.mergeDeepChatDefaultGenerationSettings(config),
-      disabledAgentTools: this.normalizeDisabledAgentTools(config?.disabledAgentTools),
-      subagentEnabled: this.resolveSessionSubagentEnabled(
-        'deepchat',
-        undefined,
-        config?.subagentEnabled
-      )
-    }
-  }
-
-  private async deleteSessionInternal(sessionId: string): Promise<string[]> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) return []
-
-    const deletedSessionIds: string[] = []
-
-    if (session.sessionKind === 'regular') {
-      const children = this.sessionManager.list({
-        includeSubagents: true,
-        parentSessionId: sessionId
-      })
-      for (const child of children) {
-        deletedSessionIds.push(...(await this.deleteSessionInternal(child.id)))
-      }
-    }
-
-    let backendCleanupError: unknown
-    try {
-      await this.agentManager.cleanupSessionBackends(toAppSessionId(sessionId))
-    } catch (error) {
-      backendCleanupError = error
-    }
-    try {
-      await this.sharedData.sessionState.destroySession(sessionId)
-    } catch (error) {
-      if (!backendCleanupError) throw error
-    }
-    if (backendCleanupError) throw backendCleanupError
-    this.sessionPermissionPort?.clearSessionPermissions(sessionId)
-    await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
-    this.sessionManager.delete(sessionId)
-    this.sessionProjection.forgetStatus([sessionId])
-    deletedSessionIds.push(sessionId)
-
-    return deletedSessionIds
   }
 
   private async findReusableDraftSession(
@@ -2604,7 +1784,7 @@ export class AgentSessionPresenter {
       await handle.settings.setPermissionMode(config.permissionMode)
     }
 
-    await this.syncAcpSessionWorkdir(
+    await this.sessionAssignment.syncAcpSessionWorkdir(
       config.providerId,
       sessionId,
       config.agentId ?? config.modelId,
@@ -2626,49 +1806,12 @@ export class AgentSessionPresenter {
     await this.agentManager
       .resolveSessionHandle(toAppSessionId(sessionId))
       .handle.lifecycle.initialize(config)
-    await this.syncAcpSessionWorkdir(
+    await this.sessionAssignment.syncAcpSessionWorkdir(
       config.providerId,
       sessionId,
       config.agentId ?? config.modelId,
       config.projectDir ?? null
     )
-  }
-
-  private async syncAcpSessionWorkdir(
-    providerId: string,
-    conversationId: string,
-    agentId: string,
-    projectDir?: string | null
-  ): Promise<void> {
-    if (providerId !== 'acp') {
-      return
-    }
-
-    const normalizedProjectDir = projectDir?.trim()
-    if (!normalizedProjectDir) {
-      return
-    }
-
-    try {
-      const handle = this.agentManager.resolveSessionHandle(toAppSessionId(conversationId)).handle
-      if (handle.kind === 'acp') {
-        await handle.acp.updateWorkdir(normalizedProjectDir)
-        return
-      }
-      await this.requireAcpAsLlmProviderSessionControl().setAcpWorkdir(
-        conversationId,
-        resolveAcpAgentAlias(agentId),
-        normalizedProjectDir
-      )
-    } catch (error) {
-      console.warn('[AgentSessionPresenter] Failed to sync ACP workdir for session:', {
-        conversationId,
-        agentId,
-        projectDir: normalizedProjectDir,
-        error
-      })
-      throw error
-    }
   }
 
   private async cleanupFailedSessionInitialization(
@@ -2678,7 +1821,7 @@ export class AgentSessionPresenter {
     const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
     if (providerId === 'acp' && handle.kind !== 'acp') {
       try {
-        await this.requireAcpAsLlmProviderSessionControl().clearAcpSession(sessionId)
+        await this.sessionAssignment.clearCompatibilityAcpSession(sessionId)
       } catch (error) {
         console.warn(
           `[AgentSessionPresenter] Failed to clear ACP session after initialization error ${sessionId}:`,
@@ -3091,9 +2234,12 @@ export class AgentSessionPresenter {
         const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
           sessionRow.id
         )
-        const normalized = this.normalizeDisabledAgentTools(disabledAgentTools, {
-          dropLegacySearchTools: true
-        })
+        const normalized = this.sessionAssignmentPolicy.normalizeDisabledAgentTools(
+          disabledAgentTools,
+          {
+            dropLegacySearchTools: true
+          }
+        )
 
         if (!this.areStringArraysEqual(disabledAgentTools, normalized)) {
           this.sessionManager.updateDisabledAgentTools(sessionRow.id, normalized)
@@ -3143,9 +2289,12 @@ export class AgentSessionPresenter {
         continue
       }
 
-      const normalized = this.normalizeDisabledAgentTools(config.disabledAgentTools, {
-        dropLegacySearchTools: true
-      })
+      const normalized = this.sessionAssignmentPolicy.normalizeDisabledAgentTools(
+        config.disabledAgentTools,
+        {
+          dropLegacySearchTools: true
+        }
+      )
       if (this.areStringArraysEqual(config.disabledAgentTools, normalized)) {
         continue
       }
@@ -3226,7 +2375,7 @@ export class AgentSessionPresenter {
           : [],
         search: parsed.search === true,
         think: parsed.think === true,
-        activeSkills: this.normalizeActiveSkills(parsed.activeSkills)
+        activeSkills: this.sessionAssignmentPolicy.normalizeActiveSkills(parsed.activeSkills)
       }
     } catch {
       return null
@@ -3505,16 +2654,6 @@ export class AgentSessionPresenter {
     return 'English'
   }
 
-  private assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void {
-    if (providerId !== 'acp') {
-      return
-    }
-    if (projectDir?.trim()) {
-      return
-    }
-    throw new Error('ACP agent requires selecting a workdir before sending messages.')
-  }
-
   private normalizeSendMessageInput(content: string | SendMessageInput): SendMessageInput {
     if (typeof content === 'string') {
       return { text: content, files: [] }
@@ -3528,7 +2667,7 @@ export class AgentSessionPresenter {
     const files = Array.isArray(content.files)
       ? content.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    const activeSkills = this.normalizeActiveSkills(content.activeSkills)
+    const activeSkills = this.sessionAssignmentPolicy.normalizeActiveSkills(content.activeSkills)
     const inlineItems = Array.isArray(content.inlineItems) ? content.inlineItems : []
     return {
       text,
@@ -3558,36 +2697,13 @@ export class AgentSessionPresenter {
     input: SendMessageInput,
     activeSkills?: string[]
   ): SendMessageInput {
-    const normalizedActiveSkills = this.normalizeActiveSkills(activeSkills ?? input.activeSkills)
+    const normalizedActiveSkills = this.sessionAssignmentPolicy.normalizeActiveSkills(
+      activeSkills ?? input.activeSkills
+    )
     return {
       ...input,
       ...(normalizedActiveSkills.length > 0 ? { activeSkills: normalizedActiveSkills } : {})
     }
-  }
-
-  private normalizeDisabledAgentTools(
-    disabledAgentTools?: string[],
-    options?: {
-      dropLegacySearchTools?: boolean
-    }
-  ): string[] {
-    if (!Array.isArray(disabledAgentTools)) {
-      return []
-    }
-
-    const retiredTools = options?.dropLegacySearchTools
-      ? LEGACY_PERSISTED_DISABLED_AGENT_TOOLS
-      : RETIRED_DEFAULT_AGENT_TOOLS
-
-    return Array.from(
-      new Set(
-        disabledAgentTools
-          .filter((item): item is string => typeof item === 'string')
-          .map((item) => item.trim())
-          .map((item) => LEGACY_AGENT_TOOL_NAME_MAP[item] ?? item)
-          .filter((item) => Boolean(item) && !retiredTools.has(item))
-      )
-    ).sort((left, right) => left.localeCompare(right))
   }
 
   private areStringArraysEqual(left: string[], right: string[]): boolean {
@@ -3595,20 +2711,5 @@ export class AgentSessionPresenter {
       return false
     }
     return left.every((item, index) => item === right[index])
-  }
-
-  private normalizeActiveSkills(activeSkills?: string[]): string[] {
-    if (!Array.isArray(activeSkills)) {
-      return []
-    }
-
-    return Array.from(
-      new Set(
-        activeSkills
-          .filter((item): item is string => typeof item === 'string')
-          .map((item) => item.trim())
-          .filter(Boolean)
-      )
-    )
   }
 }

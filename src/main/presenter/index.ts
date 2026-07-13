@@ -77,6 +77,9 @@ import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { SessionProjectionCoordinator } from './sessionApplication/projectionCoordinator'
+import { SessionAgentAssignmentPolicy } from './sessionApplication/agentAssignmentPolicy'
+import { SessionAgentAssignmentCoordinator } from './sessionApplication/agentAssignmentCoordinator'
+import { SessionDeletionTransaction } from './sessionApplication/lifecycleDeletionTransaction'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
@@ -159,6 +162,9 @@ export class Presenter implements IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
   sessionProjectionCoordinator: SessionProjectionCoordinator
+  sessionAgentAssignmentPolicy: SessionAgentAssignmentPolicy
+  sessionAgentAssignmentCoordinator: SessionAgentAssignmentCoordinator
+  sessionDeletionTransaction: SessionDeletionTransaction
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
   memoryPresenter: MemoryPresenter
@@ -749,6 +755,51 @@ export class Presenter implements IPresenter {
       },
       ui: sessionUiPort
     })
+    this.sessionAgentAssignmentPolicy = new SessionAgentAssignmentPolicy(
+      {
+        resolveAgent: (agentId) => {
+          const descriptor = this.agentManager.resolveBackend(agentId).descriptor
+          return { id: descriptor.id, kind: descriptor.kind }
+        }
+      },
+      {
+        getDefaultModel: () => this.configPresenter.getDefaultModel(),
+        getDefaultProjectPath: () => this.configPresenter.getDefaultProjectPath(),
+        resolveDeepChatAgentConfig: async (agentId) =>
+          await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+      }
+    )
+    this.sessionDeletionTransaction = new SessionDeletionTransaction({
+      sessions: appSessionService,
+      runtime: {
+        cleanupSessionBackends: async (sessionId) =>
+          await this.agentManager.cleanupSessionBackends(sessionId)
+      },
+      state: agentSharedData.sessionState,
+      permissions: sessionPermissionPort,
+      skills: {
+        clearNewAgentSessionSkills: async (sessionId) =>
+          await this.skillPresenter.clearNewAgentSessionSkills?.(sessionId)
+      },
+      projection: this.sessionProjectionCoordinator
+    })
+    this.sessionAgentAssignmentCoordinator = new SessionAgentAssignmentCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        resolveSession: (sessionId) => this.agentManager.resolveSessionHandle(sessionId),
+        resolveTransferSource: (sessionId) => this.agentManager.resolveTransferSource(sessionId),
+        resolveDeepChatTransferTarget: (agentId) =>
+          this.agentManager.resolveDeepChatTransferTarget(agentId),
+        resolveSubagentFacet: (sessionId) => this.agentManager.resolveSubagentFacet(sessionId)
+      },
+      policy: this.sessionAgentAssignmentPolicy,
+      projection: this.sessionProjectionCoordinator,
+      deletion: this.sessionDeletionTransaction,
+      environment: {
+        syncPath: (projectDir) => sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
+      },
+      acp: this.acpAsLlmProviderSessionControl
+    })
     this.agentSessionPresenter = new AgentSessionPresenter(
       this.agentManager,
       appSessionService,
@@ -757,9 +808,11 @@ export class Presenter implements IPresenter {
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       agentSharedData,
       this.sessionProjectionCoordinator,
+      this.sessionAgentAssignmentPolicy,
+      this.sessionAgentAssignmentCoordinator,
+      this.sessionDeletionTransaction,
       this.skillPresenter,
       {
-        acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
         sessionPermissionPort
       }
     )
