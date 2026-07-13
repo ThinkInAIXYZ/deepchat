@@ -1,5 +1,11 @@
 # ACP v1 Reliability Implementation Plan
 
+> Status: active historical plan. Module assignments below capture the pre-ASLR implementation context and
+> must not override the current direct ACP ownership documented in
+> `docs/architecture/agent-system-layered-runtime/modules/acp-runtime.md`. Direct `kind=acp` work belongs to
+> `AcpAgentRuntime` / `AcpAgentInstance`; `AcpProvider` only serves the DeepChat + ACP-provider compatibility
+> path. Keep remaining product gaps and tests in this plan until they are explicitly reconciled.
+
 ## 总体策略
 
 本次不重写 ACP 子系统，而是在现有模块上补齐协议边界和状态闭环：

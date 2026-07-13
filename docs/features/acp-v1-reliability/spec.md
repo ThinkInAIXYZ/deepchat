@@ -1,5 +1,10 @@
 # ACP v1 Reliability Specification
 
+> Status: active. This specification predates the layered agent-runtime migration, and its unchecked
+> reliability scope remains open until the task ledger is reconciled against current code and real-agent
+> validation. Canonical ownership now places direct `kind=acp` execution in `AcpAgentRuntime` /
+> `AcpAgentInstance`; `AcpProvider` is retained only for `kind=deepchat + providerId=acp` compatibility.
+
 Last reviewed: 2026-06-02
 
 ## 背景

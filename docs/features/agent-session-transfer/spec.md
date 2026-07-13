@@ -248,9 +248,12 @@ Narrow mobile
 
 ## Constraints
 
-- Follow the existing Presenter pattern: session ownership and transfer belongs in
-  `AgentSessionPresenter`; agent record deletion remains in `ConfigPresenter` /
-  `AgentRepository`.
+- `AgentSessionPresenter` remains the application façade for impact analysis, batch orchestration, user-facing
+  transfer errors, and durable session ownership changes.
+- Backend capability resolution goes through `AgentManager` required transfer-source and DeepChat
+  transfer-target facets. The façade must not inspect optional backend methods or infer kind from provider id.
+- Direct ACP cleanup runs only after target validation, target context initialization, and durable ownership
+  update succeed. Agent record deletion remains in `ConfigPresenter` / `AgentRepository`.
 - New renderer-main APIs should use typed routes and `renderer/api/*Client` rather than adding new
   direct `useLegacyPresenter()` usage.
 - Existing `new_sessions` rows, message tables, tape tables, files, search documents, and usage stats

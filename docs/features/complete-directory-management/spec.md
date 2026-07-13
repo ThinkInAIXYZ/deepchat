@@ -1,6 +1,6 @@
 # Complete Directory Management
 
-Status: proposal for discussion.
+Status: implemented; retained as the current feature contract. Related issue #1785 is closed.
 Related issue: https://github.com/ThinkInAIXYZ/deepchat/issues/1785
 Date: 2026-06-19
 
