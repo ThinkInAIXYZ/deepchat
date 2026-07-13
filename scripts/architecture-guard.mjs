@@ -391,103 +391,220 @@ function findIdentifierNames(sourceFile, names) {
   return found
 }
 
-function resolveSessionApplicationOwner(expression, aliases) {
-  const unwrapped = unwrapExpression(expression)
-  if (ts.isIdentifier(unwrapped)) {
-    const owner = aliases.get(unwrapped.text) ?? unwrapped.text
-    return SESSION_APPLICATION_OWNER_NAMES.has(owner) ? owner : null
+function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
+  const constructions = new Map()
+
+  const lookup = (scope, name) => {
+    for (let current = scope; current; current = current.parent) {
+      if (current.bindings.has(name)) return current.bindings.get(name)
+    }
+    return SESSION_APPLICATION_OWNER_NAMES.has(name) ? name : null
   }
 
-  const owner = accessMemberName(unwrapped)
-  return owner && SESSION_APPLICATION_OWNER_NAMES.has(owner) ? owner : null
+  const resolveOwner = (expression, scope) => {
+    const unwrapped = unwrapExpression(expression)
+    if (ts.isIdentifier(unwrapped)) return lookup(scope, unwrapped.text)
+
+    const owner = accessMemberName(unwrapped)
+    return owner && SESSION_APPLICATION_OWNER_NAMES.has(owner) ? owner : null
+  }
+
+  const addDeclaration = (scope, declarations, declaration) => {
+    if (!ts.isIdentifier(declaration.name)) return
+    scope.bindings.set(declaration.name.text, null)
+    if (declaration.initializer) declarations.push(declaration)
+  }
+
+  const directStatements = (node) =>
+    ts.isSourceFile(node) || ts.isBlock(node) || ts.isModuleBlock(node) ? node.statements : []
+
+  const visitScope = (node, parent) => {
+    const scope = { parent, bindings: new Map() }
+    const declarations = []
+
+    if (ts.isSourceFile(node)) {
+      for (const record of importRecords) {
+        scope.bindings.set(
+          record.localName,
+          SESSION_APPLICATION_OWNER_NAMES.has(record.importedName) ? record.importedName : null
+        )
+      }
+    }
+
+    if (ts.isFunctionLike(node)) {
+      for (const parameter of node.parameters) {
+        if (ts.isIdentifier(parameter.name)) scope.bindings.set(parameter.name.text, null)
+      }
+    }
+
+    for (const statement of directStatements(node)) {
+      if (
+        (ts.isFunctionDeclaration(statement) ||
+          ts.isClassDeclaration(statement) ||
+          ts.isEnumDeclaration(statement)) &&
+        statement.name
+      ) {
+        scope.bindings.set(statement.name.text, null)
+      }
+      if (
+        ts.isVariableStatement(statement) &&
+        (statement.declarationList.flags & ts.NodeFlags.BlockScoped) !== 0
+      ) {
+        for (const declaration of statement.declarationList.declarations) {
+          addDeclaration(scope, declarations, declaration)
+        }
+      }
+    }
+
+    if (ts.isSourceFile(node) || ts.isFunctionLike(node)) {
+      const collectVarDeclarations = (child) => {
+        if (child !== node && ts.isFunctionLike(child)) return
+        if (
+          ts.isVariableDeclarationList(child) &&
+          (child.flags & ts.NodeFlags.BlockScoped) === 0
+        ) {
+          for (const declaration of child.declarations) {
+            addDeclaration(scope, declarations, declaration)
+          }
+        }
+        ts.forEachChild(child, collectVarDeclarations)
+      }
+      collectVarDeclarations(node)
+    }
+
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const declaration of declarations) {
+        const owner = resolveOwner(declaration.initializer, scope)
+        if (owner && scope.bindings.get(declaration.name.text) !== owner) {
+          scope.bindings.set(declaration.name.text, owner)
+          changed = true
+        }
+      }
+    }
+
+    const visit = (child) => {
+      if (child !== node && (ts.isBlock(child) || ts.isFunctionLike(child))) {
+        visitScope(child, scope)
+        return
+      }
+      if (ts.isNewExpression(child)) {
+        const owner = resolveOwner(child.expression, scope)
+        if (owner) constructions.set(owner, (constructions.get(owner) ?? 0) + 1)
+      }
+      ts.forEachChild(child, visit)
+    }
+    ts.forEachChild(node, visit)
+  }
+
+  visitScope(sourceFile, null)
+  return constructions
 }
 
-function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
-  const aliases = new Map()
+function findCombinedSessionFacadeDeclarations(sourceFile, importRecords, includeExportedObjects) {
+  const capabilities = new Map()
   for (const record of importRecords) {
-    if (SESSION_APPLICATION_OWNER_NAMES.has(record.importedName)) {
-      aliases.set(record.localName, record.importedName)
-    }
+    const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(record.importedName)
+    if (category) capabilities.set(record.localName, new Set([category]))
   }
 
-  const constDeclarations = []
-  const collectAliases = (node) => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.initializer &&
-      ts.isVariableDeclarationList(node.parent) &&
-      (node.parent.flags & ts.NodeFlags.Const) !== 0
-    ) {
-      constDeclarations.push(node)
+  const typeAliases = []
+  const facades = []
+
+  const categoriesFor = (node) => {
+    if (ts.isUnionTypeNode(node)) {
+      const [first = new Set(), ...rest] = node.types.map(categoriesFor)
+      return new Set([...first].filter((category) => rest.every((set) => set.has(category))))
     }
-    ts.forEachChild(node, collectAliases)
+    if (ts.isIntersectionTypeNode(node)) {
+      return new Set(node.types.flatMap((type) => [...categoriesFor(type)]))
+    }
+    if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
+      return new Set(
+        capabilities.get(node.typeName.text) ??
+          [SESSION_FACADE_CAPABILITY_CATEGORIES.get(node.typeName.text)].filter(Boolean)
+      )
+    }
+    if (ts.isExpressionWithTypeArguments(node) && ts.isIdentifier(node.expression)) {
+      return new Set(
+        capabilities.get(node.expression.text) ??
+          [SESSION_FACADE_CAPABILITY_CATEGORIES.get(node.expression.text)].filter(Boolean)
+      )
+    }
+
+    const categories = new Set()
+    ts.forEachChild(node, (child) => {
+      for (const category of categoriesFor(child)) categories.add(category)
+    })
+    return categories
   }
-  collectAliases(sourceFile)
+
+  const collectTypeAliases = (node) => {
+    if (ts.isTypeAliasDeclaration(node)) typeAliases.push(node)
+    ts.forEachChild(node, collectTypeAliases)
+  }
+  collectTypeAliases(sourceFile)
+  for (const alias of typeAliases) capabilities.set(alias.name.text, new Set())
 
   let changed = true
   while (changed) {
     changed = false
-    for (const declaration of constDeclarations) {
-      const owner = resolveSessionApplicationOwner(declaration.initializer, aliases)
-      if (owner && aliases.get(declaration.name.text) !== owner) {
-        aliases.set(declaration.name.text, owner)
+    for (const alias of typeAliases) {
+      const next = categoriesFor(alias.type)
+      const current = capabilities.get(alias.name.text)
+      if (next.size !== current.size || [...next].some((category) => !current.has(category))) {
+        capabilities.set(alias.name.text, next)
         changed = true
       }
     }
   }
 
-  const constructions = new Map()
-  const visit = (node) => {
-    if (ts.isNewExpression(node)) {
-      const owner = resolveSessionApplicationOwner(node.expression, aliases)
-      if (owner) {
-        constructions.set(owner, (constructions.get(owner) ?? 0) + 1)
-      }
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(sourceFile)
-  return constructions
-}
-
-function findCombinedSessionFacadeDeclarations(sourceFile, importRecords) {
-  const aliases = new Map(
-    importRecords
-      .filter((record) => SESSION_FACADE_CAPABILITY_CATEGORIES.has(record.importedName))
-      .map((record) => [record.localName, record.importedName])
-  )
-  const facades = []
-
-  const capabilityCategories = (nodes) => {
-    const categories = new Set()
-    const visit = (node) => {
-      if (ts.isIdentifier(node)) {
-        const name = aliases.get(node.text) ?? node.text
-        const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(name)
-        if (category) categories.add(category)
-      }
-      ts.forEachChild(node, visit)
-    }
-    for (const node of nodes) visit(node)
-    return categories
+  const propertyCategory = (name) => {
+    const normalized = name.replace(/^session/i, '').toLowerCase()
+    if (normalized === 'agentassignment') return 'assignment'
+    return ['lifecycle', 'turn', 'assignment', 'projection'].includes(normalized)
+      ? normalized
+      : null
   }
 
   const visit = (node) => {
     let name = null
-    let structure = []
+    let categories = new Set()
     if (ts.isInterfaceDeclaration(node)) {
       name = node.name.text
-      structure = [...(node.heritageClauses ?? []), ...node.members]
+      for (const child of [...(node.heritageClauses ?? []), ...node.members]) {
+        for (const category of categoriesFor(child)) categories.add(category)
+      }
     } else if (ts.isTypeAliasDeclaration(node)) {
       name = node.name.text
-      structure = [node.type]
+      categories = capabilities.get(name)
     } else if (ts.isClassDeclaration(node) && node.name) {
       name = node.name.text
-      structure = [...(node.heritageClauses ?? [])]
+      for (const child of node.heritageClauses ?? []) {
+        for (const category of categoriesFor(child)) categories.add(category)
+      }
+    } else if (
+      includeExportedObjects &&
+      ts.isVariableStatement(node) &&
+      node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      for (const declaration of node.declarationList.declarations) {
+        const initializer = declaration.initializer && unwrapExpression(declaration.initializer)
+        if (!ts.isIdentifier(declaration.name) || !initializer || !ts.isObjectLiteralExpression(initializer)) {
+          continue
+        }
+        const objectCategories = new Set(
+          initializer.properties
+            .map((property) => property.name && propertyNameText(property.name))
+            .map((propertyName) => propertyName && propertyCategory(propertyName))
+            .filter(Boolean)
+        )
+        if (objectCategories.size === 4) facades.push(declaration.name.text)
+      }
     }
 
-    if (name && capabilityCategories(structure).size === 4) facades.push(name)
+    if (name && categories.size === 4) facades.push(name)
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
@@ -1259,7 +1376,11 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       }
 
       const combinedFacades = findIdentifierNames(sourceFile, SESSION_COMBINED_FACADE_NAMES)
-      for (const facade of findCombinedSessionFacadeDeclarations(sourceFile, importRecords)) {
+      for (const facade of findCombinedSessionFacadeDeclarations(
+        sourceFile,
+        importRecords,
+        path.resolve(filePath) !== path.resolve(PRESENTER_ROOT_ENTRY)
+      )) {
         combinedFacades.add(facade)
       }
       for (const facade of combinedFacades) {

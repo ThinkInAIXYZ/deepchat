@@ -178,6 +178,11 @@ const SESSION_ROOT_DUPLICATE_CONSTRUCTION_FIXTURE = {
       new SessionDeletionTransaction()
     ]
     export const duplicate = new ChainedTurnOwner()
+    const lifecycle = {}
+    const turn = {}
+    const assignment = {}
+    const projection = {}
+    export const composition = { lifecycle, turn, assignment, projection }
   `
 }
 
@@ -185,6 +190,62 @@ const SESSION_DUPLICATE_CONSTRUCTION_FIXTURES = [
   ...SESSION_OUTSIDE_ROOT_CONSTRUCTION_FIXTURES,
   SESSION_ROOT_DUPLICATE_CONSTRUCTION_FIXTURE
 ]
+
+const SESSION_SCOPED_OWNER_ALIAS_FIXTURES = [
+  {
+    filePath: path.join(
+      SESSION_APPLICATION_ROOT,
+      '__architecture_guard_scoped_let_owner_alias_fixture__.ts'
+    ),
+    rule: '[session-application-duplicate-construction]',
+    expected: 'SessionTurnCoordinator',
+    source: `
+      import { SessionTurnCoordinator as ImportedOwner } from './turnCoordinator'
+      let Local = ImportedOwner
+      export const fixture = new Local()
+    `
+  },
+  {
+    filePath: path.join(
+      SESSION_APPLICATION_ROOT,
+      '__architecture_guard_scoped_var_owner_alias_fixture__.ts'
+    ),
+    rule: '[session-application-duplicate-construction]',
+    expected: 'SessionTurnCoordinator',
+    source: `
+      import { SessionTurnCoordinator as ImportedOwner } from './turnCoordinator'
+      export function fixture() {
+        if (true) {
+          var Local = ImportedOwner
+        }
+        return new Local()
+      }
+    `
+  }
+]
+
+const SESSION_SCOPED_OWNER_SHADOW_FIXTURE = {
+  filePath: path.join(
+    SESSION_APPLICATION_ROOT,
+    '__architecture_guard_scoped_owner_shadow_fixture__.ts'
+  ),
+  source: `
+    import { SessionTurnCoordinator as ImportedOwner } from './turnCoordinator'
+    function rememberCandidate() {
+      const Candidate = ImportedOwner
+      return Candidate
+    }
+    function constructCandidate() {
+      const Candidate = class {}
+      return new Candidate()
+    }
+    function constructExactName() {
+      const SessionTurnCoordinator = class {}
+      return new SessionTurnCoordinator()
+    }
+    export { rememberCandidate, constructCandidate, constructExactName }
+  `
+}
 
 const SESSION_FOREIGN_OWNER_FIXTURES = [
   ['history', './history'],
@@ -278,6 +339,47 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       export interface SessionCapabilityHub extends Lifecycle, Turn, Assignment, Projection {}
     `
   })
+  .concat({
+    filePath: path.join(
+      ROOT,
+      'src/main/presenter/__architecture_guard_combined_type_alias_fixture__.ts'
+    ),
+    rule: '[session-application-combined-facade]',
+    expected: 'SessionCapabilityHub',
+    source: `
+      import type {
+        SessionLifecyclePort as ImportedLifecycle,
+        SessionTurnPort as ImportedTurn,
+        SessionAgentAssignmentPort as ImportedAssignment,
+        SessionProjectionReadPort as ImportedProjection
+      } from './sessionApplication/ports'
+      type L = ImportedLifecycle
+      type T = ImportedTurn
+      type A = ImportedAssignment
+      type P = ImportedProjection
+      export type SessionCapabilityHub = L & T & A & P
+    `
+  })
+  .concat({
+    filePath: path.join(
+      ROOT,
+      'src/main/presenter/__architecture_guard_combined_exported_object_fixture__.ts'
+    ),
+    rule: '[session-application-combined-facade]',
+    expected: 'hub',
+    source: `
+      const lifecycle = {}
+      const turn = {}
+      const assignment = {}
+      const projection = {}
+      export const hub = {
+        sessionLifecycle: lifecycle,
+        sessionTurn: turn,
+        sessionAgentAssignment: assignment,
+        sessionProjection: projection
+      }
+    `
+  })
 
 const SESSION_NARROW_PORT_FIXTURE = {
   filePath: path.join(
@@ -290,12 +392,59 @@ const SESSION_NARROW_PORT_FIXTURE = {
   `
 }
 
+const SESSION_UNION_CAPABILITY_FIXTURE = {
+  filePath: path.join(
+    ROOT,
+    'src/main/presenter/__architecture_guard_union_session_capability_fixture__.ts'
+  ),
+  source: `
+    import type {
+      SessionLifecyclePort as ImportedLifecycle,
+      SessionTurnPort as ImportedTurn,
+      SessionAgentAssignmentPort as ImportedAssignment,
+      SessionProjectionReadPort as ImportedProjection
+    } from './sessionApplication/ports'
+    type L = ImportedLifecycle
+    type T = ImportedTurn
+    type A = ImportedAssignment
+    type P = ImportedProjection
+    export type SessionCapabilityVariant = L | T | A | P
+  `
+}
+
+const SESSION_REMOTE_DEPS_FIXTURE = {
+  filePath: path.join(
+    ROOT,
+    'src/main/presenter/__architecture_guard_remote_session_deps_fixture__.ts'
+  ),
+  source: `
+    interface RemoteSessionLifecyclePort {}
+    interface RemoteSessionTurnPort {}
+    interface RemoteSessionAssignmentPort {}
+    interface RemoteSessionProjectionPort {}
+    export interface RemotePresenterDeps {
+      lifecycle: RemoteSessionLifecyclePort
+      turn: RemoteSessionTurnPort
+      assignment: RemoteSessionAssignmentPort
+      projection: RemoteSessionProjectionPort
+    }
+  `
+}
+
+const SESSION_SAFE_AGGREGATE_FIXTURES = [
+  { ...SESSION_NARROW_PORT_FIXTURE, expected: 'single-capability port' },
+  { ...SESSION_UNION_CAPABILITY_FIXTURE, expected: 'capability union' },
+  { ...SESSION_REMOTE_DEPS_FIXTURE, expected: 'Remote dependency bundle' }
+]
+
 const SESSION_ARCHITECTURE_FIXTURES = [
   ...SESSION_DUPLICATE_CONSTRUCTION_FIXTURES,
+  ...SESSION_SCOPED_OWNER_ALIAS_FIXTURES,
+  SESSION_SCOPED_OWNER_SHADOW_FIXTURE,
   ...SESSION_FOREIGN_OWNER_FIXTURES,
   ...SESSION_WHOLE_DEPENDENCY_FIXTURES,
   ...SESSION_COMBINED_FACADE_FIXTURES,
-  SESSION_NARROW_PORT_FIXTURE
+  ...SESSION_SAFE_AGGREGATE_FIXTURES
 ]
 
 const retiredAgentRuntimeSymbols = [
@@ -706,6 +855,22 @@ describe('architecture guard', () => {
     }
   )
 
+  it.each(SESSION_SCOPED_OWNER_ALIAS_FIXTURES)(
+    'rejects scoped $expected aliases outside the composition root',
+    ({ filePath, rule, expected }) => {
+      const fixtureViolations = sessionViolationsForFile(violations, filePath)
+      expect(fixtureViolations).toHaveLength(1)
+      expect(fixtureViolations[0]).toContain(rule)
+      expect(fixtureViolations[0]).toContain(expected)
+    }
+  )
+
+  it('keeps sibling and exact-name local owner shadows isolated', () => {
+    expect(
+      sessionViolationsForFile(violations, SESSION_SCOPED_OWNER_SHADOW_FIXTURE.filePath)
+    ).toEqual([])
+  })
+
   it.each(SESSION_FOREIGN_OWNER_FIXTURES)(
     'keeps the $expected Phase-1 owner outside session coordinators',
     ({ filePath, rule, expected }) => {
@@ -736,9 +901,12 @@ describe('architecture guard', () => {
     }
   )
 
-  it('allows a single-capability session port', () => {
-    expect(sessionViolationsForFile(violations, SESSION_NARROW_PORT_FIXTURE.filePath)).toEqual([])
-  })
+  it.each(SESSION_SAFE_AGGREGATE_FIXTURES)(
+    'allows $expected',
+    ({ filePath }) => {
+      expect(sessionViolationsForFile(violations, filePath)).toEqual([])
+    }
+  )
 
   it('keeps renderer legacy boundaries enforced without writing source fixtures', () => {
     const fixtureViolations = forFile(violations, SETTINGS_FIXTURE).join('\n')
