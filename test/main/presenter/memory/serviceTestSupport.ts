@@ -45,6 +45,10 @@ export async function flushMicrotasks(cycles = 3): Promise<void> {
 
 type MemoryPresenterRuntimeTestSeams = {
   embedding: {
+    warmVectorStore(
+      agentId: string,
+      embedding: { providerId: string; modelId: string }
+    ): Promise<void>
     warmEmbeddingConnection(
       agentId: string,
       embedding: { providerId: string; modelId: string }

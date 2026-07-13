@@ -365,14 +365,14 @@ unbounded await turns out to be.
       in Settings UI.
 - [x] Fatal errors from `embeddingPipeline.ts` warm/verify work already flow through
       `VectorStoreManager.withStoreLease` into the same quarantine path (no in-process reset);
-      retain this with a focused regression test rather than duplicating classifier logic.
-- [ ] Manager-owned query deadline: `VectorStoreManager.query`/`queryBatch` enforce
+      a focused regression test retains this without duplicating classifier logic.
+- [x] Manager-owned query deadline: `VectorStoreManager.query`/`queryBatch` enforce
       `RECALL_VECTOR_QUERY_TIMEOUT_MS` internally and throw typed
       `VectorStoreQueryTimeoutError`; lease state gains
       `health: 'healthy' | 'suspect' | 'quarantined'` (not reusing `accepting`);
       `RetrievalService` catches the typed error → `storeTimeout` degradation (added to
       `@shared/types/agent-memory`) + FTS fallback.
-- [ ] Post-timeout policy in the manager: grace observation
+- [x] Post-timeout policy in the manager: grace observation
       (`RECALL_VECTOR_QUERY_GRACE_MS = 30_000`) of the same promise; resume requires
       still-suspect + unchanged lease epoch / store generation / embedding identity; grace
       expiry → `quarantined` + `markVectorStoreQuarantined` (never evict/reset in-process).

@@ -703,6 +703,39 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     expect(onMemoryChanged).toHaveBeenCalledWith('a', 'reindex')
   })
 
+  it('routes fatal coverage verification through manager quarantine exactly once', async () => {
+    const repo = createFakeRepository()
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis' })
+    repo.seedLegacyStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: textToVector('').length,
+      embeddingModel: 'p:m'
+    })
+    const store = new FakeVectorStore()
+    vi.spyOn(store, 'listMemoryIds').mockRejectedValue(
+      new Error('INTERNAL Error: database has been invalidated')
+    )
+    const markVectorStoreQuarantined = vi.fn()
+    const resetVectorStore = vi.fn(async () => undefined)
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore,
+      markVectorStoreQuarantined
+    })
+    const runtime = memoryRuntimeForTests(presenter)
+
+    await runtime.embeddingService.warmVectorStore('a', { providerId: 'p', modelId: 'm' })
+
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(1)
+    expect(runtime.vectorStoreService.isQuarantined('a')).toBe(true)
+    expect(resetVectorStore).not.toHaveBeenCalled()
+    await presenter.dispose()
+  })
+
   it('treats a legacy NULL fingerprint as stale and re-embeds it', async () => {
     const repo = createFakeRepository()
     const config: DeepChatAgentConfig = {

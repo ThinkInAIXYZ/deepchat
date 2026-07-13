@@ -34,6 +34,7 @@ export const MEMORY_RETRIEVAL_DEGRADATION_CAUSES = [
   'embeddingTimeout',
   'embeddingError',
   'storeUnusable',
+  'storeTimeout',
   'storeError',
   'revisionChanged',
   'ftsUnavailable',

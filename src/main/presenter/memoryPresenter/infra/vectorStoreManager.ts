@@ -1,6 +1,7 @@
 import logger from '@shared/logger'
 
 import {
+  VectorStoreQueryTimeoutError,
   VectorStoreQuarantineMarkerError,
   type VectorStoreCleanupDisposition
 } from '../domain/types'
@@ -14,6 +15,8 @@ import type {
   VectorStoreRetrievalPort
 } from '../ports'
 import {
+  RECALL_VECTOR_QUERY_GRACE_MS,
+  RECALL_VECTOR_QUERY_TIMEOUT_MS,
   VECTOR_STORE_IDLE_TTL_MS,
   VECTOR_STORE_SOFT_CAP,
   VECTOR_STORE_SWEEP_INTERVAL_MS
@@ -25,6 +28,16 @@ export interface LockedVectorStorePort {
   close(options?: { clearCertificate?: boolean }): Promise<void>
 }
 
+interface VectorStoreSuspectObservation {
+  resumeAllowed: boolean
+  leaseEpoch: number
+  storeGeneration: number
+  configGeneration: number
+  configFingerprint: string | null | undefined
+  logicalIdentity: string | null
+  graceTimer: ReturnType<typeof setTimeout>
+}
+
 interface VectorStoreLeaseState {
   leaseEpoch: number
   storeGeneration: number
@@ -32,12 +45,14 @@ interface VectorStoreLeaseState {
   configFingerprint: string | null | undefined
   logicalIdentity: string | null
   accepting: boolean
-  health: 'healthy' | 'quarantined'
+  health: 'healthy' | 'suspect' | 'quarantined'
   active: number
+  activeQueries: Set<Promise<unknown>>
   openInFlight: number
   lastUsedAt: number
   requiresReset: boolean
   drainWaiters: Set<() => void>
+  suspectObservation: VectorStoreSuspectObservation | null
 }
 
 export interface VectorReadyCertificate {
@@ -162,7 +177,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
 
   private beginConfigIdentityTransition(agentId: string): Promise<void> {
     const state = this.leaseState(agentId)
-    if (state.health === 'quarantined') return Promise.resolve()
+    if (state.health !== 'healthy') return Promise.resolve()
     state.accepting = false
     state.leaseEpoch += 1
     const transitionEpoch = state.leaseEpoch
@@ -171,7 +186,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       .catch(() => undefined)
       .then(async () => {
         await this.waitForLeaseDrain(state)
+        if (state.health !== 'healthy' || state.leaseEpoch !== transitionEpoch) return
         await this.withAgentLock(agentId, async (locked) => {
+          if (state.health !== 'healthy' || state.leaseEpoch !== transitionEpoch) return
           await locked.close({ clearCertificate: true })
         })
       })
@@ -187,7 +204,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   hasReadyCertificate(agentId: string, embedding: MemoryModelRef): boolean {
-    if (this.leaseStates.get(agentId)?.health === 'quarantined') return false
+    const existingState = this.leaseStates.get(agentId)
+    if (existingState && existingState.health !== 'healthy') return false
     const currentEmbedding = this.resolveCurrentEmbedding(agentId)
     if (this.syncConfigIdentity(agentId, currentEmbedding)) {
       void this.beginConfigIdentityTransition(agentId).catch((error) => {
@@ -223,7 +241,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     dimensions: number,
     leaseEpoch?: number
   ): void {
-    if (this.leaseStates.get(agentId)?.health === 'quarantined') return
+    const existingState = this.leaseStates.get(agentId)
+    if (existingState && existingState.health !== 'healthy') return
     const currentEmbedding = this.resolveCurrentEmbedding(agentId)
     if (this.syncConfigIdentity(agentId, currentEmbedding)) {
       void this.beginConfigIdentityTransition(agentId).catch((error) => {
@@ -275,6 +294,14 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.stopped = true
     this.stopResourceSweep()
     for (const [agentId, state] of this.leaseStates) {
+      if (state.health === 'suspect') {
+        this.quarantineAgent(
+          agentId,
+          new Error('[Memory] presenter shutdown while a vector query remained under observation')
+        )
+      }
+    }
+    for (const [agentId, state] of this.leaseStates) {
       state.accepting = false
       state.leaseEpoch += 1
       this.clearReady(agentId)
@@ -293,10 +320,12 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         accepting: true,
         health: 'healthy',
         active: 0,
+        activeQueries: new Set(),
         openInFlight: 0,
         lastUsedAt: Date.now(),
         requiresReset: false,
-        drainWaiters: new Set()
+        drainWaiters: new Set(),
+        suspectObservation: null
       }
       this.leaseStates.set(agentId, state)
     }
@@ -357,20 +386,26 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   async withVectorMutation<T>(agentId: string, task: () => Promise<T>): Promise<T> {
-    if (this.leaseStates.get(agentId)?.health === 'quarantined') {
+    const existingState = this.leaseStates.get(agentId)
+    if (existingState && existingState.health !== 'healthy') {
       throw new VectorStoreLeaseUnavailableError(
-        'quarantined',
-        '[Memory] vector store is quarantined for the remainder of this process'
+        existingState.health === 'quarantined' ? 'quarantined' : 'admission-closed',
+        existingState.health === 'quarantined'
+          ? '[Memory] vector store is quarantined for the remainder of this process'
+          : '[Memory] vector store is under timeout observation'
       )
     }
     const previous = this.vectorMutationLocks.get(agentId) ?? Promise.resolve()
     const run = previous
       .catch(() => undefined)
       .then(() => {
-        if (this.leaseStates.get(agentId)?.health === 'quarantined') {
+        const state = this.leaseStates.get(agentId)
+        if (state && state.health !== 'healthy') {
           throw new VectorStoreLeaseUnavailableError(
-            'quarantined',
-            '[Memory] vector store is quarantined for the remainder of this process'
+            state.health === 'quarantined' ? 'quarantined' : 'admission-closed',
+            state.health === 'quarantined'
+              ? '[Memory] vector store is quarantined for the remainder of this process'
+              : '[Memory] vector store is under timeout observation'
           )
         }
         return task()
@@ -396,10 +431,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     task: (store: IMemoryVectorStore, generation: number) => Promise<T>,
     options: { allowHistoricalIdentity?: boolean } = {}
   ): Promise<T> {
-    if (this.leaseStates.get(agentId)?.health === 'quarantined') {
+    const existingState = this.leaseStates.get(agentId)
+    if (existingState && existingState.health !== 'healthy') {
       throw new VectorStoreLeaseUnavailableError(
-        'quarantined',
-        '[Memory] vector store is quarantined for the remainder of this process'
+        existingState.health === 'quarantined' ? 'quarantined' : 'admission-closed',
+        existingState.health === 'quarantined'
+          ? '[Memory] vector store is quarantined for the remainder of this process'
+          : '[Memory] vector store is under timeout observation'
       )
     }
     while (true) {
@@ -443,6 +481,9 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           const transitionEpoch = state.leaseEpoch
           try {
             await this.waitForLeaseDrain(state)
+            if (state.health !== 'healthy' || state.leaseEpoch !== transitionEpoch) {
+              this.assertLeaseAdmission(state)
+            }
             await this.closeVectorStoreLocked(agentId, true)
           } finally {
             if (
@@ -584,6 +625,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     const state = this.leaseStates.get(agentId)
     if (
       !state ||
+      state.health !== 'healthy' ||
       state.active > 0 ||
       state.openInFlight > 0 ||
       state.lastUsedAt !== expectedLastUsedAt ||
@@ -596,6 +638,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
 
     return this.withAgentLock(agentId, async (locked) => {
       if (
+        state.health !== 'healthy' ||
         state.active > 0 ||
         state.openInFlight > 0 ||
         state.lastUsedAt !== expectedLastUsedAt ||
@@ -612,6 +655,133 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     })
   }
 
+  private runRecallQueryWithDeadline<T>(
+    agentId: string,
+    embedding: MemoryModelRef,
+    dimensions: number,
+    task: (store: IMemoryVectorStore) => Promise<T>
+  ): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let rejectTimeout!: (error: VectorStoreQueryTimeoutError) => void
+    const timeout = new Promise<T>((_resolve, reject) => {
+      rejectTimeout = reject
+    })
+    const lease = this.withStoreLease(agentId, embedding, dimensions, async (store) => {
+      let nativeQuery: Promise<T>
+      try {
+        nativeQuery = task(store)
+      } catch (error) {
+        nativeQuery = Promise.reject(error)
+      }
+      const state = this.leaseState(agentId)
+      state.activeQueries.add(nativeQuery)
+      void nativeQuery.finally(() => state.activeQueries.delete(nativeQuery)).catch(() => undefined)
+      timeoutId = setTimeout(() => {
+        const error = new VectorStoreQueryTimeoutError(agentId, RECALL_VECTOR_QUERY_TIMEOUT_MS)
+        this.markQuerySuspect(agentId, error)
+        rejectTimeout(error)
+      }, RECALL_VECTOR_QUERY_TIMEOUT_MS)
+      if (typeof timeoutId.unref === 'function') timeoutId.unref()
+      return nativeQuery
+    })
+    void lease
+      .finally(() => {
+        if (timeoutId) clearTimeout(timeoutId)
+      })
+      .catch(() => undefined)
+    return Promise.race([lease, timeout])
+  }
+
+  private markQuerySuspect(agentId: string, error: VectorStoreQueryTimeoutError): void {
+    const state = this.leaseState(agentId)
+    if (state.health !== 'healthy') return
+    if (this.stopped) {
+      this.quarantineAgent(agentId, error)
+      logger.error(
+        `[Memory] vector query timed out during shutdown for ${agentId}; cleanup is deferred until restart`
+      )
+      return
+    }
+    const resumeAllowed = state.accepting
+    state.health = 'suspect'
+    state.accepting = false
+    state.leaseEpoch += 1
+    this.clearReady(agentId)
+    const queries = [...state.activeQueries]
+    let observation!: VectorStoreSuspectObservation
+    const graceTimer = setTimeout(() => {
+      if (state.suspectObservation !== observation || state.health !== 'suspect') return
+      this.quarantineAgent(
+        agentId,
+        new Error(
+          `[Memory] vector store query did not settle during ${RECALL_VECTOR_QUERY_GRACE_MS}ms grace period`,
+          { cause: error }
+        )
+      )
+      logger.error(
+        `[Memory] vector query grace expired for ${agentId}; vector recall is disabled until restart`
+      )
+    }, RECALL_VECTOR_QUERY_GRACE_MS)
+    if (typeof graceTimer.unref === 'function') graceTimer.unref()
+    observation = {
+      resumeAllowed,
+      leaseEpoch: state.leaseEpoch,
+      storeGeneration: state.storeGeneration,
+      configGeneration: state.configGeneration,
+      configFingerprint: state.configFingerprint,
+      logicalIdentity: state.logicalIdentity,
+      graceTimer
+    }
+    state.suspectObservation = observation
+    logger.warn(
+      `[Memory] vector query timed out for ${agentId}; pausing vector admission during grace observation`
+    )
+    void Promise.allSettled(queries)
+      .then((results) => this.finishQueryGraceObservation(agentId, observation, results))
+      .catch((observationError) => {
+        logger.error(
+          `[Memory] vector query grace observation failed for ${agentId}: ${String(observationError)}`
+        )
+      })
+  }
+
+  private async finishQueryGraceObservation(
+    agentId: string,
+    observation: VectorStoreSuspectObservation,
+    results: PromiseSettledResult<unknown>[]
+  ): Promise<void> {
+    const state = this.leaseStates.get(agentId)
+    if (!state || state.health !== 'suspect' || state.suspectObservation !== observation) return
+    const fatal = results.find(
+      (result): result is PromiseRejectedResult =>
+        result.status === 'rejected' && isDuckDbFatalError(result.reason)
+    )
+    if (fatal) {
+      this.quarantineAgent(agentId, fatal.reason)
+      return
+    }
+    const transition = this.identityTransitions.get(agentId)
+    if (transition) await Promise.allSettled([transition])
+    if (
+      state.health !== 'suspect' ||
+      state.suspectObservation !== observation ||
+      !observation.resumeAllowed ||
+      state.leaseEpoch !== observation.leaseEpoch ||
+      state.storeGeneration !== observation.storeGeneration ||
+      state.configGeneration !== observation.configGeneration ||
+      state.configFingerprint !== observation.configFingerprint ||
+      state.logicalIdentity !== observation.logicalIdentity ||
+      this.identityTransitions.has(agentId)
+    ) {
+      return
+    }
+    clearTimeout(observation.graceTimer)
+    state.suspectObservation = null
+    state.health = 'healthy'
+    state.accepting = !this.stopped
+    logger.info(`[Memory] vector query grace settled for ${agentId}; vector admission resumed`)
+  }
+
   query(
     agentId: string,
     embedding: MemoryModelRef,
@@ -619,7 +789,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     vector: number[],
     topK: number
   ): Promise<MemoryVectorMatch[]> {
-    return this.withStoreLease(agentId, embedding, dimensions, async (store) => {
+    return this.runRecallQueryWithDeadline(agentId, embedding, dimensions, async (store) => {
       if (!store.isUsable()) {
         this.clearReady(agentId)
         return []
@@ -636,7 +806,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     topK: number
   ): Promise<MemoryVectorMatch[][]> {
     if (!vectors.length) return Promise.resolve([])
-    return this.withStoreLease(agentId, embedding, dimensions, async (store) => {
+    return this.runRecallQueryWithDeadline(agentId, embedding, dimensions, async (store) => {
       if (!store.isUsable()) {
         this.clearReady(agentId)
         return vectors.map(() => [])
@@ -689,6 +859,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   private quarantineAgent(agentId: string, error: unknown): void {
     const state = this.leaseState(agentId)
     const firstQuarantine = state.health !== 'quarantined'
+    if (state.suspectObservation) clearTimeout(state.suspectObservation.graceTimer)
+    state.suspectObservation = null
     state.health = 'quarantined'
     state.accepting = false
     state.leaseEpoch += 1
@@ -701,6 +873,8 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.vectorStoreLocks.delete(agentId)
     this.vectorMutationLocks.delete(agentId)
     this.clearReady(agentId)
+    for (const resolve of state.drainWaiters) resolve()
+    state.drainWaiters.clear()
     if (!firstQuarantine) return
     try {
       this.ports.vectorStoreFactory.markVectorStoreQuarantined(agentId)
@@ -720,6 +894,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   private deferQuarantinedCleanup(agentId: string): VectorStoreCleanupDisposition | null {
+    const state = this.leaseStates.get(agentId)
+    if (state?.health === 'suspect') {
+      this.quarantineAgent(
+        agentId,
+        new Error('[Memory] vector cleanup requested while a query remained under observation')
+      )
+    }
     if (this.leaseStates.get(agentId)?.health !== 'quarantined') return null
     this.persistQuarantineMarker(agentId)
     return 'pending-restart'
@@ -950,6 +1131,12 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   async settleAgent(agentId: string): Promise<void> {
+    if (this.leaseStates.get(agentId)?.health === 'suspect') {
+      this.quarantineAgent(
+        agentId,
+        new Error('[Memory] agent settlement while a vector query remained under observation')
+      )
+    }
     if (this.leaseStates.get(agentId)?.health === 'quarantined') {
       this.identityTransitions.delete(agentId)
       this.vectorStoreLocks.delete(agentId)

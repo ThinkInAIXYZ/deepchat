@@ -39,6 +39,7 @@ import {
   type MemorySearchHit,
   type NormalizedMemoryCandidate
 } from '../types'
+import { VectorStoreQueryTimeoutError } from '../domain/types'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type {
   MemoryAccessRepositoryPort,
@@ -317,7 +318,11 @@ export class RetrievalService {
                 this.ports.vectorStore.clearReady(agentId)
               }
               degradations.add(
-                errorName === 'VectorStoreLeaseUnavailableError' ? 'storeUnusable' : 'storeError'
+                error instanceof VectorStoreQueryTimeoutError
+                  ? 'storeTimeout'
+                  : errorName === 'VectorStoreLeaseUnavailableError'
+                    ? 'storeUnusable'
+                    : 'storeError'
               )
               logger.warn(`[Memory] batch vector recall degraded to FTS: ${String(error)}`)
             }
@@ -684,11 +689,13 @@ export class RetrievalService {
               this.ports.vectorStore.clearReady(agentId)
             }
             degradations.add(
-              errorName === 'VectorStoreLeaseUnavailableError'
-                ? 'storeUnusable'
-                : activeStage === 'queryEmbedding'
-                  ? 'embeddingError'
-                  : 'storeError'
+              error instanceof VectorStoreQueryTimeoutError
+                ? 'storeTimeout'
+                : errorName === 'VectorStoreLeaseUnavailableError'
+                  ? 'storeUnusable'
+                  : activeStage === 'queryEmbedding'
+                    ? 'embeddingError'
+                    : 'storeError'
             )
             logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
           }
