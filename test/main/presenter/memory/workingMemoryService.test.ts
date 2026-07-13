@@ -491,6 +491,35 @@ describe('working-memory L1 (T5)', () => {
     )
   })
 
+  it('removes the working row when candidates disappear after a rejected content CAS', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact one',
+      importance: 0.9
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    repo.insert({
+      id: 's2',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact two',
+      importance: 0.8
+    })
+    const updateSpy = vi.spyOn(repo, 'updateInternalContent').mockImplementationOnce(() => {
+      repo.delete('s1')
+      repo.delete('s2')
+      return false
+    })
+
+    presenter.refreshWorkingMemory('deepchat')
+
+    expect(updateSpy).toHaveBeenCalledTimes(1)
+    expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(false)
+  })
+
   it('lazy re-keys a legacy working row without bumping its decision revision', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const legacyKey = buildLegacyMemoryProvenanceKey('deepchat', 'working', WORKING_PROVENANCE_SEED)

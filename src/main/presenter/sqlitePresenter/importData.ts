@@ -174,6 +174,11 @@ export class DataImporter {
       targetColumnNames.has('lifecycle_state') &&
       targetColumnNames.has('embedding_state')
     if (normalizeAgentMemoryState) {
+      if (!targetColumnNames.has('status')) {
+        throw new Error(
+          'Unsupported target agent_memory schema: canonical state requires legacy status shadow'
+        )
+      }
       if (!targetColumnNamesInInsert.includes('status')) {
         targetColumnNamesInInsert.push('status')
       }

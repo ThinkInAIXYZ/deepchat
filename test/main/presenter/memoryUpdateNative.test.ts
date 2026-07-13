@@ -5,6 +5,8 @@ import { expect, it, vi } from 'vitest'
 
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import { buildMemoryProvenanceKey } from '@/presenter/memoryPresenter/core/scoring'
+import type { AgentMemoryInsertInput } from '@/presenter/memoryPresenter/domain/types'
+import type { ConflictService } from '@/presenter/memoryPresenter/services/conflictService'
 import { createFakeRepository, FakeVectorStore } from './fakes/memoryFakes'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
@@ -20,6 +22,29 @@ const describeIfNative = nativeSqliteDescribeIf(
 )
 
 describeIfNative('Memory update SQLite integration', () => {
+  it('rejects partial canonical insert state in fake and SQLite repositories', () => {
+    const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-insert-state-'))
+    const sqlite = new SQLitePresenterCtor(join(directory, 'agent.db'))
+    const fake = createFakeRepository()
+    const partialInput = {
+      id: 'partial-canonical',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'partial canonical input',
+      lifecycleState: 'active'
+    } as unknown as AgentMemoryInsertInput
+    try {
+      for (const repository of [sqlite.agentMemoryTable, fake]) {
+        expect(() => repository.insert(partialInput)).toThrow(
+          'Memory inserts must provide both canonical state fields or neither'
+        )
+      }
+    } finally {
+      sqlite.close()
+      actualFs.rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('keeps fake and SQLite archive transition guards in parity', () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-transition-parity-'))
     const sqlite = new SQLitePresenterCtor(join(directory, 'agent.db'))
@@ -131,6 +156,107 @@ describeIfNative('Memory update SQLite integration', () => {
           eventType: 'memory/manual_edit'
         })
       ).toHaveLength(2)
+    } finally {
+      await presenter.dispose()
+      sqlite.close()
+      actualFs.rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rolls back a merged challenger when its provenance key is already owned', async () => {
+    const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-conflict-'))
+    const sqlite = new SQLitePresenterCtor(join(directory, 'agent.db'))
+    const onMemoryChanged = vi.fn()
+    const getEmbeddings = vi.fn(async () => [])
+    const presenter = new MemoryPresenter({
+      repository: sqlite.agentMemoryTable,
+      auditRepository: sqlite.agentMemoryAuditTable,
+      resolveAgentConfig: () => ({ memoryEnabled: true }),
+      onMemoryChanged,
+      executeWithRateLimit: async () => undefined,
+      getEmbeddings,
+      getDimensions: async () => ({ data: { dimensions: 4, normalized: false } }),
+      generateText: async () => '',
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+
+    try {
+      const mergedContent = 'occupied merged memory'
+      sqlite.agentMemoryTable.insert({
+        id: 'target',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'target memory'
+      })
+      sqlite.agentMemoryTable.insert({
+        id: 'challenger',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'challenger memory',
+        lifecycleState: 'conflicted',
+        embeddingState: 'pending',
+        conflictWith: 'target'
+      })
+      sqlite.agentMemoryTable.insert({
+        id: 'provenance-owner',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: mergedContent,
+        provenanceKey: buildMemoryProvenanceKey('deepchat', 'semantic', mergedContent)
+      })
+      expect(
+        sqlite.agentMemoryTable.markConflictIfRevision('deepchat', 'target', 1, 'challenger')
+      ).toBe(true)
+
+      const targetBefore = { ...sqlite.agentMemoryTable.getById('target')! }
+      const challengerBefore = { ...sqlite.agentMemoryTable.getById('challenger')! }
+      const ftsGenerationBefore = sqlite
+        .getDatabase()
+        .prepare(
+          `SELECT mutation_generation, indexed_generation
+           FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+        )
+        .get()
+      const searchBefore = sqlite.agentMemoryTable
+        .search('deepchat', 'occupied')
+        .map((row) => row.id)
+      const conflictService = (
+        presenter as unknown as { conflict: Pick<ConflictService, 'resolveConflict'> }
+      ).conflict
+
+      await expect(
+        conflictService.resolveConflict(
+          'deepchat',
+          'challenger',
+          'keep_challenger',
+          'scheduler',
+          null,
+          { mergedContent }
+        )
+      ).resolves.toBe(false)
+
+      expect(sqlite.agentMemoryTable.getById('target')).toEqual(targetBefore)
+      expect(sqlite.agentMemoryTable.getById('challenger')).toEqual(challengerBefore)
+      expect(
+        sqlite
+          .getDatabase()
+          .prepare(
+            `SELECT mutation_generation, indexed_generation
+             FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+          )
+          .get()
+      ).toEqual(ftsGenerationBefore)
+      expect(sqlite.agentMemoryTable.search('deepchat', 'occupied').map((row) => row.id)).toEqual(
+        searchBefore
+      )
+      expect(
+        sqlite.agentMemoryAuditTable.listByAgent('deepchat', {
+          eventType: 'memory/challenge_resolved'
+        })
+      ).toHaveLength(0)
+      expect(onMemoryChanged).not.toHaveBeenCalled()
+      expect(getEmbeddings).not.toHaveBeenCalled()
     } finally {
       await presenter.dispose()
       sqlite.close()

@@ -82,6 +82,9 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
   transactionCalls = 0
 
   insert(input: AgentMemoryInsertInput): AgentMemoryRow {
+    if ((input.lifecycleState === undefined) !== (input.embeddingState === undefined)) {
+      throw new Error('Memory inserts must provide both canonical state fields or neither')
+    }
     if (input.provenanceKey) {
       for (const row of this.rows.values()) {
         if (row.agent_id === input.agentId && row.provenance_key === input.provenanceKey) {

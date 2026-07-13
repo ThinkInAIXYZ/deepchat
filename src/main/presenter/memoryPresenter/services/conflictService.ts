@@ -17,7 +17,7 @@ import type {
   MemoryConflictResolution,
   MemoryMaintenanceStepResult
 } from '../types'
-import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type {
   MemoryEmbeddingRepositoryPort,
   MemoryLifecycleRepositoryPort,
@@ -142,7 +142,9 @@ export class ConflictService {
         this.applyConflictResolution(agentId, pair, outcome, options)
       })
     } catch (error) {
-      if (error instanceof ConflictTransitionRejectedError) return false
+      if (error instanceof ConflictTransitionRejectedError || isUniqueConstraintError(error)) {
+        return false
+      }
       throw error
     }
     this.ctx.markDomainMutationCommitted(agentId)

@@ -553,6 +553,62 @@ describeIfNative('Memory native SQLite migration', () => {
     }
   })
 
+  it('rejects a canonical import target without the required legacy status shadow', async () => {
+    const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-import-schema-'))
+    const sourcePath = join(directory, 'source.db')
+    const targetPath = join(directory, 'target.db')
+    try {
+      const source = new DatabaseCtor(sourcePath)
+      source.exec(`
+        CREATE TABLE aaa_probe (id TEXT PRIMARY KEY);
+        INSERT INTO aaa_probe (id) VALUES ('must-roll-back');
+        CREATE TABLE agent_memory (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          content TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        INSERT INTO agent_memory (id, agent_id, kind, content, status, created_at)
+        VALUES ('memory', 'a', 'semantic', 'memory content', 'pending_embedding', 1);
+      `)
+      source.close()
+
+      const target = new DatabaseCtor(targetPath)
+      target.exec(`
+        CREATE TABLE aaa_probe (id TEXT PRIMARY KEY);
+        CREATE TABLE agent_memory (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          content TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          lifecycle_state TEXT NOT NULL DEFAULT 'active',
+          embedding_state TEXT NOT NULL DEFAULT 'pending'
+        );
+      `)
+      target.close()
+
+      const importer = new DataImporterCtor(sourcePath, targetPath)
+      await expect(importer.importData()).rejects.toThrow(
+        /Unsupported target agent_memory schema: canonical state requires legacy status shadow/
+      )
+      importer.close()
+
+      const reopened = new DatabaseCtor(targetPath)
+      expect(reopened.prepare('SELECT COUNT(*) AS count FROM aaa_probe').get()).toEqual({
+        count: 0
+      })
+      expect(reopened.prepare('SELECT COUNT(*) AS count FROM agent_memory').get()).toEqual({
+        count: 0
+      })
+      reopened.close()
+    } finally {
+      actualFs.rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   for (const version of [34, 37, 38, 40, 41]) {
     it(`migrates schema version ${version} through v41 to v42 and preserves legacy rows`, () => {
       withTemporaryDatabase((databasePath) => {

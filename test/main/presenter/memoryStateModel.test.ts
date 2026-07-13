@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
   assertValidMemoryTransition,
@@ -7,7 +7,10 @@ import {
   isRecallableMemoryState,
   projectLegacyStatus
 } from '@/presenter/memoryPresenter/domain/stateModel'
-import type { AgentMemoryStatus } from '@/presenter/memoryPresenter/domain/types'
+import type {
+  AgentMemoryInsertInput,
+  AgentMemoryStatus
+} from '@/presenter/memoryPresenter/domain/types'
 import type { MemoryTransitionSnapshot } from '@/presenter/memoryPresenter/domain/stateModel'
 
 const LEGACY_STATUSES: AgentMemoryStatus[] = [
@@ -35,6 +38,37 @@ function transitionSnapshot(
 }
 
 describe('memory canonical state model', () => {
+  it('requires canonical insert axes to be provided together', () => {
+    expectTypeOf<{
+      id: 'legacy'
+      agentId: 'a'
+      kind: 'semantic'
+      content: 'legacy input'
+    }>().toMatchTypeOf<AgentMemoryInsertInput>()
+    expectTypeOf<{
+      id: 'canonical'
+      agentId: 'a'
+      kind: 'semantic'
+      content: 'canonical input'
+      lifecycleState: 'active'
+      embeddingState: 'pending'
+    }>().toMatchTypeOf<AgentMemoryInsertInput>()
+    expectTypeOf<{
+      id: 'partial-lifecycle'
+      agentId: 'a'
+      kind: 'semantic'
+      content: 'partial input'
+      lifecycleState: 'active'
+    }>().not.toMatchTypeOf<AgentMemoryInsertInput>()
+    expectTypeOf<{
+      id: 'partial-embedding'
+      agentId: 'a'
+      kind: 'semantic'
+      content: 'partial input'
+      embeddingState: 'pending'
+    }>().not.toMatchTypeOf<AgentMemoryInsertInput>()
+  })
+
   it('derives and projects the complete legacy status matrix', () => {
     for (const status of LEGACY_STATUSES) {
       for (const kind of ['semantic', 'persona', 'working'] as const) {

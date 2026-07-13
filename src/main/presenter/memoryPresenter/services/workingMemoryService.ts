@@ -171,6 +171,13 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
         }
         existing = this.resolveWorkingRow(agentId)
         blob = this.buildWorkingBlob(agentId)
+        if (!blob) {
+          if (existing) {
+            this.ports.repository.delete(existing.id)
+            this.ctx.markDomainMutationCommitted(agentId)
+          }
+          return
+        }
       }
       if (existing) {
         this.workingMemoryDirty.add(agentId)
@@ -178,7 +185,6 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
         logger.warn(`[Memory] working refresh CAS rejected twice for ${agentId}; retry scheduled`)
         return
       }
-      if (!blob) return
     }
     const now = Date.now()
     try {

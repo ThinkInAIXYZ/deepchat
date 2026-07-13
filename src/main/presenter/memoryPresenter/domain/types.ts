@@ -135,7 +135,17 @@ export type AgentMemoryLifecycleRow = Pick<
   | 'conflict_state'
 >
 
-export interface AgentMemoryInsertInput {
+type AgentMemoryCanonicalInsertState =
+  | {
+      lifecycleState: AgentMemoryLifecycleState
+      embeddingState: AgentMemoryEmbeddingState
+    }
+  | {
+      lifecycleState?: never
+      embeddingState?: never
+    }
+
+export type AgentMemoryInsertInput = {
   id: string
   agentId: string
   kind: AgentMemoryKind
@@ -143,8 +153,6 @@ export interface AgentMemoryInsertInput {
   content: string
   importance?: number
   status?: AgentMemoryStatus
-  lifecycleState?: AgentMemoryLifecycleState
-  embeddingState?: AgentMemoryEmbeddingState
   userScope?: string | null
   sourceSession?: string | null
   provenanceKey?: string | null
@@ -153,7 +161,7 @@ export interface AgentMemoryInsertInput {
   sourceEntryIds?: number[] | null
   conflictWith?: string | null
   personaState?: AgentMemoryPersonaState | null
-}
+} & AgentMemoryCanonicalInsertState
 
 export interface AgentMemoryListOptions {
   kinds?: AgentMemoryKind[]

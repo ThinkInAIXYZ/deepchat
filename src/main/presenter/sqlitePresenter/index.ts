@@ -386,6 +386,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   private createDatabaseBackup(reason?: string): string | null {
+    // Bypass mocked node:fs so recovery always copies the real database file.
     const nativeFs = process.getBuiltinModule('fs')
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const suffix = reason ? `.${reason}.bak` : '.bak'

@@ -36,7 +36,8 @@ if (configFile.error) {
   )
   const rootNames = [
     ...scopedTests.map((path) => join(rootDir, path)),
-    join(rootDir, 'test/main/presenter/fakes/memoryFakes.ts')
+    join(rootDir, 'test/main/presenter/fakes/memoryFakes.ts'),
+    join(rootDir, 'test/main/presenter/fakes/memoryPresenterTestAdapter.ts')
   ]
   const rootNameSet = new Set(rootNames.map((path) => resolve(path)))
   const program = ts.createProgram({ rootNames: [...new Set(rootNames)], options: parsed.options })

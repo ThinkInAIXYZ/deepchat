@@ -469,6 +469,57 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     expect(repo.getById(targetId)?.status).toBe('archived')
   })
 
+  it('continues challenge resolution after a merged challenger hits provenance uniqueness', async () => {
+    const mergedContent = 'occupied merged memory'
+    const generateText = routedLLM({
+      decision: [
+        `{"decision":"UPDATE","targetIndex":0,"mergedContent":"${mergedContent}"}`,
+        '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+      ]
+    })
+    const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+    const firstTargetId = await seedEmbedded(presenter, 'first target memory')
+    const secondTargetId = await seedEmbedded(presenter, 'second target memory')
+    seedConflicted(repo, 'c1', firstTargetId, 'first challenger memory')
+    seedConflicted(repo, 'c2', secondTargetId, 'second challenger memory')
+    repo.insert({
+      id: 'provenance-owner',
+      agentId: 'a',
+      kind: 'semantic',
+      content: mergedContent,
+      provenanceKey: buildMemoryProvenanceKey('a', 'semantic', mergedContent)
+    })
+    const activateResolvedChallenger = repo.activateResolvedChallenger.bind(repo)
+    vi.spyOn(repo, 'activateResolvedChallenger').mockImplementation((input) => {
+      if (input.id === 'c1' && input.provenanceKey) {
+        throw new Error('UNIQUE constraint failed: agent_memory.agent_id, provenance_key')
+      }
+      return activateResolvedChallenger(input)
+    })
+
+    const result = await memoryRuntimeForTests(
+      presenter
+    ).conflictService.runChallengeResolutionPass('a', {
+      providerId: 'main',
+      modelId: 'main'
+    })
+
+    expect(result).toEqual({ touched: true, calls: 2, failures: 0 })
+    expect(repo.getById('c1')).toMatchObject({
+      lifecycle_state: 'conflicted',
+      conflict_with: firstTargetId,
+      decision_revision: 1
+    })
+    expect(repo.getById(firstTargetId)?.conflict_state).toBe('challenged')
+    expect(repo.getById('c2')).toMatchObject({
+      lifecycle_state: 'archived',
+      conflict_with: null,
+      superseded_by: secondTargetId
+    })
+    expect(repo.getById(secondTargetId)?.conflict_state).toBeNull()
+    expect(auditRepo.listByAgent('a', { eventType: 'memory/challenge_resolved' })).toHaveLength(1)
+  })
+
   it('does not mark the target challenged when the challenger insert races and fails', async () => {
     const generateText = routedLLM({
       extraction: '[{"kind":"semantic","content":"user dislikes redis","importance":0.8}]',

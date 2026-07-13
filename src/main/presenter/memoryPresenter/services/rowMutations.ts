@@ -18,6 +18,7 @@ import type {
   ManualEditFieldFlags,
   ProvenanceHitResult
 } from '../domain/types'
+import { isEmbeddingEligibleState } from '../domain/stateModel'
 import { isUniqueConstraintError } from '../context'
 import type {
   MemoryAuditReadPort,
@@ -100,15 +101,7 @@ export class MemoryRowMutations {
   }
 
   isPendingEmbeddableRow(agentId: string, row: AgentMemoryRow | undefined): boolean {
-    return (
-      !!row &&
-      row.agent_id === agentId &&
-      row.lifecycle_state === 'active' &&
-      row.embedding_state === 'pending' &&
-      !row.superseded_by &&
-      row.kind !== 'persona' &&
-      row.kind !== 'working'
-    )
+    return !!row && row.agent_id === agentId && isEmbeddingEligibleState(row)
   }
 
   insertMemory(
