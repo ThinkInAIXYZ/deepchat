@@ -408,6 +408,70 @@ where scope, portable Memory, native rebuild/smoke/storage, retrieval eval and p
 build-check for that head also passed. This slice does not regenerate the architecture baseline; final baseline
 regeneration remains assigned to `ASLR-092`.
 
+### ASLR-092 final close-out record
+
+Final validation ran on 2026-07-13 from `1e79ddc017a0e71d851f50d536b0ac59b5881105`, with
+`origin/dev` verified as an ancestor. The canonical `pnpm run architecture:baseline` write produced the
+schema-version-2 agent baseline from a clean relevant working tree:
+
+- all 24 expected current-owner and retained-boundary files exist;
+- all 14 owner declarations exist exactly once;
+- the 3 retired paths and 9 retired symbols/runtime-kind patterns have zero production matches;
+- all DeepChat loop forbidden-import metrics are zero for Presenter, SQLite, Electron, routes and ACP;
+- all eight refreshed report artifacts are included:
+  `agent-system-layered-runtime-baseline.json`, `archive-reference-report.md`,
+  `dependency-report.md`, `main-kernel-boundary-baseline.md`,
+  `main-kernel-bridge-register.md`, `main-kernel-migration-scoreboard.json`,
+  `main-kernel-migration-scoreboard.md` and `zero-inbound-candidates.md`.
+  The tracked `main-kernel-bridge-register.json` was also regenerated and remained byte-identical.
+
+Contract and storage comparison:
+
+- from the Phase 9 pre-Memory endpoint `c600f51b2` through the final implementation head, the route tree
+  remains Git object `1ac2dbd3c0aa3f91ab8a86ddf56bb3f52bea9b95`, the event tree remains
+  `3a62c4fa3a29e9883b39848ce26d2764360b79d5`, the SQLite tables tree remains
+  `98e855ee04a5a362d4b62b76ef160b2fb51851d3`, and the DuckDB sidecar remains
+  `cd2c68de92681b57c0075eca4aedc69750dae917`;
+- `origin/dev...HEAD` has no route/event diff. Its only SQLite-table source diff exports the existing
+  `AgentCreateInput` and `AgentUpdateInput` TypeScript types; it changes no SQL, table identifier, migration or
+  stored row shape;
+- `DEEPCHAT_MEMORY_INGESTION_PROJECTION_VERSION` remains `1`;
+- the schema-version-2 aggregate hashes are
+  `38ab13b229502d09977b531d58ba33498f80b01e63656ea00b451e20fb33f594` for 59 route/event
+  contract files, `eb97de4264ffe061beaaaa7870051c8a808b81a056221de1f552e0c14f123e7f` for
+  42 SQLite schema files and 51 table identifiers, and
+  `56d7d6a66e770ff389431935b67505199a7b8c01abc2fdf7be20f98bde8cf0c6` for the Memory
+  DuckDB sidecar. The old schema-version-1 JSON captured `8548b89a3`, before the latest `dev` baseline; its
+  aggregate hashes are not used as the migration diff. The Git object comparisons above prove the scoped
+  no-schema/no-wire result.
+
+Final gates:
+
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`,
+  `pnpm run lint:architecture`, `pnpm run lint:agent-cleanup` and `git diff --check`: pass;
+- architecture baseline/guard tests: 2 files, 24 tests passed;
+- `pnpm run test:memory:scope`: 56 classified, 4 exempt, pass;
+- `pnpm run test:memory`: 43 files, 601 tests passed;
+- `pnpm run test:memory:eval`: 1 file, 7 tests passed; hybrid Recall@5 `1.0`, MRR@10 `0.95`,
+  nDCG@10 `0.9630929753571458`;
+- `pnpm run test:main:memory-perf`: 6 files, 12 tests passed;
+- native SQLite smoke plus the required native Memory suite: 6 files, 151 tests passed after the repository CI
+  command rebuilt the installed binding for local Node ABI 137; no lockfile or dependency manifest changed;
+- `pnpm run test:main -- --run`: 354 files, 3856 tests passed;
+- `pnpm run test:renderer -- --run`: 165 files, 1244 tests passed;
+- `pnpm run build`: pass. Its required prebuild refresh updated the tracked provider database, ACP registry and
+  generated icon collection/whitelist, which are included as expected repository maintenance;
+- `pnpm run e2e:smoke:ci`: 2 tests passed; a separate no-retry launch run passed 1 test; the credential-free
+  `09-main-ipc-boundary`, `17-acp-readonly-route` and `26-deepchat-agent-crud` run passed 3 tests.
+  Credential-required `02-chat-basic` and `03-session-persistence` were not configured and were not run.
+
+The first local E2E attempt exposed an environment transition and a real diagnostic weakness: the native
+SQLite binding was still on Node ABI 137 while Electron 40 required ABI 143, and the startup alert caused
+`electronApp.close()` to hide the 60-second main-window failure behind the 300-second test timeout. The binding
+was explicitly rebuilt for Electron with the installed `@electron/rebuild`, after which all required E2E runs
+passed. The shared Electron fixture now bounds graceful close to 10 seconds and force-kills the child before a
+final bounded settle, so future startup failures retain their original cause.
+
 ### Phase 3 composition order
 
 The mechanical owner moves retain the existing lifecycle ordering:

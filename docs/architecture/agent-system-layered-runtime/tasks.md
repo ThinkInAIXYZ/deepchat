@@ -1,6 +1,7 @@
 # Agent System Layered Runtime — Tasks
 
-> 状态：implementation in progress；ASLR-000..034、ASLR-040..046、ASLR-050..057、ASLR-059..062、ASLR-070..073、ASLR-080..081、ASLR-090..091 completed；ASLR-092 final validation pending。
+> 状态：implementation complete；`ASLR-000..092` 全部完成。最终验证记录见
+> [migration-and-validation.md](./migration-and-validation.md#aslr-092-final-close-out-record)。
 > 每个 task 是最小可独立验证的 delivery slice。任务只在依赖全部完成后进入 `ready`。
 
 ## Documentation baseline
@@ -127,7 +128,7 @@
   Depends on: `ASLR-062`, `ASLR-073`, `ASLR-081`.
 - [x] `ASLR-091` Update current architecture/flow/tool/session docs and architecture guards.
   Depends on: `ASLR-090`.
-- [ ] `ASLR-092` Run full validation, regenerate final architecture baseline and close the goal.
+- [x] `ASLR-092` Run full validation, regenerate final architecture baseline and close the goal.
   Depends on: `ASLR-091`.
 
 ## Task file rule for implementation

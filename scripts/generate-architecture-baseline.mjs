@@ -1237,6 +1237,10 @@ function renderBridgeRegisterReport(register, bridgeSummary) {
   return lines.join('\n')
 }
 
+function withFinalNewline(content) {
+  return `${content.trimEnd()}\n`
+}
+
 export function assertBaselineOutputSafety(outputDir, relevantDirtyFiles) {
   if (
     path.resolve(outputDir) === path.resolve(REPORT_DIR) &&
@@ -1442,19 +1446,19 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     ),
     fs.writeFile(
       path.join(outputDir, 'dependency-report.md'),
-      `${renderDependencyReport(scopes)}\n`
+      withFinalNewline(renderDependencyReport(scopes))
     ),
     fs.writeFile(
       path.join(outputDir, 'zero-inbound-candidates.md'),
-      `${renderZeroInboundReport(scopes)}\n`
+      withFinalNewline(renderZeroInboundReport(scopes))
     ),
     fs.writeFile(
       path.join(outputDir, 'archive-reference-report.md'),
-      `${renderArchiveReferenceReport(archiveReferences)}\n`
+      withFinalNewline(renderArchiveReferenceReport(archiveReferences))
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-boundary-baseline.md'),
-      `${renderBoundaryBaselineReport({
+      withFinalNewline(renderBoundaryBaselineReport({
         currentPhase: bridgeRegister.currentPhase,
         metrics,
         rendererLegacySplit,
@@ -1466,15 +1470,15 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
         rawTimerSummary,
         migratedRawChannelSummary,
         hotPathEdges
-      })}\n`
+      }))
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-migration-scoreboard.md'),
-      `${renderMigrationScoreboardReport({
+      withFinalNewline(renderMigrationScoreboardReport({
         currentPhase: bridgeRegister.currentPhase,
         metrics,
         phaseGates
-      })}\n`
+      }))
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-migration-scoreboard.json'),
@@ -1482,7 +1486,7 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-bridge-register.md'),
-      `${renderBridgeRegisterReport(bridgeRegister, bridgeSummary)}\n`
+      withFinalNewline(renderBridgeRegisterReport(bridgeRegister, bridgeSummary))
     )
   ])
 

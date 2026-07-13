@@ -35,6 +35,7 @@ const WINDOWS_PACKAGED_EXECUTABLE = resolve(
   'DeepChat.exe'
 )
 const MAX_MAIN_LOG_ATTACHMENT_BYTES = 512 * 1024
+const APP_CLOSE_TIMEOUT_MS = 10_000
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -306,7 +307,19 @@ export const test = base.extend<ElectronFixtures>({
 
           closed = true
           launchedApps.delete(app)
-          await electronApp.close().catch(() => undefined)
+          const closePromise = electronApp.close()
+          const closedGracefully = await Promise.race([
+            closePromise.then(
+              () => true,
+              () => false
+            ),
+            delay(APP_CLOSE_TIMEOUT_MS).then(() => false)
+          ])
+
+          if (!closedGracefully) {
+            electronApp.process().kill('SIGKILL')
+            await Promise.race([closePromise.catch(() => undefined), delay(1_000)])
+          }
         }
       }
 

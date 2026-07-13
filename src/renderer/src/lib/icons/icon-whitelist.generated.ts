@@ -230,6 +230,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'type',
     'undo-2',
     'unlink',
+    'unplug',
     'upload',
     'user',
     'user-key',

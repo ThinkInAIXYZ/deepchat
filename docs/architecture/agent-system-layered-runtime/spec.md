@@ -1,6 +1,6 @@
 # Agent System Layered Runtime — Specification
 
-> 状态：implementation in progress；本文仍是实现期间的兼容与验收合同。  
+> 状态：implementation complete；本文记录最终架构与已验证的兼容合同。
 > 总览：[README.md](./README.md)
 
 ## 1. User need
@@ -180,34 +180,34 @@ session，具体实例管理自己的 session state，DeepChat loop 只负责 tu
 
 ### Architecture
 
-- [ ] `AgentRegistry` no longer exists in production flow.
+- [x] `AgentRegistry` no longer exists in production flow.
 - [x] `IAgentImplementation` optional mega-interface is removed.
-- [ ] Internal descriptors use one canonical `kind`; legacy aliases are quarantined at boundary adapters.
-- [ ] `AgentManager` contains no prompt, provider round, tool execution, compaction or Memory logic.
-- [ ] `kind=acp` cannot be dispatched through DeepChat `LoopEngine`; the generic provider port still supports
+- [x] Internal descriptors use one canonical `kind`; legacy aliases are quarantined at boundary adapters.
+- [x] `AgentManager` contains no prompt, provider round, tool execution, compaction or Memory logic.
+- [x] `kind=acp` cannot be dispatched through DeepChat `LoopEngine`; the generic provider port still supports
   the documented DeepChat + ACP-provider combination.
-- [ ] DeepChat session state has one instance owner and LoopEngine has no cross-session maps.
-- [ ] `src/main/lib/agentRuntime` no longer exists; every file has an explicit owner.
+- [x] DeepChat session state has one instance owner and LoopEngine has no cross-session maps.
+- [x] `src/main/lib/agentRuntime` no longer exists; every file has an explicit owner.
 
 ### Behavior parity
 
-- [ ] Normal, tool, multi-round, queue, steer, cancel, question and permission flows preserve event and
+- [x] Normal, tool, multi-round, queue, steer, cancel, question and permission flows preserve event and
   persistence order.
-- [ ] Prompt and provider request parity tests pass for initial, tool-loop, resume and overflow-recovery turns.
-- [ ] ACP regular/subagent, workdir, mode/config/commands, cancel and permission timeout tests pass.
-- [ ] DeepChat descriptor + ACP provider request/prompt/tool-resource compatibility fixtures pass.
-- [ ] Tape golden flow and replay/privacy tests pass.
-- [ ] All Memory correctness, native, performance and lifecycle gates listed in
+- [x] Prompt and provider request parity tests pass for initial, tool-loop, resume and overflow-recovery turns.
+- [x] ACP regular/subagent, workdir, mode/config/commands, cancel and permission timeout tests pass.
+- [x] DeepChat descriptor + ACP provider request/prompt/tool-resource compatibility fixtures pass.
+- [x] Tape golden flow and replay/privacy tests pass.
+- [x] All Memory correctness, native, performance and lifecycle gates listed in
   [migration-and-validation.md](./migration-and-validation.md) pass.
-- [ ] Remote, cron, subagent, transfer, import, export, search and dashboard integrations pass.
+- [x] Remote, cron, subagent, transfer, import, export, search and dashboard integrations pass.
 
 ### Compatibility
 
-- [ ] No unapproved shared route/event schema diff.
-- [ ] No database schema or migration version change is required by the refactor.
-- [ ] Old sessions restore and continue without eager migration.
-- [ ] Each implementation slice can be reverted without data rollback.
-- [ ] Architecture guards describe the new paths and reject resurrection of retired paths.
+- [x] No unapproved shared route/event schema diff.
+- [x] No database schema or migration version change is required by the refactor.
+- [x] Old sessions restore and continue without eager migration.
+- [x] Each implementation slice can be reverted without data rollback.
+- [x] Architecture guards describe the new paths and reject resurrection of retired paths.
 
 ## 8. Success measures
 

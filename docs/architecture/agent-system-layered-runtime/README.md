@@ -1,7 +1,7 @@
 # Agent System Layered Runtime — 总体设计
 
-> 状态：implementation complete through `ASLR-091`；最终全量验证与受控 baseline regeneration
-> 仍属于 `ASLR-092`。当前进度以 [tasks.md](./tasks.md) 为准。
+> 状态：implementation complete；`ASLR-000..092` 已完成，最终全量验证与受控 baseline
+> regeneration 记录见 [migration-and-validation.md](./migration-and-validation.md#aslr-092-final-close-out-record)。
 > 代码基线：`dev@1a57d15b99a6`（2026-07-11）
 > 本文是目标架构的总入口。`spec.md` 定义验收合同，`plan.md` 和 `tasks.md` 定义实施顺序；
 > `modules/` 描述各模块的本地合同。
@@ -41,7 +41,8 @@ Memory runtime orchestration 已收敛到唯一 `MemoryRuntimeCoordinator`，通
 per-fact `TapeRecorder` path，causal observation 只读联结现有 Tape/message/trace。`AgentSessionPresenter`
 保留 route/application/shared projection façade，`AgentRuntimePresenter` 保留 DeepChat state/delegate 与
 adapter wiring；两者不再构成 generic agent runtime。current docs、architecture guards 与 baseline generator
-已在 `ASLR-091` 收敛；最终 full gates 和 canonical baseline write 仍待 `ASLR-092`。
+已在 `ASLR-091` 收敛；`ASLR-092` 已完成 canonical baseline write、全量
+main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
 
 ## 文档地图
 

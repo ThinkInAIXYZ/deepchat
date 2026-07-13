@@ -1,6 +1,7 @@
 # Agent System Layered Runtime — Implementation Plan
 
-> 实施进行中；当前完成范围与下一项任务以 [tasks.md](./tasks.md) 为准。  
+> 实施完成；最终范围与验证结果见 [tasks.md](./tasks.md) 和
+> [migration-and-validation.md](./migration-and-validation.md#aslr-092-final-close-out-record)。
 > 所有 phase 以 `dev` 的最新通过基线为起点，按依赖顺序落地。
 
 ## 1. Strategy
