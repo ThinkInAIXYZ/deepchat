@@ -1524,23 +1524,78 @@ describe('dispatchDeepchatRoute', () => {
       } as CronJobRun
     })
 
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith({
+      agentId: 'deepchat',
+      title: 'Morning job',
+      metadata: {
+        source: 'cron_job',
+        cronJobId: 'cron-1',
+        cronJobRunId: 'run-1',
+        scheduledAt: 123
+      }
+    })
+  })
+
+  it('wires pinned Cron Job snapshots into detached sessions', async () => {
+    const { cronJobs, agentSessionPresenter } = createRuntime()
+    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
+      | CronJobRunSessionStarter
+      | undefined
+
+    expect(starter).toBeDefined()
+    await starter!.createSessionForRun({
+      job: {
+        id: 'cron-1',
+        name: 'Morning job',
         agentId: 'deepchat',
-        title: 'Morning job',
-        metadata: {
-          source: 'cron_job',
-          cronJobId: 'cron-1',
-          cronJobRunId: 'run-1',
-          scheduledAt: 123
-        }
-      })
-    )
+        agentSnapshot: {
+          version: 1,
+          capturedAt: 100,
+          agent: { id: 'deepchat', name: 'DeepChat', type: 'deepchat' },
+          config: {
+            defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-sonnet' },
+            permissionMode: 'full_access',
+            disabledAgentTools: ['write_file'],
+            subagentEnabled: false,
+            systemPrompt: 'Snapshot system prompt'
+          }
+        },
+        modelPolicy: 'pin_current',
+        permissionPolicy: 'snapshot',
+        toolPolicy: 'snapshot',
+        taskSystemInstruction: '  Task-specific system prompt  '
+      } as CronJob,
+      run: {
+        id: 'run-1',
+        scheduledAt: 123
+      } as CronJobRun
+    })
+
+    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith({
+      agentId: 'deepchat',
+      title: 'Morning job',
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet',
+      permissionMode: 'full_access',
+      disabledAgentTools: ['write_file'],
+      subagentEnabled: false,
+      generationSettings: { systemPrompt: 'Task-specific system prompt' },
+      metadata: {
+        source: 'cron_job',
+        cronJobId: 'cron-1',
+        cronJobRunId: 'run-1',
+        scheduledAt: 123
+      }
+    })
   })
 
   it('routes ACP Cron Job prompts through the agent-session direct-routing facade', async () => {
     const { cronJobs, configPresenter, agentSessionPresenter } = createRuntime()
     vi.mocked(configPresenter.getAgentType).mockResolvedValue('acp')
+    vi.mocked(agentSessionPresenter.sendMessage).mockResolvedValueOnce({
+      requestId: 'request-2',
+      messageId: 'message-2'
+    })
     vi.mocked(agentSessionPresenter.createDetachedSession).mockResolvedValue({
       id: 'acp-session-1',
       agentId: 'manual-acp',
@@ -1594,6 +1649,13 @@ describe('dispatchDeepchatRoute', () => {
       'Review the workspace',
       { maxProviderRounds: 7 }
     )
+    await starter!.cancelSessionRun?.({
+      job,
+      run,
+      sessionId: 'acp-session-1',
+      reason: 'Cron job exceeded max duration.'
+    })
+    expect(agentSessionPresenter.cancelGeneration).toHaveBeenCalledWith('acp-session-1')
   })
 
   it('reconciles Cron Jobs after agent mutation routes', async () => {
