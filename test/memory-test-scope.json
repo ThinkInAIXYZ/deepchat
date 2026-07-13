@@ -52,6 +52,7 @@
     "test/main/presenter/agentMemoryTable.test.ts",
     "test/main/presenter/agentRuntimePresenter/tapeService.test.ts",
     "test/main/presenter/memoryNativeMigration.test.ts",
+    "test/main/presenter/memoryVectorStoreV2Native.test.ts",
     "test/main/presenter/memoryUpdateNative.test.ts",
     "test/main/presenter/sqlitePresenter/deepchatMemoryIngestionProjection.test.ts"
   ],

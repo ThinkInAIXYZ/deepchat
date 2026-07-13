@@ -59,14 +59,14 @@
   - Crash after commit (v2 + v1 both present) → v2 opened as authoritative, v1 swept; a v1
     sweep failure does not discard or re-migrate the committed v2.
   - v2 with residual WAL → opens normally, files untouched.
-- [ ] Integration test (real DuckDB + bundled VSS, not mocked SQL): build a genuine WAL-free v1
+- [x] Integration test (real DuckDB + bundled VSS, not mocked SQL): build a genuine WAL-free v1
       HNSW store, run the preserve migration end-to-end, assert keyset paging, row counts,
       `format_version` self-check, and exact query results on the migrated store.
-- [ ] Crash-recovery tests: use a child process to simulate unclean shutdown (v2 residual WAL;
+- [x] Crash-recovery tests: use a child process to simulate unclean shutdown (v2 residual WAL;
       staging main+wal left behind; exit immediately before and after the rename) and assert
       the decision tree recovers on next open. Child processes here are test tooling only — the
       production rejection of child-process migration is unaffected.
-- [ ] Windows CI coverage: rename semantics onto the same volume, residual-handle behavior, and
+- [x] Windows CI coverage: rename semantics onto the same volume, residual-handle behavior, and
       v1 deletion failure (`EBUSY`) leaving a committed v2 authoritative.
 - [ ] Follow-up (separate change, after migration window): remove bundled VSS extension and its
       materialization / network-install machinery; drop `installRuntime:duckdb:vss` from the

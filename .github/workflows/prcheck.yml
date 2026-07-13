@@ -105,6 +105,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Install and verify DuckDB VSS
+        run: |
+          pnpm run installRuntime:duckdb:vss:linux:x64
+          pnpm run smoke:duckdb:vss -- --platform linux --arch x64
+
       - name: Validate memory test scope
         run: pnpm run test:memory:scope
 
@@ -120,6 +125,7 @@ jobs:
       - name: Validate native memory storage
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
+          DEEPCHAT_REQUIRE_NATIVE_DUCKDB_VSS: '1'
         run: pnpm exec vitest --config vitest.config.memory-native.ts --run
 
       - name: Validate memory retrieval quality
