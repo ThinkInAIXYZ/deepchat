@@ -10,13 +10,14 @@ import type {
 } from './domain/audit'
 import type {
   AgentMemoryHealthStats,
+  AgentMemoryEmbeddingState,
   AgentMemoryInsertInput,
   AgentMemoryKind,
   AgentMemoryLifecycleRow,
   AgentMemoryListOptions,
   AgentMemoryPersonaState,
   AgentMemoryConflictState,
-  AgentMemoryRow,
+  CanonicalAgentMemoryRow as AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryWorkingCandidateCursor,
   ConsolidationScanCursor,
@@ -28,6 +29,14 @@ import type {
   MemoryCognitiveMaintenanceInput,
   MemoryManagementPageCursor,
   MemoryModelRef,
+  MemoryTransitionTarget,
+  ResolveChallengerTransition,
+  ReviveSupersededTransition,
+  ArchiveChallengerTransition,
+  ArchiveConflictTargetTransition,
+  UserContentTransition,
+  UserMetadataTransition,
+  InternalContentTransition,
   MemoryRecallItem,
   MemoryVectorMatch,
   MemoryVectorQueryOptions,
@@ -77,51 +86,24 @@ export interface MemoryReadRepositoryPort {
 export interface MemoryMutationRepositoryPort {
   insert(input: AgentMemoryInsertInput): AgentMemoryRow
   rekeyProvenance(agentId: string, id: string, expectedKey: string, nextKey: string): boolean
-  updateStatus(
-    id: string,
-    status: AgentMemoryStatus,
-    embedding?: {
-      embeddingId?: string | null
-      embeddingDim?: number | null
-      embeddingModel?: string | null
-    }
-  ): void
-  updateContent(
-    id: string,
-    content: string,
-    provenanceKey: string | null,
-    at?: number,
-    category?: string | null
-  ): void
-  updateDecisionContentIfRevision(input: {
-    agentId: string
-    id: string
-    expectedRevision: number
-    content: string
-    provenanceKey: string | null
-    at: number
-    category?: string | null
-  }): boolean
-  updateUserMetadata(id: string, patch: { category?: string | null; importance?: number }): void
+  updateInternalContent(input: InternalContentTransition): boolean
+  updateUserContentAndInvalidateEmbedding(input: UserContentTransition): boolean
+  updateUserMetadataIfRevision(input: UserMetadataTransition): boolean
   setConfidence(id: string, confidence: number): void
-  setImportance(id: string, importance: number): void
   setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void
   setAnchor(id: string, anchored: boolean): void
-  markSuperseded(id: string, supersededBy: string | null): void
   markSupersededIfRevision(
     agentId: string,
     id: string,
     expectedRevision: number,
     supersededBy: string
   ): boolean
-  markConflict(id: string, state: AgentMemoryConflictState | null): void
   markConflictIfRevision(
     agentId: string,
     id: string,
     expectedRevision: number,
     state: AgentMemoryConflictState
   ): boolean
-  setConflictWith(id: string, targetId: string | null): void
   delete(id: string): void
   clearByAgent(agentId: string): number
 }
@@ -134,8 +116,6 @@ export interface MemoryAccessRepositoryPort {
 export interface MemoryEmbeddingRepositoryPort {
   listPendingEmbedding(limit?: number, agentId?: string): AgentMemoryRow[]
   countPendingEmbedding(agentId?: string): number
-  activateForEmbedding(id: string): void
-  activateForEmbeddingIfRevision(agentId: string, id: string, expectedRevision: number): boolean
   markPendingEmbeddingsReady(agentId: string, updates: readonly EmbeddedMemoryUpdate[]): string[]
   markPendingEmbeddingsError(
     agentId: string,
@@ -144,13 +124,13 @@ export interface MemoryEmbeddingRepositoryPort {
   ): string[]
   requeueForEmbedding(
     agentId: string,
-    statuses: AgentMemoryStatus[],
+    states: AgentMemoryEmbeddingState[],
     limit?: number,
     afterId?: string | null
   ): number
-  listEmbeddingStatusIds(
+  listEmbeddingStateIds(
     agentId: string,
-    statuses: AgentMemoryStatus[],
+    states: AgentMemoryEmbeddingState[],
     limit: number,
     afterId?: string | null
   ): string[]
@@ -190,7 +170,12 @@ export interface MemoryLifecycleRepositoryPort {
   updateDecayScore(id: string, decayScore: number | null, consolidatedAt?: number | null): void
   setLastConsolidatedAt(id: string, at?: number): void
   getLastConsolidatedAt(agentId: string): number | null
-  archive(id: string, at?: number): void
+  archiveActiveMemory(input: MemoryTransitionTarget): boolean
+  restoreArchivedMemory(input: MemoryTransitionTarget): boolean
+  reviveSupersededMemory(input: ReviveSupersededTransition): boolean
+  activateResolvedChallenger(input: ResolveChallengerTransition): boolean
+  archiveResolvedChallenger(input: ArchiveChallengerTransition): boolean
+  archiveResolvedConflictTarget(input: ArchiveConflictTargetTransition): boolean
   archiveEligibleBatch(
     agentId: string,
     options: {
@@ -258,6 +243,7 @@ export interface MemoryHealthRepositoryPort {
     archivedMemoryCount: number
   }
   getPersonaCounts(agentId: string): { total: number; draft: number }
+  countLegacyShadowMismatches(agentId?: string): number
 }
 
 export interface MemoryTransactionPort {
@@ -433,7 +419,7 @@ export interface MemoryWriteMutationPort extends MemoryProvenanceResolverPort {
   reviveSupersededAfterDecision(
     agentId: string,
     existing: AgentMemoryRow
-  ): { retiredHeadId: string | null }
+  ): { applied: boolean; retiredHeadId: string | null }
 }
 
 export interface MemoryManualEditPort {

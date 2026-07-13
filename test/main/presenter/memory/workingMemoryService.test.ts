@@ -453,11 +453,42 @@ describe('working-memory L1 (T5)', () => {
     presenter.refreshWorkingMemory('deepchat')
     const workingRow = [...repo.rows.values()].find((row) => row.kind === 'working')!
     const stamp = workingRow.last_accessed
-    const updateSpy = vi.spyOn(repo, 'updateContent')
+    const updateSpy = vi.spyOn(repo, 'updateInternalContent')
     presenter.refreshWorkingMemory('deepchat')
     expect(updateSpy).not.toHaveBeenCalled()
     await presenter.buildInjection('deepchat', '')
     expect(repo.getById(workingRow.id)?.last_accessed).toBe(stamp)
+  })
+
+  it('re-reads and retries a working-memory content CAS once', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact one',
+      importance: 0.9
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    repo.insert({
+      id: 's2',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact two',
+      importance: 0.8
+    })
+    const updateInternalContent = repo.updateInternalContent.bind(repo)
+    const updateSpy = vi
+      .spyOn(repo, 'updateInternalContent')
+      .mockImplementationOnce(() => false)
+      .mockImplementation((input) => updateInternalContent(input))
+
+    presenter.refreshWorkingMemory('deepchat')
+
+    expect(updateSpy).toHaveBeenCalledTimes(2)
+    expect([...repo.rows.values()].find((row) => row.kind === 'working')?.content).toContain(
+      'fact two'
+    )
   })
 
   it('lazy re-keys a legacy working row without bumping its decision revision', async () => {

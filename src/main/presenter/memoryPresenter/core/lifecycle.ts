@@ -9,6 +9,7 @@ import {
   type AgentMemoryLifecycleRow
 } from '../types'
 import { decayScore, halfLifeForKind, recencyScore, retrievalScore, clamp01 } from './scoring'
+import { projectLegacyStatus } from '../domain/stateModel'
 
 export const ARCHIVE_DECAY_THRESHOLD = 0.05
 export const ARCHIVE_AGE_MS = 90 * 24 * 60 * 60 * 1000
@@ -38,8 +39,7 @@ export function deriveLifecycle(
   const archiveAgeMs = options.archiveAgeMs ?? ARCHIVE_AGE_MS
   const archiveDecayThreshold = options.archiveDecayThreshold ?? ARCHIVE_DECAY_THRESHOLD
   const importance = clamp01(row.importance)
-  const active =
-    row.status !== 'archived' && row.status !== 'conflicted' && row.superseded_by == null
+  const active = row.lifecycle_state === 'active' && row.superseded_by == null
   const exemptReasons = deriveExemptReasons(row)
   const exempt = exemptReasons.length > 0
   const recallable = row.kind !== 'persona' && active
@@ -53,7 +53,7 @@ export function deriveLifecycle(
   return {
     memoryId: row.id,
     kind: row.kind,
-    status: row.status,
+    status: projectLegacyStatus(row.lifecycle_state, row.embedding_state),
     recallable,
     decayTier,
     recall: row.kind === 'persona' ? null : deriveRecall(row, now, weights, importance),

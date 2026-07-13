@@ -347,7 +347,7 @@ describe('MemoryPresenter.addUserMemory (manual user write)', () => {
         agentId: 'deepchat'
       }
     )
-    repo.markSuperseded(ownerId, headId)
+    repo.seedSupersededBy(ownerId, headId)
 
     expect(
       presenter.writeMemoriesSync([{ kind: 'semantic', content: 'user likes redis' }], {

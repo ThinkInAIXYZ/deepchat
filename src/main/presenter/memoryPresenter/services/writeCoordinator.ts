@@ -48,6 +48,7 @@ import {
 import type {
   MemoryAgentPolicyPort,
   MemoryEmbeddingRepositoryPort,
+  MemoryLifecycleRepositoryPort,
   MemoryMutationRepositoryPort,
   MemoryReadRepositoryPort,
   MemoryTextGenerationPort,
@@ -140,9 +141,18 @@ function isLiveDecisionTarget(
     !!row &&
     row.agent_id === agentId &&
     row.superseded_by === null &&
-    row.status !== 'archived' &&
-    row.status !== 'conflicted' &&
+    row.lifecycle_state === 'active' &&
     row.conflict_state === null
+  )
+}
+
+function isChallengedDecisionHead(agentId: string, row: AgentMemoryRow | undefined): boolean {
+  return (
+    !!row &&
+    row.agent_id === agentId &&
+    row.lifecycle_state === 'active' &&
+    row.superseded_by === null &&
+    row.conflict_state === 'challenged'
   )
 }
 
@@ -217,6 +227,7 @@ export class WriteCoordinator {
       repository: MemoryReadRepositoryPort &
         MemoryMutationRepositoryPort &
         MemoryEmbeddingRepositoryPort &
+        MemoryLifecycleRepositoryPort &
         MemoryTransactionPort
       policy: MemoryAgentPolicyPort
       textGeneration: MemoryTextGenerationPort
@@ -263,8 +274,9 @@ export class WriteCoordinator {
       if (duplicate) {
         const hit = this.ports.rows.handleProvenanceHit(options.agentId, duplicate)
         if (hit.action === 'absorbed') {
-          this.absorbArchivedProvenanceOwner(duplicate)
-          created.push(duplicate.id)
+          if (this.absorbArchivedProvenanceOwner(options.agentId, duplicate)) {
+            created.push(duplicate.id)
+          }
         }
         continue
       }
@@ -485,6 +497,13 @@ export class WriteCoordinator {
         }
       }
       const head = this.ports.rows.supersedeHead(agentId, duplicate)
+      if (isChallengedDecisionHead(agentId, head)) {
+        return {
+          candidateIndex: indexed.candidateIndex,
+          candidate: indexed.candidate,
+          outcome: { action: 'noop', reason: 'conflict', id: head.id }
+        }
+      }
       if (isLiveDecisionTarget(agentId, head)) decisionHeadId = head.id
     }
     return {
@@ -523,17 +542,22 @@ export class WriteCoordinator {
           allowDecisionForSuperseded: true
         })
         if (hit.action === 'absorbed') {
-          outcome = this.ports.repository.activateForEmbeddingIfRevision(
+          outcome = this.ports.repository.restoreArchivedMemory({
             agentId,
-            owner.id,
-            owner.decision_revision
-          )
+            id: owner.id,
+            expectedRevision: owner.decision_revision
+          })
             ? { action: 'updated', id: owner.id }
             : { action: 'noop', reason: 'concurrent-update' }
           return
         }
         if (hit.action === 'noop') {
           outcome = { action: 'noop', reason: hit.reason, id: owner.id }
+          return
+        }
+        const head = this.ports.rows.supersedeHead(agentId, owner)
+        if (isChallengedDecisionHead(agentId, head)) {
+          outcome = { action: 'noop', reason: 'conflict', id: head.id }
           return
         }
         outcome = this.reviveProvenanceOwner(agentId, owner, now, candidate.category)
@@ -932,11 +956,15 @@ export class WriteCoordinator {
         allowDecisionForSuperseded: true
       })
       if (hit.action === 'absorbed') {
-        this.absorbArchivedProvenanceOwner(duplicate)
-        return { action: 'updated', id: duplicate.id }
+        return this.absorbArchivedProvenanceOwner(agentId, duplicate)
+          ? { action: 'updated', id: duplicate.id }
+          : { action: 'noop', reason: 'concurrent-update', id: duplicate.id }
       }
       if (hit.action === 'noop') return { action: 'noop', reason: hit.reason, id: duplicate.id }
       const head = this.ports.rows.supersedeHead(agentId, duplicate)
+      if (isChallengedDecisionHead(agentId, head)) {
+        return { action: 'noop', reason: 'conflict', id: head.id }
+      }
       if (isLiveDecisionTarget(agentId, head)) decisionHead = head
     }
 
@@ -1047,7 +1075,7 @@ export class WriteCoordinator {
                 : undefined
             try {
               this.ports.repository.runInTransaction(() => {
-                const applied = this.ports.repository.updateDecisionContentIfRevision({
+                const applied = this.ports.repository.updateUserContentAndInvalidateEmbedding({
                   agentId,
                   id: targetRow.id,
                   expectedRevision: target.decisionRevision,
@@ -1191,6 +1219,7 @@ export class WriteCoordinator {
 
     try {
       this.ports.repository.runInTransaction(() => {
+        let ownerRevision = owner.decision_revision
         const ownerHead =
           hit.action === 'continue' ? this.ports.rows.supersedeHead(agentId, owner) : undefined
         if (
@@ -1204,28 +1233,51 @@ export class WriteCoordinator {
           throw new DecisionRevisionConflictError()
         }
         if (hit.action === 'absorbed') {
-          this.ports.repository.activateForEmbedding(owner.id)
+          if (
+            !this.ports.repository.restoreArchivedMemory({
+              agentId,
+              id: owner.id,
+              expectedRevision: owner.decision_revision
+            })
+          ) {
+            throw new DecisionRevisionConflictError()
+          }
+          ownerRevision += 1
         }
         if (hit.action === 'continue') {
           if (ownerHead?.id === target.id) {
-            this.ports.repository.markSuperseded(owner.id, null)
-            this.ports.repository.activateForEmbedding(owner.id)
+            if (
+              !this.ports.repository.reviveSupersededMemory({
+                agentId,
+                id: owner.id,
+                expectedRevision: owner.decision_revision
+              })
+            ) {
+              throw new DecisionRevisionConflictError()
+            }
           } else {
-            this.ports.rows.reviveSupersededAfterDecision(agentId, owner)
+            if (!this.ports.rows.reviveSupersededAfterDecision(agentId, owner).applied) {
+              throw new DecisionRevisionConflictError()
+            }
           }
+          ownerRevision += 1
         }
         if (
           (owner.kind === 'episodic' || owner.kind === 'semantic') &&
           owner.category === null &&
           category !== null
         ) {
-          this.ports.repository.updateContent(
-            owner.id,
-            owner.content,
-            owner.provenance_key,
-            now,
-            category
-          )
+          if (
+            !this.ports.repository.updateUserMetadataIfRevision({
+              agentId,
+              id: owner.id,
+              expectedRevision: ownerRevision,
+              category,
+              lastAccessedAt: now
+            })
+          ) {
+            throw new DecisionRevisionConflictError()
+          }
         }
       })
     } catch (error) {
@@ -1282,8 +1334,9 @@ export class WriteCoordinator {
     if (duplicate) {
       const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate)
       if (hit.action === 'absorbed') {
-        this.absorbArchivedProvenanceOwner(duplicate)
-        return { action: 'updated', id: duplicate.id }
+        return this.absorbArchivedProvenanceOwner(agentId, duplicate)
+          ? { action: 'updated', id: duplicate.id }
+          : { action: 'noop', reason: 'concurrent-update', id: duplicate.id }
       }
       const reason = hit.action === 'noop' ? hit.reason : 'duplicate'
       return { action: 'noop', reason, id: duplicate.id }
@@ -1292,41 +1345,51 @@ export class WriteCoordinator {
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
   }
 
-  private absorbArchivedProvenanceOwner(existing: AgentMemoryRow): void {
-    this.ports.repository.runInTransaction(() => {
-      this.ports.repository.activateForEmbedding(existing.id)
-    })
+  private absorbArchivedProvenanceOwner(agentId: string, existing: AgentMemoryRow): boolean {
+    return this.ports.repository.runInTransaction(() =>
+      this.ports.repository.restoreArchivedMemory({
+        agentId,
+        id: existing.id,
+        expectedRevision: existing.decision_revision
+      })
+    )
   }
 
   private reviveProvenanceOwner(
     agentId: string,
     existing: AgentMemoryRow,
     now: number,
-    category: AgentMemoryRow['category'],
-    foldTargetId?: string
+    category: AgentMemoryRow['category']
   ): MemoryWriteOutcome {
+    let transitionApplied = true
     this.ports.repository.runInTransaction(() => {
-      if (existing.status === 'archived' && existing.superseded_by === null) {
-        this.ports.repository.activateForEmbedding(existing.id)
+      let expectedRevision = existing.decision_revision
+      if (existing.lifecycle_state === 'archived' && existing.superseded_by === null) {
+        transitionApplied = this.ports.repository.restoreArchivedMemory({
+          agentId,
+          id: existing.id,
+          expectedRevision: existing.decision_revision
+        })
+        if (transitionApplied) expectedRevision += 1
       }
-      this.ports.rows.reviveSupersededAfterDecision(agentId, existing)
+      if (existing.superseded_by !== null) {
+        transitionApplied = this.ports.rows.reviveSupersededAfterDecision(agentId, existing).applied
+        if (transitionApplied) expectedRevision += 1
+      }
+      if (!transitionApplied) return
       if (existing.category === null && category !== null) {
-        this.ports.repository.updateContent(
-          existing.id,
-          existing.content,
-          existing.provenance_key,
-          now,
-          category
-        )
-      }
-      if (foldTargetId && foldTargetId !== existing.id) {
-        this.ports.repository.markSuperseded(foldTargetId, existing.id)
+        transitionApplied = this.ports.repository.updateUserMetadataIfRevision({
+          agentId,
+          id: existing.id,
+          expectedRevision,
+          category,
+          lastAccessedAt: now
+        })
       }
     })
 
-    if (foldTargetId && foldTargetId !== existing.id) {
-      return { action: 'superseded', id: existing.id, supersededId: foldTargetId, created: false }
-    }
+    if (!transitionApplied) return { action: 'noop', reason: 'concurrent-update', id: existing.id }
+
     return { action: 'updated', id: existing.id }
   }
 

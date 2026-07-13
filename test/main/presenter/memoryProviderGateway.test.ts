@@ -207,9 +207,24 @@ describe('MemoryProviderGateway', () => {
     vi.useFakeTimers()
     try {
       const { gateway } = makeGateway({
-        getDimensions: vi.fn(() => new Promise(() => undefined)),
-        getEmbeddings: vi.fn(() => new Promise(() => undefined)),
-        generateText: vi.fn(() => new Promise(() => undefined))
+        getDimensions: vi.fn(
+          () =>
+            new Promise<Awaited<ReturnType<MemoryProviderGatewayDeps['getDimensions']>>>(
+              () => undefined
+            )
+        ),
+        getEmbeddings: vi.fn(
+          () =>
+            new Promise<Awaited<ReturnType<MemoryProviderGatewayDeps['getEmbeddings']>>>(
+              () => undefined
+            )
+        ),
+        generateText: vi.fn(
+          () =>
+            new Promise<Awaited<ReturnType<MemoryProviderGatewayDeps['generateText']>>>(
+              () => undefined
+            )
+        )
       })
       const assertion = expect(start(gateway)).rejects.toMatchObject({ name: 'AbortError' })
 

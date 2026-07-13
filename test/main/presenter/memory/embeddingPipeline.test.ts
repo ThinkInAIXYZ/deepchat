@@ -313,7 +313,7 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
     })
     const drain = presenter.processPendingEmbeddings('a')
     await started
-    repo.updateStatus('stale', 'fts_only')
+    repo.seedLegacyStatus('stale', 'fts_only')
     releaseEmbedding?.()
     await drain
 
@@ -506,7 +506,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
       content: 'existing redis memory',
       status: 'pending_embedding'
     })
-    repo.updateStatus('embedded', 'embedded', {
+    repo.seedLegacyStatus('embedded', 'embedded', {
       embeddingId: 'embedded',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -666,7 +666,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     })
     // A row embedded before the fingerprint column existed: status embedded, model NULL.
     repo.insert({ id: 'legacy', agentId: 'a', kind: 'semantic', content: 'redis' })
-    repo.updateStatus('legacy', 'embedded', { embeddingId: 'legacy', embeddingDim: 2 })
+    repo.seedLegacyStatus('legacy', 'embedded', { embeddingId: 'legacy', embeddingDim: 2 })
     expect(repo.getById('legacy')?.embedding_model).toBeNull()
 
     await presenter.reindexEmbeddings('a')
@@ -890,7 +890,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
       content: 'redis persona',
       status: 'fts_only'
     })
-    repo.updateStatus('persona1', 'embedded', {
+    repo.seedLegacyStatus('persona1', 'embedded', {
       embeddingId: 'persona1',
       embeddingDim: 4,
       embeddingModel: 'p:OLD'
@@ -904,7 +904,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
       content: 'redis fact',
       status: 'fts_only'
     })
-    repo.updateStatus('fact1', 'embedded', {
+    repo.seedLegacyStatus('fact1', 'embedded', {
       embeddingId: 'fact1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1005,7 +1005,9 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
   it('never queries an unusable vector store, falling back to FTS without errors (AC-5.3)', async () => {
     const repo = createFakeRepository()
     const query = vi.fn(async () => [])
-    const unusableStore = { ...new FakeVectorStore(), isUsable: () => false, query }
+    const unusableStore = new FakeVectorStore()
+    unusableStore.isUsable = () => false
+    unusableStore.query = query
     const presenter = new MemoryPresenter({
       repository: repo,
       resolveAgentConfig: () => enabledConfig,

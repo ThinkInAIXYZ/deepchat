@@ -94,8 +94,7 @@ function isEditableUserMemory(
     !!row &&
     row.agent_id === agentId &&
     row.superseded_by === null &&
-    row.status !== 'archived' &&
-    row.status !== 'conflicted' &&
+    row.lifecycle_state === 'active' &&
     row.conflict_state !== 'challenged' &&
     isEditableUserKind(row) &&
     !isInternalMemoryKind(row)
@@ -103,7 +102,7 @@ function isEditableUserMemory(
 }
 
 function isConflictParticipant(row: AgentMemoryRow | undefined): boolean {
-  return !!row && (row.status === 'conflicted' || row.conflict_state === 'challenged')
+  return !!row && (row.lifecycle_state === 'conflicted' || row.conflict_state === 'challenged')
 }
 
 function mapContentSuppressedReason(reason: string): 'conflict' | 'duplicate' | 'suppressed' {
@@ -151,11 +150,17 @@ export class ManagementService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
     const row = this.ports.repository.getById(memoryId)
-    if (!row || row.agent_id !== agentId || row.status !== 'archived') return false
+    if (!row || row.agent_id !== agentId || row.lifecycle_state !== 'archived') return false
     if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
+    let restored = false
     this.ports.repository.runInTransaction(() => {
-      this.ports.repository.activateForEmbedding(memoryId)
+      restored = this.ports.repository.restoreArchivedMemory({
+        agentId,
+        id: memoryId,
+        expectedRevision: row.decision_revision
+      })
+      if (!restored) return
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/restore',
         actorType: 'user',
@@ -164,6 +169,7 @@ export class ManagementService {
         outputRefs: { action: 'restored', memoryId }
       })
     })
+    if (!restored) return false
     this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     void this.ports.triggerEmbedding(agentId).catch((error) => {
@@ -182,10 +188,16 @@ export class ManagementService {
     if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
     this.ctx.invalidateAgentOperations(agentId)
-    const alreadyArchived = row.status === 'archived'
+    const alreadyArchived = row.lifecycle_state === 'archived'
+    let archived = alreadyArchived
     this.ports.repository.runInTransaction(() => {
       if (!alreadyArchived) {
-        this.ports.repository.archive(row.id, Date.now())
+        archived = this.ports.repository.archiveActiveMemory({
+          agentId,
+          id: row.id,
+          expectedRevision: row.decision_revision
+        })
+        if (!archived) return
       }
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/forget',
@@ -196,6 +208,7 @@ export class ManagementService {
         outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
       })
     })
+    if (!archived) return false
     if (!alreadyArchived) {
       this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
@@ -213,10 +226,16 @@ export class ManagementService {
     if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
     if (isInternalMemoryKind(row)) return false
     this.ctx.invalidateAgentOperations(agentId)
-    const alreadyArchived = row.status === 'archived'
+    const alreadyArchived = row.lifecycle_state === 'archived'
+    let archived = alreadyArchived
     this.ports.repository.runInTransaction(() => {
       if (!alreadyArchived) {
-        this.ports.repository.archive(row.id, Date.now())
+        archived = this.ports.repository.archiveActiveMemory({
+          agentId,
+          id: row.id,
+          expectedRevision: row.decision_revision
+        })
+        if (!archived) return
       }
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/archive',
@@ -227,6 +246,7 @@ export class ManagementService {
         outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
       })
     })
+    if (!archived) return false
     if (!alreadyArchived) {
       this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
@@ -488,8 +508,17 @@ export class ManagementService {
       return { action: 'noop', memoryId: row.id }
     }
 
-    this.ports.repository.runInTransaction(() => {
-      this.ports.repository.updateUserMetadata(row.id, nextMetadata)
+    const updated = this.ports.repository.runInTransaction(() => {
+      if (
+        !this.ports.repository.updateUserMetadataIfRevision({
+          agentId,
+          id: row.id,
+          expectedRevision: row.decision_revision,
+          ...nextMetadata
+        })
+      ) {
+        return false
+      }
       this.ctx.writeAudit(agentId, {
         eventType: 'memory/manual_edit',
         actorType: 'user',
@@ -497,7 +526,9 @@ export class ManagementService {
         inputRefs: { memoryId: row.id },
         outputRefs: { action: 'updated', memoryId: row.id }
       })
+      return true
     })
+    if (!updated) return { action: 'noop', reason: 'suppressed' }
     this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     this.ctx.emitChanged(agentId, 'manual-edit', { memoryId: row.id })

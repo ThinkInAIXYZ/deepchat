@@ -152,7 +152,7 @@ describe('MemoryPresenter management', () => {
       status: 'embedded',
       provenanceKey: buildMemoryProvenanceKey('a', 'semantic', 'redis cached row')
     })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: textToVector('').length,
       embeddingModel: 'p:m'
@@ -421,7 +421,7 @@ describe('MemoryPresenter management', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -475,7 +475,7 @@ describe('MemoryPresenter management', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -506,7 +506,7 @@ describe('MemoryPresenter management', () => {
     const repo = createFakeRepository()
     const store = new FakeVectorStore()
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -544,7 +544,7 @@ describe('MemoryPresenter management', () => {
 
     const current = repo.getById(memoryId)!
     expect(
-      repo.updateDecisionContentIfRevision({
+      repo.updateUserContentAndInvalidateEmbedding({
         agentId: 'a',
         id: memoryId,
         expectedRevision: current.decision_revision,
@@ -1039,7 +1039,7 @@ describe('MemoryPresenter management', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'user likes redis' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1180,7 +1180,7 @@ describe('MemoryPresenter management', () => {
       agentId: 'a'
     })
     await presenter.processPendingEmbeddings('a')
-    repo.archive(id, Date.now())
+    repo.seedArchived(id, Date.now())
     expect(store.vectors.has(id)).toBe(true)
 
     await presenter.recall('a', 'redis')
@@ -1194,13 +1194,13 @@ describe('MemoryPresenter management', () => {
       agentId: 'a'
     })
     await presenter.processPendingEmbeddings('a')
-    repo.archive(id, Date.now())
+    repo.seedArchived(id, Date.now())
     const originalFilterPrunable = repo.filterPrunableVectorRefs.bind(repo)
     const filterPrunable = vi
       .spyOn(repo, 'filterPrunableVectorRefs')
       .mockImplementation((agentId, ids, embeddingDim, embeddingModel) => {
         if (ids.includes(id)) {
-          repo.updateStatus(id, 'embedded', {
+          repo.seedLegacyStatus(id, 'embedded', {
             embeddingId: id,
             embeddingDim,
             embeddingModel
@@ -1228,7 +1228,7 @@ describe('MemoryPresenter management', () => {
     const generateText = routedLLM({})
     const { presenter, repo, store } = makeLLMPresenter(generateText)
     const id = await seedEmbedded(presenter, 'user likes redis')
-    repo.archive(id, Date.now())
+    repo.seedArchived(id, Date.now())
     expect(store.vectors.has(id)).toBe(true)
     expect(repo.getById(id)?.embedding_id).toBe(id)
 
@@ -1247,13 +1247,13 @@ describe('MemoryPresenter management', () => {
     const generateText = routedLLM({})
     const { presenter, repo, store } = makeLLMPresenter(generateText)
     const id = await seedEmbedded(presenter, 'user likes redis')
-    repo.archive(id, Date.now())
+    repo.seedArchived(id, Date.now())
     const originalFilterPrunable = repo.filterPrunableVectorRefs.bind(repo)
     const deleteByMemoryIds = vi.spyOn(store, 'deleteByMemoryIds')
     vi.spyOn(repo, 'filterPrunableVectorRefs').mockImplementation(
       (agentId, ids, embeddingDim, embeddingModel) => {
         if (ids.includes(id)) {
-          repo.updateStatus(id, 'embedded', {
+          repo.seedLegacyStatus(id, 'embedded', {
             embeddingId: id,
             embeddingDim,
             embeddingModel
@@ -1291,12 +1291,12 @@ describe('MemoryPresenter management', () => {
         status: 'embedded',
         createdAt: index
       })
-      repo.updateStatus(id, 'embedded', {
+      repo.seedLegacyStatus(id, 'embedded', {
         embeddingId: id,
         embeddingDim: 8,
         embeddingModel: 'p:m'
       })
-      repo.archive(id, Date.now())
+      repo.seedArchived(id, Date.now())
       store.vectors.set(id, textToVector(`old archived ${index}`))
     }
     for (let index = 0; index < 2; index += 1) {
@@ -1309,12 +1309,12 @@ describe('MemoryPresenter management', () => {
         status: 'embedded',
         createdAt: 1000 + index
       })
-      repo.updateStatus(id, 'embedded', {
+      repo.seedLegacyStatus(id, 'embedded', {
         embeddingId: id,
         embeddingDim: 4,
         embeddingModel: 'p:m'
       })
-      repo.archive(id, Date.now())
+      repo.seedArchived(id, Date.now())
       store.vectors.set(id, textToVector(`current archived ${index}`))
     }
 
@@ -1340,7 +1340,7 @@ describe('MemoryPresenter management', () => {
     const generateText = routedLLM({})
     const { presenter, repo, store } = makeLLMPresenter(generateText)
     const id = await seedEmbedded(presenter, 'user likes redis')
-    repo.archive(id, Date.now())
+    repo.seedArchived(id, Date.now())
     vi.spyOn(repo, 'filterPrunableVectorRefs').mockImplementation(() => {
       throw new Error('filter failed')
     })
@@ -1355,7 +1355,7 @@ describe('MemoryPresenter management', () => {
     const generateText = routedLLM({})
     const { presenter, repo, store } = makeLLMPresenter(generateText)
     const id = await seedEmbedded(presenter, 'user likes redis')
-    repo.archive(id, Date.now())
+    repo.seedArchived(id, Date.now())
     await presenter.runConsolidationPass('a', 1_000 * DAY)
     expect(store.vectors.has(id)).toBe(false)
     expect(repo.getById(id)?.embedding_id).toBeNull()
@@ -1385,8 +1385,8 @@ describe('MemoryPresenter management', () => {
       ],
       { agentId: 'a' }
     )
-    repo.archive(ids[1], 2000)
-    repo.markSuperseded(ids[2], ids[0])
+    repo.seedArchived(ids[1], 2000)
+    repo.seedSupersededBy(ids[2], ids[0])
     repo.insert({
       id: 'other-agent-memory',
       agentId: 'other',
@@ -1413,9 +1413,9 @@ describe('MemoryPresenter management', () => {
       ],
       { agentId: 'a' }
     )
-    repo.archive(ids[1])
-    repo.markSuperseded(ids[2], ids[0])
-    repo.updateStatus(ids[3], 'conflicted')
+    repo.seedArchived(ids[1])
+    repo.seedSupersededBy(ids[2], ids[0])
+    repo.seedLegacyStatus(ids[3], 'conflicted')
     repo.insert({
       id: 'persona-source',
       agentId: 'a',
@@ -1519,7 +1519,7 @@ describe('MemoryPresenter management', () => {
       status: 'fts_only',
       personaState: 'active'
     })
-    repo.updateStatus('persona', 'pending_embedding', {
+    repo.seedLegacyStatus('persona', 'pending_embedding', {
       embeddingId: 'persona',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1531,7 +1531,7 @@ describe('MemoryPresenter management', () => {
       content: 'working blob',
       status: 'embedded'
     })
-    repo.updateStatus('working', 'embedded', {
+    repo.seedLegacyStatus('working', 'embedded', {
       embeddingId: 'working',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1577,7 +1577,7 @@ describe('MemoryPresenter management', () => {
       status: 'fts_only',
       personaState: 'active'
     })
-    repo.updateStatus('persona', 'pending_embedding', {
+    repo.seedLegacyStatus('persona', 'pending_embedding', {
       embeddingId: 'persona',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1672,7 +1672,7 @@ describe('MemoryPresenter health read model', () => {
       content: 'repo uses pnpm',
       createdAt: now - DAY
     })
-    repo.updateStatus('current', 'embedded', {
+    repo.seedLegacyStatus('current', 'embedded', {
       embeddingId: 'current',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1684,7 +1684,7 @@ describe('MemoryPresenter health read model', () => {
       content: 'legacy vector',
       createdAt: now - 2 * DAY
     })
-    repo.updateStatus('legacy', 'embedded', {
+    repo.seedLegacyStatus('legacy', 'embedded', {
       embeddingId: 'legacy',
       embeddingDim: 8,
       embeddingModel: 'p:m'
@@ -1709,10 +1709,10 @@ describe('MemoryPresenter health read model', () => {
       createdAt: 4000
     })
 
-    const archiveSpy = vi.spyOn(repo, 'archive')
+    const archiveSpy = vi.spyOn(repo, 'seedArchived')
     const deleteSpy = vi.spyOn(repo, 'delete')
     const insertSpy = vi.spyOn(repo, 'insert')
-    const updateStatusSpy = vi.spyOn(repo, 'updateStatus')
+    const updateStatusSpy = vi.spyOn(repo, 'seedLegacyStatus')
 
     const health = presenter.getHealth('a')
 
@@ -1743,7 +1743,7 @@ describe('MemoryPresenter health read model', () => {
   it('returns stale=0 without an embedding config', () => {
     const { presenter, repo } = makePresenter({ memoryEnabled: true } as DeepChatAgentConfig)
     repo.insert({ id: 'legacy', agentId: 'a', kind: 'semantic', content: 'legacy' })
-    repo.updateStatus('legacy', 'embedded', {
+    repo.seedLegacyStatus('legacy', 'embedded', {
       embeddingId: 'legacy',
       embeddingDim: 8,
       embeddingModel: 'old:model'

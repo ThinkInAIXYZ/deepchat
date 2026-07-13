@@ -71,7 +71,17 @@ const virtualFiles = new Map<string, string>([
       import type { MemoryRuntimeContext } from '../context'
       import type { AgentMemoryRow } from '../../sqlitePresenter/tables/agentMemory'
       import type { SQLitePresenter } from '../../sqlitePresenter'
-      export type Fixture = MemoryRuntimeContext | AgentMemoryRow | SQLitePresenter
+      import type { LegacyAgentMemoryStatus as LegacyStatus } from '@shared/types/agent-memory'
+      import type * as MemoryTypes from '@shared/types/agent-memory'
+      export type { LegacyAgentMemoryStatus } from '@shared/types/agent-memory'
+      declare const row: AgentMemoryRow
+      type NamespaceStatus = MemoryTypes.LegacyAgentMemoryStatus
+      type InlineStatus = import('@shared/types/agent-memory').LegacyAgentMemoryStatus
+      export const legacyStatus = row.status
+      export const bracketStatus = row['status']
+      export const { status } = row
+      export const { status: structuredAlias } = row
+      export type Fixture = MemoryRuntimeContext | AgentMemoryRow | SQLitePresenter | LegacyStatus | NamespaceStatus | InlineStatus
     `
   ],
   [
@@ -258,6 +268,10 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[memory-domain-sqlite-concrete]')
     expect(fixtureViolations).toContain('sqlitePresenter/tables/agentMemory.ts')
     expect(fixtureViolations).toContain('sqlitePresenter/index.ts')
+    expect(fixtureViolations).toContain('[memory-canonical-state]')
+    expect(fixtureViolations).toContain('must not import LegacyAgentMemoryStatus')
+    expect(fixtureViolations).toContain('must not access AgentMemoryRow.status')
+    expect(fixtureViolations).toContain('must not destructure AgentMemoryRow.status')
   })
 
   it('restricts composites by resolved symbol and file-specific allowlists', () => {

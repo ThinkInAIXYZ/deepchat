@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
+import logger from '@shared/logger'
 import { BaseTable } from './baseTable'
 import {
   AGENT_MEMORY_CATEGORIES,
@@ -10,6 +11,7 @@ import { MEMORY_PAGE_MAX_LIMIT } from '@shared/contracts/routes/memory.routes'
 import type { MemoryPerfObserver, MemoryRepositoryPort } from '../../memoryPresenter/ports'
 import type {
   AgentMemoryHealthStats,
+  AgentMemoryEmbeddingState,
   AgentMemoryInsertInput,
   AgentMemoryConflictState,
   AgentMemoryKind,
@@ -18,7 +20,15 @@ import type {
   AgentMemoryPersonaState,
   AgentMemoryRow,
   AgentMemoryStatus,
-  AgentMemoryWorkingCandidateCursor
+  AgentMemoryWorkingCandidateCursor,
+  ArchiveChallengerTransition,
+  ArchiveConflictTargetTransition,
+  InternalContentTransition,
+  MemoryTransitionTarget,
+  ResolveChallengerTransition,
+  ReviveSupersededTransition,
+  UserContentTransition,
+  UserMetadataTransition
 } from '../../memoryPresenter/domain/types'
 import {
   AGENT_MEMORY_FTS_POLICY_VERSION,
@@ -27,6 +37,27 @@ import {
   buildRecallablePredicate,
   isRecallableFtsRow
 } from './agentMemoryFtsPolicy'
+import {
+  assertValidMemoryInsertState,
+  deriveCanonicalStateFromLegacy,
+  projectLegacyStatus,
+  assertValidMemoryTransition
+} from '../../memoryPresenter/domain/stateModel'
+import type {
+  MemoryEmbeddingRefsState,
+  MemoryTransitionSnapshot
+} from '../../memoryPresenter/domain/stateModel'
+import {
+  AGENT_MEMORY_LEGACY_STATUS_SQL_LIST,
+  buildInternalKindPredicateSql,
+  buildLegacyBridgeUpdateEmbeddingStateSql,
+  buildLegacyBridgeUpdateLifecycleStateSql,
+  buildLegacyEmbeddingStateSql,
+  buildLegacyLifecycleStateSql,
+  buildLegacyShadowMismatchPredicateSql,
+  buildLegacyStatusProjectionSql,
+  buildStatusProjectionFromExpressionsSql
+} from './agentMemoryStateSql'
 
 // 'working' is an internal session-open injection cache (a single blob row per agent); it is never
 // recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a
@@ -35,16 +66,44 @@ import {
 // Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
 // embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns; v34 adds the
 // persona lifecycle column; v35 adds conflict linkage; v37 adds agentic category; v41 adds
-// optimistic concurrency control for semantic decision writes.
-const AGENT_MEMORY_SCHEMA_VERSION = 41
+// optimistic concurrency control for semantic decision writes; v42 normalizes lifecycle and
+// embedding state while retaining the legacy status shadow.
+const AGENT_MEMORY_STATE_MODEL_SCHEMA_VERSION = 42
+const AGENT_MEMORY_SCHEMA_VERSION = AGENT_MEMORY_STATE_MODEL_SCHEMA_VERSION
 
 const AGENT_MEMORY_FTS_META_KEY = 'agent_memory_fts'
 const AGENT_MEMORY_FTS_META_VERSION = 4
 const AGENT_MEMORY_FTS_RECOVERY_COOLDOWN_MS = 30_000
+const PREVIOUS_AGENT_MEMORY_FTS_POLICY_VERSION = 2
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 type SearchMatchMode = 'all' | 'any'
 type FtsMirrorRow = AgentMemoryRow & { rowid: number }
+
+function embeddingRefsState(
+  row: Pick<AgentMemoryRow, 'embedding_id' | 'embedding_dim' | 'embedding_model'>
+): MemoryEmbeddingRefsState {
+  const refs = [row.embedding_id, row.embedding_dim, row.embedding_model]
+  const present = refs.filter((value) => value !== null).length
+  return present === 0 ? 'none' : present === refs.length ? 'complete' : 'partial'
+}
+
+function transitionSnapshot(
+  row: AgentMemoryRow,
+  overrides: Partial<MemoryTransitionSnapshot> = {}
+): MemoryTransitionSnapshot {
+  return {
+    lifecycleState: row.lifecycle_state,
+    embeddingState: row.embedding_state,
+    kind: row.kind,
+    embeddingRefsState: embeddingRefsState(row),
+    supersededBy: row.superseded_by,
+    conflictState: row.conflict_state === 'challenged' ? 'challenged' : null,
+    conflictWith: row.conflict_with,
+    ...overrides
+  }
+}
+
 export interface AgentMemorySearchResult {
   rows: AgentMemoryRow[]
   strategy: 'fts-only' | 'like-fallback'
@@ -68,6 +127,34 @@ function buildRevisionAwareEmbeddingValues<T extends { id: string; expectedRevis
   }
 }
 
+export function buildPendingEmbeddingSelectSql(agentScoped: boolean): string {
+  const indexName = agentScoped
+    ? 'idx_agent_memory_embedding_pending_agent_v2'
+    : 'idx_agent_memory_embedding_pending_global_v2'
+  const agentPredicate = agentScoped ? 'AND agent_id = ?' : ''
+  return `SELECT * FROM agent_memory INDEXED BY ${indexName}
+          WHERE lifecycle_state = 'active'
+            AND embedding_state = 'pending'
+            AND superseded_by IS NULL
+            AND kind NOT IN ('persona', 'working')
+            ${agentPredicate}
+          ORDER BY created_at ASC, id ASC
+          LIMIT ?`
+}
+
+export function buildManagementPageSelectSql(hasCursor: boolean): string {
+  const cursorPredicate = hasCursor ? 'AND (created_at < ? OR (created_at = ? AND id < ?))' : ''
+  return `SELECT *
+          FROM agent_memory INDEXED BY idx_agent_memory_management_page_v3
+          WHERE agent_id = ?
+            AND superseded_by IS NULL
+            AND lifecycle_state != 'conflicted'
+            AND kind NOT IN ('persona', 'working')
+            ${cursorPredicate}
+          ORDER BY created_at DESC, id DESC
+          LIMIT ?`
+}
+
 function isTransientFtsError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === 'SQLITE_BUSY' || code === 'SQLITE_LOCKED' || code === 'SQLITE_INTERRUPT'
@@ -78,62 +165,215 @@ const AGENT_MEMORY_BASE_INDEX_SQL = `
     ON agent_memory(agent_id, kind, status);
   CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_active
     ON agent_memory(agent_id, superseded_by);
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_pending_embedding_v1
-    ON agent_memory(status, agent_id, created_at, id)
-    WHERE status = 'pending_embedding'
-      AND superseded_by IS NULL
-      AND kind NOT IN ('persona', 'working');
   CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_memory_provenance
     ON agent_memory(agent_id, provenance_key)
     WHERE provenance_key IS NOT NULL;
-  DROP INDEX IF EXISTS idx_agent_memory_management_page;
-  DROP INDEX IF EXISTS idx_agent_memory_cognitive_top;
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_management_page_v2
-    ON agent_memory(agent_id, created_at DESC, id DESC)
-    WHERE superseded_by IS NULL
-      AND status != 'conflicted'
-      AND kind NOT IN ('persona', 'working');
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_cognitive_top_v2
-    ON agent_memory(agent_id, importance DESC, created_at DESC, id DESC)
-    WHERE superseded_by IS NULL
-      AND status NOT IN ('archived', 'conflicted')
-      AND kind IN ('episodic', 'semantic', 'reflection');
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_recall_importance_v4
-    ON agent_memory(agent_id, importance DESC, created_at DESC, id ASC)
-    WHERE superseded_by IS NULL
-      AND status NOT IN ('archived', 'conflicted')
-      AND kind NOT IN ('persona', 'working');
-  DROP INDEX IF EXISTS idx_agent_memory_recent_activity;
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_recent_activity_v2
-    ON agent_memory(agent_id, COALESCE(last_accessed, created_at) DESC)
-    WHERE status != 'archived';
 `
 
-const AGENT_MEMORY_MAINTENANCE_INDEX_SQL = `
+const AGENT_MEMORY_RETIRED_INDEX_SQL = `
+  DROP INDEX IF EXISTS idx_agent_memory_pending_embedding_v1;
+  DROP INDEX IF EXISTS idx_agent_memory_management_page;
+  DROP INDEX IF EXISTS idx_agent_memory_management_page_v2;
+  DROP INDEX IF EXISTS idx_agent_memory_cognitive_top;
+  DROP INDEX IF EXISTS idx_agent_memory_cognitive_top_v2;
+  DROP INDEX IF EXISTS idx_agent_memory_recall_importance_v4;
+  DROP INDEX IF EXISTS idx_agent_memory_recent_activity;
+  DROP INDEX IF EXISTS idx_agent_memory_recent_activity_v2;
   DROP INDEX IF EXISTS idx_agent_memory_archive_eligible;
+  DROP INDEX IF EXISTS idx_agent_memory_archive_eligible_v2;
   DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness;
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_archive_eligible_v2
-    ON agent_memory(agent_id, COALESCE(last_accessed, created_at), created_at, id)
-    WHERE superseded_by IS NULL
-      AND conflict_state IS NULL
-      AND is_anchor = 0
-      AND kind NOT IN ('persona', 'working')
-      AND status NOT IN ('archived', 'conflicted');
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_fairness_v2
-    ON agent_memory(agent_id, COALESCE(last_consolidated_at, 0), created_at, id)
-    WHERE status = 'conflicted' AND superseded_by IS NULL;
+  DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness_v2;
+  DROP INDEX IF EXISTS idx_agent_memory_conflict_target;
+  DROP INDEX IF EXISTS idx_agent_memory_conflict_link_anomaly_v2;
 `
 
 const AGENT_MEMORY_CONFLICT_INDEX_SQL = `
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_target
-    ON agent_memory(agent_id, conflict_with, status, superseded_by);
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_link_anomaly_v2
-    ON agent_memory(agent_id, status, conflict_with, id)
-    WHERE conflict_with IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_state_anomaly_v2
     ON agent_memory(agent_id, conflict_state, id)
     WHERE conflict_state IS NOT NULL;
 `
+
+const AGENT_MEMORY_CANONICAL_INDEX_SQL = `
+  DROP INDEX IF EXISTS idx_agent_memory_embedding_queue;
+  DROP INDEX IF EXISTS idx_agent_memory_lifecycle_maintenance;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_active_recall
+    ON agent_memory(agent_id, lifecycle_state, superseded_by, kind, created_at);
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_recall_importance_v5
+    ON agent_memory(agent_id, importance DESC, created_at DESC, id ASC)
+    WHERE lifecycle_state = 'active'
+      AND superseded_by IS NULL
+      AND kind NOT IN ('persona', 'working');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_management_page_v3
+    ON agent_memory(agent_id, created_at DESC, id DESC)
+    WHERE lifecycle_state != 'conflicted'
+      AND superseded_by IS NULL
+      AND kind NOT IN ('persona', 'working');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_archive_eligible_v3
+    ON agent_memory(agent_id, COALESCE(last_accessed, created_at), created_at, id)
+    WHERE lifecycle_state = 'active'
+      AND superseded_by IS NULL
+      AND conflict_state IS NULL
+      AND is_anchor = 0
+      AND kind NOT IN ('persona', 'working');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_cognitive_top_v3
+    ON agent_memory(agent_id, importance DESC, created_at DESC, id DESC)
+    WHERE lifecycle_state = 'active'
+      AND superseded_by IS NULL
+      AND kind IN ('episodic', 'semantic', 'reflection');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_fairness_v3
+    ON agent_memory(agent_id, COALESCE(last_consolidated_at, 0), created_at, id)
+    WHERE lifecycle_state = 'conflicted' AND superseded_by IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_recent_activity_v3
+    ON agent_memory(agent_id, COALESCE(last_accessed, created_at) DESC)
+    WHERE lifecycle_state != 'archived';
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_embedding_pending_agent_v2
+    ON agent_memory(agent_id, created_at, id)
+    WHERE lifecycle_state = 'active'
+      AND embedding_state = 'pending'
+      AND superseded_by IS NULL
+      AND kind NOT IN ('persona', 'working');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_embedding_pending_global_v2
+    ON agent_memory(created_at, id, agent_id)
+    WHERE lifecycle_state = 'active'
+      AND embedding_state = 'pending'
+      AND superseded_by IS NULL
+      AND kind NOT IN ('persona', 'working');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_conflict_target_v2
+    ON agent_memory(agent_id, lifecycle_state, conflict_with, id);
+`
+
+const AGENT_MEMORY_V42_MARKER_SETUP_SQL = `
+  CREATE TEMP TABLE IF NOT EXISTS agent_memory_v42_added_columns (
+    name TEXT PRIMARY KEY
+  ) WITHOUT ROWID;
+  DELETE FROM agent_memory_v42_added_columns;
+  INSERT INTO agent_memory_v42_added_columns (name)
+  SELECT 'lifecycle_state'
+  WHERE NOT EXISTS (
+    SELECT 1 FROM pragma_table_info('agent_memory') WHERE name = 'lifecycle_state'
+  );
+  INSERT INTO agent_memory_v42_added_columns (name)
+  SELECT 'embedding_state'
+  WHERE NOT EXISTS (
+    SELECT 1 FROM pragma_table_info('agent_memory') WHERE name = 'embedding_state'
+  );
+  CREATE TEMP TABLE IF NOT EXISTS agent_memory_v42_migration_stats (
+    normalized_legacy_status_count INTEGER NOT NULL
+  );
+  DELETE FROM agent_memory_v42_migration_stats;
+  INSERT INTO agent_memory_v42_migration_stats (normalized_legacy_status_count)
+  SELECT COUNT(*) FROM agent_memory
+  WHERE status NOT IN (${AGENT_MEMORY_LEGACY_STATUS_SQL_LIST});
+`
+
+const AGENT_MEMORY_LIFECYCLE_BACKFILL_SQL = `
+  UPDATE agent_memory
+  SET lifecycle_state = ${buildLegacyLifecycleStateSql()};
+`
+
+const AGENT_MEMORY_EMBEDDING_BACKFILL_SQL = `
+  UPDATE agent_memory
+  SET embedding_state = ${buildLegacyEmbeddingStateSql()};
+`
+
+const AGENT_MEMORY_V42_COMBINED_BACKFILL_SQL = `
+  UPDATE agent_memory
+  SET lifecycle_state = ${buildLegacyLifecycleStateSql()},
+      embedding_state = ${buildLegacyEmbeddingStateSql()}
+  WHERE EXISTS (
+    SELECT 1 FROM agent_memory_v42_added_columns WHERE name = 'lifecycle_state'
+  ) AND EXISTS (
+    SELECT 1 FROM agent_memory_v42_added_columns WHERE name = 'embedding_state'
+  );
+`
+
+const AGENT_MEMORY_V42_TARGETED_LIFECYCLE_BACKFILL_SQL = `
+  UPDATE agent_memory
+  SET lifecycle_state = ${buildLegacyLifecycleStateSql()}
+  WHERE EXISTS (
+    SELECT 1 FROM agent_memory_v42_added_columns WHERE name = 'lifecycle_state'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM agent_memory_v42_added_columns WHERE name = 'embedding_state'
+  );
+`
+
+const AGENT_MEMORY_V42_TARGETED_EMBEDDING_BACKFILL_SQL = `
+  UPDATE agent_memory
+  SET embedding_state = ${buildLegacyEmbeddingStateSql()}
+  WHERE EXISTS (
+    SELECT 1 FROM agent_memory_v42_added_columns WHERE name = 'embedding_state'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM agent_memory_v42_added_columns WHERE name = 'lifecycle_state'
+  );
+`
+
+const AGENT_MEMORY_SHADOW_RECONCILE_SQL = `
+  UPDATE agent_memory
+  SET status = ${buildLegacyStatusProjectionSql()}
+  WHERE ${buildLegacyShadowMismatchPredicateSql()};
+`
+
+const AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_NAME = 'agent_memory_legacy_status_bridge_ai'
+const AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_NAME = 'agent_memory_legacy_status_bridge_au'
+const AGENT_MEMORY_LEGACY_INSERT_LIFECYCLE_SQL = buildLegacyLifecycleStateSql('NEW')
+const AGENT_MEMORY_LEGACY_INSERT_EMBEDDING_SQL = buildLegacyEmbeddingStateSql('NEW')
+const AGENT_MEMORY_LEGACY_INSERT_STATUS_SQL = buildStatusProjectionFromExpressionsSql(
+  AGENT_MEMORY_LEGACY_INSERT_LIFECYCLE_SQL,
+  AGENT_MEMORY_LEGACY_INSERT_EMBEDDING_SQL
+)
+const AGENT_MEMORY_LEGACY_UPDATE_LIFECYCLE_SQL = buildLegacyBridgeUpdateLifecycleStateSql()
+const AGENT_MEMORY_LEGACY_UPDATE_EMBEDDING_SQL = buildLegacyBridgeUpdateEmbeddingStateSql()
+const AGENT_MEMORY_LEGACY_UPDATE_STATUS_SQL = buildStatusProjectionFromExpressionsSql(
+  AGENT_MEMORY_LEGACY_UPDATE_LIFECYCLE_SQL,
+  AGENT_MEMORY_LEGACY_UPDATE_EMBEDDING_SQL
+)
+
+const AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_SQL = `
+  CREATE TRIGGER IF NOT EXISTS ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_NAME}
+  AFTER INSERT ON agent_memory
+  WHEN ${buildLegacyShadowMismatchPredicateSql('NEW')}
+  BEGIN
+    SELECT CASE
+      WHEN NEW.status NOT IN (${AGENT_MEMORY_LEGACY_STATUS_SQL_LIST})
+        THEN RAISE(ABORT, 'invalid legacy agent_memory status')
+    END;
+    UPDATE agent_memory
+    SET status = ${AGENT_MEMORY_LEGACY_INSERT_STATUS_SQL},
+        lifecycle_state = ${AGENT_MEMORY_LEGACY_INSERT_LIFECYCLE_SQL},
+        embedding_state = ${AGENT_MEMORY_LEGACY_INSERT_EMBEDDING_SQL}
+    WHERE rowid = NEW.rowid;
+  END;
+`
+
+const AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_SQL = `
+  CREATE TRIGGER IF NOT EXISTS ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_NAME}
+  AFTER UPDATE OF status ON agent_memory
+  WHEN NEW.status != OLD.status
+    AND NEW.lifecycle_state = OLD.lifecycle_state
+    AND NEW.embedding_state = OLD.embedding_state
+    AND ${buildLegacyShadowMismatchPredicateSql('NEW')}
+  BEGIN
+    SELECT CASE
+      WHEN NEW.status NOT IN (${AGENT_MEMORY_LEGACY_STATUS_SQL_LIST})
+        THEN RAISE(ABORT, 'invalid legacy agent_memory status')
+    END;
+    UPDATE agent_memory
+    SET status = ${AGENT_MEMORY_LEGACY_UPDATE_STATUS_SQL},
+        lifecycle_state = ${AGENT_MEMORY_LEGACY_UPDATE_LIFECYCLE_SQL},
+        embedding_state = ${AGENT_MEMORY_LEGACY_UPDATE_EMBEDDING_SQL}
+    WHERE rowid = NEW.rowid;
+  END;
+`
+
+const AGENT_MEMORY_LEGACY_STATUS_BRIDGE_SQL = `
+  ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_SQL}
+  ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_SQL}
+`
+
+const AGENT_MEMORY_LEGACY_STATUS_BRIDGE_DEFINITIONS = new Map([
+  [AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_NAME, AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_SQL],
+  [AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_NAME, AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_SQL]
+])
 
 function tokenizeSearchQuery(query: string): string[] {
   return query
@@ -163,15 +403,40 @@ function sqlLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
 
+function normalizeSchemaDefinition(sql: string | null | undefined): string {
+  return (sql ?? '')
+    .replace(/\bIF\s+NOT\s+EXISTS\b/giu, '')
+    .replace(/\s+/gu, ' ')
+    .replace(/;\s*$/u, '')
+    .trim()
+    .toLowerCase()
+}
+
 function aggregateAlias(prefix: string, key: string): string {
   return `${prefix}_${key}`
 }
 
-function buildCountCaseAggregates(
-  column: 'kind' | 'category' | 'status',
-  prefix: string,
-  keys: readonly string[]
-): string {
+function buildCanonicalStatusFilter(statuses: readonly AgentMemoryStatus[]): string {
+  const conditions = statuses.map((status) => {
+    switch (status) {
+      case 'archived':
+        return "lifecycle_state = 'archived'"
+      case 'conflicted':
+        return "lifecycle_state = 'conflicted'"
+      case 'embedded':
+        return "lifecycle_state = 'active' AND embedding_state = 'ready'"
+      case 'error':
+        return "lifecycle_state = 'active' AND embedding_state = 'error'"
+      case 'fts_only':
+        return "lifecycle_state = 'active' AND embedding_state IN ('fts_only', 'not_applicable')"
+      case 'pending_embedding':
+        return "lifecycle_state = 'active' AND embedding_state = 'pending'"
+    }
+  })
+  return `(${conditions.map((condition) => `(${condition})`).join(' OR ')})`
+}
+
+function buildCountCaseAggregates(column: string, prefix: string, keys: readonly string[]): string {
   return keys
     .map(
       (key) =>
@@ -233,11 +498,16 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         conflict_state TEXT,
         conflict_with TEXT,
         persona_state TEXT,
-        decision_revision INTEGER NOT NULL DEFAULT 1
+        decision_revision INTEGER NOT NULL DEFAULT 1,
+        lifecycle_state TEXT NOT NULL DEFAULT 'active'
+          CHECK (lifecycle_state IN ('active', 'archived', 'conflicted')),
+        embedding_state TEXT NOT NULL DEFAULT 'pending'
+          CHECK (embedding_state IN ('pending', 'ready', 'error', 'fts_only', 'not_applicable'))
       );
       ${AGENT_MEMORY_BASE_INDEX_SQL}
-      ${AGENT_MEMORY_MAINTENANCE_INDEX_SQL}
       ${AGENT_MEMORY_CONFLICT_INDEX_SQL}
+      ${AGENT_MEMORY_CANONICAL_INDEX_SQL}
+      ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_SQL}
     `
   }
 
@@ -252,29 +522,206 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       const columns = this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
         name: string
       }>
-      if (
-        columns.some((column) => column.name === 'conflict_state') &&
-        columns.some((column) => column.name === 'last_consolidated_at')
-      ) {
-        this.db.exec(AGENT_MEMORY_MAINTENANCE_INDEX_SQL)
-      }
       if (columns.some((column) => column.name === 'conflict_with')) {
         this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
       }
     }
+    const currentColumns = this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
+      name: string
+    }>
+    if (
+      currentColumns.some((column) => column.name === 'lifecycle_state') &&
+      currentColumns.some((column) => column.name === 'embedding_state')
+    ) {
+      this.ensureFtsIndex()
+    }
+  }
+
+  private replaceLegacyStatusBridge(): void {
+    const conflictingObject = this.db
+      .prepare(
+        `SELECT type, name FROM sqlite_master
+         WHERE name IN (?, ?) AND type != 'trigger'
+         LIMIT 1`
+      )
+      .get(
+        AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_NAME,
+        AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_NAME
+      ) as { type: string; name: string } | undefined
+    if (conflictingObject) {
+      throw new Error(
+        `[Memory] legacy status bridge name is occupied by ${conflictingObject.type}: ${conflictingObject.name}`
+      )
+    }
+    this.db.exec(`
+      ${this.dropLegacyStatusBridgeSql()}
+      ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_SQL}
+    `)
+  }
+
+  private dropLegacyStatusBridgeSql(): string {
+    return `
+      DROP TRIGGER IF EXISTS ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_NAME};
+      DROP TRIGGER IF EXISTS ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_NAME};
+    `
+  }
+
+  private legacyStatusBridgeDefinitionsMatch(): boolean {
+    const rows = this.db
+      .prepare(
+        `SELECT name, sql
+         FROM sqlite_master
+         WHERE type = 'trigger' AND name IN (?, ?)`
+      )
+      .all(
+        AGENT_MEMORY_LEGACY_STATUS_BRIDGE_INSERT_NAME,
+        AGENT_MEMORY_LEGACY_STATUS_BRIDGE_UPDATE_NAME
+      ) as Array<{ name: string; sql: string | null }>
+    const actual = new Map(rows.map((row) => [row.name, normalizeSchemaDefinition(row.sql)]))
+    return [...AGENT_MEMORY_LEGACY_STATUS_BRIDGE_DEFINITIONS].every(
+      ([name, sql]) => actual.get(name) === normalizeSchemaDefinition(sql)
+    )
+  }
+
+  private ensureCurrentLegacyStatusBridge(backupBeforeRecovery?: () => string | null): void {
+    if (this.legacyStatusBridgeDefinitionsMatch()) return
+    const mismatchCount = this.countLegacyShadowMismatches()
+    if (mismatchCount === 0) {
+      this.db.transaction(() => this.replaceLegacyStatusBridge())()
+      return
+    }
+    if (!backupBeforeRecovery) {
+      throw new Error('[Memory] legacy status bridge recovery requires a database backup callback')
+    }
+    const backupPath = backupBeforeRecovery()
+    if (!backupPath) throw new Error('[Memory] failed to back up database before bridge recovery')
+
+    const recovery = this.db.transaction(() => {
+      this.db.exec(this.dropLegacyStatusBridgeSql())
+      const internalCanonicalPreserved = this.db
+        .prepare(
+          `UPDATE agent_memory
+           SET status = ${buildLegacyStatusProjectionSql()}
+           WHERE ${buildLegacyShadowMismatchPredicateSql()}
+             AND ${buildInternalKindPredicateSql()}
+             AND status = 'fts_only'
+             AND lifecycle_state IN ('archived', 'conflicted')
+             AND embedding_state = 'not_applicable'`
+        )
+        .run().changes
+      const lifecycleExpression = buildLegacyLifecycleStateSql()
+      const embeddingExpression = buildLegacyEmbeddingStateSql()
+      const legacyRepaired = this.db
+        .prepare(
+          `UPDATE agent_memory
+           SET lifecycle_state = ${lifecycleExpression},
+               embedding_state = ${embeddingExpression},
+               status = ${buildStatusProjectionFromExpressionsSql(lifecycleExpression, embeddingExpression)}
+           WHERE ${buildLegacyShadowMismatchPredicateSql()}`
+        )
+        .run().changes
+      this.replaceLegacyStatusBridge()
+      const remaining = this.countLegacyShadowMismatches()
+      if (remaining !== 0) {
+        throw new Error(`[Memory] legacy status bridge recovery left ${remaining} mismatches`)
+      }
+      return { internalCanonicalPreserved, legacyRepaired }
+    })()
+
+    logger.warn(
+      `[Memory] repaired legacy status bridge mismatches: legacy=${recovery.legacyRepaired} internalCanonical=${recovery.internalCanonicalPreserved} backup=${backupPath}`
+    )
+  }
+
+  assertCurrentSchema(options?: { backupBeforeLegacyBridgeRecovery?: () => string | null }): void {
+    const columns = this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
+      name: string
+      notnull: number
+      dflt_value: string | null
+    }>
+    for (const columnName of ['decision_revision', 'lifecycle_state', 'embedding_state']) {
+      if (!columns.some((column) => column.name === columnName)) {
+        throw new Error(`[Memory] agent_memory schema migration is incomplete: ${columnName}`)
+      }
+    }
+    const tableSql = (
+      this.db
+        .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'agent_memory'")
+        .get() as { sql: string | null } | undefined
+    )?.sql
+    const lifecycleColumn = columns.find((column) => column.name === 'lifecycle_state')
+    const embeddingColumn = columns.find((column) => column.name === 'embedding_state')
+    if (
+      lifecycleColumn?.notnull !== 1 ||
+      lifecycleColumn.dflt_value !== "'active'" ||
+      !tableSql?.includes("CHECK (lifecycle_state IN ('active', 'archived', 'conflicted'))")
+    ) {
+      throw new Error('[Memory] agent_memory lifecycle_state constraints are incomplete')
+    }
+    if (
+      embeddingColumn?.notnull !== 1 ||
+      embeddingColumn.dflt_value !== "'pending'" ||
+      !tableSql?.includes(
+        "CHECK (embedding_state IN ('pending', 'ready', 'error', 'fts_only', 'not_applicable'))"
+      )
+    ) {
+      throw new Error('[Memory] agent_memory embedding_state constraints are incomplete')
+    }
+    this.db.exec(AGENT_MEMORY_BASE_INDEX_SQL)
+    this.db.exec(AGENT_MEMORY_RETIRED_INDEX_SQL)
+    this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
+    this.db.exec(AGENT_MEMORY_CANONICAL_INDEX_SQL)
+    this.ensureCurrentLegacyStatusBridge(options?.backupBeforeLegacyBridgeRecovery)
     this.ensureFtsIndex()
   }
 
-  assertCurrentSchema(): void {
-    const columns = this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
-      name: string
-    }>
-    if (!columns.some((column) => column.name === 'decision_revision')) {
-      throw new Error('[Memory] agent_memory schema migration is incomplete: decision_revision')
+  finalizeMigration(version: number): void {
+    if (version !== AGENT_MEMORY_STATE_MODEL_SCHEMA_VERSION) return
+    this.replaceLegacyStatusBridge()
+    const markerExists = this.db
+      .prepare(
+        `SELECT 1 AS present FROM sqlite_temp_master
+         WHERE type = 'table' AND name = 'agent_memory_v42_added_columns'`
+      )
+      .get() as { present: number } | undefined
+    if (!markerExists) return
+    const addedColumnCount = (
+      this.db.prepare('SELECT COUNT(*) AS count FROM agent_memory_v42_added_columns').get() as {
+        count: number
+      }
+    ).count
+    const ftsMetaExists = this.db
+      .prepare(
+        "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'agent_memory_fts_meta'"
+      )
+      .get()
+    if (addedColumnCount === 2 && ftsMetaExists) {
+      this.db
+        .prepare(
+          `UPDATE agent_memory_fts_meta
+           SET policy_version = ?, updated_at = ?
+           WHERE key = ? AND policy_version = ?
+             AND mutation_generation = indexed_generation`
+        )
+        .run(
+          AGENT_MEMORY_FTS_POLICY_VERSION,
+          Date.now(),
+          AGENT_MEMORY_FTS_META_KEY,
+          PREVIOUS_AGENT_MEMORY_FTS_POLICY_VERSION
+        )
     }
-    this.db.exec(AGENT_MEMORY_BASE_INDEX_SQL)
-    this.db.exec(AGENT_MEMORY_MAINTENANCE_INDEX_SQL)
-    this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
+    const stats = this.db
+      .prepare(
+        'SELECT normalized_legacy_status_count AS count FROM agent_memory_v42_migration_stats'
+      )
+      .get() as { count: number } | undefined
+    if ((stats?.count ?? 0) > 0) {
+      logger.warn(`[Memory] v42 normalized legacy status rows: ${stats?.count ?? 0}`)
+    }
+    this.db.exec(`
+      DROP TABLE agent_memory_v42_migration_stats;
+      DROP TABLE agent_memory_v42_added_columns;
+    `)
   }
 
   getMigrationSQL(version: number): string | null {
@@ -310,11 +757,44 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     if (version === 41) {
       return 'ALTER TABLE agent_memory ADD COLUMN decision_revision INTEGER NOT NULL DEFAULT 1;'
     }
+    if (version === 42) {
+      return [
+        AGENT_MEMORY_V42_MARKER_SETUP_SQL,
+        "ALTER TABLE agent_memory ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle_state IN ('active', 'archived', 'conflicted'));",
+        "ALTER TABLE agent_memory ADD COLUMN embedding_state TEXT NOT NULL DEFAULT 'pending' CHECK (embedding_state IN ('pending', 'ready', 'error', 'fts_only', 'not_applicable'));",
+        AGENT_MEMORY_V42_COMBINED_BACKFILL_SQL,
+        AGENT_MEMORY_V42_TARGETED_LIFECYCLE_BACKFILL_SQL,
+        AGENT_MEMORY_V42_TARGETED_EMBEDDING_BACKFILL_SQL,
+        AGENT_MEMORY_SHADOW_RECONCILE_SQL,
+        AGENT_MEMORY_RETIRED_INDEX_SQL,
+        AGENT_MEMORY_CANONICAL_INDEX_SQL
+      ].join('\n')
+    }
     return null
   }
 
   getLatestVersion(): number {
     return AGENT_MEMORY_SCHEMA_VERSION
+  }
+
+  repairCanonicalStateAfterSchemaRepair(addedColumns: ReadonlySet<string>): void {
+    if (addedColumns.has('lifecycle_state')) {
+      this.db.exec(AGENT_MEMORY_LIFECYCLE_BACKFILL_SQL)
+    }
+    if (addedColumns.has('embedding_state')) {
+      this.db.exec(AGENT_MEMORY_EMBEDDING_BACKFILL_SQL)
+    }
+    if (addedColumns.has('lifecycle_state') || addedColumns.has('embedding_state')) {
+      this.db.exec(AGENT_MEMORY_SHADOW_RECONCILE_SQL)
+      this.db.exec(AGENT_MEMORY_RETIRED_INDEX_SQL)
+      this.db.exec(AGENT_MEMORY_CANONICAL_INDEX_SQL)
+      if (
+        this.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'agent_memory_fts_meta'").get()
+      ) {
+        this.db.prepare("DELETE FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'").run()
+      }
+      this.replaceLegacyStatusBridge()
+    }
   }
 
   // Detects the best available FTS5 tokenizer once per connection. trigram gives substring
@@ -426,13 +906,18 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       .run(generation, Date.now(), AGENT_MEMORY_FTS_META_KEY, generation)
   }
 
-  private runRecallMutation<T>(mutation: () => T, maintainFts: () => void): T {
+  private runRecallMutation<T>(input: {
+    mutate: () => T
+    didMutate: (result: T) => boolean
+    maintainFts: (result: T) => void
+  }): T {
     return this.db.transaction(() => {
-      const result = mutation()
+      const result = input.mutate()
+      if (!input.didMutate(result)) return result
       const generation = this.markFtsDirty()
       if (!this.ftsReady || generation < 0) return result
       try {
-        this.db.transaction(maintainFts)()
+        this.db.transaction(() => input.maintainFts(result))()
         this.markFtsIndexed(generation)
       } catch {
         this.ftsReady = false
@@ -600,6 +1085,22 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   }
 
   insert(input: AgentMemoryInsertInput): AgentMemoryRow {
+    const status = input.status ?? 'pending_embedding'
+    if ((input.lifecycleState === undefined) !== (input.embeddingState === undefined)) {
+      throw new Error('Memory inserts must provide both canonical state fields or neither')
+    }
+    const canonicalState =
+      input.lifecycleState && input.embeddingState
+        ? { lifecycleState: input.lifecycleState, embeddingState: input.embeddingState }
+        : deriveCanonicalStateFromLegacy({ status, kind: input.kind })
+    if (input.lifecycleState !== undefined && input.embeddingState !== undefined) {
+      assertValidMemoryInsertState({
+        kind: input.kind,
+        lifecycleState: canonicalState.lifecycleState,
+        embeddingState: canonicalState.embeddingState,
+        conflictWith: input.conflictWith ?? null
+      })
+    }
     const row: AgentMemoryRow = {
       id: input.id,
       agent_id: input.agentId,
@@ -608,7 +1109,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       category: input.category ?? null,
       content: input.content,
       importance: input.importance ?? 0.5,
-      status: input.status ?? 'pending_embedding',
+      status: projectLegacyStatus(canonicalState.lifecycleState, canonicalState.embeddingState),
+      lifecycle_state: canonicalState.lifecycleState,
+      embedding_state: canonicalState.embeddingState,
       embedding_id: null,
       embedding_dim: null,
       embedding_model: null,
@@ -629,8 +1132,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       decision_revision: 1
     }
 
-    this.runRecallMutation(
-      () =>
+    this.runRecallMutation({
+      mutate: () =>
         this.db
           .prepare(
             `INSERT INTO agent_memory (
@@ -659,9 +1162,11 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            conflict_state,
            conflict_with,
            persona_state,
-           decision_revision
+           decision_revision,
+           lifecycle_state,
+           embedding_state
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .run(
             row.id,
@@ -689,10 +1194,13 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
             row.conflict_state,
             row.conflict_with,
             row.persona_state,
-            row.decision_revision
+            row.decision_revision,
+            row.lifecycle_state,
+            row.embedding_state
           ),
-      () => this.insertFtsMirrorRow(this.getFtsMirrorRow(row.id))
-    )
+      didMutate: (result) => result.changes === 1,
+      maintainFts: () => this.insertFtsMirrorRow(this.getFtsMirrorRow(row.id))
+    })
 
     return row
   }
@@ -745,7 +1253,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const placeholders = kinds.map(() => '?').join(', ')
     const predicate = `agent_id = ?
       AND superseded_by IS NULL
-      AND status NOT IN ('archived', 'conflicted')
+      AND lifecycle_state = 'active'
       AND kind IN ('episodic', 'semantic', 'reflection')
       AND kind IN (${placeholders})`
     const aggregate = this.db
@@ -769,7 +1277,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const topRows = this.db
       .prepare(
         `SELECT *
-         FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v2
+         FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v3
          WHERE ${predicate}
          ORDER BY importance DESC, created_at DESC, id DESC
          LIMIT ?`
@@ -791,10 +1299,10 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       where.push('superseded_by IS NULL')
     }
     if (!options.includeArchived && !options.statuses?.includes('archived')) {
-      where.push("status != 'archived'")
+      where.push("lifecycle_state != 'archived'")
     }
     if (!options.statuses?.includes('conflicted')) {
-      where.push("status != 'conflicted'")
+      where.push("lifecycle_state != 'conflicted'")
     }
     if (options.kinds?.length) {
       where.push(`kind IN (${options.kinds.map(() => '?').join(', ')})`)
@@ -805,8 +1313,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       where.push("kind != 'working'")
     }
     if (options.statuses?.length) {
-      where.push(`status IN (${options.statuses.map(() => '?').join(', ')})`)
-      params.push(...options.statuses)
+      where.push(buildCanonicalStatusFilter(options.statuses))
     }
 
     let sql = `SELECT * FROM agent_memory WHERE ${where.join(' AND ')} ORDER BY created_at DESC`
@@ -824,22 +1331,11 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     limit: number
   ): AgentMemoryRow[] {
     const cappedLimit = Math.min(MEMORY_PAGE_MAX_LIMIT + 1, Math.max(1, Math.floor(limit)))
-    const cursorSql = cursor ? 'AND (created_at < ? OR (created_at = ? AND id < ?))' : ''
     const params: Array<string | number> = [agentId]
     if (cursor) params.push(cursor.createdAt, cursor.createdAt, cursor.id)
     params.push(cappedLimit)
     return this.db
-      .prepare(
-        `SELECT *
-         FROM agent_memory
-         WHERE agent_id = ?
-           AND superseded_by IS NULL
-           AND status != 'conflicted'
-           AND kind NOT IN ('persona', 'working')
-           ${cursorSql}
-         ORDER BY created_at DESC, id DESC
-         LIMIT ?`
-      )
+      .prepare(buildManagementPageSelectSql(Boolean(cursor)))
       .all(...params) as AgentMemoryRow[]
   }
 
@@ -854,7 +1350,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          WHERE agent_id = ?
            AND id IN (${placeholders})
            AND superseded_by IS NULL
-           AND status != 'conflicted'
+           AND lifecycle_state != 'conflicted'
            AND kind NOT IN ('persona', 'working')`
       )
       .all(agentId, ...uniqueIds) as AgentMemoryRow[]
@@ -1033,7 +1529,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                   am.id,
                   am.importance,
                   am.created_at
-           FROM agent_memory am INDEXED BY idx_agent_memory_recall_importance_v4
+           FROM agent_memory am INDEXED BY idx_agent_memory_recall_importance_v5
            WHERE am.agent_id = ?
              AND ${buildRecallablePredicate('am')}
            ORDER BY am.importance DESC, am.created_at DESC, am.id ASC
@@ -1109,26 +1605,11 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 500)
     if (agentId) {
       return this.db
-        .prepare(
-          `SELECT * FROM agent_memory
-           WHERE status = 'pending_embedding'
-             AND superseded_by IS NULL
-             AND kind NOT IN ('persona', 'working')
-             AND agent_id = ?
-           ORDER BY created_at ASC
-           LIMIT ?`
-        )
+        .prepare(buildPendingEmbeddingSelectSql(true))
         .all(agentId, cappedLimit) as AgentMemoryRow[]
     }
     return this.db
-      .prepare(
-        `SELECT * FROM agent_memory
-         WHERE status = 'pending_embedding'
-           AND superseded_by IS NULL
-           AND kind NOT IN ('persona', 'working')
-         ORDER BY created_at ASC
-         LIMIT ?`
-      )
+      .prepare(buildPendingEmbeddingSelectSql(false))
       .all(cappedLimit) as AgentMemoryRow[]
   }
 
@@ -1137,8 +1618,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       ? (this.db
           .prepare(
             `SELECT COUNT(*) AS count
-             FROM agent_memory
-             WHERE status = 'pending_embedding'
+             FROM agent_memory INDEXED BY idx_agent_memory_embedding_pending_agent_v2
+             WHERE lifecycle_state = 'active'
+               AND embedding_state = 'pending'
                AND superseded_by IS NULL
                AND kind NOT IN ('persona', 'working')
                AND agent_id = ?`
@@ -1147,8 +1629,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       : (this.db
           .prepare(
             `SELECT COUNT(*) AS count
-             FROM agent_memory
-             WHERE status = 'pending_embedding'
+             FROM agent_memory INDEXED BY idx_agent_memory_embedding_pending_global_v2
+             WHERE lifecycle_state = 'active'
+               AND embedding_state = 'pending'
                AND superseded_by IS NULL
                AND kind NOT IN ('persona', 'working')`
           )
@@ -1156,65 +1639,307 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     return row.count
   }
 
-  updateStatus(
-    id: string,
-    status: AgentMemoryStatus,
-    embedding?: {
-      embeddingId?: string | null
-      embeddingDim?: number | null
-      embeddingModel?: string | null
+  restoreArchivedMemory(input: MemoryTransitionTarget): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'archived' ||
+      before.superseded_by !== null ||
+      before.conflict_state !== null ||
+      before.conflict_with !== null ||
+      before.kind === 'persona' ||
+      before.kind === 'working'
+    ) {
+      return false
     }
-  ): void {
-    const before = this.getFtsMirrorRow(id)
-    const nextRecallable = isRecallableFtsRow(before ? { ...before, status } : undefined)
-    const mutation = () =>
-      this.db
-        .prepare(
-          `UPDATE agent_memory
-         SET status = ?, embedding_id = ?, embedding_dim = ?, embedding_model = ?
-         WHERE id = ?`
-        )
-        .run(
-          status,
-          embedding?.embeddingId ?? null,
-          embedding?.embeddingDim ?? null,
-          embedding?.embeddingModel ?? null,
-          id
-        )
-    if (isRecallableFtsRow(before) === nextRecallable) mutation()
-    else this.runRecallMutation(mutation, () => this.replaceFtsMirrorRow(before, id))
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, {
+        lifecycleState: 'active',
+        embeddingState: 'pending',
+        embeddingRefsState: 'none'
+      }),
+      'restore_archived'
+    )
+    const result = this.runRecallMutation({
+      mutate: () =>
+        this.db
+          .prepare(
+            `UPDATE agent_memory AS memory
+             SET lifecycle_state = 'active', embedding_state = 'pending',
+                 status = 'pending_embedding',
+                 embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+                 decision_revision = decision_revision + 1
+             WHERE memory.agent_id = ? AND memory.id = ? AND memory.decision_revision = ?
+               AND memory.lifecycle_state = 'archived'
+               AND memory.superseded_by IS NULL
+               AND memory.conflict_state IS NULL
+               AND memory.conflict_with IS NULL
+               AND memory.kind NOT IN ('persona', 'working')
+               AND NOT EXISTS (
+                 SELECT 1 FROM agent_memory challenger
+                 WHERE challenger.agent_id = memory.agent_id
+                   AND challenger.lifecycle_state = 'conflicted'
+                   AND challenger.superseded_by IS NULL
+                   AND challenger.conflict_with = memory.id
+               )`
+          )
+          .run(input.agentId, input.id, input.expectedRevision),
+      didMutate: (mutationResult) => mutationResult.changes === 1,
+      maintainFts: () => this.replaceFtsMirrorRow(before, input.id)
+    })
+    return result.changes === 1
   }
 
-  activateForEmbedding(id: string): void {
-    const before = this.getFtsMirrorRow(id)
-    const mutation = () =>
-      this.db
-        .prepare(
-          `UPDATE agent_memory
-         SET status = ?, embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
-             decision_revision = decision_revision + 1
-         WHERE id = ?`
-        )
-        .run('pending_embedding', id)
-    if (isRecallableFtsRow(before)) mutation()
-    else this.runRecallMutation(mutation, () => this.replaceFtsMirrorRow(before, id))
+  reviveSupersededMemory(input: ReviveSupersededTransition): boolean {
+    if (!input.retiredHead) return this.reviveSupersededRow(input)
+    if (input.retiredHead.id === input.id) return false
+    const rejected = new Error('supersession transition rejected')
+    try {
+      this.db.transaction(() => {
+        if (
+          !this.markSupersededIfRevision(
+            input.agentId,
+            input.retiredHead!.id,
+            input.retiredHead!.expectedRevision,
+            input.id
+          )
+        ) {
+          throw rejected
+        }
+        if (!this.reviveSupersededRow(input)) throw rejected
+      })()
+      return true
+    } catch (error) {
+      if (error === rejected) return false
+      throw error
+    }
   }
 
-  activateForEmbeddingIfRevision(agentId: string, id: string, expectedRevision: number): boolean {
-    const before = this.getFtsMirrorRow(id)
-    const mutation = () =>
-      this.db
-        .prepare(
-          `UPDATE agent_memory
-         SET status = ?, embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+  private reviveSupersededRow(input: MemoryTransitionTarget): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'active' ||
+      before.superseded_by === null ||
+      before.conflict_state !== null ||
+      before.conflict_with !== null ||
+      before.kind === 'persona' ||
+      before.kind === 'working'
+    ) {
+      return false
+    }
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, {
+        embeddingState: 'pending',
+        embeddingRefsState: 'none',
+        supersededBy: null
+      }),
+      'revive_superseded'
+    )
+    const result = this.runRecallMutation({
+      mutate: () =>
+        this.db
+          .prepare(
+            `UPDATE agent_memory
+             SET superseded_by = NULL,
+                 embedding_state = 'pending', status = 'pending_embedding',
+                 embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+                 decision_revision = decision_revision + 1
+             WHERE agent_id = ? AND id = ? AND decision_revision = ?
+               AND lifecycle_state = 'active'
+               AND superseded_by IS NOT NULL
+               AND conflict_state IS NULL
+               AND conflict_with IS NULL
+               AND kind NOT IN ('persona', 'working')`
+          )
+          .run(input.agentId, input.id, input.expectedRevision),
+      didMutate: (mutationResult) => mutationResult.changes === 1,
+      maintainFts: () => this.replaceFtsMirrorRow(before, input.id)
+    })
+    return result.changes === 1
+  }
+
+  activateResolvedChallenger(input: ResolveChallengerTransition): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'conflicted' ||
+      before.conflict_with !== input.targetId ||
+      before.superseded_by !== null ||
+      before.conflict_state !== null ||
+      before.kind === 'persona' ||
+      before.kind === 'working'
+    ) {
+      return false
+    }
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, {
+        lifecycleState: 'active',
+        embeddingState: 'pending',
+        embeddingRefsState: 'none',
+        conflictWith: null
+      }),
+      'activate_challenger'
+    )
+    const updateContent = input.content !== undefined
+    const updateCategory = updateContent && Object.prototype.hasOwnProperty.call(input, 'category')
+    const contentSql = updateContent
+      ? `, content = ?, provenance_key = ?${updateCategory ? ', category = ?' : ''}, last_accessed = ?`
+      : ''
+    const params: unknown[] = []
+    if (updateContent) {
+      params.push(input.content, input.provenanceKey)
+      if (updateCategory) params.push(input.category ?? null)
+      params.push(input.at)
+    }
+    params.push(input.agentId, input.id, input.expectedRevision, input.targetId)
+    const result = this.runRecallMutation({
+      mutate: () =>
+        this.db
+          .prepare(
+            `UPDATE agent_memory AS challenger
+             SET lifecycle_state = 'active', embedding_state = 'pending',
+                 status = 'pending_embedding', conflict_with = NULL,
+                 embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+                 decision_revision = decision_revision + 1${contentSql}
+             WHERE challenger.agent_id = ? AND challenger.id = ?
+               AND challenger.decision_revision = ?
+               AND challenger.lifecycle_state = 'conflicted'
+               AND challenger.superseded_by IS NULL
+               AND challenger.conflict_with = ?
+               AND challenger.kind NOT IN ('persona', 'working')
+               AND EXISTS (
+                 SELECT 1 FROM agent_memory target
+                 WHERE target.agent_id = challenger.agent_id
+                   AND target.id = challenger.conflict_with
+                   AND target.lifecycle_state = 'active'
+                   AND target.conflict_state = 'challenged'
+                   AND target.superseded_by IS NULL
+               )`
+          )
+          .run(...params),
+      didMutate: (mutationResult) => mutationResult.changes === 1,
+      maintainFts: () => this.replaceFtsMirrorRow(before, input.id)
+    })
+    return result.changes === 1
+  }
+
+  archiveResolvedChallenger(input: ArchiveChallengerTransition): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'conflicted' ||
+      before.conflict_with !== input.targetId ||
+      before.superseded_by !== null ||
+      before.conflict_state !== null ||
+      before.kind === 'persona' ||
+      before.kind === 'working'
+    ) {
+      return false
+    }
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, {
+        lifecycleState: 'archived',
+        supersededBy: input.winnerId,
+        conflictWith: null
+      }),
+      'archive_challenger'
+    )
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory AS challenger
+         SET lifecycle_state = 'archived', status = 'archived',
+             conflict_with = NULL, superseded_by = ?,
              decision_revision = decision_revision + 1
-         WHERE agent_id = ? AND id = ? AND decision_revision = ?`
-        )
-        .run('pending_embedding', agentId, id, expectedRevision)
-    const result = isRecallableFtsRow(before)
-      ? mutation()
-      : this.runRecallMutation(mutation, () => this.replaceFtsMirrorRow(before, id))
-    return result.changes > 0
+         WHERE challenger.agent_id = ? AND challenger.id = ?
+           AND challenger.decision_revision = ?
+           AND challenger.lifecycle_state = 'conflicted'
+           AND challenger.superseded_by IS NULL
+           AND challenger.conflict_with = ?
+           AND challenger.kind NOT IN ('persona', 'working')
+           AND EXISTS (
+             SELECT 1 FROM agent_memory target
+             WHERE target.agent_id = challenger.agent_id
+               AND target.id = challenger.conflict_with
+               AND target.lifecycle_state = 'active'
+               AND target.conflict_state = 'challenged'
+               AND target.superseded_by IS NULL
+           )`
+      )
+      .run(input.winnerId, input.agentId, input.id, input.expectedRevision, input.targetId)
+    return result.changes === 1
+  }
+
+  archiveResolvedConflictTarget(input: ArchiveConflictTargetTransition): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'active' ||
+      before.conflict_state !== 'challenged' ||
+      before.conflict_with !== null ||
+      before.superseded_by !== null ||
+      before.kind === 'persona' ||
+      before.kind === 'working'
+    ) {
+      return false
+    }
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, {
+        lifecycleState: 'archived',
+        supersededBy: input.challengerId,
+        conflictState: null
+      }),
+      'archive_conflict_target'
+    )
+    const result = this.runRecallMutation({
+      mutate: () =>
+        this.db
+          .prepare(
+            `UPDATE agent_memory AS target
+             SET lifecycle_state = 'archived', status = 'archived',
+                 conflict_state = NULL, superseded_by = ?,
+                 decision_revision = decision_revision + 1
+             WHERE target.agent_id = ? AND target.id = ?
+               AND target.decision_revision = ?
+               AND target.lifecycle_state = 'active'
+               AND target.conflict_state = 'challenged'
+               AND target.superseded_by IS NULL
+               AND EXISTS (
+                 SELECT 1 FROM agent_memory challenger
+                 WHERE challenger.agent_id = target.agent_id
+                   AND challenger.id = ?
+                   AND challenger.lifecycle_state = 'active'
+                   AND challenger.superseded_by IS NULL
+                   AND challenger.conflict_state IS NULL
+                   AND challenger.conflict_with IS NULL
+               )`
+          )
+          .run(
+            input.challengerId,
+            input.agentId,
+            input.id,
+            input.expectedRevision,
+            input.challengerId
+          ),
+      didMutate: (mutationResult) => mutationResult.changes === 1,
+      maintainFts: () => this.deleteFtsMirrorRow(before)
+    })
+    return result.changes === 1
   }
 
   markPendingEmbeddingsReady(
@@ -1239,12 +1964,13 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            VALUES ${valuesSql}
          )
          UPDATE agent_memory
-         SET status = 'embedded',
+         SET embedding_state = 'ready', status = 'embedded',
              embedding_id = (SELECT embedding_id FROM updates WHERE updates.id = agent_memory.id),
              embedding_dim = (SELECT embedding_dim FROM updates WHERE updates.id = agent_memory.id),
              embedding_model = (SELECT embedding_model FROM updates WHERE updates.id = agent_memory.id)
          WHERE agent_id = ?
-           AND status = 'pending_embedding'
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'pending'
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')
            AND EXISTS (
@@ -1272,12 +1998,13 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            VALUES ${valuesSql}
          )
          UPDATE agent_memory
-         SET status = ?,
+         SET embedding_state = ?, status = ?,
              embedding_id = NULL,
              embedding_dim = NULL,
              embedding_model = NULL
          WHERE agent_id = ?
-           AND status = 'pending_embedding'
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'pending'
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')
            AND EXISTS (
@@ -1288,7 +2015,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            )
          RETURNING id`
       )
-      .all(...params, status, agentId) as Array<{ id: string }>
+      .all(...params, status, status, agentId) as Array<{ id: string }>
     return rows.map((row) => row.id)
   }
 
@@ -1302,23 +2029,23 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   // Returns the number of rows changed.
   requeueForEmbedding(
     agentId: string,
-    statuses: AgentMemoryStatus[],
+    states: AgentMemoryEmbeddingState[],
     limit?: number,
     afterId?: string | null
   ): number {
-    if (!statuses.length) return 0
-    const placeholders = statuses.map(() => '?').join(', ')
+    if (!states.length) return 0
+    const placeholders = states.map(() => '?').join(', ')
     if (limit !== undefined) {
       const cappedLimit = Math.max(0, Math.floor(limit))
       if (cappedLimit === 0) return 0
       const afterSql = afterId ? 'AND id > ?' : ''
-      const params: unknown[] = [agentId, ...statuses]
+      const params: unknown[] = [agentId, ...states]
       if (afterId) params.push(afterId)
       params.push(cappedLimit)
       const result = this.db
         .prepare(
           `UPDATE agent_memory
-           SET status = 'pending_embedding',
+           SET embedding_state = 'pending', status = 'pending_embedding',
                embedding_id = NULL,
                embedding_dim = NULL,
                embedding_model = NULL
@@ -1328,7 +2055,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
              WHERE agent_id = ?
                AND superseded_by IS NULL
                AND kind NOT IN ('persona', 'working')
-               AND status IN (${placeholders})
+               AND lifecycle_state = 'active'
+               AND embedding_state IN (${placeholders})
                ${afterSql}
              ORDER BY id ASC
              LIMIT ?
@@ -1340,31 +2068,32 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const result = this.db
       .prepare(
         `UPDATE agent_memory
-         SET status = 'pending_embedding',
+         SET embedding_state = 'pending', status = 'pending_embedding',
              embedding_id = NULL,
              embedding_dim = NULL,
              embedding_model = NULL
          WHERE agent_id = ?
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')
-           AND status IN (${placeholders})`
+           AND lifecycle_state = 'active'
+           AND embedding_state IN (${placeholders})`
       )
-      .run(agentId, ...statuses)
+      .run(agentId, ...states)
     return result.changes
   }
 
-  listEmbeddingStatusIds(
+  listEmbeddingStateIds(
     agentId: string,
-    statuses: AgentMemoryStatus[],
+    states: AgentMemoryEmbeddingState[],
     limit: number,
     afterId?: string | null
   ): string[] {
-    if (!statuses.length) return []
+    if (!states.length) return []
     const cappedLimit = Math.max(0, Math.floor(limit))
     if (cappedLimit === 0) return []
-    const placeholders = statuses.map(() => '?').join(', ')
+    const placeholders = states.map(() => '?').join(', ')
     const afterSql = afterId ? 'AND id > ?' : ''
-    const params: unknown[] = [agentId, ...statuses]
+    const params: unknown[] = [agentId, ...states]
     if (afterId) params.push(afterId)
     params.push(cappedLimit)
     const rows = this.db
@@ -1374,7 +2103,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          WHERE agent_id = ?
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')
-           AND status IN (${placeholders})
+           AND lifecycle_state = 'active'
+           AND embedding_state IN (${placeholders})
            ${afterSql}
          ORDER BY id ASC
          LIMIT ?`
@@ -1401,7 +2131,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         `SELECT id
          FROM agent_memory
          WHERE agent_id = ?
-           AND status = 'embedded'
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')
            AND embedding_dim = ?
@@ -1414,19 +2145,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     return rows.map((row) => row.id)
   }
 
-  markSuperseded(id: string, supersededBy: string | null): void {
-    const before = this.getFtsMirrorRow(id)
-    this.runRecallMutation(
-      () =>
-        this.db
-          .prepare(
-            'UPDATE agent_memory SET superseded_by = ?, decision_revision = decision_revision + 1 WHERE id = ?'
-          )
-          .run(supersededBy, id),
-      () => this.replaceFtsMirrorRow(before, id)
-    )
-  }
-
   markSupersededIfRevision(
     agentId: string,
     id: string,
@@ -1434,19 +2152,22 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     supersededBy: string
   ): boolean {
     const before = this.getFtsMirrorRow(id)
-    const result = this.runRecallMutation(
-      () =>
+    const result = this.runRecallMutation({
+      mutate: () =>
         this.db
           .prepare(
             `UPDATE agent_memory
          SET superseded_by = ?, decision_revision = decision_revision + 1
          WHERE id = ? AND agent_id = ? AND decision_revision = ?
-           AND superseded_by IS NULL AND conflict_state IS NULL
-           AND status NOT IN ('archived', 'conflicted')`
+           AND superseded_by IS NULL
+           AND conflict_state IS NULL AND conflict_with IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND lifecycle_state = 'active'`
           )
           .run(supersededBy, id, agentId, expectedRevision),
-      () => this.replaceFtsMirrorRow(before, id)
-    )
+      didMutate: (mutationResult) => mutationResult.changes === 1,
+      maintainFts: () => this.replaceFtsMirrorRow(before, id)
+    })
     return result.changes === 1
   }
 
@@ -1489,99 +2210,136 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       .run(decayScore, consolidatedAt, id)
   }
 
-  // Refreshes a row's content in place (UPDATE/merge decision), keeping its provenance_key in sync
-  // with the new content so the idempotent dedup short-circuit keeps matching. last_accessed is
-  // re-anchored too so a rewritten row's forgetting clock resets — a just-merged current-truth row
-  // therefore cannot be archived in the same maintenance pass. Explicit savepoint-isolated FTS
-  // maintenance keeps the keyword mirror aligned with the authoritative content.
-  updateContent(
-    id: string,
-    content: string,
-    provenanceKey: string | null,
-    at: number = Date.now(),
-    category?: string | null
-  ): void {
-    const before = this.getFtsMirrorRow(id)
-    this.runRecallMutation(
-      () => {
-        if (category !== undefined) {
-          return this.db
-            .prepare(
-              `UPDATE agent_memory
-               SET content = ?, provenance_key = ?, last_accessed = ?, category = ?,
-                   decision_revision = decision_revision + 1
-               WHERE id = ?`
-            )
-            .run(content, provenanceKey, at, category, id)
-        }
-        return this.db
-          .prepare(
-            `UPDATE agent_memory
-             SET content = ?, provenance_key = ?, last_accessed = ?,
-                 decision_revision = decision_revision + 1
-             WHERE id = ?`
-          )
-          .run(content, provenanceKey, at, id)
-      },
-      () => this.replaceFtsMirrorRow(before, id)
+  updateInternalContent(input: InternalContentTransition): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'active' ||
+      before.superseded_by !== null ||
+      before.conflict_state !== null ||
+      before.conflict_with !== null ||
+      (before.kind !== 'persona' && before.kind !== 'working')
+    ) {
+      return false
+    }
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, {
+        embeddingState: 'not_applicable',
+        embeddingRefsState: 'none'
+      }),
+      'internal_content'
     )
-  }
-
-  updateDecisionContentIfRevision(input: {
-    agentId: string
-    id: string
-    expectedRevision: number
-    content: string
-    provenanceKey: string | null
-    at: number
-    category?: string | null
-  }): boolean {
-    const { agentId, id, expectedRevision, content, provenanceKey, at, category } = input
-    const categorySql = category === undefined ? '' : ', category = ?'
-    const params: unknown[] = [content, provenanceKey, at]
-    if (category !== undefined) params.push(category)
-    params.push(id, agentId, expectedRevision)
-    const before = this.getFtsMirrorRow(id)
-    const result = this.runRecallMutation(
-      () =>
-        this.db
-          .prepare(
-            `UPDATE agent_memory
-         SET content = ?, provenance_key = ?, last_accessed = ?${categorySql},
-             status = 'pending_embedding',
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET content = ?, provenance_key = ?, last_accessed = ?,
+             lifecycle_state = 'active', embedding_state = 'not_applicable', status = 'fts_only',
              embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
              decision_revision = decision_revision + 1
-         WHERE id = ? AND agent_id = ? AND decision_revision = ?
-           AND superseded_by IS NULL AND conflict_state IS NULL
-           AND status NOT IN ('archived', 'conflicted')`
-          )
-          .run(...params),
-      () => this.replaceFtsMirrorRow(before, id)
-    )
+         WHERE agent_id = ? AND id = ? AND decision_revision = ?
+           AND lifecycle_state = 'active'
+           AND superseded_by IS NULL
+           AND conflict_state IS NULL
+           AND conflict_with IS NULL
+           AND kind IN ('persona', 'working')`
+      )
+      .run(
+        input.content,
+        input.provenanceKey,
+        input.at,
+        input.agentId,
+        input.id,
+        input.expectedRevision
+      )
     return result.changes === 1
   }
 
-  updateUserMetadata(
-    id: string,
-    patch: {
-      category?: string | null
-      importance?: number
+  updateUserContentAndInvalidateEmbedding(input: UserContentTransition): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'active' ||
+      before.superseded_by !== null ||
+      before.conflict_state !== null ||
+      before.conflict_with !== null ||
+      before.kind === 'persona' ||
+      before.kind === 'working'
+    ) {
+      return false
     }
-  ): void {
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, {
+        embeddingState: 'pending',
+        embeddingRefsState: 'none'
+      }),
+      'user_content'
+    )
+    const categorySql = input.category === undefined ? '' : ', category = ?'
+    const importanceSql = input.importance === undefined ? '' : ', importance = ?'
+    const params: unknown[] = [input.content, input.provenanceKey, input.at]
+    if (input.category !== undefined) params.push(input.category)
+    if (input.importance !== undefined) params.push(input.importance)
+    params.push(input.id, input.agentId, input.expectedRevision)
+    const result = this.runRecallMutation({
+      mutate: () =>
+        this.db
+          .prepare(
+            `UPDATE agent_memory
+             SET content = ?, provenance_key = ?, last_accessed = ?${categorySql}${importanceSql},
+                 embedding_state = 'pending', status = 'pending_embedding',
+                 embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+                 decision_revision = decision_revision + 1
+             WHERE id = ? AND agent_id = ? AND decision_revision = ?
+               AND lifecycle_state = 'active'
+               AND superseded_by IS NULL
+               AND conflict_state IS NULL
+               AND conflict_with IS NULL
+               AND kind NOT IN ('persona', 'working')`
+          )
+          .run(...params),
+      didMutate: (mutationResult) => mutationResult.changes === 1,
+      maintainFts: () => this.replaceFtsMirrorRow(before, input.id)
+    })
+    return result.changes === 1
+  }
+
+  updateUserMetadataIfRevision(input: UserMetadataTransition): boolean {
     const sets: string[] = []
     const params: unknown[] = []
-    if (Object.prototype.hasOwnProperty.call(patch, 'category')) {
+    if (Object.prototype.hasOwnProperty.call(input, 'category')) {
       sets.push('category = ?')
-      params.push(patch.category ?? null)
+      params.push(input.category ?? null)
     }
-    if (Object.prototype.hasOwnProperty.call(patch, 'importance')) {
+    if (Object.prototype.hasOwnProperty.call(input, 'importance')) {
       sets.push('importance = ?')
-      params.push(patch.importance)
+      params.push(input.importance)
     }
-    if (!sets.length) return
-    params.push(id)
+    if (Object.prototype.hasOwnProperty.call(input, 'lastAccessedAt')) {
+      sets.push('last_accessed = ?')
+      params.push(input.lastAccessedAt)
+    }
+    if (!sets.length) return false
     sets.push('decision_revision = decision_revision + 1')
-    this.db.prepare(`UPDATE agent_memory SET ${sets.join(', ')} WHERE id = ?`).run(...params)
+    params.push(input.agentId, input.id, input.expectedRevision)
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET ${sets.join(', ')}
+         WHERE agent_id = ? AND id = ? AND decision_revision = ?
+           AND lifecycle_state = 'active'
+           AND superseded_by IS NULL
+           AND conflict_state IS NULL
+           AND conflict_with IS NULL
+           AND kind NOT IN ('persona', 'working')`
+      )
+      .run(...params)
+    return result.changes === 1
   }
 
   // Confidence only ever rises: NULL seeds the first value, otherwise keep the larger.
@@ -1593,26 +2351,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          WHERE id = ?`
       )
       .run(confidence, confidence, id)
-  }
-
-  // Importance only ever rises during consolidation so folding two rows never downgrades the
-  // survivor below the more important of the pair (keeps the importance floor honest).
-  setImportance(id: string, importance: number): void {
-    this.db
-      .prepare(
-        `UPDATE agent_memory
-         SET importance = ?, decision_revision = decision_revision + 1
-         WHERE id = ? AND importance < ?`
-      )
-      .run(importance, id, importance)
-  }
-
-  markConflict(id: string, state: AgentMemoryConflictState | null): void {
-    this.db
-      .prepare(
-        'UPDATE agent_memory SET conflict_state = ?, decision_revision = decision_revision + 1 WHERE id = ?'
-      )
-      .run(state, id)
   }
 
   markConflictIfRevision(
@@ -1627,18 +2365,10 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          SET conflict_state = ?, decision_revision = decision_revision + 1
          WHERE id = ? AND agent_id = ? AND decision_revision = ?
            AND superseded_by IS NULL AND conflict_state IS NULL
-           AND status NOT IN ('archived', 'conflicted')`
+           AND lifecycle_state = 'active'`
       )
       .run(state, id, agentId, expectedRevision)
     return result.changes === 1
-  }
-
-  setConflictWith(id: string, targetId: string | null): void {
-    this.db
-      .prepare(
-        'UPDATE agent_memory SET conflict_with = ?, decision_revision = decision_revision + 1 WHERE id = ?'
-      )
-      .run(targetId, id)
   }
 
   setLastConsolidatedAt(id: string, at: number = Date.now()): void {
@@ -1663,7 +2393,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
-           AND status = 'embedded'
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
            AND kind NOT IN ('persona', 'working')
            AND embedding_model = ?
            AND embedding_dim IS NOT NULL
@@ -1690,11 +2421,11 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                ELSE 0
              END
            ) AS categoryUncategorized,
-           ${buildCountCaseAggregates('status', 'status', AGENT_MEMORY_HEALTH_STATUS_KEYS)},
+           ${buildCountCaseAggregates(buildLegacyStatusProjectionSql(), 'status', AGENT_MEMORY_HEALTH_STATUS_KEYS)},
            SUM(CASE WHEN access_count = 0 THEN 1 ELSE 0 END) AS neverAccessed,
            AVG(importance) AS importanceAvg,
            AVG(confidence) AS confidenceAvg,
-           SUM(CASE WHEN status = 'conflicted' THEN 1 ELSE 0 END) AS conflicted,
+           SUM(CASE WHEN lifecycle_state = 'conflicted' THEN 1 ELSE 0 END) AS conflicted,
            SUM(
              CASE WHEN conflict_state = 'challenged' AND superseded_by IS NULL THEN 1 ELSE 0 END
            ) AS challenged
@@ -1745,7 +2476,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
-           AND status = 'embedded'
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
            AND kind NOT IN ('persona', 'working')
            AND (
              embedding_dim IS NULL OR
@@ -1766,7 +2498,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
-           AND status = 'embedded'
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
            AND kind NOT IN ('persona', 'working')
            AND (
              embedding_dim IS NULL OR
@@ -1780,17 +2513,52 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   }
 
   // Soft delete: archived rows stay on disk (and in the vector store) but drop out of recall.
-  archive(id: string, _at: number = Date.now()): void {
-    const before = this.getFtsMirrorRow(id)
-    this.runRecallMutation(
-      () =>
+  archiveActiveMemory(input: MemoryTransitionTarget): boolean {
+    const before = this.getFtsMirrorRow(input.id)
+    if (
+      !before ||
+      before.agent_id !== input.agentId ||
+      before.decision_revision !== input.expectedRevision ||
+      before.lifecycle_state !== 'active' ||
+      before.superseded_by !== null ||
+      before.conflict_state !== null ||
+      before.conflict_with !== null ||
+      before.kind === 'persona' ||
+      before.kind === 'working'
+    ) {
+      return false
+    }
+    assertValidMemoryTransition(
+      transitionSnapshot(before),
+      transitionSnapshot(before, { lifecycleState: 'archived' }),
+      'archive_active'
+    )
+    const result = this.runRecallMutation({
+      mutate: () =>
         this.db
           .prepare(
-            "UPDATE agent_memory SET status = 'archived', decision_revision = decision_revision + 1 WHERE id = ?"
+            `UPDATE agent_memory AS memory
+             SET lifecycle_state = 'archived', status = 'archived',
+                 decision_revision = decision_revision + 1
+             WHERE memory.agent_id = ? AND memory.id = ? AND memory.decision_revision = ?
+               AND memory.lifecycle_state = 'active'
+               AND memory.superseded_by IS NULL
+               AND memory.conflict_state IS NULL
+               AND memory.conflict_with IS NULL
+               AND memory.kind NOT IN ('persona', 'working')
+               AND NOT EXISTS (
+                 SELECT 1 FROM agent_memory challenger
+                 WHERE challenger.agent_id = memory.agent_id
+                   AND challenger.lifecycle_state = 'conflicted'
+                   AND challenger.superseded_by IS NULL
+                   AND challenger.conflict_with = memory.id
+               )`
           )
-          .run(id),
-      () => this.deleteFtsMirrorRow(before)
-    )
+          .run(input.agentId, input.id, input.expectedRevision),
+      didMutate: (mutationResult) => mutationResult.changes === 1,
+      maintainFts: () => this.deleteFtsMirrorRow(before)
+    })
+    return result.changes === 1
   }
 
   archiveEligibleBatch(
@@ -1805,17 +2573,17 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const limit = Math.max(0, Math.floor(options.limit))
     if (limit === 0) return []
     let rows: Array<{ id: string }> = []
-    this.runRecallMutation(
-      () => {
+    this.runRecallMutation({
+      mutate: () => {
         rows = this.db
           .prepare(
             `WITH eligible AS (
            SELECT id
-           FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v2
+           FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v3
            WHERE agent_id = ?
              AND superseded_by IS NULL
              AND conflict_state IS NULL
-             AND status NOT IN ('archived', 'conflicted')
+             AND lifecycle_state = 'active'
              AND is_anchor = 0
              AND kind NOT IN ('persona', 'working')
              AND created_at < ?
@@ -1826,7 +2594,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            LIMIT ?
          )
          UPDATE agent_memory
-         SET status = 'archived', decision_revision = decision_revision + 1
+         SET lifecycle_state = 'archived', status = 'archived',
+             decision_revision = decision_revision + 1
          WHERE id IN (SELECT id FROM eligible)
          RETURNING id`
           )
@@ -1841,10 +2610,13 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
           ) as Array<{ id: string }>
         return rows
       },
-      () => {
-        for (const row of rows) this.deleteFtsMirrorRow(this.getFtsMirrorRow(row.id), true)
+      didMutate: (archivedRows) => archivedRows.length > 0,
+      maintainFts: (archivedRows) => {
+        for (const row of archivedRows) {
+          this.deleteFtsMirrorRow(this.getFtsMirrorRow(row.id), true)
+        }
       }
-    )
+    })
     return rows.map((row) => row.id)
   }
 
@@ -1855,11 +2627,11 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const row = this.db
       .prepare(
         `SELECT COUNT(*) AS count
-         FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v2
+         FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v3
          WHERE agent_id = ?
            AND superseded_by IS NULL
            AND conflict_state IS NULL
-           AND status NOT IN ('archived', 'conflicted')
+           AND lifecycle_state = 'active'
            AND is_anchor = 0
            AND kind NOT IN ('persona', 'working')
            AND created_at < ?
@@ -1891,7 +2663,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                 agent_id,
                 kind,
                 importance,
-                status,
+                lifecycle_state,
+                embedding_state,
                 is_anchor,
                 superseded_by,
                 created_at,
@@ -1904,7 +2677,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          WHERE agent_id = ?
            AND superseded_by IS NULL
            AND conflict_state IS NULL
-           AND status NOT IN ('archived', 'conflicted')
+           AND lifecycle_state = 'active'
            AND is_anchor = 0
            AND kind NOT IN ('persona', 'working')
            AND created_at < ?
@@ -1923,8 +2696,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
-           AND status != 'archived'
-           AND status != 'conflicted'
+           AND lifecycle_state = 'active'
            AND kind != 'working'
            AND access_count > 0
          ORDER BY access_count DESC, last_accessed DESC
@@ -1935,10 +2707,11 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
 
   delete(id: string): void {
     const before = this.getFtsMirrorRow(id)
-    this.runRecallMutation(
-      () => this.db.prepare('DELETE FROM agent_memory WHERE id = ?').run(id),
-      () => this.deleteFtsMirrorRow(before)
-    )
+    this.runRecallMutation({
+      mutate: () => this.db.prepare('DELETE FROM agent_memory WHERE id = ?').run(id),
+      didMutate: (result) => result.changes === 1,
+      maintainFts: () => this.deleteFtsMirrorRow(before)
+    })
   }
 
   clearByAgent(agentId: string): number {
@@ -1973,12 +2746,15 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const row = this.db
       .prepare(
         `SELECT
-                SUM(CASE WHEN status != 'archived' THEN 1 ELSE 0 END) AS activeMemoryCount,
-                SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archivedMemoryCount,
-                SUM(CASE WHEN status = 'pending_embedding' THEN 1 ELSE 0 END) AS pendingEmbedding
+                SUM(CASE WHEN lifecycle_state = 'active' THEN 1 ELSE 0 END) AS activeMemoryCount,
+                SUM(CASE WHEN lifecycle_state = 'archived' THEN 1 ELSE 0 END) AS archivedMemoryCount,
+                SUM(CASE
+                  WHEN lifecycle_state = 'active' AND embedding_state = 'pending' THEN 1
+                  ELSE 0
+                END) AS pendingEmbedding
          FROM agent_memory
          WHERE agent_id = ?
-           AND status != 'conflicted'
+           AND lifecycle_state != 'conflicted'
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')`
       )
@@ -2009,7 +2785,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          FROM agent_memory challenger
          JOIN agent_memory target ON target.id = challenger.conflict_with
          WHERE challenger.agent_id = ?
-           AND challenger.status = 'conflicted'
+           AND challenger.lifecycle_state = 'conflicted'
            AND challenger.superseded_by IS NULL
            AND target.agent_id = challenger.agent_id
            AND target.conflict_state = 'challenged'
@@ -2027,12 +2803,12 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          WHERE candidate.agent_id = ?
            AND candidate.id = ?
            AND (
-             (candidate.status = 'conflicted' AND candidate.conflict_with IS NOT NULL)
+             (candidate.lifecycle_state = 'conflicted' AND candidate.conflict_with IS NOT NULL)
              OR EXISTS (
                SELECT 1
                FROM agent_memory challenger
                WHERE challenger.agent_id = candidate.agent_id
-                 AND challenger.status = 'conflicted'
+                 AND challenger.lifecycle_state = 'conflicted'
                  AND challenger.superseded_by IS NULL
                  AND challenger.conflict_with = candidate.id
              )
@@ -2049,7 +2825,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         `SELECT *
          FROM agent_memory
          WHERE agent_id = ?
-           AND (status = 'conflicted' OR conflict_with IS NOT NULL OR conflict_state IS NOT NULL)
+           AND (
+             lifecycle_state = 'conflicted' OR conflict_with IS NOT NULL OR conflict_state IS NOT NULL
+           )
          ORDER BY created_at ASC, id ASC`
       )
       .all(agentId) as AgentMemoryRow[]
@@ -2061,9 +2839,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     return this.db
       .prepare(
         `SELECT challenger.*
-         FROM agent_memory challenger INDEXED BY idx_agent_memory_conflict_fairness_v2
+         FROM agent_memory challenger INDEXED BY idx_agent_memory_conflict_fairness_v3
          WHERE challenger.agent_id = ?
-           AND challenger.status = 'conflicted'
+           AND challenger.lifecycle_state = 'conflicted'
            AND challenger.superseded_by IS NULL
            AND EXISTS (
              SELECT 1
@@ -2092,7 +2870,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          FROM agent_memory
          WHERE agent_id = ?
            AND conflict_with = ?
-           AND status = 'conflicted'
+           AND lifecycle_state = 'conflicted'
            AND superseded_by IS NULL
            AND id != ?
          ORDER BY created_at ASC, id ASC`
@@ -2112,11 +2890,12 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         `UPDATE agent_memory
          SET conflict_with = NULL,
              superseded_by = ?,
+             lifecycle_state = 'archived',
              status = 'archived',
              decision_revision = decision_revision + 1
          WHERE agent_id = ?
            AND conflict_with = ?
-           AND status = 'conflicted'
+           AND lifecycle_state = 'conflicted'
            AND superseded_by IS NULL
            AND id != ?`
       )
@@ -2136,7 +2915,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
              FROM agent_memory challenger
              WHERE challenger.agent_id = target.agent_id
                AND challenger.conflict_with = target.id
-               AND challenger.status = 'conflicted'
+               AND challenger.lifecycle_state = 'conflicted'
                AND challenger.superseded_by IS NULL
            )`
       )
@@ -2176,15 +2955,15 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            SELECT id FROM (
              SELECT id FROM (
                SELECT id
-               FROM agent_memory INDEXED BY idx_agent_memory_conflict_link_anomaly_v2
-               WHERE agent_id = ? AND status != 'conflicted' AND conflict_with IS NOT NULL
+               FROM agent_memory INDEXED BY idx_agent_memory_conflict_target_v2
+               WHERE agent_id = ? AND lifecycle_state != 'conflicted' AND conflict_with IS NOT NULL
                LIMIT ?
              )
              UNION ALL
              SELECT id FROM (
                SELECT challenger.id
                FROM agent_memory challenger
-               WHERE challenger.agent_id = ? AND challenger.status = 'conflicted'
+               WHERE challenger.agent_id = ? AND challenger.lifecycle_state = 'conflicted'
                  AND (
                    challenger.superseded_by IS NOT NULL
                    OR challenger.conflict_with IS NULL
@@ -2193,7 +2972,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                      SELECT 1 FROM agent_memory target
                      WHERE target.id = challenger.conflict_with
                        AND target.agent_id = challenger.agent_id
-                       AND target.status NOT IN ('archived', 'conflicted')
+                       AND target.lifecycle_state = 'active'
                        AND target.superseded_by IS NULL
                    )
                  )
@@ -2208,7 +2987,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                    SELECT 1 FROM agent_memory challenger
                    WHERE challenger.agent_id = target.agent_id
                      AND challenger.conflict_with = target.id
-                     AND challenger.status = 'conflicted'
+                     AND challenger.lifecycle_state = 'conflicted'
                      AND challenger.superseded_by IS NULL
                  )
                LIMIT ?
@@ -2222,7 +3001,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                    SELECT 1 FROM agent_memory challenger
                    WHERE challenger.agent_id = target.agent_id
                      AND challenger.conflict_with = target.id
-                     AND challenger.status = 'conflicted'
+                     AND challenger.lifecycle_state = 'conflicted'
                      AND challenger.superseded_by IS NULL
                  )
                LIMIT ?
@@ -2248,7 +3027,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            SET conflict_with = NULL, decision_revision = decision_revision + 1
            WHERE id IN (SELECT id FROM memory_conflict_repair_batch)
              AND agent_id = ?
-             AND status != 'conflicted'
+             AND lifecycle_state != 'conflicted'
              AND conflict_with IS NOT NULL`
         )
         .run(agentId).changes
@@ -2256,11 +3035,12 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         .prepare(
           `UPDATE agent_memory AS challenger
            SET conflict_with = NULL,
+               lifecycle_state = 'archived',
                status = 'archived',
                decision_revision = decision_revision + 1
            WHERE challenger.id IN (SELECT id FROM memory_conflict_repair_batch)
              AND challenger.agent_id = ?
-             AND challenger.status = 'conflicted'
+             AND challenger.lifecycle_state = 'conflicted'
              AND (
                challenger.superseded_by IS NOT NULL
                OR challenger.conflict_with IS NULL
@@ -2270,7 +3050,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                  FROM agent_memory target
                  WHERE target.id = challenger.conflict_with
                    AND target.agent_id = challenger.agent_id
-                   AND target.status NOT IN ('archived', 'conflicted')
+                   AND target.lifecycle_state = 'active'
                    AND target.superseded_by IS NULL
                )
              )`
@@ -2288,7 +3068,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                FROM agent_memory challenger
                WHERE challenger.agent_id = target.agent_id
                  AND challenger.conflict_with = target.id
-                 AND challenger.status = 'conflicted'
+                 AND challenger.lifecycle_state = 'conflicted'
                  AND challenger.superseded_by IS NULL
              )`
         )
@@ -2305,7 +3085,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                FROM agent_memory challenger
                WHERE challenger.agent_id = target.agent_id
                  AND challenger.conflict_with = target.id
-                 AND challenger.status = 'conflicted'
+                 AND challenger.lifecycle_state = 'conflicted'
                  AND challenger.superseded_by IS NULL
              )`
         )
@@ -2329,6 +3109,19 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       )
       .get(agentId) as { total: number | null; draft: number | null } | undefined
     return { total: row?.total ?? 0, draft: row?.draft ?? 0 }
+  }
+
+  countLegacyShadowMismatches(agentId?: string): number {
+    const agentPredicate = agentId === undefined ? '' : 'AND agent_id = ?'
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM agent_memory
+         WHERE status != ${buildLegacyStatusProjectionSql()}
+           ${agentPredicate}`
+      )
+      .get(...(agentId === undefined ? [] : [agentId])) as { count: number } | undefined
+    return row?.count ?? 0
   }
 
   runInTransaction<T>(fn: () => T): T {
@@ -2372,8 +3165,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
-           AND status != 'archived'
-           AND status != 'conflicted'
+           AND lifecycle_state = 'active'
            AND kind IN ('semantic', 'reflection', 'episodic')
            ${cursorSql}
          ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
@@ -2387,7 +3179,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       .prepare(
         `SELECT 1 AS present
          FROM agent_memory
-         WHERE agent_id = ? AND status != 'archived'
+         WHERE agent_id = ? AND lifecycle_state != 'archived'
          LIMIT 1`
       )
       .get(agentId) as { present: number } | undefined
@@ -2399,7 +3191,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       .prepare(
         `SELECT DISTINCT agent_id
          FROM agent_memory
-         WHERE status != 'archived'`
+         WHERE lifecycle_state != 'archived'`
       )
       .all() as Array<{ agent_id: string }>
     return rows.map((row) => row.agent_id)
@@ -2416,8 +3208,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            SELECT candidates.agent_id,
                   (
                     SELECT COALESCE(memory.last_accessed, memory.created_at)
-                    FROM agent_memory memory INDEXED BY idx_agent_memory_recent_activity_v2
-                    WHERE memory.agent_id = candidates.agent_id AND memory.status != 'archived'
+                    FROM agent_memory memory INDEXED BY idx_agent_memory_recent_activity_v3
+                    WHERE memory.agent_id = candidates.agent_id
+                      AND memory.lifecycle_state != 'archived'
                     ORDER BY COALESCE(memory.last_accessed, memory.created_at) DESC
                     LIMIT 1
                   ) AS activity_at
@@ -2455,7 +3248,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         `SELECT *
          FROM agent_memory
          WHERE agent_id = ?
-           AND status = 'embedded'
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
            AND superseded_by IS NULL
            AND kind NOT IN ('persona', 'working')
            AND embedding_dim = ?
@@ -2471,10 +3265,10 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     const result = this.db
       .prepare(
         `UPDATE agent_memory
-         SET status = 'fts_only'
+         SET embedding_state = 'not_applicable', status = 'fts_only'
          WHERE agent_id = ?
            AND kind IN ('persona', 'working')
-           AND status != 'fts_only'`
+           AND embedding_state != 'not_applicable'`
       )
       .run(agentId)
     return result.changes
@@ -2508,7 +3302,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            AND (
              kind IN ('persona', 'working') OR
              superseded_by IS NOT NULL OR
-             status = 'archived'
+             lifecycle_state = 'archived'
            )
          ORDER BY created_at ASC, id ASC
          LIMIT ?`
@@ -2538,7 +3332,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
                 embedding_model,
                 kind,
                 superseded_by,
-                status
+                lifecycle_state
          FROM agent_memory
          WHERE agent_id = ?
            AND id IN (${placeholders})`
@@ -2550,7 +3344,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       embedding_model: string | null
       kind: AgentMemoryKind
       superseded_by: string | null
-      status: AgentMemoryStatus
+      lifecycle_state: AgentMemoryRow['lifecycle_state']
     }>
     const existingIds = new Set(existingRows.map((row) => row.id))
     const prunableIds = new Set(
@@ -2563,7 +3357,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
             (row.kind === 'persona' ||
               row.kind === 'working' ||
               row.superseded_by !== null ||
-              row.status === 'archived')
+              row.lifecycle_state === 'archived')
         )
         .map((row) => row.id)
     )
@@ -2593,7 +3387,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            AND (
              kind IN ('persona', 'working') OR
              superseded_by IS NOT NULL OR
-             status = 'archived'
+             lifecycle_state = 'archived'
            )`
       )
       .run(agentId, ...uniqueIds, embeddingDim, embeddingModel)

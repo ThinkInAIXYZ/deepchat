@@ -12,6 +12,7 @@ const ftsPolicyModule = Database
   : null
 
 const AgentMemoryTable = tableModule?.AgentMemoryTable
+const buildPendingEmbeddingSelectSql = tableModule?.buildPendingEmbeddingSelectSql
 const AgentMemoryAuditTable = auditTableModule?.AgentMemoryAuditTable
 const agentFtsScope = ftsPolicyModule?.agentFtsScope
 const buildRecallablePredicate = ftsPolicyModule?.buildRecallablePredicate
@@ -22,6 +23,7 @@ const AgentMemoryAuditTableCtor = AgentMemoryAuditTable!
 const describeIfSqlite = nativeSqliteDescribeIf(
   Boolean(
     AgentMemoryTable &&
+    buildPendingEmbeddingSelectSql &&
     AgentMemoryAuditTable &&
     agentFtsScope &&
     buildRecallablePredicate &&
@@ -32,6 +34,223 @@ const describeIfSqlite = nativeSqliteDescribeIf(
 
 type AgentMemorySearchInternals = {
   searchLike(...args: unknown[]): unknown[]
+}
+
+function setTestMemoryStatus(
+  db: InstanceType<typeof DatabaseCtor>,
+  table: InstanceType<typeof AgentMemoryTableCtor>,
+  id: string,
+  status: 'pending_embedding' | 'embedded' | 'error' | 'fts_only' | 'archived' | 'conflicted',
+  embedding?: {
+    embeddingId?: string | null
+    embeddingDim?: number | null
+    embeddingModel?: string | null
+  }
+): void {
+  const row = db
+    .prepare(
+      'SELECT agent_id, kind, lifecycle_state, decision_revision FROM agent_memory WHERE id = ?'
+    )
+    .get(id) as
+    | { agent_id: string; kind: string; lifecycle_state: string; decision_revision: number }
+    | undefined
+  const internal = row?.kind === 'persona' || row?.kind === 'working'
+  if (status === 'archived') {
+    archiveTestMemory(table, id)
+    return
+  }
+  if (status === 'pending_embedding' && !internal) {
+    if (row?.lifecycle_state === 'archived') {
+      expect(
+        table.restoreArchivedMemory({
+          agentId: row.agent_id,
+          id,
+          expectedRevision: row.decision_revision
+        })
+      ).toBe(true)
+      return
+    }
+    db.prepare(
+      `UPDATE agent_memory
+       SET embedding_state = 'pending', status = 'pending_embedding',
+           embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL
+       WHERE id = ? AND lifecycle_state = 'active'`
+    ).run(id)
+    return
+  }
+  if (status === 'embedded' && !internal) {
+    db.prepare(
+      `UPDATE agent_memory
+       SET embedding_state = 'ready', status = 'embedded',
+           embedding_id = ?, embedding_dim = ?, embedding_model = ?
+       WHERE id = ?`
+    ).run(
+      embedding?.embeddingId ?? id,
+      embedding?.embeddingDim ?? 1,
+      embedding?.embeddingModel ?? 'legacy:test',
+      id
+    )
+    return
+  }
+  if ((status === 'error' || status === 'fts_only') && !internal) {
+    db.prepare(
+      `UPDATE agent_memory
+       SET embedding_state = ?, status = ?,
+           embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL
+       WHERE id = ?`
+    ).run(status, status, id)
+    return
+  }
+  if (status === 'conflicted') {
+    db.prepare('UPDATE agent_memory SET lifecycle_state = ?, status = ? WHERE id = ?').run(
+      status,
+      status,
+      id
+    )
+    return
+  }
+  const embeddingState =
+    status === 'embedded' ? 'ready' : status === 'pending_embedding' ? 'pending' : status
+  db.prepare(
+    `UPDATE agent_memory
+     SET lifecycle_state = 'active', embedding_state = ?, status = ?,
+         embedding_id = ?, embedding_dim = ?, embedding_model = ?
+     WHERE id = ?`
+  ).run(
+    embeddingState,
+    status,
+    embedding?.embeddingId ?? null,
+    embedding?.embeddingDim ?? null,
+    embedding?.embeddingModel ?? null,
+    id
+  )
+}
+
+function seedTestSupersession(
+  db: InstanceType<typeof DatabaseCtor>,
+  id: string,
+  supersededBy: string | null
+): void {
+  db.prepare(
+    `UPDATE agent_memory
+     SET superseded_by = ?, decision_revision = decision_revision + 1
+     WHERE id = ?`
+  ).run(supersededBy, id)
+}
+
+function seedTestConflictState(
+  db: InstanceType<typeof DatabaseCtor>,
+  id: string,
+  state: 'challenged' | null
+): void {
+  db.prepare(
+    `UPDATE agent_memory
+     SET conflict_state = ?, decision_revision = decision_revision + 1
+     WHERE id = ?`
+  ).run(state, id)
+}
+
+function seedTestCanonicalState(
+  db: InstanceType<typeof DatabaseCtor>,
+  id: string,
+  lifecycleState: 'active' | 'archived' | 'conflicted',
+  embeddingState: 'pending' | 'ready' | 'error' | 'fts_only' | 'not_applicable'
+): void {
+  const status =
+    lifecycleState === 'archived'
+      ? 'archived'
+      : lifecycleState === 'conflicted'
+        ? 'conflicted'
+        : embeddingState === 'ready'
+          ? 'embedded'
+          : embeddingState === 'pending'
+            ? 'pending_embedding'
+            : embeddingState === 'not_applicable'
+              ? 'fts_only'
+              : embeddingState
+  db.prepare(
+    `UPDATE agent_memory
+     SET lifecycle_state = ?, embedding_state = ?, status = ?,
+         embedding_id = CASE WHEN ? = 'ready' THEN id || '-vector' ELSE NULL END,
+         embedding_dim = CASE WHEN ? = 'ready' THEN 4 ELSE NULL END,
+         embedding_model = CASE WHEN ? = 'ready' THEN 'test:model' ELSE NULL END
+     WHERE id = ?`
+  ).run(lifecycleState, embeddingState, status, embeddingState, embeddingState, embeddingState, id)
+}
+
+function seedTestContentUpdate(
+  db: InstanceType<typeof DatabaseCtor>,
+  id: string,
+  content: string,
+  provenanceKey: string | null,
+  at: number,
+  category?: string | null
+): void {
+  const categorySql = category === undefined ? '' : ', category = ?'
+  const params: unknown[] = [content, provenanceKey, at]
+  if (category !== undefined) params.push(category)
+  params.push(id)
+  db.prepare(
+    `UPDATE agent_memory
+     SET content = ?, provenance_key = ?, last_accessed = ?${categorySql},
+         decision_revision = decision_revision + 1
+     WHERE id = ?`
+  ).run(...params)
+}
+
+function repairTestLegacyShadow(db: InstanceType<typeof DatabaseCtor>, agentId?: string): number {
+  const agentPredicate = agentId === undefined ? '' : 'AND agent_id = ?'
+  return db
+    .prepare(
+      `UPDATE agent_memory
+       SET status = CASE
+         WHEN lifecycle_state = 'archived' THEN 'archived'
+         WHEN lifecycle_state = 'conflicted' THEN 'conflicted'
+         WHEN embedding_state = 'ready' THEN 'embedded'
+         WHEN embedding_state = 'error' THEN 'error'
+         WHEN embedding_state IN ('fts_only', 'not_applicable') THEN 'fts_only'
+         ELSE 'pending_embedding'
+       END
+       WHERE status != CASE
+         WHEN lifecycle_state = 'archived' THEN 'archived'
+         WHEN lifecycle_state = 'conflicted' THEN 'conflicted'
+         WHEN embedding_state = 'ready' THEN 'embedded'
+         WHEN embedding_state = 'error' THEN 'error'
+         WHEN embedding_state IN ('fts_only', 'not_applicable') THEN 'fts_only'
+         ELSE 'pending_embedding'
+       END
+       ${agentPredicate}`
+    )
+    .run(...(agentId === undefined ? [] : [agentId])).changes
+}
+
+function archiveTestMemory(table: InstanceType<typeof AgentMemoryTableCtor>, id: string): void {
+  const row = table.getById(id)
+  expect(row).toBeDefined()
+  expect(
+    table.archiveActiveMemory({
+      agentId: row!.agent_id,
+      id,
+      expectedRevision: row!.decision_revision
+    })
+  ).toBe(true)
+}
+
+function dropV42CanonicalArtifacts(db: InstanceType<typeof DatabaseCtor>): void {
+  db.exec(`
+    DROP TRIGGER IF EXISTS agent_memory_legacy_status_bridge_ai;
+    DROP TRIGGER IF EXISTS agent_memory_legacy_status_bridge_au;
+    DROP INDEX IF EXISTS idx_agent_memory_active_recall;
+    DROP INDEX IF EXISTS idx_agent_memory_recall_importance_v5;
+    DROP INDEX IF EXISTS idx_agent_memory_archive_eligible_v3;
+    DROP INDEX IF EXISTS idx_agent_memory_cognitive_top_v3;
+    DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness_v3;
+    DROP INDEX IF EXISTS idx_agent_memory_recent_activity_v3;
+    DROP INDEX IF EXISTS idx_agent_memory_embedding_pending_agent_v2;
+    DROP INDEX IF EXISTS idx_agent_memory_embedding_pending_global_v2;
+    DROP INDEX IF EXISTS idx_agent_memory_conflict_target_v2;
+    DROP INDEX IF EXISTS idx_agent_memory_conflict_link_anomaly_v2;
+  `)
 }
 
 describeIfSqlite('AgentMemoryTable', () => {
@@ -49,6 +268,20 @@ describeIfSqlite('AgentMemoryTable', () => {
           insert.run(`bulk-${index}`, index)
         }
       })()
+      db.exec(`
+        UPDATE agent_memory
+        SET lifecycle_state = CASE status
+          WHEN 'archived' THEN 'archived'
+          WHEN 'conflicted' THEN 'conflicted'
+          ELSE 'active'
+        END,
+        embedding_state = CASE status
+          WHEN 'embedded' THEN 'ready'
+          WHEN 'error' THEN 'error'
+          WHEN 'fts_only' THEN 'fts_only'
+          ELSE 'pending'
+        END;
+      `)
       table.insert({
         id: 'target',
         agentId: 'a',
@@ -86,7 +319,7 @@ describeIfSqlite('AgentMemoryTable', () => {
                AND EXISTS (
                  SELECT 1 FROM agent_memory challenger
                  WHERE challenger.agent_id = candidate.agent_id
-                   AND challenger.status = 'conflicted'
+                   AND challenger.lifecycle_state = 'conflicted'
                    AND challenger.superseded_by IS NULL
                    AND challenger.conflict_with = candidate.id
                )`
@@ -130,6 +363,21 @@ describeIfSqlite('AgentMemoryTable', () => {
           )
         }
       })()
+
+      db.exec(`
+        UPDATE agent_memory
+        SET lifecycle_state = CASE status
+          WHEN 'archived' THEN 'archived'
+          WHEN 'conflicted' THEN 'conflicted'
+          ELSE 'active'
+        END,
+        embedding_state = CASE status
+          WHEN 'embedded' THEN 'ready'
+          WHEN 'error' THEN 'error'
+          WHEN 'fts_only' THEN 'fts_only'
+          ELSE 'pending'
+        END;
+      `)
 
       statements.length = 0
       expect(table.retireConflictSiblings('a', 'target', 'winner', 'winner', 10)).toBe(1_000)
@@ -192,11 +440,11 @@ describeIfSqlite('AgentMemoryTable', () => {
         .prepare(
           `EXPLAIN QUERY PLAN
            SELECT id
-           FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v2
+           FROM agent_memory INDEXED BY idx_agent_memory_archive_eligible_v3
            WHERE agent_id = ?
              AND superseded_by IS NULL
              AND conflict_state IS NULL
-             AND status NOT IN ('archived', 'conflicted')
+             AND lifecycle_state = 'active'
              AND is_anchor = 0
              AND kind NOT IN ('persona', 'working')
              AND created_at < ?
@@ -208,20 +456,19 @@ describeIfSqlite('AgentMemoryTable', () => {
         )
         .all('a', 1000, 2000, 100, 2000, 100, 256) as Array<{ detail: string }>
       expect(
-        archivePlan.some((row) => row.detail.includes('idx_agent_memory_archive_eligible_v2')),
+        archivePlan.some((row) => row.detail.includes('idx_agent_memory_archive_eligible_v3')),
         JSON.stringify(archivePlan)
       ).toBe(true)
-      expect(archivePlan.some((row) => row.detail.includes('<expr><?'))).toBe(true)
       expect(archivePlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(false)
 
       const cognitivePlan = db
         .prepare(
           `EXPLAIN QUERY PLAN
            SELECT *
-           FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v2
+           FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v3
            WHERE agent_id = ?
              AND superseded_by IS NULL
-             AND status NOT IN ('archived', 'conflicted')
+             AND lifecycle_state = 'active'
              AND kind IN ('episodic', 'semantic', 'reflection')
              AND kind IN ('episodic', 'semantic')
            ORDER BY importance DESC, created_at DESC, id DESC
@@ -229,19 +476,60 @@ describeIfSqlite('AgentMemoryTable', () => {
         )
         .all('a', 50) as Array<{ detail: string }>
       expect(
-        cognitivePlan.some((row) => row.detail.includes('idx_agent_memory_cognitive_top_v2'))
+        cognitivePlan.some((row) => row.detail.includes('idx_agent_memory_cognitive_top_v3'))
       ).toBe(true)
       expect(cognitivePlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(
         false
       )
 
+      const embeddingPlan = db
+        .prepare(`EXPLAIN QUERY PLAN ${buildPendingEmbeddingSelectSql!(true)}`)
+        .all('a', 50) as Array<{ detail: string }>
+      expect(
+        embeddingPlan.some((row) =>
+          row.detail.includes('idx_agent_memory_embedding_pending_agent_v2')
+        )
+      ).toBe(true)
+      expect(embeddingPlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(
+        false
+      )
+
+      const globalEmbeddingPlan = db
+        .prepare(`EXPLAIN QUERY PLAN ${buildPendingEmbeddingSelectSql!(false)}`)
+        .all(50) as Array<{ detail: string }>
+      expect(
+        globalEmbeddingPlan.some((row) =>
+          row.detail.includes('idx_agent_memory_embedding_pending_global_v2')
+        )
+      ).toBe(true)
+      expect(
+        globalEmbeddingPlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))
+      ).toBe(false)
+
+      const recentActivityPlan = db
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT COALESCE(last_accessed, created_at)
+           FROM agent_memory INDEXED BY idx_agent_memory_recent_activity_v3
+           WHERE agent_id = ? AND lifecycle_state != 'archived'
+           ORDER BY COALESCE(last_accessed, created_at) DESC
+           LIMIT 1`
+        )
+        .all('a') as Array<{ detail: string }>
+      expect(
+        recentActivityPlan.some((row) => row.detail.includes('idx_agent_memory_recent_activity_v3'))
+      ).toBe(true)
+      expect(
+        recentActivityPlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))
+      ).toBe(false)
+
       const conflictPlan = db
         .prepare(
           `EXPLAIN QUERY PLAN
            SELECT challenger.*
-           FROM agent_memory challenger INDEXED BY idx_agent_memory_conflict_fairness_v2
+           FROM agent_memory challenger INDEXED BY idx_agent_memory_conflict_fairness_v3
            WHERE challenger.agent_id = ?
-             AND challenger.status = 'conflicted'
+             AND challenger.lifecycle_state = 'conflicted'
              AND challenger.superseded_by IS NULL
              AND EXISTS (
                SELECT 1
@@ -258,7 +546,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         )
         .all('a', 4) as Array<{ detail: string }>
       expect(
-        conflictPlan.some((row) => row.detail.includes('idx_agent_memory_conflict_fairness_v2'))
+        conflictPlan.some((row) => row.detail.includes('idx_agent_memory_conflict_fairness_v3'))
       ).toBe(true)
       expect(conflictPlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(
         false
@@ -342,7 +630,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         })
       }
       expect(
-        table.updateDecisionContentIfRevision({
+        table.updateUserContentAndInvalidateEmbedding({
           agentId: 'a',
           id: 'edited',
           expectedRevision: 1,
@@ -388,6 +676,211 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('enforces intent transition guards and exact decision revision deltas', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'user', agentId: 'a', kind: 'semantic', content: 'before' })
+      setTestMemoryStatus(db, table, 'user', 'embedded', {
+        embeddingId: 'user-vector',
+        embeddingDim: 4,
+        embeddingModel: 'p:m'
+      })
+      const active = table.getById('user')!
+
+      expect(
+        table.archiveActiveMemory({
+          agentId: 'other',
+          id: active.id,
+          expectedRevision: active.decision_revision
+        })
+      ).toBe(false)
+      expect(
+        table.archiveActiveMemory({
+          agentId: 'a',
+          id: active.id,
+          expectedRevision: active.decision_revision + 1
+        })
+      ).toBe(false)
+      expect(
+        table.archiveActiveMemory({
+          agentId: 'a',
+          id: active.id,
+          expectedRevision: active.decision_revision
+        })
+      ).toBe(true)
+      const archived = table.getById('user')!
+      expect(archived.decision_revision).toBe(active.decision_revision + 1)
+      expect(archived.embedding_state).toBe('ready')
+      expect(archived.embedding_id).toBe('user-vector')
+      expect(
+        table.markPendingEmbeddingsReady('a', [
+          {
+            id: archived.id,
+            expectedRevision: archived.decision_revision,
+            embeddingId: 'late-vector',
+            embeddingDim: 8,
+            embeddingModel: 'late:model'
+          }
+        ])
+      ).toEqual([])
+      expect(
+        table.restoreArchivedMemory({
+          agentId: 'a',
+          id: archived.id,
+          expectedRevision: archived.decision_revision
+        })
+      ).toBe(true)
+      const restored = table.getById('user')!
+      expect(restored.decision_revision).toBe(archived.decision_revision + 1)
+      expect(restored.embedding_state).toBe('pending')
+      expect(restored.embedding_id).toBeNull()
+
+      expect(
+        table.updateUserContentAndInvalidateEmbedding({
+          agentId: 'a',
+          id: restored.id,
+          expectedRevision: restored.decision_revision,
+          content: 'after',
+          provenanceKey: 'after-key',
+          category: 'user_preference',
+          importance: 0.9,
+          at: 10
+        })
+      ).toBe(true)
+      const edited = table.getById('user')!
+      expect(edited.decision_revision).toBe(restored.decision_revision + 1)
+      expect(edited).toMatchObject({
+        content: 'after',
+        provenance_key: 'after-key',
+        category: 'user_preference',
+        importance: 0.9,
+        embedding_state: 'pending'
+      })
+
+      table.insert({ id: 'internal', agentId: 'a', kind: 'working', content: 'cache' })
+      const internal = table.getById('internal')!
+      expect(
+        table.archiveActiveMemory({
+          agentId: 'a',
+          id: internal.id,
+          expectedRevision: internal.decision_revision
+        })
+      ).toBe(false)
+
+      table.insert({ id: 'head', agentId: 'a', kind: 'semantic', content: 'head' })
+      table.insert({ id: 'old', agentId: 'a', kind: 'semantic', content: 'old' })
+      seedTestSupersession(db, 'old', 'head')
+      const superseded = table.getById('old')!
+      const head = table.getById('head')!
+      expect(
+        table.reviveSupersededMemory({
+          agentId: 'a',
+          id: superseded.id,
+          expectedRevision: superseded.decision_revision,
+          retiredHead: { id: head.id, expectedRevision: head.decision_revision + 1 }
+        })
+      ).toBe(false)
+      expect(table.getById('old')?.superseded_by).toBe('head')
+      expect(table.getById('head')).toMatchObject({
+        superseded_by: null,
+        decision_revision: head.decision_revision
+      })
+      expect(
+        table.reviveSupersededMemory({
+          agentId: 'a',
+          id: superseded.id,
+          expectedRevision: superseded.decision_revision,
+          retiredHead: { id: head.id, expectedRevision: head.decision_revision }
+        })
+      ).toBe(true)
+      expect(table.getById('old')).toMatchObject({
+        superseded_by: null,
+        embedding_state: 'pending',
+        decision_revision: superseded.decision_revision + 1
+      })
+      expect(table.getById('head')).toMatchObject({
+        superseded_by: 'old',
+        decision_revision: head.decision_revision + 1
+      })
+
+      table.insert({ id: 'target', agentId: 'a', kind: 'semantic', content: 'target' })
+      const target = table.getById('target')!
+      expect(
+        table.markConflictIfRevision('a', target.id, target.decision_revision, 'challenged')
+      ).toBe(true)
+      table.insert({
+        id: 'challenger',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'challenger',
+        lifecycleState: 'conflicted',
+        embeddingState: 'pending',
+        conflictWith: target.id
+      })
+      const challengedTarget = table.getById('target')!
+      const challenger = table.getById('challenger')!
+      const ftsMetaBeforeRejectedTransitions = db
+        .prepare(
+          `SELECT mutation_generation, indexed_generation
+           FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+        )
+        .get()
+      expect(table.search('a', 'target').map((row) => row.id)).toContain('target')
+      expect(
+        table.archiveActiveMemory({
+          agentId: 'a',
+          id: challengedTarget.id,
+          expectedRevision: challengedTarget.decision_revision
+        })
+      ).toBe(false)
+      expect(
+        table.archiveResolvedConflictTarget({
+          agentId: 'a',
+          id: challengedTarget.id,
+          expectedRevision: challengedTarget.decision_revision,
+          challengerId: challenger.id
+        })
+      ).toBe(false)
+      expect(table.search('a', 'target').map((row) => row.id)).toContain('target')
+      expect(
+        db
+          .prepare(
+            `SELECT mutation_generation, indexed_generation
+             FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+          )
+          .get()
+      ).toEqual(ftsMetaBeforeRejectedTransitions)
+      expect(
+        table.activateResolvedChallenger({
+          agentId: 'a',
+          id: challenger.id,
+          expectedRevision: challenger.decision_revision,
+          targetId: challengedTarget.id
+        })
+      ).toBe(true)
+      const activated = table.getById('challenger')!
+      expect(activated.decision_revision).toBe(challenger.decision_revision + 1)
+      expect(
+        table.archiveResolvedConflictTarget({
+          agentId: 'a',
+          id: challengedTarget.id,
+          expectedRevision: challengedTarget.decision_revision,
+          challengerId: activated.id
+        })
+      ).toBe(true)
+      expect(table.getById('target')).toMatchObject({
+        lifecycle_state: 'archived',
+        superseded_by: 'challenger',
+        conflict_state: null,
+        decision_revision: challengedTarget.decision_revision + 1
+      })
+    } finally {
+      db.close()
+    }
+  })
+
   it('inserts and reads back a memory row with defaults', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -411,6 +904,57 @@ describeIfSqlite('AgentMemoryTable', () => {
       expect(fetched?.content).toBe('用户偏好简洁的中文回答')
       expect(fetched?.agent_id).toBe('deepchat')
       expect(fetched?.category).toBe('project_fact')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('rejects invalid canonical insert states before they reach SQLite', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      expect(() =>
+        table.insert({
+          id: 'ready-user',
+          agentId: 'a',
+          kind: 'semantic',
+          content: 'ready user',
+          lifecycleState: 'active',
+          embeddingState: 'ready'
+        })
+      ).toThrow(/Invalid memory insert state/)
+      expect(() =>
+        table.insert({
+          id: 'orphan-challenger',
+          agentId: 'a',
+          kind: 'semantic',
+          content: 'orphan challenger',
+          lifecycleState: 'conflicted',
+          embeddingState: 'pending'
+        })
+      ).toThrow(/Invalid memory insert state/)
+      expect(() =>
+        table.insert({
+          id: 'pending-persona',
+          agentId: 'a',
+          kind: 'persona',
+          content: 'pending persona',
+          lifecycleState: 'active',
+          embeddingState: 'pending'
+        })
+      ).toThrow(/Invalid memory insert state/)
+      expect(
+        table.insert({
+          id: 'challenger',
+          agentId: 'a',
+          kind: 'semantic',
+          content: 'challenger',
+          lifecycleState: 'conflicted',
+          embeddingState: 'pending',
+          conflictWith: 'target'
+        })
+      ).toMatchObject({ lifecycle_state: 'conflicted', embedding_state: 'pending' })
     } finally {
       db.close()
     }
@@ -455,6 +999,208 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('repairs legacy status shadow from canonical state idempotently and by agent', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'a-ready',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'ready'
+      })
+      seedTestCanonicalState(db, 'a-ready', 'active', 'ready')
+      table.insert({
+        id: 'b-archived',
+        agentId: 'b',
+        kind: 'semantic',
+        content: 'archived'
+      })
+      seedTestCanonicalState(db, 'b-archived', 'archived', 'pending')
+      db.exec('DROP TRIGGER agent_memory_legacy_status_bridge_au')
+      db.exec("UPDATE agent_memory SET status = 'error'")
+
+      expect(table.countLegacyShadowMismatches()).toBe(2)
+      expect(table.countLegacyShadowMismatches('a')).toBe(1)
+      expect(repairTestLegacyShadow(db, 'a')).toBe(1)
+      expect(repairTestLegacyShadow(db, 'a')).toBe(0)
+      expect(table.countLegacyShadowMismatches()).toBe(1)
+      expect(repairTestLegacyShadow(db)).toBe(1)
+      expect(table.countLegacyShadowMismatches()).toBe(0)
+      expect(db.prepare('SELECT id, status FROM agent_memory ORDER BY id').all()).toEqual([
+        { id: 'a-ready', status: 'embedded' },
+        { id: 'b-archived', status: 'archived' }
+      ])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('keeps every canonical state readable through a legacy-only downgrade projection', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const lifecycles = ['active', 'archived', 'conflicted'] as const
+      const embeddings = ['pending', 'ready', 'error', 'fts_only', 'not_applicable'] as const
+      const expected = new Map<string, string>()
+      for (const lifecycleState of lifecycles) {
+        for (const embeddingState of embeddings) {
+          const id = `${lifecycleState}-${embeddingState}`
+          table.insert({
+            id,
+            agentId: 'a',
+            kind: embeddingState === 'not_applicable' ? 'persona' : 'semantic',
+            content: id
+          })
+          seedTestCanonicalState(db, id, lifecycleState, embeddingState)
+          expected.set(
+            id,
+            lifecycleState === 'archived'
+              ? 'archived'
+              : lifecycleState === 'conflicted'
+                ? 'conflicted'
+                : embeddingState === 'ready'
+                  ? 'embedded'
+                  : embeddingState === 'error'
+                    ? 'error'
+                    : embeddingState === 'fts_only' || embeddingState === 'not_applicable'
+                      ? 'fts_only'
+                      : 'pending_embedding'
+          )
+        }
+      }
+
+      const legacyRows = db.prepare('SELECT id, status FROM agent_memory').all() as Array<{
+        id: string
+        status: string
+      }>
+      expect(new Map(legacyRows.map((row) => [row.id, row.status]))).toEqual(expected)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('bridges v41 status-only inserts and updates without double-bumping revisions', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const insertLegacy = db.prepare(
+        `INSERT INTO agent_memory (
+           id, agent_id, kind, content, status,
+           embedding_id, embedding_dim, embedding_model, created_at
+         ) VALUES (?, 'a', ?, ?, ?, ?, ?, ?, ?)`
+      )
+      const cases = [
+        ['pending', 'semantic', 'pending_embedding', null, null, null, 'active', 'pending'],
+        ['ready', 'semantic', 'embedded', 'ready-vector', 4, 'p:m', 'active', 'ready'],
+        ['error', 'semantic', 'error', null, null, null, 'active', 'error'],
+        ['fts', 'semantic', 'fts_only', null, null, null, 'active', 'fts_only'],
+        ['archived', 'semantic', 'archived', 'archive-vector', 4, 'p:m', 'archived', 'ready'],
+        ['conflicted', 'semantic', 'conflicted', null, null, null, 'conflicted', 'pending'],
+        ['persona', 'persona', 'embedded', 'persona-vector', 4, 'p:m', 'active', 'not_applicable']
+      ] as const
+      cases.forEach(([id, kind, status, embeddingId, embeddingDim, embeddingModel], index) => {
+        insertLegacy.run(id, kind, id, status, embeddingId, embeddingDim, embeddingModel, index + 1)
+      })
+      expect(
+        db
+          .prepare(
+            `SELECT id, status, lifecycle_state, embedding_state
+             FROM agent_memory ORDER BY created_at`
+          )
+          .all()
+      ).toEqual(
+        cases.map(([id, kind, status, , , , lifecycleState, embeddingState]) => ({
+          id,
+          status: kind === 'persona' ? 'fts_only' : status,
+          lifecycle_state: lifecycleState,
+          embedding_state: embeddingState
+        }))
+      )
+
+      const readyBefore = table.getById('ready')!
+      db.prepare(
+        `UPDATE agent_memory
+         SET status = 'archived', decision_revision = decision_revision + 1
+         WHERE id = 'ready'`
+      ).run()
+      const archived = table.getById('ready')!
+      expect(archived).toMatchObject({
+        lifecycle_state: 'archived',
+        embedding_state: 'ready',
+        embedding_id: 'ready-vector',
+        decision_revision: readyBefore.decision_revision + 1
+      })
+      db.prepare(
+        `UPDATE agent_memory
+         SET status = 'pending_embedding',
+             embedding_id = NULL, embedding_dim = NULL, embedding_model = NULL,
+             decision_revision = decision_revision + 1
+         WHERE id = 'ready'`
+      ).run()
+      expect(table.getById('ready')).toMatchObject({
+        lifecycle_state: 'active',
+        embedding_state: 'pending',
+        embedding_id: null,
+        decision_revision: readyBefore.decision_revision + 2
+      })
+
+      const revision = table.getById('error')!.decision_revision
+      db.prepare(
+        `UPDATE agent_memory
+         SET lifecycle_state = 'active', embedding_state = 'ready', status = 'embedded'
+         WHERE id = 'error'`
+      ).run()
+      expect(table.getById('error')).toMatchObject({
+        status: 'embedded',
+        lifecycle_state: 'active',
+        embedding_state: 'ready',
+        decision_revision: revision
+      })
+
+      insertLegacy.run(
+        'archived-persona',
+        'persona',
+        'archived persona',
+        'archived',
+        null,
+        null,
+        null,
+        20
+      )
+      db.prepare("UPDATE agent_memory SET status = 'fts_only' WHERE id = 'archived-persona'").run()
+      expect(table.getById('archived-persona')).toMatchObject({
+        lifecycle_state: 'archived',
+        embedding_state: 'not_applicable',
+        status: 'archived'
+      })
+
+      insertLegacy.run(
+        'active-working',
+        'working',
+        'active working',
+        'embedded',
+        'stale-working-vector',
+        4,
+        'p:m',
+        21
+      )
+      expect(table.getById('active-working')).toMatchObject({
+        lifecycle_state: 'active',
+        embedding_state: 'not_applicable',
+        status: 'fts_only'
+      })
+      expect(() =>
+        db.exec("UPDATE agent_memory SET status = 'invalid' WHERE id = 'pending'")
+      ).toThrow(/invalid legacy agent_memory status/)
+    } finally {
+      db.close()
+    }
+  })
+
   it('isolates memories by agent_id', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -483,8 +1229,8 @@ describeIfSqlite('AgentMemoryTable', () => {
       table.insert({ id: 'archived', agentId: 'a', kind: 'semantic', content: 'archived' })
       table.insert({ id: 'superseded', agentId: 'a', kind: 'semantic', content: 'superseded' })
       table.insert({ id: 'other-agent', agentId: 'b', kind: 'semantic', content: 'other' })
-      table.archive('archived', 2000)
-      table.markSuperseded('superseded', 'active')
+      archiveTestMemory(table, 'archived')
+      seedTestSupersession(db, 'superseded', 'active')
 
       expect(table.listByIds('a', [])).toEqual([])
 
@@ -497,7 +1243,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         'active'
       ])
       const ids = rows.map((row) => row.id).sort()
-      const rowsById = new Map(rows.map((row) => [row.id, row]))
+      const rowsById = new Map<string, (typeof rows)[number]>(rows.map((row) => [row.id, row]))
 
       expect(ids).toEqual(['active', 'archived', 'superseded'])
       expect(rowsById.get('archived')?.status).toBe('archived')
@@ -516,7 +1262,7 @@ describeIfSqlite('AgentMemoryTable', () => {
 
       table.insert({ id: 'active-1', agentId: 'active-agent', kind: 'semantic', content: 'a' })
       table.insert({ id: 'archived-1', agentId: 'archived-agent', kind: 'semantic', content: 'b' })
-      table.archive('archived-1')
+      archiveTestMemory(table, 'archived-1')
 
       expect(table.hasActiveMemory('active-agent')).toBe(true)
       expect(table.hasActiveMemory('archived-agent')).toBe(false)
@@ -547,7 +1293,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: '我倾向于直接、技术化地回答',
         createdAt: 2000
       })
-      table.markSuperseded(v1.id, v2.id)
+      seedTestSupersession(db, v1.id, v2.id)
 
       const active = table.getActivePersona('deepchat')
       expect(active?.id).toBe('p2')
@@ -568,7 +1314,7 @@ describeIfSqlite('AgentMemoryTable', () => {
       table.insert({ id: 'm1', agentId: 'deepchat', kind: 'episodic', content: 'event' })
       expect(table.listPendingEmbedding()).toHaveLength(1)
 
-      table.updateStatus('m1', 'embedded', { embeddingId: 'vec-1', embeddingDim: 1536 })
+      setTestMemoryStatus(db, table, 'm1', 'embedded', { embeddingId: 'vec-1', embeddingDim: 1536 })
       expect(table.listPendingEmbedding()).toHaveLength(0)
 
       const row = table.getById('m1')
@@ -593,7 +1339,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'current',
         createdAt: 2000
       })
-      table.updateStatus('current', 'embedded', {
+      setTestMemoryStatus(db, table, 'current', 'embedded', {
         embeddingId: 'current',
         embeddingDim: 4,
         embeddingModel: 'p:m'
@@ -605,7 +1351,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'wrong dim',
         createdAt: 1000
       })
-      table.updateStatus('wrong-dim', 'embedded', {
+      setTestMemoryStatus(db, table, 'wrong-dim', 'embedded', {
         embeddingId: 'wrong-dim',
         embeddingDim: 8,
         embeddingModel: 'p:m'
@@ -616,7 +1362,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         kind: 'persona',
         content: 'persona is injected separately'
       })
-      table.updateStatus('persona', 'embedded', {
+      setTestMemoryStatus(db, table, 'persona', 'embedded', {
         embeddingId: 'persona',
         embeddingDim: 8,
         embeddingModel: 'legacy:model'
@@ -627,7 +1373,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         kind: 'working',
         content: 'working cache'
       })
-      table.updateStatus('working', 'embedded', {
+      setTestMemoryStatus(db, table, 'working', 'embedded', {
         embeddingId: 'working',
         embeddingDim: 8,
         embeddingModel: 'legacy:model'
@@ -638,19 +1384,19 @@ describeIfSqlite('AgentMemoryTable', () => {
         kind: 'semantic',
         content: 'old'
       })
-      table.updateStatus('superseded', 'embedded', {
+      setTestMemoryStatus(db, table, 'superseded', 'embedded', {
         embeddingId: 'superseded',
         embeddingDim: 8,
         embeddingModel: 'legacy:model'
       })
-      table.markSuperseded(superseded.id, 'current')
+      seedTestSupersession(db, superseded.id, 'current')
       table.insert({
         id: 'persona-only',
         agentId: 'excluded-agent',
         kind: 'persona',
         content: 'persona'
       })
-      table.updateStatus('persona-only', 'embedded', {
+      setTestMemoryStatus(db, table, 'persona-only', 'embedded', {
         embeddingId: 'persona-only',
         embeddingDim: 8,
         embeddingModel: 'legacy:model'
@@ -661,7 +1407,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         kind: 'working',
         content: 'working'
       })
-      table.updateStatus('working-only', 'embedded', {
+      setTestMemoryStatus(db, table, 'working-only', 'embedded', {
         embeddingId: 'working-only',
         embeddingDim: 8,
         embeddingModel: 'legacy:model'
@@ -672,12 +1418,12 @@ describeIfSqlite('AgentMemoryTable', () => {
         kind: 'semantic',
         content: 'old excluded'
       })
-      table.updateStatus('excluded-superseded', 'embedded', {
+      setTestMemoryStatus(db, table, 'excluded-superseded', 'embedded', {
         embeddingId: 'excluded-superseded',
         embeddingDim: 8,
         embeddingModel: 'legacy:model'
       })
-      table.markSuperseded(excludedSuperseded.id, 'persona-only')
+      seedTestSupersession(db, excludedSuperseded.id, 'persona-only')
 
       expect(table.getCurrentEmbeddingDimension('deepchat', 'p:m')).toBe(4)
       expect(table.hasStaleEmbeddings('deepchat', 4, 'p:m')).toBe(true)
@@ -751,7 +1497,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         importance: 0.2,
         status: 'conflicted'
       })
-      table.markConflict('c1', 'challenged')
+      seedTestConflictState(db, 'c1', 'challenged')
       const superseded = table.insert({
         id: 'old',
         agentId: 'a',
@@ -761,7 +1507,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         importance: 0.8,
         status: 'embedded'
       })
-      table.markSuperseded(superseded.id, 's1')
+      seedTestSupersession(db, superseded.id, 's1')
       table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'other' })
 
       table.recordAccess('e1', 600)
@@ -913,9 +1659,9 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'old challenged',
         status: 'embedded'
       })
-      table.markConflict('challenged-active', 'challenged')
-      table.markConflict(superseded.id, 'challenged')
-      table.markSuperseded(superseded.id, 'challenged-active')
+      seedTestConflictState(db, 'challenged-active', 'challenged')
+      seedTestConflictState(db, superseded.id, 'challenged')
+      seedTestSupersession(db, superseded.id, 'challenged-active')
 
       const stats = table.getHealthStats('a')
       expect(stats.conflicted).toBe(1)
@@ -938,7 +1684,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'older same timestamp',
         createdAt: 3000
       })
-      table.updateStatus('same-time-old', 'embedded', {
+      setTestMemoryStatus(db, table, 'same-time-old', 'embedded', {
         embeddingId: 'same-time-old',
         embeddingDim: 8,
         embeddingModel: 'p:m'
@@ -950,7 +1696,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'newer same timestamp',
         createdAt: 3000
       })
-      table.updateStatus('same-time-current', 'embedded', {
+      setTestMemoryStatus(db, table, 'same-time-current', 'embedded', {
         embeddingId: 'same-time-current',
         embeddingDim: 4,
         embeddingModel: 'p:m'
@@ -980,7 +1726,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         kind: 'semantic',
         content: 'likes redis caching strongly'
       })
-      table.markSuperseded(old.id, fresh.id)
+      seedTestSupersession(db, old.id, fresh.id)
 
       const results = table.search('deepchat', 'redis')
       expect(results).toHaveLength(1)
@@ -1003,7 +1749,7 @@ describeIfSqlite('AgentMemoryTable', () => {
                FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
             )
             .get()
-        ).toMatchObject({ schema_version: 4, policy_version: 2 })
+        ).toMatchObject({ schema_version: 4, policy_version: 3 })
       }
       table.insert({
         id: 'm1',
@@ -1112,6 +1858,32 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('orders agent and global pending queues deterministically for equal timestamps', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      for (const id of ['c', 'a', 'b']) {
+        table.insert({
+          id,
+          agentId: 'agent-a',
+          kind: 'semantic',
+          content: id,
+          createdAt: 1000
+        })
+      }
+
+      expect(table.listPendingEmbedding(50, 'agent-a').map((row) => row.id)).toEqual([
+        'a',
+        'b',
+        'c'
+      ])
+      expect(table.listPendingEmbedding(50).map((row) => row.id)).toEqual(['a', 'b', 'c'])
+    } finally {
+      db.close()
+    }
+  })
+
   it("hides the internal 'working' cache row from generic listings, recall, and embedding", () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -1182,7 +1954,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         importance: 1,
         createdAt: 9000
       })
-      table.archive(archived.id)
+      archiveTestMemory(table, archived.id)
       table.insert({ id: 'working', agentId: 'a', kind: 'working', content: 'working' })
       const superseded = table.insert({
         id: 'superseded',
@@ -1192,7 +1964,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         importance: 1,
         createdAt: 8000
       })
-      table.markSuperseded(superseded.id, 'm4')
+      seedTestSupersession(db, superseded.id, 'm4')
 
       const firstPage = table.listWorkingCandidates('a', 2)
       expect(firstPage.map((row) => row.id)).toEqual(['m4', 'm3'])
@@ -1242,7 +2014,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'archived',
         createdAt
       })
-      table.archive('archived', 2000)
+      archiveTestMemory(table, 'archived')
       table.insert({
         id: 'conflicted',
         agentId: 'a',
@@ -1250,7 +2022,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'conflicted',
         createdAt
       })
-      table.updateStatus('conflicted', 'conflicted')
+      setTestMemoryStatus(db, table, 'conflicted', 'conflicted')
       table.insert({
         id: 'superseded',
         agentId: 'a',
@@ -1258,7 +2030,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         content: 'superseded',
         createdAt
       })
-      table.markSuperseded('superseded', 'eligible-null')
+      seedTestSupersession(db, 'superseded', 'eligible-null')
       table.insert({
         id: 'anchor',
         agentId: 'a',
@@ -1378,7 +2150,21 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         { id: 'persona', kind: 'persona', status: 'fts_only', superseded_by: null },
         { id: 'working', kind: 'working', status: 'fts_only', superseded_by: null },
         { id: 'superseded', kind: 'semantic', status: 'embedded', superseded_by: 'live' }
-      ]
+      ].map((fixture) => ({
+        ...fixture,
+        lifecycle_state:
+          fixture.status === 'archived'
+            ? 'archived'
+            : fixture.status === 'conflicted'
+              ? 'conflicted'
+              : 'active',
+        embedding_state:
+          fixture.kind === 'persona' || fixture.kind === 'working'
+            ? 'not_applicable'
+            : fixture.status === 'embedded'
+              ? 'ready'
+              : 'pending'
+      }))
       const insert = db.prepare(
         `INSERT INTO agent_memory (id, agent_id, kind, content, status, superseded_by, created_at)
          VALUES (?, 'a', ?, ?, ?, ?, 1)`
@@ -1386,6 +2172,19 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       for (const fixture of fixtures) {
         insert.run(fixture.id, fixture.kind, fixture.id, fixture.status, fixture.superseded_by)
       }
+      db.exec(`
+        UPDATE agent_memory
+        SET lifecycle_state = CASE status
+          WHEN 'archived' THEN 'archived'
+          WHEN 'conflicted' THEN 'conflicted'
+          ELSE 'active'
+        END,
+        embedding_state = CASE
+          WHEN kind IN ('persona', 'working') THEN 'not_applicable'
+          WHEN status = 'embedded' THEN 'ready'
+          ELSE 'pending'
+        END;
+      `)
 
       const sqlIds = (
         db
@@ -1418,8 +2217,8 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.createTable()
 
       table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis memory' })
-      table.updateStatus('m1', 'archived')
-      table.updateStatus('m1', 'pending_embedding')
+      setTestMemoryStatus(db, table, 'm1', 'archived')
+      setTestMemoryStatus(db, table, 'm1', 'pending_embedding')
 
       expect(ftsActive(db)).toBe(false)
       expect(table.searchWithStrategy('a', 'redis').strategy).toBe('like-fallback')
@@ -1443,7 +2242,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(createSql).toContain('conflict_with')
       expect(createSql).toContain('category')
       expect(createSql).toContain('decision_revision INTEGER NOT NULL DEFAULT 1')
-      expect(table.getLatestVersion()).toBe(41)
+      expect(table.getLatestVersion()).toBe(42)
       expect(table.getMigrationSQL(32)).toMatch(/ADD COLUMN embedding_model/)
       expect(table.getMigrationSQL(33)).toMatch(/ADD COLUMN confidence/)
       expect(table.getMigrationSQL(34)).toMatch(/ADD COLUMN persona_state/)
@@ -1527,12 +2326,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         kind: 'semantic',
         content: 'redis cluster'
       })
-      table.markSuperseded('a2', a3.id)
+      seedTestSupersession(db, 'a2', a3.id)
       expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['a3'])
 
-      table.updateStatus('a3', 'archived')
+      setTestMemoryStatus(db, table, 'a3', 'archived')
       expect(table.search('a', 'redis')).toEqual([])
-      table.updateStatus('a3', 'pending_embedding')
+      setTestMemoryStatus(db, table, 'a3', 'pending_embedding')
       expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['a3'])
 
       table.insert({
@@ -1758,25 +2557,25 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
       table.insert({ id: 'emb', agentId: 'a', kind: 'semantic', content: 'redis embedded' })
-      table.updateStatus('emb', 'embedded', {
+      setTestMemoryStatus(db, table, 'emb', 'embedded', {
         embeddingId: 'v',
         embeddingDim: 3,
         embeddingModel: 'p:m'
       })
       table.insert({ id: 'fts', agentId: 'a', kind: 'semantic', content: 'redis fts only' })
-      table.updateStatus('fts', 'fts_only')
+      setTestMemoryStatus(db, table, 'fts', 'fts_only')
       const sup = table.insert({ id: 'sup', agentId: 'a', kind: 'semantic', content: 'redis old' })
-      table.updateStatus('sup', 'embedded', {
+      setTestMemoryStatus(db, table, 'sup', 'embedded', {
         embeddingId: 'v2',
         embeddingDim: 3,
         embeddingModel: 'p:m'
       })
-      table.markSuperseded(sup.id, 'emb')
+      seedTestSupersession(db, sup.id, 'emb')
       // persona is the self-model; it must never be pulled into the vector store.
       table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'redis persona' })
-      table.updateStatus('persona', 'fts_only')
+      setTestMemoryStatus(db, table, 'persona', 'fts_only')
 
-      const changed = table.requeueForEmbedding('a', ['embedded', 'error', 'fts_only'])
+      const changed = table.requeueForEmbedding('a', ['ready', 'error', 'fts_only'])
       expect(changed).toBe(2)
       expect(table.getById('emb')?.status).toBe('pending_embedding')
       expect(table.getById('emb')?.embedding_dim).toBeNull()
@@ -1803,10 +2602,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         table.insert({ id, agentId: 'a', kind: 'semantic', content: id, status: 'error' })
       }
 
-      expect(table.listEmbeddingStatusIds('a', ['error'], 2, 'err-01')).toEqual([
-        'err-02',
-        'err-03'
-      ])
+      expect(table.listEmbeddingStateIds('a', ['error'], 2, 'err-01')).toEqual(['err-02', 'err-03'])
       expect(table.requeueForEmbedding('a', ['error'], 1, 'err-01')).toBe(1)
 
       expect(table.getById('err-01')?.status).toBe('error')
@@ -1824,7 +2620,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.createTable()
       table.insert({ id: 'mem', agentId: 'a', kind: 'semantic', content: 'redis note' })
       table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'redis persona' })
-      table.updateStatus('persona', 'pending_embedding')
+      setTestMemoryStatus(db, table, 'persona', 'pending_embedding')
 
       expect(table.listPendingEmbedding(50, 'a').map((row) => row.id)).toEqual(['mem'])
       expect(table.listPendingEmbedding(50).map((row) => row.id)).toEqual(['mem'])
@@ -1873,19 +2669,19 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
       table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'self model' })
-      table.updateStatus('persona', 'pending_embedding', {
+      setTestMemoryStatus(db, table, 'persona', 'pending_embedding', {
         embeddingId: 'persona',
         embeddingDim: 3,
         embeddingModel: 'p:m'
       })
       table.insert({ id: 'work', agentId: 'a', kind: 'working', content: 'working blob' })
-      table.updateStatus('work', 'embedded', {
+      setTestMemoryStatus(db, table, 'work', 'embedded', {
         embeddingId: 'work',
         embeddingDim: 3,
         embeddingModel: 'p:m'
       })
       table.insert({ id: 'mem', agentId: 'a', kind: 'semantic', content: 'redis memory' })
-      table.updateStatus('mem', 'pending_embedding')
+      setTestMemoryStatus(db, table, 'mem', 'pending_embedding')
 
       expect(table.repairInternalKindStatuses('a')).toBe(2)
       expect(table.getById('persona')).toMatchObject({
@@ -1919,7 +2715,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         content: 'active',
         createdAt: 1
       })
-      table.updateStatus('active', 'embedded', {
+      setTestMemoryStatus(db, table, 'active', 'embedded', {
         embeddingId: 'active',
         embeddingDim: 3,
         embeddingModel: 'p:m'
@@ -1932,7 +2728,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         status: 'fts_only',
         createdAt: 2
       })
-      table.updateStatus('persona', 'fts_only', {
+      setTestMemoryStatus(db, table, 'persona', 'fts_only', {
         embeddingId: 'persona',
         embeddingDim: 3,
         embeddingModel: 'p:m'
@@ -1945,7 +2741,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         status: 'fts_only',
         createdAt: 3
       })
-      table.updateStatus('work', 'fts_only', {
+      setTestMemoryStatus(db, table, 'work', 'fts_only', {
         embeddingId: 'work',
         embeddingDim: 3,
         embeddingModel: 'p:m'
@@ -1957,12 +2753,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         content: 'archived',
         createdAt: 4
       })
-      table.updateStatus('archived', 'embedded', {
+      setTestMemoryStatus(db, table, 'archived', 'embedded', {
         embeddingId: 'archived',
         embeddingDim: 3,
         embeddingModel: 'p:m'
       })
-      table.archive('archived')
+      archiveTestMemory(table, 'archived')
       table.insert({
         id: 'superseded',
         agentId: 'a',
@@ -1970,12 +2766,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         content: 'superseded',
         createdAt: 5
       })
-      table.updateStatus('superseded', 'embedded', {
+      setTestMemoryStatus(db, table, 'superseded', 'embedded', {
         embeddingId: 'superseded',
         embeddingDim: 3,
         embeddingModel: 'p:m'
       })
-      table.markSuperseded('superseded', 'active')
+      seedTestSupersession(db, 'superseded', 'active')
 
       expect(table.listPrunableVectorRefs('a', { limit: 10 })).toEqual([
         { id: 'persona', embeddingDim: 3, embeddingModel: 'p:m' },
@@ -2025,12 +2821,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
           content: `old archived ${index}`,
           createdAt: index
         })
-        table.updateStatus(id, 'embedded', {
+        setTestMemoryStatus(db, table, id, 'embedded', {
           embeddingId: id,
           embeddingDim: 3,
           embeddingModel: 'old:model'
         })
-        table.archive(id)
+        archiveTestMemory(table, id)
       }
       for (let index = 0; index < 2; index += 1) {
         const id = `current-${index}`
@@ -2041,12 +2837,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
           content: `current archived ${index}`,
           createdAt: 1000 + index
         })
-        table.updateStatus(id, 'embedded', {
+        setTestMemoryStatus(db, table, id, 'embedded', {
           embeddingId: id,
           embeddingDim: 3,
           embeddingModel: 'p:m'
         })
-        table.archive(id)
+        archiveTestMemory(table, id)
       }
 
       expect(
@@ -2071,12 +2867,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
           content: `old dim archived ${index}`,
           createdAt: index
         })
-        table.updateStatus(id, 'embedded', {
+        setTestMemoryStatus(db, table, id, 'embedded', {
           embeddingId: id,
           embeddingDim: 8,
           embeddingModel: 'p:m'
         })
-        table.archive(id)
+        archiveTestMemory(table, id)
       }
       for (let index = 0; index < 2; index += 1) {
         const id = `current-dim-${index}`
@@ -2087,12 +2883,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
           content: `current dim archived ${index}`,
           createdAt: 1000 + index
         })
-        table.updateStatus(id, 'embedded', {
+        setTestMemoryStatus(db, table, id, 'embedded', {
           embeddingId: id,
           embeddingDim: 4,
           embeddingModel: 'p:m'
         })
-        table.archive(id)
+        archiveTestMemory(table, id)
       }
 
       expect(
@@ -2111,6 +2907,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
       // Reproduce a database created before either column existed.
+      dropV42CanonicalArtifacts(db)
       db.exec('ALTER TABLE agent_memory DROP COLUMN source_entry_ids')
       db.exec('ALTER TABLE agent_memory DROP COLUMN embedding_model')
 
@@ -2140,11 +2937,13 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
       // Reproduce a database created before the consolidation columns existed.
+      dropV42CanonicalArtifacts(db)
       db.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness')
       db.exec('DROP INDEX IF EXISTS idx_agent_memory_archive_eligible')
       db.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness_v2')
       db.exec('DROP INDEX IF EXISTS idx_agent_memory_archive_eligible_v2')
       db.exec('DROP INDEX IF EXISTS idx_agent_memory_conflict_state_anomaly_v2')
+      db.exec('DROP INDEX IF EXISTS idx_agent_memory_lifecycle_maintenance')
       db.exec('ALTER TABLE agent_memory DROP COLUMN confidence')
       db.exec('ALTER TABLE agent_memory DROP COLUMN last_consolidated_at')
       db.exec('ALTER TABLE agent_memory DROP COLUMN conflict_state')
@@ -2171,7 +2970,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
             "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_agent_memory_archive_eligible_v2'"
           )
           .get()
-      ).toBeDefined()
+      ).toBeUndefined()
       // Legacy row survives the migration with neutral defaults.
       expect(table.getById('legacy')?.confidence).toBe(null)
     } finally {
@@ -2269,15 +3068,23 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
 
       table.recordAccess('revisioned', 100)
       table.updateDecayScore('revisioned', 0.8, 100)
-      table.updateStatus('revisioned', 'embedded', {
+      setTestMemoryStatus(db, table, 'revisioned', 'embedded', {
         embeddingId: 'revisioned',
         embeddingDim: 3,
         embeddingModel: 'p:m'
       })
       expect(table.getById('revisioned')?.decision_revision).toBe(1)
 
-      table.updateContent('revisioned', 'refined fact', 'key', 200)
-      table.setImportance('revisioned', 0.9)
+      seedTestContentUpdate(db, 'revisioned', 'refined fact', 'key', 200)
+      const contentRevision = table.getById('revisioned')!.decision_revision
+      expect(
+        table.updateUserMetadataIfRevision({
+          agentId: 'a',
+          id: 'revisioned',
+          expectedRevision: contentRevision,
+          importance: 0.9
+        })
+      ).toBe(true)
       table.setAnchor('revisioned', true)
       expect(table.getById('revisioned')?.decision_revision).toBe(4)
     } finally {
@@ -2310,7 +3117,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         content: 'legacy superseded',
         createdAt: 3000
       })
-      table.markSuperseded(superseded.id, 'legacy-active')
+      seedTestSupersession(db, superseded.id, 'legacy-active')
       expect(table.getActivePersona('a')?.id).toBe('legacy-active')
 
       // Draft: pending approval, never injected as the active persona.
@@ -2344,7 +3151,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.insert({ id: 'gone', agentId: 'a', kind: 'semantic', content: 'redis gone' })
       table.setLastConsolidatedAt('gone', 4000)
 
-      table.archive('gone', 5000)
+      archiveTestMemory(table, 'gone')
       expect(table.getById('gone')?.status).toBe('archived')
       expect(table.getById('gone')?.last_consolidated_at).toBe(4000)
       expect(table.search('a', 'redis').map((r) => r.id)).toEqual(['keep'])
@@ -2367,14 +3174,14 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.createTable()
       table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'old', importance: 0.1 })
 
-      table.updateContent('m1', 'new', 'new-key', 1234)
+      seedTestContentUpdate(db, 'm1', 'new', 'new-key', 1234)
       expect(table.getById('m1')?.content).toBe('new')
       expect(table.getById('m1')?.provenance_key).toBe('new-key')
       expect(table.getById('m1')?.category).toBeNull()
       expect(table.getById('m1')?.last_consolidated_at).toBeNull()
       // A content rewrite re-anchors the forgetting clock so the row reads as freshly touched.
       expect(table.getById('m1')?.last_accessed).toBe(1234)
-      table.updateContent('m1', 'newer', 'newer-key', 1235, 'project_fact')
+      seedTestContentUpdate(db, 'm1', 'newer', 'newer-key', 1235, 'project_fact')
       expect(table.getById('m1')?.category).toBe('project_fact')
 
       table.setConfidence('m1', 0.8)
@@ -2382,14 +3189,30 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.setConfidence('m1', 0.6)
       expect(table.getById('m1')?.confidence).toBe(0.8)
 
-      table.setImportance('m1', 0.4)
+      let revision = table.getById('m1')!.decision_revision
+      expect(
+        table.updateUserMetadataIfRevision({
+          agentId: 'a',
+          id: 'm1',
+          expectedRevision: revision,
+          importance: 0.4
+        })
+      ).toBe(true)
       expect(table.getById('m1')?.importance).toBe(0.4)
-      table.setImportance('m1', 0.2)
-      expect(table.getById('m1')?.importance).toBe(0.4)
+      revision = table.getById('m1')!.decision_revision
+      expect(
+        table.updateUserMetadataIfRevision({
+          agentId: 'a',
+          id: 'm1',
+          expectedRevision: revision,
+          importance: 0.2
+        })
+      ).toBe(true)
+      expect(table.getById('m1')?.importance).toBe(0.2)
 
-      table.markConflict('m1', 'challenged')
+      seedTestConflictState(db, 'm1', 'challenged')
       expect(table.getById('m1')?.conflict_state).toBe('challenged')
-      table.markConflict('m1', null)
+      seedTestConflictState(db, 'm1', null)
       expect(table.getById('m1')?.conflict_state).toBe(null)
     } finally {
       db.close()
@@ -2417,7 +3240,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         conflictWith: 'target',
         createdAt: 2
       })
-      table.markConflict('target', 'challenged')
+      seedTestConflictState(db, 'target', 'challenged')
       table.updateDecayScore('target', 0.001)
 
       expect(table.isUnresolvedConflictParticipant('a', 'target')).toBe(true)

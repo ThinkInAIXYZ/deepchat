@@ -19,6 +19,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 
+const mutableApp = app as { isPackaged: boolean }
+
 interface TestStore {
   connection: { run: ReturnType<typeof vi.fn> }
   vectorTable: string
@@ -290,7 +292,7 @@ async function setupPackagedBase64Fixture(asset: Buffer) {
 }
 
 afterEach(() => {
-  app.isPackaged = false
+  mutableApp.isPackaged = false
   duckDbMocks.create.mockReset()
   vi.restoreAllMocks()
 })
@@ -344,7 +346,7 @@ describe('MemoryVectorStore.open identity guard (C5, AC-5.2/5.3)', () => {
 
 describe('MemoryVectorStore VSS loading', () => {
   it('closes opened DuckDB handles when packaged create fails on a missing bundled extension', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
       if (/(^|[/\\])vss\.duckdb_extension(?:\..+)?$/.test(String(target))) return false
       return true
@@ -362,7 +364,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('closes opened DuckDB handles when packaged create fails during bundled VSS LOAD', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
     vi.spyOn(logger, 'error').mockImplementation(() => undefined)
     const { connection, dbInstance } = mockDuckDbHandles((sql) => {
@@ -380,7 +382,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('fails closed in packaged builds when the bundled extension is missing', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
     const error = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
     const store = makeVssLoadableStore()
@@ -392,7 +394,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('materializes packaged base64 VSS assets into userData before loading', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     const asset = Buffer.from(
       gzipSync(Buffer.from('duckdb extension body')).toString('base64'),
       'utf8'
@@ -420,7 +422,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('coalesces packaged base64 materialization across stores in the same process', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     const asset = Buffer.from(
       gzipSync(Buffer.from('coalesced duckdb extension body')).toString('base64'),
       'utf8'
@@ -453,7 +455,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('re-materializes when a cached packaged VSS file was deleted', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     const asset = Buffer.from(
       gzipSync(Buffer.from('restored duckdb extension body')).toString('base64'),
       'utf8'
@@ -488,7 +490,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('drops failed packaged base64 materialization promises so the next open can retry', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const mockedPromises = fs.promises as typeof fs.promises & {
       rename: typeof actualFs.promises.rename
@@ -550,7 +552,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('fails closed in packaged builds when base64 materialization contains corrupt gzip data', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     const asset = Buffer.from(Buffer.from('not a gzip payload').toString('base64'), 'utf8')
     const { actualFs, userDataDir } = await setupPackagedBase64Fixture(asset)
     vi.spyOn(logger, 'error').mockImplementation(() => undefined)
@@ -565,7 +567,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('fails closed in packaged builds when the bundled extension cannot load', async () => {
-    app.isPackaged = true
+    mutableApp.isPackaged = true
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
     vi.spyOn(logger, 'error').mockImplementation(() => undefined)
     const store = makeVssLoadableStore((sql) => {
@@ -579,7 +581,7 @@ describe('MemoryVectorStore VSS loading', () => {
   })
 
   it('keeps the network fallback for development builds', async () => {
-    app.isPackaged = false
+    mutableApp.isPackaged = false
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
     vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
     const store = makeVssLoadableStore()

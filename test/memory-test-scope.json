@@ -37,6 +37,7 @@
     "test/main/presenter/memorySearch.test.ts",
     "test/main/presenter/memoryServiceHarness.test.ts",
     "test/main/presenter/memorySessionExtractionLock.test.ts",
+    "test/main/presenter/memoryStateModel.test.ts",
     "test/main/presenter/memoryUpdate.test.ts",
     "test/main/presenter/memoryVectorStore.test.ts",
     "test/main/presenter/recallKeyword.test.ts",
@@ -50,6 +51,7 @@
     "test/main/presenter/agentMemoryTable.test.ts",
     "test/main/presenter/agentRuntimePresenter/tapeService.test.ts",
     "test/main/presenter/memoryNativeMigration.test.ts",
+    "test/main/presenter/memoryUpdateNative.test.ts",
     "test/main/presenter/sqlitePresenter/deepchatMemoryIngestionProjection.test.ts"
   ],
   "eval": ["test/main/presenter/memoryRetrieval.eval.test.ts"],

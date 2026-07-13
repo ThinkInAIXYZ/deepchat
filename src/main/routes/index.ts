@@ -426,7 +426,8 @@ import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { MemoryPresenter } from '@/presenter/memoryPresenter'
 import type { MemoryWriteOutcome } from '@/presenter/memoryPresenter/types'
-import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
+import type { CanonicalAgentMemoryRow as AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
+import { projectLegacyStatus } from '@/presenter/memoryPresenter/domain/stateModel'
 import type { AgentMemoryAuditRow } from '@/presenter/memoryPresenter/domain/audit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
@@ -541,7 +542,7 @@ export function toMemoryItemDto(row: AgentMemoryRow) {
     category: normalizeMemoryCategory(row.category),
     content: row.content,
     importance: row.importance,
-    status: row.status,
+    status: projectLegacyStatus(row.lifecycle_state, row.embedding_state),
     sourceSession: row.source_session,
     sourceEntryIds: parseAgentMemorySourceEntryIds(row.source_entry_ids),
     supersededBy: row.superseded_by,

@@ -277,6 +277,7 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
       sourceSession: 'session-1'
     })
     expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('expected extraction to succeed')
     expect(onMemoryChanged).toHaveBeenCalledWith(
       'a',
       'extract',

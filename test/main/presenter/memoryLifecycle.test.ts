@@ -7,31 +7,34 @@ import {
   halfLifeForKind,
   retrievalScore
 } from '@/presenter/memoryPresenter/core/scoring'
-import {
-  FTS_SIMILARITY_BASELINE,
-  IMPORTANCE_FLOOR_COEF,
-  type AgentMemoryRow
-} from '@/presenter/memoryPresenter/types'
+import { FTS_SIMILARITY_BASELINE, IMPORTANCE_FLOOR_COEF } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
 import {
   MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
   MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT
 } from '@shared/contracts/routes'
 import { createFakeRepository, enabledConfig, makePresenter } from './fakes/memoryFakes'
+import { deriveCanonicalStateFromLegacy } from '@/presenter/memoryPresenter/domain/stateModel'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW = 220 * DAY_MS
 const weights = { similarity: 0.6, recency: 0.25, importance: 0.15 }
 
 function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
+  const status = overrides.status ?? 'embedded'
+  const kind = overrides.kind ?? 'semantic'
+  const state = deriveCanonicalStateFromLegacy({ status, kind })
   return {
     id: 'm1',
     agent_id: 'a',
     user_scope: null,
-    kind: 'semantic',
+    kind,
     category: null,
     content: 'redis memory',
     importance: 0.5,
-    status: 'embedded',
+    status,
+    lifecycle_state: state.lifecycleState,
+    embedding_state: state.embeddingState,
     embedding_id: null,
     embedding_dim: null,
     embedding_model: null,
@@ -49,6 +52,7 @@ function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
     conflict_state: null,
     conflict_with: null,
     persona_state: null,
+    decision_revision: 1,
     ...overrides
   }
 }
@@ -253,7 +257,7 @@ describe('MemoryPresenter.getLifecycle', () => {
         content: 'archived',
         createdAt: NOW - 220 * DAY_MS
       })
-      archived.status = 'archived'
+      repo.seedArchived(archived.id)
       const superseded = repo.insert({
         id: 'superseded',
         agentId: 'a',

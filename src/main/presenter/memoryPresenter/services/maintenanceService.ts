@@ -663,14 +663,15 @@ export class MaintenanceService {
 
     try {
       this.ports.repository.runInTransaction(() => {
-        const contentApplied = this.ports.repository.updateDecisionContentIfRevision({
+        const contentApplied = this.ports.repository.updateUserContentAndInvalidateEmbedding({
           agentId,
           id: survivor.id,
           expectedRevision: survivor.decision_revision,
           content: mergedContent,
           provenanceKey,
           at: now,
-          category: nextCategory
+          category: nextCategory,
+          importance: Math.max(survivor.importance, retired.importance)
         })
         if (!contentApplied) throw new MaintenanceRevisionConflictError()
         if (
@@ -684,7 +685,6 @@ export class MaintenanceService {
           throw new MaintenanceRevisionConflictError()
         }
         this.ports.rows.bumpConfidence(survivor.id)
-        this.ports.repository.setImportance(survivor.id, retired.importance)
       })
     } catch (error) {
       if (error instanceof MaintenanceRevisionConflictError || isUniqueConstraintError(error)) {
@@ -740,8 +740,7 @@ export class MaintenanceService {
       !row.superseded_by &&
       row.kind !== 'persona' &&
       row.kind !== 'working' &&
-      row.status !== 'archived' &&
-      row.status !== 'conflicted'
+      row.lifecycle_state === 'active'
     )
   }
 
@@ -753,7 +752,8 @@ export class MaintenanceService {
   ): row is AgentMemoryRow {
     return (
       this.isLiveConsolidationNeighbor(agentId, row) &&
-      row.status === 'embedded' &&
+      row.lifecycle_state === 'active' &&
+      row.embedding_state === 'ready' &&
       row.embedding_dim === dimensions &&
       row.embedding_model === fingerprint
     )

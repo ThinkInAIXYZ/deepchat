@@ -2,7 +2,10 @@ import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
 import { buildContext } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeService'
-import { createTapeViewManifest } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
+import {
+  createTapeViewManifest,
+  type TapeViewManifestBuildInput
+} from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 import {
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
@@ -2740,7 +2743,7 @@ describe('DeepChatTapeService', () => {
 
     service.ensureSessionTapeReady('s1', messageStore as any)
     const sourceMaps = service.getViewManifestSourceMaps('s1')
-    const baseManifestInput = {
+    const baseManifestInput: TapeViewManifestBuildInput = {
       sessionId: 's1',
       messageId: 'a1',
       requestSeq: 1,

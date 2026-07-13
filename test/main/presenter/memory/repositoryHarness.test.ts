@@ -38,7 +38,7 @@ describe('memory repository fakes', () => {
       content: 'current vector',
       createdAt: 2000
     })
-    repo.updateStatus('current', 'embedded', {
+    repo.seedLegacyStatus('current', 'embedded', {
       embeddingId: 'current',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -50,7 +50,7 @@ describe('memory repository fakes', () => {
       content: 'wrong dimension',
       createdAt: 1000
     })
-    repo.updateStatus('wrong-dim', 'embedded', {
+    repo.seedLegacyStatus('wrong-dim', 'embedded', {
       embeddingId: 'wrong-dim',
       embeddingDim: 8,
       embeddingModel: 'p:m'
@@ -61,7 +61,7 @@ describe('memory repository fakes', () => {
       kind: 'persona',
       content: 'persona'
     })
-    repo.updateStatus('persona', 'embedded', {
+    repo.seedLegacyStatus('persona', 'embedded', {
       embeddingId: 'persona',
       embeddingDim: 8,
       embeddingModel: 'legacy:m'
@@ -72,7 +72,7 @@ describe('memory repository fakes', () => {
       kind: 'working',
       content: 'working'
     })
-    repo.updateStatus('working', 'embedded', {
+    repo.seedLegacyStatus('working', 'embedded', {
       embeddingId: 'working',
       embeddingDim: 8,
       embeddingModel: 'legacy:m'
@@ -83,12 +83,12 @@ describe('memory repository fakes', () => {
       kind: 'semantic',
       content: 'superseded'
     })
-    repo.updateStatus('superseded', 'embedded', {
+    repo.seedLegacyStatus('superseded', 'embedded', {
       embeddingId: 'superseded',
       embeddingDim: 8,
       embeddingModel: 'legacy:m'
     })
-    repo.markSuperseded(superseded.id, 'persona')
+    repo.seedSupersededBy(superseded.id, 'persona')
 
     expect(repo.getCurrentEmbeddingDimension('a', 'p:m')).toBe(4)
     expect(repo.hasStaleEmbeddings('a', 4, 'p:m')).toBe(true)
@@ -137,7 +137,7 @@ describe('memory repository fakes', () => {
       content: 'superseded',
       status: 'embedded'
     })
-    repo.markSuperseded(superseded.id, 'active')
+    repo.seedSupersededBy(superseded.id, 'active')
     repo.insert({
       id: 'working',
       agentId: 'a',
@@ -163,7 +163,7 @@ describe('memory repository fakes', () => {
       content: 'older same timestamp',
       createdAt: 3000
     })
-    repo.updateStatus('same-time-old', 'embedded', {
+    repo.seedLegacyStatus('same-time-old', 'embedded', {
       embeddingId: 'same-time-old',
       embeddingDim: 8,
       embeddingModel: 'p:m'
@@ -175,7 +175,7 @@ describe('memory repository fakes', () => {
       content: 'newer same timestamp',
       createdAt: 3000
     })
-    repo.updateStatus('same-time-current', 'embedded', {
+    repo.seedLegacyStatus('same-time-current', 'embedded', {
       embeddingId: 'same-time-current',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -191,7 +191,7 @@ describe('memory repository fakes', () => {
         id: `audit-${index}`,
         agentId: 'a',
         eventType: 'memory/test',
-        actorType: 'system',
+        actorType: 'runtime',
         status: 'completed',
         createdAt: index
       })

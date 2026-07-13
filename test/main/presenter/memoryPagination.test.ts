@@ -30,7 +30,7 @@ describe('MemoryPresenter management pagination', () => {
 
     const second = presenter.pageMemories('deepchat', first.nextCursor, 2)
     expect(second.rows.map((row) => row.id)).toEqual(['x', 'older'])
-    expect(second.rows[0].status).toBe('archived')
+    expect(second.rows[0].lifecycle_state).toBe('archived')
     expect(second.nextCursor).toBeNull()
   })
 
@@ -71,7 +71,7 @@ describe('MemoryPresenter management pagination', () => {
       content: 'superseded',
       status: 'embedded'
     })
-    repo.markSuperseded('superseded', 'visible')
+    repo.seedSupersededBy('superseded', 'visible')
 
     expect(presenter.pageMemories('deepchat', null, 100).rows.map((row) => row.id)).toEqual([
       'visible'
