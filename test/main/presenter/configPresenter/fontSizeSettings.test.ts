@@ -35,6 +35,7 @@ import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { ConfigPresenter } from '@/presenter/configPresenter'
 import { emitAgentCatalogChanged } from '@/presenter/configPresenter/eventPublishers'
+import type { AcpRegistryAgent } from '@shared/presenter'
 
 function attachCatalogSink(presenter: ConfigPresenter): void {
   Object.assign(presenter, {
@@ -220,6 +221,78 @@ describe('ConfigPresenter ACP agent notifications', () => {
       'sessions',
       'process-refresh'
     ])
+  })
+
+  it('closes enabled direct ACP agents before disabling the compatibility provider', async () => {
+    const sequence: string[] = []
+    const refreshAgents = vi.fn(async () => {
+      sequence.push('runtime-refresh')
+    })
+    presenterMocks.getProviderInstance.mockReturnValue({ refreshAgents })
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      acpCatalogConfigAdapter: {
+        setGlobalEnabled: vi.fn(() => {
+          sequence.push('catalog-disable')
+          return true
+        })
+      },
+      getAcpAgents: vi.fn(async () => {
+        sequence.push('list-enabled-agents')
+        return [{ id: 'agent-1' }, { id: 'agent-2' }]
+      }),
+      syncAcpProviderEnabled: vi.fn(() => sequence.push('provider-disable')),
+      providerModelHelper: { setProviderModels: vi.fn() },
+      clearProviderModelStatusCache: vi.fn(),
+      notifyAcpAgentsChanged: vi.fn()
+    }) as ConfigPresenter
+
+    await presenter.setAcpEnabled(false)
+
+    expect(refreshAgents).toHaveBeenCalledWith(['agent-1', 'agent-2'])
+    expect(sequence).toEqual([
+      'list-enabled-agents',
+      'catalog-disable',
+      'runtime-refresh',
+      'provider-disable'
+    ])
+  })
+
+  it('refreshes direct ACP agents whose registry descriptors changed', async () => {
+    const previousAgents: AcpRegistryAgent[] = [
+      {
+        id: 'agent-1',
+        name: 'Agent 1',
+        version: '1.0.0',
+        description: 'Before',
+        distribution: { npx: { package: '@example/agent-1' } },
+        source: 'registry',
+        enabled: true
+      },
+      {
+        id: 'agent-2',
+        name: 'Agent 2',
+        version: '1.0.0',
+        distribution: { npx: { package: '@example/agent-2' } },
+        source: 'registry',
+        enabled: true
+      }
+    ]
+    const refreshedAgents = [{ ...previousAgents[0], description: 'After' }, previousAgents[1]]
+    const refreshAgents = vi.fn(async () => undefined)
+    presenterMocks.getProviderInstance.mockReturnValue({ refreshAgents })
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      acpRegistryService: {
+        listAgents: vi.fn(() => previousAgents),
+        refresh: vi.fn(async () => refreshedAgents)
+      },
+      syncRegistryAgentsToRepository: vi.fn(),
+      listAcpRegistryAgents: vi.fn(async () => refreshedAgents),
+      notifyAcpAgentsChanged: vi.fn()
+    }) as ConfigPresenter
+
+    await presenter.refreshAcpRegistry(true)
+
+    expect(refreshAgents).toHaveBeenCalledWith(['agent-1'])
   })
 
   it('defers ACP startup notification until the agent repository is attached', async () => {

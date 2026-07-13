@@ -45,6 +45,7 @@ import {
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
+import { isDeepStrictEqual } from 'node:util'
 import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
 import { CONFIG_EVENTS, MCP_EVENTS } from '@/events'
@@ -204,6 +205,16 @@ const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfi
   'assistantModel',
   'defaultModelPreset'
 ]
+
+const findChangedAcpRegistryAgentIds = (
+  previousAgents: AcpRegistryAgent[],
+  nextAgents: AcpRegistryAgent[]
+): string[] => {
+  const nextById = new Map(nextAgents.map((agent) => [agent.id, agent] as const))
+  return previousAgents
+    .filter((agent) => !isDeepStrictEqual(agent, nextById.get(agent.id)))
+    .map((agent) => agent.id)
+}
 
 const hasMemoryMaintenanceTriggerConfigUpdate = (
   updates: Partial<DeepChatAgentConfig> | null | undefined
@@ -560,10 +571,24 @@ export class ConfigPresenter implements IConfigPresenter {
       path.join(this.userDataPath, 'acp-registry')
     )
     this.syncAcpProviderEnabled(this.acpCatalogConfigAdapter.getGlobalEnabled())
+    let registryAgentsBeforeInitialization: AcpRegistryAgent[] = []
+    try {
+      registryAgentsBeforeInitialization = this.acpRegistryService.listAgents()
+    } catch {
+      // Initialization will report the missing registry snapshot below.
+    }
     void this.acpRegistryService
       .initialize()
-      .then(() => {
+      .then(async () => {
+        const registryAgents = this.acpRegistryService.listAgents()
         this.syncRegistryAgentsToRepository()
+        const changedAgentIds = findChangedAcpRegistryAgentIds(
+          registryAgentsBeforeInitialization,
+          registryAgents
+        )
+        if (changedAgentIds.length > 0) {
+          await this.refreshAcpProviderAgents(changedAgentIds)
+        }
         this.notifyAcpAgentsChanged()
       })
       .catch((error) => {
@@ -2450,10 +2475,14 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async setAcpEnabled(enabled: boolean): Promise<void> {
+    const enabledAgentIds = enabled ? [] : (await this.getAcpAgents()).map((agent) => agent.id)
     const changed = this.acpCatalogConfigAdapter.setGlobalEnabled(enabled)
     if (!changed) return
 
     logger.info('[ACP] setAcpEnabled: updating global toggle to', enabled)
+    if (!enabled && enabledAgentIds.length > 0) {
+      await this.refreshAcpProviderAgents(enabledAgentIds)
+    }
     this.syncAcpProviderEnabled(enabled)
 
     if (!enabled) {
@@ -2486,8 +2515,13 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async refreshAcpRegistry(force = true): Promise<AcpRegistryAgent[]> {
-    await this.acpRegistryService.refresh(force)
+    const previousAgents = this.acpRegistryService.listAgents()
+    const refreshedAgents = await this.acpRegistryService.refresh(force)
     this.syncRegistryAgentsToRepository()
+    const changedAgentIds = findChangedAcpRegistryAgentIds(previousAgents, refreshedAgents)
+    if (changedAgentIds.length > 0) {
+      await this.refreshAcpProviderAgents(changedAgentIds)
+    }
     const agents = await this.listAcpRegistryAgents()
     this.notifyAcpAgentsChanged()
     return agents
