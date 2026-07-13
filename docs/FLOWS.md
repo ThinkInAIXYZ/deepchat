@@ -154,7 +154,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Compat["AgentSessionPresenter<br/>compatibility forwarding"] --> App["Session application coordinator"]
+    CompatFacade["AgentSessionPresenter<br/>compatibility forwarding"] --> App["Session application coordinator"]
     App --> Manager["AgentManager"]
     Manager --> Kind{"descriptor.kind"}
     Kind -->|acp| Direct["DirectAcpSessionBackend"]

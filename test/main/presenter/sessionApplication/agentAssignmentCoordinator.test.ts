@@ -242,16 +242,13 @@ describe('SessionAgentAssignmentCoordinator', () => {
   })
 
   it('preflights every batch entry before the first transfer mutation', async () => {
-    const harness = createHarness([createSession({ id: 's1' }), createSession({ id: 's2' })])
+    const harness = createHarness([
+      createSession({ id: 's1' }),
+      createSession({ id: 's2', projectDir: '/blocked' })
+    ])
     harness.policy.resolveTransferTarget.mockImplementation(
       async (_agentId: string, projectDir: string | null) => {
         if (projectDir === '/blocked') throw new Error('blocked project')
-        if (
-          projectDir === '/source' &&
-          harness.policy.resolveTransferTarget.mock.calls.length > 2
-        ) {
-          throw new Error('blocked project')
-        }
         return {
           agentId: 'target',
           providerId: 'openai',

@@ -75,7 +75,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
       disabledAgentTools,
       subagentEnabled
     })
-    logger.info(`[SessionLifecycleCoordinator] session created id=${sessionId} title="${title}"`)
+    logger.info(`[SessionLifecycleCoordinator] session created id=${sessionId}`)
 
     try {
       await this.initializeSessionRuntime(sessionId, {
