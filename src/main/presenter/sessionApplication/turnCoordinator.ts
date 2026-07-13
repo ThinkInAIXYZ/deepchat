@@ -35,16 +35,20 @@ export class SessionTurnCoordinator implements SessionTurnPort, SessionInitialTu
     const content = normalizeSendMessageInput(input.content)
     if (!content.text.trim() && (content.files?.length ?? 0) === 0) return
 
-    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
-    void runtime
-      .send({
-        content,
-        context: { projectDir: input.projectDir },
-        queue: { source: 'send', projectDir: input.projectDir }
-      })
-      .catch((error) => {
-        console.error('[SessionTurnCoordinator] initial send failed:', error)
-      })
+    try {
+      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
+      void runtime
+        .send({
+          content,
+          context: { projectDir: input.projectDir },
+          queue: { source: 'send', projectDir: input.projectDir }
+        })
+        .catch((error) => {
+          console.error('[SessionTurnCoordinator] initial send failed:', error)
+        })
+    } catch (error) {
+      console.error('[SessionTurnCoordinator] initial send failed:', error)
+    }
     this.dependencies.projection.scheduleTitleGeneration({
       sessionId: input.sessionId,
       initialTitle: input.initialTitle,

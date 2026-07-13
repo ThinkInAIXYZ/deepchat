@@ -405,15 +405,71 @@ describe('SessionTurnCoordinator', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     harness.send.mockRejectedValue(error)
 
-    harness.coordinator.startInitialTurn({
-      sessionId: 's1',
-      content: { text: 'Initial', files: [] },
-      projectDir: '/repo',
-      initialTitle: 'Initial',
-      fallbackProviderId: 'openai',
-      fallbackModelId: 'model-1'
-    })
+    expect(() =>
+      harness.coordinator.startInitialTurn({
+        sessionId: 's1',
+        content: { text: 'Initial', files: [] },
+        projectDir: '/repo',
+        initialTitle: 'Initial',
+        fallbackProviderId: 'openai',
+        fallbackModelId: 'model-1'
+      })
+    ).not.toThrow()
     await Promise.resolve()
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '[SessionTurnCoordinator] initial send failed:',
+      error
+    )
+    expect(harness.projection.scheduleTitleGeneration).toHaveBeenCalledOnce()
+    consoleError.mockRestore()
+  })
+
+  it('contains synchronous runtime resolution failure after creation returns', () => {
+    const harness = createHarness()
+    const error = new Error('resolve failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.resolveSession.mockImplementation(() => {
+      throw error
+    })
+
+    expect(() =>
+      harness.coordinator.startInitialTurn({
+        sessionId: 's1',
+        content: { text: 'Initial', files: [] },
+        projectDir: '/repo',
+        initialTitle: 'Initial',
+        fallbackProviderId: 'openai',
+        fallbackModelId: 'model-1'
+      })
+    ).not.toThrow()
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '[SessionTurnCoordinator] initial send failed:',
+      error
+    )
+    expect(harness.projection.scheduleTitleGeneration).toHaveBeenCalledOnce()
+    consoleError.mockRestore()
+  })
+
+  it('contains synchronous send invocation failure after creation returns', () => {
+    const harness = createHarness()
+    const error = new Error('send invocation failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.send.mockImplementation(() => {
+      throw error
+    })
+
+    expect(() =>
+      harness.coordinator.startInitialTurn({
+        sessionId: 's1',
+        content: { text: 'Initial', files: [] },
+        projectDir: '/repo',
+        initialTitle: 'Initial',
+        fallbackProviderId: 'openai',
+        fallbackModelId: 'model-1'
+      })
+    ).not.toThrow()
 
     expect(consoleError).toHaveBeenCalledWith(
       '[SessionTurnCoordinator] initial send failed:',
