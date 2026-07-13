@@ -23,11 +23,33 @@ import type { MemoryPromptContributor, MemorySessionHandle } from './memoryPromp
 
 const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
 const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
+export const MEMORY_INJECTION_TIMEOUT_MS = 3_000
 const MEMORY_INGESTION_PROJECTION_RETRY_COOLDOWN_MS = 30_000
 const MEMORY_INGESTION_PROJECTION_FAILURE_CACHE_LIMIT = 256
 const MEMORY_INGESTION_DRAIN_TIMEOUT_MS = 5_000
 const MEMORY_FALLBACK_MIN_DELTA = 6
 const MEMORY_MIN_AGENTIC_TEXT_CHARS = 160
+
+type MemoryInjectionDeadlineResult<T> = { timedOut: true } | { timedOut: false; value: T }
+
+async function withMemoryInjectionDeadline<T>(
+  promise: Promise<T>
+): Promise<MemoryInjectionDeadlineResult<T>> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  const guarded = promise.then(
+    (value): MemoryInjectionDeadlineResult<T> => ({ timedOut: false, value })
+  )
+  void guarded.catch(() => undefined)
+  const timeout = new Promise<MemoryInjectionDeadlineResult<T>>((resolve) => {
+    timeoutId = setTimeout(() => resolve({ timedOut: true }), MEMORY_INJECTION_TIMEOUT_MS)
+    if (typeof timeoutId.unref === 'function') timeoutId.unref()
+  })
+  try {
+    return await Promise.race([guarded, timeout])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
 
 interface MemoryInjectionAccessTurnEntry {
   ids: Set<string>
@@ -140,10 +162,24 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       const sessionId = input.session.sessionId
       const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
       if (!this.memoryPort.isEnabled(agentId)) return input.basePrompt
-      const injection = await this.memoryPort.buildInjection(agentId, input.query)
+      const deadlineResult = await withMemoryInjectionDeadline(
+        this.memoryPort.buildInjection(agentId, input.query)
+      )
+      if (deadlineResult.timedOut) {
+        logger.warn(
+          `[DeepChatAgent] memory injection timed out for session=${sessionId}; sending without memory section`
+        )
+        return input.basePrompt
+      }
+      const injection = deadlineResult.value
       if (!this.memoryPort.isEnabled(agentId)) return input.basePrompt
       const assembled = appendMemorySectionWithManifest(input.basePrompt, injection)
       if (assembled.manifest) {
+        if (assembled.manifest.degradations?.length) {
+          logger.info(
+            `[DeepChatAgent] memory injection degraded for session=${sessionId} causes=${assembled.manifest.degradations.join(',')}`
+          )
+        }
         if (this.memoryPort.isEnabled(agentId)) {
           this.recordInjectionAccess(
             agentId,

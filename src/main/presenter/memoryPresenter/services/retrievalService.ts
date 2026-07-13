@@ -540,11 +540,12 @@ export class RetrievalService {
       topKOverride?: number
       enableInlinePrune?: boolean
       excludeConflictParticipants?: boolean
+      degradationCollector?: Set<MemoryRetrievalDegradationCause>
     }
   ): Promise<MemoryRecallItem[]> {
     const totalStartedAt = performance.now()
     const latencyMs: Partial<Record<MemoryRecallLatencyStage, number>> = {}
-    const degradations = new Set<MemoryRetrievalDegradationCause>()
+    const degradations = options.degradationCollector ?? new Set<MemoryRetrievalDegradationCause>()
     let outcome: MemoryRetrievalOutcome = 'failed'
     let ftsCandidates = 0
     let vectorCandidates = 0
@@ -810,10 +811,12 @@ export class RetrievalService {
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
     const readEpoch = this.ctx.captureReadEpoch(agentId)
     const config = this.ports.policy.resolveAgentConfig(agentId)
+    const degradations = new Set<MemoryRetrievalDegradationCause>()
     const recalled = await this.retrieve(agentId, query, Date.now(), false, {
       purpose: 'injection',
       keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
-      keywordMatchMode: 'any'
+      keywordMatchMode: 'any',
+      degradationCollector: degradations
     })
     if (!this.ctx.canReadAgentMemory(agentId) || !this.ctx.isReadEpochCurrent(agentId, readEpoch)) {
       return null
@@ -829,7 +832,7 @@ export class RetrievalService {
     ) {
       return null
     }
-    if (!persona && !working && recalled.length === 0) return null
+    if (!persona && !working && recalled.length === 0 && degradations.size === 0) return null
     const tokenBudget = resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
     const payload: MemoryInjectionPayload = {
       selfModel: persona?.content ?? null,
@@ -851,7 +854,10 @@ export class RetrievalService {
       dropped: [],
       tokenBudget,
       estimatedTokens: 0,
-      queryHash: query.trim() ? buildMemoryProvenanceKey(agentId, 'query', query.trim()) : undefined
+      queryHash: query.trim()
+        ? buildMemoryProvenanceKey(agentId, 'query', query.trim())
+        : undefined,
+      ...(degradations.size > 0 ? { degradations: [...degradations] } : {})
     }
     return { payload, manifest }
   }

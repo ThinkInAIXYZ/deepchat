@@ -312,6 +312,40 @@ describe('Context Assembler token budget (T4)', () => {
     ).toBe('')
     expect(buildMemorySection(null)).toBe('')
   })
+
+  it('preserves the null manifest shape for empty injection without degradation', () => {
+    const result = appendMemorySectionWithManifest('base', {
+      payload: { selfModel: null, working: null, memories: [], tokenBudget: 1200 },
+      manifest: {
+        policyVersion: 1,
+        selected: [],
+        dropped: [],
+        tokenBudget: 1200,
+        estimatedTokens: 0
+      }
+    })
+
+    expect(result).toEqual({ prompt: 'base', manifest: null })
+  })
+
+  it('preserves a degradation-only manifest without changing the prompt', () => {
+    const result = appendMemorySectionWithManifest('base', {
+      payload: { selfModel: null, working: null, memories: [], tokenBudget: 1200 },
+      manifest: {
+        policyVersion: 1,
+        selected: [],
+        dropped: [],
+        tokenBudget: 1200,
+        estimatedTokens: 0,
+        degradations: ['storeTimeout']
+      }
+    })
+
+    expect(result.prompt).toBe('base')
+    expect(result.manifest).toEqual(
+      expect.objectContaining({ selected: [], degradations: ['storeTimeout'] })
+    )
+  })
 })
 
 describe('sanitizeForInjection (C1, F6)', () => {

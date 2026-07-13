@@ -1,3 +1,5 @@
+import type { MemoryRetrievalDegradationCause } from '@shared/types/agent-memory'
+
 import type { AgentMemoryKind } from '../domain/types'
 import type {
   MemoryExtractionResult,
@@ -45,6 +47,7 @@ export interface MemoryInjectionManifest {
   tokenBudget: number
   estimatedTokens: number
   queryHash?: string
+  degradations?: MemoryRetrievalDegradationCause[]
 }
 
 export interface MemoryInjectionResult {
@@ -348,10 +351,16 @@ export function appendMemorySectionWithManifest(
   if (!result) return { prompt: systemPrompt, manifest: null }
   const payload = normalizeMemoryInjectionInput(result)
   const assembled = assembleMemorySection(payload)
-  if (!assembled.section) return { prompt: systemPrompt, manifest: null }
   const baseManifest = 'manifest' in result ? result.manifest : assembled.manifest
+  const manifest = { ...baseManifest, ...assembled.manifest }
+  if (!assembled.section) {
+    return {
+      prompt: systemPrompt,
+      manifest: manifest.degradations?.length ? manifest : null
+    }
+  }
   return {
     prompt: `${systemPrompt}\n\n${READONLY_NOTICE}\n\n${assembled.section}`,
-    manifest: { ...baseManifest, ...assembled.manifest }
+    manifest
   }
 }

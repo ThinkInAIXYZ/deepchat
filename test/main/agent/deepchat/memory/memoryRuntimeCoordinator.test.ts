@@ -1,12 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
+import {
+  MEMORY_INJECTION_TIMEOUT_MS,
+  MemoryRuntimeCoordinator
+} from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type {
   MemoryPromptContributor,
   MemorySessionHandle
 } from '@/agent/deepchat/memory/memoryPromptContributor'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import {
@@ -129,6 +133,10 @@ function createHarness() {
     }
   }
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('MemoryRuntimeCoordinator', () => {
   it('contributes through the public port and returns the exact base prompt when unavailable', async () => {
@@ -258,6 +266,105 @@ describe('MemoryRuntimeCoordinator', () => {
         })
       })
     )
+  })
+
+  it('returns the base prompt at the injection deadline and discards late results', async () => {
+    vi.useFakeTimers()
+    const { coordinator, deps, memorySession, port } = createHarness()
+    const lateInjection = deferred<any>()
+    port.buildInjection.mockReturnValue(lateInjection.promise)
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const input = {
+      session: memorySession,
+      basePrompt: 'base prompt',
+      query: 'redis',
+      messageId: 'message-1'
+    }
+
+    const contribution = coordinator.contribute(input)
+    let settled = false
+    void contribution.finally(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(MEMORY_INJECTION_TIMEOUT_MS - 1)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(contribution).resolves.toBe(input.basePrompt)
+    expect(port.recordInjectionAccess).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('memory injection timed out'))
+
+    lateInjection.resolve({
+      payload: {
+        selfModel: null,
+        working: null,
+        memories: [{ id: 'late', kind: 'semantic', content: 'late memory' }]
+      },
+      manifest: {
+        policyVersion: 1,
+        selected: [{ id: 'late', kind: 'semantic' }],
+        dropped: [],
+        tokenBudget: 1200,
+        estimatedTokens: 10
+      }
+    })
+    await Promise.resolve()
+    expect(port.recordInjectionAccess).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('observes a late injection rejection after the deadline', async () => {
+    vi.useFakeTimers()
+    const { coordinator, memorySession, port } = createHarness()
+    const lateInjection = deferred<any>()
+    port.buildInjection.mockReturnValue(lateInjection.promise)
+
+    const contribution = coordinator.contribute({
+      session: memorySession,
+      basePrompt: 'base prompt',
+      query: 'redis'
+    })
+    await vi.advanceTimersByTimeAsync(MEMORY_INJECTION_TIMEOUT_MS)
+    await expect(contribution).resolves.toBe('base prompt')
+    lateInjection.reject(new Error('late failure'))
+    await Promise.resolve()
+  })
+
+  it('logs and anchors settled degradation without adding an empty memory section', async () => {
+    const { coordinator, deps, memorySession, port } = createHarness()
+    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined)
+    port.buildInjection.mockResolvedValue({
+      payload: { selfModel: null, working: null, memories: [], tokenBudget: 1200 },
+      manifest: {
+        policyVersion: 1,
+        selected: [],
+        dropped: [],
+        tokenBudget: 1200,
+        estimatedTokens: 0,
+        degradations: ['storeTimeout']
+      }
+    })
+
+    await expect(
+      coordinator.contribute({
+        session: memorySession,
+        basePrompt: 'base prompt',
+        query: 'redis',
+        messageId: 'message-1'
+      })
+    ).resolves.toBe('base prompt')
+
+    expect(port.recordInjectionAccess).not.toHaveBeenCalled()
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('causes=storeTimeout'))
+    expect(deps.appendTapeAnchor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'memory/view_assembled',
+        state: expect.objectContaining({ degradations: ['storeTimeout'] })
+      })
+    )
+    info.mockRestore()
   })
 
   it('serializes one session while sibling sessions run and reports absolute queue state', async () => {

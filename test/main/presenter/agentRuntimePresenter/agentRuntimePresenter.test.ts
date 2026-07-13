@@ -20,7 +20,10 @@ import {
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
-import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
+import {
+  MEMORY_INJECTION_TIMEOUT_MS,
+  type MemoryRuntimeCoordinator
+} from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
@@ -1633,6 +1636,30 @@ describe('AgentRuntimePresenter', () => {
       expect(assistantInsert.orderSeq).toBe(2)
       expect(assistantInsert.status).toBe('pending')
       expect(assistantInsert.content).toBe('[]')
+    })
+
+    it('starts the provider stream when memory injection never settles', async () => {
+      vi.useFakeTimers()
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
+        .mockReturnValueOnce(0)
+        .mockReturnValueOnce(1)
+      const buildInjection = vi.fn(() => new Promise<never>(() => undefined))
+      setMemoryPort({
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const processing = agent.processMessage('s1', 'Hello')
+      await vi.waitFor(() => expect(buildInjection).toHaveBeenCalledTimes(1))
+      await vi.advanceTimersByTimeAsync(MEMORY_INJECTION_TIMEOUT_MS)
+      await processing
+
+      expect(sqlitePresenter.deepchatMessagesTable.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ role: 'assistant', status: 'pending' })
+      )
+      expect(processStream).toHaveBeenCalledTimes(1)
     })
 
     it('rejects blank text-only messages before creating records', async () => {

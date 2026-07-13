@@ -149,6 +149,29 @@ describe('RetrievalService diagnostics', () => {
     }
   })
 
+  it('propagates retrieval degradation into the injection manifest', async () => {
+    vi.useFakeTimers()
+    try {
+      const { presenter, store } = createPresenter()
+      presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], {
+        agentId: 'agent'
+      })
+      await presenter.processPendingEmbeddings('agent')
+      vi.spyOn(store, 'query').mockImplementation(() => new Promise(() => undefined))
+
+      const injection = presenter.buildInjection('agent', 'redis')
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      await expect(injection).resolves.toMatchObject({
+        payload: { memories: [expect.objectContaining({ content: 'redis setup' })] },
+        manifest: { degradations: expect.arrayContaining(['storeTimeout']) }
+      })
+      await presenter.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('records batch vector timeouts as storeTimeout degradation', async () => {
     const repository = createFakeRepository()
     repository.insert({

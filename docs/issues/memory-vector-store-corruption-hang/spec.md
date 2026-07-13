@@ -376,17 +376,17 @@ unbounded await turns out to be.
       (`RECALL_VECTOR_QUERY_GRACE_MS = 30_000`) of the same promise; resume requires
       still-suspect + unchanged lease epoch / store generation / embedding identity; grace
       expiry → `quarantined` + `markVectorStoreQuarantined` (never evict/reset in-process).
-- [ ] Add `MEMORY_INJECTION_TIMEOUT_MS` deadline race around `buildInjection` in
+- [x] Add `MEMORY_INJECTION_TIMEOUT_MS` deadline race around `buildInjection` in
       `MemoryRuntimeCoordinator.contribute()`; on timeout skip access accounting and tape
       anchor; discard late results.
-- [ ] Extend `MemoryInjectionManifest` with optional `degradations` propagated by
+- [x] Extend `MemoryInjectionManifest` with optional `degradations` propagated by
       `buildInjection()`.
 - [x] Implement store format v2 + one-time migration per
       [docs/architecture/memory-vector-store-v2/tasks.md](../../architecture/memory-vector-store-v2/tasks.md).
 - [ ] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
       `agentRuntimePresenter/index.ts`; async awaited steps only; final segment cleared by the
       existing beforeStream boundary hook; sync steps get completion-time slow logs only.
-- [ ] Info log when memory injection is skipped/degraded (timeout or recall degradation causes).
+- [x] Info log when memory injection is skipped/degraded (timeout or recall degradation causes).
 - [ ] Unit tests (see Validation).
 - [ ] `mise exec -- pnpm run format`, `mise exec -- pnpm run i18n`,
       `mise exec -- pnpm run lint`, `mise exec -- pnpm run typecheck`, and
