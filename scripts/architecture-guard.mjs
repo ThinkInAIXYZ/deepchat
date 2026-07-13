@@ -72,6 +72,48 @@ const AGENT_RUNTIME_PRESENTER_ROOT = path.join(
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
+const SESSION_APPLICATION_ROOT = path.join(ROOT, 'src/main/presenter/sessionApplication')
+const SESSION_APPLICATION_OWNER_PATHS = new Set(
+  [
+    'projectionCoordinator.ts',
+    'agentAssignmentPolicy.ts',
+    'agentAssignmentCoordinator.ts',
+    'turnCoordinator.ts',
+    'lifecycleCoordinator.ts',
+    'lifecycleDeletionTransaction.ts'
+  ].map((fileName) => path.resolve(SESSION_APPLICATION_ROOT, fileName))
+)
+const SESSION_APPLICATION_OWNER_NAMES = new Set([
+  'SessionProjectionCoordinator',
+  'SessionAgentAssignmentPolicy',
+  'SessionAgentAssignmentCoordinator',
+  'SessionTurnCoordinator',
+  'SessionLifecycleCoordinator',
+  'SessionDeletionTransaction'
+])
+const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
+  [
+    'src/main/routes/sessions/sessionService.ts',
+    'src/main/routes/chat/chatService.ts',
+    'src/main/routes/hotPathPorts.ts',
+    'src/main/presenter/remoteControlPresenter/interface.ts',
+    'src/main/presenter/remoteControlPresenter/services/remoteConversationRunner.ts',
+    'src/main/presenter/cronJobs/runSessionStarter.ts',
+    'src/main/presenter/lifecyclePresenter/hooks/after-start/cronJobsStartHook.ts'
+  ].map((fileName) => path.resolve(ROOT, fileName))
+)
+const SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES = new Set([
+  'Presenter',
+  'IAgentSessionPresenter',
+  'AgentSharedDataPorts',
+  'SQLitePresenter'
+])
+const SESSION_COMBINED_FACADE_NAMES = new Set([
+  'SessionApplicationServices',
+  'SessionApplicationCoordinator'
+])
+const SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN =
+  /(?:^|[/_.-])(?:history|export(?:er)?|usage(?:[-_.]?stats?)?|rtk|legacy[-_.]?import(?:er|s)?|import(?:er|s)?|migrations?|translation|catalog)(?:$|[/_.-])/
 const PHASE_ORDER = new Map([
   ['P0', 0],
   ['P1', 1],
@@ -206,6 +248,20 @@ function isUnder(targetPath, parentPath) {
   )
 }
 
+function isSessionMigratedConsumerPath(filePath) {
+  return (
+    SESSION_MIGRATED_CONSUMER_PATHS.has(path.resolve(filePath)) ||
+    path.basename(filePath).startsWith('__architecture_guard_session_consumer_')
+  )
+}
+
+function isSessionApplicationOwnerPath(filePath) {
+  return (
+    SESSION_APPLICATION_OWNER_PATHS.has(path.resolve(filePath)) ||
+    path.basename(filePath).startsWith('__architecture_guard_session_coordinator_')
+  )
+}
+
 function isRendererQuarantineFile(filePath) {
   return RENDERER_QUARANTINE_ROOTS.some((quarantineRoot) => isUnder(filePath, quarantineRoot))
 }
@@ -270,6 +326,90 @@ function sourceFileForAst(source, filePath, scriptKind = ts.ScriptKind.TS) {
     true,
     scriptKind
   )
+}
+
+function importRecordsFromSourceFile(sourceFile) {
+  const records = []
+
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !statement.importClause ||
+      !ts.isStringLiteralLike(statement.moduleSpecifier)
+    ) {
+      continue
+    }
+
+    const specifier = statement.moduleSpecifier.text
+    if (statement.importClause.name) {
+      records.push({
+        specifier,
+        importedName: 'default',
+        localName: statement.importClause.name.text
+      })
+    }
+
+    const bindings = statement.importClause.namedBindings
+    if (bindings && ts.isNamespaceImport(bindings)) {
+      records.push({ specifier, importedName: '*', localName: bindings.name.text })
+      continue
+    }
+
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        records.push({
+          specifier,
+          importedName: element.propertyName?.text ?? element.name.text,
+          localName: element.name.text
+        })
+      }
+    }
+  }
+
+  return records
+}
+
+function findIdentifierNames(sourceFile, names) {
+  const found = new Set()
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && names.has(node.text)) found.add(node.text)
+    const member = accessMemberName(node)
+    if (member && names.has(member)) found.add(member)
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return found
+}
+
+function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
+  const importedAliases = new Map()
+  for (const record of importRecords) {
+    if (SESSION_APPLICATION_OWNER_NAMES.has(record.importedName)) {
+      importedAliases.set(record.localName, record.importedName)
+    }
+  }
+
+  const owners = new Set()
+  const visit = (node) => {
+    if (ts.isNewExpression(node)) {
+      const expression = unwrapExpression(node.expression)
+      if (ts.isIdentifier(expression)) {
+        const owner = importedAliases.get(expression.text) ?? expression.text
+        if (SESSION_APPLICATION_OWNER_NAMES.has(owner)) owners.add(owner)
+      } else {
+        const owner = accessMemberName(expression)
+        if (owner && SESSION_APPLICATION_OWNER_NAMES.has(owner)) owners.add(owner)
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return owners
+}
+
+function isSessionPhaseOneForeignImport(value) {
+  const normalized = value.replaceAll(/([a-z\d])([A-Z])/g, '$1-$2').toLowerCase()
+  return SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN.test(normalized)
 }
 
 function findNamedClassDeclarations(sourceFile, className) {
@@ -995,6 +1135,89 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
   for (const filePath of [...fileSet].sort()) {
     const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
+    const isMainSource = isUnder(filePath, MAIN_SOURCE_ROOT)
+
+    if (isMainSource) {
+      const sourceFile = sourceFileForAst(source, filePath)
+      const importRecords = importRecordsFromSourceFile(sourceFile)
+
+      if (isSessionMigratedConsumerPath(filePath)) {
+        const presenterDependencies = findIdentifierNames(
+          sourceFile,
+          new Set(['IAgentSessionPresenter', 'agentSessionPresenter'])
+        )
+        if (presenterDependencies.has('IAgentSessionPresenter')) {
+          violations.push(
+            `[session-consumer-presenter-type] ${relativePath(filePath)} must not use IAgentSessionPresenter`
+          )
+        }
+        if (presenterDependencies.has('agentSessionPresenter')) {
+          violations.push(
+            `[session-consumer-presenter-facade] ${relativePath(filePath)} must not use agentSessionPresenter`
+          )
+        }
+      }
+
+      if (path.resolve(filePath) !== path.resolve(PRESENTER_ROOT_ENTRY)) {
+        for (const owner of findSessionApplicationOwnerConstructions(sourceFile, importRecords)) {
+          violations.push(
+            `[session-application-duplicate-construction] ${relativePath(filePath)} constructs ${owner}; construct session application owners only in src/main/presenter/index.ts`
+          )
+        }
+      }
+
+      for (const facade of findIdentifierNames(sourceFile, SESSION_COMBINED_FACADE_NAMES)) {
+        violations.push(
+          `[session-application-combined-facade] ${relativePath(filePath)} contains ${facade}`
+        )
+      }
+
+      if (isSessionApplicationOwnerPath(filePath)) {
+        for (const specifier of specifiers) {
+          if (isSessionPhaseOneForeignImport(specifier)) {
+            violations.push(
+              `[session-coordinator-phase1-import] ${relativePath(filePath)} -> ${specifier}`
+            )
+          }
+        }
+
+        const wholeDependencies = findIdentifierNames(
+          sourceFile,
+          SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES
+        )
+
+        for (const specifier of new Set(importRecords.map((record) => record.specifier))) {
+          const aggregateRecords = importRecords.filter(
+            (record) =>
+              record.specifier === specifier &&
+              (record.importedName === 'default' ||
+                record.importedName === '*' ||
+                record.importedName === 'presenter')
+          )
+          if (aggregateRecords.length === 0) continue
+
+          const resolved = await resolveImport(
+            specifier,
+            filePath,
+            MAIN_SOURCE_ROOT,
+            normalizedVirtualFiles
+          )
+          if (!resolved) continue
+          if (path.resolve(resolved) === path.resolve(PRESENTER_ROOT_ENTRY)) {
+            wholeDependencies.add('Presenter')
+          }
+          if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
+            wholeDependencies.add('SQLitePresenter')
+          }
+        }
+
+        for (const dependency of wholeDependencies) {
+          violations.push(
+            `[session-coordinator-whole-dependency] ${relativePath(filePath)} imports ${dependency}`
+          )
+        }
+      }
+    }
 
     if (isUnder(filePath, path.join(ROOT, 'src')) || isUnder(filePath, REGULAR_MAIN_TEST_ROOT)) {
       for (const [symbol, pattern] of RETIRED_AGENT_RUNTIME_PATTERNS) {

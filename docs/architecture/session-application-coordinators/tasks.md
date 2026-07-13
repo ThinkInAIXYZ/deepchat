@@ -58,19 +58,19 @@
 
 ## 7. Remote and Cron
 
-- [ ] Inject separate Lifecycle, Turn, Assignment, and Projection ports into Remote.
-- [ ] Keep Remote active-generation lookup/cancel on `AgentManagerGenerationPort`.
-- [ ] Replace untyped Remote presenter fixtures with typed port stubs.
-- [ ] Build the Cron starter from Lifecycle/Turn in the composition root.
-- [ ] Remove route-runtime starter side effects and startup route-runtime priming.
-- [ ] Preserve Cron metadata, max-turn, output, status, timeout, and delivery semantics.
+- [x] Inject separate Lifecycle, Turn, Assignment, and Projection ports into Remote.
+- [x] Keep Remote active-generation lookup/cancel on `AgentManagerGenerationPort`.
+- [x] Replace untyped Remote presenter fixtures with typed port stubs.
+- [x] Build the Cron starter from Lifecycle/Turn in the composition root.
+- [x] Remove route-runtime starter side effects and startup route-runtime priming.
+- [x] Preserve Cron metadata, max-turn, output, status, timeout, and delivery semantics.
 
 ## 8. Façade and Enforcement
 
-- [ ] Remove migrated implementation state/helpers/imports from `AgentSessionPresenter`.
-- [ ] Keep stage-2 compatibility signatures and forwarding; do not retire the façade.
-- [ ] Exhaust production/test searches for presenter dependencies in migrated consumers.
-- [ ] Add architecture guards for consumer imports, duplicate construction, foreign-owner imports,
+- [x] Remove migrated implementation state/helpers/imports from `AgentSessionPresenter`.
+- [x] Keep stage-2 compatibility signatures and forwarding; do not retire the façade.
+- [x] Exhaust production/test searches for presenter dependencies in migrated consumers.
+- [x] Add architecture guards for consumer imports, duplicate construction, foreign-owner imports,
       and combined façade regression.
 - [ ] Update current architecture, session management, flows, and code navigation.
 - [ ] Review the dependency diff and regenerate maintained baselines only when intentional.
