@@ -609,6 +609,7 @@ describe('AgentSessionPresenter', () => {
   let closeDirectAcpSession: ReturnType<typeof vi.fn>
   let closeDirectAcpRuntime: ReturnType<typeof vi.fn>
   let directAcpControl: ReturnType<typeof createMockDirectAcpControl>
+  let sessionUiPort: { refreshSessionUi: ReturnType<typeof vi.fn> }
   let agentManager: {
     resolveBackend: ReturnType<typeof vi.fn>
     resolveSessionBackend: ReturnType<typeof vi.fn>
@@ -630,6 +631,7 @@ describe('AgentSessionPresenter', () => {
     closeDirectAcpSession = vi.fn().mockResolvedValue(undefined)
     closeDirectAcpRuntime = vi.fn().mockResolvedValue(undefined)
     directAcpControl = createMockDirectAcpControl()
+    sessionUiPort = { refreshSessionUi: vi.fn() }
     const backend = createDeepChatAgentBackendFixture(deepChatAgent as never)
     const resolveBackend = vi.fn((agentId: string) => {
       if (agentId === 'disabled-agent') throw new Error(`Agent not found: ${agentId}`)
@@ -713,7 +715,7 @@ describe('AgentSessionPresenter', () => {
         tape: deepChatAgent
       } as any,
       skillPresenter,
-      { acpAsLlmProviderSessionControl: llmProviderPresenter }
+      { acpAsLlmProviderSessionControl: llmProviderPresenter, sessionUiPort }
     )
   })
 
@@ -1953,7 +1955,15 @@ describe('AgentSessionPresenter', () => {
       expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('mock-session-id')
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
+      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeLessThan(
+        deepChatAgent.destroySession.mock.invocationCallOrder[0]
+      )
+      expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
+        sqlitePresenter.newSessionsTable.delete.mock.invocationCallOrder[0]
+      )
+      expect(presenter.getActiveSessionId(1)).toBeNull()
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
+      expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
         '[AgentSessionPresenter] Failed to clear ACP session after initialization error mock-session-id:',
         clearError
@@ -2090,6 +2100,47 @@ describe('AgentSessionPresenter', () => {
     })
   })
 
+  describe('draft turn promotion failures', () => {
+    it.each([
+      ['send', () => presenter.sendMessage('s-draft', 'New prompt')],
+      ['steer', () => presenter.steerActiveTurn('s-draft', 'New prompt')],
+      ['queue', () => presenter.queuePendingInput('s-draft', 'New prompt')]
+    ])('does not roll back draft promotion when %s fails later', async (_name, invoke) => {
+      const row = {
+        id: 's-draft',
+        agent_id: 'deepchat',
+        title: 'New Chat',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 1,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation(() => row)
+      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
+        if (fields.title !== undefined) row.title = fields.title
+        if (fields.is_draft !== undefined) row.is_draft = fields.is_draft
+      })
+      const runtimeError = new Error(`${_name} runtime failed`)
+      deepChatAgent.getSessionState.mockRejectedValueOnce(runtimeError)
+
+      await expect(invoke()).rejects.toBe(runtimeError)
+
+      expect(row).toMatchObject({ is_draft: 0, title: 'New prompt' })
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s-draft', {
+        is_draft: 0,
+        title: 'New prompt'
+      })
+      expectSessionsUpdated({ sessionIds: ['s-draft'], reason: 'updated' })
+      expect(deepChatAgent.queuePendingInput).not.toHaveBeenCalled()
+      expect(deepChatAgent.steerActiveTurn).not.toHaveBeenCalled()
+    })
+  })
+
   describe('sendMessage', () => {
     it('promotes draft session before first message', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([
@@ -2164,6 +2215,40 @@ describe('AgentSessionPresenter', () => {
       expect(deepChatAgent.hasMessages).toHaveBeenCalledWith('s1')
       expect(deepChatAgent.getMessages).not.toHaveBeenCalled()
       expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
+    })
+
+    it('forwards maxProviderRounds through the turn handle context', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.hasMessages.mockResolvedValue(true)
+      const send = vi.fn().mockResolvedValue({ requestId: null, messageId: null })
+      agentManager.resolveSessionHandle.mockReturnValueOnce({
+        handle: {
+          kind: 'deepchat',
+          snapshot: vi.fn().mockResolvedValue({
+            status: 'idle',
+            providerId: 'openai',
+            modelId: 'gpt-4'
+          }),
+          send
+        }
+      })
+
+      await presenter.sendMessage('s1', 'Scheduled prompt', { maxProviderRounds: 4 })
+
+      expect(send).toHaveBeenCalledWith({
+        content: { text: 'Scheduled prompt', files: [] },
+        context: { projectDir: '/repo', maxProviderRounds: 4 },
+        queue: { source: 'send', projectDir: '/repo' }
+      })
     })
 
     it('routes active generation submissions to queue', async () => {
@@ -2847,6 +2932,9 @@ describe('AgentSessionPresenter', () => {
       )
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
+      expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
+        sqlitePresenter.newSessionsTable.delete.mock.invocationCallOrder[0]
+      )
       expect(rows.has('mock-session-id')).toBe(false)
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
@@ -3319,6 +3407,36 @@ describe('AgentSessionPresenter', () => {
     })
   })
 
+  describe('session update publication', () => {
+    it('trims and dedupes ids, applies reason defaults, and refreshes session UI', () => {
+      const emit = Reflect.get(presenter, 'emitSessionListUpdated') as (options?: {
+        sessionIds?: string[]
+      }) => void
+
+      emit.call(presenter, { sessionIds: [' s1 ', 's1', ' ', 's2', 's2'] })
+
+      expect(publishDeepchatEvent).toHaveBeenCalledWith('sessions.updated', {
+        sessionIds: ['s1', 's2'],
+        reason: 'updated',
+        activeSessionId: undefined,
+        webContentsId: undefined
+      })
+      expect(sessionUiPort.refreshSessionUi).toHaveBeenCalledOnce()
+
+      vi.mocked(publishDeepchatEvent).mockClear()
+      sessionUiPort.refreshSessionUi.mockClear()
+      emit.call(presenter)
+
+      expect(publishDeepchatEvent).toHaveBeenCalledWith('sessions.updated', {
+        sessionIds: [],
+        reason: 'list-refreshed',
+        activeSessionId: undefined,
+        webContentsId: undefined
+      })
+      expect(sessionUiPort.refreshSessionUi).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('activateSession', () => {
     it('binds window and publishes typed activated update', async () => {
       await presenter.activateSession(42, 's1')
@@ -3330,6 +3448,7 @@ describe('AgentSessionPresenter', () => {
       })
       expect(sqlitePresenter.newSessionsTable.get).not.toHaveBeenCalled()
       expect(agentManager.resolveSessionHandle).not.toHaveBeenCalled()
+      expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
     })
   })
 
@@ -3342,6 +3461,7 @@ describe('AgentSessionPresenter', () => {
         activeSessionId: null,
         webContentsId: 42
       })
+      expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
     })
   })
 
@@ -3478,6 +3598,15 @@ describe('AgentSessionPresenter', () => {
 
       await presenter.cancelGeneration('s1')
       expect(deepChatAgent.cancelGeneration).toHaveBeenCalledWith('s1')
+    })
+
+    it('is a no-op for a missing session', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
+
+      await expect(presenter.cancelGeneration('missing')).resolves.toBeUndefined()
+
+      expect(agentManager.resolveSessionHandle).not.toHaveBeenCalled()
+      expect(deepChatAgent.cancelGeneration).not.toHaveBeenCalled()
     })
   })
 
@@ -4479,8 +4608,31 @@ describe('AgentSessionPresenter', () => {
       await presenter.clearSessionMessages('s1')
 
       expect(deepChatAgent.clearMessages).toHaveBeenCalledWith('s1')
+      expect(deepChatAgent.cancelGeneration.mock.invocationCallOrder[0]).toBeLessThan(
+        deepChatAgent.clearMessages.mock.invocationCallOrder[0]
+      )
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
       expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
+    })
+
+    it('does not clear messages or publish when cancellation fails', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      const cancelError = new Error('cancel failed')
+      deepChatAgent.cancelGeneration.mockRejectedValueOnce(cancelError)
+
+      await expect(presenter.clearSessionMessages('s1')).rejects.toBe(cancelError)
+
+      expect(deepChatAgent.clearMessages).not.toHaveBeenCalled()
+      expect(publishDeepchatEvent).not.toHaveBeenCalled()
+      expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
     })
 
     it('exports session in all supported formats', async () => {
