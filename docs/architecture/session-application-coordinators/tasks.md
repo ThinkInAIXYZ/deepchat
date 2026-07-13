@@ -93,4 +93,5 @@
       compatibility façade.
 - [x] Reconcile tests, guards, current docs, and architecture baselines without restoring a broad
       presenter dependency.
-- [ ] Run focused and full validation, push the merge commit, and confirm PR #1961 is mergeable.
+- [x] Run focused and full validation.
+- [ ] Push the integration commits and confirm PR #1961 is mergeable.

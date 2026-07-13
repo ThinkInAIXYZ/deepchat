@@ -1,6 +1,6 @@
 # Session Application Coordinators
 
-> Status: implemented, integrated, and pending final validation
+> Status: implemented, integrated, and validated
 > Original base: `dev@28e2a0e92`
 > Integrated base: `dev@135779210` via merge commit `1122b2406`
 > Branch: `task/session-application-coordinators`
