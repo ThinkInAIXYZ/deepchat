@@ -1101,6 +1101,89 @@ describe('RemoteConversationRunner', () => {
     expect(show).toHaveBeenCalledWith(7, true)
   })
 
+  it('reports the bound active event as the remote generation status', async () => {
+    const session = createSession({ status: 'generating' })
+    const getBinding = vi
+      .fn()
+      .mockReturnValueOnce(null)
+      .mockReturnValue({ sessionId: 'session-1', updatedAt: 1 })
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: {
+          getSession: vi.fn().mockResolvedValue(session),
+          getMessages: vi.fn().mockResolvedValue([])
+        } as any,
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue({
+            eventId: 'manager-event',
+            runId: 'manager-run'
+          })
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        getBinding,
+        getActiveEvent: vi.fn().mockReturnValue('bound-event')
+      } as any
+    )
+
+    await expect(runner.getStatus('telegram:100:0')).resolves.toEqual({
+      session: null,
+      activeEventId: null,
+      isGenerating: false,
+      pendingInteraction: null
+    })
+    await expect(runner.getStatus('telegram:100:0')).resolves.toEqual({
+      session,
+      activeEventId: 'bound-event',
+      isGenerating: true,
+      pendingInteraction: null
+    })
+  })
+
+  it('clears deleted bindings and returns the fixed missing-session output', async () => {
+    const clearBinding = vi.fn()
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: {
+          getSession: vi.fn().mockResolvedValue(null)
+        } as any,
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      { clearBinding } as any
+    )
+
+    await expect(
+      (runner as any).getConversationSnapshot('telegram:100:0', 'deleted-session', {
+        afterOrderSeq: 0,
+        preferredMessageId: null,
+        ignoreMessageId: null
+      })
+    ).resolves.toEqual({
+      messageId: null,
+      text: 'The bound session no longer exists.',
+      traceText: '',
+      deliverySegments: [],
+      statusText: '',
+      finalText: 'The bound session no longer exists.',
+      draftText: '',
+      renderBlocks: [],
+      fullText: 'The bound session no longer exists.',
+      completed: true,
+      pendingInteraction: null
+    })
+    expect(clearBinding).toHaveBeenCalledWith('telegram:100:0')
+  })
+
   it('does not fall back to the previous active assistant event while waiting for a new reply', async () => {
     vi.useFakeTimers()
 
@@ -1240,7 +1323,9 @@ describe('RemoteConversationRunner', () => {
             }
           ])
         } as any,
-        agentManager: {} as any,
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
@@ -1249,11 +1334,12 @@ describe('RemoteConversationRunner', () => {
         getBinding: vi.fn().mockReturnValue({
           sessionId: 'session-1',
           updatedAt: 1
-        })
+        }),
+        getActiveEvent: vi.fn().mockReturnValue(null)
       } as any
     )
 
-    await expect(runner.getPendingInteraction('telegram:100:0')).resolves.toEqual({
+    const pendingInteraction = {
       type: 'permission',
       messageId: 'assistant-1',
       toolCallId: 'tool-1',
@@ -1270,6 +1356,16 @@ describe('RemoteConversationRunner', () => {
           suggestion: 'Confirm before pushing.'
         }
       }
+    }
+
+    await expect(runner.getPendingInteraction('telegram:100:0')).resolves.toEqual(
+      pendingInteraction
+    )
+    await expect(runner.getStatus('telegram:100:0')).resolves.toEqual({
+      session: createSession(),
+      activeEventId: null,
+      isGenerating: false,
+      pendingInteraction
     })
   })
 
@@ -1339,6 +1435,67 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot.text).toBe('')
     expect(snapshot.statusText).toBe('Running: thinking...')
     expect(snapshot.completed).toBe(false)
+  })
+
+  it('falls back to an empty stored-search result when projection lookup fails', async () => {
+    const searchError = new Error('search store unavailable')
+    const getSearchResults = vi.fn().mockRejectedValue(searchError)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: {
+          getSession: vi.fn().mockResolvedValue(createSession()),
+          getMessage: vi.fn().mockResolvedValue({
+            id: 'assistant-search',
+            role: 'assistant',
+            orderSeq: 2,
+            status: 'success',
+            content: JSON.stringify([
+              {
+                id: 'search-1',
+                type: 'search',
+                content: '',
+                status: 'success',
+                timestamp: 1,
+                extra: { searchId: 'stored-search', label: 'web_search' }
+              }
+            ])
+          }),
+          getSearchResults
+        } as any,
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        rememberActiveEvent: vi.fn(),
+        clearActiveEvent: vi.fn()
+      } as any
+    )
+
+    const snapshot = await (runner as any).getConversationSnapshot('telegram:100:0', 'session-1', {
+      afterOrderSeq: 0,
+      preferredMessageId: 'assistant-search',
+      ignoreMessageId: null
+    })
+
+    expect(getSearchResults).toHaveBeenCalledWith('assistant-search', 'stored-search')
+    expect(snapshot.renderBlocks).toEqual([
+      expect.objectContaining({
+        kind: 'search',
+        text: expect.stringContaining('No stored search results were found.')
+      })
+    ])
+    expect(snapshot.completed).toBe(true)
+    expect(warn).toHaveBeenCalledWith(
+      '[RemoteConversationRunner] Failed to load search results:',
+      expect.objectContaining({ error: searchError })
+    )
+    warn.mockRestore()
   })
 
   it('creates a follow-up execution after responding to a pending interaction', async () => {

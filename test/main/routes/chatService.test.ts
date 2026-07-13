@@ -57,6 +57,77 @@ describe('ChatService', () => {
     expect(providerExecutionPort.sendMessage).toHaveBeenCalledWith('session-1', 'hello')
     expect(messageRepository.listBySession).not.toHaveBeenCalled()
     expect(scheduler.timeout).toHaveBeenCalledTimes(3)
+    expect(scheduler.timeout).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        ms: 5_000,
+        reason: 'chat.sendMessage:session-1:session'
+      })
+    )
+    expect(scheduler.timeout).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        ms: 5_000,
+        reason: 'chat.sendMessage:session-1:agentType'
+      })
+    )
+    expect(scheduler.timeout).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        ms: 30 * 60 * 1_000,
+        reason: 'chat.sendMessage:session-1',
+        signal: expect.any(AbortSignal)
+      })
+    )
+  })
+
+  it('releases the send lock after missing session and agent type preflight failures', async () => {
+    const scheduler = createScheduler()
+    const sessionRepository = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({ id: 'session-1', agentId: 'deepchat' })
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn().mockResolvedValue({
+        requestId: 'request-1',
+        messageId: 'message-1'
+      }),
+      steerActiveTurn: vi.fn(),
+      cancelGeneration: vi.fn(),
+      respondToolInteraction: vi.fn()
+    }
+    const providerCatalogPort = {
+      getAgentType: vi.fn().mockResolvedValueOnce(null).mockResolvedValue('deepchat')
+    }
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: { listBySession: vi.fn(), get: vi.fn() } as any,
+      providerExecutionPort,
+      providerCatalogPort,
+      sessionPermissionPort: { clearSessionPermissions: vi.fn() },
+      scheduler
+    })
+
+    await expect(service.sendMessage('session-1', 'missing session')).rejects.toThrow(
+      'Session not found: session-1'
+    )
+    expect(providerCatalogPort.getAgentType).not.toHaveBeenCalled()
+    expect(providerExecutionPort.sendMessage).not.toHaveBeenCalled()
+
+    await expect(service.sendMessage('session-1', 'missing agent type')).rejects.toThrow(
+      'Agent type not found: deepchat'
+    )
+    expect(providerExecutionPort.sendMessage).not.toHaveBeenCalled()
+
+    await expect(service.sendMessage('session-1', 'retry')).resolves.toEqual({
+      accepted: true,
+      requestId: 'request-1',
+      messageId: 'message-1'
+    })
+    expect(providerExecutionPort.sendMessage).toHaveBeenCalledOnce()
+    expect(providerExecutionPort.sendMessage).toHaveBeenCalledWith('session-1', 'retry')
   })
 
   it('steers the active turn without claiming the normal send lock', async () => {
@@ -143,6 +214,58 @@ describe('ChatService', () => {
     expect(messageRepository.get).toHaveBeenCalledWith('message-1')
     expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
     expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
+    expect(scheduler.timeout).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        ms: 5_000,
+        reason: 'chat.stopStream:message-1:message'
+      })
+    )
+    expect(scheduler.timeout).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        ms: 5_000,
+        reason: 'chat.stopStream:session-1'
+      })
+    )
+  })
+
+  it('returns stopped false when a request id cannot be mapped to a session', async () => {
+    const scheduler = createScheduler()
+    const messageRepository = {
+      listBySession: vi.fn(),
+      get: vi.fn().mockResolvedValue(null)
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn(),
+      cancelGeneration: vi.fn(),
+      respondToolInteraction: vi.fn()
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn()
+    }
+    const service = new ChatService({
+      sessionRepository: { get: vi.fn() } as any,
+      messageRepository: messageRepository as any,
+      providerExecutionPort,
+      providerCatalogPort: { getAgentType: vi.fn() } as any,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    await expect(service.stopStream({ requestId: 'missing-message' })).resolves.toEqual({
+      stopped: false
+    })
+    expect(scheduler.timeout).toHaveBeenCalledOnce()
+    expect(scheduler.timeout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ms: 5_000,
+        reason: 'chat.stopStream:missing-message:message'
+      })
+    )
+    expect(sessionPermissionPort.clearSessionPermissions).not.toHaveBeenCalled()
+    expect(providerExecutionPort.cancelGeneration).not.toHaveBeenCalled()
   })
 
   it('attempts both stopStream cleanups even if clearing permissions fails', async () => {
@@ -289,6 +412,42 @@ describe('ChatService', () => {
 
     expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
     expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
+  })
+
+  it('releases the send lock after non-timeout failures without timeout cleanup', async () => {
+    const scheduler = createScheduler()
+    const sendError = new Error('provider failed')
+    const providerExecutionPort = {
+      sendMessage: vi
+        .fn()
+        .mockRejectedValueOnce(sendError)
+        .mockResolvedValueOnce({ requestId: 'request-2', messageId: 'message-2' }),
+      steerActiveTurn: vi.fn(),
+      cancelGeneration: vi.fn(),
+      respondToolInteraction: vi.fn()
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn()
+    }
+    const service = new ChatService({
+      sessionRepository: {
+        get: vi.fn().mockResolvedValue({ id: 'session-1', agentId: 'deepchat' })
+      } as any,
+      messageRepository: { listBySession: vi.fn(), get: vi.fn() } as any,
+      providerExecutionPort,
+      providerCatalogPort: { getAgentType: vi.fn().mockResolvedValue('deepchat') } as any,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    await expect(service.sendMessage('session-1', 'first')).rejects.toBe(sendError)
+    await expect(service.sendMessage('session-1', 'second')).resolves.toEqual({
+      accepted: true,
+      requestId: 'request-2',
+      messageId: 'message-2'
+    })
+    expect(sessionPermissionPort.clearSessionPermissions).not.toHaveBeenCalled()
+    expect(providerExecutionPort.cancelGeneration).not.toHaveBeenCalled()
   })
 
   it('aborts a pending send when stopStream races during preflight', async () => {
