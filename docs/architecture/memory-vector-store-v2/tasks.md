@@ -27,8 +27,8 @@
       `memory_id` (bounded JS heap on the read side).
 - [x] Migration (preserve): v1 store without WAL → `LegacyV1Reader` pages rows into
       `publishFreshV2()` (staging build → verify incl. row counts → checkpoint → rename
-      commit), then best-effort delete of v1 files; whole step under
-      `V1_PRESERVE_TIMEOUT_MS = 60_000`.
+      commit), then best-effort delete of v1 files; whole step under a progress-refreshed
+      `V1_PRESERVE_IDLE_TIMEOUT_MS = 60_000` inactivity deadline.
 - [x] Preserve failure handling (native error or deadline expiry): write quarantine marker,
       close vector admission for the agent, FTS-only for the process, nothing closed or deleted
       in-process.
@@ -74,10 +74,10 @@
 
 ## Review hardening follow-up
 
-- [ ] Validate the unique legacy `embedding_meta(provider, model, dim)` identity before
+- [x] Validate the unique legacy `embedding_meta(provider, model, dim)` identity before
       preserve; safely rebuild mismatches/malformed metadata, while native legacy access
       failures enter terminal quarantine.
-- [ ] Make bundled VSS materialization fence-neutral and migration offline-only; use a
+- [x] Make bundled VSS materialization fence-neutral and migration offline-only; use a
       progress-refreshed 60-second inactivity fence, one transaction, INSERT-only pages, and no
       redundant vector copies.
 - [ ] Centralize v2 schema/metadata validation and DuckDB fatal classification; make current

@@ -5,7 +5,7 @@ import path from 'node:path'
 import { DuckDBConnection, DuckDBInstance, arrayValue } from '@duckdb/node-api'
 
 import type { MemoryPerfObserver } from '../ports'
-import { V1_PRESERVE_TIMEOUT_MS } from '../runtimeConstants'
+import { V1_PRESERVE_IDLE_TIMEOUT_MS } from '../runtimeConstants'
 import type {
   IMemoryVectorStore,
   MemoryVectorMatch,
@@ -13,6 +13,7 @@ import type {
   MemoryVectorRecord
 } from '../types'
 import { LegacyV1Reader, MigrationAbandonFence } from './legacyV1Reader'
+import { LegacyVssUnavailableError } from './legacyVssLoader'
 import {
   MemoryVectorStorePostCommitError,
   MemoryVectorStoreQuarantineRequiredError
@@ -96,6 +97,18 @@ function assertValidDimensions(dimensions: number): void {
   if (!Number.isSafeInteger(dimensions) || dimensions <= 0) {
     throw new Error(`[MemoryVectorStore] invalid vector dimensions: ${String(dimensions)}`)
   }
+}
+
+function legacyIdentityMatches(
+  identity: Awaited<ReturnType<LegacyV1Reader['readEmbeddingIdentity']>>,
+  dimensions: number,
+  embedding: EmbeddingIdentity
+): boolean {
+  return (
+    identity?.providerId === embedding.providerId &&
+    identity.modelId === embedding.modelId &&
+    identity.dimensions === dimensions
+  )
 }
 
 // DuckDB-backed memory vector store, isolated per agent and linked to SQLite by memory_id.
@@ -218,6 +231,23 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     perfObserver?: MemoryPerfObserver
   ): Promise<MemoryVectorStore> {
     const fence = new MigrationAbandonFence()
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    let resolveTimeout!: (outcome: LegacyPreserveOutcome) => void
+    const timeout = new Promise<LegacyPreserveOutcome>((resolve) => {
+      resolveTimeout = resolve
+    })
+    const armIdleDeadline = (): void => {
+      if (fence.isCommitted() || fence.isAbandoned()) return
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        if (fence.isCommitted()) return
+        fence.abandon()
+        resolveTimeout({ status: 'timed-out' })
+      }, V1_PRESERVE_IDLE_TIMEOUT_MS)
+      if (typeof timeoutId.unref === 'function') timeoutId.unref()
+    }
+    fence.onProgress(armIdleDeadline)
+    armIdleDeadline()
     const preserve = MemoryVectorStore.preserveLegacyV1(
       paths,
       dimensions,
@@ -230,16 +260,6 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       (store): LegacyPreserveOutcome => ({ status: 'succeeded', store }),
       (error): LegacyPreserveOutcome => ({ status: 'failed', error })
     )
-
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<LegacyPreserveOutcome>((resolve) => {
-      timeoutId = setTimeout(() => {
-        if (fence.isCommitted()) return
-        fence.abandon()
-        resolve({ status: 'timed-out' })
-      }, V1_PRESERVE_TIMEOUT_MS)
-      if (typeof timeoutId.unref === 'function') timeoutId.unref()
-    })
 
     const outcome = await Promise.race([guarded, timeout])
     if (timeoutId) clearTimeout(timeoutId)
@@ -259,7 +279,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       )
     })
     throw new MemoryVectorStoreQuarantineRequiredError(
-      `[MemoryVectorStore] legacy v1 preserve timed out after ${V1_PRESERVE_TIMEOUT_MS}ms`
+      `[MemoryVectorStore] legacy v1 preserve made no progress for ${V1_PRESERVE_IDLE_TIMEOUT_MS}ms`
     )
   }
 
@@ -271,8 +291,36 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     perfObserver: MemoryPerfObserver | undefined,
     fence: MigrationAbandonFence
   ): Promise<MemoryVectorStore> {
-    const reader = await LegacyV1Reader.open(paths.legacy, dimensions, fence)
+    let reader: LegacyV1Reader
+    try {
+      reader = await LegacyV1Reader.open(paths.legacy, dimensions, fence)
+    } catch (error) {
+      if (!(error instanceof LegacyVssUnavailableError)) throw error
+      fence.assertActive()
+      logger.warn(
+        `[MemoryVectorStore] legacy v1 preserve unavailable; rebuilding from SQLite: ${String(error)}`
+      )
+      removeFiles(filesWithWal(paths.legacy))
+      fence.assertActive()
+      return MemoryVectorStore.publishFreshV2(paths, dimensions, embedding, metric, perfObserver, {
+        fence
+      })
+    }
     fence.assertActive()
+    const legacyIdentity = await reader.readEmbeddingIdentity(fence)
+    fence.assertActive()
+    if (!legacyIdentityMatches(legacyIdentity, dimensions, embedding)) {
+      logger.info(
+        '[MemoryVectorStore] legacy v1 embedding identity is missing, invalid, or stale; rebuilding from SQLite'
+      )
+      reader.closeBeforeFileMutation(fence)
+      fence.assertActive()
+      removeFiles(filesWithWal(paths.legacy))
+      fence.assertActive()
+      return MemoryVectorStore.publishFreshV2(paths, dimensions, embedding, metric, perfObserver, {
+        fence
+      })
+    }
     const sourceRowCount = await reader.countRows(fence)
     fence.assertActive()
     const store = await MemoryVectorStore.publishFreshV2(
@@ -287,12 +335,12 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         populate: async (staging) => {
           let copied = 0
           let afterId: string | null = null
+          await staging.beginMigration(fence)
           while (copied < sourceRowCount) {
             const page = await reader.readPage(afterId, fence)
             fence.assertActive()
             if (!page.length || copied + page.length > sourceRowCount) break
-            await staging.upsertForMigration(page, fence)
-            fence.assertActive()
+            await staging.insertMigrationPage(page, fence)
             copied += page.length
             afterId = page[page.length - 1].memoryId
           }
@@ -301,9 +349,10 @@ export class MemoryVectorStore implements IMemoryVectorStore {
               `[MemoryVectorStore] legacy v1 row count changed during preserve: expected ${sourceRowCount}, copied ${copied}`
             )
           }
+          await staging.commitMigration(fence)
           return sourceRowCount
         },
-        beforeCommit: () => reader.closeForCommit(fence)
+        beforeCommit: () => reader.closeBeforeFileMutation(fence)
       }
     )
     sweepLegacyBestEffort(paths)
@@ -339,7 +388,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         )
       }
       await staging.connection.run('CHECKPOINT;')
-      options.fence?.assertActive()
+      options.fence?.markProgress()
       staging.closeStrict(options.fence)
       options.beforeCommit?.()
       options.fence?.assertActive()
@@ -380,10 +429,10 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     fence?.assertActive()
     this.dbInstance = await DuckDBInstance.create(this.dbPath)
     this.instanceOpen = true
-    fence?.assertActive()
+    fence?.markProgress()
     this.connection = await this.dbInstance.connect()
     this.connectionOpen = true
-    fence?.assertActive()
+    fence?.markProgress()
   }
 
   private async initialize(
@@ -399,7 +448,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
          embedding FLOAT[${dimensions}]
        );`
     )
-    fence?.assertActive()
+    fence?.markProgress()
     await this.connection.run(
       `CREATE TABLE ${this.metaTable} (
          provider VARCHAR NOT NULL,
@@ -408,12 +457,12 @@ export class MemoryVectorStore implements IMemoryVectorStore {
          format_version INTEGER NOT NULL
        );`
     )
-    fence?.assertActive()
+    fence?.markProgress()
     await this.connection.run(
       `INSERT INTO ${this.metaTable} (provider, model, dim, format_version) VALUES (?, ?, ?, ?);`,
       [embedding.providerId, embedding.modelId, dimensions, MEMORY_VECTOR_STORE_FORMAT_VERSION]
     )
-    fence?.assertActive()
+    fence?.markProgress()
   }
 
   private async open(expectedDim: number, embedding: EmbeddingIdentity): Promise<void> {
@@ -465,7 +514,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
        ORDER BY table_name, ordinal_position;`,
       [this.vectorTable, this.metaTable]
     )
-    fence?.assertActive()
+    fence?.markProgress()
     const columns = columnsReader.getRowObjectsJson()
     const metaColumns = new Set(
       columns
@@ -491,7 +540,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     const reader = await this.connection.runAndReadAll(
       `SELECT provider, model, dim, format_version FROM ${this.metaTable} LIMIT 2;`
     )
-    fence?.assertActive()
+    fence?.markProgress()
     const rows = reader.getRowObjectsJson()
     if (rows.length !== 1) return null
     const row = rows[0]
@@ -515,11 +564,35 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     return this.upsertRecords(records)
   }
 
-  private async upsertForMigration(
+  private async beginMigration(fence: MigrationAbandonFence): Promise<void> {
+    fence.assertActive()
+    await this.connection.run('BEGIN TRANSACTION;')
+    fence.markProgress()
+  }
+
+  private async insertMigrationPage(
     records: MemoryVectorRecord[],
     fence: MigrationAbandonFence
   ): Promise<void> {
-    return this.upsertRecords(records, fence)
+    if (!records.length) return
+    fence.assertActive()
+    const insertPlaceholders = records.map(() => '(?, ?::FLOAT[])').join(', ')
+    const insertParams = records.flatMap((record) => [
+      record.memoryId,
+      arrayValue(record.embedding)
+    ])
+    this.perfObserver?.increment('duckDbStatements')
+    await this.connection.run(
+      `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES ${insertPlaceholders};`,
+      insertParams
+    )
+    fence.markProgress()
+  }
+
+  private async commitMigration(fence: MigrationAbandonFence): Promise<void> {
+    fence.assertActive()
+    await this.connection.run('COMMIT;')
+    fence.markProgress()
   }
 
   private async upsertRecords(
@@ -563,7 +636,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     const reader = await this.connection.runAndReadAll(
       `SELECT count(*) AS row_count FROM ${this.vectorTable};`
     )
-    fence?.assertActive()
+    fence?.markProgress()
     const rowCount = Number(reader.getRowObjectsJson()[0]?.row_count)
     if (!Number.isSafeInteger(rowCount) || rowCount < 0) {
       throw new Error(`[MemoryVectorStore] invalid v2 row count: ${String(rowCount)}`)

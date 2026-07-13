@@ -269,9 +269,12 @@ function mockV2DuckDbLifecycle(
     onFinalOpen?: () => void
     leaveStagingWal?: boolean
     legacyRows?: MemoryVectorRecord[]
+    legacyMetaRows?: Array<{ provider: unknown; model: unknown; dim: unknown }>
+    legacyMetaColumns?: string[]
     legacyReadError?: Error
     legacyReadGate?: Promise<void>
     onLegacyRead?: () => void
+    beforeLegacyPage?: (pageIndex: number) => Promise<void> | void
     failTargetInsert?: Error
     targetRowCountOverride?: number
   } = {}
@@ -281,6 +284,7 @@ function mockV2DuckDbLifecycle(
   const legacySql: string[] = []
   const connections: Array<{ closeSync: ReturnType<typeof vi.fn> }> = []
   let targetRowCount = 0
+  let legacyPageIndex = 0
   duckDbMocks.create.mockImplementation(async (dbPath: string) => {
     if (dbPath === ':memory:') {
       const connection = {
@@ -293,10 +297,25 @@ function mockV2DuckDbLifecycle(
           options.onLegacyRead?.()
           if (options.legacyReadGate) await options.legacyReadGate
           if (options.legacyReadError) throw options.legacyReadError
+          if (statement.includes('information_schema.columns')) {
+            return {
+              getRowObjectsJson: () =>
+                (options.legacyMetaColumns ?? ['provider', 'model', 'dim']).map((column_name) => ({
+                  column_name
+                }))
+            }
+          }
+          if (statement.includes('SELECT provider, model, dim')) {
+            return {
+              getRowObjectsJson: () =>
+                options.legacyMetaRows ?? [{ provider: 'p', model: 'm', dim: dimensions }]
+            }
+          }
           const rows = options.legacyRows ?? []
           if (statement.includes('count(*) AS row_count')) {
             return { getRowObjectsJson: () => [{ row_count: rows.length }] }
           }
+          await options.beforeLegacyPage?.(legacyPageIndex++)
           const afterId = statement.includes('memory_id > ?') ? String(params[0]) : null
           const limit = Number(params[params.length - 1])
           const page = rows
@@ -359,7 +378,16 @@ function mockV2DuckDbLifecycle(
 
 async function setupRealFileSystem() {
   const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
-  vi.spyOn(fs, 'existsSync').mockImplementation(actualFs.existsSync)
+  const bundledVssPath = path.join(
+    app.getAppPath(),
+    'runtime',
+    'duckdb',
+    'extensions',
+    'vss.duckdb_extension'
+  )
+  vi.spyOn(fs, 'existsSync').mockImplementation((target) =>
+    String(target) === bundledVssPath ? true : actualFs.existsSync(target)
+  )
   vi.spyOn(fs, 'readFileSync').mockImplementation(actualFs.readFileSync)
   vi.spyOn(fs, 'writeFileSync').mockImplementation(actualFs.writeFileSync)
   vi.spyOn(fs, 'mkdirSync').mockImplementation(actualFs.mkdirSync)
@@ -563,6 +591,129 @@ describe('MemoryVectorStore v2 staged publish', () => {
     }
   })
 
+  it.each([
+    {
+      name: 'same-dimension model change',
+      legacyMetaRows: [{ provider: 'p', model: 'old-model', dim: 2 }]
+    },
+    {
+      name: 'provider change',
+      legacyMetaRows: [{ provider: 'old-provider', model: 'm', dim: 2 }]
+    },
+    {
+      name: 'dimension change',
+      legacyMetaRows: [{ provider: 'p', model: 'm', dim: 4 }]
+    },
+    {
+      name: 'duplicate metadata',
+      legacyMetaRows: [
+        { provider: 'p', model: 'm', dim: 2 },
+        { provider: 'p', model: 'm', dim: 2 }
+      ]
+    },
+    {
+      name: 'malformed metadata',
+      legacyMetaRows: [{ provider: '', model: 'm', dim: 2 }]
+    }
+  ])('safely rebuilds instead of preserving on $name', async ({ legacyMetaRows }) => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-meta-rebuild-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    const { legacySql, sql } = mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }],
+      legacyMetaRows
+    })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+
+      expect(store.isUsable()).toBe(true)
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.legacy)).toBe(false)
+      expect(legacySql.some((statement) => statement.includes('SELECT memory_id'))).toBe(false)
+      expect(sql.some((statement) => statement.includes('INSERT INTO memory_vector'))).toBe(false)
+      await store.close()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('safely rebuilds when legacy metadata is missing', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-meta-missing-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    const { legacySql } = mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }],
+      legacyMetaColumns: []
+    })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+
+      expect(store.isUsable()).toBe(true)
+      expect(fs.existsSync(paths.legacy)).toBe(false)
+      expect(legacySql.some((statement) => statement.includes('SELECT provider'))).toBe(false)
+      await store.close()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('quarantines native legacy metadata read failures without closing or deleting', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-meta-failure-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    const { connections } = mockV2DuckDbLifecycle(paths, {
+      legacyReadError: new Error('INTERNAL metadata failure')
+    })
+
+    try {
+      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
+        name: 'MemoryVectorStoreQuarantineRequiredError'
+      })
+      expect(fs.existsSync(paths.legacy)).toBe(true)
+      expect(fs.existsSync(paths.current)).toBe(false)
+      expect(connections.every((connection) => !connection.closeSync.mock.calls.length)).toBe(true)
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('safely rebuilds without network install when legacy VSS is unavailable', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-vss-missing-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    vi.mocked(fs.existsSync).mockImplementation((target) => {
+      const filePath = String(target)
+      if (
+        filePath.endsWith('vss.duckdb_extension') ||
+        filePath.endsWith('vss.duckdb_extension.b64')
+      ) {
+        return false
+      }
+      return actualFs.existsSync(target)
+    })
+    const { connections, legacySql } = mockV2DuckDbLifecycle(paths, {
+      legacyRows: [{ memoryId: 'm1', embedding: [0.1, 0.2] }]
+    })
+
+    try {
+      const store = await MemoryVectorStore.create(paths, 2, EMB)
+
+      expect(store.isUsable()).toBe(true)
+      expect(fs.existsSync(paths.legacy)).toBe(false)
+      expect(legacySql.some((statement) => /INSTALL|ATTACH/.test(statement))).toBe(false)
+      expect(connections[0].closeSync).toHaveBeenCalledTimes(1)
+      await store.close()
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('abandons native preserve failures without rollback, close, or file deletion', async () => {
     const actualFs = await setupRealFileSystem()
     const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-preserve-fail-'))
@@ -646,6 +797,60 @@ describe('MemoryVectorStore v2 staged publish', () => {
       expect(fs.existsSync(paths.staging)).toBe(false)
       expect(fs.existsSync(paths.current)).toBe(false)
       expect(connections.every((connection) => !connection.closeSync.mock.calls.length)).toBe(true)
+    } finally {
+      vi.useRealTimers()
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('refreshes the idle deadline on progress and uses one insert-only transaction', async () => {
+    vi.useFakeTimers()
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-progress-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    fs.writeFileSync(paths.legacy, 'legacy')
+    const legacyRows = Array.from({ length: 101 }, (_, index) => ({
+      memoryId: `m${String(index + 1).padStart(3, '0')}`,
+      embedding: [index, index + 1]
+    }))
+    const pageGates = Array.from({ length: 3 }, () => {
+      let release!: () => void
+      const promise = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { promise, release }
+    })
+    const pageStarts = Array.from({ length: 3 }, () => {
+      let notify!: () => void
+      const promise = new Promise<void>((resolve) => {
+        notify = resolve
+      })
+      return { promise, notify }
+    })
+    const { sql } = mockV2DuckDbLifecycle(paths, {
+      legacyRows,
+      beforeLegacyPage: async (pageIndex) => {
+        pageStarts[pageIndex].notify()
+        await pageGates[pageIndex].promise
+      }
+    })
+
+    try {
+      const pending = MemoryVectorStore.create(paths, 2, EMB)
+      for (let pageIndex = 0; pageIndex < pageGates.length; pageIndex += 1) {
+        await pageStarts[pageIndex].promise
+        await vi.advanceTimersByTimeAsync(50_000)
+        pageGates[pageIndex].release()
+      }
+      const store = await pending
+
+      expect(sql.filter((statement) => statement.includes('BEGIN TRANSACTION')).length).toBe(1)
+      expect(sql.filter((statement) => statement.includes('COMMIT')).length).toBe(1)
+      expect(sql.some((statement) => statement.includes('DELETE FROM memory_vector'))).toBe(false)
+      expect(
+        sql.filter((statement) => statement.includes('INSERT INTO memory_vector')).length
+      ).toBe(3)
+      await store.close()
     } finally {
       vi.useRealTimers()
       actualFs.rmSync(root, { recursive: true, force: true })
@@ -1044,6 +1249,53 @@ describe('Legacy VSS loading', () => {
     }
   })
 
+  it('keeps shared VSS materialization neutral to each migration fence', async () => {
+    mutableApp.isPackaged = true
+    const asset = Buffer.from(
+      gzipSync(Buffer.from('fence-neutral duckdb extension body')).toString('base64'),
+      'utf8'
+    )
+    const { actualFs, userDataDir, readFile } = await setupPackagedBase64Fixture(asset)
+    let releaseRead!: () => void
+    let notifyReadStarted!: () => void
+    const readStarted = new Promise<void>((resolve) => {
+      notifyReadStarted = resolve
+    })
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve
+    })
+    readFile.mockImplementation(async () => {
+      notifyReadStarted()
+      await readGate
+      return asset
+    })
+    vi.spyOn(logger, 'info').mockImplementation(() => undefined)
+    const firstConnection = { run: vi.fn(async () => undefined as never) }
+    const secondConnection = { run: vi.fn(async () => undefined as never) }
+    const firstFence = new MigrationAbandonFence()
+    const secondFence = new MigrationAbandonFence()
+
+    try {
+      const first = loadLegacyVss(firstConnection, path.join(userDataDir, 'a.duckdb'), firstFence)
+      const second = loadLegacyVss(
+        secondConnection,
+        path.join(userDataDir, 'b.duckdb'),
+        secondFence
+      )
+      await readStarted
+      firstFence.abandon()
+      releaseRead()
+
+      await expect(first).rejects.toMatchObject({ name: 'LegacyV1MigrationAbandonedError' })
+      await expect(second).resolves.toBeUndefined()
+      expect(readFile).toHaveBeenCalledTimes(1)
+      expect(firstConnection.run).not.toHaveBeenCalled()
+      expect(secondConnection.run).toHaveBeenCalledWith(expect.stringMatching(/^LOAD /))
+    } finally {
+      actualFs.rmSync(userDataDir, { recursive: true, force: true })
+    }
+  })
+
   it('re-materializes when a cached packaged VSS file was deleted', async () => {
     mutableApp.isPackaged = true
     const asset = Buffer.from(
@@ -1156,6 +1408,23 @@ describe('Legacy VSS loading', () => {
     }
   })
 
+  it('classifies migration materialization failures as safely unavailable before native load', async () => {
+    mutableApp.isPackaged = true
+    const asset = Buffer.from(Buffer.from('not a gzip payload').toString('base64'), 'utf8')
+    const { actualFs, userDataDir } = await setupPackagedBase64Fixture(asset)
+    const connection = { run: vi.fn(async () => undefined as never) }
+    const fence = new MigrationAbandonFence()
+
+    try {
+      await expect(
+        loadLegacyVss(connection, path.join(userDataDir, 'agent.duckdb'), fence)
+      ).rejects.toMatchObject({ name: 'LegacyVssUnavailableError' })
+      expect(connection.run).not.toHaveBeenCalled()
+    } finally {
+      actualFs.rmSync(userDataDir, { recursive: true, force: true })
+    }
+  })
+
   it('fails closed in packaged builds when the bundled extension cannot load', async () => {
     mutableApp.isPackaged = true
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
@@ -1221,5 +1490,17 @@ describe('Legacy VSS loading', () => {
     expect(store.connection.run).toHaveBeenCalledWith(
       'SET hnsw_enable_experimental_persistence = true;'
     )
+  })
+
+  it('never uses the network fallback during migration', async () => {
+    mutableApp.isPackaged = false
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    const connection = { run: vi.fn(async () => undefined as never) }
+    const fence = new MigrationAbandonFence()
+
+    await expect(loadLegacyVss(connection, '/tmp/legacy.duckdb', fence)).rejects.toMatchObject({
+      name: 'LegacyVssUnavailableError'
+    })
+    expect(connection.run).not.toHaveBeenCalled()
   })
 })

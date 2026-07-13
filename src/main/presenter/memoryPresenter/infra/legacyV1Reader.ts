@@ -1,7 +1,7 @@
 import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api'
 
 import type { MemoryVectorRecord } from '../types'
-import { escapeDuckDbSqlPath, loadLegacyVss } from './legacyVssLoader'
+import { escapeDuckDbSqlPath, LegacyVssUnavailableError, loadLegacyVss } from './legacyVssLoader'
 
 const LEGACY_SCHEMA = 'legacy'
 export const LEGACY_V1_MIGRATION_PAGE_SIZE = 50
@@ -9,6 +9,7 @@ export const LEGACY_V1_MIGRATION_PAGE_SIZE = 50
 export class MigrationAbandonFence {
   private abandoned = false
   private committed = false
+  private progressListener: (() => void) | undefined
 
   abandon(): void {
     if (!this.committed) this.abandoned = true
@@ -27,6 +28,15 @@ export class MigrationAbandonFence {
     return this.committed
   }
 
+  onProgress(listener: () => void): void {
+    this.progressListener = listener
+  }
+
+  markProgress(): void {
+    this.assertActive()
+    this.progressListener?.()
+  }
+
   assertActive(): void {
     if (this.abandoned) {
       throw new LegacyV1MigrationAbandonedError()
@@ -39,6 +49,12 @@ export class LegacyV1MigrationAbandonedError extends Error {
     super('[MemoryVectorStore] legacy v1 migration attempt was abandoned')
     this.name = 'LegacyV1MigrationAbandonedError'
   }
+}
+
+export interface LegacyV1EmbeddingIdentity {
+  providerId: string
+  modelId: string
+  dimensions: number
 }
 
 export class LegacyV1Reader {
@@ -54,16 +70,60 @@ export class LegacyV1Reader {
     fence: MigrationAbandonFence
   ): Promise<LegacyV1Reader> {
     const dbInstance = await DuckDBInstance.create(':memory:')
-    fence.assertActive()
+    fence.markProgress()
     const connection = await dbInstance.connect()
-    fence.assertActive()
-    await loadLegacyVss(connection, legacyPath, fence)
+    fence.markProgress()
+    try {
+      await loadLegacyVss(connection, legacyPath, fence)
+    } catch (error) {
+      if (!(error instanceof LegacyVssUnavailableError)) throw error
+      fence.assertActive()
+      connection.closeSync()
+      fence.assertActive()
+      dbInstance.closeSync()
+      throw error
+    }
     fence.assertActive()
     await connection.run(
       `ATTACH '${escapeDuckDbSqlPath(legacyPath)}' AS ${LEGACY_SCHEMA} (READ_ONLY);`
     )
-    fence.assertActive()
+    fence.markProgress()
     return new LegacyV1Reader(dbInstance, connection, expectedDimensions)
+  }
+
+  async readEmbeddingIdentity(
+    fence: MigrationAbandonFence
+  ): Promise<LegacyV1EmbeddingIdentity | null> {
+    fence.assertActive()
+    const columnsReader = await this.connection.runAndReadAll(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_catalog = '${LEGACY_SCHEMA}'
+         AND table_schema = 'main'
+         AND table_name = 'embedding_meta';`
+    )
+    fence.markProgress()
+    const columns = new Set(columnsReader.getRowObjectsJson().map((row) => String(row.column_name)))
+    if (!['provider', 'model', 'dim'].every((column) => columns.has(column))) return null
+
+    const reader = await this.connection.runAndReadAll(
+      `SELECT provider, model, dim FROM ${LEGACY_SCHEMA}.embedding_meta LIMIT 2;`
+    )
+    fence.markProgress()
+    const rows = reader.getRowObjectsJson()
+    if (rows.length !== 1) return null
+    const row = rows[0]
+    if (
+      typeof row.provider !== 'string' ||
+      !row.provider ||
+      typeof row.model !== 'string' ||
+      !row.model
+    ) {
+      return null
+    }
+    const dimensions = Number(row.dim)
+    if (!Number.isSafeInteger(dimensions) || dimensions <= 0) return null
+    return { providerId: row.provider, modelId: row.model, dimensions }
   }
 
   async countRows(fence: MigrationAbandonFence): Promise<number> {
@@ -71,7 +131,7 @@ export class LegacyV1Reader {
     const reader = await this.connection.runAndReadAll(
       `SELECT count(*) AS row_count FROM ${LEGACY_SCHEMA}.memory_vector;`
     )
-    fence.assertActive()
+    fence.markProgress()
     const rowCount = Number(reader.getRowObjectsJson()[0]?.row_count)
     if (!Number.isSafeInteger(rowCount) || rowCount < 0) {
       throw new Error(`[MemoryVectorStore] invalid legacy v1 row count: ${String(rowCount)}`)
@@ -100,7 +160,7 @@ export class LegacyV1Reader {
            LIMIT ?;`,
           [LEGACY_V1_MIGRATION_PAGE_SIZE]
         )
-    fence.assertActive()
+    fence.markProgress()
 
     const records: MemoryVectorRecord[] = []
     let previousId = afterId
@@ -123,13 +183,13 @@ export class LegacyV1Reader {
           `[MemoryVectorStore] invalid legacy v1 embedding for ${memoryId}: expected ${this.expectedDimensions} finite values`
         )
       }
-      records.push({ memoryId, embedding: source.map((value) => Number(value)) })
+      records.push({ memoryId, embedding: source as number[] })
       previousId = memoryId
     }
     return records
   }
 
-  closeForCommit(fence: MigrationAbandonFence): void {
+  closeBeforeFileMutation(fence: MigrationAbandonFence): void {
     fence.assertActive()
     this.connection.closeSync()
     fence.assertActive()

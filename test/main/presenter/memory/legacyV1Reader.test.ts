@@ -10,7 +10,8 @@ vi.mock('@duckdb/node-api', () => ({
 
 vi.mock('@/presenter/memoryPresenter/infra/legacyVssLoader', () => ({
   loadLegacyVss: vssMocks.load,
-  escapeDuckDbSqlPath: (filePath: string) => filePath.replace(/\\/g, '\\\\').replace(/'/g, "''")
+  escapeDuckDbSqlPath: (filePath: string) => filePath.replace(/\\/g, '\\\\').replace(/'/g, "''"),
+  LegacyVssUnavailableError: class LegacyVssUnavailableError extends Error {}
 }))
 
 import {
@@ -42,6 +43,64 @@ afterEach(() => {
 })
 
 describe('LegacyV1Reader', () => {
+  it('reads one valid legacy embedding identity', async () => {
+    const { connection } = setupReader([
+      [{ column_name: 'provider' }, { column_name: 'model' }, { column_name: 'dim' }],
+      [{ provider: 'provider-a', model: 'model-a', dim: 2 }]
+    ])
+    const fence = new MigrationAbandonFence()
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+
+    await expect(reader.readEmbeddingIdentity(fence)).resolves.toEqual({
+      providerId: 'provider-a',
+      modelId: 'model-a',
+      dimensions: 2
+    })
+    expect(connection.runAndReadAll).toHaveBeenCalledWith(
+      expect.stringContaining("table_catalog = 'legacy'")
+    )
+  })
+
+  it.each([
+    {
+      name: 'missing columns',
+      responses: [[{ column_name: 'provider' }]]
+    },
+    {
+      name: 'duplicate rows',
+      responses: [
+        [{ column_name: 'provider' }, { column_name: 'model' }, { column_name: 'dim' }],
+        [
+          { provider: 'p', model: 'm', dim: 2 },
+          { provider: 'p', model: 'm', dim: 2 }
+        ]
+      ]
+    },
+    {
+      name: 'malformed fields',
+      responses: [
+        [{ column_name: 'provider' }, { column_name: 'model' }, { column_name: 'dim' }],
+        [{ provider: '', model: 'm', dim: 0 }]
+      ]
+    }
+  ])('returns null for $name', async ({ responses }) => {
+    setupReader(responses)
+    const fence = new MigrationAbandonFence()
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+
+    await expect(reader.readEmbeddingIdentity(fence)).resolves.toBeNull()
+  })
+
+  it('propagates native metadata read failures', async () => {
+    const { connection } = setupReader([])
+    connection.runAndReadAll.mockRejectedValueOnce(new Error('INTERNAL metadata failure'))
+    const fence = new MigrationAbandonFence()
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+
+    await expect(reader.readEmbeddingIdentity(fence)).rejects.toThrow('INTERNAL metadata failure')
+    expect(connection.closeSync).not.toHaveBeenCalled()
+  })
+
   it('opens through a neutral connection and reads strictly keyset-paged rows', async () => {
     const { connection, instance } = setupReader([
       [{ row_count: 3 }],
@@ -63,7 +122,7 @@ describe('LegacyV1Reader', () => {
     await expect(reader.readPage('m2', fence)).resolves.toEqual([
       { memoryId: 'm3', embedding: [0.5, 0.6] }
     ])
-    reader.closeForCommit(fence)
+    reader.closeBeforeFileMutation(fence)
 
     expect(duckDbMocks.create).toHaveBeenCalledWith(':memory:')
     expect(vssMocks.load).toHaveBeenCalledWith(connection, legacyPath, fence)
@@ -130,7 +189,7 @@ describe('LegacyV1Reader', () => {
     const fence = new MigrationAbandonFence()
     const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
 
-    expect(() => reader.closeForCommit(fence)).toThrow('close failed')
+    expect(() => reader.closeBeforeFileMutation(fence)).toThrow('close failed')
     expect(instance.closeSync).not.toHaveBeenCalled()
   })
 })

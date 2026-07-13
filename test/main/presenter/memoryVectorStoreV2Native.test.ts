@@ -53,6 +53,10 @@ async function createLegacyV1(paths: MemoryVectorStorePaths, rowCount = 51): Pro
     await connection.run(
       'CREATE TABLE memory_vector (memory_id VARCHAR PRIMARY KEY, embedding FLOAT[2]);'
     )
+    await connection.run(
+      'CREATE TABLE embedding_meta (provider VARCHAR, model VARCHAR, dim INTEGER);'
+    )
+    await connection.run("INSERT INTO embedding_meta (provider, model, dim) VALUES ('p', 'm', 2);")
     for (let index = 1; index <= rowCount; index += 1) {
       await connection.run(
         'INSERT INTO memory_vector (memory_id, embedding) VALUES (?, ?::FLOAT[]);',
