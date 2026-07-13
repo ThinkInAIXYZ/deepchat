@@ -1,7 +1,6 @@
 import logger from '@shared/logger'
 import { nanoid } from 'nanoid'
 
-import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import {
   buildLegacyMemoryProvenanceKey,
   buildMemoryProvenanceKey,
@@ -19,10 +18,12 @@ import type {
   ManualEditFieldFlags,
   ProvenanceHitResult
 } from '../domain/types'
+import { isEmbeddingEligibleState } from '../domain/stateModel'
 import { isUniqueConstraintError } from '../context'
 import type {
   MemoryAuditReadPort,
   MemoryEmbeddingRepositoryPort,
+  MemoryLifecycleRepositoryPort,
   MemoryMutationRepositoryPort,
   MemoryReadRepositoryPort,
   MemoryTransactionPort
@@ -35,6 +36,7 @@ function canCarryCategory(kind: AgentMemoryRow['kind']): boolean {
 type RowMutationRepository = MemoryReadRepositoryPort &
   MemoryMutationRepositoryPort &
   MemoryEmbeddingRepositoryPort &
+  MemoryLifecycleRepositoryPort &
   MemoryTransactionPort
 
 export class MemoryRowMutations {
@@ -44,6 +46,19 @@ export class MemoryRowMutations {
       auditReader?: MemoryAuditReadPort
     }
   ) {}
+
+  private runAtomicTransition(apply: () => boolean): boolean {
+    const rejected = new Error('memory transition rejected')
+    try {
+      return this.ports.repository.runInTransaction(() => {
+        if (!apply()) throw rejected
+        return true
+      })
+    } catch (error) {
+      if (error === rejected) return false
+      throw error
+    }
+  }
 
   resolveProvenance(agentId: string, kind: string, content: string): AgentMemoryRow | undefined {
     const normalizedContent = normalizeForProvenanceV2(content)
@@ -86,14 +101,7 @@ export class MemoryRowMutations {
   }
 
   isPendingEmbeddableRow(agentId: string, row: AgentMemoryRow | undefined): boolean {
-    return (
-      !!row &&
-      row.agent_id === agentId &&
-      row.status === 'pending_embedding' &&
-      !row.superseded_by &&
-      row.kind !== 'persona' &&
-      row.kind !== 'working'
-    )
+    return !!row && row.agent_id === agentId && isEmbeddingEligibleState(row)
   }
 
   insertMemory(
@@ -114,7 +122,8 @@ export class MemoryRowMutations {
         category: candidate.category,
         content,
         importance: candidate.importance,
-        status: 'pending_embedding',
+        lifecycleState: 'active',
+        embeddingState: 'pending',
         sourceSession,
         userScope: options.userScope ?? null,
         provenanceKey,
@@ -147,7 +156,8 @@ export class MemoryRowMutations {
         category: candidate.category,
         content,
         importance: candidate.importance,
-        status: 'conflicted',
+        lifecycleState: 'conflicted',
+        embeddingState: 'pending',
         sourceSession,
         userScope: options.userScope ?? null,
         provenanceKey,
@@ -167,53 +177,6 @@ export class MemoryRowMutations {
     this.ports.repository.setConfidence(id, Math.min(1, current + CONFIDENCE_INCREMENT))
   }
 
-  applyContentUpdate(
-    agentId: string,
-    row: AgentMemoryRow,
-    content: string,
-    now: number,
-    category?: AgentMemoryCategory | null
-  ): ContentUpdateResult {
-    const newKey = buildMemoryProvenanceKey(agentId, row.kind, content)
-    const nextCategory = canCarryCategory(row.kind) ? (row.category ?? category ?? null) : undefined
-    if (newKey !== row.provenance_key) {
-      const owner = this.resolveProvenance(agentId, row.kind, content)
-      if (owner && owner.id !== row.id) {
-        const hit = this.handleProvenanceHit(agentId, owner, {
-          allowDecisionForSuperseded: true
-        })
-        if (hit.action === 'noop' && (owner.status === 'archived' || owner.superseded_by)) {
-          return {
-            action: 'suppressed',
-            id: owner.id,
-            reason: hit.reason
-          }
-        }
-        this.ports.repository.runInTransaction(() => {
-          if (hit.action === 'absorbed') {
-            this.ports.repository.activateForEmbedding(owner.id)
-          }
-          if (hit.action === 'continue') {
-            this.reviveSupersededAfterDecision(agentId, owner)
-          }
-          if (canCarryCategory(owner.kind) && owner.category === null && nextCategory != null) {
-            this.ports.repository.updateContent(
-              owner.id,
-              owner.content,
-              owner.provenance_key,
-              now,
-              nextCategory
-            )
-          }
-          this.ports.repository.markSuperseded(row.id, owner.id)
-        })
-        return { action: 'folded', id: owner.id }
-      }
-    }
-    this.ports.repository.updateContent(row.id, content, newKey, now, nextCategory)
-    return { action: 'updated', id: row.id }
-  }
-
   applyManualContentEdit(
     agentId: string,
     row: AgentMemoryRow,
@@ -229,32 +192,42 @@ export class MemoryRowMutations {
     if (newKey !== row.provenance_key) {
       const owner = this.resolveProvenance(agentId, row.kind, content)
       if (owner && owner.id !== row.id) {
-        return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields)
+        return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields, now)
       }
     }
 
     if (newKey === row.provenance_key) {
-      this.ports.repository.runInTransaction(() => {
-        this.ports.repository.updateContent(row.id, content, newKey, now, nextCategory)
-        this.ports.repository.updateUserMetadata(row.id, {
-          category: candidate.category,
-          importance: candidate.importance
-        })
-        this.ports.repository.updateStatus(row.id, 'pending_embedding')
+      const updated = this.ports.repository.updateUserContentAndInvalidateEmbedding({
+        agentId,
+        id: row.id,
+        expectedRevision: row.decision_revision,
+        content,
+        provenanceKey: newKey,
+        at: now,
+        category: nextCategory,
+        importance: candidate.importance
       })
+      if (!updated) return { action: 'suppressed', id: row.id, reason: 'concurrent-update' }
       return { action: 'updated', id: row.id }
     }
 
     let newId: string | null = null
-    this.ports.repository.runInTransaction(() => {
+    const insertedAndSuperseded = this.runAtomicTransition(() => {
       newId = this.insertMemory(agentId, candidate, content, newKey, options)
-      if (newId) this.ports.repository.markSuperseded(row.id, newId)
+      if (!newId) return false
+      return this.ports.repository.markSupersededIfRevision(
+        agentId,
+        row.id,
+        row.decision_revision,
+        newId
+      )
     })
+    if (!insertedAndSuperseded) newId = null
 
     if (!newId) {
       const owner = this.resolveProvenance(agentId, row.kind, content)
       if (owner && owner.id !== row.id) {
-        return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields)
+        return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields, now)
       }
       return { action: 'suppressed', id: row.id, reason: 'insert-skipped' }
     }
@@ -271,9 +244,10 @@ export class MemoryRowMutations {
     row: AgentMemoryRow,
     owner: AgentMemoryRow,
     candidate: NormalizedMemoryCandidate,
-    providedFields: ManualEditFieldFlags
+    providedFields: ManualEditFieldFlags,
+    now: number
   ): ContentUpdateResult {
-    if (owner.status === 'conflicted' || owner.conflict_state === 'challenged') {
+    if (owner.lifecycle_state === 'conflicted' || owner.conflict_state === 'challenged') {
       return { action: 'suppressed', id: owner.id, reason: 'conflict' }
     }
 
@@ -282,15 +256,29 @@ export class MemoryRowMutations {
       return { action: 'suppressed', id: owner.id, reason: hit.reason }
     }
 
-    const isRetiredOwner = owner.status === 'archived' || owner.superseded_by !== null
+    const isRetiredOwner = owner.lifecycle_state === 'archived' || owner.superseded_by !== null
     const action: 'folded' | 'superseded' = isRetiredOwner ? 'superseded' : 'folded'
 
-    this.ports.repository.runInTransaction(() => {
+    const transitionApplied = this.runAtomicTransition(() => {
+      let ownerRevision = owner.decision_revision
+      let retiredHeadId: string | null = null
       if (hit.action === 'absorbed') {
-        this.ports.repository.activateForEmbedding(owner.id)
+        if (
+          !this.ports.repository.restoreArchivedMemory({
+            agentId,
+            id: owner.id,
+            expectedRevision: owner.decision_revision
+          })
+        ) {
+          return false
+        }
+        ownerRevision += 1
       }
       if (hit.action === 'continue') {
-        this.reviveSupersededAfterDecision(agentId, owner)
+        const revival = this.reviveSupersededAfterDecision(agentId, owner)
+        if (!revival.applied) return false
+        ownerRevision += 1
+        retiredHeadId = revival.retiredHeadId
       }
       const metadataPatch: { category?: string | null; importance?: number } = {}
       if (
@@ -304,10 +292,30 @@ export class MemoryRowMutations {
         metadataPatch.importance = candidate.importance
       }
       if (Object.keys(metadataPatch).length > 0) {
-        this.ports.repository.updateUserMetadata(owner.id, metadataPatch)
+        if (
+          !this.ports.repository.updateUserMetadataIfRevision({
+            agentId,
+            id: owner.id,
+            expectedRevision: ownerRevision,
+            ...metadataPatch,
+            lastAccessedAt: now
+          })
+        ) {
+          return false
+        }
       }
-      this.ports.repository.markSuperseded(row.id, owner.id)
+      if (retiredHeadId === row.id) return true
+      return this.ports.repository.markSupersededIfRevision(
+        agentId,
+        row.id,
+        row.decision_revision,
+        owner.id
+      )
     })
+
+    if (!transitionApplied) {
+      return { action: 'suppressed', id: owner.id, reason: 'concurrent-update' }
+    }
 
     return action === 'folded'
       ? { action: 'folded', id: owner.id }
@@ -331,7 +339,7 @@ export class MemoryRowMutations {
     existing: AgentMemoryRow,
     options: { allowDecisionForSuperseded?: boolean } = {}
   ): ProvenanceHitResult {
-    const archived = existing.status === 'archived'
+    const archived = existing.lifecycle_state === 'archived'
     const superseded = existing.superseded_by !== null
     if (!archived && !superseded) return { action: 'noop', reason: 'duplicate' }
 
@@ -357,19 +365,26 @@ export class MemoryRowMutations {
   reviveSupersededAfterDecision(
     agentId: string,
     existing: AgentMemoryRow
-  ): { retiredHeadId: string | null } {
-    if (existing.status === 'archived' || existing.superseded_by === null) {
-      return { retiredHeadId: null }
+  ): { applied: boolean; retiredHeadId: string | null } {
+    if (existing.lifecycle_state === 'archived' || existing.superseded_by === null) {
+      return { applied: false, retiredHeadId: null }
     }
 
     const head = this.supersedeHead(agentId, existing)
-    this.ports.repository.markSuperseded(existing.id, null)
-    this.ports.repository.activateForEmbedding(existing.id)
-
-    if (head.id !== existing.id && head.status !== 'archived' && head.superseded_by === null) {
-      this.ports.repository.markSuperseded(head.id, existing.id)
-      return { retiredHeadId: head.id }
+    const retiredHead =
+      head.id !== existing.id && head.lifecycle_state !== 'archived' && head.superseded_by === null
+        ? { id: head.id, expectedRevision: head.decision_revision }
+        : null
+    if (
+      !this.ports.repository.reviveSupersededMemory({
+        agentId,
+        id: existing.id,
+        expectedRevision: existing.decision_revision,
+        retiredHead
+      })
+    ) {
+      return { applied: false, retiredHeadId: null }
     }
-    return { retiredHeadId: null }
+    return { applied: true, retiredHeadId: retiredHead?.id ?? null }
   }
 }

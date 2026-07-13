@@ -1,7 +1,7 @@
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { backgroundExecSessionManager } from '../../../../../src/main/lib/agentRuntime/backgroundExecSessionManager'
-import * as shellEnvHelper from '../../../../../src/main/lib/agentRuntime/shellEnvHelper'
+import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
 import { AgentBashHandler } from '../../../../../src/main/presenter/toolPresenter/agentTools/agentBashHandler'
 
 describe('AgentBashHandler', () => {

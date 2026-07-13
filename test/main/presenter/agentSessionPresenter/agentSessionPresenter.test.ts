@@ -1,6 +1,15 @@
+import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { nanoid } from 'nanoid'
+import { AgentManager } from '@/agent/manager/agentManager'
+import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
+import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
+import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
+import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import { AgentRepository } from '@/presenter/agentRepository'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
@@ -68,6 +77,12 @@ function createMockDeepChatAgent() {
       modelId: 'gpt-4',
       permissionMode: 'full_access'
     }),
+    waitForFirstTurnReady: vi.fn(
+      async (_sessionId: string, options?: { timeoutMs?: number }) =>
+        await new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), options?.timeoutMs ?? 250)
+        )
+    ),
     processMessage: vi.fn().mockResolvedValue({
       requestId: null,
       messageId: null
@@ -84,18 +99,50 @@ function createMockDeepChatAgent() {
       createdAt: Date.now(),
       updatedAt: Date.now()
     }),
+    updateQueuedInput: vi.fn().mockResolvedValue({}),
+    moveQueuedInput: vi.fn().mockResolvedValue([]),
+    convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
+    steerPendingInput: vi.fn().mockResolvedValue({}),
+    deletePendingInput: vi.fn().mockResolvedValue(undefined),
     steerActiveTurn: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
+    listMessagesPage: vi.fn().mockResolvedValue({ messages: [], nextCursor: null, hasMore: false }),
     hasMessages: vi.fn().mockResolvedValue(false),
+    listPendingInputs: vi.fn().mockResolvedValue([]),
+    mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
+    discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+    getActiveGeneration: vi.fn().mockReturnValue(null),
+    cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
     getSessionCompactionState: vi.fn().mockResolvedValue({
       status: 'idle',
       cursorOrderSeq: 1,
       summaryUpdatedAt: null
     }),
+    compactSession: vi.fn().mockResolvedValue({
+      compacted: false,
+      state: { status: 'idle', cursorOrderSeq: 1, summaryUpdatedAt: null }
+    }),
     getMessageIds: vi.fn().mockResolvedValue([]),
     getMessage: vi.fn().mockResolvedValue(null),
+    getTapeInfo: vi.fn().mockResolvedValue({}),
+    searchTape: vi.fn().mockResolvedValue([]),
+    getTapeContext: vi.fn().mockResolvedValue({}),
+    listTapeAnchors: vi.fn().mockResolvedValue([]),
+    handoffTape: vi.fn().mockResolvedValue({}),
+    listMessageViewManifests: vi.fn().mockResolvedValue([]),
+    exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
+    prepareRetryMessage: vi
+      .fn()
+      .mockResolvedValue({ content: { text: 'retry', files: [] }, projectDir: null }),
+    retryMessage: vi.fn().mockResolvedValue(undefined),
+    deleteMessage: vi.fn().mockResolvedValue(undefined),
+    editUserMessage: vi.fn().mockResolvedValue({}),
+    forkSessionFromMessage: vi.fn().mockResolvedValue(undefined),
+    respondToolInteraction: vi.fn().mockResolvedValue({ resumed: false }),
+    getPermissionMode: vi.fn().mockResolvedValue('full_access'),
+    setPermissionMode: vi.fn().mockResolvedValue(undefined),
     setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
     setSessionModel: vi.fn().mockResolvedValue(undefined),
     setSessionProjectDir: vi.fn().mockResolvedValue(undefined),
@@ -149,7 +196,6 @@ function createMockLlmProviderPresenter() {
       content: ['## Current Goal', '- Continue the conversation'].join('\n')
     }),
     setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
-    prepareAcpSession: vi.fn().mockResolvedValue(undefined),
     clearAcpSession: vi.fn().mockResolvedValue(undefined),
     getAcpSessionCommands: vi
       .fn()
@@ -193,6 +239,52 @@ function createMockLlmProviderPresenter() {
         })
       )
   } as any
+}
+
+function createMockDirectAcpControl() {
+  return {
+    prepare: vi.fn().mockResolvedValue(undefined),
+    updateWorkdir: vi.fn(async (workdir: string | null) => workdir ?? ''),
+    getModes: vi.fn().mockResolvedValue(null),
+    setMode: vi.fn().mockResolvedValue(undefined),
+    getConfigOptions: vi.fn().mockResolvedValue({
+      source: 'configOptions',
+      options: [
+        {
+          id: 'model',
+          label: 'Model',
+          type: 'select',
+          category: 'model',
+          currentValue: 'gpt-5',
+          options: [
+            { value: 'gpt-5', label: 'gpt-5' },
+            { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+          ]
+        }
+      ]
+    }),
+    setConfigOption: vi.fn(async (configId: string, value: string | boolean) => ({
+      source: 'configOptions',
+      options: [
+        {
+          id: configId,
+          label: 'Model',
+          type: 'select',
+          category: 'model',
+          currentValue: value,
+          options: [
+            { value: 'gpt-5', label: 'gpt-5' },
+            { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+          ]
+        }
+      ]
+    })),
+    getCommands: vi
+      .fn()
+      .mockResolvedValue([
+        { name: 'review', description: 'run review', input: { hint: 'ticket id' } }
+      ])
+  }
 }
 
 function createMockSkillPresenter() {
@@ -319,12 +411,161 @@ function createMockSqlitePresenter() {
   } as any
 }
 
+function createDescriptorIndependentDeleteHarness(options: {
+  sessions: Array<{
+    id: string
+    agentId: string
+    sessionKind?: 'regular' | 'subagent'
+    parentSessionId?: string | null
+  }>
+  agents?: Array<{
+    id: string
+    agentType: 'deepchat' | 'acp'
+    source: 'builtin' | 'manual' | 'registry'
+    configJson: string | null
+    enabled?: boolean
+  }>
+}) {
+  const now = Date.now()
+  const sqlitePresenter = createMockSqlitePresenter()
+  const sessions = new Map(
+    options.sessions.map((session) => [
+      session.id,
+      {
+        id: session.id,
+        agent_id: session.agentId,
+        title: session.id,
+        project_dir: null,
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: session.sessionKind ?? 'regular',
+        parent_session_id: session.parentSessionId ?? null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: now,
+        updated_at: now
+      }
+    ])
+  )
+  const agents = new Map(
+    (options.agents ?? []).map((agent) => [
+      agent.id,
+      {
+        id: agent.id,
+        agent_type: agent.agentType,
+        source: agent.source,
+        name: agent.id,
+        enabled: agent.enabled === false ? 0 : 1,
+        protected: agent.source === 'builtin' ? 1 : 0,
+        description: null,
+        icon: null,
+        avatar_json: null,
+        config_json: agent.configJson,
+        state_json: null,
+        created_at: now,
+        updated_at: now
+      }
+    ])
+  )
+  const deleteSessionRow = vi.fn((sessionId: string) => sessions.delete(sessionId))
+  const sqliteWithAgents = {
+    ...sqlitePresenter,
+    agentsTable: {
+      get: (agentId: string) => agents.get(agentId),
+      list: () => [...agents.values()]
+    },
+    newSessionsTable: {
+      ...sqlitePresenter.newSessionsTable,
+      get: (sessionId: string) => sessions.get(sessionId),
+      list: (filters?: { agentId?: string; parentSessionId?: string }) =>
+        [...sessions.values()].filter(
+          (row) =>
+            (!filters?.agentId || row.agent_id === filters.agentId) &&
+            (filters?.parentSessionId === undefined ||
+              row.parent_session_id === filters.parentSessionId)
+        ),
+      delete: deleteSessionRow
+    }
+  } as any
+  const repository = new AgentRepository(sqliteWithAgents)
+  const resolveExecutableDescriptor = vi.spyOn(repository, 'resolveExecutableDescriptor')
+  const appSessionService = new AppSessionService({
+    newSessionsTable: sqliteWithAgents.newSessionsTable,
+    deepchatSessionMetadataTable: sqliteWithAgents.deepchatSessionMetadataTable,
+    deepchatSearchDocumentsTable: sqliteWithAgents.deepchatSearchDocumentsTable,
+    newEnvironmentsTable: sqliteWithAgents.newEnvironmentsTable
+  })
+  const deepchatImplementation = createMockDeepChatAgent()
+  const directRuntimeCleanup = vi.fn().mockResolvedValue(undefined)
+  const deleteDurableSession = vi.fn().mockResolvedValue(undefined)
+  const resolveInput = vi
+    .fn()
+    .mockRejectedValue(new AgentUnavailableError('fixture-agent', 'invalid-config', 'acp'))
+  const manager = new AgentManager(repository, appSessionService, {
+    deepchat: createDeepChatAgentBackendFixture(deepchatImplementation as never),
+    acp: createDirectAcpAgentBackend({
+      runtime: { cleanupSession: directRuntimeCleanup } as never,
+      sessionState: deepchatImplementation,
+      transcript: deepchatImplementation,
+      tape: deepchatImplementation,
+      deleteDurableSession,
+      resolveInput
+    })
+  })
+  const skillPresenter = createMockSkillPresenter()
+  const sessionPermissionPort = {
+    clearSessionPermissions: vi.fn(),
+    approvePermission: vi.fn().mockResolvedValue(undefined)
+  }
+  const presenter = new AgentSessionPresenter(
+    manager,
+    appSessionService,
+    createMockLlmProviderPresenter(),
+    createMockConfigPresenter(),
+    sqliteWithAgents,
+    {
+      sessionState: deepchatImplementation,
+      transcript: deepchatImplementation,
+      transcriptMutation: deepchatImplementation,
+      tape: deepchatImplementation
+    } as any,
+    skillPresenter,
+    { sessionPermissionPort }
+  )
+
+  return {
+    presenter,
+    manager,
+    sessions,
+    deleteSessionRow,
+    resolveExecutableDescriptor,
+    deepchatImplementation,
+    directRuntimeCleanup,
+    deleteDurableSession,
+    resolveInput,
+    skillPresenter,
+    sessionPermissionPort
+  }
+}
+
 describe('AgentSessionPresenter', () => {
   let deepChatAgent: ReturnType<typeof createMockDeepChatAgent>
   let llmProviderPresenter: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let skillPresenter: ReturnType<typeof createMockSkillPresenter>
+  let closeDirectAcpSession: ReturnType<typeof vi.fn>
+  let closeDirectAcpRuntime: ReturnType<typeof vi.fn>
+  let directAcpControl: ReturnType<typeof createMockDirectAcpControl>
+  let agentManager: {
+    resolveBackend: ReturnType<typeof vi.fn>
+    resolveSessionBackend: ReturnType<typeof vi.fn>
+    resolveSessionHandle: ReturnType<typeof vi.fn>
+    resolveTransferSource: ReturnType<typeof vi.fn>
+    resolveDeepChatTransferTarget: ReturnType<typeof vi.fn>
+    resolveSubagentFacet: ReturnType<typeof vi.fn>
+    cleanupSessionBackends: ReturnType<typeof vi.fn>
+  }
   let presenter: AgentSessionPresenter
 
   beforeEach(() => {
@@ -334,13 +575,593 @@ describe('AgentSessionPresenter', () => {
     configPresenter = createMockConfigPresenter()
     sqlitePresenter = createMockSqlitePresenter()
     skillPresenter = createMockSkillPresenter()
+    closeDirectAcpSession = vi.fn().mockResolvedValue(undefined)
+    closeDirectAcpRuntime = vi.fn().mockResolvedValue(undefined)
+    directAcpControl = createMockDirectAcpControl()
+    const backend = createDeepChatAgentBackendFixture(deepChatAgent as never)
+    const resolveBackend = vi.fn((agentId: string) => {
+      if (agentId === 'disabled-agent') throw new Error(`Agent not found: ${agentId}`)
+      const kind = agentId.includes('acp') || agentId === 'kimi' ? 'acp' : 'deepchat'
+      const descriptor =
+        kind === 'acp'
+          ? { id: agentId, kind, source: 'manual' }
+          : { id: agentId, kind, source: 'manual', config: {} }
+      return { kind, descriptor, backend }
+    })
+    const resolveSessionBackend = vi.fn((sessionId: string) => {
+      if (sessionId === 'missing-agent' || sessionId === 's-disabled') {
+        throw new Error('Agent not found: disabled-agent')
+      }
+      const session = sqlitePresenter.newSessionsTable.get(sessionId)
+      if (!session) throw new Error(`Session not found: ${sessionId}`)
+      return resolveBackend(session.agent_id ?? session.agentId)
+    })
+    agentManager = {
+      resolveBackend,
+      resolveSessionBackend,
+      resolveSessionHandle: vi.fn((sessionId: string) => {
+        const { kind, descriptor, backend } = resolveSessionBackend(sessionId)
+        const backendHandle = backend.open(sessionId)
+        const handle =
+          kind === 'acp'
+            ? {
+                ...backendHandle,
+                kind: 'acp',
+                close: async () => {
+                  await closeDirectAcpSession(sessionId)
+                  await backendHandle.close()
+                },
+                acp: {
+                  ...directAcpControl,
+                  closeRuntime: vi.fn().mockResolvedValue(undefined)
+                }
+              }
+            : backendHandle
+        return { kind, descriptor, handle }
+      }),
+      resolveTransferSource: vi.fn((sessionId: string) => {
+        const { kind, descriptor, backend } = resolveSessionBackend(sessionId)
+        return {
+          descriptor,
+          handle: agentManager.resolveSessionHandle(sessionId).handle,
+          facet: backend.transferSource,
+          ...(kind === 'acp' ? { closeRuntime: closeDirectAcpRuntime } : {})
+        }
+      }),
+      resolveDeepChatTransferTarget: vi.fn((agentId: string) => {
+        const { descriptor, backend } = resolveBackend(agentId)
+        if (descriptor.kind !== 'deepchat' || backend.kind !== 'deepchat') {
+          throw new Error(`Agent ${agentId} does not support session transfer.`)
+        }
+        return { descriptor, facet: backend.transferTarget }
+      }),
+      resolveSubagentFacet: vi.fn((sessionId: string) => {
+        const { descriptor, backend } = resolveSessionBackend(sessionId)
+        return { kind: descriptor.kind, descriptor, facet: backend.subagent }
+      }),
+      cleanupSessionBackends: vi.fn(async (sessionId: string) => {
+        await closeDirectAcpSession(sessionId)
+      })
+    }
     presenter = new AgentSessionPresenter(
-      deepChatAgent as any,
+      agentManager as any,
+      new AppSessionService({
+        newSessionsTable: sqlitePresenter.newSessionsTable,
+        deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+        deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+        newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+      }),
       llmProviderPresenter,
       configPresenter,
       sqlitePresenter,
+      {
+        sessionState: deepChatAgent,
+        transcript: deepChatAgent,
+        transcriptMutation: deepChatAgent,
+        tape: deepChatAgent
+      } as any,
+      skillPresenter,
+      { acpAsLlmProviderSessionControl: llmProviderPresenter }
+    )
+  })
+
+  it('routes public session operations through the real catalog and manager chain', async () => {
+    const now = Date.now()
+    const agentRows = new Map<string, any>([
+      [
+        'deepchat',
+        {
+          id: 'deepchat',
+          agent_type: 'deepchat',
+          source: 'builtin',
+          name: 'DeepChat',
+          enabled: 1,
+          protected: 1,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: '{}',
+          state_json: null,
+          created_at: now,
+          updated_at: now
+        }
+      ],
+      [
+        'claude-acp',
+        {
+          id: 'claude-acp',
+          agent_type: 'acp',
+          source: 'manual',
+          name: 'Claude ACP',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: JSON.stringify({ command: 'claude-acp' }),
+          state_json: '{}',
+          created_at: now,
+          updated_at: now
+        }
+      ],
+      [
+        'broken-acp',
+        {
+          id: 'broken-acp',
+          agent_type: 'acp',
+          source: 'manual',
+          name: 'Broken ACP',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: '{}',
+          state_json: '{}',
+          created_at: now,
+          updated_at: now
+        }
+      ],
+      [
+        'unconfigured-acp',
+        {
+          id: 'unconfigured-acp',
+          agent_type: 'acp',
+          source: 'manual',
+          name: 'Unconfigured ACP',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: JSON.stringify({ command: 'unconfigured-acp' }),
+          state_json: '{}',
+          created_at: now,
+          updated_at: now
+        }
+      ]
+    ])
+    const sessions = new Map(
+      [
+        ['deepchat-session', 'deepchat', null],
+        ['acp-session', 'claude-code-acp', '/tmp/acp'],
+        ['unconfigured-session', 'unconfigured-acp', '/tmp/acp'],
+        ['missing-session', 'missing-agent', null],
+        ['broken-session', 'broken-acp', null]
+      ].map(([id, agentId, projectDir]) => [
+        id,
+        {
+          id,
+          agent_id: agentId,
+          title: id,
+          project_dir: projectDir,
+          is_pinned: 0,
+          is_draft: 0,
+          session_kind: 'regular',
+          parent_session_id: null,
+          subagent_enabled: 0,
+          subagent_meta_json: null,
+          created_at: now,
+          updated_at: now
+        }
+      ])
+    )
+    const sqliteWithAgents = {
+      ...sqlitePresenter,
+      agentsTable: {
+        get: (id: string) => agentRows.get(id),
+        list: () => [...agentRows.values()]
+      },
+      newSessionsTable: {
+        ...sqlitePresenter.newSessionsTable,
+        get: (id: string) => sessions.get(id),
+        list: (filters?: { agentId?: string; parentSessionId?: string }) =>
+          [...sessions.values()].filter(
+            (row) =>
+              (!filters?.agentId || row.agent_id === filters.agentId) &&
+              (filters?.parentSessionId === undefined ||
+                row.parent_session_id === filters.parentSessionId)
+          ),
+        delete: (id: string) => sessions.delete(id)
+      }
+    } as any
+    const repository = new AgentRepository(sqliteWithAgents)
+    const deepchatImplementation = {
+      ...createMockDeepChatAgent(),
+      getSessionState: vi.fn().mockResolvedValue({ providerId: 'openai', modelId: 'gpt-4' }),
+      hasMessages: vi.fn(async (sessionId: string) => sessionId !== 'acp-session'),
+      getMessages: vi.fn(async (sessionId: string) =>
+        sessionId === 'acp-session'
+          ? [
+              {
+                id: 'acp-user',
+                sessionId,
+                orderSeq: 1,
+                role: 'user',
+                content: JSON.stringify({ text: 'Hello', files: [] }),
+                status: 'sent'
+              },
+              {
+                id: 'acp-assistant',
+                sessionId,
+                orderSeq: 2,
+                role: 'assistant',
+                content: JSON.stringify([
+                  { type: 'content', content: 'Hi', status: 'success', timestamp: now }
+                ]),
+                status: 'sent'
+              }
+            ]
+          : []
+      ),
+      listPendingInputs: vi.fn().mockResolvedValue([]),
+      setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
+      mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
+      discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+      getActiveGeneration: vi.fn().mockReturnValue(null),
+      cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
+      processMessage: vi
+        .fn()
+        .mockResolvedValue({ requestId: 'deepchat-request', messageId: 'deepchat-message' })
+    } as any
+    const appSessionService = new AppSessionService({
+      newSessionsTable: sqliteWithAgents.newSessionsTable,
+      deepchatSessionMetadataTable: sqliteWithAgents.deepchatSessionMetadataTable,
+      deepchatSearchDocumentsTable: sqliteWithAgents.deepchatSearchDocumentsTable,
+      newEnvironmentsTable: sqliteWithAgents.newEnvironmentsTable
+    })
+    const directAcpInstance = {
+      snapshot: vi.fn().mockResolvedValue({ status: 'idle' }),
+      getWorkdir: vi.fn().mockReturnValue('/tmp/acp'),
+      waitForFirstTurnReady: vi.fn().mockResolvedValue(true)
+    }
+    const directAcpRuntime = {
+      getOrHydrate: vi.fn().mockResolvedValue(directAcpInstance),
+      queuePendingInput: vi.fn().mockResolvedValue({ id: 'acp-pending' }),
+      steer: vi.fn().mockResolvedValue({ id: 'acp-steer' }),
+      close: vi.fn().mockResolvedValue(undefined),
+      cleanupSession: vi.fn().mockResolvedValue(undefined)
+    }
+    const acpConfigs = new Map([
+      [
+        'claude-acp',
+        {
+          id: 'claude-acp',
+          name: 'Claude ACP',
+          command: 'claude-acp',
+          source: 'manual' as const
+        }
+      ]
+    ])
+    const resolveDirectAcpInput = vi.fn(
+      async (sessionId: AppSessionId, descriptor: AcpAgentDescriptor) => {
+        const session = appSessionService.get(sessionId)
+        const agent = acpConfigs.get(descriptor.id)
+        if (
+          !session ||
+          resolveAcpAgentAlias(session.agentId) !== descriptor.id ||
+          !agent ||
+          agent.source !== descriptor.source
+        ) {
+          throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+        }
+        return {
+          sessionId,
+          descriptor,
+          agent,
+          scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
+          workdir: session.projectDir?.trim() ?? ''
+        }
+      }
+    )
+    const realManager = new AgentManager(repository, appSessionService, {
+      deepchat: createDeepChatAgentBackendFixture(deepchatImplementation),
+      acp: createDirectAcpAgentBackend({
+        runtime: directAcpRuntime as never,
+        sessionState: deepchatImplementation,
+        transcript: deepchatImplementation,
+        tape: deepchatImplementation,
+        deleteDurableSession: vi.fn().mockResolvedValue(undefined),
+        resolveInput: resolveDirectAcpInput
+      })
+    })
+    const integratedPresenter = new AgentSessionPresenter(
+      realManager,
+      appSessionService,
+      llmProviderPresenter,
+      configPresenter,
+      sqliteWithAgents,
+      {
+        sessionState: deepchatImplementation,
+        transcript: deepchatImplementation,
+        transcriptMutation: deepchatImplementation,
+        tape: deepchatImplementation
+      } as any,
       skillPresenter
     )
+
+    await expect(integratedPresenter.sendMessage('deepchat-session', 'Hello')).resolves.toEqual({
+      requestId: null,
+      messageId: null
+    })
+    await expect(integratedPresenter.sendMessage('acp-session', 'Hello')).resolves.toEqual({
+      requestId: null,
+      messageId: null
+    })
+    await integratedPresenter.queuePendingInput('acp-session', 'Later')
+    await integratedPresenter.steerActiveTurn('acp-session', 'Now')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(deepchatImplementation.queuePendingInput).toHaveBeenCalledWith(
+      'deepchat-session',
+      { text: 'Hello', files: [] },
+      expect.objectContaining({ source: 'send', projectDir: null })
+    )
+    expect(directAcpRuntime.queuePendingInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'acp-session',
+        workdir: '/tmp/acp',
+        descriptor: expect.objectContaining({ id: 'claude-acp', kind: 'acp' })
+      }),
+      { text: 'Hello', files: [] }
+    )
+    expect(directAcpRuntime.queuePendingInput).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'acp-session' }),
+      { text: 'Later', files: [] }
+    )
+    expect(directAcpRuntime.steer).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'acp-session' }),
+      { text: 'Now', files: [] }
+    )
+    expect(llmProviderPresenter.summaryTitles).toHaveBeenCalledOnce()
+    expect(llmProviderPresenter.summaryTitles).toHaveBeenCalledWith(
+      expect.any(Array),
+      'acp',
+      'claude-acp'
+    )
+    await expect(
+      integratedPresenter.sendMessage('unconfigured-session', 'Hello')
+    ).rejects.toMatchObject({ code: 'AGENT_UNAVAILABLE', reason: 'invalid-config' })
+    await expect(integratedPresenter.deleteSession('unconfigured-session')).resolves.toBeUndefined()
+    expect(directAcpRuntime.cleanupSession).toHaveBeenCalledWith('unconfigured-session')
+    expect(deepchatImplementation.queuePendingInput).toHaveBeenCalledTimes(1)
+    expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
+    await expect(integratedPresenter.sendMessage('missing-session', 'Hello')).rejects.toMatchObject(
+      {
+        code: 'AGENT_NOT_FOUND'
+      }
+    )
+    await expect(integratedPresenter.sendMessage('broken-session', 'Hello')).rejects.toMatchObject({
+      code: 'AGENT_UNAVAILABLE',
+      reason: 'missing-manual-command'
+    })
+  })
+
+  it.each([
+    {
+      caseName: 'a missing agent row',
+      agentId: 'missing-agent',
+      agent: null
+    },
+    {
+      caseName: 'malformed manual ACP JSON',
+      agentId: 'malformed-manual',
+      agent: {
+        id: 'malformed-manual',
+        agentType: 'acp' as const,
+        source: 'manual' as const,
+        configJson: '{'
+      }
+    },
+    {
+      caseName: 'a manual ACP agent without a command',
+      agentId: 'commandless-manual',
+      agent: {
+        id: 'commandless-manual',
+        agentType: 'acp' as const,
+        source: 'manual' as const,
+        configJson: '{}'
+      }
+    },
+    {
+      caseName: 'a registry ACP agent without a reference',
+      agentId: 'missing-registry-reference',
+      agent: {
+        id: 'missing-registry-reference',
+        agentType: 'acp' as const,
+        source: 'registry' as const,
+        configJson: '{}'
+      }
+    },
+    {
+      caseName: 'a disabled registry ACP agent',
+      agentId: 'disabled-registry',
+      agent: {
+        id: 'disabled-registry',
+        agentType: 'acp' as const,
+        source: 'registry' as const,
+        configJson: JSON.stringify({
+          version: '1.0.0',
+          distribution: { npx: { package: '@test/disabled-registry' } }
+        }),
+        enabled: false
+      }
+    },
+    {
+      caseName: 'a valid descriptor whose current launch config is missing',
+      agentId: 'unconfigured-manual',
+      agent: {
+        id: 'unconfigured-manual',
+        agentType: 'acp' as const,
+        source: 'manual' as const,
+        configJson: JSON.stringify({ command: 'unconfigured-manual' })
+      }
+    }
+  ])('deletes a session with $caseName without descriptor routing', async ({ agentId, agent }) => {
+    const harness = createDescriptorIndependentDeleteHarness({
+      sessions: [{ id: 'delete-target', agentId }],
+      agents: agent ? [agent] : []
+    })
+
+    await expect(harness.presenter.deleteSession('delete-target')).resolves.toBeUndefined()
+
+    expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
+    expect(harness.resolveInput).not.toHaveBeenCalled()
+    expect(harness.directRuntimeCleanup).toHaveBeenCalledExactlyOnceWith('delete-target')
+    expect(harness.deleteDurableSession).toHaveBeenCalledExactlyOnceWith('delete-target')
+    expect(harness.deepchatImplementation.destroySession).toHaveBeenCalledExactlyOnceWith(
+      'delete-target'
+    )
+    expect(harness.sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledExactlyOnceWith(
+      'delete-target'
+    )
+    expect(harness.skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledExactlyOnceWith(
+      'delete-target'
+    )
+    expect(harness.deleteSessionRow).toHaveBeenCalledExactlyOnceWith('delete-target')
+    expect(harness.sessions.has('delete-target')).toBe(false)
+    expect(harness.deepchatImplementation.processMessage).not.toHaveBeenCalled()
+    expect(harness.deepchatImplementation.queuePendingInput).not.toHaveBeenCalled()
+    expect(harness.deepchatImplementation.cancelGeneration).not.toHaveBeenCalled()
+    expect(harness.directRuntimeCleanup.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.deleteDurableSession.mock.invocationCallOrder[0]
+    )
+    expect(harness.deleteDurableSession.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.deepchatImplementation.destroySession.mock.invocationCallOrder[0]
+    )
+    expect(harness.deepchatImplementation.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.sessionPermissionPort.clearSessionPermissions.mock.invocationCallOrder[0]
+    )
+    expect(
+      harness.sessionPermissionPort.clearSessionPermissions.mock.invocationCallOrder[0]
+    ).toBeLessThan(harness.skillPresenter.clearNewAgentSessionSkills.mock.invocationCallOrder[0])
+    expect(
+      harness.skillPresenter.clearNewAgentSessionSkills.mock.invocationCallOrder[0]
+    ).toBeLessThan(harness.deleteSessionRow.mock.invocationCallOrder[0])
+  })
+
+  it('continues parent deletion after descriptor-independent malformed child cleanup', async () => {
+    const harness = createDescriptorIndependentDeleteHarness({
+      sessions: [
+        { id: 'parent-session', agentId: 'deepchat' },
+        {
+          id: 'malformed-child',
+          agentId: 'malformed-child-agent',
+          sessionKind: 'subagent',
+          parentSessionId: 'parent-session'
+        }
+      ],
+      agents: [
+        {
+          id: 'deepchat',
+          agentType: 'deepchat',
+          source: 'builtin',
+          configJson: '{}'
+        },
+        {
+          id: 'malformed-child-agent',
+          agentType: 'acp',
+          source: 'manual',
+          configJson: '{'
+        }
+      ]
+    })
+
+    await expect(harness.presenter.deleteSession('parent-session')).resolves.toBeUndefined()
+
+    expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
+    expect(harness.resolveInput).not.toHaveBeenCalled()
+    expect(harness.directRuntimeCleanup.mock.calls).toEqual([
+      ['malformed-child'],
+      ['parent-session']
+    ])
+    expect(harness.deleteDurableSession.mock.calls).toEqual([
+      ['malformed-child'],
+      ['parent-session']
+    ])
+    expect(harness.deepchatImplementation.destroySession.mock.calls).toEqual([
+      ['malformed-child'],
+      ['parent-session']
+    ])
+    expect(harness.deleteSessionRow.mock.calls).toEqual([['malformed-child'], ['parent-session']])
+    expect(harness.sessions.size).toBe(0)
+  })
+
+  it('keeps hydrated DeepChat deletion on the descriptor-independent cleanup path', async () => {
+    const harness = createDescriptorIndependentDeleteHarness({
+      sessions: [{ id: 'deepchat-session', agentId: 'deepchat' }],
+      agents: [
+        {
+          id: 'deepchat',
+          agentType: 'deepchat',
+          source: 'builtin',
+          configJson: '{}'
+        }
+      ]
+    })
+    const resolved = harness.manager.resolveSessionHandle('deepchat-session' as AppSessionId)
+    await resolved.handle.snapshot()
+    harness.resolveExecutableDescriptor.mockClear()
+
+    await expect(harness.presenter.deleteSession('deepchat-session')).resolves.toBeUndefined()
+
+    expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
+    expect(harness.deepchatImplementation.cancelGeneration).toHaveBeenCalledExactlyOnceWith(
+      'deepchat-session'
+    )
+    expect(harness.deepchatImplementation.destroySession).toHaveBeenCalledExactlyOnceWith(
+      'deepchat-session'
+    )
+    expect(harness.deleteSessionRow).toHaveBeenCalledExactlyOnceWith('deepchat-session')
+  })
+
+  it('keeps valid direct ACP deletion on the descriptor-independent cleanup path', async () => {
+    const harness = createDescriptorIndependentDeleteHarness({
+      sessions: [{ id: 'direct-session', agentId: 'direct-agent' }],
+      agents: [
+        {
+          id: 'direct-agent',
+          agentType: 'acp',
+          source: 'manual',
+          configJson: JSON.stringify({ command: 'direct-agent' })
+        }
+      ]
+    })
+    expect(harness.manager.resolveBackend('direct-agent').descriptor).toMatchObject({
+      id: 'direct-agent',
+      kind: 'acp'
+    })
+    harness.resolveExecutableDescriptor.mockClear()
+
+    await expect(harness.presenter.deleteSession('direct-session')).resolves.toBeUndefined()
+
+    expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
+    expect(harness.resolveInput).not.toHaveBeenCalled()
+    expect(harness.directRuntimeCleanup).toHaveBeenCalledExactlyOnceWith('direct-session')
+    expect(harness.deleteDurableSession).toHaveBeenCalledExactlyOnceWith('direct-session')
+    expect(harness.deepchatImplementation.destroySession).toHaveBeenCalledExactlyOnceWith(
+      'direct-session'
+    )
+    expect(harness.deleteSessionRow).toHaveBeenCalledExactlyOnceWith('direct-session')
   })
 
   describe('createSession', () => {
@@ -428,7 +1249,7 @@ describe('AgentSessionPresenter', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      ;(deepChatAgent as any).queuePendingInput = queuePendingInput
+      deepChatAgent.queuePendingInput.mockImplementation(queuePendingInput)
 
       await presenter.createSession(
         { agentId: 'deepchat', message: 'Hello', projectDir: '/tmp/proj' },
@@ -822,7 +1643,7 @@ describe('AgentSessionPresenter', () => {
       const readyPromise = new Promise<boolean>((resolve) => {
         resolveReady = resolve
       })
-      ;(deepChatAgent as any).waitForFirstTurnReady = vi.fn(() => readyPromise)
+      deepChatAgent.waitForFirstTurnReady.mockImplementation(() => readyPromise)
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'generating',
         providerId: 'openai',
@@ -877,7 +1698,7 @@ describe('AgentSessionPresenter', () => {
       }
     })
 
-    it('syncs ACP workdir persistence before the first ACP message runs', async () => {
+    it('syncs ACP-as-LLM workdir persistence before the first provider message runs', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
@@ -904,6 +1725,7 @@ describe('AgentSessionPresenter', () => {
         'acp-coder',
         '/tmp/workspace'
       )
+      expect(directAcpControl.updateWorkdir).not.toHaveBeenCalled()
       await new Promise((r) => setTimeout(r, 0))
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
@@ -915,7 +1737,7 @@ describe('AgentSessionPresenter', () => {
       )
     })
 
-    it('aborts ACP session creation when workdir sync fails', async () => {
+    it('aborts ACP-as-LLM session creation when workdir sync fails', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
@@ -941,62 +1763,9 @@ describe('AgentSessionPresenter', () => {
       ).rejects.toThrow('sync failed')
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
+      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('searchHistory', () => {
-    it('returns session and message hits sorted by title relevance before recency', async () => {
-      sqlitePresenter.deepchatSearchDocumentsTable.searchFts.mockReturnValue([
-        {
-          document_key: 'session:session-1',
-          session_id: 'session-1',
-          message_id: null,
-          document_kind: 'session',
-          role: null,
-          title: 'Release checklist',
-          content: '',
-          updated_at: 200,
-          rank: 0
-        },
-        {
-          document_key: 'message:message-1',
-          session_id: 'session-1',
-          message_id: 'message-1',
-          document_kind: 'message',
-          role: 'assistant',
-          title: 'Release checklist',
-          content: 'pnpm run build still fails on arm64',
-          updated_at: 100,
-          rank: 1
-        }
-      ])
-
-      const result = await presenter.searchHistory('release', { limit: 5 })
-
-      expect(result).toEqual([
-        {
-          kind: 'session',
-          sessionId: 'session-1',
-          title: 'Release checklist',
-          projectDir: '/repo',
-          updatedAt: 200
-        },
-        {
-          kind: 'message',
-          sessionId: 'session-1',
-          messageId: 'message-1',
-          title: 'Release checklist',
-          role: 'assistant',
-          snippet: 'pnpm run build still fails on arm64',
-          updatedAt: 100
-        }
-      ])
-    })
-
-    it('returns an empty array when query is blank', async () => {
-      await expect(presenter.searchHistory('   ')).resolves.toEqual([])
     })
   })
 
@@ -1114,11 +1883,8 @@ describe('AgentSessionPresenter', () => {
           projectDir: '/tmp/workspace'
         }
       )
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
-        's-draft',
-        'acp-coder',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.updateWorkdir).toHaveBeenCalledWith('/tmp/workspace')
+      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
     })
 
     it('routes to correct agent', async () => {
@@ -1135,6 +1901,7 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await presenter.sendMessage('s1', 'Follow-up')
+      expect(agentManager.resolveSessionHandle).toHaveBeenCalledWith('s1')
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         's1',
         { text: 'Follow-up', files: [] },
@@ -1201,7 +1968,7 @@ describe('AgentSessionPresenter', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      ;(deepChatAgent as any).queuePendingInput = queuePendingInput
+      deepChatAgent.queuePendingInput.mockImplementation(queuePendingInput)
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'deepchat',
@@ -1295,11 +2062,7 @@ describe('AgentSessionPresenter', () => {
           permissionMode: 'full_access'
         })
       )
-      expect(llmProviderPresenter.prepareAcpSession).toHaveBeenCalledWith(
-        'mock-session-id',
-        'acp-coder',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.prepare).toHaveBeenCalledOnce()
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
       expect(session.isDraft).toBe(true)
       expect(session.providerId).toBe('acp')
@@ -1336,11 +2099,7 @@ describe('AgentSessionPresenter', () => {
       })
 
       expect(sqlitePresenter.newSessionsTable.create).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.prepareAcpSession).toHaveBeenCalledWith(
-        'draft-1',
-        'acp-coder',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.prepare).toHaveBeenCalledOnce()
       expect(session.id).toBe('draft-1')
       expect(session.isDraft).toBe(true)
     })
@@ -1433,11 +2192,8 @@ describe('AgentSessionPresenter', () => {
         })
       )
       expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
-        'child-session-acp',
-        'kimi',
-        '/tmp/workspace'
-      )
+      expect(directAcpControl.updateWorkdir).toHaveBeenCalledWith('/tmp/workspace')
+      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
       expect(session.id).toBe('child-session-acp')
       expect(session.providerId).toBe('acp')
       expect(session.modelId).toBe('kimi')
@@ -1478,9 +2234,9 @@ describe('AgentSessionPresenter', () => {
         sessionRows.delete(id)
       })
 
-      llmProviderPresenter.setAcpWorkdir
+      directAcpControl.updateWorkdir
         .mockRejectedValueOnce(new Error('warmup failed'))
-        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce('/tmp/workspace')
       deepChatAgent.getSessionState.mockResolvedValue({
         status: 'idle',
         providerId: 'acp',
@@ -1507,22 +2263,16 @@ describe('AgentSessionPresenter', () => {
 
       expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledTimes(2)
       expect(deepChatAgent.initSession).toHaveBeenCalledTimes(2)
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenNthCalledWith(
-        1,
-        'child-session-1',
-        'acp-reviewer',
-        '/tmp/workspace'
-      )
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenNthCalledWith(
-        2,
-        'child-session-2',
-        'acp-reviewer',
-        '/tmp/workspace'
-      )
-      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledTimes(1)
-      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('child-session-1')
+      expect(directAcpControl.updateWorkdir).toHaveBeenNthCalledWith(1, '/tmp/workspace')
+      expect(directAcpControl.updateWorkdir).toHaveBeenNthCalledWith(2, '/tmp/workspace')
+      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
       expect(deepChatAgent.destroySession).toHaveBeenCalledTimes(1)
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('child-session-1')
+      expect(closeDirectAcpSession).toHaveBeenCalledOnce()
+      expect(closeDirectAcpSession).toHaveBeenCalledWith('child-session-1')
+      expect(sessionRows.has('child-session-1')).toBe(false)
+      expect(sessionRows.has('child-session-2')).toBe(true)
       expect(session.id).toBe('child-session-2')
       expect(session.providerId).toBe('acp')
       expect(session.modelId).toBe('acp-reviewer')
@@ -1591,6 +2341,49 @@ describe('AgentSessionPresenter', () => {
     })
   })
 
+  describe('subagent tape facets', () => {
+    it.each([
+      ['deepchat', 'mergeSubagentTape', 'mergeSubagentTape'],
+      ['acp-parent', 'discardSubagentTape', 'discardSubagentTape']
+    ] as const)(
+      'routes %s parent tape operations through required facets',
+      async (agentId, action, method) => {
+        sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) => {
+          if (sessionId === 'parent') {
+            return { id: 'parent', agent_id: agentId, session_kind: 'regular' }
+          }
+          if (sessionId === 'child') {
+            return {
+              id: 'child',
+              agent_id: agentId,
+              session_kind: 'subagent',
+              parent_session_id: 'parent'
+            }
+          }
+          return undefined
+        })
+
+        await presenter[action]('parent', 'child', { source: 'test' })
+
+        expect(deepChatAgent[method]).toHaveBeenCalledWith('parent', 'child', { source: 'test' })
+      }
+    )
+
+    it('rejects unrelated children before resolving the subagent facet', async () => {
+      sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) => {
+        if (sessionId === 'parent') return { id: 'parent', agent_id: 'deepchat' }
+        if (sessionId === 'child') return { id: 'child', parent_session_id: 'other' }
+        return undefined
+      })
+
+      await expect(presenter.mergeSubagentTape('parent', 'child')).rejects.toThrow(
+        'Session child is not a child of parent.'
+      )
+      expect(agentManager.resolveSubagentFacet).not.toHaveBeenCalled()
+      expect(deepChatAgent.mergeSubagentTape).not.toHaveBeenCalled()
+    })
+  })
+
   describe('getSessionList', () => {
     it('prefers lightweight session list state when available', async () => {
       sqlitePresenter.newSessionsTable.list.mockReturnValue([
@@ -1640,7 +2433,7 @@ describe('AgentSessionPresenter', () => {
       expect(sessions[0].modelId).toBe('gpt-4')
     })
 
-    it('skips sessions whose agent implementation cannot be resolved', async () => {
+    it('skips sessions whose agent backend cannot be resolved', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       sqlitePresenter.newSessionsTable.list.mockReturnValue([
         {
@@ -1764,7 +2557,7 @@ describe('AgentSessionPresenter', () => {
   })
 
   describe('getSessionCompactionState', () => {
-    it('delegates to the agent implementation', async () => {
+    it('delegates to the DeepChat backend', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'deepchat',
@@ -1840,6 +2633,17 @@ describe('AgentSessionPresenter', () => {
     })
   })
 
+  describe('getMessage', () => {
+    it('routes global message lookup through AgentManager', async () => {
+      const message = { id: 'm1', sessionId: 's1', role: 'assistant' }
+      deepChatAgent.getMessage.mockResolvedValue(message as any)
+
+      await expect(presenter.getMessage('m1')).resolves.toBe(message)
+
+      expect(deepChatAgent.getMessage).toHaveBeenCalledWith('m1')
+    })
+  })
+
   describe('activateSession', () => {
     it('binds window and publishes typed activated update', async () => {
       await presenter.activateSession(42, 's1')
@@ -1888,7 +2692,7 @@ describe('AgentSessionPresenter', () => {
       expect(deepChatAgent.destroySession).not.toHaveBeenCalled()
     })
 
-    it('clears ACP runtime session before deleting ACP session', async () => {
+    it('closes direct ACP state without entering the compatibility provider', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-acp',
         agent_id: 'acp-coder',
@@ -1910,8 +2714,32 @@ describe('AgentSessionPresenter', () => {
 
       await presenter.deleteSession('s-acp')
 
-      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('s-acp')
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('s-acp')
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s-acp')
+      expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
+        sqlitePresenter.newSessionsTable.delete.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('preserves runtime cleanup errors after shared cleanup without deleting the app row', async () => {
+      const cleanupError = new Error('runtime cleanup failed')
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      agentManager.cleanupSessionBackends.mockRejectedValueOnce(cleanupError)
+
+      await expect(presenter.deleteSession('s1')).rejects.toBe(cleanupError)
+
+      expect(deepChatAgent.destroySession).toHaveBeenCalledExactlyOnceWith('s1')
+      expect(skillPresenter.clearNewAgentSessionSkills).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
     })
   })
 
@@ -2036,60 +2864,32 @@ describe('AgentSessionPresenter', () => {
       ])
       expect(deepChatAgent.invalidateSessionSystemPromptCache).toHaveBeenCalledWith('s1')
     })
-
-    it('cleans legacy persisted grep without blocking new grep updates', async () => {
-      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue([
-        'grep',
-        'find',
-        'ls',
-        'cdp_send',
-        'exec'
-      ])
-      configPresenter.listAgents.mockResolvedValue([
-        { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
-        { id: 'broken-deepchat', name: 'Broken', type: 'deepchat', enabled: true },
-        { id: 'acp-cli', name: 'Acp', type: 'acp', enabled: true }
-      ])
-      configPresenter.getDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
-        if (agentId === 'broken-deepchat') {
-          return { disabledAgentTools: 'grep' as any }
-        }
-        return {
-          disabledAgentTools: ['grep', 'exec']
-        }
-      })
-      configPresenter.updateDeepChatAgent.mockResolvedValue({
-        id: 'deepchat',
-        name: 'DeepChat',
-        type: 'deepchat',
-        enabled: true
-      })
-
-      await presenter.startDisabledSearchToolCleanupBackfill()
-
-      expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith(
-        'session-1',
-        ['cdp_send', 'exec']
-      )
-      expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
-        config: {
-          disabledAgentTools: ['exec']
-        }
-      })
-      expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
-      expect(sqlitePresenter.configTables.setAgentSetting).toHaveBeenLastCalledWith(
-        'agent-disabled-search-tool-cleanup-v1',
-        expect.objectContaining({
-          status: 'completed',
-          processedCount: 1,
-          updatedCount: 1,
-          configUpdatedCount: 1
-        })
-      )
-    })
   })
 
   describe('setSessionSubagentEnabled', () => {
+    it('rejects regular ACP sessions before updating persisted state', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 0,
+        subagent_enabled: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      await expect(presenter.setSessionSubagentEnabled('s-acp', true)).rejects.toThrow(
+        'Only DeepChat sessions can change subagent state.'
+      )
+
+      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
+    })
+
     it('throws when the updated session state cannot be rebuilt', async () => {
       const row = {
         id: 's1',
@@ -2257,6 +3057,35 @@ describe('AgentSessionPresenter', () => {
       expect(deepChatAgent.getMessageIds).not.toHaveBeenCalled()
     })
 
+    it('blocks transfer when pending input inspection fails', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat-writer',
+        title: 'Test',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({ status: 'idle' })
+      deepChatAgent.hasMessages.mockResolvedValue(true)
+      deepChatAgent.listPendingInputs.mockRejectedValue(new Error('pending query failed'))
+
+      await expect(presenter.moveSessionToAgent('s1', 'deepchat-coder')).rejects.toThrow(
+        'Session s1 cannot be moved: pending-input'
+      )
+
+      expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+    })
+
     it('rejects blank agent ids for destructive agent-session deletion', async () => {
       await expect(presenter.deleteAgentSessions('   ')).rejects.toThrow('Agent id is required.')
       expect(sqlitePresenter.newSessionsTable.list).not.toHaveBeenCalled()
@@ -2338,7 +3167,7 @@ describe('AgentSessionPresenter', () => {
       expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
-    it('moves an ACP conversation to a DeepChat agent and clears the ACP binding', async () => {
+    it('moves a direct ACP conversation to DeepChat without entering compatibility cleanup', async () => {
       const row = {
         id: 's-acp',
         agent_id: 'acp-coder',
@@ -2406,11 +3235,9 @@ describe('AgentSessionPresenter', () => {
           permissionMode: 'full_access'
         })
       )
-      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('s-acp')
-      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeGreaterThan(
-        deepChatAgent.setSessionAgentContext.mock.invocationCallOrder[0]
-      )
-      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(closeDirectAcpRuntime).toHaveBeenCalledOnce()
+      expect(closeDirectAcpRuntime.mock.invocationCallOrder[0]).toBeGreaterThan(
         sqlitePresenter.newSessionsTable.updateAgentId.mock.invocationCallOrder[0]
       )
       expect(updated.agentId).toBe('deepchat-coder')
@@ -2468,6 +3295,7 @@ describe('AgentSessionPresenter', () => {
 
       expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalled()
       expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(closeDirectAcpRuntime).not.toHaveBeenCalled()
     })
 
     it('reports partial batch transfer failures after earlier sessions move', async () => {
@@ -2770,92 +3598,6 @@ describe('AgentSessionPresenter', () => {
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
       expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
-
-    it('exports session in all supported formats', async () => {
-      const now = Date.now()
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({
-        id: 's1',
-        agent_id: 'deepchat',
-        title: 'Export Target',
-        project_dir: '/tmp/project',
-        is_pinned: 1,
-        created_at: now - 1000,
-        updated_at: now
-      })
-      deepChatAgent.getMessages.mockResolvedValue([
-        {
-          id: 'm-user',
-          sessionId: 's1',
-          orderSeq: 1,
-          role: 'user',
-          content: JSON.stringify({
-            text: 'hello export',
-            files: [],
-            links: [],
-            search: false,
-            think: false
-          }),
-          status: 'sent',
-          isContextEdge: 0,
-          metadata: '{}',
-          createdAt: now - 500,
-          updatedAt: now - 500
-        },
-        {
-          id: 'm-assistant',
-          sessionId: 's1',
-          orderSeq: 2,
-          role: 'assistant',
-          content: JSON.stringify([
-            {
-              type: 'content',
-              content: 'export result',
-              status: 'success',
-              timestamp: now - 400
-            }
-          ]),
-          status: 'sent',
-          isContextEdge: 0,
-          metadata: JSON.stringify({ model: 'gpt-4', provider: 'openai' }),
-          createdAt: now - 400,
-          updatedAt: now - 400
-        }
-      ])
-
-      const formats = [
-        ['markdown', '.md'],
-        ['html', '.html'],
-        ['txt', '.txt'],
-        ['nowledge-mem', '.json']
-      ] as const
-
-      for (const [format, extension] of formats) {
-        const result = await presenter.exportSession('s1', format)
-        expect(result.filename.endsWith(extension)).toBe(true)
-        expect(result.content.length).toBeGreaterThan(0)
-      }
-    })
-  })
-
-  describe('getAgents', () => {
-    it('returns registered agents', async () => {
-      const agents = await presenter.getAgents()
-      expect(agents).toHaveLength(1)
-      expect(agents[0].id).toBe('deepchat')
-      expect(agents[0].name).toBe('DeepChat')
-    })
-
-    it('includes ACP agents from config', async () => {
-      configPresenter.listAgents.mockResolvedValue([
-        { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
-        { id: 'acp-coder', name: 'ACP Coder', type: 'acp', enabled: true }
-      ])
-
-      const agents = await presenter.getAgents()
-      expect(agents.some((agent: any) => agent.id === 'acp-coder' && agent.type === 'acp')).toBe(
-        true
-      )
-    })
   })
 
   describe('getAcpSessionCommands', () => {
@@ -2897,8 +3639,33 @@ describe('AgentSessionPresenter', () => {
 
       const commands = await presenter.getAcpSessionCommands('s-acp')
 
-      expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-acp')
+      expect(directAcpControl.getCommands).toHaveBeenCalledOnce()
+      expect(llmProviderPresenter.getAcpSessionCommands).not.toHaveBeenCalled()
       expect(commands).toHaveLength(1)
+      expect(commands[0].name).toBe('review')
+    })
+
+    it('keeps commands available for DeepChat sessions selecting the ACP provider', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-compat',
+        agent_id: 'deepchat',
+        title: 'ACP compatibility',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const commands = await presenter.getAcpSessionCommands('s-compat')
+
+      expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-compat')
+      expect(directAcpControl.getCommands).not.toHaveBeenCalled()
       expect(commands[0].name).toBe('review')
     })
   })
@@ -2943,11 +3710,12 @@ describe('AgentSessionPresenter', () => {
 
       const result = await presenter.getAcpSessionConfigOptions('s-acp')
 
-      expect(llmProviderPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-acp')
+      expect(directAcpControl.getConfigOptions).toHaveBeenCalledOnce()
+      expect(llmProviderPresenter.getAcpSessionConfigOptions).not.toHaveBeenCalled()
       expect(result?.options[0].currentValue).toBe('gpt-5')
     })
 
-    it('writes ACP session config options through llmProviderPresenter', async () => {
+    it('writes direct ACP session config options through the typed handle', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-acp',
         agent_id: 'acp-coder',
@@ -2969,12 +3737,41 @@ describe('AgentSessionPresenter', () => {
 
       const result = await presenter.setAcpSessionConfigOption('s-acp', 'model', 'gpt-5-mini')
 
+      expect(directAcpControl.setConfigOption).toHaveBeenCalledWith('model', 'gpt-5-mini')
+      expect(llmProviderPresenter.setAcpSessionConfigOption).not.toHaveBeenCalled()
+      expect(result?.options[0].currentValue).toBe('gpt-5-mini')
+    })
+
+    it('keeps config controls available for DeepChat sessions selecting the ACP provider', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-compat',
+        agent_id: 'deepchat',
+        title: 'ACP compatibility',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const state = await presenter.getAcpSessionConfigOptions('s-compat')
+      const updated = await presenter.setAcpSessionConfigOption('s-compat', 'model', 'gpt-5-mini')
+
+      expect(llmProviderPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-compat')
       expect(llmProviderPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
-        's-acp',
+        's-compat',
         'model',
         'gpt-5-mini'
       )
-      expect(result?.options[0].currentValue).toBe('gpt-5-mini')
+      expect(directAcpControl.getConfigOptions).not.toHaveBeenCalled()
+      expect(directAcpControl.setConfigOption).not.toHaveBeenCalled()
+      expect(state?.options[0].currentValue).toBe('gpt-5')
+      expect(updated?.options[0].currentValue).toBe('gpt-5-mini')
     })
   })
 

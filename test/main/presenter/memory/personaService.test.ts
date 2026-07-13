@@ -149,7 +149,7 @@ describe('MemoryPresenter guarded persona evolution', () => {
       content: 'older',
       createdAt: 20
     })
-    repo.markSuperseded('old-super', 'old-active')
+    repo.seedSupersededBy('old-super', 'old-active')
     expect(presenter.getStatus('a').hasPersona).toBe(true)
     expect(repo.getActivePersona('a')?.id).toBe('old-active')
   })

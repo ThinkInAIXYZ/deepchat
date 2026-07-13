@@ -8,7 +8,7 @@ const fffMock = vi.hoisted(() => ({
   globFiles: vi.fn()
 }))
 
-vi.mock('@/lib/agentRuntime/fffSearchService', () => ({
+vi.mock('@/agent/shared/workspace/fffSearchService', () => ({
   FffSearchService: vi.fn(() => ({
     globFiles: fffMock.globFiles
   }))

@@ -209,6 +209,7 @@ export class DatabaseRepairService {
     const backupPath = this.createBackup()
     const repairedIssueKeys = new Set<string>()
     const pendingAfterRepairTables = new Set<string>()
+    const addedColumnsByTable = new Map<string, Set<string>>()
 
     this.db.transaction(() => {
       for (const table of this.catalog) {
@@ -237,6 +238,9 @@ export class DatabaseRepairService {
           }
 
           this.db.exec(columnSpec.addColumnSql)
+          const addedColumns = addedColumnsByTable.get(table.name) ?? new Set<string>()
+          addedColumns.add(issue.name)
+          addedColumnsByTable.set(table.name, addedColumns)
           if (table.afterRepair) {
             pendingAfterRepairTables.add(table.name)
           }
@@ -259,7 +263,9 @@ export class DatabaseRepairService {
       }
 
       for (const tableName of pendingAfterRepairTables) {
-        this.catalog.find((table) => table.name === tableName)?.afterRepair?.(this.db)
+        this.catalog
+          .find((table) => table.name === tableName)
+          ?.afterRepair?.(this.db, addedColumnsByTable.get(tableName) ?? new Set())
       }
     })()
 

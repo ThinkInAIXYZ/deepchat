@@ -1,7 +1,9 @@
 # Memory Quality Gates and Observability — Specification
 
-> Status: **implementation-complete / external-native-validation-pending**  
-> Classification: **architecture**  
+> Status: **implementation-complete / retrieval-artifact-upload-pending**
+>
+> Classification: **architecture**
+>
 > Runtime scope: **local, in-process, and non-persistent**
 
 This document defines the maintained requirements for Agent Memory quality gates, retrieval evaluation,

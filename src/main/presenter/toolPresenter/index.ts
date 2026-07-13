@@ -1,3 +1,4 @@
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
   IConfigPresenter,
   IMCPPresenter,
@@ -5,11 +6,14 @@ import type {
   MCPToolCall,
   MCPToolResponse
 } from '@shared/presenter'
-import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
+import type {
+  ToolCallOptions,
+  ToolDefinitionContext,
+  ToolPermissionPreCheckResult
+} from '@shared/types/presenters/tool.presenter'
 import type { PermissionMode } from '@shared/types/agent-interface'
-import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
-import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { resolveToolOffloadTemplatePath } from '@/agent/shared/storage/sessionPaths'
+import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
@@ -30,64 +34,20 @@ import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 import { YO_BROWSER_TOOL_NAMES } from '../browser/YoBrowserToolDefinitions'
 
-interface PreCheckedPermissionResult {
-  needsPermission: true
-  toolName: string
-  serverName: string
-  permissionType: 'read' | 'write' | 'all' | 'command'
-  description: string
-  paths?: string[]
-  command?: string
-  commandSignature?: string
-  commandInfo?: {
-    command: string
-    riskLevel: 'low' | 'medium' | 'high' | 'critical'
-    suggestion: string
-    signature?: string
-    baseCommand?: string
-  }
-  providerId?: string
-  requestId?: string
-  sessionId?: string
-  agentId?: string
-  agentName?: string
-  conversationId?: string
-  rememberable?: boolean
-  [key: string]: unknown
-}
-
 export interface IToolPresenter {
-  getAllToolDefinitions(context: {
-    enabledMcpTools?: string[]
-    enabledMcpServerIds?: string[]
-    agentId?: string
-    disabledAgentTools?: string[]
-    chatMode?: 'agent' | 'acp agent'
-    supportsVision?: boolean
-    agentWorkspacePath?: string | null
-    conversationId?: string
-    activeSkillNames?: string[]
-  }): Promise<MCPToolDefinition[]>
+  getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
   syncAgentToolContext?(context: {
     chatMode?: 'agent' | 'acp agent'
     agentWorkspacePath?: string | null
   }): void
   callTool(
     request: MCPToolCall,
-    options?: {
-      onProgress?: (update: AgentToolProgressUpdate) => void
-      signal?: AbortSignal
-      permissionMode?: PermissionMode
-      activeSkillNames?: string[]
-      enabledSkillNames?: string[] | null
-      agentId?: string
-      enabledMcpServerIds?: string[]
-    }
+    options?: ToolCallOptions
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
     request: MCPToolCall,
-    options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
-  ): Promise<PreCheckedPermissionResult | null>
+    options?: { permissionMode?: PermissionMode }
+  ): Promise<ToolPermissionPreCheckResult | null>
   clearConversationToolMapping?(conversationId: string): void
   clearAgentPlanState?(conversationId: string): void
   buildToolSystemPrompt(context: {
@@ -179,23 +139,9 @@ export class ToolPresenter implements IToolPresenter {
    * Get all tool definitions from all sources
    * Returns unified MCP-format tool definitions
    */
-  async getAllToolDefinitions(context: {
-    enabledMcpTools?: string[]
-    enabledMcpServerIds?: string[]
-    agentId?: string
-    disabledAgentTools?: string[]
-    chatMode?: 'agent' | 'acp agent'
-    supportsVision?: boolean
-    agentWorkspacePath?: string | null
-    conversationId?: string
-    activeSkillNames?: string[]
-  }): Promise<MCPToolDefinition[]> {
+  async getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
-    const mapper = this.resolveMapper(context.conversationId)
-    this.mapper.clear()
-    if (mapper !== this.mapper) {
-      mapper.clear()
-    }
+    const mapper = new ToolMapper()
 
     const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
@@ -218,7 +164,7 @@ export class ToolPresenter implements IToolPresenter {
       'mcp'
     )
     defs.push(...mcpDefs)
-    this.registerToolsForMapper(mapper, mcpDefs, 'mcp')
+    mapper.registerTools(mcpDefs, 'mcp')
 
     // 2. Get Agent tools (always load in agent or acp agent mode)
     const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
@@ -246,11 +192,12 @@ export class ToolPresenter implements IToolPresenter {
         (tool) => !disabledAgentToolSet.has(tool.function.name)
       )
       defs.push(...filteredAgentDefs)
-      this.registerToolsForMapper(mapper, filteredAgentDefs, 'agent')
+      mapper.registerTools(filteredAgentDefs, 'agent')
     } catch (error) {
       console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
     }
 
+    this.publishMapper(context.conversationId, mapper)
     return defs
   }
 
@@ -293,15 +240,7 @@ export class ToolPresenter implements IToolPresenter {
    */
   async callTool(
     request: MCPToolCall,
-    options?: {
-      onProgress?: (update: AgentToolProgressUpdate) => void
-      signal?: AbortSignal
-      permissionMode?: PermissionMode
-      activeSkillNames?: string[]
-      enabledSkillNames?: string[] | null
-      agentId?: string
-      enabledMcpServerIds?: string[]
-    }
+    options?: ToolCallOptions
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
     const source = this.getToolSource(toolName, request.conversationId)
@@ -391,7 +330,7 @@ export class ToolPresenter implements IToolPresenter {
   async preCheckToolPermission(
     request: MCPToolCall,
     options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
-  ): Promise<PreCheckedPermissionResult | null> {
+  ): Promise<ToolPermissionPreCheckResult | null> {
     options?.signal?.throwIfAborted()
     const toolName = request.function.name
     const source = this.getToolSource(toolName, request.conversationId)
@@ -486,30 +425,15 @@ export class ToolPresenter implements IToolPresenter {
       : undefined
   }
 
-  private resolveMapper(conversationId?: string): ToolMapper {
+  private publishMapper(conversationId: string | undefined, mapper: ToolMapper): void {
     const normalizedConversationId = conversationId?.trim()
-    if (!normalizedConversationId) {
-      return this.mapper
+    if (normalizedConversationId) {
+      this.conversationMappers.set(normalizedConversationId, mapper)
     }
 
-    const existingMapper = this.conversationMappers.get(normalizedConversationId)
-    if (existingMapper) {
-      return existingMapper
-    }
-
-    const mapper = new ToolMapper()
-    this.conversationMappers.set(normalizedConversationId, mapper)
-    return mapper
-  }
-
-  private registerToolsForMapper(
-    mapper: ToolMapper,
-    tools: MCPToolDefinition[],
-    source: ToolSource
-  ): void {
-    mapper.registerTools(tools, source)
-    if (mapper !== this.mapper) {
-      this.mapper.registerTools(tools, source)
+    this.mapper.clear()
+    for (const mapping of mapper.getAllMappings()) {
+      this.mapper.registerTool(mapping.toolName, mapping.source, mapping.originalName)
     }
   }
 

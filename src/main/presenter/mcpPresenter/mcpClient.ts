@@ -26,8 +26,8 @@ import { app } from 'electron'
 import { getInMemoryServer } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import {
   PromptListEntry,
@@ -160,10 +160,6 @@ function isSessionError(error: unknown): error is SessionError {
   return false
 }
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
-}
-
 function isUnsupportedCapabilityError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   if (error instanceof McpError && error.code === ErrorCode.MethodNotFound) {
@@ -173,6 +169,9 @@ function isUnsupportedCapabilityError(error: unknown): boolean {
 }
 
 // MCP client class
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+
 export class McpClient {
   private client: Client | null = null
   private transport: Transport | null = null
@@ -319,6 +318,7 @@ export class McpClient {
       await awaitWithAbort(this.connect({ phase: 'manual', waitForConnection: true }), signal)
     }
 
+    signal?.throwIfAborted()
     if (!this.isConnected || !this.client) {
       throw new Error(`MCP client ${this.serverName} is not connected`)
     }
@@ -844,28 +844,33 @@ export class McpClient {
 
     let decision: McpSamplingDecision
     if (signal) {
-      let cancellationNotified = false
-      const notifyCancellation = () => {
-        if (cancellationNotified) return
-        cancellationNotified = true
-        void presenter.mcpPresenter
-          .cancelSamplingRequest(payload.requestId, 'cancelled by server')
-          .catch((error) => {
-            console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
-          })
-      }
-      signal.addEventListener('abort', notifyCancellation, { once: true })
-      try {
-        decision = await awaitWithAbort(decisionPromise, signal)
-      } catch (error) {
-        if (signal.aborted) {
-          notifyCancellation()
-          throw new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled')
+      decision = await new Promise<McpSamplingDecision>((resolve, reject) => {
+        const onAbort = () => {
+          signal.removeEventListener('abort', onAbort)
+          void presenter.mcpPresenter
+            .cancelSamplingRequest(payload.requestId, 'cancelled by server')
+            .catch((error) => {
+              console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
+            })
+          reject(new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled'))
         }
-        throw error
-      } finally {
-        signal.removeEventListener('abort', notifyCancellation)
-      }
+
+        if (signal.aborted) {
+          onAbort()
+          return
+        }
+
+        signal.addEventListener('abort', onAbort, { once: true })
+        decisionPromise
+          .then((value) => {
+            signal.removeEventListener('abort', onAbort)
+            resolve(value)
+          })
+          .catch((error) => {
+            signal.removeEventListener('abort', onAbort)
+            reject(error)
+          })
+      })
     } else {
       decision = await decisionPromise
     }

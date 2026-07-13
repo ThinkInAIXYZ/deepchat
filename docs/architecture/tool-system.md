@@ -7,6 +7,8 @@
 
 | 组件 | 位置 | 职责 |
 | --- | --- | --- |
+| DeepChat tool ports | `src/main/agent/deepchat/loop/ports.ts` | LoopEngine 使用的 catalog/execution/result contracts |
+| DeepChat tool adapters | `src/main/presenter/agentRuntimePresenter/` | 将 loop ports 接到现有 ToolPresenter、permission、normalization/output guard |
 | `ToolPresenter` | `src/main/presenter/toolPresenter/index.ts` | 聚合工具定义、建立映射、路由调用 |
 | `ToolMapper` | `src/main/presenter/toolPresenter/toolMapper.ts` | `toolName -> source` 映射 |
 | `AgentToolManager` | `src/main/presenter/toolPresenter/agentTools/agentToolManager.ts` | 本地 agent tools 装配与执行 |
@@ -19,13 +21,15 @@
 | `AgentTapeToolHandler` | `src/main/presenter/toolPresenter/agentTools/agentTapeTools.ts` | tape read/merge/discard tools |
 | `AgentImageGenerationTool` | `src/main/presenter/toolPresenter/agentTools/agentImageGenerationTool.ts` | image generation tool |
 | `McpPresenter` | `src/main/presenter/mcpPresenter/` | 外部 MCP servers 与 tools |
-| `ACP helpers` | `src/main/presenter/llmProviderPresenter/acp/` | ACP provider runtime、workdir、config、MCP 映射 |
+| `ACP helpers` | `src/main/agent/acp/` | ACP runtime、workdir、config、MCP 映射 |
 
 ## 路由关系
 
 ```mermaid
 graph LR
-    DeepChat["AgentRuntimePresenter"] --> ToolPresenter["ToolPresenter"]
+    Loop["DeepChatLoopEngine"] --> Ports["ToolCatalog / Execution / Result ports"]
+    Ports --> Adapters["retained presenter adapters"]
+    Adapters --> ToolPresenter["ToolPresenter"]
     ToolPresenter --> Mapper["ToolMapper"]
     ToolPresenter --> Mcp["McpPresenter"]
     ToolPresenter --> AgentTools["AgentToolManager"]
@@ -35,6 +39,8 @@ graph LR
     AgentTools --> Settings["chatSettingsTools"]
     AgentTools --> Subagents["SubagentOrchestratorTool"]
     AgentTools --> Plan["AgentPlanTool"]
+    Acp["AcpAgentInstance"] --> Protocol["ACP protocol tools"]
+    Acp --> McpConfig["ACP session-init MCP config"]
 ```
 
 ## 获取工具定义
@@ -46,20 +52,23 @@ graph LR
 3. 用 `ToolMapper` 记录来源，并在重名时优先保留 MCP tool。
 4. 过滤 disabled agent tools，并为每个 conversation 维护独立映射。
 
-这意味着 `agentRuntimePresenter` 不需要知道 tool 的真实来源，只需要持有统一的
-`MCPToolDefinition[]`。
+这意味着 `DeepChatLoopEngine` 不知道 tool 的真实来源，只接收 `MCPToolDefinition[]` snapshot 和窄
+execution/result ports。`AgentRuntimePresenter` 保留 adapter wiring，但 tool mapping/collision/dispatch owner
+仍是 `ToolPresenter`。
 
 ## 调用工具
 
 ```mermaid
 sequenceDiagram
-    participant D as AgentRuntimePresenter
+    participant L as DeepChatLoopEngine
+    participant P as Presenter tool adapter
     participant T as ToolPresenter
     participant Map as ToolMapper
     participant M as MCP tools
     participant A as Agent tools
 
-    D->>T: callTool(request)
+    L->>P: executeToolBatch()
+    P->>T: callTool(request)
     T->>Map: getToolSource(name)
 
     alt source = mcp
@@ -70,8 +79,14 @@ sequenceDiagram
         A-->>T: tool response
     end
 
-    T-->>D: { content, rawData }
+    T-->>P: { content, rawData }
+    P-->>L: normalized ToolBatchOutcome
 ```
+
+tool batch 会按现有 policy 执行 pre-check permission、question interception、post-call permission 与
+post-success skill-draft confirmation。需要用户处理时返回 ordered typed interaction outcome；当前 run
+settle，中间项保持 paused，最后一项处理后才创建 fresh resume run。side-effect tool 不为 output fitting
+重跑。
 
 ## 权限与 runtime port
 
@@ -114,35 +129,31 @@ Search policy:
 
 ## ACP 相关 helper
 
-ACP provider 仍然是活跃能力，但它的 helper 已经迁到 provider 层：
+ACP provider 仍然是活跃兼容能力，但 ACP helper 已经收拢到独立 domain owner：
 
 ```text
-src/main/presenter/llmProviderPresenter/acp/
-├── acpProcessManager.ts
-├── acpSessionManager.ts
-├── acpSessionPersistence.ts
-├── acpConfigState.ts
-├── acpCapabilities.ts
-├── acpContentMapper.ts
-├── acpFsHandler.ts
-├── acpMessageFormatter.ts
-├── acpTerminalManager.ts
-├── mcpConfigConverter.ts
-├── mcpTransportFilter.ts
-└── types.ts
+src/main/agent/acp/
+├── catalog/                 # registry/catalog cache and migration
+├── client/                  # connection/prompt/workspace client runtime
+├── launch/                  # install/launch spec and setup terminal
+└── runtime/                 # process/session/persistence/protocol mapping
 ```
 
-这些模块现在只服务于 `LLMProviderPresenter` / `AcpProvider`，不再依附 legacy
-`AgentPresenter`。
+`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts` 仍是 DeepChat 选择 ACP provider
+时的兼容 adapter；它仍在 DeepChat LoopEngine 外层收到 DeepChat tool/resource context，但 ACP provider
+不会把该 `_tools` array 当作 direct ACP tool delivery。`kind=acp` 使用 `AcpAgentInstance` 和 ACP
+session-init MCP config/protocol callbacks，不经过 DeepChat ToolPresenter/LoopEngine。ACP process/session
+实现不再由 provider 目录持有。
 
 ## 调试建议
 
 排查工具问题时，优先顺序：
 
-1. `src/main/presenter/toolPresenter/index.ts`
-2. `src/main/presenter/toolPresenter/toolMapper.ts`
-3. `src/main/presenter/toolPresenter/agentTools/agentToolManager.ts`
-4. 具体 handler
-5. `src/main/presenter/mcpPresenter/toolManager.ts`
+1. `src/main/agent/deepchat/loop/ports.ts` 与 `deepChatLoopEngine.ts`
+2. `src/main/presenter/agentRuntimePresenter/toolAdapters.ts` / `dispatch.ts`
+3. `src/main/presenter/toolPresenter/index.ts`
+4. `src/main/presenter/toolPresenter/toolMapper.ts`
+5. `src/main/presenter/toolPresenter/agentTools/agentToolManager.ts`
+6. 具体 handler 或 `src/main/presenter/mcpPresenter/toolManager.ts`
 
 如果看到旧路径 `src/main/presenter/agentPresenter/acp/*`，那属于已经归档的历史实现。

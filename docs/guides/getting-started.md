@@ -65,12 +65,14 @@ src/
 │   │   ├── agentRuntimePresenter/   # 当前聊天 runtime
 │   │   ├── toolPresenter/            # 工具路由
 │   │   │   └── agentTools/           # 本地 agent tools
-│   │   ├── llmProviderPresenter/     # provider 管理
-│   │   │   └── acp/                  # ACP helper
+│   │   ├── llmProviderPresenter/     # provider 管理与 ACP provider adapter
 │   │   ├── mcpPresenter/             # MCP tools/runtime
 │   │   ├── sessionPresenter/         # legacy 数据兼容层
 │   │   └── ...
-│   ├── lib/agentRuntime/             # 共享 runtime helper
+│   ├── agent/
+│   │   ├── acp/                      # ACP catalog/client/runtime owner
+│   │   ├── deepchat/resources/       # DeepChat prompt resources
+│   │   └── shared/                   # process/workspace/session platform services
 │   ├── eventbus.ts
 │   └── events.ts
 ├── renderer/src/                     # Vue app
@@ -119,13 +121,14 @@ src/
 
 - `src/main/presenter/llmProviderPresenter/index.ts`
 - `src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
-- `src/main/presenter/llmProviderPresenter/acp/`
+- `src/main/agent/acp/`
 
 ### 处理 legacy import / 导出
 
 优先看：
 
-- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
+- `src/main/presenter/startupMigrations/legacyChatImportService.ts`
+- `src/main/presenter/exporter/agentSessionExporter.ts`
 - `src/main/presenter/sessionPresenter/index.ts`
 - `src/main/presenter/exporter/formats/`
 

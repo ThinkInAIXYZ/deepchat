@@ -17,7 +17,7 @@ export interface AgentRow {
   updated_at: number
 }
 
-type AgentCreateInput = {
+export type AgentCreateInput = {
   id: string
   agentType: AgentRow['agent_type']
   source: AgentRow['source']
@@ -33,7 +33,7 @@ type AgentCreateInput = {
   updatedAt?: number
 }
 
-type AgentUpdateInput = Partial<{
+export type AgentUpdateInput = Partial<{
   name: string
   enabled: boolean
   protected: boolean

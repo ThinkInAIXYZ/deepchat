@@ -11,7 +11,6 @@ import type { TtsSettings } from '../../ttsSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
-import type { AcpConfigState } from './llmprovider.presenter'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
@@ -24,7 +23,6 @@ import type { ISkillSyncPresenter } from '../skillSync'
 import type { IAgentSessionPresenter } from './agent-session.presenter'
 import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
-import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './acp.presenter'
 import type { IWindowPresenter, TabData } from './window.presenter'
 import type { OpenAICodexAuthStatus } from '../openai-codex'
 import type {
@@ -1141,6 +1139,7 @@ export interface ILlmProviderPresenter {
     providerId: string,
     options?: {
       signal?: AbortSignal
+      scope?: 'provider' | 'acp-direct'
       onQueued?: (snapshot: {
         providerId: string
         qpsLimit: number
@@ -1185,42 +1184,6 @@ export interface ILlmProviderPresenter {
     videoOptions?: VideoGenerationOptions,
     options?: { signal?: AbortSignal }
   ): Promise<StandaloneVideoGenerationResult>
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir?: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  >
-  getAcpProcessConfigOptions(agentId: string, workdir?: string): Promise<AcpConfigState | null>
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null>
-  getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null>
-  setAcpSessionConfigOption(
-    conversationId: string,
-    configId: string,
-    value: string | boolean
-  ): Promise<AcpConfigState | null>
-  getAcpSessionCommands(conversationId: string): Promise<
-    Array<{
-      name: string
-      description: string
-      input?: { hint: string } | null
-    }>
-  >
-  resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
-  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown
   getExistingProviderInstance?(providerId: string): unknown
 }

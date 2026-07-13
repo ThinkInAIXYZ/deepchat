@@ -58,7 +58,7 @@ import {
   type WeixinIlinkRuntimeStatusSnapshot
 } from './types'
 import type { ChannelAdapterConfig } from './types/channel'
-import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { REMOTE_CONTROL_ERROR_MESSAGES } from '@shared/contracts/remoteControlErrors'
 import type { RemoteControlPresenterDeps } from './interface'
 import { RemoteBindingStore } from './services/remoteBindingStore'
@@ -2677,7 +2677,7 @@ export class RemoteControlPresenter {
         configPresenter: this.deps.configPresenter,
         agentSessionPresenter: this.deps.agentSessionPresenter,
         filePresenter: this.deps.filePresenter,
-        agentRuntimePresenter: this.deps.agentRuntimePresenter,
+        agentManager: this.deps.agentManager,
         windowPresenter: this.deps.windowPresenter,
         tabPresenter: this.deps.tabPresenter,
         resolveDefaultAgentId: async () =>

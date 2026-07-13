@@ -2,126 +2,153 @@
 
 ## Scope
 
-This document compares two live execution paths:
+This document compares the two live agent-session backends and the retained ACP-provider compatibility path.
+It describes current code, not a roadmap.
 
-- DeepChat Agent: in-process runtime owned by `AgentRuntimePresenter`.
-- ACP Agent: external agent process accessed through `AcpProvider` and the ACP SDK.
+## Routing model
 
-It is not a roadmap. Only verified risks are listed.
+`AgentManager` resolves the current executable descriptor and switches only on `descriptor.kind`:
 
-## Ownership Model
+```text
+kind=deepchat
+  -> typed DeepChat backend
+  -> DeepChatAgentRuntime / DeepChatAgentInstance
+  -> DeepChatLoopEngine
+  -> provider selection
+       ordinary provider
+       or AcpProvider compatibility adapter when providerId=acp
 
-| Area | DeepChat Agent | ACP Agent |
+kind=acp
+  -> DirectAcpSessionBackend
+  -> AcpAgentRuntime / AcpAgentInstance
+  -> external ACP protocol loop
+```
+
+`kind=deepchat + providerId=acp` remains supported and is not the same execution path as `kind=acp`.
+
+## Ownership model
+
+| Area | DeepChat Agent | Direct ACP Agent |
 | --- | --- | --- |
-| Runtime owner | DeepChat main process | External ACP process |
-| State owner | DeepChat session/message/tape stores | ACP process owns agent state; DeepChat caches session metadata |
-| Tool execution | DeepChat `ToolPresenter` | ACP agent decides through protocol callbacks |
-| Permission UI | DeepChat runtime action blocks | ACP provider emits DeepChat permission events |
-| Failure boundary | Same Electron main process | Separate process, but protocol promises must be settled |
+| Control plane | `AgentManager` selects typed DeepChat backend | `AgentManager` selects direct ACP backend |
+| Session state | `DeepChatAgentInstance` | `AcpAgentInstance` plus external ACP process state |
+| Turn loop | in-process `DeepChatLoopEngine` with per-turn `LoopRun` | external ACP process/protocol loop |
+| Provider | generic DeepChat `ProviderPort`; ACP provider remains available | ACP connection/session/prompt controllers |
+| Tool delivery | `ToolPresenter` through typed catalog/execution/result ports | ACP protocol callbacks and session-init MCP config |
+| Permission | ordered DeepChat tool interactions and fresh resume run | ACP protocol permission promise/timeout/cancel settlement |
+| Transcript | existing structured message projection | same projection through ACP compatibility adapter |
+| Tape/trace | `TapeRecorder`, ViewManifest and provider trace | ACP projection adapter and request trace port |
+| Memory | `MemoryRuntimeCoordinator` prompt/ingestion seams | no direct ACP Memory seam |
+| Failure boundary | Electron main process plus provider/tool errors | external process, connection and protocol promises |
 
-## DeepChat Agent Path
+## DeepChat Agent path
 
 Main files:
 
-- `src/main/presenter/agentRuntimePresenter/index.ts`
-- `src/main/presenter/agentRuntimePresenter/process.ts`
-- `src/main/presenter/agentRuntimePresenter/dispatch.ts`
-- `src/main/presenter/agentRuntimePresenter/messageStore.ts`
-- `src/main/presenter/agentRuntimePresenter/pendingInputCoordinator.ts`
+- `src/main/agent/manager/deepChatAgentBackend.ts`
+- `src/main/agent/deepchat/instance/deepChatAgentRuntime.ts`
+- `src/main/agent/deepchat/instance/deepChatAgentInstance.ts`
+- `src/main/agent/deepchat/loop/deepChatLoopEngine.ts`
+- `src/main/agent/deepchat/loop/ports.ts`
+- retained adapters under `src/main/presenter/agentRuntimePresenter/`
 
 Flow:
 
 ```text
-Renderer sendMessage
+Renderer send
   -> AgentSessionPresenter
-  -> AgentRuntimePresenter.processMessage or queued pending input
-  -> context and tape view construction
-  -> processStream
-  -> dispatch tool calls or permission/question interactions
-  -> message store and stream events
+  -> AgentManager -> typed DeepChat handle
+  -> DeepChatAgentInstance preparation
+  -> create/register LoopRun
+  -> DeepChatLoopEngine provider/tool rounds
+  -> message projection -> TapeRecorder facts
+  -> terminal projection / pending drain / Memory observer
 ```
 
-Important current behavior:
+Important behavior:
 
-- Tape appends currently run in the Electron main process through synchronous SQLite calls.
-- Pending input drain has single-flight cleanup and recovery for claimed rows.
-- Tool output fitting does not rerun tools after side effects have already happened.
+- one active/hydrated app session maps to one instance; turn-local request/round/abort state stays in `LoopRun`;
+- fixed commits may await, but only typed permission/question/skill-draft interactions create persistent pause;
+- terminal tool facts are appended after message projection with stable provenance and idempotency;
+- Memory injection is awaited/fail-open and extraction is background/epoch-fenced;
+- side-effectful tools are never rerun merely to fit output.
 
-## ACP Agent Path
+## Direct ACP Agent path
 
 Main files:
 
-- `src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
-- `src/main/presenter/llmProviderPresenter/acp/acpProcessManager.ts`
-- `src/main/presenter/llmProviderPresenter/acp/acpSessionManager.ts`
-- `src/main/presenter/acpClientPresenter/index.ts`
+- `src/main/agent/manager/directAcpAgentBackend.ts`
+- `src/main/agent/acp/instance/acpAgentRuntime.ts`
+- `src/main/agent/acp/instance/acpAgentInstance.ts`
+- `src/main/agent/acp/runtime/acpSessionController.ts`
+- `src/main/agent/acp/runtime/acpProcessManager.ts`
+- `src/main/agent/acp/client/`
 
 Flow:
 
 ```text
-Renderer sendMessage
+Renderer send
   -> AgentSessionPresenter
-  -> AgentRuntimePresenter
-  -> LLMProviderPresenter
-  -> AcpProvider.coreStream
-  -> ACP process prompt
+  -> AgentManager -> direct ACP handle
+  -> validate descriptor/config/workdir identity
+  -> AcpAgentRuntime hydrate/prepare AcpAgentInstance
+  -> ACP session new/load/resume + prompt
   -> ACP content/tool/permission callbacks
-  -> DeepChat stream events and action blocks
+  -> existing message/Tape/event/trace compatibility projection
 ```
 
-The ACP process boundary is useful, but it means every pending protocol callback must have a clear
-settlement path. Permission requests were the missing path.
+The direct path does not enter `DeepChatLoopEngine` and does not execute the primary turn through
+`AcpProvider`. It preserves app restart/search/export by writing the existing structured projection;
+`acp_turns` remains protocol metadata. Lightweight session list reads do not launch an ACP process.
 
-## Verified Issue
+## DeepChat + ACP-provider compatibility
 
-### ACP Permission Timeout
+`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts` remains live only because a DeepChat
+descriptor may select `providerId='acp'`. This path keeps the DeepChat outer lifecycle, prompt/context,
+tool-resource snapshot, Tape and Memory behavior, then adapts provider streaming to the shared ACP client core.
+It must not be used as a fallback for an unavailable `kind=acp` descriptor.
 
-Status: fixed in this change.
+## Permission settlement
 
-Before the fix, `AcpProvider.registerPendingPermission()` stored a resolver in `pendingPermissions`
-without a timeout. `AgentRuntimePresenter.clearActiveProviderPermissionsForSession()` only removed
-the runtime map entry, so cancel/stop could drop DeepChat's handle without resolving the ACP
-provider promise.
+DeepChat ordered interactions and ACP protocol permission are separate continuations behind compatible UI
+decisions:
 
-Fix:
+- DeepChat persists an ordered batch; each decision resolves one item, and only the final item creates a fresh
+  resume run.
+- ACP registers one protocol request and settles it exactly once on decision, timeout, cancel, clear, process
+  exit or shutdown.
 
-- `AcpProvider` adds a 60-second permission timeout.
-- Resolving, session cleanup, and provider cleanup clear the timeout.
-- `AgentRuntimePresenter.clearActiveProviderPermissionsForSession()` now resolves active ACP
-  provider permissions with `false` before removing them.
+The historical missing ACP timeout/cancel settlement was fixed and remains covered by:
 
-Issue record:
-
-- [Architecture issue note](./issues/P0-1-acp-permission-timeout.md)
-- [SDD issue spec](../../issues/acp-permission-timeout/spec.md)
 - [GitHub issue #1881](https://github.com/ThinkInAIXYZ/deepchat/issues/1881)
 
-## Rejected Findings
+## Shared and separate data
 
-### Tape Write Ordering
+Shared:
 
-Not retained. The reviewed code does not have a current multi-writer tape path. Adding a JavaScript
-session lock would add state without fixing a demonstrated bug.
+- app-session shell (`new_sessions`);
+- structured message/search/export projection;
+- renderer events and typed route DTOs;
+- Tape/trace storage adapters;
+- pending input and UI decision ports where both paths implement the capability.
 
-### Pending Input Deadlock
+Separate:
 
-Not retained. The current coordinator and runtime drain code already use cleanup and recovery paths.
-No additional watchdog is justified by the inspected code.
+- DeepChat `LoopRun`, provider rounds, ToolPresenter execution and Memory seam;
+- ACP external process/session/protocol state, mode/config/commands and permission continuation;
+- kind-specific required facets and lifecycle cleanup.
 
-### ACP Config Rollback
+## Rejected shortcuts
 
-Not retained. ACP config state is updated after the remote ACP response is received. The reviewed
-code does not do the optimistic local mutation assumed by the draft review.
-
-### Tool Output Retry
-
-Not retained. Retrying with fewer tools after execution would rerun side-effectful tools. The current
-`ToolOutputGuard` behavior is the safer boundary.
+- No universal LoopEngine across DeepChat and ACP.
+- No fallback from malformed/missing ACP descriptor to DeepChat.
+- No agent handle/backend `legacy | direct runtimeKind` discriminator; `kind` already selects the backend.
+- No JavaScript Tape session lock: current writes use the single Electron-main synchronous SQLite owner and
+  idempotent provenance.
+- No tool-output retry that could repeat side effects.
 
 ## Validation
 
-Focused tests cover:
-
-- ACP pending permission timeout cleanup.
-- ACP pending permission timer cleanup after explicit resolution.
-- Runtime session cleanup resolving live ACP provider permission requests as denied.
+Current contracts cover strict kind/source/config routing, no-fallback behavior, regular/subagent ACP,
+workdir/mode/config/commands, permission timeout/cancel, process exit, request trace order, structured projection,
+DeepChat + ACP-provider compatibility, transfer/delete cleanup and shutdown fencing.

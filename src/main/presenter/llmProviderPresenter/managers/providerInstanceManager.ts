@@ -9,7 +9,7 @@ import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { AiSdkProvider } from '../providers/aiSdkProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
-import { AcpSessionPersistence } from '../acp'
+import type { AcpRuntimeOwner } from '@/agent/acp/client'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 
@@ -19,7 +19,7 @@ interface ProviderInstanceManagerOptions {
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
-  acpSessionPersistence?: AcpSessionPersistence
+  acpRuntimeOwner?: AcpRuntimeOwner
   mcpRuntime?: ProviderMcpRuntimePort
 }
 
@@ -141,6 +141,28 @@ export class ProviderInstanceManager {
     const enableStatusChanged = 'enable' in change.updates && wasEnabled !== isEnabled
 
     if (change.requiresRebuild) {
+      if (change.providerId === 'acp') {
+        if (!isEnabled) {
+          logger.info(`Provider ${change.providerId} disabled, cleaning up compatibility adapter`)
+          this.cleanupProviderInstance(change.providerId)
+          return
+        }
+        const instance = this.providerInstances.get(change.providerId)
+        if (instance && 'cleanup' in instance && typeof instance.cleanup === 'function') {
+          void instance.cleanup()
+        }
+        this.options.rateLimitManager.cleanupProviderRateLimit('acp', 'provider')
+        this.providerInstances.delete(change.providerId)
+        try {
+          const rebuilt = this.getProviderInstance(change.providerId)
+          if ('handleEnableStateChange' in rebuilt) {
+            void (rebuilt as any).handleEnableStateChange()
+          }
+        } catch (error) {
+          console.error(`Failed to rebuild provider instance ${change.providerId}:`, error)
+        }
+        return
+      }
       logger.info(`Rebuilding provider instance: ${change.providerId}`)
       this.providerInstances.delete(change.providerId)
 
@@ -223,7 +245,10 @@ export class ProviderInstanceManager {
       }
     }
 
-    this.options.rateLimitManager.cleanupProviderRateLimit(providerId)
+    this.options.rateLimitManager.cleanupProviderRateLimit(
+      providerId,
+      providerId === 'acp' ? 'provider' : undefined
+    )
 
     const currentProviderId = this.options.getCurrentProviderId()
     if (currentProviderId === providerId) {
@@ -282,13 +307,13 @@ export class ProviderInstanceManager {
   private createProviderInstance(provider: LLM_PROVIDER): BaseLLMProvider | undefined {
     try {
       if (provider.id === 'acp') {
-        if (!this.options.acpSessionPersistence) {
-          throw new Error('ACP session persistence is not configured')
+        if (!this.options.acpRuntimeOwner) {
+          throw new Error('ACP runtime owner is not configured')
         }
         return new AcpProvider(
           provider,
           this.options.configPresenter,
-          this.options.acpSessionPersistence,
+          this.options.acpRuntimeOwner,
           this.options.mcpRuntime
         )
       }

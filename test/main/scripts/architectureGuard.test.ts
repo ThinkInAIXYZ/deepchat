@@ -43,6 +43,99 @@ const MEMORY_TABLE_PATH = path.join(
   'src/main/presenter/sqlitePresenter/tables/agentMemory.ts'
 )
 const MAIN_ROUTES_PATH = path.join(ROOT, 'src/main/routes/index.ts')
+const ACP_INSTANCE_FIXTURE = path.join(
+  ROOT,
+  'src/main/agent/acp/instance/__architecture_guard_fixture__.ts'
+)
+const RETIRED_AGENT_RUNTIME_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/__architecture_guard_retired_runtime_fixture__.ts'
+)
+const RETIRED_AGENT_RUNTIME_KIND_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/manager/__architecture_guard_retired_runtime_kind_fixture__.ts'
+)
+const RETIRED_AGENT_RUNTIME_KIND_TYPE_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/manager/__architecture_guard_retired_runtime_kind_type_fixture__.ts'
+)
+const AGENT_KIND_ALIAS_FALLBACK_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/__architecture_guard_kind_alias_fixture__.ts'
+)
+const AGENT_KIND_OPTIONAL_ALIAS_FALLBACK_FIXTURE = path.join(
+  ROOT,
+  'test/main/agent/__architecture_guard_optional_kind_alias_fixture__.ts'
+)
+const PROVIDER_RUNTIME_KIND_FIXTURE = path.join(
+  ROOT,
+  'test/main/presenter/llmProviderPresenter/__architecture_guard_runtime_kind_fixture__.ts'
+)
+const DEEPCHAT_LOOP_IMPORT_FIXTURE = path.join(
+  ROOT,
+  'src/main/agent/deepchat/loop/__architecture_guard_import_fixture__.ts'
+)
+const RETIRED_MEMORY_OWNER_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_retired_memory_owner_fixture__.ts'
+)
+const MEMORY_COORDINATOR_PATH = path.join(
+  ROOT,
+  'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
+)
+const DUPLICATE_MEMORY_COORDINATOR_FIXTURE = path.join(
+  ROOT,
+  'src/main/agent/deepchat/memory/__architecture_guard_duplicate_coordinator_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_SAFE_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_safe_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_METHOD_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_method_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_BRACKET_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_bracket_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_ALIAS_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_alias_fixture__.ts'
+)
+const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_arrow_fixture__.ts'
+)
+const AGENT_SESSION_PRESENTER_PATH = path.join(
+  ROOT,
+  'src/main/presenter/agentSessionPresenter/index.ts'
+)
+const AGENT_SESSION_PRESENTER_INTERFACE_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/agent-session.presenter.d.ts'
+)
+const SESSION_BOUNDARY_HOOK_FIXTURE_PATH = path.join(
+  ROOT,
+  'src/main/presenter/lifecyclePresenter/hooks/after-start/legacyImportHook.ts'
+)
+
+const retiredAgentRuntimeSymbols = [
+  ['IAgent', 'Implementation'].join(''),
+  ['createLegacy', 'AgentBackend'].join(''),
+  ['LegacyDeepChat', 'SessionBackend'].join(''),
+  ['LegacyAcp', 'SessionBackend'].join(''),
+  ['LegacyAcp', 'SessionHandle'].join(''),
+  ['LegacyToolFacts', 'SnapshotPort'].join(''),
+  ['appendAssistantToolFacts', 'Snapshot'].join('')
+]
+const retiredAgentRuntimeSource = retiredAgentRuntimeSymbols
+  .map((symbol, index) => `export const retired${index} = '${symbol}'`)
+  .join('\n')
+const retiredRuntimeKindSource = ['leg', 'acy', 'dir', 'ect']
+const runtimeKindProperty = ['runtime', 'Kind'].join('')
+const kindAliasProperty = ['agent', 'Type'].join('')
+const typeProperty = ['ty', 'pe'].join('')
 
 const virtualFiles = new Map<string, string>([
   [
@@ -71,7 +164,17 @@ const virtualFiles = new Map<string, string>([
       import type { MemoryRuntimeContext } from '../context'
       import type { AgentMemoryRow } from '../../sqlitePresenter/tables/agentMemory'
       import type { SQLitePresenter } from '../../sqlitePresenter'
-      export type Fixture = MemoryRuntimeContext | AgentMemoryRow | SQLitePresenter
+      import type { LegacyAgentMemoryStatus as LegacyStatus } from '@shared/types/agent-memory'
+      import type * as MemoryTypes from '@shared/types/agent-memory'
+      export type { LegacyAgentMemoryStatus } from '@shared/types/agent-memory'
+      declare const row: AgentMemoryRow
+      type NamespaceStatus = MemoryTypes.LegacyAgentMemoryStatus
+      type InlineStatus = import('@shared/types/agent-memory').LegacyAgentMemoryStatus
+      export const legacyStatus = row.status
+      export const bracketStatus = row['status']
+      export const { status } = row
+      export const { status: structuredAlias } = row
+      export type Fixture = MemoryRuntimeContext | AgentMemoryRow | SQLitePresenter | LegacyStatus | NamespaceStatus | InlineStatus
     `
   ],
   [
@@ -187,12 +290,222 @@ const virtualFiles = new Map<string, string>([
         return decode(row.source_entry_ids)
       }
     `
-  ]
+  ],
+  [
+    ACP_INSTANCE_FIXTURE,
+    `
+      import type { LoopRun } from '../../deepchat/loop/loopRun'
+      import type { MemoryPresenter } from '../../../presenter/memoryPresenter'
+      import type { Presenter } from '../../../presenter'
+      import type { SQLitePresenter } from '../../../presenter/sqlitePresenter'
+      export type Fixture = LoopRun<unknown> | MemoryPresenter | Presenter | SQLitePresenter
+    `
+  ],
+  [RETIRED_AGENT_RUNTIME_FIXTURE, retiredAgentRuntimeSource],
+  [
+    RETIRED_AGENT_RUNTIME_KIND_FIXTURE,
+    `
+      declare const handle: { ${runtimeKindProperty}: string }
+      export const first = { ${runtimeKindProperty}: '${retiredRuntimeKindSource[0]}${retiredRuntimeKindSource[1]}' }
+      export class Third {
+        ${runtimeKindProperty} = '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}'
+      }
+      export const forward = handle.${runtimeKindProperty} !== '${retiredRuntimeKindSource[0]}${retiredRuntimeKindSource[1]}'
+    `
+  ],
+  [
+    RETIRED_AGENT_RUNTIME_KIND_TYPE_FIXTURE,
+    `
+      type Handle = { ${runtimeKindProperty}?: '${retiredRuntimeKindSource[0]}${retiredRuntimeKindSource[1]}' | '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}' }
+      declare const handle: { ${runtimeKindProperty}: string }
+      export const reverse = '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}' === handle.${runtimeKindProperty}
+      export const assign = () => (handle.${runtimeKindProperty} = '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}')
+    `
+  ],
+  [
+    AGENT_KIND_ALIAS_FALLBACK_FIXTURE,
+    `
+      declare const row: { ${kindAliasProperty}?: string; ${typeProperty}?: string }
+      export const kind = row.${kindAliasProperty} ?? row.${typeProperty}
+    `
+  ],
+  [
+    AGENT_KIND_OPTIONAL_ALIAS_FALLBACK_FIXTURE,
+    `
+      declare const row: { ${kindAliasProperty}?: string; ${typeProperty}?: string }
+      export const optionalKind = row?.${typeProperty} ?? row?.${kindAliasProperty}
+    `
+  ],
+  [
+    PROVIDER_RUNTIME_KIND_FIXTURE,
+    `export const providerDefinition = { ${runtimeKindProperty}: '${retiredRuntimeKindSource[2]}${retiredRuntimeKindSource[3]}' }`
+  ],
+  [
+    DEEPCHAT_LOOP_IMPORT_FIXTURE,
+    `
+      import type { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter'
+      import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+      import type { AcpAgentInstance } from '@/agent/acp/instance'
+      import type { SessionService } from '@/routes/sessions/sessionService'
+      import type { BrowserWindow } from 'electron'
+      export type Fixture =
+        | AgentRuntimePresenter
+        | SQLitePresenter
+        | AcpAgentInstance
+        | SessionService
+        | BrowserWindow
+    `
+  ],
+  [
+    RETIRED_MEMORY_OWNER_FIXTURE,
+    `
+      export class RetiredMemoryOwner {
+        private readonly memoryExtractionChains = new Map<string, Promise<void>>()
+        private appendMemoryInjection() {}
+        private trigger() {
+          this.memoryCoordinator.triggerExtractionFallback('session')
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_SAFE_FIXTURE,
+    `
+      import type { DeepChatTapeReplaySlice as MemoryStore } from '@shared/types/tape-replay'
+      import { MemoryPresenter as RuntimeAlias } from '../memoryPresenter'
+      // MemoryStore append publish CREATE are documentation terms, not executable edges.
+      const CREATE_DOCUMENTATION = 'CREATE is documentation, not SQL execution'
+      const hash = (value: string) => value
+      export class SafeObservationReader {
+        readCausalObservationSlice() {
+          const metadata = {} as MemoryStore
+          return [
+            this.table.get('session'),
+            this.table.list(),
+            hash(CREATE_DOCUMENTATION),
+            metadata.sliceId
+          ]
+        }
+        rebuildProjectionOutsideObservation() {
+          this.projection.replaceSession('session', [])
+          return new RuntimeAlias()
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_METHOD_FIXTURE,
+    `
+      import { MemoryPresenter as RuntimeAlias } from '../memoryPresenter'
+      export class UnsafeMethodObservationReader {
+        readCausalObservationSlice() {
+          this.ensureSessionTapeReady('session')
+          this.publish('completed')
+          this.events.subscribe(() => {})
+          this.db.exec('CREATE TABLE observation_cache')
+          this.projection.applyAppendedEntry({})
+          this.projection['replaceSession']('session', [])
+          return new RuntimeAlias()
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_BRACKET_FIXTURE,
+    `
+      export class UnsafeBracketObservationReader {
+        readCausalObservationSlice() {
+          return this.table['append']({})
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_ALIAS_FIXTURE,
+    `
+      export class UnsafeAliasObservationReader {
+        readCausalObservationSlice() {
+          const write = this.table.update
+          return write({})
+        }
+      }
+    `
+  ],
+  [
+    CAUSAL_OBSERVATION_ARROW_FIXTURE,
+    `
+      export class UnsafeArrowObservationReader {
+        readCausalObservationSlice = () => this.table.delete('session')
+      }
+    `
+  ],
+  [
+    AGENT_SESSION_PRESENTER_PATH,
+    `
+      import { LegacyChatImportService } from '../startupMigrations/legacyChatImportService'
+      import { runMainlineNormalizationMigration } from '../startupMigrations/sessionDataMigrations'
+      import { UsageStatsService } from '../usageStatsService'
+      import { rtkRuntimeService } from '../../agent/shared/process/rtkRuntimeService'
+      import { generateExportFilename } from '../exporter/formats/conversationExporter'
+      import { SessionHistorySearch } from '../../routes/sessions/sessionHistorySearch'
+      import { translateSessionText } from '../../routes/sessions/sessionTranslation'
+      import { listAvailableAgents } from '../../agent/shared/availableAgentCatalog'
+      export class AgentSessionPresenter {
+        searchHistory() {}
+        startLegacyImportTask() {}
+        getUsageDashboard() {}
+        exportSession() {}
+      }
+    `
+  ],
+  [
+    AGENT_SESSION_PRESENTER_INTERFACE_PATH,
+    `
+      export interface IAgentSessionPresenter {
+        translateText(): Promise<string>
+        getAgents(): Promise<unknown[]>
+        retryRtkHealthCheck(): Promise<void>
+      }
+    `
+  ],
 ])
 
 function forFile(violations: string[], filePath: string): string[] {
   const relative = path.relative(ROOT, filePath).split(path.sep).join('/')
   return violations.filter((violation) => violation.includes(relative))
+}
+
+async function sessionBoundaryHookFixtureViolations(source: string): Promise<string[]> {
+  const fixtureViolations = await runArchitectureGuard({
+    virtualFiles: new Map([[SESSION_BOUNDARY_HOOK_FIXTURE_PATH, source]])
+  })
+  return forFile(fixtureViolations, SESSION_BOUNDARY_HOOK_FIXTURE_PATH)
+}
+
+const VALID_MEMORY_COORDINATOR_FIXTURE = `
+  interface MemoryInjectionAccessTurnEntry {}
+  export class MemoryRuntimeCoordinator {
+    private readonly extractionChains = new Map<string, Promise<void>>()
+    private readonly extractionQueue = new Map<
+      number,
+      { sessionId: string; queuedAt: number }
+    >()
+    private nextExtractionQueueId = 0
+    private readonly extractionEpochs = new Map<string, number>()
+    private readonly ingestionProjectionRetryAfter = new Map<string, number>()
+    private readonly injectionAccessByTurn =
+      new Map<string, MemoryInjectionAccessTurnEntry>()
+  }
+`
+
+async function memoryCoordinatorFixtureViolations(
+  source: string,
+  additionalVirtualFiles: Map<string, string> = new Map()
+): Promise<string[]> {
+  const violations = await runArchitectureGuard({
+    virtualFiles: new Map([[MEMORY_COORDINATOR_PATH, source], ...additionalVirtualFiles])
+  })
+  return violations.filter((violation) => violation.includes('[memory-coordinator-'))
 }
 
 async function invalidCompilerViolations(memoryCompiler: Record<string, unknown>) {
@@ -231,6 +544,148 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[memory-legacy-list-caller]')
   })
 
+  it('keeps moved capabilities and owners out of AgentSessionPresenter', () => {
+    const fixtureViolations = forFile(violations, AGENT_SESSION_PRESENTER_PATH).join('\n')
+    expect(fixtureViolations).toContain('[session-boundary-presenter-method]')
+    for (const owner of [
+      'legacy import',
+      'startup migrations',
+      'usage owner or policy',
+      'RTK runtime',
+      'exporter formats',
+      'history search',
+      'session translation',
+      'agent catalog'
+    ]) {
+      expect(fixtureViolations).toContain(`must not import ${owner}`)
+    }
+  })
+
+  it('keeps moved capabilities out of IAgentSessionPresenter', () => {
+    expect(forFile(violations, AGENT_SESSION_PRESENTER_INTERFACE_PATH).join('\n')).toContain(
+      '[session-boundary-interface-method]'
+    )
+  })
+
+  it(
+    'keeps startup hooks on required typed owners across semantic access forms',
+    async () => {
+      const presenterSources = [
+        `
+          declare const presenter: { agentSessionPresenter: unknown }
+          export const owner = presenter.agentSessionPresenter
+        `,
+        `
+          declare const presenter: { agentSessionPresenter: unknown }
+          export const owner = presenter['agentSessionPresenter']
+        `,
+        `
+          declare const presenter: { agentSessionPresenter: unknown }
+          export const { agentSessionPresenter } = presenter
+        `,
+        `
+          declare const presenter: { agentSessionPresenter: unknown }
+          export const { agentSessionPresenter: owner } = presenter
+        `
+      ]
+      const optionalTaskSources = [
+        `
+          declare const owner: Record<string, (() => void) | undefined>
+          const { startLegacyImportTask } = owner
+          startLegacyImportTask?.()
+        `,
+        `
+          declare const startLegacyImportTask: (() => void) | undefined
+          startLegacyImportTask?.()
+        `
+      ]
+      const unsafeCastSource = `
+        import type { AgentSessionPresenter } from '../../../agentSessionPresenter'
+        declare const presenter: unknown
+        export const owner = presenter as unknown as AgentSessionPresenter
+      `
+      const [presenterResults, optionalTaskResults, unsafeCastResult] = await Promise.all([
+        Promise.all(presenterSources.map(sessionBoundaryHookFixtureViolations)),
+        Promise.all(optionalTaskSources.map(sessionBoundaryHookFixtureViolations)),
+        sessionBoundaryHookFixtureViolations(unsafeCastSource)
+      ])
+
+      for (const fixtureViolations of presenterResults) {
+        const result = fixtureViolations.join('\n')
+        expect(result).toContain('[session-boundary-hook-presenter]')
+        expect(result).not.toContain('[session-boundary-hook-optional-task]')
+        expect(result).not.toContain('[session-boundary-hook-type-cast]')
+      }
+      for (const fixtureViolations of optionalTaskResults) {
+        const result = fixtureViolations.join('\n')
+        expect(result).toContain('[session-boundary-hook-optional-task]')
+        expect(result).not.toContain('[session-boundary-hook-presenter]')
+        expect(result).not.toContain('[session-boundary-hook-type-cast]')
+      }
+      expect(unsafeCastResult.join('\n')).toContain('[session-boundary-hook-presenter]')
+      expect(unsafeCastResult.join('\n')).toContain('[session-boundary-hook-unknown-cast]')
+      expect(unsafeCastResult.join('\n')).toContain('[session-boundary-hook-type-cast]')
+      expect(unsafeCastResult.join('\n')).not.toContain('[session-boundary-hook-optional-task]')
+    },
+    30_000
+  )
+
+  it('keeps Memory orchestration and injection callbacks out of the runtime presenter', () => {
+    const fixtureViolations = forFile(violations, RETIRED_MEMORY_OWNER_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain(
+      '[memory-retired-presenter-owner]'
+    )
+    expect(fixtureViolations).toContain('[memory-retired-presenter-injection]')
+    expect(fixtureViolations).toContain('[memory-retired-presenter-ingestion-trigger]')
+  })
+
+  it(
+    'requires the coordinator owner structure without locking method bodies',
+    async () => {
+      const emptyFixture = 'export class MemoryRuntimeCoordinator {}'
+      const missingQueueFixture = VALID_MEMORY_COORDINATOR_FIXTURE.replace(
+        /\s+private readonly extractionQueue = new Map<[\s\S]*?>\(\)/,
+        ''
+      )
+      const missingCounterFixture = VALID_MEMORY_COORDINATOR_FIXTURE.replace(
+        '\n    private nextExtractionQueueId = 0',
+        ''
+      )
+      const [valid, empty, missingQueue, missingCounter, duplicate] = await Promise.all([
+        memoryCoordinatorFixtureViolations(VALID_MEMORY_COORDINATOR_FIXTURE),
+        memoryCoordinatorFixtureViolations(emptyFixture),
+        memoryCoordinatorFixtureViolations(missingQueueFixture),
+        memoryCoordinatorFixtureViolations(missingCounterFixture),
+        memoryCoordinatorFixtureViolations(
+          VALID_MEMORY_COORDINATOR_FIXTURE,
+          new Map([
+            [
+              DUPLICATE_MEMORY_COORDINATOR_FIXTURE,
+              'export class MemoryRuntimeCoordinator {}'
+            ]
+          ])
+        )
+      ])
+
+      expect(valid).toEqual([])
+      expect(empty.join('\n')).toContain('[memory-coordinator-missing-extraction-chain]')
+      expect(empty.join('\n')).toContain('[memory-coordinator-missing-queue-diagnostics]')
+      expect(empty.join('\n')).toContain('[memory-coordinator-missing-monotonic-counter]')
+      expect(missingQueue).toEqual([
+        expect.stringContaining('[memory-coordinator-missing-queue-diagnostics]')
+      ])
+      expect(missingCounter).toEqual([
+        expect.stringContaining('[memory-coordinator-missing-monotonic-counter]')
+      ])
+      expect(duplicate).toEqual([
+        expect.stringContaining(
+          '[memory-coordinator-owner-count] expected exactly 1 MemoryRuntimeCoordinator class, found 2'
+        )
+      ])
+    },
+    20_000
+  )
+
   it('enforces domain, core, infra, service, and root dependency directions', () => {
     expect(forFile(violations, DOMAIN_FIXTURE).join('\n')).toContain(
       'domain may only import domain files and shared modules'
@@ -258,6 +713,100 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[memory-domain-sqlite-concrete]')
     expect(fixtureViolations).toContain('sqlitePresenter/tables/agentMemory.ts')
     expect(fixtureViolations).toContain('sqlitePresenter/index.ts')
+    expect(fixtureViolations).toContain('[memory-canonical-state]')
+    expect(fixtureViolations).toContain('must not import LegacyAgentMemoryStatus')
+    expect(fixtureViolations).toContain('must not access AgentMemoryRow.status')
+    expect(fixtureViolations).toContain('must not destructure AgentMemoryRow.status')
+  })
+
+  it('keeps the direct ACP instance out of DeepChat loop, Memory, presenter root and SQLite', () => {
+    const fixtureViolations = forFile(violations, ACP_INSTANCE_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[acp-direct-instance-deepchat-loop]')
+    expect(fixtureViolations).toContain('[acp-direct-instance-memory]')
+    expect(fixtureViolations).toContain('[acp-direct-instance-presenter-root]')
+    expect(fixtureViolations).toContain('[acp-direct-instance-sqlite]')
+  })
+
+  it('keeps retired agent runtime symbols out of production and regular tests', () => {
+    const fixtureViolations = forFile(violations, RETIRED_AGENT_RUNTIME_FIXTURE).filter(
+      (violation) => violation.includes('[agent-retired-runtime-symbol]')
+    )
+    expect(fixtureViolations).toHaveLength(retiredAgentRuntimeSymbols.length)
+  })
+
+  it('keeps legacy/direct runtimeKind literals out of agent handles and backends', () => {
+    expect(forFile(violations, RETIRED_AGENT_RUNTIME_KIND_FIXTURE).join('\n')).toContain(
+      'found 3'
+    )
+  })
+
+  it('detects retired runtimeKind type declarations, reverse comparisons, and assignments', () => {
+    expect(forFile(violations, RETIRED_AGENT_RUNTIME_KIND_TYPE_FIXTURE).join('\n')).toContain(
+      'found 3'
+    )
+  })
+
+  it('leaves provider runtimeKind definitions outside the agent handle guard', () => {
+    expect(forFile(violations, PROVIDER_RUNTIME_KIND_FIXTURE)).toEqual([])
+  })
+
+  it('keeps legacy kind alias fallback outside internal agent routing', () => {
+    const fixtureViolations = forFile(violations, AGENT_KIND_ALIAS_FALLBACK_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[agent-kind-alias-fallback]')
+    expect(fixtureViolations).toContain('found 1')
+  })
+
+  it('detects optional and reverse internal agent kind alias fallback', () => {
+    const fixtureViolations = forFile(
+      violations,
+      AGENT_KIND_OPTIONAL_ALIAS_FALLBACK_FIXTURE
+    ).join('\n')
+    expect(fixtureViolations).toContain('[agent-kind-alias-fallback]')
+    expect(fixtureViolations).toContain('found 1')
+  })
+
+  it('keeps the DeepChat loop out of presenters, SQLite, routes, Electron, and ACP', () => {
+    const fixtureViolations = forFile(violations, DEEPCHAT_LOOP_IMPORT_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[deepchat-loop-presenter]')
+    expect(fixtureViolations).toContain('[deepchat-loop-sqlite]')
+    expect(fixtureViolations).toContain('[deepchat-loop-routes]')
+    expect(fixtureViolations).toContain('[deepchat-loop-electron]')
+    expect(fixtureViolations).toContain('[deepchat-loop-acp]')
+  })
+
+  it('allows read-only causal observation code despite Memory types and CREATE documentation', () => {
+    expect(forFile(violations, CAUSAL_OBSERVATION_SAFE_FIXTURE)).toEqual([])
+  })
+
+  it('reports precise causal observation violations across method and property implementations', () => {
+    const causalViolations = (filePath: string) =>
+      forFile(violations, filePath).filter((violation) =>
+        violation.includes('[causal-observation-write-edge]')
+      )
+
+    const methodViolations = causalViolations(CAUSAL_OBSERVATION_METHOD_FIXTURE)
+    expect(methodViolations).toHaveLength(7)
+    expect(methodViolations.join('\n')).toContain('bootstrap/lifecycle member "ensureSessionTapeReady"')
+    expect(methodViolations.join('\n')).toContain('event publication member "publish"')
+    expect(methodViolations.join('\n')).toContain('event subscription member "subscribe"')
+    expect(methodViolations.join('\n')).toContain('SQL execution member "exec"')
+    expect(methodViolations.join('\n')).toContain(
+      'projection mutation member "applyAppendedEntry"'
+    )
+    expect(methodViolations.join('\n')).toContain('projection mutation member "replaceSession"')
+    expect(methodViolations.join('\n')).toContain('Memory API call "RuntimeAlias"')
+
+    const bracketViolations = causalViolations(CAUSAL_OBSERVATION_BRACKET_FIXTURE)
+    expect(bracketViolations).toHaveLength(1)
+    expect(bracketViolations[0]).toContain('mutation member "append"')
+
+    const aliasViolations = causalViolations(CAUSAL_OBSERVATION_ALIAS_FIXTURE)
+    expect(aliasViolations).toHaveLength(1)
+    expect(aliasViolations[0]).toContain('mutation member "update"')
+
+    const arrowViolations = causalViolations(CAUSAL_OBSERVATION_ARROW_FIXTURE)
+    expect(arrowViolations).toHaveLength(1)
+    expect(arrowViolations[0]).toContain('mutation member "delete"')
   })
 
   it('restricts composites by resolved symbol and file-specific allowlists', () => {

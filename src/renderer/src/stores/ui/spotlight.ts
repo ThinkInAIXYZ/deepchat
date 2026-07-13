@@ -9,7 +9,7 @@ import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useSessionStore } from './session'
 import { SETTINGS_NAVIGATION_ITEMS, type SettingsNavigationItem } from '@shared/settingsNavigation'
-import type { HistorySearchHit } from '@shared/presenter'
+import type { HistorySearchHit } from '@shared/contracts/routes/sessions.routes'
 
 type SpotlightItemKind = 'session' | 'message' | 'agent' | 'setting' | 'action'
 type SpotlightActionId =
@@ -425,6 +425,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     if (item.kind === 'session' && item.sessionId) {
       await sessionStore.selectSession(item.sessionId)
+      await router.push({ name: 'chat' })
       return
     }
 
@@ -434,6 +435,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         messageId: item.messageId
       }
       await sessionStore.selectSession(item.sessionId)
+      await router.push({ name: 'chat' })
       return
     }
 

@@ -1,5 +1,10 @@
 # ACP v1 Reliability Tasks
 
+> Status: active. All 106 unchecked entries remain an unreconciled planning ledger; do not infer completion
+> from nearby ASLR work or tick items without code, test, and real-agent evidence. Current direct ACP ownership
+> is `AcpAgentRuntime` / `AcpAgentInstance`, while `AcpProvider` is compatibility-only for DeepChat sessions
+> selecting the ACP provider.
+
 ## 0. Review Gate
 
 - [ ] Review `spec.md` protocol coverage matrix with maintainers.

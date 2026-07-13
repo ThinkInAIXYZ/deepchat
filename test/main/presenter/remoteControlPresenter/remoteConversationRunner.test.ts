@@ -4,6 +4,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { app } from 'electron'
+import { AgentManager } from '@/agent/manager/agentManager'
+import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
+import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { RemoteConversationRunner } from '@/presenter/remoteControlPresenter/services/remoteConversationRunner'
 
 const createSession = (overrides: Record<string, unknown> = {}) => ({
@@ -38,6 +41,71 @@ describe('RemoteConversationRunner', () => {
     vi.mocked(app.getPath).mockImplementation(() => '/mock/path')
   })
 
+  it('cancels an active direct ACP generation through AgentManager', async () => {
+    const descriptor: AcpAgentDescriptor = {
+      id: 'acp-agent',
+      kind: 'acp',
+      source: 'manual',
+      name: 'ACP Agent',
+      enabled: true,
+      protected: false,
+      description: null,
+      icon: null,
+      avatar: null,
+      launch: { command: 'acp-agent', args: [], env: {} }
+    }
+    const instance = {
+      getActiveGeneration: vi.fn().mockReturnValue({ eventId: 'assistant-1', runId: 'request-1' }),
+      cancelGenerationByEventId: vi.fn().mockResolvedValue(true)
+    }
+    const runtime = {
+      getHydrated: vi.fn().mockReturnValue(instance)
+    }
+    const directBackend = createDirectAcpAgentBackend({
+      runtime: runtime as never,
+      sessionState: {} as never,
+      transcript: {} as never,
+      tape: {} as never,
+      deleteDurableSession: vi.fn(),
+      resolveInput: vi.fn()
+    })
+    const manager = new AgentManager(
+      { resolveExecutableDescriptor: () => descriptor },
+      { get: () => ({ id: 'session-1', agentId: descriptor.id }) as never },
+      { deepchat: {} as never, acp: directBackend }
+    )
+    const bindingStore = {
+      getBinding: vi.fn().mockReturnValue({ sessionId: 'session-1', updatedAt: 1 }),
+      getActiveEvent: vi.fn().mockReturnValue(null),
+      clearActiveEvent: vi.fn()
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: {
+          getSession: vi.fn().mockResolvedValue(
+            createSession({
+              agentId: descriptor.id,
+              providerId: 'acp',
+              modelId: descriptor.id,
+              status: 'generating'
+            })
+          )
+        } as any,
+        agentManager: manager,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue(descriptor.id)
+      },
+      bindingStore as any
+    )
+
+    await expect(runner.stop('telegram:100:0')).resolves.toBe(true)
+    expect(runtime.getHydrated).toHaveBeenCalledWith('session-1')
+    expect(instance.cancelGenerationByEventId).toHaveBeenCalledWith('assistant-1')
+    expect(bindingStore.clearActiveEvent).toHaveBeenCalledWith('telegram:100:0')
+  })
+
   it('creates new sessions with the current default deepchat agent', async () => {
     const bindingStore = {
       setBinding: vi.fn()
@@ -50,7 +118,7 @@ describe('RemoteConversationRunner', () => {
             .fn()
             .mockResolvedValue(createSession({ agentId: 'deepchat-alt' }))
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-alt')
@@ -98,7 +166,7 @@ describe('RemoteConversationRunner', () => {
       rememberActiveEvent: vi.fn(),
       setBinding: vi.fn()
     }
-    const agentRuntimePresenter = {
+    const agentManager = {
       getActiveGeneration: vi.fn().mockReturnValue({
         eventId: 'msg-1',
         runId: 'run-1'
@@ -108,7 +176,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: agentRuntimePresenter as any,
+        agentManager: agentManager as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-new')
@@ -157,7 +225,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
         filePresenter: filePresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -239,7 +307,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
         filePresenter: filePresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -335,7 +403,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
         filePresenter: filePresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -420,7 +488,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -508,7 +576,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
         filePresenter: filePresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -688,7 +756,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -783,7 +851,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -850,7 +918,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-default')
@@ -891,7 +959,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-default')
@@ -922,7 +990,7 @@ describe('RemoteConversationRunner', () => {
         agentSessionPresenter: {
           getSession: vi.fn()
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {
           getAllWindows: vi.fn(),
           getFocusedWindow: vi.fn(),
@@ -955,7 +1023,7 @@ describe('RemoteConversationRunner', () => {
           getSession: vi.fn().mockResolvedValue(createSession()),
           activateSession
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {
           getAllWindows: vi.fn().mockReturnValue([]),
           getFocusedWindow: vi.fn().mockReturnValue(null),
@@ -1004,7 +1072,7 @@ describe('RemoteConversationRunner', () => {
           getSession: vi.fn().mockResolvedValue(session),
           activateSession
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {
           getAllWindows: vi.fn().mockReturnValue([chatWindow]),
           getFocusedWindow: vi.fn().mockReturnValue(chatWindow),
@@ -1076,7 +1144,7 @@ describe('RemoteConversationRunner', () => {
       rememberActiveEvent: vi.fn(),
       setBinding: vi.fn()
     }
-    const agentRuntimePresenter = {
+    const agentManager = {
       getActiveGeneration: vi
         .fn()
         .mockReturnValueOnce({
@@ -1089,7 +1157,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: agentRuntimePresenter as any,
+        agentManager: agentManager as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-legacy')
@@ -1172,7 +1240,7 @@ describe('RemoteConversationRunner', () => {
             }
           ])
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
@@ -1242,7 +1310,7 @@ describe('RemoteConversationRunner', () => {
             ])
           })
         } as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue({
             eventId: 'assistant-1',
             runId: 'run-1'
@@ -1356,7 +1424,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: agentSessionPresenter as any,
-        agentRuntimePresenter: {
+        agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
         windowPresenter: {} as any,
@@ -1427,7 +1495,7 @@ describe('RemoteConversationRunner', () => {
         agentSessionPresenter: {
           createDetachedSession
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
@@ -1456,7 +1524,7 @@ describe('RemoteConversationRunner', () => {
           getDefaultProjectPath: vi.fn(() => '/workspaces/global')
         }) as any,
         agentSessionPresenter: {} as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
@@ -1476,7 +1544,7 @@ describe('RemoteConversationRunner', () => {
           getDefaultProjectPath: vi.fn(() => '/workspaces/global')
         }) as any,
         agentSessionPresenter: {} as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
@@ -1496,7 +1564,7 @@ describe('RemoteConversationRunner', () => {
         agentSessionPresenter: {
           createDetachedSession: vi.fn()
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
@@ -1523,7 +1591,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: configPresenter as any,
         agentSessionPresenter: {} as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn()
@@ -1556,7 +1624,7 @@ describe('RemoteConversationRunner', () => {
         agentSessionPresenter: {
           createDetachedSession
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('codex')
@@ -1586,7 +1654,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: configPresenter as any,
         agentSessionPresenter: {} as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn()
@@ -1614,7 +1682,7 @@ describe('RemoteConversationRunner', () => {
         agentSessionPresenter: {
           createDetachedSession: vi.fn()
         } as any,
-        agentRuntimePresenter: {} as any,
+        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn()

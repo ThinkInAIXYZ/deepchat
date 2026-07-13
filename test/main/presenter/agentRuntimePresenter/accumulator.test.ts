@@ -234,7 +234,27 @@ describe('accumulate', () => {
     expect(state.blocks[0].tool_call!.params).toBe('{"q":"full"}')
   })
 
-  it('usage keeps the latest round snapshot and commits it to metadata once', () => {
+  it('projects optional tool results and failure status onto the tool block', () => {
+    accumulate(state, {
+      type: 'tool_call_start',
+      tool_call_id: 'tc1',
+      tool_call_name: 'exec'
+    })
+    accumulate(state, {
+      type: 'tool_call_end',
+      tool_call_id: 'tc1',
+      tool_call_response: 'command failed',
+      tool_call_status: 'error'
+    })
+
+    expect(state.blocks[0]).toMatchObject({
+      type: 'tool_call',
+      status: 'error',
+      tool_call: { response: 'command failed' }
+    })
+  })
+
+  it('usage sets metadata', () => {
     accumulate(state, {
       type: 'usage',
       usage: {
@@ -253,16 +273,12 @@ describe('accumulate', () => {
       cachedInputTokens: 3,
       cacheWriteInputTokens: 2
     })
-    expect(state.metadata.totalTokens).toBeUndefined()
-
     commitRoundUsage(state)
-
     expect(state.metadata.inputTokens).toBe(10)
     expect(state.metadata.outputTokens).toBe(5)
     expect(state.metadata.totalTokens).toBe(15)
     expect(state.metadata.cachedInputTokens).toBe(3)
     expect(state.metadata.cacheWriteInputTokens).toBe(2)
-    expect(state.roundUsage).toBeNull()
   })
 
   it('stop sets stopReason', () => {

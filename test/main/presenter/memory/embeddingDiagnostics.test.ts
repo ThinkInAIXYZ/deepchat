@@ -13,7 +13,7 @@ function createPresenter(getEmbeddings: () => Promise<number[][]>, withEmbedding
       memoryEmbedding: withEmbedding ? { providerId: 'p', modelId: 'm' } : undefined
     }),
     getEmbeddings,
-    getDimensions: async () => ({ data: { dimensions: 4 } }),
+    getDimensions: async () => ({ data: { dimensions: 4, normalized: false } }),
     createVectorStore: async () => new FakeVectorStore(),
     resetVectorStore: async () => undefined
   })
@@ -90,7 +90,7 @@ describe('EmbeddingPipeline diagnostics', () => {
         memoryEmbedding: { providerId: 'p', modelId: 'm' }
       }),
       getEmbeddings: async () => [[1, 2, 3, 4]],
-      getDimensions: async () => ({ data: { dimensions: 4 } }),
+      getDimensions: async () => ({ data: { dimensions: 4, normalized: false } }),
       createVectorStore: async () => {
         const store = new FakeVectorStore()
         store.isUsable = () => false

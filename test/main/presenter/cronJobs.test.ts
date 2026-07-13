@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events'
-import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '@shared/cronJobs'
 
+const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const cronJobsTableModule = sqliteModule
   ? await import('@/presenter/sqlitePresenter/tables/cronJobs').catch(() => null)
@@ -1185,18 +1185,22 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       await router.deliver({ job, run: completed })
 
       expect(deliverCronJobResult).toHaveBeenCalledTimes(2)
-      expect(repository.listDeliveriesByRun(completed.id)).toEqual([
-        expect.objectContaining({
-          targetType: 'remote',
-          status: 'success',
-          remoteMessageId: 'remote-message-1'
-        }),
-        expect.objectContaining({
-          targetType: 'remote',
-          status: 'failed',
-          error: 'Remote channel is not running: feishu'
-        })
-      ])
+      const deliveries = repository.listDeliveriesByRun(completed.id)
+      expect(deliveries).toHaveLength(2)
+      expect(deliveries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            targetType: 'remote',
+            status: 'success',
+            remoteMessageId: 'remote-message-1'
+          }),
+          expect.objectContaining({
+            targetType: 'remote',
+            status: 'failed',
+            error: 'Remote channel is not running: feishu'
+          })
+        ])
+      )
     } finally {
       db.close()
     }
@@ -1312,7 +1316,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
   })
 
   it('queues each due scheduled run once and advances next_run_at in the utility host', () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-cron-jobs-'))
+    const tempDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-cron-jobs-'))
     const dbPath = path.join(tempDir, 'agent.db')
     const db = new DatabaseCtor(dbPath)
     const events: unknown[] = []
@@ -1355,7 +1359,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       })
     } finally {
       db.close()
-      fs.rmSync(tempDir, { recursive: true, force: true })
+      actualFs.rmSync(tempDir, { recursive: true, force: true })
     }
   })
 

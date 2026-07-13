@@ -10,19 +10,19 @@ import {
 import type {
   AgentMemoryAuditInsertInput,
   AgentMemoryAuditRow,
-  AgentMemoryHealthAuditStats,
   AgentMemoryHealthStats,
   AgentMemoryInsertInput,
   AgentMemoryLifecycleRow,
-  AgentMemoryRow,
   AgentMemoryWorkingCandidateCursor,
   IMemoryVectorStore,
   MemoryAuditListOptions,
   MemoryAuditRepositoryPort,
   MemoryRepositoryPort,
+  MemoryPresenterDeps,
   MemoryVectorMatch,
   MemoryVectorRecord
 } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryHealthAuditStats } from '@/presenter/memoryPresenter/domain/audit'
 import type {
   MemoryAccessRepositoryPort,
   MemoryEmbeddingRepositoryPort,
@@ -33,6 +33,27 @@ import type {
   MemoryTransactionPort
 } from '@/presenter/memoryPresenter/ports'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import {
+  assertValidMemoryInsertState,
+  deriveCanonicalStateFromLegacy,
+  projectLegacyStatus
+} from '@/presenter/memoryPresenter/domain/stateModel'
+import type {
+  AgentMemoryEmbeddingState,
+  AgentMemoryRow
+} from '@/presenter/memoryPresenter/domain/types'
+
+class MemoryRowMap extends Map<string, AgentMemoryRow> {
+  override set(key: string, row: AgentMemoryRow): this {
+    if (row.lifecycle_state === undefined || row.embedding_state === undefined) {
+      const state = deriveCanonicalStateFromLegacy(row)
+      row.lifecycle_state = state.lifecycleState
+      row.embedding_state = state.embeddingState
+      row.status = projectLegacyStatus(state.lifecycleState, state.embeddingState)
+    }
+    return super.set(key, row)
+  }
+}
 
 function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
   return {
@@ -40,7 +61,8 @@ function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
     agent_id: row.agent_id,
     kind: row.kind,
     importance: row.importance,
-    status: row.status,
+    lifecycle_state: row.lifecycle_state,
+    embedding_state: row.embedding_state,
     is_anchor: row.is_anchor,
     superseded_by: row.superseded_by,
     created_at: row.created_at,
@@ -56,16 +78,32 @@ function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
 // behavior (provenance uniqueness, supersede/persona state machine, archive/decay) closely enough to
 // exercise the presenter without a native database.
 class FakeRepositoryBehavior implements MemoryRepositoryPort {
-  rows = new Map<string, AgentMemoryRow>()
+  rows = new MemoryRowMap()
   transactionCalls = 0
 
   insert(input: AgentMemoryInsertInput): AgentMemoryRow {
+    if ((input.lifecycleState === undefined) !== (input.embeddingState === undefined)) {
+      throw new Error('Memory inserts must provide both canonical state fields or neither')
+    }
     if (input.provenanceKey) {
       for (const row of this.rows.values()) {
         if (row.agent_id === input.agentId && row.provenance_key === input.provenanceKey) {
           throw new Error('UNIQUE constraint failed')
         }
       }
+    }
+    const legacyStatus = input.status ?? 'pending_embedding'
+    const canonicalState =
+      input.lifecycleState && input.embeddingState
+        ? { lifecycleState: input.lifecycleState, embeddingState: input.embeddingState }
+        : deriveCanonicalStateFromLegacy({ status: legacyStatus, kind: input.kind })
+    if (input.lifecycleState !== undefined && input.embeddingState !== undefined) {
+      assertValidMemoryInsertState({
+        kind: input.kind,
+        lifecycleState: canonicalState.lifecycleState,
+        embeddingState: canonicalState.embeddingState,
+        conflictWith: input.conflictWith ?? null
+      })
     }
     const row: AgentMemoryRow = {
       id: input.id,
@@ -75,7 +113,9 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
       category: input.category ?? null,
       content: input.content,
       importance: input.importance ?? 0.5,
-      status: input.status ?? 'pending_embedding',
+      status: projectLegacyStatus(canonicalState.lifecycleState, canonicalState.embeddingState),
+      lifecycle_state: canonicalState.lifecycleState,
+      embedding_state: canonicalState.embeddingState,
       embedding_id: null,
       embedding_dim: null,
       embedding_model: null,
@@ -309,7 +349,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     return this.listPendingEmbedding(Number.MAX_SAFE_INTEGER, agentId).length
   }
 
-  updateStatus(
+  seedLegacyStatus(
     id: string,
     status: AgentMemoryRow['status'],
     embedding?: {
@@ -320,6 +360,16 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
   ) {
     const row = this.rows.get(id)
     if (!row) return
+    row.lifecycle_state =
+      status === 'archived' ? 'archived' : status === 'conflicted' ? 'conflicted' : 'active'
+    row.embedding_state =
+      status === 'embedded'
+        ? 'ready'
+        : status === 'error'
+          ? 'error'
+          : status === 'fts_only'
+            ? 'fts_only'
+            : 'pending'
     row.status = status
     row.embedding_id = embedding?.embeddingId ?? null
     row.embedding_dim = embedding?.embeddingDim ?? null
@@ -329,6 +379,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
   activateForEmbedding(id: string) {
     const row = this.rows.get(id)
     if (!row) return
+    row.lifecycle_state = 'active'
+    row.embedding_state = 'pending'
     row.status = 'pending_embedding'
     row.embedding_id = null
     row.embedding_dim = null
@@ -340,6 +392,185 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     const row = this.rows.get(id)
     if (!row || row.agent_id !== agentId || row.decision_revision !== expectedRevision) return false
     this.activateForEmbedding(id)
+    return true
+  }
+
+  restoreArchivedMemory(input: { agentId: string; id: string; expectedRevision: number }) {
+    const row = this.rows.get(input.id)
+    if (
+      !row ||
+      row.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'archived' ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.conflict_with !== null ||
+      row.kind === 'persona' ||
+      row.kind === 'working'
+    ) {
+      return false
+    }
+    this.activateForEmbedding(row.id)
+    return true
+  }
+
+  reviveSupersededMemory(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    retiredHead?: { id: string; expectedRevision: number } | null
+  }) {
+    const row = this.rows.get(input.id)
+    const retiredHead = input.retiredHead ? this.rows.get(input.retiredHead.id) : undefined
+    if (
+      !row ||
+      row.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'active' ||
+      row.superseded_by === null ||
+      row.conflict_state !== null ||
+      row.conflict_with !== null ||
+      row.kind === 'persona' ||
+      row.kind === 'working'
+    ) {
+      return false
+    }
+    if (
+      input.retiredHead &&
+      (!retiredHead ||
+        retiredHead.id === row.id ||
+        retiredHead.agent_id !== input.agentId ||
+        retiredHead.decision_revision !== input.retiredHead.expectedRevision ||
+        retiredHead.lifecycle_state !== 'active' ||
+        retiredHead.superseded_by !== null ||
+        retiredHead.conflict_state !== null ||
+        retiredHead.conflict_with !== null ||
+        retiredHead.kind === 'persona' ||
+        retiredHead.kind === 'working')
+    ) {
+      return false
+    }
+    if (retiredHead) {
+      retiredHead.superseded_by = row.id
+      retiredHead.decision_revision += 1
+    }
+    row.superseded_by = null
+    row.embedding_state = 'pending'
+    row.status = 'pending_embedding'
+    row.embedding_id = null
+    row.embedding_dim = null
+    row.embedding_model = null
+    row.decision_revision += 1
+    return true
+  }
+
+  activateResolvedChallenger(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    targetId: string
+    content?: string
+    provenanceKey?: string | null
+    category?: string | null
+    at?: number
+  }) {
+    const row = this.rows.get(input.id)
+    const target = this.rows.get(input.targetId)
+    if (
+      !row ||
+      !target ||
+      row.agent_id !== input.agentId ||
+      target.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'conflicted' ||
+      row.conflict_with !== input.targetId ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.kind === 'persona' ||
+      row.kind === 'working' ||
+      target.lifecycle_state !== 'active' ||
+      target.conflict_state !== 'challenged' ||
+      target.superseded_by !== null
+    ) {
+      return false
+    }
+    row.lifecycle_state = 'active'
+    row.embedding_state = 'pending'
+    row.status = 'pending_embedding'
+    row.conflict_with = null
+    row.embedding_id = null
+    row.embedding_dim = null
+    row.embedding_model = null
+    if (input.content !== undefined) {
+      row.content = input.content
+      row.provenance_key = input.provenanceKey ?? null
+      if (Object.prototype.hasOwnProperty.call(input, 'category')) {
+        row.category = input.category ?? null
+      }
+      row.last_accessed = input.at ?? 0
+    }
+    row.decision_revision += 1
+    return true
+  }
+
+  archiveResolvedChallenger(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    targetId: string
+    winnerId: string
+  }) {
+    const row = this.rows.get(input.id)
+    const target = this.rows.get(input.targetId)
+    if (
+      !row ||
+      !target ||
+      row.agent_id !== input.agentId ||
+      target.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'conflicted' ||
+      row.conflict_with !== input.targetId ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.kind === 'persona' ||
+      row.kind === 'working' ||
+      target.lifecycle_state !== 'active' ||
+      target.conflict_state !== 'challenged' ||
+      target.superseded_by !== null
+    ) {
+      return false
+    }
+    row.lifecycle_state = 'archived'
+    row.status = 'archived'
+    row.conflict_with = null
+    row.superseded_by = input.winnerId
+    row.decision_revision += 1
+    return true
+  }
+
+  archiveResolvedConflictTarget(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    challengerId: string
+  }) {
+    const row = this.rows.get(input.id)
+    if (
+      !row ||
+      row.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'active' ||
+      row.conflict_state !== 'challenged' ||
+      row.superseded_by !== null ||
+      !this.rows.has(input.challengerId)
+    ) {
+      return false
+    }
+    row.lifecycle_state = 'archived'
+    row.status = 'archived'
+    row.conflict_state = null
+    row.superseded_by = input.challengerId
+    row.decision_revision += 1
     return true
   }
 
@@ -360,13 +591,15 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
         !row ||
         row.agent_id !== agentId ||
         row.decision_revision !== update.expectedRevision ||
-        row.status !== 'pending_embedding' ||
+        row.lifecycle_state !== 'active' ||
+        row.embedding_state !== 'pending' ||
         row.superseded_by !== null ||
         row.kind === 'persona' ||
         row.kind === 'working'
       ) {
         continue
       }
+      row.embedding_state = 'ready'
       row.status = 'embedded'
       row.embedding_id = update.embeddingId
       row.embedding_dim = update.embeddingDim
@@ -388,13 +621,15 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
         !row ||
         row.agent_id !== agentId ||
         row.decision_revision !== update.expectedRevision ||
-        row.status !== 'pending_embedding' ||
+        row.lifecycle_state !== 'active' ||
+        row.embedding_state !== 'pending' ||
         row.superseded_by !== null ||
         row.kind === 'persona' ||
         row.kind === 'working'
       ) {
         continue
       }
+      row.embedding_state = status
       row.status = status
       row.embedding_id = null
       row.embedding_dim = null
@@ -406,7 +641,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
 
   requeueForEmbedding(
     agentId: string,
-    statuses: AgentMemoryRow['status'][],
+    states: AgentMemoryEmbeddingState[],
     limit?: number,
     afterId?: string | null
   ) {
@@ -418,7 +653,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
           !row.superseded_by &&
           row.kind !== 'persona' &&
           row.kind !== 'working' &&
-          statuses.includes(row.status) &&
+          row.lifecycle_state === 'active' &&
+          states.includes(row.embedding_state) &&
           (!afterId || row.id > afterId)
       )
       .sort((a, b) => a.id.localeCompare(b.id))
@@ -431,7 +667,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
         row.kind === 'working'
       )
         continue
-      if (!statuses.includes(row.status)) continue
+      if (!states.includes(row.embedding_state)) continue
+      row.embedding_state = 'pending'
       row.status = 'pending_embedding'
       row.embedding_id = null
       row.embedding_dim = null
@@ -441,9 +678,9 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     return changed
   }
 
-  listEmbeddingStatusIds(
+  listEmbeddingStateIds(
     agentId: string,
-    statuses: AgentMemoryRow['status'][],
+    states: AgentMemoryEmbeddingState[],
     limit: number,
     afterId?: string | null
   ) {
@@ -454,7 +691,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
           !row.superseded_by &&
           row.kind !== 'persona' &&
           row.kind !== 'working' &&
-          statuses.includes(row.status) &&
+          row.lifecycle_state === 'active' &&
+          states.includes(row.embedding_state) &&
           (!afterId || row.id > afterId)
       )
       .sort((a, b) => a.id.localeCompare(b.id))
@@ -473,7 +711,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
       .filter(
         (row) =>
           row.agent_id === agentId &&
-          row.status === 'embedded' &&
+          row.lifecycle_state === 'active' &&
+          row.embedding_state === 'ready' &&
           row.superseded_by === null &&
           row.kind !== 'persona' &&
           row.kind !== 'working' &&
@@ -486,7 +725,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
       .map((row) => row.id)
   }
 
-  markSuperseded(id: string, supersededBy: string | null) {
+  seedSupersededBy(id: string, supersededBy: string | null) {
     const row = this.rows.get(id)
     if (row) {
       row.superseded_by = supersededBy
@@ -507,8 +746,10 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
       row.decision_revision !== expectedRevision ||
       row.superseded_by !== null ||
       row.conflict_state !== null ||
-      row.status === 'archived' ||
-      row.status === 'conflicted'
+      row.conflict_with !== null ||
+      row.lifecycle_state !== 'active' ||
+      row.kind === 'persona' ||
+      row.kind === 'working'
     ) {
       return false
     }
@@ -539,7 +780,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     }
   }
 
-  updateContent(
+  seedContentFields(
     id: string,
     content: string,
     provenanceKey: string | null,
@@ -556,7 +797,40 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     }
   }
 
-  updateDecisionContentIfRevision(input: {
+  updateInternalContent(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    content: string
+    provenanceKey: string | null
+    at: number
+  }) {
+    const row = this.rows.get(input.id)
+    if (
+      !row ||
+      row.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'active' ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.conflict_with !== null ||
+      (row.kind !== 'persona' && row.kind !== 'working')
+    ) {
+      return false
+    }
+    row.content = input.content
+    row.provenance_key = input.provenanceKey
+    row.last_accessed = input.at
+    row.embedding_state = 'not_applicable'
+    row.status = 'fts_only'
+    row.embedding_id = null
+    row.embedding_dim = null
+    row.embedding_model = null
+    row.decision_revision += 1
+    return true
+  }
+
+  updateUserContentAndInvalidateEmbedding(input: {
     agentId: string
     id: string
     expectedRevision: number
@@ -564,24 +838,28 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     provenanceKey: string | null
     at: number
     category?: string | null
+    importance?: number
   }) {
-    const { agentId, id, expectedRevision, content, provenanceKey, at, category } = input
-    const row = this.rows.get(id)
+    const row = this.rows.get(input.id)
     if (
       !row ||
-      row.agent_id !== agentId ||
-      row.decision_revision !== expectedRevision ||
+      row.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'active' ||
       row.superseded_by !== null ||
       row.conflict_state !== null ||
-      row.status === 'archived' ||
-      row.status === 'conflicted'
+      row.conflict_with !== null ||
+      row.kind === 'persona' ||
+      row.kind === 'working'
     ) {
       return false
     }
-    row.content = content
-    row.provenance_key = provenanceKey
-    row.last_accessed = at
-    if (category !== undefined) row.category = category
+    row.content = input.content
+    row.provenance_key = input.provenanceKey
+    row.last_accessed = input.at
+    if (input.category !== undefined) row.category = input.category
+    if (input.importance !== undefined) row.importance = input.importance
+    row.embedding_state = 'pending'
     row.status = 'pending_embedding'
     row.embedding_id = null
     row.embedding_dim = null
@@ -590,22 +868,39 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     return true
   }
 
-  updateUserMetadata(
-    id: string,
-    patch: {
-      category?: string | null
-      importance?: number
+  updateUserMetadataIfRevision(input: {
+    agentId: string
+    id: string
+    expectedRevision: number
+    category?: string | null
+    importance?: number
+    lastAccessedAt?: number
+  }) {
+    const row = this.rows.get(input.id)
+    if (
+      !row ||
+      row.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'active' ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.conflict_with !== null ||
+      row.kind === 'persona' ||
+      row.kind === 'working'
+    ) {
+      return false
     }
-  ) {
-    const row = this.rows.get(id)
-    if (!row) return
-    if (Object.prototype.hasOwnProperty.call(patch, 'category')) {
-      row.category = patch.category ?? null
+    if (Object.prototype.hasOwnProperty.call(input, 'category')) {
+      row.category = input.category ?? null
     }
-    if (Object.prototype.hasOwnProperty.call(patch, 'importance')) {
-      row.importance = patch.importance ?? row.importance
+    if (Object.prototype.hasOwnProperty.call(input, 'importance')) {
+      row.importance = input.importance ?? row.importance
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'lastAccessedAt')) {
+      row.last_accessed = input.lastAccessedAt ?? row.last_accessed
     }
     row.decision_revision += 1
+    return true
   }
 
   setConfidence(id: string, confidence: number) {
@@ -614,15 +909,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
       row.confidence = row.confidence === null ? confidence : Math.max(row.confidence, confidence)
   }
 
-  setImportance(id: string, importance: number) {
-    const row = this.rows.get(id)
-    if (row && row.importance < importance) {
-      row.importance = importance
-      row.decision_revision += 1
-    }
-  }
-
-  markConflict(id: string, state: 'challenged' | null) {
+  seedConflictState(id: string, state: 'challenged' | null) {
     const row = this.rows.get(id)
     if (row) {
       row.conflict_state = state
@@ -653,7 +940,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     return true
   }
 
-  setConflictWith(id: string, targetId: string | null) {
+  seedConflictTarget(id: string, targetId: string | null) {
     const row = this.rows.get(id)
     if (row) {
       row.conflict_with = targetId
@@ -757,12 +1044,33 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     ).length
   }
 
-  archive(id: string, _at = 0) {
+  seedArchived(id: string, _at = 0) {
     const row = this.rows.get(id)
     if (row) {
+      row.lifecycle_state = 'archived'
       row.status = 'archived'
       row.decision_revision += 1
     }
+  }
+
+  archiveActiveMemory(input: { agentId: string; id: string; expectedRevision: number }) {
+    const row = this.rows.get(input.id)
+    if (
+      !row ||
+      row.agent_id !== input.agentId ||
+      row.decision_revision !== input.expectedRevision ||
+      row.lifecycle_state !== 'active' ||
+      row.superseded_by !== null ||
+      row.conflict_state !== null ||
+      row.conflict_with !== null ||
+      row.kind === 'persona' ||
+      row.kind === 'working' ||
+      this.isUnresolvedConflictParticipant(input.agentId, input.id)
+    ) {
+      return false
+    }
+    this.seedArchived(row.id)
+    return true
   }
 
   archiveEligibleBatch(
@@ -796,7 +1104,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
           a.id.localeCompare(b.id)
       )
       .slice(0, Math.max(0, Math.floor(options.limit)))
-    eligible.forEach((row) => this.archive(row.id, options.now))
+    eligible.forEach((row) => this.seedArchived(row.id, options.now))
     return eligible.map((row) => row.id)
   }
 
@@ -991,7 +1299,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     for (const sibling of siblings) {
       sibling.conflict_with = null
       sibling.superseded_by = winnerId
-      this.archive(sibling.id, at)
+      this.seedArchived(sibling.id, at)
     }
     return siblings.length
   }
@@ -1006,7 +1314,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     ) {
       return false
     }
-    this.markConflict(targetId, null)
+    this.seedConflictState(targetId, null)
     return true
   }
 
@@ -1040,12 +1348,12 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
         target.superseded_by === null
       if (!validTarget || challenger.superseded_by !== null) {
         challenger.conflict_with = null
-        this.archive(challenger.id)
+        this.seedArchived(challenger.id)
         result.archivedChallengers += 1
         continue
       }
       if (target.conflict_state !== 'challenged') {
-        this.markConflict(target.id, 'challenged')
+        this.seedConflictState(target.id, 'challenged')
         result.repairedTargets += 1
       }
     }
@@ -1054,7 +1362,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
         target.conflict_state === 'challenged' &&
         this.listConflictSiblings(agentId, target.id, '').length === 0
       ) {
-        this.markConflict(target.id, null)
+        this.seedConflictState(target.id, null)
         result.clearedTargets += 1
       }
     }
@@ -1071,9 +1379,30 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     }
   }
 
+  countLegacyShadowMismatches(agentId?: string): number {
+    return [...this.rows.values()].filter(
+      (row) =>
+        (agentId === undefined || row.agent_id === agentId) &&
+        row.status !== projectLegacyStatus(row.lifecycle_state, row.embedding_state)
+    ).length
+  }
+
+  repairCorruptedLegacyShadow(agentId?: string): number {
+    let repaired = 0
+    for (const row of this.rows.values()) {
+      if (agentId !== undefined && row.agent_id !== agentId) continue
+      const projected = projectLegacyStatus(row.lifecycle_state, row.embedding_state)
+      if (row.status === projected) continue
+      row.status = projected
+      repaired += 1
+    }
+    return repaired
+  }
+
   runInTransaction<T>(fn: () => T): T {
     this.transactionCalls += 1
-    const snapshot = new Map([...this.rows.entries()].map(([id, row]) => [id, { ...row }]))
+    const snapshot = new MemoryRowMap()
+    for (const [id, row] of this.rows) snapshot.set(id, { ...row })
     try {
       return fn()
     } catch (error) {
@@ -1181,7 +1510,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     let changed = 0
     for (const row of this.rows.values()) {
       if (row.agent_id !== agentId || (row.kind !== 'persona' && row.kind !== 'working')) continue
-      if (row.status === 'fts_only') continue
+      if (row.embedding_state === 'not_applicable') continue
+      row.embedding_state = 'not_applicable'
       row.status = 'fts_only'
       changed += 1
     }
@@ -1264,7 +1594,37 @@ export interface FakeRepositoryState {
   transactionCalls: number
 }
 
-export type FakeRepository = MemoryRepositoryPort & FakeRepositoryState
+interface FakeRepositoryRowAccess {
+  insert(...args: Parameters<MemoryRepositoryPort['insert']>): AgentMemoryRow
+  getById(...args: Parameters<MemoryRepositoryPort['getById']>): AgentMemoryRow | undefined
+  getByProvenanceKey(
+    ...args: Parameters<MemoryRepositoryPort['getByProvenanceKey']>
+  ): AgentMemoryRow | undefined
+  listByAgent(...args: Parameters<MemoryRepositoryPort['listByAgent']>): AgentMemoryRow[]
+  listManagementPage(
+    ...args: Parameters<MemoryRepositoryPort['listManagementPage']>
+  ): AgentMemoryRow[]
+  listManagementVisibleByIds(
+    ...args: Parameters<MemoryRepositoryPort['listManagementVisibleByIds']>
+  ): AgentMemoryRow[]
+  listByIds(...args: Parameters<MemoryRepositoryPort['listByIds']>): AgentMemoryRow[]
+}
+
+type FakeRepositorySeedHelpers = Pick<
+  FakeRepositoryBehavior,
+  | 'seedArchived'
+  | 'seedConflictState'
+  | 'seedSupersededBy'
+  | 'repairCorruptedLegacyShadow'
+  | 'seedConflictTarget'
+  | 'seedContentFields'
+  | 'seedLegacyStatus'
+>
+
+export type FakeRepository = Omit<MemoryRepositoryPort, keyof FakeRepositoryRowAccess> &
+  FakeRepositoryRowAccess &
+  FakeRepositorySeedHelpers &
+  FakeRepositoryState
 
 export interface FakeRepositoryHarness {
   state: FakeRepositoryState
@@ -1310,19 +1670,14 @@ const READ_CAPABILITY_KEYS = [
 const MUTATION_CAPABILITY_KEYS = [
   'insert',
   'rekeyProvenance',
-  'updateStatus',
-  'updateContent',
-  'updateDecisionContentIfRevision',
-  'updateUserMetadata',
+  'updateInternalContent',
+  'updateUserContentAndInvalidateEmbedding',
+  'updateUserMetadataIfRevision',
   'setConfidence',
-  'setImportance',
   'setPersonaState',
   'setAnchor',
-  'markSuperseded',
   'markSupersededIfRevision',
-  'markConflict',
   'markConflictIfRevision',
-  'setConflictWith',
   'delete',
   'clearByAgent'
 ] as const satisfies readonly (keyof MemoryMutationRepositoryPort)[]
@@ -1335,12 +1690,10 @@ const ACCESS_CAPABILITY_KEYS = [
 const EMBEDDING_CAPABILITY_KEYS = [
   'listPendingEmbedding',
   'countPendingEmbedding',
-  'activateForEmbedding',
-  'activateForEmbeddingIfRevision',
   'markPendingEmbeddingsReady',
   'markPendingEmbeddingsError',
   'requeueForEmbedding',
-  'listEmbeddingStatusIds',
+  'listEmbeddingStateIds',
   'listCurrentEmbeddedIds',
   'getCurrentEmbeddingDimension',
   'hasStaleEmbeddings',
@@ -1355,7 +1708,12 @@ const LIFECYCLE_CAPABILITY_KEYS = [
   'updateDecayScore',
   'setLastConsolidatedAt',
   'getLastConsolidatedAt',
-  'archive',
+  'archiveActiveMemory',
+  'restoreArchivedMemory',
+  'reviveSupersededMemory',
+  'activateResolvedChallenger',
+  'archiveResolvedChallenger',
+  'archiveResolvedConflictTarget',
   'archiveEligibleBatch',
   'countArchiveEligible',
   'listArchiveCandidateLifecycleRows',
@@ -1376,7 +1734,8 @@ const HEALTH_CAPABILITY_KEYS = [
   'listTopAccessed',
   'countByAgent',
   'countStatusView',
-  'getPersonaCounts'
+  'getPersonaCounts',
+  'countLegacyShadowMismatches'
 ] as const satisfies readonly (keyof MemoryHealthRepositoryPort)[]
 
 const TRANSACTION_CAPABILITY_KEYS = [

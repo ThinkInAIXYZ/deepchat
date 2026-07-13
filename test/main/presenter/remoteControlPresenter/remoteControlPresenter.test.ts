@@ -138,7 +138,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -179,7 +179,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -207,7 +207,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -279,7 +279,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -363,7 +363,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -427,7 +427,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -528,7 +528,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -615,7 +615,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -686,7 +686,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -743,7 +743,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -827,7 +827,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -884,7 +884,7 @@ describe('RemoteControlPresenter', () => {
         listAgents
       } as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -913,7 +913,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -945,7 +945,7 @@ describe('RemoteControlPresenter', () => {
         getAgentType
       } as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -977,7 +977,7 @@ describe('RemoteControlPresenter', () => {
         getAgentType
       } as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -1004,7 +1004,7 @@ describe('RemoteControlPresenter', () => {
         listAgents
       } as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -1024,7 +1024,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -1055,7 +1055,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -1114,7 +1114,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -1151,7 +1151,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any
     })
@@ -1187,7 +1187,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
@@ -1260,7 +1260,7 @@ describe('RemoteControlPresenter', () => {
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
-      agentRuntimePresenter: {} as any,
+      agentManager: {} as any,
       windowPresenter: {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])

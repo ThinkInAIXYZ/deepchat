@@ -4,7 +4,6 @@ import { ModelType } from '../core/model'
 import type { NewApiEndpointType } from '@shared/model'
 import type { ImageGenerationOptions } from '../../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../../videoGenerationSettings'
-import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './acp.presenter'
 
 /**
  * LLM Provider Presenter Interface
@@ -305,6 +304,7 @@ export interface ILlmProviderPresenter {
     options?: {
       signal?: AbortSignal
       onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+      scope?: 'provider' | 'acp-direct'
     }
   ): Promise<void>
   syncModelScopeMcpServers(
@@ -345,42 +345,4 @@ export interface ILlmProviderPresenter {
     videoOptions?: VideoGenerationOptions,
     options?: { signal?: AbortSignal }
   ): Promise<StandaloneVideoGenerationResult>
-
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir?: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  >
-  getAcpProcessConfigOptions(agentId: string, workdir?: string): Promise<AcpConfigState | null>
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null>
-  getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null>
-  setAcpSessionConfigOption(
-    conversationId: string,
-    configId: string,
-    value: string | boolean
-  ): Promise<AcpConfigState | null>
-  getAcpSessionCommands(conversationId: string): Promise<
-    Array<{
-      name: string
-      description: string
-      input?: { hint: string } | null
-    }>
-  >
-  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
-  resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
-  clearAcpSession(conversationId: string): Promise<void>
 }

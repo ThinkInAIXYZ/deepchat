@@ -1,6 +1,6 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-07-05` 的当前代码结构。SDD 已按目标类型拆分：feature 和
+本文档反映 `2026-07-13` 的当前代码结构。SDD 已按目标类型拆分：feature 和
 architecture 使用三件套，small bug 使用单个 issue `spec.md`。文档清理只在开发者明确触发
 `deepchat-sdd-cleanup` 时执行。
 
@@ -19,6 +19,15 @@ Renderer
 `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
 `src/renderer/api/legacy/**` 已经退休。业务模块的新能力应从 `renderer/api/*Client` 和
 shared contracts 进入；少数仍需要 raw IPC 的能力只能封装在明确 allowlist 的 preload/API 边界内。
+
+## 已实现架构决策
+
+| 文档 | 状态 | 用途 |
+| --- | --- | --- |
+| [architecture/agent-system-layered-runtime/](./architecture/agent-system-layered-runtime/) | 已实现 | Agent control plane、ACP 独立 runtime、DeepChat instance/loop/Tape/Memory 的分层决策、兼容合同与验证记录 |
+
+阅读当前实现仍以“当前必读”中的文档为准；分层改造的决策背景、不可回归合同与最终验证证据
+保留在该目标的 `README.md`、`spec.md`、`migration-and-validation.md` 与 `modules/` 中。
 
 ## 当前必读
 
@@ -53,6 +62,7 @@ docs/
 ├── FLOWS.md
 ├── architecture/
 │   ├── agent-system.md
+│   ├── agent-system-layered-runtime/
 │   ├── event-system.md
 │   ├── session-management.md
 │   ├── tool-system.md

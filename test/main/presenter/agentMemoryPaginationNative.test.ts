@@ -6,6 +6,7 @@ const tableModule = Database
   : null
 
 const AgentMemoryTable = tableModule?.AgentMemoryTable
+const buildManagementPageSelectSql = tableModule?.buildManagementPageSelectSql
 const DatabaseCtor = Database!
 const AgentMemoryTableCtor = AgentMemoryTable!
 const describeIfSqlite = nativeSqliteDescribeIf(
@@ -20,21 +21,10 @@ describeIfSqlite('AgentMemoryTable management pagination', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
       const queryPlan = db
-        .prepare(
-          `EXPLAIN QUERY PLAN
-           SELECT *
-           FROM agent_memory
-           WHERE agent_id = ?
-             AND superseded_by IS NULL
-             AND status != 'conflicted'
-             AND kind NOT IN ('persona', 'working')
-             AND (created_at < ? OR (created_at = ? AND id < ?))
-           ORDER BY created_at DESC, id DESC
-           LIMIT ?`
-        )
+        .prepare(`EXPLAIN QUERY PLAN ${buildManagementPageSelectSql!(true)}`)
         .all('a', 1000, 1000, 'y', 100) as Array<{ detail: string }>
       expect(queryPlan.map((row) => row.detail).join('\n')).toContain(
-        'idx_agent_memory_management_page_v2'
+        'idx_agent_memory_management_page_v3'
       )
       expect(queryPlan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(false)
 
@@ -66,7 +56,7 @@ describeIfSqlite('AgentMemoryTable management pagination', () => {
     }
   })
 
-  it('caps direct repository reads at one bounded page plus the lookahead row', () => {
+  it('caps a 50k-row repository read at one bounded page plus the lookahead row', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = new AgentMemoryTableCtor(db)
@@ -76,7 +66,7 @@ describeIfSqlite('AgentMemoryTable management pagination', () => {
          VALUES (?, 'a', 'semantic', 'memory', 'embedded', ?)`
       )
       db.transaction(() => {
-        for (let index = 0; index < 150; index += 1) {
+        for (let index = 0; index < 50_000; index += 1) {
           insert.run(`memory-${index}`, index)
         }
       })()

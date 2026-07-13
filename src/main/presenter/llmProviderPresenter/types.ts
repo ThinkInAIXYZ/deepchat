@@ -16,13 +16,17 @@ export interface RateLimitQueueSnapshot {
 export interface ExecuteWithRateLimitOptions {
   signal?: AbortSignal
   onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+  scope?: RateLimitScope
 }
+
+export type RateLimitScope = 'provider' | 'acp-direct'
 
 export interface QueueItem {
   id: string
   timestamp: number
   resolve: () => void
   reject: (error: Error) => void
+  scope: RateLimitScope
 }
 
 export interface ProviderRateLimitState {

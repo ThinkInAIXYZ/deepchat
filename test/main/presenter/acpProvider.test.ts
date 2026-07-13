@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/acpProvider'
-import { LEGACY_MODE_CONFIG_ID } from '../../../src/main/presenter/llmProviderPresenter/acp'
+import { AcpSessionController, LEGACY_MODE_CONFIG_ID } from '@/agent/acp/runtime'
 import { eventBus } from '@/eventbus'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 
@@ -46,6 +46,32 @@ describe('AcpProvider runDebugAction error handling', () => {
   })
 
   const agent = { id: 'agent1', name: 'Agent 1' }
+  const attachSessionController = (
+    provider: any,
+    sessionManager: any,
+    processManager: any = {},
+    persistence: any = {}
+  ) => {
+    provider.acpRuntime = {
+      sessionController: new AcpSessionController(sessionManager, processManager, persistence, {
+        modesReady: (input) =>
+          publishDeepchatEventMock('sessions.acp.modes.ready', {
+            ...input,
+            version: Date.now()
+          }),
+        configOptionsReady: (input) =>
+          publishDeepchatEventMock('sessions.acp.configOptions.ready', {
+            ...input,
+            version: Date.now()
+          }),
+        commandsReady: (input) =>
+          publishDeepchatEventMock('sessions.acp.commands.ready', {
+            ...input,
+            version: Date.now()
+          })
+      })
+    }
+  }
   const createConfigState = (modelValue = 'gpt-5'): AcpConfigState => ({
     source: 'configOptions',
     options: [
@@ -523,6 +549,7 @@ describe('AcpProvider runDebugAction error handling', () => {
         availableCommands: [{ name: 'review', description: 'run review', input: null }]
       })
     }
+    attachSessionController(provider, provider.sessionManager)
 
     const commands = await provider.getSessionCommands('conv-1')
     expect(commands).toEqual([{ name: 'review', description: 'run review', input: null }])
@@ -631,144 +658,6 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
   })
 
-  it('prepares ACP session without prompt and emits ready events', async () => {
-    const configState = createConfigState()
-    const provider = Object.create(AcpProvider.prototype) as any
-    provider.getAgentById = vi.fn().mockResolvedValue({ id: 'agent1', name: 'Agent 1' })
-    provider.sessionPersistence = {
-      isWorkdirUsable: vi.fn().mockReturnValue(true),
-      resolveWorkdir: vi.fn((workdir) => workdir),
-      updateWorkdir: vi.fn().mockResolvedValue(undefined)
-    }
-    provider.sessionManager = {
-      getOrCreateSession: vi.fn().mockResolvedValue({
-        workdir: '/tmp/workspace',
-        currentModeId: 'default',
-        availableModes: [{ id: 'default', name: 'Default', description: '' }],
-        configState,
-        availableCommands: [{ name: 'review', description: 'run review', input: null }]
-      })
-    }
-
-    await provider.prepareSession('conv-2', 'agent1', '/tmp/workspace')
-
-    expect(provider.sessionPersistence.updateWorkdir).toHaveBeenCalledWith(
-      'conv-2',
-      'agent1',
-      '/tmp/workspace'
-    )
-    expect(provider.sessionManager.getOrCreateSession).toHaveBeenCalledWith(
-      'conv-2',
-      { id: 'agent1', name: 'Agent 1' },
-      expect.objectContaining({
-        onSessionUpdate: expect.any(Function),
-        onPermission: expect.any(Function)
-      }),
-      '/tmp/workspace'
-    )
-    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.modes.ready', {
-      conversationId: 'conv-2',
-      agentId: 'agent1',
-      workdir: '/tmp/workspace',
-      current: 'default',
-      available: [{ id: 'default', name: 'Default', description: '' }],
-      version: expect.any(Number)
-    })
-    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.configOptions.ready', {
-      conversationId: 'conv-2',
-      agentId: 'agent1',
-      workdir: '/tmp/workspace',
-      configState,
-      version: expect.any(Number)
-    })
-    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.commands.ready', {
-      conversationId: 'conv-2',
-      agentId: 'agent1',
-      commands: [{ name: 'review', description: 'run review', input: null }],
-      version: expect.any(Number)
-    })
-  })
-
-  it('falls back when prepareSession receives an unavailable workdir', async () => {
-    const provider = Object.create(AcpProvider.prototype) as any
-    provider.getAgentById = vi.fn().mockResolvedValue({ id: 'agent1', name: 'Agent 1' })
-    provider.sessionPersistence = {
-      isWorkdirUsable: vi.fn().mockReturnValue(false),
-      resolveWorkdir: vi.fn().mockReturnValue('/tmp/fallback'),
-      updateWorkdir: vi.fn().mockResolvedValue(undefined)
-    }
-    provider.sessionManager = {
-      getOrCreateSession: vi.fn().mockResolvedValue({
-        workdir: '/tmp/fallback',
-        currentModeId: undefined,
-        availableModes: undefined,
-        configState: null,
-        availableCommands: []
-      })
-    }
-
-    await provider.prepareSession('conv-2', 'agent1', '/tmp/missing-workspace')
-
-    expect(provider.sessionPersistence.updateWorkdir).toHaveBeenCalledWith('conv-2', 'agent1', null)
-    expect(provider.sessionManager.getOrCreateSession).toHaveBeenCalledWith(
-      'conv-2',
-      { id: 'agent1', name: 'Agent 1' },
-      expect.any(Object),
-      '/tmp/fallback'
-    )
-  })
-
-  it('updates mode on bound handle by conversation id', async () => {
-    const provider = Object.create(AcpProvider.prototype) as any
-    const setSessionMode = vi.fn().mockResolvedValue(undefined)
-    provider.sessionManager = {
-      getSession: vi.fn().mockReturnValue({
-        sessionId: 's-1',
-        agentId: 'agent1',
-        workdir: '/tmp/workspace',
-        currentModeId: 'default',
-        availableModes: [{ id: 'default', name: 'Default', description: '' }],
-        connection: { setSessionMode }
-      })
-    }
-    provider.processManager = {
-      updateBoundProcessMode: vi.fn().mockReturnValue(true)
-    }
-
-    await provider.setSessionMode('conv-a', 'default')
-
-    expect(setSessionMode).toHaveBeenCalledWith({ sessionId: 's-1', modeId: 'default' })
-    expect(provider.processManager.updateBoundProcessMode).toHaveBeenCalledWith('conv-a', 'default')
-  })
-
-  it('still emits mode event when bound handle is unavailable', async () => {
-    const provider = Object.create(AcpProvider.prototype) as any
-    provider.sessionManager = {
-      getSession: vi.fn().mockReturnValue({
-        sessionId: 's-2',
-        agentId: 'agent1',
-        workdir: '/tmp/workspace',
-        currentModeId: 'default',
-        availableModes: [{ id: 'default', name: 'Default', description: '' }],
-        connection: { setSessionMode: vi.fn().mockResolvedValue(undefined) }
-      })
-    }
-    provider.processManager = {
-      updateBoundProcessMode: vi.fn().mockReturnValue(false)
-    }
-
-    await provider.setSessionMode('conv-b', 'default')
-
-    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.modes.ready', {
-      conversationId: 'conv-b',
-      agentId: 'agent1',
-      workdir: '/tmp/workspace',
-      current: 'default',
-      available: [{ id: 'default', name: 'Default', description: '' }],
-      version: expect.any(Number)
-    })
-  })
-
   it('returns cached process config options from the warm process handle', () => {
     const configState = createConfigState()
     const provider = Object.create(AcpProvider.prototype) as any
@@ -823,6 +712,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     provider.processManager = {
       updateBoundProcessConfigState: vi.fn().mockReturnValue(true)
     }
+    attachSessionController(provider, provider.sessionManager, provider.processManager)
 
     const nextState = await provider.setSessionConfigOption('conv-1', 'model', 'gpt-5-mini')
 
@@ -936,8 +826,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     provider.processManager = {
       updateBoundProcessConfigState: vi.fn().mockReturnValue(true)
     }
-    provider.emitSessionModesReady = vi.fn()
-    provider.emitSessionConfigOptionsReady = vi.fn()
+    attachSessionController(provider, provider.sessionManager, provider.processManager)
 
     const nextState = await provider.setSessionConfigOption('conv-2', 'safe_edits', true)
 
@@ -973,16 +862,17 @@ describe('AcpProvider runDebugAction error handling', () => {
       ]
     })
     expect(session.configState).toEqual(nextState)
-    expect(provider.emitSessionModesReady).toHaveBeenCalledWith(
-      'conv-2',
-      'agent1',
-      '/tmp/workspace',
-      'code',
-      [
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.modes.ready', {
+      conversationId: 'conv-2',
+      agentId: 'agent1',
+      workdir: '/tmp/workspace',
+      current: 'code',
+      available: [
         { id: 'code', name: 'code', description: '' },
         { id: 'ask', name: 'ask', description: '' }
-      ]
-    )
+      ],
+      version: expect.any(Number)
+    })
   })
 
   it('cancels the ACP prompt when the model timeout elapses', async () => {
@@ -1104,9 +994,9 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(queue.done).toHaveBeenCalledTimes(1)
   })
 
-  it('does not mark the system prompt when prompt dispatch fails first', async () => {
+  it('keeps prompt dispatch fail-open when trace persistence fails', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.emitRequestTrace = vi.fn().mockRejectedValue(new Error('trace failed'))
+    provider.provider = { id: 'acp' }
     provider.promptController = {
       begin: vi.fn().mockReturnValue({
         id: 'turn-trace',
@@ -1132,6 +1022,7 @@ describe('AcpProvider runDebugAction error handling', () => {
       done: vi.fn()
     }
     const onPromptSucceeded = vi.fn()
+    const persistTrace = vi.fn().mockRejectedValue(new Error('trace failed'))
 
     await provider['runPrompt'](
       {
@@ -1143,16 +1034,19 @@ describe('AcpProvider runDebugAction error handling', () => {
       },
       [{ type: 'text', text: 'System instructions:\nBe precise.' }],
       queue,
-      {},
+      {
+        requestTraceContext: {
+          enabled: true,
+          persist: persistTrace
+        }
+      },
       { onPromptSucceeded }
     )
 
-    expect(prompt).not.toHaveBeenCalled()
-    expect(onPromptSucceeded).not.toHaveBeenCalled()
-    expect(queue.push).toHaveBeenCalledWith({
-      type: 'error',
-      error_message: 'ACP: trace failed'
-    })
+    expect(persistTrace).toHaveBeenCalledTimes(1)
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(onPromptSucceeded).toHaveBeenCalledTimes(1)
+    expect(queue.push).toHaveBeenCalledWith({ type: 'stop', stop_reason: 'complete' })
     expect(queue.done).toHaveBeenCalledTimes(1)
   })
 

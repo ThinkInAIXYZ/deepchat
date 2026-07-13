@@ -336,6 +336,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   observeExtractionQueue(depth: number, oldestQueuedAt: number | null): void {
+    if (this.runtime.isDisposed) return
     this.diagnostics.observeExtractionQueue(depth, oldestQueuedAt)
   }
 

@@ -1,31 +1,24 @@
 # DeepChat Agent vs ACP Agent
 
-Status: reviewed on 2026-07-06.
+Status: current implementation, reviewed on 2026-07-13.
 
-This note compares the live DeepChat agent runtime with the ACP provider path. It keeps only
-findings backed by current code. Earlier draft items that assumed non-existent multi-writer or
-rollback behavior were removed.
+The agent-session separation is implemented:
+
+- `kind=deepchat` uses the typed DeepChat backend, per-session instance and DeepChat-only LoopEngine.
+- `kind=acp` uses the direct ACP backend and external ACP protocol loop.
+- `kind=deepchat + providerId=acp` remains the explicit provider-compatibility path.
 
 ## Files
 
-- [spec.md](./spec.md): current architecture comparison and verified conclusions.
-- [issues/P0-1-acp-permission-timeout.md](./issues/P0-1-acp-permission-timeout.md):
-  implemented ACP permission timeout and cancellation fix.
+- [spec.md](./spec.md): current routing, ownership, data and lifecycle comparison.
+- [Agent System Layered Runtime](../agent-system-layered-runtime/README.md): migration decisions, compatibility
+  contract and final validation record.
 
-## Removed Findings
+## Stable conclusions
 
-The following review items are not retained:
-
-- P0-2 Tape write ordering: current tape writes run through synchronous `better-sqlite3` in the
-  Electron main process. There is no current multi-writer path that justifies adding a session lock.
-- P0-3 Pending input deadlock: pending input drain already uses single-flight cleanup and claimed-row
-  recovery. A watchdog would duplicate existing recovery logic.
-- P1-5 ACP config rollback: `setSessionConfigOption()` waits for the ACP response before updating
-  local config state. There is no optimistic local write to roll back.
-- P1-6 Tool output retry: retrying a smaller tool batch would rerun already executed tools and can
-  duplicate side effects. The existing guard truncates, downgrades, or returns a terminal error.
-
-## Current Fix
-
-ACP permission requests now settle when the user cancels/stops a session or when no decision arrives
-within the timeout window. See [GitHub issue #1881](https://github.com/ThinkInAIXYZ/deepchat/issues/1881).
+- Direct ACP cannot enter the DeepChat LoopEngine or fall back to a DeepChat backend.
+- The ACP provider remains only for DeepChat descriptors that explicitly select it.
+- Both paths write the existing app transcript/Tape/event projection, while their runtime state and loops remain
+  separate.
+- Permission promises/interactions settle on every decision/cancel/timeout/close path without replaying tool
+  side effects.

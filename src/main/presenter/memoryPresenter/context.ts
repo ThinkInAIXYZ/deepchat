@@ -73,10 +73,6 @@ export class MemoryRuntimeContext {
     )
   }
 
-  isOperationGenerationCurrent(fence: MemoryOperationFence): boolean {
-    return (this.operationGenerationByAgent.get(fence.agentId) ?? 0) === fence.generation
-  }
-
   canContinueOperation(fence: MemoryOperationFence): boolean {
     return this.isOperationFenceCurrent(fence) && this.canContinueAgentMemoryTask(fence.agentId)
   }
@@ -153,6 +149,7 @@ export class MemoryRuntimeContext {
   }
 
   emitChanged(agentId: string, reason: MemoryUpdateReason, context?: MemoryUpdateContext): void {
+    if (this.disposed) return
     this.options.onAgentMemoryMutated?.(agentId)
     if (context) this.options.changeSink?.onMemoryChanged?.(agentId, reason, context)
     else this.options.changeSink?.onMemoryChanged?.(agentId, reason)
@@ -172,6 +169,7 @@ export class MemoryRuntimeContext {
       createdAt?: number
     }
   ): void {
+    if (this.disposed) return
     this.options.auditWriter?.insert({
       id: `audit-${nanoid(12)}`,
       agentId,

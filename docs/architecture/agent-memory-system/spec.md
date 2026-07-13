@@ -70,7 +70,8 @@ flowchart TD
     MC["MemoryClient / ConfigClient"]
   end
   subgraph Main["Electron main process"]
-    RT["AgentRuntimePresenter<br/>(injection + extraction seam)"]
+    ARP["AgentRuntimePresenter<br/>(construction + thin delegates)"]
+    RC["MemoryRuntimeCoordinator<br/>(runtime seam owner)"]
     MEM["MemoryPresenter<br/>(the memory kernel)"]
     TAPE["DeepChatTapeService<br/>(tape projection / search / context)"]
     TOOLS["Agent tools<br/>(memory_* · tape_*)"]
@@ -80,8 +81,10 @@ flowchart TD
     end
   end
   UI --> MC --> MEM
-  RT -->|buildInjection / extractAndStore| MEM
-  RT -->|append memory section + view_assembled anchor| SQL
+  ARP --> RC
+  RC -->|MemoryPromptContributor<br/>buildInjection| MEM
+  RC -->|afterTurnSettled / afterCompactionApplyReturned<br/>then extractAndStore when admitted| MEM
+  RC -->|view/extract anchors + cursor/projection| SQL
   TOOLS -->|remember/recall/forget| MEM
   TOOLS -->|tape_search/tape_context| TAPE
   MEM --> SQL
@@ -94,12 +97,19 @@ flowchart TD
 
 - The renderer settings UI talks to the kernel only through typed IPC (`MemoryClient` for management,
   `ConfigClient` for config).
-- `AgentRuntimePresenter` owns the *seam*: it decides when to inject and when to extract, and it owns the
-  per-session extraction queue and the monotonic cursor. It does not own memory logic.
+- `MemoryRuntimeCoordinator` is the sole runtime seam owner. It owns per-session extraction chains/queue,
+  epochs, projection-retry cooldown, injection-access dedupe and cursor/window orchestration; it directly
+  implements `MemoryPromptContributor` and `MemoryIngestionObserver`.
+- `AgentRuntimePresenter` retains only coordinator construction, dependency wiring and thin lifecycle delegates.
+  A `DeepChatAgentInstance` keeps one stable Memory session handle; neither presenter nor instance duplicates
+  coordinator state.
 - `MemoryPresenter` is the single public memory facade. Internal services own write decisions,
   recall, scheduling, lifecycle, persona, conflicts, embeddings, and DuckDB orchestration; external
   callers still reach those capabilities only through the facade.
 - `DeepChatTapeService` owns the searchable tape projection (the log-as-memory read model).
+- `DeepChatTapeService.readCausalObservationSlice()` is a pure-read Tape/message/trace join. Architecture
+  guards prevent it from calling Memory or storage mutation APIs, and non-interference tests prove it does not
+  change ingestion projection/cursor state.
 
 ---
 
@@ -143,7 +153,9 @@ flowchart TD
 | Storage | `sqlitePresenter/tables/agentMemoryAudit.ts` | `agent_memory_audit` content-free maintenance ledger |
 | Storage | `sqlitePresenter/tables/deepchatTapeSearchProjection.ts` | `deepchat_tape_search_projection` (+ meta + FTS) evidence projection |
 | Storage | `sqlitePresenter/tables/deepchatMemoryIngestionProjection.ts` | Versioned effective-message range projection used only by memory extraction |
-| Runtime seam | `agentRuntimePresenter/index.ts` | `appendMemoryInjection`, `enqueueSessionExtraction`, span builder, cursor, memory anchors |
+| Runtime seam | `agent/deepchat/memory/memoryRuntimeCoordinator.ts` | sole extraction queue/epoch/cooldown/access/cursor owner; direct prompt contributor + ingestion observer |
+| Runtime contracts | `agent/deepchat/memory/memoryPromptContributor.ts`, `memoryIngestionObserver.ts` | stable session handle, awaited prompt contribution, discriminated terminal/compaction ingestion outcomes, bounded drain result |
+| Runtime wiring | `agentRuntimePresenter/index.ts` | coordinator construction/dependencies and thin instance/lifecycle delegates; no duplicate orchestration maps |
 | Runtime | `agentRuntimePresenter/tapeService.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
 | Tools | `toolPresenter/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
 | Tools | `toolPresenter/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
@@ -177,7 +189,7 @@ Memory is split across six stores. Each has one job; none is authoritative for m
 
 | Store | Holds | Rebuildable? |
 | --- | --- | --- |
-| SQLite `agent_memory` | Authoritative memory rows: content, kind, optional agentic category, status, importance, confidence, decay, lineage (`source_entry_ids`), supersede chain, persona state, conflict link | No — source of truth for synthesized memory |
+| SQLite `agent_memory` | Authoritative memory rows: content, kind, optional agentic category, canonical lifecycle/embedding state, legacy status shadow, importance, confidence, decay, lineage (`source_entry_ids`), supersede chain, persona state, conflict link | No — source of truth for synthesized memory |
 | SQLite `agent_memory_fts` | Keyword recall (BM25), external-content mirror of `agent_memory` | Yes — rebuilt idempotently; degrades to `LIKE` |
 | SQLite `agent_memory_audit` | Maintenance/user provenance ledger (ids/action/model; `scheduler`/`user` actors + optional `session_id`; drives the cooldown) | No — but content-free |
 | SQLite `deepchat_tape_search_projection` | Searchable evidence projection of the effective tape (summary + refs + FTS) | Yes — rebuilt from raw tape entries |
@@ -192,7 +204,8 @@ The raw tape (`deepchat_tape_entries`) remains the ultimate evidence source of t
 `id`, `agent_id`, `user_scope`, `kind`, `category`, `content`, `importance`, `status`, `embedding_id`,
 `embedding_dim`, `embedding_model`, `source_session`, `provenance_key`, `is_anchor`, `superseded_by`,
 `created_at`, `last_accessed`, `access_count`, `decay_score`, `source_entry_ids`, `confidence`,
-`last_consolidated_at`, `conflict_state`, `conflict_with`, `persona_state`, `decision_revision`.
+`last_consolidated_at`, `conflict_state`, `conflict_with`, `persona_state`, `decision_revision`,
+`lifecycle_state`, `embedding_state`.
 
 A unique partial index on `(agent_id, provenance_key)` enforces idempotent dedup.
 New provenance keys are `v2:<kind>:<sha256>` over
@@ -205,11 +218,42 @@ lookups require a normalized-content equality check before transactional lazy re
 | --- | --- | --- |
 | `AgentMemoryKind` | `episodic`, `semantic`, `reflection`, `persona`, `working` | `working` is an internal single-blob session-open cache (never recalled/embedded/archived). `crystal` is reserved (no read/write path). |
 | `AgentMemoryCategory` | `user_preference`, `project_fact`, `task_outcome`, `heuristic`, `anti_pattern` | Optional agentic write contract. `task_outcome` normalizes to `episodic`; the other categories normalize to `semantic`. `reflection`/`persona`/`working` rows always carry `NULL`. |
-| `AgentMemoryStatus` | `pending_embedding`, `embedded`, `error`, `fts_only`, `archived`, `conflicted` | `fts_only` = recallable by keyword but not vector (no embedding config / transient). `archived` = soft-deleted. `conflicted` = a `CHALLENGE` row. |
+| `AgentMemoryLifecycleState` | `active`, `archived`, `conflicted` | Internal source of truth for business lifecycle. Supersede and challenged-target state remain separate axes. |
+| `AgentMemoryEmbeddingState` | `pending`, `ready`, `error`, `fts_only`, `not_applicable` | Internal source of truth for vector processing. Persona/working rows are `not_applicable`. |
+| Legacy `AgentMemoryStatus` | `pending_embedding`, `embedded`, `error`, `fts_only`, `archived`, `conflicted` | Synchronous compatibility shadow and public DTO vocabulary. It is projected from the two canonical axes; services/core never use it for decisions. |
 | `AgentMemoryPersonaState` | `draft`, `active`, `superseded`, `rejected` | Only meaningful for `kind='persona'`; `NULL` for everything else. Legacy persona rows are read as active while not superseded. |
 | `AgentMemoryConflictState` | `challenged` | Marks the *target* of an open challenge. |
 
-### 6.3 Lineage contract
+### 6.3 Canonical state transitions and compatibility projection
+
+```mermaid
+stateDiagram-v2
+  [*] --> ActivePending
+  ActivePending --> ActiveReady: embedding succeeds
+  ActivePending --> ActiveError: embedding fails
+  ActivePending --> ActiveFtsOnly: vector unavailable
+  ActiveReady --> ArchivedReady: archive
+  ActiveError --> ArchivedError: archive
+  ArchivedReady --> ActivePending: restore and clear refs
+  ArchivedError --> ActivePending: restore and clear refs
+  ActivePending --> ConflictedPending: open challenge
+  ConflictedPending --> ActivePending: keep challenger / keep both
+  ConflictedPending --> ArchivedPending: keep target
+```
+
+Lifecycle has projection precedence: `archived` and `conflicted` shadow the embedding state. For active
+rows, `pending → pending_embedding`, `ready → embedded`, `error → error`, and
+`fts_only | not_applicable → fts_only`. Archive preserves embedding state and refs; restore always returns
+to active/pending, clears refs, and increments `decision_revision`. Every transition writes canonical state
+and the legacy shadow in one SQL statement or transaction.
+
+Canonical indexes include `idx_agent_memory_active_recall`, `idx_agent_memory_recall_importance_v5`,
+the archive/cognitive/conflict/recent v3 ordered indexes, the agent/global pending v2 indexes, and
+`idx_agent_memory_conflict_target_v2` plus `idx_agent_memory_management_page_v3`. The v42 steady state
+drops retired status-partial indexes; a downgraded v41 binary may recreate them, and the next v42 startup
+cleans them again.
+
+### 6.4 Lineage contract
 
 `source_entry_ids` stores **tape `entry_id` integers** (a JSON array), scoped by `source_session`. It is
 dropped when there is no source session, and never stores message ids. It is collected in the same pass
@@ -220,14 +264,26 @@ lineage).
 
 ## 6. The read path
 
+Recall, FTS liveness, embedding drain, maintenance, conflict, management, and Health queries use
+`lifecycle_state`/`embedding_state`. Public route/tool/export responses call the shared pure projection and
+continue exposing the legacy vocabulary. Startup does not scan or repair the full memory table. Migration
+installs the temporary v41 status-only compatibility triggers in the v42 version transaction before recording
+the schema version; catalog repair, schema-aware import, and the same trigger definitions keep canonical state
+and shadow synchronized. Normal startup only verifies trigger DDL. A missing or stale trigger with mismatches
+first checkpoints and creates a `*.memory-state-repair.bak`, preserves canonical lifecycle for the known old
+internal-trigger mismatch, repairs other mismatches legacy-first, installs the current DDL, and asserts zero
+remaining mismatches in one recovery transaction. Catalog repair backfills only columns added in that repair
+transaction. Legacy-only malformed status is normalized tolerantly; importer rows with malformed canonical axes
+or unknown kinds are skipped individually and reported without rolling back unrelated valid rows.
+
 Recall runs before each send and adds a read-only memory section to the system prompt. All three runtime
 entry points — normal send, context-pressure compaction recovery, and resume — funnel through one
-`appendMemoryInjection` seam so injection is identical across paths; a disabled agent short-circuits and
+`MemoryPromptContributor.contribute()` seam so injection is identical across paths; a disabled agent short-circuits and
 the system prompt is returned byte-for-byte unchanged.
 
 ```mermaid
 flowchart TD
-  Q[user query] --> AP["appendMemoryInjection<br/>(normal · compaction-recovery · resume)"]
+  Q[user query] --> AP["MemoryPromptContributor.contribute<br/>(normal · compaction-recovery · resume)"]
   AP --> EN{memory enabled?}
   EN -- no --> SP0[system prompt unchanged]
   EN -- yes --> BI[buildInjection]
@@ -256,10 +312,10 @@ flowchart TD
   post-flush epoch, and only then reads the **active** persona and working blob. Draft/rejected persona is
   never injected and working reads do not bump `access_count`.
 - Performs one final enabled/managed/disposed/epoch gate and returns immediately without another await. Any
-  concurrent semantic mutation fails the whole injection closed; runtime separately re-checks enablement
+  concurrent semantic mutation fails the whole injection closed; the coordinator separately re-checks enablement
   before prompt append, access accounting, and the `memory/view_assembled` anchor.
 - Produces a `MemoryInjectionPayload` (selfModel + working + memories + `tokenBudget`) and a manifest
-  (selected/dropped/queryHash). The runtime appends the section and persists a `memory/view_assembled`
+  (selected/dropped/queryHash). The coordinator appends the section and persists a `memory/view_assembled`
   anchor.
 
 **Sanitization (`sanitizeForInjection`).** Persona and recalled bodies are neutralized before injection by
@@ -281,8 +337,15 @@ final boundary and never trusts an upstream size cap.
 
 ## 7. The write path
 
-Extraction is triggered after a turn/resume completes or on compaction, serialized per session, and never
-on the hot path. It builds its span from the **effective** tape view (after retract/replace/tool-dedup),
+`MemoryIngestionObserver.afterTurnSettled()` receives discriminated initial/resume turn outcomes;
+`afterCompactionApplyReturned()` receives every normally returned initial/context-pressure compaction apply
+that has a compaction intent, including `succeeded: false`; a thrown apply or a cycle with no intent does not
+trigger the observer.
+Session close uses coordinator `beginSessionDestroy()` / `finishSessionDestroy()` fencing; app shutdown calls
+`MemoryIngestionObserver.drainAndFence()` to close global ingestion admission and await the bounded outstanding
+session chains. The coordinator applies the frozen trigger matrix, serializes admitted work per session, and
+never runs extraction on the hot path. It builds its span from the **effective** tape view (after
+retract/replace/tool-dedup),
 not from raw messages. The span carries only user-visible text: a user entry contributes its message text and
 an assistant entry contributes only its `content` blocks — assistant reasoning (`reasoning_content` /
 `reasoning` blocks) is deliberately excluded so internal chain-of-thought never becomes a durable memory. The
@@ -299,7 +362,11 @@ Compaction-triggered extraction keeps its old behavior.
 
 ```mermaid
 flowchart TD
-  T["turn / resume done or compaction"] --> EQ["enqueueSessionExtraction<br/>(per-session serial chain, epoch-guarded)"]
+  T["initial / resume turn outcome"] --> TS["MemoryIngestionObserver.afterTurnSettled"]
+  C["initial / context-pressure<br/>compaction apply returned"] --> CS["MemoryIngestionObserver.afterCompactionApplyReturned"]
+  TS --> EQ["MemoryRuntimeCoordinator<br/>(per-session serial chain, epoch-guarded)"]
+  CS --> EQ
+  D["app shutdown"] --> DF["MemoryIngestionObserver.drainAndFence<br/>(stop admission + bounded drain)"]
   EQ --> CUR["read cursor + validate/rebuild ingestion projection<br/>range-read effective messages (from,to]"]
   CUR --> TRI{"triage gate<br/>(cheap KEEP/SKIP, fail-open)"}
   TRI -- SKIP --> ADV0["advance cursor, no write"]
@@ -689,8 +756,10 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   with `suppressed-user-forget`; archived rows that are also superseded are treated as conflict losers and
   suppressed with `suppressed-conflict-loser`; active duplicates stay no-op. Non-archived superseded hits are
   conservative without a model path and otherwise go through the decision ring. Only a decision-backed
-  `SUPERSEDE` collision can revive that old row and retire its former head. `applyContentUpdate` keeps a
-  row's `provenance_key` aligned with its new content; if the new key is owned by a suppressed row, the
+  `SUPERSEDE` collision can revive that old row and retire its former head. The A→B→A manual-edit path treats a
+  revival-returned retired head equal to the edited row as already atomically retired and does not issue a stale
+  second supersede. `updateUserContentAndInvalidateEmbedding` keeps a row's `provenance_key` aligned with its new
+  content; if the new key is owned by a suppressed row, the
   update keeps the original row unchanged rather than reviving the suppressed owner.
 - **Vector cleanup and generation writeback.** Vector deletion has three layers: direct delete opens the
   current sidecar when possible; inline prune treats missing SQLite rows as prunable while retaining
@@ -804,11 +873,11 @@ Memory is a first-class, top-level settings section, configured strictly per-age
 ## 16. Schema and migrations
 
 A single global schema version is shared across all SQLite tables (the migration runner takes the max of
-every table's latest version). The current global maximum is **41**.
+every table's latest version). The current global maximum is **42**.
 
 | Table | Change | Migration |
 | --- | --- | --- |
-| `agent_memory` | v32 backfills `embedding_model` + `source_entry_ids`; v33 adds `confidence` + `last_consolidated_at` + `conflict_state`; v34 adds `persona_state`; v35 adds `conflict_with`; v37 adds nullable `category`; v41 adds `decision_revision INTEGER NOT NULL DEFAULT 1`. `getCreateTableSQL` is authoritative (new DB == migrated old DB), and startup catalog repair coexists with migration validation. The conflict-target lookup index is reconciled idempotently for existing DBs without consuming v42. **Purely additive.** | Yes (`getMigrationSQL`) |
+| `agent_memory` | v32 backfills `embedding_model` + `source_entry_ids`; v33 adds `confidence` + `last_consolidated_at` + `conflict_state`; v34 adds `persona_state`; v35 adds `conflict_with`; v37 adds nullable `category`; v41 adds `decision_revision`; v42 adds CHECK-constrained `lifecycle_state`/`embedding_state`, uses marker-driven tolerant combined/partial backfill, reconciles the shadow, retires obsolete status indexes, installs compatibility triggers in the version transaction, and promotes clean FTS policy metadata without rebuild. Catalog repair receives the newly added column set and performs targeted backfill without overwriting a valid sibling canonical column. **Columns remain additive.** | Yes (`getMigrationSQL`) |
 | `agent_memory_fts` | FTS5 v3 external-content virtual table containing recallable rows only; deterministic Agent scope token and savepoint-isolated explicit mirror maintenance; tokenizer probed at runtime | No — built idempotently |
 | `agent_memory_audit` | New table at v36: maintenance/user provenance ledger (`scheduler`/`user` actors + optional `session_id`), ids/metadata only | Yes (whole table) |
 | `deepchat_tape_search_projection` (+ meta + FTS meta) | Searchable projection of the effective tape + FTS5 (content `PROJECTION_VERSION=2`) | No — version-exempt, rebuilt idempotently from raw tape |
@@ -825,13 +894,18 @@ selectively ignored, so the v32 backfill is safe against DBs that already have t
 
 ```text
 enable memory (top-level Memory page / agent toggle)
-→ appendMemoryInjection (unified across normal / compaction-recovery / resume)
+→ MemoryPromptContributor.contribute (unified across normal / compaction-recovery / resume)
 → buildInjection: active persona (drafts excluded) + working L1 (no bump) + recall
 → recall = FTS5/BM25 ∪ DuckDB vector → RRF fusion (retrievalScore dominant; FTS-only + bg reindex on dim change)
 → Context Assembler: sanitize + CJK-aware hard token budget (persona > working > units > episodic)
 → <context-data kind="memory"> appended; persist memory/view_assembled manifest anchor
 → model replies
-→ turn/resume/compaction → enqueueSessionExtraction (per-session serial, epoch-guarded)
+→ initial/resume terminal outcome → MemoryIngestionObserver.afterTurnSettled
+→ initial/context-pressure compaction apply normally returns with intent (`succeeded` true or false;
+  thrown apply / no intent excluded) → MemoryIngestionObserver.afterCompactionApplyReturned
+→ session close → MemoryRuntimeCoordinator.beginSessionDestroy / finishSessionDestroy fencing
+→ app shutdown → MemoryIngestionObserver.drainAndFence (stop admission + bounded drain)
+→ admitted extraction stays per-session serial and epoch-guarded
 → cursor + validated/rebuilt ingestion projection range + message-aligned CJK-aware chunks + exact lineage
 → fallback admission (visible text + tool/backstop/substantive text) or compaction
 → same complete chunk through triage → extraction → stable dedupe/2k cap → batched neighbor recall/decision

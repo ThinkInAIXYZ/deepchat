@@ -45,7 +45,7 @@ interface CatalogDefinition {
   createdOnFreshInstall?: boolean
   repairableColumns?: Record<string, string>
   typeCheckedColumns?: string[]
-  afterRepair?: (db: Database.Database) => void
+  afterRepair?: (db: Database.Database, addedColumns: ReadonlySet<string>) => void
 }
 
 function normalizeDeclaredType(type: string | null | undefined): string | null {
@@ -255,7 +255,14 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       persona_state: 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;',
       category: 'ALTER TABLE agent_memory ADD COLUMN category TEXT;',
       decision_revision:
-        'ALTER TABLE agent_memory ADD COLUMN decision_revision INTEGER NOT NULL DEFAULT 1;'
+        'ALTER TABLE agent_memory ADD COLUMN decision_revision INTEGER NOT NULL DEFAULT 1;',
+      lifecycle_state:
+        "ALTER TABLE agent_memory ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle_state IN ('active', 'archived', 'conflicted'));",
+      embedding_state:
+        "ALTER TABLE agent_memory ADD COLUMN embedding_state TEXT NOT NULL DEFAULT 'pending' CHECK (embedding_state IN ('pending', 'ready', 'error', 'fts_only', 'not_applicable'));"
+    },
+    afterRepair: (db, addedColumns) => {
+      new AgentMemoryTable(db).repairCanonicalStateAfterSchemaRepair(addedColumns)
     }
   },
   {

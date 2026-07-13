@@ -15,7 +15,8 @@
 - [x] Keep Native invocation workflow-owned with no local Native package script.
 - [x] Run scope and portable behavior before the Node ABI rebuild.
 - [x] Run required Native storage, eval, and performance paths after rebuild.
-- [x] Upload the retrieval report even when evaluation fails.
+- [ ] Upload the retrieval report even when evaluation fails. PR #1952 generated the report during
+  evaluation, but CI artifact upload warned that `test-results/memory/retrieval-v1.json` was missing.
 
 ## Retrieval Evaluation
 
@@ -87,7 +88,9 @@
 - [x] `mise exec -- pnpm run format`
 - [x] `mise exec -- pnpm run i18n`
 - [x] `mise exec -- pnpm run lint`
-- [ ] GitHub Actions `memory-native-validation` completes with required Native SQLite and no skip or fallback.
+- [x] GitHub Actions `memory-native-validation` completes with required Native SQLite and no skip or fallback
+  in PR #1952.
 
-The external Native workflow remains pending because the updated job has not yet run against a submitted
-revision. Local validation must not rebuild or replace the Electron ABI binding to simulate this evidence.
+Native storage, retrieval evaluation, and performance validation passed in PR #1952. The remaining external
+gate is a successful upload of the generated retrieval JSON artifact; local validation must not substitute for
+that CI-owned evidence.

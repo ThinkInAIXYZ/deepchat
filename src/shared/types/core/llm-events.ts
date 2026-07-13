@@ -47,6 +47,8 @@ export interface ToolCallEndEvent {
   type: 'tool_call_end'
   tool_call_id: string
   tool_call_arguments_complete?: string
+  tool_call_response?: string
+  tool_call_status?: 'success' | 'error'
   provider_options?: ChatMessageProviderOptions
 }
 
@@ -179,11 +181,14 @@ export const createStreamEvent = {
   toolCallEnd: (
     tool_call_id: string,
     tool_call_arguments_complete?: string,
-    provider_options?: ChatMessageProviderOptions
+    provider_options?: ChatMessageProviderOptions,
+    result?: { response?: string; status?: 'success' | 'error' }
   ): ToolCallEndEvent => ({
     type: 'tool_call_end',
     tool_call_id,
     tool_call_arguments_complete,
+    ...(result?.response !== undefined ? { tool_call_response: result.response } : {}),
+    ...(result?.status ? { tool_call_status: result.status } : {}),
     ...(provider_options ? { provider_options } : {})
   }),
   permission: (permission: PermissionRequestPayload): PermissionRequestEvent => ({

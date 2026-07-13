@@ -1,4 +1,16 @@
-import { nanoid } from 'nanoid'
+import { AcpAgentRepository } from '@/agent/acp/acpAgentRepository'
+import {
+  BUILTIN_DEEPCHAT_AGENT_ID,
+  DeepChatAgentRepository
+} from '@/agent/deepchat/deepChatAgentRepository'
+import {
+  AgentNotFoundError,
+  decodeAgentCatalogRow,
+  decodeExecutableAgentDescriptor
+} from '@/agent/shared/agentCatalogCodec'
+import type { AgentDescriptor } from '@/agent/shared/agentDescriptors'
+import { mapCatalogRecordToLegacyAgent } from '@/agent/shared/agentCompatibilityMapper'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type {
   AcpAgentConfig,
   AcpAgentInstallState,
@@ -9,144 +21,58 @@ import type {
 import type {
   Agent,
   AgentAvatar,
-  DeepChatAgentConfig,
   CreateDeepChatAgentInput,
+  DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import {
-  createDefaultDeepChatSubagentSlots,
-  normalizeDeepChatSubagentConfig
-} from '@shared/lib/deepchatSubagents'
 import type { SQLitePresenter } from '../sqlitePresenter'
-import type { AgentRow } from '../sqlitePresenter/tables/agents'
-
-type StoredAgentState = {
-  envOverride?: Record<string, string>
-  installState?: AcpAgentInstallState | null
-}
-
-type StoredAcpManualConfig = {
-  command: string
-  args?: string[]
-  env?: Record<string, string>
-}
-
-type StoredAcpRegistryConfig = {
-  version?: string
-  distribution?: AcpRegistryAgent['distribution']
-}
-
-const BUILTIN_DEEPCHAT_AGENT_ID = 'deepchat'
-
-const parseJson = <T>(raw?: string | null): T | null => {
-  if (!raw) {
-    return null
-  }
-
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return null
-  }
-}
-
-const stringifyJson = (value: unknown): string | null => {
-  if (value === undefined || value === null) {
-    return null
-  }
-  return JSON.stringify(value)
-}
-
-const sanitizeString = (value?: string | null): string | null => {
-  const normalized = value?.trim()
-  return normalized ? normalized : null
-}
-
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-
-const normalizeNullableStringList = (
-  value: string[] | null | undefined
-): string[] | null | undefined => {
-  if (value === null || value === undefined) {
-    return value
-  }
-
-  const normalized = Array.from(
-    new Set(value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean))
-  )
-  return normalized
-}
-
-const mergeNullableStringList = (
-  baseValue: string[] | null | undefined,
-  overrideValue: string[] | null | undefined
-): string[] | null | undefined => normalizeNullableStringList(overrideValue ?? baseValue)
-
-const mergeDeepChatConfig = (
-  baseConfig: DeepChatAgentConfig,
-  overrideConfig: DeepChatAgentConfig
-): DeepChatAgentConfig =>
-  normalizeDeepChatSubagentConfig({
-    defaultModelPreset: overrideConfig.defaultModelPreset ?? baseConfig.defaultModelPreset ?? null,
-    assistantModel: overrideConfig.assistantModel ?? baseConfig.assistantModel ?? null,
-    visionModel: overrideConfig.visionModel ?? baseConfig.visionModel ?? null,
-    imageGenerationModel:
-      overrideConfig.imageGenerationModel ?? baseConfig.imageGenerationModel ?? null,
-    defaultProjectPath: overrideConfig.defaultProjectPath ?? baseConfig.defaultProjectPath ?? null,
-    systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
-    permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
-    disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
-    enabledSkillNames: mergeNullableStringList(
-      baseConfig.enabledSkillNames,
-      overrideConfig.enabledSkillNames
-    ),
-    enabledMcpServerIds: mergeNullableStringList(
-      baseConfig.enabledMcpServerIds,
-      overrideConfig.enabledMcpServerIds
-    ),
-    subagentEnabled: overrideConfig.subagentEnabled ?? baseConfig.subagentEnabled ?? true,
-    subagents:
-      overrideConfig.subagents ?? baseConfig.subagents ?? createDefaultDeepChatSubagentSlots(),
-    autoCompactionEnabled:
-      overrideConfig.autoCompactionEnabled ?? baseConfig.autoCompactionEnabled ?? true,
-    autoCompactionTriggerThreshold:
-      overrideConfig.autoCompactionTriggerThreshold ??
-      baseConfig.autoCompactionTriggerThreshold ??
-      80,
-    autoCompactionRetainRecentPairs:
-      overrideConfig.autoCompactionRetainRecentPairs ??
-      baseConfig.autoCompactionRetainRecentPairs ??
-      2,
-    memoryEnabled: overrideConfig.memoryEnabled ?? baseConfig.memoryEnabled ?? false,
-    memoryEmbedding: overrideConfig.memoryEmbedding ?? baseConfig.memoryEmbedding ?? null,
-    memoryExtractionModel:
-      overrideConfig.memoryExtractionModel ?? baseConfig.memoryExtractionModel ?? null,
-    memoryRetrieval: overrideConfig.memoryRetrieval ?? baseConfig.memoryRetrieval ?? null,
-    memoryInjectionTokenBudget:
-      overrideConfig.memoryInjectionTokenBudget ?? baseConfig.memoryInjectionTokenBudget ?? null,
-    personaEvolutionEnabled:
-      overrideConfig.personaEvolutionEnabled ?? baseConfig.personaEvolutionEnabled ?? false
-  })
 
 export class AgentRepository {
-  constructor(private readonly sqlitePresenter: SQLitePresenter) {}
+  private readonly deepchat: DeepChatAgentRepository
+  private readonly acp: AcpAgentRepository
+
+  constructor(private readonly sqlitePresenter: SQLitePresenter) {
+    const listSessionIdsByAgent = (agentId: string) =>
+      this.sqlitePresenter.newSessionsTable
+        .list({ agentId, includeSubagents: true })
+        .map((session) => toAppSessionId(session.id))
+
+    this.deepchat = new DeepChatAgentRepository({
+      rows: sqlitePresenter.agentsTable,
+      listSessionIdsByAgent,
+      clearMemoryByAgent: (agentId) => sqlitePresenter.agentMemoryTable.clearByAgent(agentId),
+      clearMemoryAuditByAgent: (agentId) =>
+        sqlitePresenter.agentMemoryAuditTable.clearByAgent(agentId),
+      transaction: (operation) => sqlitePresenter.getDatabase().transaction(operation)()
+    })
+    this.acp = new AcpAgentRepository({
+      rows: sqlitePresenter.agentsTable,
+      listSessionIdsByAgent
+    })
+  }
 
   listAgents(filters?: { agentType?: 'deepchat' | 'acp'; enabled?: boolean }): Agent[] {
-    const rows = this.sqlitePresenter.agentsTable.list({
-      agentType: filters?.agentType,
-      enabled: filters?.enabled
-    })
-    return rows.map((row) => this.toAgent(row))
+    return this.sqlitePresenter.agentsTable
+      .list({ agentType: filters?.agentType, enabled: filters?.enabled })
+      .map((row) => mapCatalogRecordToLegacyAgent(decodeAgentCatalogRow(row)))
   }
 
   getAgent(agentId: string): Agent | null {
     const row = this.sqlitePresenter.agentsTable.get(agentId)
-    return row ? this.toAgent(row) : null
+    return row ? mapCatalogRecordToLegacyAgent(decodeAgentCatalogRow(row)) : null
   }
 
   getAgentType(agentId: string): 'deepchat' | 'acp' | null {
+    return this.sqlitePresenter.agentsTable.get(agentId)?.agent_type ?? null
+  }
+
+  resolveExecutableDescriptor(agentId: string): AgentDescriptor {
     const row = this.sqlitePresenter.agentsTable.get(agentId)
-    return row?.agent_type ?? null
+    if (!row) throw new AgentNotFoundError(agentId)
+    return decodeExecutableAgentDescriptor(row, {
+      resolveDeepChatConfig: (id) => this.deepchat.resolveConfig(id),
+      resolveRegistryReference: (id) => this.acp.getRegistryReference(id)
+    })
   }
 
   ensureBuiltinDeepChatAgent(defaults?: {
@@ -155,219 +81,63 @@ export class AgentRepository {
     avatar?: AgentAvatar | null
     config?: DeepChatAgentConfig | null
   }): Agent {
-    const existing = this.sqlitePresenter.agentsTable.get(BUILTIN_DEEPCHAT_AGENT_ID)
-    if (!existing) {
-      this.sqlitePresenter.agentsTable.create({
-        id: BUILTIN_DEEPCHAT_AGENT_ID,
-        agentType: 'deepchat',
-        source: 'builtin',
-        name: defaults?.name?.trim() || 'DeepChat',
-        enabled: true,
-        protected: true,
-        icon: sanitizeString(defaults?.icon),
-        avatarJson: stringifyJson(defaults?.avatar ?? null),
-        configJson: stringifyJson(defaults?.config ?? null)
-      })
-      return this.getAgent(BUILTIN_DEEPCHAT_AGENT_ID) as Agent
-    }
-
-    this.sqlitePresenter.agentsTable.update(BUILTIN_DEEPCHAT_AGENT_ID, {
-      enabled: true,
-      protected: true
-    })
-    return this.getAgent(BUILTIN_DEEPCHAT_AGENT_ID) as Agent
+    return mapCatalogRecordToLegacyAgent(
+      decodeAgentCatalogRow(this.deepchat.ensureBuiltin(defaults))
+    )
   }
 
   createDeepChatAgent(input: CreateDeepChatAgentInput): Agent {
-    const id = `deepchat-${nanoid(8)}`
-    this.sqlitePresenter.agentsTable.create({
-      id,
-      agentType: 'deepchat',
-      source: 'manual',
-      name: input.name.trim(),
-      enabled: input.enabled !== false,
-      protected: false,
-      description: sanitizeString(input.description),
-      icon: sanitizeString(input.icon),
-      avatarJson: stringifyJson(input.avatar ?? null),
-      configJson: stringifyJson(input.config ?? null)
-    })
-    return this.getAgent(id) as Agent
+    return mapCatalogRecordToLegacyAgent(decodeAgentCatalogRow(this.deepchat.create(input)))
   }
 
   updateDeepChatAgent(agentId: string, updates: UpdateDeepChatAgentInput): Agent | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'deepchat') {
-      return null
-    }
-
-    const currentConfig = parseJson<DeepChatAgentConfig>(row.config_json) ?? {}
-    const nextConfig =
-      updates.config === undefined
-        ? currentConfig
-        : { ...currentConfig, ...clone(updates.config ?? {}) }
-
-    this.sqlitePresenter.agentsTable.update(agentId, {
-      name: updates.name?.trim() || row.name,
-      enabled: updates.enabled ?? row.enabled === 1,
-      description:
-        updates.description === undefined ? row.description : sanitizeString(updates.description),
-      icon: updates.icon === undefined ? row.icon : sanitizeString(updates.icon),
-      avatarJson:
-        updates.avatar === undefined ? row.avatar_json : stringifyJson(updates.avatar ?? null),
-      configJson: updates.config === undefined ? row.config_json : stringifyJson(nextConfig)
-    })
-
-    return this.getAgent(agentId)
+    const row = this.deepchat.update(agentId, updates)
+    return row ? mapCatalogRecordToLegacyAgent(decodeAgentCatalogRow(row)) : null
   }
 
   canDeleteDeepChatAgent(agentId: string): boolean {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'deepchat' || row.protected === 1) {
-      return false
-    }
-
-    const relatedSessions = this.sqlitePresenter.newSessionsTable.list({
-      agentId,
-      includeSubagents: true
-    })
-    if (relatedSessions.length > 0) {
-      return false
-    }
-
-    return true
+    return this.deepchat.canDelete(agentId)
   }
 
   deleteDeepChatAgent(agentId: string): boolean {
-    return this.sqlitePresenter.getDatabase().transaction(() => {
-      const row = this.sqlitePresenter.agentsTable.get(agentId)
-      if (!row || row.agent_type !== 'deepchat' || row.protected === 1) {
-        return false
-      }
-
-      const relatedSessions = this.sqlitePresenter.newSessionsTable.list({
-        agentId,
-        includeSubagents: true
-      })
-      if (relatedSessions.length > 0) {
-        return false
-      }
-
-      this.sqlitePresenter.agentMemoryTable.clearByAgent(agentId)
-      this.sqlitePresenter.agentMemoryAuditTable.clearByAgent(agentId)
-      this.sqlitePresenter.agentsTable.delete(agentId)
-      return true
-    })()
+    return this.deepchat.delete(agentId)
   }
 
   getDeepChatAgentConfig(agentId: string): DeepChatAgentConfig | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'deepchat') {
-      return null
-    }
-    const config = parseJson<DeepChatAgentConfig>(row.config_json)
-    return config ? normalizeDeepChatSubagentConfig(config) : null
+    return this.deepchat.getConfig(agentId)
   }
 
   resolveDeepChatAgentConfig(agentId: string): DeepChatAgentConfig {
-    const builtin = this.getDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
-    if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
-      return mergeDeepChatConfig({}, builtin)
-    }
-
-    const current = this.getDeepChatAgentConfig(agentId) ?? {}
-    return mergeDeepChatConfig(builtin, current)
+    return this.deepchat.resolveConfig(agentId)
   }
 
   listManualAcpAgents(): AcpManualAgent[] {
-    return this.sqlitePresenter.agentsTable
-      .list({ agentType: 'acp', source: 'manual' })
-      .map((row) => this.toAcpManualAgent(row))
-      .filter((agent): agent is AcpManualAgent => Boolean(agent))
+    return this.acp.listManual()
   }
 
   getManualAcpAgent(agentId: string): AcpManualAgent | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp' || row.source !== 'manual') {
-      return null
-    }
-    return this.toAcpManualAgent(row)
+    return this.acp.getManual(agentId)
   }
 
   createManualAcpAgent(
     agent: Omit<AcpManualAgent, 'id' | 'source'> & { id?: string }
   ): AcpManualAgent {
-    const id = agent.id?.trim() || nanoid(8)
-    this.sqlitePresenter.agentsTable.upsert({
-      id,
-      agentType: 'acp',
-      source: 'manual',
-      name: agent.name.trim(),
-      enabled: agent.enabled,
-      protected: false,
-      description: sanitizeString(agent.description),
-      icon: sanitizeString(agent.icon),
-      configJson: stringifyJson({
-        command: agent.command,
-        args: agent.args,
-        env: agent.env
-      } satisfies StoredAcpManualConfig),
-      stateJson: stringifyJson({})
-    })
-    return this.getManualAcpAgent(id) as AcpManualAgent
+    return this.acp.createManual(agent)
   }
 
   updateManualAcpAgent(
     agentId: string,
     updates: Partial<Omit<AcpManualAgent, 'id' | 'source'>>
   ): AcpManualAgent | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp' || row.source !== 'manual') {
-      return null
-    }
-
-    const currentConfig = parseJson<StoredAcpManualConfig>(row.config_json) ?? { command: '' }
-    const nextConfig: StoredAcpManualConfig = {
-      command: updates.command?.trim() || currentConfig.command,
-      args: updates.args ?? currentConfig.args,
-      env: updates.env ?? currentConfig.env
-    }
-
-    this.sqlitePresenter.agentsTable.update(agentId, {
-      name: updates.name?.trim() || row.name,
-      enabled: updates.enabled ?? row.enabled === 1,
-      description:
-        updates.description === undefined ? row.description : sanitizeString(updates.description),
-      icon: updates.icon === undefined ? row.icon : sanitizeString(updates.icon),
-      configJson: stringifyJson(nextConfig)
-    })
-
-    return this.getManualAcpAgent(agentId)
+    return this.acp.updateManual(agentId, updates)
   }
 
   removeManualAcpAgent(agentId: string): boolean {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp' || row.source !== 'manual') {
-      return false
-    }
-    const relatedSessions = this.sqlitePresenter.newSessionsTable.list({
-      agentId,
-      includeSubagents: true
-    })
-    if (relatedSessions.length > 0) {
-      return false
-    }
-    this.sqlitePresenter.agentsTable.delete(agentId)
-    return true
+    return this.acp.removeManual(agentId)
   }
 
   hasAgentSessions(agentId: string): boolean {
-    return (
-      this.sqlitePresenter.newSessionsTable.list({
-        agentId,
-        includeSubagents: true
-      }).length > 0
-    )
+    return this.acp.hasSessions(agentId)
   }
 
   syncRegistryAgents(
@@ -375,162 +145,40 @@ export class AgentRepository {
     legacyStateById?: Record<string, AcpAgentState>,
     legacyInstallStateById?: Record<string, AcpAgentInstallState>
   ): void {
-    for (const agent of agents) {
-      const currentRow = this.sqlitePresenter.agentsTable.get(agent.id)
-      const currentState = parseJson<StoredAgentState>(currentRow?.state_json) ?? {}
-      const legacyState = legacyStateById?.[agent.id]
-      const legacyInstallState = legacyInstallStateById?.[agent.id]
-      const mergedState: StoredAgentState = {
-        envOverride: currentState.envOverride ?? legacyState?.envOverride,
-        installState: currentState.installState ?? legacyInstallState ?? null
-      }
-
-      this.sqlitePresenter.agentsTable.upsert({
-        id: agent.id,
-        agentType: 'acp',
-        source: 'registry',
-        name: agent.name,
-        enabled: currentRow ? currentRow.enabled === 1 : (legacyState?.enabled ?? false),
-        protected: false,
-        description: sanitizeString(agent.description),
-        icon: sanitizeString(agent.icon),
-        configJson: stringifyJson({
-          version: agent.version,
-          distribution: agent.distribution
-        } satisfies StoredAcpRegistryConfig),
-        stateJson: stringifyJson(mergedState),
-        createdAt: currentRow?.created_at,
-        updatedAt: Date.now()
-      })
-    }
+    this.acp.syncRegistry(agents, legacyStateById, legacyInstallStateById)
   }
 
   getAcpAgentState(agentId: string): AcpAgentState | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp') {
-      return null
-    }
-
-    const state = parseJson<StoredAgentState>(row.state_json) ?? {}
-    return {
-      agentId: row.id,
-      enabled: row.enabled === 1,
-      envOverride: state.envOverride,
-      updatedAt: row.updated_at
-    }
+    return this.acp.getState(agentId)
   }
 
   setAgentEnabled(agentId: string, enabled: boolean): boolean {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row) {
-      return false
-    }
+    if (!this.sqlitePresenter.agentsTable.get(agentId)) return false
     this.sqlitePresenter.agentsTable.update(agentId, { enabled })
     return true
   }
 
   setAgentEnvOverride(agentId: string, env: Record<string, string>): boolean {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp') {
-      return false
-    }
-
-    const state = parseJson<StoredAgentState>(row.state_json) ?? {}
-    this.sqlitePresenter.agentsTable.update(agentId, {
-      stateJson: stringifyJson({
-        ...state,
-        envOverride: clone(env)
-      } satisfies StoredAgentState)
-    })
-    return true
+    return this.acp.setEnvOverride(agentId, env)
   }
 
   getAgentInstallState(agentId: string): AcpAgentInstallState | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp') {
-      return null
-    }
-    return parseJson<StoredAgentState>(row.state_json)?.installState ?? null
+    return this.acp.getInstallState(agentId)
   }
 
   setAgentInstallState(agentId: string, installState: AcpAgentInstallState | null): boolean {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp') {
-      return false
-    }
-
-    const state = parseJson<StoredAgentState>(row.state_json) ?? {}
-    this.sqlitePresenter.agentsTable.update(agentId, {
-      stateJson: stringifyJson({
-        ...state,
-        installState
-      } satisfies StoredAgentState)
-    })
-    return true
+    return this.acp.setInstallState(agentId, installState)
   }
 
   clearRegistryAcpAgentInstallation(agentId: string, installState: AcpAgentInstallState): boolean {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp' || row.source !== 'registry') {
-      return false
-    }
-    if (this.hasAgentSessions(agentId)) {
-      return false
-    }
-
-    const state = parseJson<StoredAgentState>(row.state_json) ?? {}
-    this.sqlitePresenter.agentsTable.update(agentId, {
-      enabled: false,
-      stateJson: stringifyJson({
-        ...state,
-        installState
-      } satisfies StoredAgentState)
-    })
-
-    return true
+    return this.acp.clearRegistryInstallation(agentId, installState)
   }
 
   toAcpAgentConfig(
     agentId: string,
     preview?: Pick<AcpAgentConfig, 'command' | 'args'>
   ): AcpAgentConfig | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp') {
-      return null
-    }
-
-    if (row.source === 'manual') {
-      const manual = this.toAcpManualAgent(row)
-      if (!manual) {
-        return null
-      }
-      return {
-        id: manual.id,
-        name: manual.name,
-        command: manual.command,
-        args: manual.args,
-        env: manual.env,
-        description: manual.description,
-        icon: manual.icon,
-        source: 'manual',
-        installState: null
-      }
-    }
-
-    if (!preview) {
-      return null
-    }
-
-    return {
-      id: row.id,
-      name: row.name,
-      command: preview.command,
-      args: preview.args,
-      description: row.description ?? undefined,
-      icon: row.icon ?? undefined,
-      source: 'registry',
-      installState: this.getAgentInstallState(row.id)
-    }
+    return this.acp.toConfig(agentId, preview)
   }
 
   getAcpRegistryOverlay(agentId: string): {
@@ -538,55 +186,7 @@ export class AgentRepository {
     envOverride?: Record<string, string>
     installState?: AcpAgentInstallState | null
   } | null {
-    const row = this.sqlitePresenter.agentsTable.get(agentId)
-    if (!row || row.agent_type !== 'acp' || row.source !== 'registry') {
-      return null
-    }
-    const state = parseJson<StoredAgentState>(row.state_json) ?? {}
-    return {
-      enabled: row.enabled === 1,
-      envOverride: state.envOverride,
-      installState: state.installState ?? null
-    }
-  }
-
-  private toAcpManualAgent(row: AgentRow): AcpManualAgent | null {
-    const config = parseJson<StoredAcpManualConfig>(row.config_json)
-    if (!config?.command) {
-      return null
-    }
-
-    return {
-      id: row.id,
-      name: row.name,
-      command: config.command,
-      args: config.args,
-      env: config.env,
-      enabled: row.enabled === 1,
-      description: row.description ?? undefined,
-      icon: row.icon ?? undefined,
-      source: 'manual'
-    }
-  }
-
-  private toAgent(row: AgentRow): Agent {
-    return {
-      id: row.id,
-      name: row.name,
-      type: row.agent_type,
-      agentType: row.agent_type,
-      enabled: row.enabled === 1,
-      protected: row.protected === 1,
-      icon: row.icon ?? undefined,
-      description: row.description ?? undefined,
-      source: row.source,
-      avatar: parseJson<AgentAvatar>(row.avatar_json),
-      config:
-        row.agent_type === 'deepchat'
-          ? (parseJson<DeepChatAgentConfig>(row.config_json) ?? null)
-          : null,
-      installState: this.getAgentInstallState(row.id)
-    }
+    return this.acp.getRegistryOverlay(agentId)
   }
 }
 

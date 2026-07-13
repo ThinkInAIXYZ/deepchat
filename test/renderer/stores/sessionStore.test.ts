@@ -775,6 +775,7 @@ describe('sessionStore onboarding progress', () => {
       modelId: 'gpt-4'
     })
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
+    expect(store.activeSession.value?.status).toBe('working')
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
       stepId: 'first-chat',

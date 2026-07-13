@@ -185,7 +185,7 @@ describe('MemoryDiagnosticsCollector', () => {
     const collector = new MemoryDiagnosticsCollector()
     collector.recordRecall('agent', recallSample(1))
     const broken = {
-      get latencyMs() {
+      get latencyMs(): { total: number } {
         throw new Error('diagnostics input failure')
       },
       ftsCandidates: 0,

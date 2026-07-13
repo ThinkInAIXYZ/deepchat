@@ -1405,6 +1405,21 @@ const shouldShowPendingAssistantPlaceholder = computed(() => {
   )
 })
 
+const hasPendingAssistantMessage = computed(() =>
+  messageStore.messages.some(
+    (message) => message.role === 'assistant' && message.status === 'pending'
+  )
+)
+
+const shouldShowGeneratingAssistantPlaceholder = computed(
+  () =>
+    isGenerating.value &&
+    !shouldShowPendingAssistantPlaceholder.value &&
+    !hasFirstStreamingContent.value &&
+    !hasPendingAssistantMessage.value &&
+    !ephemeralRateLimitBlock.value
+)
+
 watch(
   () => hasFirstStreamingContent.value || hasNewAssistantMessageAfterPendingPlaceholder.value,
   (shouldClearPendingAssistant) => {
@@ -1557,6 +1572,8 @@ const streamingDisplayTail = computed(() => {
 
   if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
     msgs.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
+  } else if (shouldShowGeneratingAssistantPlaceholder.value) {
+    msgs.push(toStreamingMessage([], `__pending_assistant_generating_${props.sessionId}`))
   }
 
   return msgs

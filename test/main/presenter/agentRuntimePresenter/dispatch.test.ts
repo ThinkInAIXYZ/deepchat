@@ -6,6 +6,8 @@ import { approximateTokenSize } from 'tokenx'
 import type {
   InterleavedReasoningConfig,
   IoParams,
+  ProcessControlCollaborators,
+  ProcessInternalDiagnostics,
   StreamState
 } from '@/presenter/agentRuntimePresenter/types'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
@@ -14,11 +16,17 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
-import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
+import {
+  createToolExecutionPort,
+  createToolResultPort
+} from '@/presenter/agentRuntimePresenter/toolAdapters'
+import type { DeepChatLoopToolNotification, ToolResultPort } from '@/agent/deepchat/loop/ports'
+import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
+import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -63,7 +71,8 @@ vi.mock('@/presenter', () => ({
 import {
   executeTools as executeToolsInternal,
   finalize,
-  finalizeError
+  finalizeError,
+  persistAbortExceptionPlanState
 } from '@/presenter/agentRuntimePresenter/dispatch'
 import type { EchoHandle } from '@/presenter/agentRuntimePresenter/echo'
 import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
@@ -143,6 +152,17 @@ const DEFAULT_INTERLEAVED_REASONING: InterleavedReasoningConfig = {
   providerDbSourceUrl: 'https://example.com/provider-db.json'
 }
 
+type TestHooks = Partial<ProcessControlCollaborators & ProcessInternalDiagnostics> & {
+  onPreToolUse?: (tool: DeepChatLoopToolNotification) => void
+  onPostToolUse?: (tool: DeepChatLoopToolNotification) => void
+  onPostToolUseFailure?: (tool: DeepChatLoopToolNotification) => void
+  onPermissionRequest?: (
+    permission: Readonly<Record<string, unknown>>,
+    tool: DeepChatLoopToolNotification
+  ) => void
+  resultNormalizer?: ToolResultPort['normalize']
+}
+
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
 }
@@ -159,11 +179,16 @@ async function executeTools(
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
-  hooks?: Parameters<typeof executeToolsInternal>[13],
+  hooks?: TestHooks,
   providerId?: string,
   interleavedReasoning: InterleavedReasoningConfig = DEFAULT_INTERLEAVED_REASONING,
   rendererFlushHandle?: Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 ) {
+  const toolExecution = createToolExecutionPort(toolPresenter)!
+  const toolResults = createToolResultPort({
+    outputGuard: toolOutputGuard,
+    normalize: hooks?.resultNormalizer ?? (async ({ content }) => content)
+  })
   const flushHandle =
     rendererFlushHandle ??
     ({
@@ -207,16 +232,34 @@ async function executeTools(
     conversation,
     prevBlockCount,
     tools,
-    toolPresenter,
+    toolExecution,
     modelId,
     interleavedReasoning,
     io,
     permissionMode,
-    toolOutputGuard,
+    toolResults,
     contextLength,
     maxTokens,
     flushHandle,
-    hooks,
+    {
+      notificationObserver: hooks
+        ? {
+            notify: (notification) => {
+              if (notification.event === 'PreToolUse') {
+                hooks.onPreToolUse?.(notification.tool)
+              } else if (notification.event === 'PostToolUse') {
+                hooks.onPostToolUse?.(notification.tool)
+              } else if (notification.event === 'PostToolUseFailure') {
+                hooks.onPostToolUseFailure?.(notification.tool)
+              } else {
+                hooks.onPermissionRequest?.(notification.permission, notification.tool)
+              }
+            }
+          }
+        : undefined,
+      controls: hooks,
+      diagnostics: hooks
+    },
     providerId
   )
 }
@@ -225,7 +268,7 @@ describe('dispatch', () => {
   let state: StreamState
   let io: IoParams
   let tempHome: string | null = null
-  let homeDirSpy: ReturnType<typeof vi.spyOn> | null = null
+  let homedirSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -234,8 +277,8 @@ describe('dispatch', () => {
   })
 
   afterEach(async () => {
-    homeDirSpy?.mockRestore()
-    homeDirSpy = null
+    homedirSpy?.mockRestore()
+    homedirSpy = null
     if (tempHome) {
       await fs.rm(tempHome, { recursive: true, force: true })
       tempHome = null
@@ -962,8 +1005,9 @@ describe('dispatch', () => {
         1024
       )
 
-      expect(result.pendingInteractions).toHaveLength(1)
-      expect(result.pendingInteractions[0]).toEqual(
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
+      expect(result.type === 'paused' ? result.interactions[0] : null).toEqual(
         expect.objectContaining({
           type: 'question',
           messageId: 'm1',
@@ -997,6 +1041,121 @@ describe('dispatch', () => {
         'chat.skillDraft.actions.install',
         'chat.skillDraft.actions.discard'
       ])
+    })
+
+    it('returns all interaction origins in persisted action order with execution state', async () => {
+      const toolPresenter = createMockToolPresenter() as IToolPresenter & {
+        preCheckToolPermission: ReturnType<typeof vi.fn>
+      }
+      toolPresenter.preCheckToolPermission = vi.fn(async (request) =>
+        request.function.name === 'precheck_tool'
+          ? {
+              needsPermission: true,
+              permissionType: 'write' as const,
+              description: 'Need pre-check permission'
+            }
+          : null
+      )
+      toolPresenter.callTool = vi.fn(async (request) => {
+        if (request.function.name === 'skill_manage') {
+          return {
+            content: 'draft created',
+            rawData: {
+              content: 'draft created',
+              isError: false,
+              toolResult: {
+                skillDraft: {
+                  status: 'created',
+                  draftId: 'draft-1',
+                  skillName: 'draft-skill'
+                }
+              }
+            }
+          }
+        }
+        if (request.function.name === 'post_permission_tool') {
+          return {
+            content: 'permission required',
+            rawData: {
+              content: 'permission required',
+              isError: true,
+              requiresPermission: true,
+              permissionRequest: {
+                permissionType: 'write',
+                description: 'Need post-call permission'
+              }
+            }
+          }
+        }
+        throw new Error(`Unexpected tool execution: ${request.function.name}`)
+      })
+
+      const calls = [
+        { id: 'tc-skill', name: 'skill_manage', arguments: '{"action":"create"}' },
+        {
+          id: 'tc-question',
+          name: QUESTION_TOOL_NAME,
+          arguments: '{"question":"Continue?","options":[{"label":"Yes"}]}'
+        },
+        { id: 'tc-post', name: 'post_permission_tool', arguments: '{}' },
+        { id: 'tc-pre', name: 'precheck_tool', arguments: '{}' }
+      ]
+      state.completedToolCalls = calls
+      state.blocks.push(
+        ...calls.map((call) => ({
+          type: 'tool_call' as const,
+          content: '',
+          status: 'pending' as const,
+          timestamp: Date.now(),
+          tool_call: {
+            id: call.id,
+            name: call.name,
+            params: call.arguments,
+            response: ''
+          }
+        }))
+      )
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        calls.map((call) => makeTool(call.name)),
+        toolPresenter,
+        'gpt-4',
+        io,
+        'default',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(result.type).toBe('paused')
+      if (result.type !== 'paused') throw new Error('Expected paused tool batch')
+      expect(
+        result.interactions.map(({ origin, order, toolCallId }) => ({
+          origin,
+          order,
+          toolCallId
+        }))
+      ).toEqual([
+        { origin: 'question', order: 0, toolCallId: 'tc-question' },
+        { origin: 'post-call-permission', order: 1, toolCallId: 'tc-post' },
+        { origin: 'pre-check-permission', order: 2, toolCallId: 'tc-pre' },
+        { origin: 'skill-draft-confirmation', order: 3, toolCallId: 'tc-skill' }
+      ])
+      expect(result.executionState).toEqual({
+        callOrder: ['tc-skill', 'tc-question', 'tc-post', 'tc-pre'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill'],
+        pendingInteractionCallIds: ['tc-question', 'tc-post', 'tc-pre', 'tc-skill']
+      })
+      expect(
+        state.blocks
+          .filter((block) => block.type === 'action' && block.status === 'pending')
+          .map((block) => block.tool_call?.id)
+      ).toEqual(['tc-question', 'tc-post', 'tc-pre', 'tc-skill'])
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
     })
 
     it('does not emit PreToolUse for question interactions that pause execution', async () => {
@@ -1049,7 +1208,8 @@ describe('dispatch', () => {
         rendererFlushHandle
       )
 
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
@@ -1107,7 +1267,8 @@ describe('dispatch', () => {
         rendererFlushHandle
       )
 
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
@@ -1159,7 +1320,7 @@ describe('dispatch', () => {
         hooks
       )
 
-      expect(result.pendingInteractions).toHaveLength(0)
+      expect(result.type).toBe('completed')
       expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 's1',
@@ -1237,7 +1398,8 @@ describe('dispatch', () => {
         })
       )
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
     })
 
     it('marks tool calls as reviewing while auto approve reviewer is pending', async () => {
@@ -1355,7 +1517,8 @@ describe('dispatch', () => {
 
       expect(rendererFlushHandle.flush).not.toHaveBeenCalled()
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(
         state.blocks.find((block) => block.tool_call?.id === 'tc-read')?.extra
           ?.autoApproveReviewStatus
@@ -1410,8 +1573,9 @@ describe('dispatch', () => {
 
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
       expect(result.executed).toBe(0)
-      expect(result.pendingInteractions).toHaveLength(1)
-      expect(result.pendingInteractions[0].permission).toEqual(
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
+      expect(result.type === 'paused' ? result.interactions[0].permission : null).toEqual(
         expect.objectContaining({
           permissionType: 'write',
           serverName: 'agent-filesystem',
@@ -1538,7 +1702,8 @@ describe('dispatch', () => {
       )
 
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
-      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
     })
 
@@ -1601,7 +1766,7 @@ describe('dispatch', () => {
 
       expect(toolPresenter.preCheckToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-write' }),
-        { permissionMode: 'full_access', signal: io.abortSignal }
+        { permissionMode: 'full_access' }
       )
       expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1623,7 +1788,7 @@ describe('dispatch', () => {
         expect.objectContaining({ permissionMode: 'full_access' })
       )
       expect(result.executed).toBe(1)
-      expect(result.pendingInteractions).toHaveLength(0)
+      expect(result.type).toBe('completed')
     })
 
     it('enriches tool_call blocks with server info', async () => {
@@ -2186,10 +2351,9 @@ describe('dispatch', () => {
         { id: 'tc2', name: 'tool_b', arguments: '{}' }
       ]
 
-      const conversation: any[] = []
-      const executing = executeTools(
+      const executed = await executeTools(
         state,
-        conversation,
+        [],
         0,
         tools,
         toolPresenter,
@@ -2201,13 +2365,9 @@ describe('dispatch', () => {
         1024
       )
 
-      await expect(executing).rejects.toMatchObject({ name: 'AbortError' })
+      // Only first tool should have been called
+      expect(executed.executed).toBe(1)
       expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
-      expect(conversation.some((message) => message.role === 'tool')).toBe(false)
-      expect(state.blocks.find((block) => block.tool_call?.id === 'tc1')).toMatchObject({
-        status: 'pending',
-        tool_call: { response: '' }
-      })
     })
 
     it('flushes to renderer and DB after each tool execution', async () => {
@@ -2533,7 +2693,7 @@ describe('dispatch', () => {
 
     it('offloads large yo_browser responses into a stub', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-'))
-      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -2576,21 +2736,22 @@ describe('dispatch', () => {
 
       expect(executed.terminalError).toBeUndefined()
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
+      const offloadPath = resolveToolOffloadPath('s1', 'function.cdp_send:11')
       expect(toolMessage.content).toContain('[Tool output offloaded]')
-      expect(toolMessage.content).toMatch(/tool_function\.cdp_send_11(?:_[a-f0-9]+)?\.offload/)
+      expect(toolMessage.content).toContain(`Offload file: ${offloadPath}`)
       expect(toolMessage.content).not.toContain(':11.offload')
-      expect(toolMessage.content).not.toContain(tempHome!)
+      await expect(fs.readFile(offloadPath!, 'utf-8')).resolves.toBe(longScreenshot)
       expect(state.blocks[0].tool_call?.response).toContain('[Tool output offloaded]')
       expect(state.blocks[0].status).toBe('success')
     })
 
-    it('normalizes tool output before offload when a hook rewrites screenshot content', async () => {
+    it('normalizes tool output through the result port before offload', async () => {
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
       const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
       const conversation: any[] = []
       const hooks = {
-        normalizeToolResult: vi.fn().mockResolvedValue('English screenshot summary')
+        resultNormalizer: vi.fn().mockResolvedValue('English screenshot summary')
       }
 
       state.blocks.push({
@@ -2630,7 +2791,7 @@ describe('dispatch', () => {
       )
 
       expect(executed.terminalError).toBeUndefined()
-      expect(hooks.normalizeToolResult).toHaveBeenCalledWith(
+      expect(hooks.resultNormalizer).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 's1',
           toolCallId: 'tc-normalized',
@@ -2648,7 +2809,7 @@ describe('dispatch', () => {
 
     it('turns offload write failures into tool errors instead of falling back to raw content', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-fail-'))
-      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
       const writeFileSpy = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('disk full'))
 
       const tools = [makeTool('cdp_send')]
@@ -2859,7 +3020,7 @@ describe('dispatch', () => {
 
     it('cleans offload files when a tail tool is downgraded during batch fitting', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-tail-offload-'))
-      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('read'), makeTool('exec')]
       const toolPresenter = createMockToolPresenter()
@@ -2911,9 +3072,7 @@ describe('dispatch', () => {
       expect(executed.terminalError).toBeUndefined()
       expect(state.blocks[1].tool_call?.response).toContain('remaining context window is too small')
       expect(state.blocks[1].tool_call?.response).not.toContain('[Tool output offloaded]')
-      await expect(
-        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc2.offload'))
-      ).rejects.toThrow()
+      await expect(fs.access(resolveToolOffloadPath('s1', 'tc2')!)).rejects.toThrow()
     })
 
     it('drops search side effects for downgraded tail tool results', async () => {
@@ -3000,7 +3159,7 @@ describe('dispatch', () => {
 
     it('marks the tool as error when offload succeeds but context budget cannot fit the result', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
-      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -3044,14 +3203,12 @@ describe('dispatch', () => {
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
       expect(toolMessage.content).toContain('remaining context window is too small')
       expect(state.blocks[0].status).toBe('error')
-      await expect(
-        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
-      ).rejects.toThrow()
+      await expect(fs.access(resolveToolOffloadPath('s1', 'tc1')!)).rejects.toThrow()
     })
 
     it('returns terminalError when even the minimal tool failure stub cannot fit', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-terminal-clean-'))
-      homeDirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
+      homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
@@ -3108,9 +3265,7 @@ describe('dispatch', () => {
         params: '{"method":"Page.captureScreenshot"}',
         error: expect.stringContaining('remaining context window is too small')
       })
-      await expect(
-        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
-      ).rejects.toThrow()
+      await expect(fs.access(resolveToolOffloadPath('s1', 'tc1')!)).rejects.toThrow()
     })
   })
 
@@ -3299,6 +3454,75 @@ describe('dispatch', () => {
       expectDeepchatEvent('chat.plan.updated', {
         terminalReason: 'aborted'
       })
+    })
+  })
+
+  describe('persistAbortExceptionPlanState', () => {
+    it('publishes the aborted terminal marker for abort-exception early returns', () => {
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('aborted')
+      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
+      expectDeepchatEvent('chat.plan.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        terminalReason: 'aborted'
+      })
+    })
+
+    it('persists existing non-plan blocks for abort-exception early returns', () => {
+      state.blocks.push({
+        type: 'content',
+        content: 'Partial answer',
+        status: 'success',
+        timestamp: Date.now()
+      })
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(io.messageStore.updateAssistantContent).toHaveBeenCalledWith('m1', state.blocks)
+      expectDeepchatEvent('chat.stream.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1'
+      })
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+    })
+
+    it('is idempotent for already stamped plan snapshots', () => {
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      persistAbortExceptionPlanState(state, io)
+      publishDeepchatEventMock.mockClear()
+      ;(io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mockClear()
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
+      expect(
+        publishDeepchatEventMock.mock.calls.some(([eventName]) => eventName === 'chat.plan.updated')
+      ).toBe(false)
     })
   })
 })

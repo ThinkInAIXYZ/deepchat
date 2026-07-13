@@ -1,5 +1,9 @@
 # Zod 4 Native Migration
 
+> Status: **implemented and validated**
+>
+> Current validation: typecheck, full main-process tests, and full renderer tests pass.
+
 ## User Need
 
 The user wants DeepChat to upgrade Zod from 3.x to the current stable 4.x release

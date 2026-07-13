@@ -1,10 +1,7 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 import { presenter } from '@/presenter'
-import type {
-  StartupWorkloadCoordinator,
-  StartupWorkloadTaskContext
-} from '@/presenter/startupWorkloadCoordinator'
+import { runMainlineNormalizationMigration } from '@/presenter/startupMigrations/sessionDataMigrations'
 
 export const sqliteMainlineNormalizationHook: LifecycleHook = {
   name: 'sqlite-mainline-normalization',
@@ -16,18 +13,7 @@ export const sqliteMainlineNormalizationHook: LifecycleHook = {
       throw new Error('sqliteMainlineNormalizationHook: Presenter not initialized')
     }
 
-    const agentSessionPresenter = presenter.agentSessionPresenter as unknown as {
-      startMainlineNormalizationBackfillTask?: (
-        taskContext?: StartupWorkloadTaskContext
-      ) => Promise<void>
-    }
-    if (!agentSessionPresenter.startMainlineNormalizationBackfillTask) {
-      return
-    }
-
-    const startupWorkloadCoordinator =
-      presenter.getStartupWorkloadCoordinator() as StartupWorkloadCoordinator
-    void startupWorkloadCoordinator
+    void presenter.startupWorkloadCoordinator
       .scheduleTask({
         id: 'main:sqlite-mainline-normalization',
         target: 'main',
@@ -35,7 +21,14 @@ export const sqliteMainlineNormalizationHook: LifecycleHook = {
         resource: 'io',
         labelKey: 'startup.main.sqliteMainlineNormalization',
         run: async (taskContext) => {
-          await agentSessionPresenter.startMainlineNormalizationBackfillTask?.(taskContext)
+          await runMainlineNormalizationMigration(
+            {
+              sqlitePresenter: presenter.sessionDataMigrationSQLite,
+              configPresenter: presenter.configPresenter,
+              appSessionService: presenter.appSessionService
+            },
+            taskContext
+          )
         }
       })
       .catch((error) => {

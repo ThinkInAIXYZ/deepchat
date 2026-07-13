@@ -11,7 +11,6 @@ import type {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
-  AcpWorkdirInfo,
   IConversationExporter
 } from '@shared/presenter'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
@@ -28,6 +27,7 @@ import { CommandPermissionService } from '../permission/commandPermissionService
 import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
 import type { ConversationExportFormat } from '../exporter/formats/conversationExporter'
 import { resolveSessionDir } from './sessionPaths'
+import type { AcpAsLlmProviderSessionControlPort } from '../runtimePorts'
 
 const DEFAULT_MESSAGE_LENGTH = 300
 
@@ -35,6 +35,7 @@ export class SessionPresenter implements ISessionPresenter {
   private sqlitePresenter: ISQLitePresenter
   private messageManager: MessageManager
   private llmProviderPresenter: ILlmProviderPresenter
+  private acpAsLlmProviderSessionControl: Pick<AcpAsLlmProviderSessionControlPort, 'setAcpWorkdir'>
   private configPresenter: IConfigPresenter
   private conversationManager: ConversationManager
   private exporter: IConversationExporter
@@ -46,6 +47,7 @@ export class SessionPresenter implements ISessionPresenter {
     messageManager?: MessageManager
     sqlitePresenter: ISQLitePresenter
     llmProviderPresenter: ILlmProviderPresenter
+    acpAsLlmProviderSessionControl: Pick<AcpAsLlmProviderSessionControlPort, 'setAcpWorkdir'>
     configPresenter: IConfigPresenter
     exporter: IConversationExporter
     commandPermissionService?: CommandPermissionService
@@ -53,6 +55,7 @@ export class SessionPresenter implements ISessionPresenter {
     this.sqlitePresenter = options.sqlitePresenter
     this.messageManager = options.messageManager ?? new MessageManager(options.sqlitePresenter)
     this.llmProviderPresenter = options.llmProviderPresenter
+    this.acpAsLlmProviderSessionControl = options.acpAsLlmProviderSessionControl
     this.configPresenter = options.configPresenter
     this.exporter = options.exporter
     this.commandPermissionService =
@@ -519,7 +522,7 @@ export class SessionPresenter implements ISessionPresenter {
       const tasks = Object.entries(settings.acpWorkdirMap)
         .filter(([, path]) => typeof path === 'string' && path.trim().length > 0)
         .map(([agentId, path]) =>
-          this.llmProviderPresenter
+          this.acpAsLlmProviderSessionControl
             .setAcpWorkdir(conversationId, agentId, path as string)
             .catch((error) =>
               console.warn('[SessionPresenter] Failed to set ACP workdir during creation', {
@@ -877,50 +880,6 @@ export class SessionPresenter implements ISessionPresenter {
     content: string
   }> {
     return this.exporter.exportConversation(conversationId, format)
-  }
-
-  async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
-    return this.llmProviderPresenter.getAcpWorkdir(conversationId, agentId)
-  }
-
-  async setAcpWorkdir(
-    conversationId: string,
-    agentId: string,
-    workdir: string | null
-  ): Promise<void> {
-    await this.llmProviderPresenter.setAcpWorkdir(conversationId, agentId, workdir)
-  }
-
-  async warmupAcpProcess(agentId: string, workdir?: string): Promise<void> {
-    await this.llmProviderPresenter.warmupAcpProcess(agentId, workdir)
-  }
-
-  async getAcpProcessModes(
-    agentId: string,
-    workdir?: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  > {
-    return await this.llmProviderPresenter.getAcpProcessModes(agentId, workdir)
-  }
-
-  async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
-    await this.llmProviderPresenter.setAcpPreferredProcessMode(agentId, workdir, modeId)
-  }
-
-  async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
-    await this.llmProviderPresenter.setAcpSessionMode(conversationId, modeId)
-  }
-
-  async getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null> {
-    return await this.llmProviderPresenter.getAcpSessionModes(conversationId)
   }
 
   /**

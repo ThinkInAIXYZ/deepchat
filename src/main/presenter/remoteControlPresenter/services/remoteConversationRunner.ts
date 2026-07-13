@@ -18,7 +18,8 @@ import type {
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
-import type { AgentRuntimePresenter } from '../../agentRuntimePresenter'
+import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   type RemoteDeliverySegment,
@@ -31,7 +32,7 @@ import {
   type TelegramAgentOption,
   type TelegramModelProviderOption
 } from '../types'
-import { resolveAcpAgentAlias } from '../../configPresenter/acpRegistryConstants'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
   REMOTE_NO_RESPONSE_TEXT,
@@ -426,7 +427,7 @@ type RemoteConversationRunnerDeps = {
   configPresenter: IConfigPresenter
   agentSessionPresenter: IAgentSessionPresenter
   filePresenter?: IFilePresenter
-  agentRuntimePresenter: AgentRuntimePresenter
+  agentManager: AgentManagerGenerationPort
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
   resolveDefaultAgentId: () => Promise<string>
@@ -663,7 +664,7 @@ export class RemoteConversationRunner {
     const beforeMessages = await this.deps.agentSessionPresenter.getMessages(session.id)
     const lastOrderSeq = beforeMessages.at(-1)?.orderSeq ?? 0
     const previousActiveEventId =
-      this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ?? null
+      this.deps.agentManager.getActiveGeneration(toAppSessionId(session.id))?.eventId ?? null
 
     const files = await this.prepareRemoteAttachments(endpointKey, session, input)
     const hasInputAttachments = (input.attachments?.length ?? 0) > 0
@@ -756,15 +757,15 @@ export class RemoteConversationRunner {
 
     const activeEventId =
       this.bindingStore.getActiveEvent(endpointKey) ??
-      this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ??
+      this.deps.agentManager.getActiveGeneration(toAppSessionId(session.id))?.eventId ??
       null
 
     if (!activeEventId) {
       return false
     }
 
-    const stopped = await this.deps.agentRuntimePresenter.cancelGenerationByEventId(
-      session.id,
+    const stopped = await this.deps.agentManager.cancelGenerationByEventId(
+      toAppSessionId(session.id),
       activeEventId
     )
     if (stopped) {
@@ -811,7 +812,7 @@ export class RemoteConversationRunner {
 
     const activeEventId =
       this.bindingStore.getActiveEvent(endpointKey) ??
-      this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ??
+      this.deps.agentManager.getActiveGeneration(toAppSessionId(session.id))?.eventId ??
       null
 
     return {
@@ -1109,7 +1110,7 @@ export class RemoteConversationRunner {
       }
     }
 
-    const activeGeneration = this.deps.agentRuntimePresenter.getActiveGeneration(sessionId)
+    const activeGeneration = this.deps.agentManager.getActiveGeneration(toAppSessionId(sessionId))
     const trackedMessage = await this.resolveTrackedAssistantMessage(
       sessionId,
       tracking,
@@ -1310,7 +1311,7 @@ export class RemoteConversationRunner {
   ): Promise<ChatMessageRecord | null> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
-      const activeGeneration = this.deps.agentRuntimePresenter.getActiveGeneration(sessionId)
+      const activeGeneration = this.deps.agentManager.getActiveGeneration(toAppSessionId(sessionId))
       if (activeGeneration?.eventId && activeGeneration.eventId !== options?.ignoreMessageId) {
         const message = await this.deps.agentSessionPresenter.getMessage(activeGeneration.eventId)
         if (message?.role === 'assistant') {

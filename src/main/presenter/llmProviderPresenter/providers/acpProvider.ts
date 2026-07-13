@@ -31,23 +31,16 @@ import {
   AcpProcessManager,
   AcpSessionManager,
   AcpSessionPersistence,
-  AcpContentMapper,
+  mapAcpPromptStopReason,
   AcpMessageFormatter,
-  getAcpConfigOption,
-  getAcpConfigOptionByCategory,
-  getLegacyModeState,
-  hasAcpConfigStateData,
-  LEGACY_MODEL_CONFIG_ID,
-  LEGACY_MODE_CONFIG_ID,
-  normalizeAcpConfigState,
-  updateAcpConfigStateValue,
   type AcpProcessHandle,
   type AcpSessionRecord
-} from '../acp'
-import { AcpClientPresenter, AcpPromptController } from '@/presenter/acpClientPresenter'
+} from '@/agent/acp/runtime'
+import { AcpRuntimeOwner, AcpPromptController } from '@/agent/acp/client'
 import { nanoid } from 'nanoid'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
-import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -62,30 +55,6 @@ type RunPromptOptions = {
 type PermissionRequestContext = {
   agent: AcpAgentConfig
   conversationId: string
-}
-
-const preserveLegacyConfigOptions = (
-  currentState: AcpConfigState | null | undefined,
-  incomingState: AcpConfigState
-): AcpConfigState => {
-  const incomingIds = new Set(incomingState.options.map((option) => option.id))
-  const incomingCategories = new Set(
-    incomingState.options
-      .map((option) => option.category)
-      .filter((category): category is string => Boolean(category))
-  )
-  const legacyOptions =
-    currentState?.options.filter(
-      (option) =>
-        (option.id === LEGACY_MODEL_CONFIG_ID || option.id === LEGACY_MODE_CONFIG_ID) &&
-        !incomingIds.has(option.id) &&
-        (!option.category || !incomingCategories.has(option.category))
-    ) ?? []
-
-  return {
-    source: incomingState.source,
-    options: [...legacyOptions, ...incomingState.options]
-  }
 }
 
 type PendingPermissionState = {
@@ -153,26 +122,22 @@ export class AcpProvider extends BaseLLMProvider {
   private readonly processManager: AcpProcessManager
   private readonly sessionManager: AcpSessionManager
   private readonly sessionPersistence: AcpSessionPersistence
-  private readonly acpRuntime: AcpClientPresenter
+  private readonly acpRuntimeOwner: AcpRuntimeOwner
+  private readonly acpRuntime: ReturnType<AcpRuntimeOwner['getOrCreate']>
   private readonly promptController: AcpPromptController
-  private readonly contentMapper = new AcpContentMapper()
   private readonly messageFormatter = new AcpMessageFormatter()
   private readonly pendingPermissions = new Map<string, PendingPermissionState>()
 
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,
-    sessionPersistence: AcpSessionPersistence,
+    runtimeOwner: AcpRuntimeOwner,
     mcpRuntime?: ProviderMcpRuntimePort
   ) {
     super(provider, configPresenter, mcpRuntime)
-    this.sessionPersistence = sessionPersistence
-    this.acpRuntime = new AcpClientPresenter({
-      provider,
-      configPresenter,
-      sessionPersistence,
-      mcpRuntime
-    })
+    this.acpRuntimeOwner = runtimeOwner
+    this.acpRuntime = runtimeOwner.getOrCreate()
+    this.sessionPersistence = this.acpRuntime.sessionPersistence
     this.processManager = this.acpRuntime.processManager
     this.sessionManager = this.acpRuntime.sessionManager
     this.promptController = this.acpRuntime.promptController
@@ -284,21 +249,7 @@ export class AcpProvider extends BaseLLMProvider {
       ? Array.from(new Set(agentIds))
       : (await this.configPresenter.getAcpAgents()).map((agent) => agent.id)
 
-    const tasks = ids.map(async (agentId) => {
-      try {
-        await this.sessionManager.clearSessionsByAgent(agentId)
-      } catch (error) {
-        console.warn(`[ACP] Failed to clear sessions for agent ${agentId}:`, error)
-      }
-
-      try {
-        await this.processManager.release(agentId)
-      } catch (error) {
-        console.warn(`[ACP] Failed to release process for agent ${agentId}:`, error)
-      }
-    })
-
-    await Promise.allSettled(tasks)
+    await this.acpRuntimeOwner.refreshAgents(ids)
   }
 
   public async clearSession(conversationId: string): Promise<void> {
@@ -395,12 +346,11 @@ export class AcpProvider extends BaseLLMProvider {
         } else {
           const conversationKey = modelConfig.conversationId ?? modelId
           const workdir = await this.sessionPersistence.getWorkdir(conversationKey, agent.id)
-          session = await this.sessionManager.getOrCreateSession(
-            conversationKey,
+          session = await this.acpRuntime.sessionController.open(
+            toAppSessionId(conversationKey),
             agent,
             {
-              onSessionUpdate: (notification) =>
-                this.handleSessionUpdate(conversationKey, agent.id, notification, queue),
+              onEvents: (events) => events.forEach((event) => queue.push(event)),
               onPermission: (request) =>
                 this.handlePermissionRequest(queue, request, {
                   agent,
@@ -409,21 +359,6 @@ export class AcpProvider extends BaseLLMProvider {
             },
             workdir
           )
-
-          this.emitSessionModesReady(
-            conversationKey,
-            agent.id,
-            session.workdir,
-            session.currentModeId,
-            session.availableModes
-          )
-          this.emitSessionConfigOptionsReady(
-            conversationKey,
-            agent.id,
-            session.workdir,
-            session.configState
-          )
-          this.emitSessionCommandsReady(conversationKey, agent.id, session.availableCommands ?? [])
 
           const formattedPrompt = this.messageFormatter.format(messages, {
             promptCapabilities: session.promptCapabilities,
@@ -459,14 +394,10 @@ export class AcpProvider extends BaseLLMProvider {
         } catch (error) {
           console.warn('[ACP] cancel failed:', error)
         }
-        this.contentMapper.clearSession(session.sessionId)
+        this.acpRuntime.sessionController.clearMappedSession(session.sessionId)
         this.clearPendingPermissionsForSession(session.sessionId)
       }
     }
-  }
-
-  public async getAcpWorkdir(conversationId: string, agentId: string): Promise<string> {
-    return this.sessionPersistence.getWorkdir(conversationId, agentId)
   }
 
   public async updateAcpWorkdir(
@@ -474,79 +405,11 @@ export class AcpProvider extends BaseLLMProvider {
     agentId: string,
     workdir: string | null
   ): Promise<void> {
-    const requestedWorkdir = workdir?.trim() ? workdir.trim() : null
-    const trimmed =
-      requestedWorkdir && this.sessionPersistence.isWorkdirUsable(requestedWorkdir)
-        ? requestedWorkdir
-        : null
-    if (requestedWorkdir && !trimmed) {
-      console.warn(
-        `[ACP] Ignoring unavailable ACP workdir "${requestedWorkdir}" for conversation ${conversationId} (agent ${agentId}); using default workdir.`
-      )
-    }
-    const existing = await this.sessionPersistence.getSessionData(conversationId, agentId)
-    const previous = existing?.workdir ?? null
-    await this.sessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
-    const previousResolved = this.sessionPersistence.resolveWorkdir(previous)
-    const nextResolved = this.sessionPersistence.resolveWorkdir(trimmed)
-    if (previousResolved !== nextResolved) {
-      try {
-        await this.sessionManager.clearSession(conversationId)
-      } catch (error) {
-        console.warn('[ACP] Failed to clear session after workdir update:', error)
-      }
-    }
-  }
-
-  public async prepareSession(
-    conversationId: string,
-    agentId: string,
-    workdir: string
-  ): Promise<void> {
-    const requestedWorkdir = workdir?.trim()
-    const persistedWorkdir =
-      requestedWorkdir && this.sessionPersistence.isWorkdirUsable(requestedWorkdir)
-        ? requestedWorkdir
-        : null
-    const normalizedWorkdir = this.sessionPersistence.resolveWorkdir(persistedWorkdir)
-    if (requestedWorkdir && !persistedWorkdir) {
-      console.warn(
-        `[ACP] Prepare requested unavailable workdir "${requestedWorkdir}" for conversation ${conversationId}; using "${normalizedWorkdir}".`
-      )
-    }
-
-    const agent = await this.getAgentById(agentId)
-    if (!agent) {
-      throw new Error(`[ACP] ACP agent not found: ${agentId}`)
-    }
-
-    await this.sessionPersistence.updateWorkdir(conversationId, agent.id, persistedWorkdir)
-
-    const session = await this.sessionManager.getOrCreateSession(
-      conversationId,
-      agent,
-      {
-        onSessionUpdate: (notification) =>
-          this.handleSessionUpdate(conversationId, agent.id, notification),
-        onPermission: async () => ({ outcome: { outcome: 'cancelled' } })
-      },
-      normalizedWorkdir
+    await this.acpRuntime.sessionController.updateWorkdir(
+      toAppSessionId(conversationId),
+      agentId,
+      workdir
     )
-
-    this.emitSessionModesReady(
-      conversationId,
-      agent.id,
-      session.workdir,
-      session.currentModeId,
-      session.availableModes
-    )
-    this.emitSessionConfigOptionsReady(
-      conversationId,
-      agent.id,
-      session.workdir,
-      session.configState
-    )
-    this.emitSessionCommandsReady(conversationId, agent.id, session.availableCommands ?? [])
   }
 
   public async warmupProcess(agentId: string, workdir?: string): Promise<void> {
@@ -568,34 +431,8 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
-  public getProcessModes(
-    agentId: string,
-    workdir?: string
-  ):
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined {
-    return this.processManager.getProcessModes(resolveAcpAgentAlias(agentId), workdir) ?? undefined
-  }
-
   public getProcessConfigOptions(agentId: string, workdir?: string): AcpConfigState | null {
     return this.processManager.getProcessConfigState(resolveAcpAgentAlias(agentId), workdir) ?? null
-  }
-
-  public async setPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
-    const agent = await this.getAgentById(agentId)
-    if (!agent) return
-
-    try {
-      await this.processManager.setPreferredMode(agent, workdir, modeId)
-    } catch (error) {
-      console.warn(
-        `[ACP] Failed to set preferred mode "${modeId}" for agent ${agentId} in workdir "${workdir}":`,
-        error
-      )
-    }
   }
 
   public async runDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
@@ -1322,7 +1159,7 @@ export class AcpProvider extends BaseLLMProvider {
           completedAt: completedTurn.completedAt ?? Date.now()
         })
       }
-      queue.push(createStreamEvent.stop(this.mapStopReason(response.stopReason)))
+      queue.push(createStreamEvent.stop(mapAcpPromptStopReason(response.stopReason)))
     } catch (error) {
       if (timeoutMs && error instanceof Error && error.name === 'AbortError') {
         try {
@@ -1367,139 +1204,6 @@ export class AcpProvider extends BaseLLMProvider {
       }
       queue.done()
     }
-  }
-
-  private handleSessionUpdate(
-    conversationId: string,
-    agentId: string,
-    notification: schema.SessionNotification,
-    queue?: EventQueue
-  ): void {
-    const mapped = this.contentMapper.map(notification)
-    mapped.events.forEach((event) => queue?.push(event))
-
-    const currentSession = this.sessionManager.getSession(conversationId)
-    if (mapped.currentModeId && currentSession) {
-      currentSession.currentModeId = mapped.currentModeId
-      this.emitSessionModesReady(
-        conversationId,
-        agentId,
-        currentSession.workdir,
-        currentSession.currentModeId,
-        currentSession.availableModes
-      )
-    }
-
-    if (mapped.availableCommands !== undefined) {
-      if (currentSession) {
-        currentSession.availableCommands = mapped.availableCommands
-      }
-      this.emitSessionCommandsReady(conversationId, agentId, mapped.availableCommands)
-    }
-
-    if (mapped.configState && currentSession) {
-      currentSession.configState = mapped.configState
-      const legacyModeState = getLegacyModeState(mapped.configState)
-      if (legacyModeState) {
-        currentSession.availableModes = legacyModeState.availableModes
-        currentSession.currentModeId = legacyModeState.currentModeId ?? currentSession.currentModeId
-        this.emitSessionModesReady(
-          conversationId,
-          agentId,
-          currentSession.workdir,
-          currentSession.currentModeId,
-          currentSession.availableModes
-        )
-      }
-
-      const updated = this.processManager.updateBoundProcessConfigState(
-        conversationId,
-        mapped.configState
-      )
-      if (!updated) {
-        console.warn(
-          `[ACP] Bound process not found for conversation ${conversationId} while updating config state.`
-        )
-      }
-
-      this.emitSessionConfigOptionsReady(
-        conversationId,
-        agentId,
-        currentSession.workdir,
-        mapped.configState
-      )
-    }
-
-    if ((mapped.sessionInfo || mapped.usage) && currentSession) {
-      const metadata = {
-        ...currentSession.metadata,
-        ...(mapped.sessionInfo
-          ? {
-              acpSessionInfo: mapped.sessionInfo
-            }
-          : {}),
-        ...(mapped.usage
-          ? {
-              acpUsage: mapped.usage
-            }
-          : {})
-      }
-      currentSession.metadata = metadata
-      void this.sessionPersistence
-        .mergeMetadata(conversationId, agentId, metadata)
-        .catch((error) => {
-          console.warn('[ACP] Failed to persist ACP session update metadata:', error)
-        })
-    }
-  }
-
-  private emitSessionModesReady(
-    conversationId: string,
-    agentId: string,
-    workdir: string,
-    currentModeId?: string,
-    availableModes?: Array<{ id: string; name: string; description: string }>
-  ): void {
-    publishDeepchatEvent('sessions.acp.modes.ready', {
-      conversationId,
-      agentId,
-      workdir,
-      current: currentModeId ?? 'default',
-      available: availableModes ?? [],
-      version: Date.now()
-    })
-  }
-
-  private emitSessionCommandsReady(
-    conversationId: string,
-    agentId: string,
-    commands: Array<{
-      name: string
-      description: string
-      input?: { hint: string } | null
-    }>
-  ): void {
-    publishDeepchatEvent('sessions.acp.commands.ready', {
-      conversationId,
-      agentId,
-      commands,
-      version: Date.now()
-    })
-  }
-
-  private emitSessionConfigOptionsReady(
-    conversationId: string,
-    agentId: string,
-    workdir: string,
-    configState?: AcpConfigState | null
-  ): void {
-    publishDeepchatEvent('sessions.acp.configOptions.ready', {
-      conversationId,
-      agentId,
-      workdir,
-      configState: configState ?? normalizeAcpConfigState({}),
-      version: Date.now()
-    })
   }
 
   private async handlePermissionRequest(
@@ -1719,24 +1423,6 @@ export class AcpProvider extends BaseLLMProvider {
     return { content, reasoning }
   }
 
-  private mapStopReason(
-    reason: schema.PromptResponse['stopReason']
-  ): 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' {
-    switch (reason) {
-      case 'max_tokens':
-        return 'max_tokens'
-      case 'max_turn_requests':
-        return 'stop_sequence'
-      case 'cancelled':
-        return 'error'
-      case 'refusal':
-        return 'error'
-      case 'end_turn':
-      default:
-        return 'complete'
-    }
-  }
-
   private createEventQueue(): EventQueue {
     const queue: Array<LLMCoreStreamEvent | null> = []
     let resolver: ((value: LLMCoreStreamEvent | null) => void) | null = null
@@ -1782,119 +1468,8 @@ export class AcpProvider extends BaseLLMProvider {
     await this.init()
   }
 
-  /**
-   * Set the session mode for an ACP conversation
-   */
-  async setSessionMode(conversationId: string, modeId: string): Promise<void> {
-    const session = this.sessionManager.getSession(conversationId)
-    if (!session) {
-      throw new Error(`[ACP] No session found for conversation ${conversationId}`)
-    }
-
-    const configModeOption = getAcpConfigOptionByCategory(session.configState, 'mode')
-    if (configModeOption?.type === 'select' && configModeOption.id !== LEGACY_MODE_CONFIG_ID) {
-      await this.setSessionConfigOption(conversationId, configModeOption.id, modeId)
-      return
-    }
-
-    const previousMode = session.currentModeId ?? 'default'
-    const availableModes = session.availableModes ?? []
-    const availableModeIds = availableModes.map((m) => m.id)
-
-    // Log available modes for debugging
-    console.info(
-      `[ACP] Agent "${session.agentId}" available modes: [${availableModeIds.join(', ')}]`
-    )
-
-    // Warn if requested mode is not in available modes
-    if (availableModeIds.length > 0 && !availableModeIds.includes(modeId)) {
-      console.warn(
-        `[ACP] Mode "${modeId}" is not in agent's available modes [${availableModeIds.join(', ')}]. ` +
-          `The agent may not support this mode.`
-      )
-    }
-
-    try {
-      console.info(
-        `[ACP] Changing session mode: "${previousMode}" -> "${modeId}" ` +
-          `(conversation: ${conversationId}, agent: ${session.agentId})`
-      )
-      await session.connection.setSessionMode({ sessionId: session.sessionId, modeId })
-      session.currentModeId = modeId
-      session.configState =
-        updateAcpConfigStateValue(session.configState, LEGACY_MODE_CONFIG_ID, modeId) ??
-        session.configState
-      const updated = this.processManager.updateBoundProcessMode(conversationId, modeId)
-      if (!updated) {
-        console.warn(
-          `[ACP] Bound process not found for conversation ${conversationId} while setting mode "${modeId}".`
-        )
-      }
-      this.emitSessionConfigOptionsReady(
-        conversationId,
-        session.agentId,
-        session.workdir,
-        session.configState
-      )
-      this.emitSessionModesReady(
-        conversationId,
-        session.agentId,
-        session.workdir,
-        modeId,
-        session.availableModes
-      )
-      console.info(
-        `[ACP] Session mode successfully changed to "${modeId}" for conversation ${conversationId}`
-      )
-    } catch (error) {
-      console.error(
-        `[ACP] Failed to set session mode "${modeId}" for agent "${session.agentId}":`,
-        error
-      )
-      throw error
-    }
-  }
-
-  /**
-   * Get available session modes and current mode for a conversation
-   */
-  async getSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null> {
-    const session = this.sessionManager.getSession(conversationId)
-    if (!session) {
-      console.warn(`[ACP] getSessionModes: No session found for conversation ${conversationId}`)
-      return null
-    }
-
-    const legacyModeState = getLegacyModeState(session.configState)
-    if (legacyModeState) {
-      return {
-        current: legacyModeState.currentModeId ?? session.currentModeId ?? 'default',
-        available: legacyModeState.availableModes
-      }
-    }
-
-    const result = {
-      current: session.currentModeId ?? 'default',
-      available: session.availableModes ?? []
-    }
-
-    console.info(
-      `[ACP] getSessionModes for agent "${session.agentId}": ` +
-        `current="${result.current}", available=[${result.available.map((m) => m.id).join(', ')}]`
-    )
-
-    return result
-  }
-
   async getSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null> {
-    const session = this.sessionManager.getSession(conversationId)
-    if (!session) {
-      return null
-    }
-    return session.configState ?? null
+    return this.acpRuntime.sessionController.getConfigOptions(toAppSessionId(conversationId))
   }
 
   async setSessionConfigOption(
@@ -1902,102 +1477,11 @@ export class AcpProvider extends BaseLLMProvider {
     configId: string,
     value: string | boolean
   ): Promise<AcpConfigState | null> {
-    const session = this.sessionManager.getSession(conversationId)
-    if (!session) {
-      throw new Error(`[ACP] No session found for conversation ${conversationId}`)
-    }
-
-    const option = getAcpConfigOption(session.configState, configId)
-    if (!option) {
-      throw new Error(
-        `[ACP] Config option "${configId}" is unavailable for conversation ${conversationId}`
-      )
-    }
-
-    let nextConfigState: AcpConfigState | null = null
-
-    if (configId === LEGACY_MODE_CONFIG_ID) {
-      if (typeof value !== 'string') {
-        throw new Error('[ACP] Legacy mode config option expects a string value')
-      }
-      await session.connection.setSessionMode({ sessionId: session.sessionId, modeId: value })
-      session.currentModeId = value
-      nextConfigState =
-        updateAcpConfigStateValue(session.configState, configId, value) ??
-        session.configState ??
-        null
-    } else if (configId === LEGACY_MODEL_CONFIG_ID) {
-      if (typeof value !== 'string') {
-        throw new Error('[ACP] Legacy model config option expects a string value')
-      }
-      await setSessionModelCompat(session.connection, {
-        sessionId: session.sessionId,
-        modelId: value
-      })
-      nextConfigState =
-        updateAcpConfigStateValue(session.configState, configId, value) ??
-        session.configState ??
-        null
-    } else {
-      const response =
-        typeof value === 'boolean'
-          ? await session.connection.setSessionConfigOption({
-              sessionId: session.sessionId,
-              configId,
-              type: 'boolean',
-              value
-            })
-          : await session.connection.setSessionConfigOption({
-              sessionId: session.sessionId,
-              configId,
-              value
-            })
-      const normalizedResponse = normalizeAcpConfigState({
-        configOptions: response.configOptions
-      })
-      nextConfigState = hasAcpConfigStateData(normalizedResponse)
-        ? preserveLegacyConfigOptions(session.configState, normalizedResponse)
-        : (updateAcpConfigStateValue(session.configState, configId, value) ??
-          session.configState ??
-          null)
-    }
-
-    if (!nextConfigState) {
-      return null
-    }
-
-    session.configState = nextConfigState
-    const legacyModeState = getLegacyModeState(nextConfigState)
-    if (legacyModeState) {
-      session.availableModes = legacyModeState.availableModes
-      session.currentModeId = legacyModeState.currentModeId ?? session.currentModeId
-      this.emitSessionModesReady(
-        conversationId,
-        session.agentId,
-        session.workdir,
-        session.currentModeId,
-        session.availableModes
-      )
-    }
-
-    const updated = this.processManager.updateBoundProcessConfigState(
-      conversationId,
-      nextConfigState
+    return await this.acpRuntime.sessionController.setConfigOption(
+      toAppSessionId(conversationId),
+      configId,
+      value
     )
-    if (!updated) {
-      console.warn(
-        `[ACP] Bound process not found for conversation ${conversationId} while setting config option "${configId}".`
-      )
-    }
-
-    this.emitSessionConfigOptionsReady(
-      conversationId,
-      session.agentId,
-      session.workdir,
-      nextConfigState
-    )
-
-    return nextConfigState
   }
 
   async getSessionCommands(conversationId: string): Promise<
@@ -2007,27 +1491,11 @@ export class AcpProvider extends BaseLLMProvider {
       input?: { hint: string } | null
     }>
   > {
-    const session = this.sessionManager.getSession(conversationId)
-    if (!session) {
-      return []
-    }
-    return session.availableCommands ?? []
+    return this.acpRuntime.sessionController.getCommands(toAppSessionId(conversationId))
   }
 
   async cleanup(): Promise<void> {
-    logger.info('[ACP] Cleanup: shutting down ACP sessions and processes')
-    try {
-      await this.sessionManager.clearAllSessions()
-    } catch (error) {
-      console.warn('[ACP] Cleanup: failed to clear sessions:', error)
-    }
-
-    try {
-      await this.processManager.shutdown()
-    } catch (error) {
-      console.warn('[ACP] Cleanup: failed to shutdown process manager:', error)
-    }
-
+    logger.info('[ACP] Cleanup: detaching compatibility provider state')
     for (const [requestId] of this.pendingPermissions.entries()) {
       this.removePendingPermission(requestId)?.resolve({ outcome: { outcome: 'cancelled' } })
     }

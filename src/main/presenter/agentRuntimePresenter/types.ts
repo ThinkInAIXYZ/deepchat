@@ -6,12 +6,20 @@ import type {
 } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/presenter'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
-import type { ToolOutputGuard } from './toolOutputGuard'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
+import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
+import type {
+  DeepChatLoopNotificationObserver,
+  PendingToolInteractionOrigin,
+  PersistedToolBatchState,
+  TapeRecorder,
+  ToolCatalogPort,
+  ToolExecutionPort,
+  ToolResultPort
+} from '@/agent/deepchat/loop/ports'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
@@ -47,7 +55,6 @@ export interface StreamState {
     }
   >
   completedToolCalls: ToolCallResult[]
-  pendingInteractions?: PendingToolInteraction[]
   stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens' | 'max_tool_calls'
   latestAgentPlanSnapshot?: AgentPlanSnapshot
   planTerminalReason?: AgentPlanTerminalReason
@@ -73,35 +80,11 @@ export interface IoParams {
   abortSignal: AbortSignal
 }
 
-export interface ProcessHooks {
-  onPreToolUse?: (tool: { callId?: string; name?: string; params?: string }) => void
-  onPostToolUse?: (tool: {
-    callId?: string
-    name?: string
-    params?: string
-    response?: string
-  }) => void
-  onPostToolUseFailure?: (tool: {
-    callId?: string
-    name?: string
-    params?: string
-    error?: string
-  }) => void
-  onPermissionRequest?: (
-    permission: Record<string, unknown>,
-    tool: {
-      callId?: string
-      name?: string
-      params?: string
-    }
-  ) => void
-  onInterleavedReasoningGap?: (gap: {
-    providerId: string
-    modelId: string
-    providerDbSourceUrl: string
-    reasoningContentLength: number
-    toolCallCount: number
-  }) => void
+export type ProcessIoParams = Pick<IoParams, 'messageStore'> & {
+  tapeRecorder: Pick<TapeRecorder, 'appendToolFact'>
+}
+
+export interface ProcessControlCollaborators {
   autoGrantPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>
   ) => Promise<void>
@@ -120,15 +103,23 @@ export interface ProcessHooks {
   getActiveSkillNames?: () => string[]
   getEnabledSkillNames?: () => string[] | null | undefined
   activateSkill?: (skillName: string) => Promise<string[]>
-  normalizeToolResult?: (tool: {
-    sessionId: string
-    toolCallId: string
-    toolName: string
-    toolArgs: string
-    content: MCPToolResponse['content']
-    isError: boolean
-  }) => Promise<MCPToolResponse['content']>
   cacheImage?: (data: string) => Promise<string>
+}
+
+export interface ProcessInternalDiagnostics {
+  onInterleavedReasoningGap?: (gap: {
+    providerId: string
+    modelId: string
+    providerDbSourceUrl: string
+    reasoningContentLength: number
+    toolCallCount: number
+  }) => void
+}
+
+export interface ToolDispatchCollaborators {
+  notificationObserver?: DeepChatLoopNotificationObserver
+  controls?: ProcessControlCollaborators
+  diagnostics?: ProcessInternalDiagnostics
 }
 
 export interface ToolPermissionReviewRequest {
@@ -153,6 +144,8 @@ export interface ToolPermissionReviewResult {
 
 export interface PendingToolInteraction {
   type: 'question' | 'permission'
+  origin: PendingToolInteractionOrigin | 'acp-permission'
+  order: number
   messageId: string
   toolCallId: string
   toolName: string
@@ -188,9 +181,14 @@ export interface PendingToolInteraction {
   }
 }
 
+export type ToolBatchInteraction = Omit<PendingToolInteraction, 'origin'> & {
+  origin: PendingToolInteractionOrigin
+}
+
 export interface ProcessResult {
   status: 'completed' | 'paused' | 'aborted' | 'error'
-  pendingInteractions?: PendingToolInteraction[]
+  pendingInteractions?: ToolBatchInteraction[]
+  toolBatchExecutionState?: PersistedToolBatchState
   terminalError?: string
   stopReason?: string
   usage?: Record<string, number>
@@ -198,24 +196,22 @@ export interface ProcessResult {
 }
 
 export interface ProcessParams {
-  messages: ChatMessage[]
-  tools: MCPToolDefinition[]
-  refreshTools?: (activeSkillNames?: string[]) => Promise<MCPToolDefinition[]>
+  run: LoopRun<StreamState>
+  toolCatalog: ToolCatalogPort
   refreshSystemPrompt?: (
     activeSkillNames: string[] | undefined,
     toolDefinitions: MCPToolDefinition[]
   ) => Promise<string>
-  toolPresenter: IToolPresenter | null
+  toolExecution: ToolExecutionPort | null
+  toolResults: ToolResultPort
   coreStream: (
     messages: ChatMessage[],
     modelId: string,
     modelConfig: ModelConfig,
     temperature: number,
     maxTokens: number,
-    tools: MCPToolDefinition[],
-    onProviderRequestStart?: () => void
+    tools: MCPToolDefinition[]
   ) => AsyncGenerator<LLMCoreStreamEvent>
-  coreStreamReportsProviderStart?: boolean
   providerId: string
   modelId: string
   modelConfig: ModelConfig
@@ -223,28 +219,15 @@ export interface ProcessParams {
   maxTokens: number
   interleavedReasoning: InterleavedReasoningConfig
   permissionMode: PermissionMode
-  toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
-  initialAccounting?: Pick<
-    MessageMetadata,
-    | 'inputTokens'
-    | 'outputTokens'
-    | 'totalTokens'
-    | 'cachedInputTokens'
-    | 'cacheWriteInputTokens'
-    | 'providerRounds'
-    | 'toolCalls'
-    | 'generationTime'
-    | 'firstTokenTime'
-    | 'runOutcome'
-    | 'noProgressToolLoop'
-  >
   onFirstProviderRoundReady?: () => void
   onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean
   maxProviderRounds?: number
-  hooks?: ProcessHooks
-  io: IoParams
+  notificationObserver?: DeepChatLoopNotificationObserver
+  controls?: ProcessControlCollaborators
+  diagnostics?: ProcessInternalDiagnostics
+  io: ProcessIoParams
 }
 
 export function createState(): StreamState {

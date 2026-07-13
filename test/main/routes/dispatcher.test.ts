@@ -29,9 +29,9 @@ import {
 } from '@shared/contracts/routes'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
-import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
+import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
-vi.mock('@/presenter/configPresenter/acpInitHelper', () => ({
+vi.mock('@/agent/acp/launch/acpInitHelper', () => ({
   writeToTerminal: vi.fn(),
   killTerminal: vi.fn()
 }))
@@ -526,74 +526,6 @@ function createRuntime() {
     respondToolInteraction: vi.fn().mockResolvedValue({
       resumed: true
     }),
-    getAgents: vi.fn().mockResolvedValue([
-      {
-        id: 'deepchat',
-        name: 'DeepChat',
-        type: 'deepchat',
-        enabled: true
-      }
-    ]),
-    getUsageDashboard: vi.fn().mockResolvedValue({
-      recordingStartedAt: null,
-      backfillStatus: {
-        status: 'completed',
-        startedAt: null,
-        finishedAt: null,
-        error: null,
-        updatedAt: 123
-      },
-      summary: {
-        messageCount: 1,
-        sessionCount: 1,
-        inputTokens: 10,
-        outputTokens: 20,
-        totalTokens: 30,
-        cachedInputTokens: 0,
-        cacheHitRate: 0,
-        estimatedCostUsd: null,
-        mostActiveDay: {
-          date: '2026-06-11',
-          messageCount: 1
-        }
-      },
-      calendar: [
-        {
-          date: '2026-06-11',
-          messageCount: 1,
-          inputTokens: 10,
-          outputTokens: 20,
-          totalTokens: 30,
-          cachedInputTokens: 0,
-          estimatedCostUsd: null,
-          level: 1
-        }
-      ],
-      providerBreakdown: [],
-      modelBreakdown: [],
-      rtk: {
-        scope: 'deepchat',
-        enabled: true,
-        effectiveEnabled: true,
-        available: true,
-        health: 'healthy',
-        checkedAt: 123,
-        source: 'bundled',
-        failureStage: null,
-        failureMessage: null,
-        summary: {
-          totalCommands: 0,
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
-          totalSavedTokens: 0,
-          avgSavingsPct: 0,
-          totalTimeMs: 0,
-          avgTimeMs: 0
-        },
-        daily: []
-      }
-    }),
-    retryRtkHealthCheck: vi.fn().mockResolvedValue(undefined),
     clearSessionPermissions: vi.fn()
   } as unknown as IAgentSessionPresenter
 
@@ -637,6 +569,11 @@ function createRuntime() {
       skipped: 0,
       errors: []
     }),
+    refreshModels: vi.fn().mockResolvedValue(undefined)
+  } as unknown as ILlmProviderPresenter
+  const acpProviderAdminPort = {
+    warmupAcpProcess: vi.fn().mockResolvedValue(undefined),
+    getAcpProcessConfigOptions: vi.fn().mockResolvedValue(null),
     runAcpDebugAction: vi.fn().mockResolvedValue({
       status: 'ok',
       sessionId: 'debug-session',
@@ -650,9 +587,8 @@ function createRuntime() {
           payload: { ok: true }
         }
       ]
-    }),
-    refreshModels: vi.fn().mockResolvedValue(undefined)
-  } as unknown as ILlmProviderPresenter
+    })
+  }
 
   const mcpRouterItem = {
     uuid: 'router-item-1',
@@ -1259,6 +1195,73 @@ function createRuntime() {
     previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null })),
     setRunSessionStarter: vi.fn()
   }
+  const usageStatsService = {
+    getDashboard: vi.fn().mockResolvedValue({
+      recordingStartedAt: null,
+      backfillStatus: {
+        status: 'completed',
+        startedAt: null,
+        finishedAt: null,
+        error: null,
+        updatedAt: 123
+      },
+      summary: {
+        messageCount: 1,
+        sessionCount: 1,
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+        cachedInputTokens: 0,
+        cacheHitRate: 0,
+        estimatedCostUsd: null,
+        mostActiveDay: { date: '2026-06-11', messageCount: 1 }
+      },
+      calendar: [],
+      providerBreakdown: [],
+      modelBreakdown: [],
+      rtk: {
+        scope: 'deepchat',
+        enabled: true,
+        effectiveEnabled: true,
+        available: true,
+        health: 'healthy',
+        checkedAt: 123,
+        source: 'bundled',
+        failureStage: null,
+        failureMessage: null,
+        summary: {
+          totalCommands: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalSavedTokens: 0,
+          avgSavingsPct: 0,
+          totalTimeMs: 0,
+          avgTimeMs: 0
+        },
+        daily: []
+      }
+    })
+  }
+  const rtkRuntimeService = {
+    retryHealthCheck: vi.fn().mockResolvedValue(undefined)
+  }
+  const sessionHistorySearch = {
+    search: vi.fn().mockResolvedValue([
+      {
+        kind: 'session',
+        sessionId: 'session-1',
+        title: 'Search Hit',
+        projectDir: null,
+        updatedAt: 1
+      }
+    ])
+  }
+  const agentSessionExportService = {
+    export: vi.fn().mockResolvedValue({ filename: 'session.md', content: '# Session' })
+  }
+  const sessionTranslation = {
+    translate: vi.fn().mockResolvedValue('translated')
+  }
 
   setDeepchatEventWindowPresenter(windowPresenter)
 
@@ -1267,6 +1270,7 @@ function createRuntime() {
     runtime: createMainKernelRouteRuntime({
       configPresenter,
       llmProviderPresenter,
+      acpProviderAdminPort,
       agentSessionPresenter,
       skillPresenter,
       skillSyncPresenter,
@@ -1284,10 +1288,16 @@ function createRuntime() {
       workspacePresenter,
       yoBrowserPresenter,
       tabPresenter,
-      cronJobs
+      cronJobs,
+      usageStatsService,
+      rtkRuntimeService,
+      sessionHistorySearch,
+      agentSessionExportService,
+      sessionTranslation
     }),
     configPresenter,
     llmProviderPresenter,
+    acpProviderAdminPort,
     agentSessionPresenter,
     skillPresenter,
     skillSyncPresenter,
@@ -1305,7 +1315,12 @@ function createRuntime() {
     workspacePresenter,
     yoBrowserPresenter,
     tabPresenter,
-    cronJobs
+    cronJobs,
+    usageStatsService,
+    rtkRuntimeService,
+    sessionHistorySearch,
+    agentSessionExportService,
+    sessionTranslation
   }
 }
 
@@ -1529,6 +1544,64 @@ describe('dispatchDeepchatRoute', () => {
           scheduledAt: 123
         }
       })
+    )
+  })
+
+  it('routes ACP Cron Job prompts through the agent-session direct-routing facade', async () => {
+    const { cronJobs, configPresenter, agentSessionPresenter } = createRuntime()
+    vi.mocked(configPresenter.getAgentType).mockResolvedValue('acp')
+    vi.mocked(agentSessionPresenter.createDetachedSession).mockResolvedValue({
+      id: 'acp-session-1',
+      agentId: 'manual-acp',
+      title: 'ACP job',
+      projectDir: '/workspace',
+      isPinned: false,
+      isDraft: false,
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled: false,
+      subagentMeta: null,
+      createdAt: 1,
+      updatedAt: 2,
+      status: 'idle',
+      providerId: 'acp',
+      modelId: 'manual-acp'
+    })
+    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
+      | CronJobRunSessionStarter
+      | undefined
+    const job = {
+      id: 'cron-acp',
+      name: 'ACP job',
+      agentId: 'manual-acp',
+      agentSnapshot: null,
+      modelPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      taskSystemInstruction: null,
+      taskPrompt: 'Review the workspace',
+      runtime: { maxTurns: 7 }
+    } as CronJob
+    const run = { id: 'run-acp', scheduledAt: 123 } as CronJobRun
+
+    await expect(starter!.createSessionForRun({ job, run })).resolves.toEqual({
+      sessionId: 'acp-session-1'
+    })
+    await expect(
+      starter!.startSessionRun({ job, run, sessionId: 'acp-session-1' })
+    ).resolves.toEqual({ outputMessageId: 'message-2' })
+
+    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'manual-acp',
+        providerId: 'acp',
+        modelId: 'manual-acp'
+      })
+    )
+    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith(
+      'acp-session-1',
+      'Review the workspace',
+      { maxProviderRounds: 7 }
     )
   })
 
@@ -2025,7 +2098,8 @@ describe('dispatchDeepchatRoute', () => {
         category: 'project_fact',
         content: 'archived memory',
         importance: 0.7,
-        status: 'archived',
+        lifecycle_state: 'archived',
+        embedding_state: 'pending',
         embedding_id: null,
         embedding_dim: null,
         embedding_model: null,
@@ -2052,7 +2126,8 @@ describe('dispatchDeepchatRoute', () => {
         category: null,
         content: 'active memory',
         importance: 0.5,
-        status: 'embedded',
+        lifecycle_state: 'active',
+        embedding_state: 'ready',
         embedding_id: null,
         embedding_dim: null,
         embedding_model: null,
@@ -2268,7 +2343,8 @@ describe('dispatchDeepchatRoute', () => {
           category: null,
           content: 'paged fact',
           importance: 0.5,
-          status: 'embedded',
+          lifecycle_state: 'active',
+          embedding_state: 'ready',
           embedding_id: null,
           embedding_dim: null,
           embedding_model: null,
@@ -3708,8 +3784,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches agent dashboard routes through AgentSessionPresenter', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+  it('dispatches dashboard maintenance routes through explicit owners', async () => {
+    const { runtime, configPresenter, usageStatsService, rtkRuntimeService } = createRuntime()
     const context = {
       webContentsId: 88,
       windowId: 3
@@ -3729,9 +3805,9 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(agentSessionPresenter.getAgents).toHaveBeenCalledTimes(1)
-    expect(agentSessionPresenter.getUsageDashboard).toHaveBeenCalledTimes(1)
-    expect(agentSessionPresenter.retryRtkHealthCheck).toHaveBeenCalledTimes(1)
+    expect(configPresenter.listAgents).toHaveBeenCalledTimes(1)
+    expect(usageStatsService.getDashboard).toHaveBeenCalledTimes(1)
+    expect(rtkRuntimeService.retryHealthCheck).toHaveBeenCalledTimes(1)
     expect(agentsResult).toEqual({
       agents: [expect.objectContaining({ id: 'deepchat' })]
     })
@@ -3743,9 +3819,52 @@ describe('dispatchDeepchatRoute', () => {
     expect(retryResult).toEqual({ retried: true })
   })
 
+  it('dispatches moved session read routes through explicit owners', async () => {
+    const {
+      runtime,
+      sessionHistorySearch,
+      sessionTranslation,
+      agentSessionExportService,
+      configPresenter
+    } = createRuntime()
+    const context = { webContentsId: 88, windowId: 3 }
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.searchHistory',
+      { query: 'release', options: { limit: 5 } },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.translateText',
+      { text: 'hello', locale: 'fr-FR', agentId: 'deepchat' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.export',
+      { sessionId: 'session-1', format: 'markdown' },
+      context
+    )
+    const agents = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
+
+    expect(sessionHistorySearch.search).toHaveBeenCalledWith('release', { limit: 5 })
+    expect(sessionTranslation.translate).toHaveBeenCalledWith('hello', 'fr-FR', 'deepchat')
+    expect(agentSessionExportService.export).toHaveBeenCalledWith('session-1', 'markdown')
+    expect(configPresenter.listAgents).toHaveBeenCalled()
+    expect(configPresenter.getAcpEnabled).toHaveBeenCalled()
+    expect(agents).toEqual({ agents: [expect.objectContaining({ id: 'deepchat' })] })
+  })
+
   it('dispatches provider query and tool interaction routes through typed services', async () => {
-    const { runtime, configPresenter, llmProviderPresenter, agentSessionPresenter } =
-      createRuntime()
+    const {
+      runtime,
+      configPresenter,
+      llmProviderPresenter,
+      acpProviderAdminPort,
+      agentSessionPresenter
+    } = createRuntime()
 
     const modelsResult = await dispatchDeepchatRoute(
       runtime,
@@ -3853,6 +3972,19 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
+    const acpWarmupResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.warmupAcpProcess',
+      { agentId: 'codex-acp', workdir: '/repo' },
+      { webContentsId: 88, windowId: 3 }
+    )
+    const acpConfigResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.getAcpProcessConfigOptions',
+      { agentId: 'codex-acp', workdir: '/repo' },
+      { webContentsId: 88, windowId: 3 }
+    )
+
     const interactionResult = await dispatchDeepchatRoute(
       runtime,
       'chat.respondToolInteraction',
@@ -3884,12 +4016,17 @@ describe('dispatchDeepchatRoute', () => {
       page_number: 1,
       page_size: 50
     })
-    expect(llmProviderPresenter.runAcpDebugAction).toHaveBeenCalledWith({
+    expect(acpProviderAdminPort.runAcpDebugAction).toHaveBeenCalledWith({
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},
       webContentsId: 88
     })
+    expect(acpProviderAdminPort.warmupAcpProcess).toHaveBeenCalledWith('codex-acp', '/repo')
+    expect(acpProviderAdminPort.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'codex-acp',
+      '/repo'
+    )
     expect(agentSessionPresenter.respondToolInteraction).toHaveBeenCalledWith(
       'session-1',
       'message-1',
@@ -3974,6 +4111,8 @@ describe('dispatchDeepchatRoute', () => {
         ]
       }
     })
+    expect(acpWarmupResult).toEqual({ warmedUp: true })
+    expect(acpConfigResult).toEqual({ state: null })
     expect(interactionResult).toEqual({
       accepted: true,
       resumed: true

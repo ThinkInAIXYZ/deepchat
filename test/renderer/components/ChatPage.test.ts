@@ -1147,7 +1147,7 @@ describe('ChatPage', () => {
     expect(pendingInputStore.queueInput).not.toHaveBeenCalled()
   })
 
-  it('queues command submit while generating without creating a pending assistant row', async () => {
+  it('queues command submit while keeping the active turn placeholder', async () => {
     const { wrapper, chatClient, pendingInputStore, messageStore } = await setup({
       isStreaming: true
     })
@@ -1164,7 +1164,9 @@ describe('ChatPage', () => {
     expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
     const messageList = wrapper.findComponent({ name: 'MessageList' })
     const messages = messageList.props('messages') as Array<{ id: string }>
-    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+    expect(messages.filter((message) => message.id.startsWith('__pending_assistant_'))).toEqual([
+      expect.objectContaining({ id: '__pending_assistant_generating_s1' })
+    ])
   })
 
   it('keeps ACP /compact submissions on the normal command path', async () => {
@@ -1274,6 +1276,35 @@ describe('ChatPage', () => {
 
     deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
     await flushPromises()
+  })
+
+  it('shows a pending assistant row when a generating session mounts before its first stream', async () => {
+    const { wrapper } = await setup({
+      activeSessionPatch: { status: 'working' },
+      messages: [
+        {
+          id: 'user-1',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({ text: 'slow first token', files: [] }),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          traceCount: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ]
+    })
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string; role: string }>
+
+    expect(messages.map((message) => message.id)).toEqual([
+      'user-1',
+      '__pending_assistant_generating_s1'
+    ])
   })
 
   it('hides the pending assistant row when a real assistant message materializes before streaming starts', async () => {
@@ -2059,7 +2090,9 @@ describe('ChatPage', () => {
     expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
     const messageList = wrapper.findComponent({ name: 'MessageList' })
     const messages = messageList.props('messages') as Array<{ id: string }>
-    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+    expect(messages.filter((message) => message.id.startsWith('__pending_assistant_'))).toEqual([
+      expect.objectContaining({ id: '__pending_assistant_generating_s1' })
+    ])
     expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
   })

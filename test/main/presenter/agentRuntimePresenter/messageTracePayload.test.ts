@@ -59,6 +59,8 @@ describe('buildPersistableMessageTracePayload', () => {
 
     expect(result.truncated).toBe(true)
     expect(totalBytes).toBeLessThanOrEqual(maxBytes)
+    expect(result.endpoint).toBe('https://api.example.com/v1/responses')
+    expect(result.headersJson).toBe('{"content-type":"application/json"}')
 
     const parsedBody = JSON.parse(result.bodyJson) as { _truncated?: boolean } | null
     if (parsedBody !== null) {

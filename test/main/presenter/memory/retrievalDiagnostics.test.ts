@@ -16,7 +16,7 @@ function createPresenter(options: { enabled?: boolean; embedding?: boolean } = {
       memoryEmbedding: embedding
     }),
     getEmbeddings: async (_provider, _model, texts) => texts.map(() => [1, 2, 3, 4]),
-    getDimensions: async () => ({ data: { dimensions: 4 } }),
+    getDimensions: async () => ({ data: { dimensions: 4, normalized: false } }),
     generateText,
     createVectorStore: async () => new FakeVectorStore(),
     resetVectorStore: async () => undefined

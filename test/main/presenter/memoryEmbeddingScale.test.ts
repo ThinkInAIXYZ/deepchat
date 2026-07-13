@@ -141,7 +141,7 @@ describe('embedding persistence scale contract', () => {
 
     expect(getEmbeddings.mock.calls.map((call) => call[2].length)).toEqual([50, 50, 1])
     expect(repository.listPendingEmbedding(200, 'a')).toEqual([])
-    expect(repository.listEmbeddingStatusIds('a', ['embedded'], 200).length).toBe(101)
+    expect(repository.listEmbeddingStateIds('a', ['ready'], 200).length).toBe(101)
     await presenter.dispose()
   })
 
@@ -157,7 +157,7 @@ describe('embedding persistence scale contract', () => {
     const store = new FakeVectorStore()
     const upsert = vi.spyOn(store, 'upsert').mockImplementation(async (records) => {
       for (const record of records) store.vectors.set(record.memoryId, record.embedding)
-      repository.updateDecisionContentIfRevision({
+      repository.updateUserContentAndInvalidateEmbedding({
         agentId: 'a',
         id: 'm1',
         expectedRevision: 1,

@@ -19,10 +19,10 @@ import {
   FffGlobArgsSchema,
   FffGrepArgsSchema
 } from './agentFffSearchHandler'
-import { FffSearchService, type FffSearchMetadata } from '@/lib/agentRuntime/fffSearchService'
+import { FffSearchService, type FffSearchMetadata } from '@/agent/shared/workspace/fffSearchService'
 import { SkillTools } from '../../skillPresenter/skillTools'
 import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
-import { questionToolSchema, QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
+import { questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
@@ -831,7 +831,7 @@ export class AgentToolManager {
     }
 
     const { backgroundExecSessionManager } =
-      await import('@/lib/agentRuntime/backgroundExecSessionManager')
+      await import('@/agent/shared/process/backgroundExecSessionManager')
 
     const validationResult = this.fileSystemSchemas.process.safeParse(args)
     if (!validationResult.success) {

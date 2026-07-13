@@ -15,6 +15,9 @@ export abstract class BaseTable {
   // 获取表升级SQL (如果有的话)
   abstract getMigrationSQL?(version: number): string | null
 
+  // Finalize schema artifacts that the generic SQL splitter cannot execute safely.
+  finalizeMigration?(version: number): void
+
   // 获取最新的迁移版本号
   abstract getLatestVersion(): number
 

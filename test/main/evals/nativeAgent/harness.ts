@@ -8,7 +8,14 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
+import {
+  createToolExecutionPort,
+  createToolResultPort
+} from '@/presenter/agentRuntimePresenter/toolAdapters'
+import { createState } from '@/presenter/agentRuntimePresenter/types'
 import type { ProcessParams, ProcessResult } from '@/presenter/agentRuntimePresenter/types'
+import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
@@ -465,10 +472,28 @@ export async function runNativeAgentEvalScenario(
   }) as unknown as ProcessParams['coreStream']
 
   const tools = Object.keys(scenario.tools ?? {}).map(makeToolDefinition)
+  const toolOutputGuard = new ToolOutputGuard()
+  const sessionId = toAppSessionId(`eval-${scenario.id}`)
+  const messageId = `message-${scenario.id}`
+  const runId = `request-${scenario.id}`
   const params: ProcessParams = {
-    messages: [{ role: 'user', content: `Eval scenario: ${scenario.id}` }],
-    tools,
-    toolPresenter: toolHarness.presenter,
+    run: createLoopRun({
+      runId,
+      sessionId,
+      messageId,
+      abortController,
+      messages: [{ role: 'user', content: `Eval scenario: ${scenario.id}` }],
+      streamState: createState(),
+      resources: { toolDefinitions: tools, activeSkillNames: [] }
+    }),
+    toolCatalog: {
+      resolve: async () => tools
+    },
+    toolExecution: createToolExecutionPort(toolHarness.presenter),
+    toolResults: createToolResultPort({
+      outputGuard: toolOutputGuard,
+      normalize: async ({ content }) => content
+    }),
     coreStream,
     providerId: 'native-agent-eval',
     modelId: 'scripted-provider',
@@ -484,22 +509,20 @@ export async function runNativeAgentEvalScenario(
     maxTokens: 4096,
     interleavedReasoning: DEFAULT_INTERLEAVED_REASONING,
     permissionMode: scenario.permissionMode ?? 'full_access',
-    toolOutputGuard: new ToolOutputGuard(),
     maxProviderRounds: scenario.maxProviderRounds,
     shouldYieldForPendingInput: () => scenario.yieldForPendingInput === true,
-    hooks: {
-      onPermissionRequest: () => {
-        permissionRequests += 1
+    notificationObserver: {
+      notify: (notification) => {
+        if (notification.event === 'PermissionRequest') {
+          permissionRequests += 1
+        }
       }
     },
     io: {
-      sessionId: `eval-${scenario.id}`,
-      requestId: `request-${scenario.id}`,
-      messageId: `message-${scenario.id}`,
-      providerId: 'native-agent-eval',
-      modelId: 'scripted-provider',
       messageStore,
-      abortSignal: abortController.signal
+      tapeRecorder: {
+        appendToolFact: async () => ({ sessionId, entryId: 1 })
+      }
     }
   }
 

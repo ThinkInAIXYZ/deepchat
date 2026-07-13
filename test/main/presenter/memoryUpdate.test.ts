@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildMemoryProvenanceKey } from '@/presenter/memoryPresenter/core/scoring'
-import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
 import {
   AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
   type AgentMemoryCategory
@@ -20,7 +20,7 @@ function insertMemory(
     importance?: number
     provenanceKey?: string | null
     supersededBy?: string | null
-    conflictState?: AgentMemoryRow['conflict_state']
+    conflictState?: 'challenged' | null
     conflictWith?: string | null
   }
 ) {
@@ -35,8 +35,8 @@ function insertMemory(
     provenanceKey: input.provenanceKey ?? null,
     conflictWith: input.conflictWith ?? null
   })
-  if (input.supersededBy !== undefined) repo.markSuperseded(input.id, input.supersededBy)
-  if (input.conflictState !== undefined) repo.markConflict(input.id, input.conflictState)
+  if (input.supersededBy !== undefined) repo.seedSupersededBy(input.id, input.supersededBy)
+  if (input.conflictState !== undefined) repo.seedConflictState(input.id, input.conflictState)
 }
 
 describe('MemoryPresenter.updateMemory', () => {

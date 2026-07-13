@@ -1,5 +1,10 @@
 # ACP v1 Reliability Specification
 
+> Status: active. This specification predates the layered agent-runtime migration, and its unchecked
+> reliability scope remains open until the task ledger is reconciled against current code and real-agent
+> validation. Canonical ownership now places direct `kind=acp` execution in `AcpAgentRuntime` /
+> `AcpAgentInstance`; `AcpProvider` is retained only for `kind=deepchat + providerId=acp` compatibility.
+
 Last reviewed: 2026-06-02
 
 ## 背景
@@ -17,7 +22,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 - 客户端能力页：[Content](https://agentclientprotocol.com/protocol/v1/content)、[Tool Calls](https://agentclientprotocol.com/protocol/v1/tool-calls)、[File System](https://agentclientprotocol.com/protocol/v1/file-system)、[Terminals](https://agentclientprotocol.com/protocol/v1/terminals)
 - 状态增强页：[Agent Plan](https://agentclientprotocol.com/protocol/v1/agent-plan)、[Session Modes](https://agentclientprotocol.com/protocol/v1/session-modes)、[Session Config Options](https://agentclientprotocol.com/protocol/v1/session-config-options)、[Slash Commands](https://agentclientprotocol.com/protocol/v1/slash-commands)、[Extensibility](https://agentclientprotocol.com/protocol/v1/extensibility)、[Transports](https://agentclientprotocol.com/protocol/v1/transports)
 - 本仓库 registry snapshot：`resources/acp-registry/registry.json`
-- 现有 ACP 入口：`src/main/presenter/llmProviderPresenter/acp/*`、`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
+- 现有 ACP 入口：`src/main/agent/acp/*`、`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
 
 ## 用户故事
 
@@ -64,7 +69,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 | Session List | 仅 `sessionCapabilities.list` 存在时调用；支持 `cwd` filter、cursor pagination；`session_info_update` 同步标题/更新时间 | 未接入 list；`session_info_update` 被忽略 | 按 workspace 同步远端 session catalog；用 `agentId + canonicalWorkdir + remoteSessionId` 去重；只更新 link metadata，不直接覆盖 DeepChat conversation |
 | Prompt Turn | `session/prompt` 发送当前用户 message 的 ContentBlock[]；`session/cancel` 中断当前 turn；prompt content 必须受 capabilities 限制 | 已 prompt/cancel；formatter 会拼温度、maxTokens 和历史 USER/ASSISTANT 文本，容易重复上下文 | formatter 改为当前 turn only；system prompt 只作为首次 session context；cancel 只针对活跃 turn |
 | Content | Baseline 支持 text/resource_link；image/audio/resource 由 `promptCapabilities` 决定 | 输入侧 image 多数降级为 resource_link；输出侧 image 可转为 image block，audio/resource 偏文本化 | 输入侧按 capability 发送 image/audio/resource/resource_link/text；输出侧保留结构，不能显示的内容给清晰文本 fallback |
-| Tool Calls | Agent 通过 `tool_call`、`tool_call_update` 汇报工具状态、内容、locations、raw input/output；可嵌入 terminal/diff/content | 已映射 tool_call/update，但把部分状态当 permission block；terminal/diff/locations/raw 字段展示不完整 | 保留工具 call 生命周期；补 terminal/diff/location 展示和 raw metadata；不要把普通 tool progress 误标为权限 |
+| Tool Calls | Agent 通过 `tool_call`、`tool_call_update` 汇报工具状态、内容、locations、raw input/output；可嵌入 terminal/diff/content | 已映射 tool_call/update，参数与结果分别投影；raw output、content、terminal snapshot 和 diff 可进入工具响应；普通状态仍被当作 permission block，locations/raw metadata 展示不完整 | 保留工具 call 生命周期；补 location 和 raw metadata；不要把普通 tool progress 误标为权限 |
 | Client Permission | Client baseline method `session/request_permission` 用于工具权限确认 | 主进程已有 resolver 分发底座；需要 UI/超时/debug/test 闭环 | 复用现有 DeepChat permission overlay；补 timeout/cancel 默认 outcome；debug log 记录 permission request/result |
 | File System | `fs/read_text_file`、`fs/write_text_file` 只在 client capability 声明后可用；路径绝对；line 为 1-based | 已有 handler，包含 workspace guard、二进制/大小控制 | 保持安全边界；补 1-based、越界、二进制、跨 workspace 写入测试；声明能力与真实 handler 绑定 |
 | Terminals | `terminal/create` 用 `command` + `args` + `env` + `cwd`；`outputByteLimit` 超限时从开头截断，保留最新输出且字符边界有效 | 已有 terminal manager；当前把 command/args 拼进 shell，输出超限时保留开头 | 改为直接 spawn command + args；仅显式 shell 场景使用 shell；输出 buffer 保留尾部；release 后仍允许已渲染内容留在 tool call |

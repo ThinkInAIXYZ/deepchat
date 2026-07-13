@@ -17,6 +17,9 @@ import type {
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
 import type {
+  DeepChatCausalObservationReadOptions,
+  DeepChatCausalObservationRequest,
+  DeepChatCausalObservationSlice,
   DeepChatTapeReplayEntrySnapshot,
   DeepChatTapeReplayExportOptions,
   DeepChatTapeReplaySlice,
@@ -34,7 +37,8 @@ import type {
   DeepChatTapeSearchProjectionRow
 } from '../sqlitePresenter/tables/deepchatTapeSearchProjection'
 import type { DeepChatMessageTraceRow } from '../sqlitePresenter/tables/deepchatMessageTraces'
-import { appendMessageRecordToTape } from './tapeFacts'
+import { appendMessageRecordToTape, appendTapeToolFact } from './tapeFacts'
+import type { TapeEntryRef, TapeRecorder, TapeToolFactInput } from '@/agent/deepchat/loop/ports'
 import {
   buildEffectiveTapeView,
   getLastEffectiveTokenUsage,
@@ -852,7 +856,7 @@ function withReplaySliceHash(
   }
 }
 
-export class DeepChatTapeService {
+export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'> {
   constructor(private readonly sqlitePresenter: SQLitePresenter) {}
 
   private get table(): SQLitePresenter['deepchatTapeEntriesTable'] | undefined {
@@ -932,6 +936,12 @@ export class DeepChatTapeService {
     }
 
     return appendMessageRecordToTape(table, record, 'live')
+  }
+
+  async appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
+    const row = appendTapeToolFact(this.table, input, 'live', 'tool_loop')
+    if (!row) throw new Error('Tape tool fact was not appendable.')
+    return { sessionId: input.sessionId, entryId: row.entry_id }
   }
 
   getMessageRecords(sessionId: string): ChatMessageRecord[] {
@@ -1280,6 +1290,125 @@ export class DeepChatTapeService {
         : manifests.find((record) => record.requestSeq === options.requestSeq)
     if (!manifestRecord) {
       return null
+    }
+
+    return this.buildReplaySlice(sessionId, messageId, manifestRecord, options)
+  }
+
+  readCausalObservationSlice(
+    sessionId: string,
+    messageId: string,
+    options: DeepChatCausalObservationReadOptions = {}
+  ): DeepChatCausalObservationSlice {
+    if (options.requestSeq !== undefined && !isPositiveInteger(options.requestSeq)) {
+      throw new Error('requestSeq must be a positive integer.')
+    }
+
+    const rows = this.table?.getBySession(sessionId) ?? []
+    const manifestRows = rows.filter(
+      (row) =>
+        row.kind === 'event' &&
+        row.name === TAPE_VIEW_MANIFEST_EVENT_NAME &&
+        row.source_type === 'runtime_event' &&
+        row.source_id === messageId
+    )
+    const traces = (
+      this.sqlitePresenter.deepchatMessageTracesTable?.listByMessageId(messageId) ?? []
+    ).filter(
+      (row) =>
+        row.session_id === sessionId &&
+        row.message_id === messageId &&
+        isPositiveInteger(row.request_seq)
+    )
+
+    const requestSeq =
+      options.requestSeq ??
+      [...manifestRows.map((row) => row.source_seq), ...traces.map((row) => row.request_seq)]
+        .filter((value): value is number => typeof value === 'number' && isPositiveInteger(value))
+        .reduce<number | null>((latest, value) => Math.max(latest ?? value, value), null)
+
+    let request: DeepChatCausalObservationRequest
+    if (requestSeq === null) {
+      request = { state: 'request_unavailable', requestSeq: null, trace: null }
+    } else {
+      const selectedManifestRows = manifestRows.filter((row) => row.source_seq === requestSeq)
+      const manifestRecord = selectedManifestRows
+        .map((row) => this.toViewManifestRecord(row))
+        .find((record) => record?.messageId === messageId && record.requestSeq === requestSeq)
+      const trace = traces.find((row) => row.request_seq === requestSeq) ?? null
+
+      if (manifestRecord) {
+        request = {
+          state: 'manifest_bound',
+          requestSeq,
+          replay: this.buildReplaySlice(sessionId, messageId, manifestRecord, options)
+        }
+      } else {
+        request = {
+          state: selectedManifestRows.length > 0 ? 'manifest_malformed' : 'manifest_missing',
+          requestSeq,
+          trace: trace
+            ? this.toReplayTraceSnapshot(trace, options.includeTracePayload === true)
+            : null
+        }
+      }
+    }
+
+    const outputEntries = buildEffectiveTapeView(rows, { includePending: false })
+      .rows.filter(
+        (row) =>
+          (row.kind === 'message' &&
+            row.source_type === 'message' &&
+            row.source_id === messageId) ||
+          ((row.kind === 'tool_call' || row.kind === 'tool_result') &&
+            readToolFactMessageId(row) === messageId)
+      )
+      .map((row) => this.toReplayEntrySnapshot(row, options.includeTapePayloads === true))
+    const message = this.sqlitePresenter.deepchatMessagesTable?.get(messageId)
+    const terminalMessage =
+      message?.session_id === sessionId &&
+      message.role === 'assistant' &&
+      (message.status === 'sent' || message.status === 'error')
+        ? {
+            status: message.status,
+            orderSeq: message.order_seq,
+            createdAt: message.created_at,
+            updatedAt: message.updated_at,
+            contentHash: hashString(message.content),
+            metadataHash: hashString(message.metadata)
+          }
+        : null
+
+    return {
+      schemaVersion: 1,
+      sessionId,
+      messageId,
+      request,
+      output: {
+        correlation: 'message_only',
+        entries: outputEntries,
+        terminalMessage
+      },
+      runtime:
+        options.currentRuntimeStatus === undefined
+          ? { scope: 'unavailable', status: null, eventHistory: 'not_persisted' }
+          : {
+              scope: 'current_only',
+              status: options.currentRuntimeStatus,
+              eventHistory: 'not_persisted'
+            }
+    }
+  }
+
+  private buildReplaySlice(
+    sessionId: string,
+    messageId: string,
+    manifestRecord: DeepChatTapeViewManifestRecord,
+    options: DeepChatTapeReplayExportOptions
+  ): DeepChatTapeReplaySlice {
+    const table = this.table
+    if (!table) {
+      throw new Error('Tape table is not available.')
     }
 
     const manifest = manifestRecord.manifest

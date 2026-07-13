@@ -130,6 +130,7 @@ async function setup() {
   return {
     wrapper,
     providerClient,
+    configClient,
     stopDebugEvents,
     emitDebugEvent: (payload: DebugEventPayload) => debugEventListener?.(payload)
   }
@@ -175,5 +176,23 @@ describe('AcpDebugDialog', () => {
 
     wrapper.unmount()
     expect(stopDebugEvents).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs health checks for manual ACP agents without registry installation', async () => {
+    const { wrapper, providerClient, configClient } = await setup()
+    await wrapper.setProps({ agentId: 'manual-acp', agentName: 'Manual ACP' })
+
+    await (wrapper.vm as any).runHealthCheck()
+
+    expect(configClient.ensureAcpAgentInstalled).not.toHaveBeenCalled()
+    expect(providerClient.runAcpDebugAction).toHaveBeenCalledTimes(3)
+    expect(providerClient.runAcpDebugAction).toHaveBeenNthCalledWith(1, {
+      agentId: 'manual-acp',
+      action: 'initialize',
+      payload: {},
+      workdir: undefined
+    })
+
+    wrapper.unmount()
   })
 })

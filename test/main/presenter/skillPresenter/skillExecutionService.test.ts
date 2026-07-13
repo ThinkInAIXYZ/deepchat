@@ -17,9 +17,8 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/lib/agentRuntime/shellEnvHelper', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../../src/main/lib/agentRuntime/shellEnvHelper')>()
+vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/agent/shared/process/shellEnvHelper')>()
 
   return {
     ...actual,
@@ -28,7 +27,7 @@ vi.mock('../../../../src/main/lib/agentRuntime/shellEnvHelper', async (importOri
   }
 })
 
-vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
+vi.mock('@/agent/shared/process/rtkRuntimeService', () => ({
   rtkRuntimeService: {
     prepareShellCommand: vi
       .fn()
@@ -45,8 +44,8 @@ vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
 }))
 
 import { spawn } from 'child_process'
-import * as shellEnvHelper from '../../../../src/main/lib/agentRuntime/shellEnvHelper'
-import { rtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRuntimeService'
+import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
+import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 
 describe('SkillExecutionService', () => {
   let skillPresenter: ISkillPresenter

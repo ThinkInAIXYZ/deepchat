@@ -199,6 +199,12 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         const block = state.blocks[pending.blockIndex]
         if (block?.tool_call) {
           block.tool_call.params = finalArgs
+          if (event.tool_call_response !== undefined) {
+            block.tool_call.response = event.tool_call_response
+          }
+          if (event.tool_call_status) {
+            block.status = event.tool_call_status
+          }
           block.extra = {
             ...block.extra,
             toolCallArgsComplete: true,
@@ -247,7 +253,11 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       break
     }
     case 'stop': {
-      state.stopReason = mapStopReason(event.stop_reason)
+      // Keep an explicit stream error terminal reason even if the provider later emits a
+      // generic complete stop after the error event.
+      if (state.stopReason !== 'error') {
+        state.stopReason = mapStopReason(event.stop_reason)
+      }
       break
     }
     case 'error': {

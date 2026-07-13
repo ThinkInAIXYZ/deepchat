@@ -6,11 +6,12 @@
 >
 > Local performance gate: **passed**
 >
-> Post-commit native CI gate: **pending**
+> Post-commit native CI gate: **passed** in PR
+> [#1952](https://github.com/ThinkInAIXYZ/deepchat/pull/1952), including Native SQLite storage,
+> retrieval evaluation, and the complete performance matrix
 
-This document defines the requirements and acceptance criteria for predictable Agent Memory work at
-large per-agent and multi-agent scales. The implemented architecture is described in
-[plan.md](./plan.md), and implementation evidence is tracked in [tasks.md](./tasks.md).
+This document defines the maintained requirements and acceptance criteria for predictable Agent Memory work
+at large per-agent and multi-agent scales.
 
 ## Purpose
 
@@ -353,10 +354,10 @@ Production-path complexity evidence also confirms:
 - Maintenance uses the intended indexes at 50,000 rows, and a 1,000-sibling conflict transition uses one
   set-based statement.
 
-Targeted main/native tests, Memory renderer tests, the reference performance suite, and type checking pass.
-The complete main and renderer suites still contain unrelated pre-existing failures; no correctness,
-complexity, or resource assertion was weakened or skipped to hide them. Post-change native performance
-validation and the post-commit native CI gate remain pending.
+Targeted main/native tests, the complete main and renderer suites, Memory renderer tests, the reference
+performance suite, and type checking pass. PR #1952 also passed the required post-change Native SQLite,
+retrieval quality, recall-growth, Tape-scale, and complete performance CI gates without weakening or skipping
+their assertions.
 
 ## Acceptance
 

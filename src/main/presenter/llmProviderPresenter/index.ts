@@ -17,7 +17,6 @@ import {
   ISQLitePresenter,
   AcpConfigState,
   RateLimitQueueSnapshot,
-  AcpWorkdirInfo,
   AcpDebugRequest,
   AcpDebugRunResult
 } from '@shared/presenter'
@@ -33,6 +32,11 @@ import {
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
+import type {
+  AcpAsLlmProviderPermissionPort,
+  AcpAsLlmProviderSessionControlPort,
+  AcpProviderAdminPort
+} from '../runtimePorts'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
@@ -44,9 +48,11 @@ import { EmbeddingManager } from './managers/embeddingManager'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
-import { AcpSessionPersistence } from './acp'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
+import { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpProvider } from './providers/acpProvider'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -111,7 +117,13 @@ const AUDIO_TRANSCRIPTION_PROMPT = [
   '如果没有可辨识的语音，请返回空字符串。'
 ].join(' ')
 
-export class LLMProviderPresenter implements ILlmProviderPresenter {
+export class LLMProviderPresenter
+  implements
+    ILlmProviderPresenter,
+    AcpAsLlmProviderSessionControlPort,
+    AcpAsLlmProviderPermissionPort,
+    AcpProviderAdminPort
+{
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
   private readonly modelRefreshPromises: Map<string, Promise<void>> = new Map()
@@ -126,6 +138,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly embeddingManager: EmbeddingManager
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpSessionPersistence: AcpSessionPersistence
+  private readonly acpRuntimeOwner: AcpRuntimeOwner
 
   constructor(
     configPresenter: IConfigPresenter,
@@ -135,6 +148,33 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     this.configPresenter = configPresenter
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
+    this.acpRuntimeOwner = new AcpRuntimeOwner(() => {
+      const provider = configPresenter.getProviderById('acp')
+      if (!provider) throw new Error('[ACP] Provider configuration not found')
+      return new AcpClientRuntime({
+        provider,
+        configPresenter,
+        sessionPersistence: this.acpSessionPersistence,
+        mcpRuntime,
+        capabilityEvents: {
+          modesReady: (input) =>
+            publishDeepchatEvent('sessions.acp.modes.ready', {
+              ...input,
+              version: Date.now()
+            }),
+          configOptionsReady: (input) =>
+            publishDeepchatEvent('sessions.acp.configOptions.ready', {
+              ...input,
+              version: Date.now()
+            }),
+          commandsReady: (input) =>
+            publishDeepchatEvent('sessions.acp.commands.ready', {
+              ...input,
+              version: Date.now()
+            })
+        }
+      })
+    })
     this.providerInstanceManager = new ProviderInstanceManager({
       configPresenter,
       activeStreams: this.activeStreams,
@@ -143,7 +183,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
       },
-      acpSessionPersistence: this.acpSessionPersistence,
+      acpRuntimeOwner: this.acpRuntimeOwner,
       mcpRuntime
     })
     this.modelManager = new ModelManager({
@@ -226,6 +266,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
   }
 
+  public getAcpRuntimeOwner(): AcpRuntimeOwner {
+    return this.acpRuntimeOwner
+  }
+
+  public async shutdownAcpRuntime(): Promise<void> {
+    await this.acpRuntimeOwner.shutdown()
+  }
+
   async clearAcpSession(conversationId: string): Promise<void> {
     const acpProvider = this.getExistingProviderInstance('acp') as
       | { clearSession?: (conversationId: string) => Promise<void> }
@@ -293,6 +341,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     options?: {
       signal?: AbortSignal
       onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+      scope?: 'provider' | 'acp-direct'
     }
   ): Promise<void> {
     await this.rateLimitManager.executeWithRateLimit(providerId, options)
@@ -847,13 +896,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.modelScopeSyncManager.syncModelScopeMcpServers(providerId, syncOptions)
   }
 
-  async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
-    const record = await this.acpSessionPersistence.getSessionData(conversationId, agentId)
-    const path = this.acpSessionPersistence.resolveWorkdir(record?.workdir)
-    const isCustom = this.acpSessionPersistence.isWorkdirUsable(record?.workdir)
-    return { path, isCustom }
-  }
-
   async setAcpWorkdir(
     conversationId: string,
     agentId: string,
@@ -895,23 +937,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
   }
 
-  async getAcpProcessModes(
-    agentId: string,
-    workdir?: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  > {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return undefined
-    }
-    return provider.getProcessModes(agentId, workdir)
-  }
-
   async getAcpProcessConfigOptions(
     agentId: string,
     workdir?: string
@@ -921,40 +946,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return null
     }
     return provider.getProcessConfigOptions(agentId, workdir)
-  }
-
-  async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) return
-
-    await provider.setPreferredProcessMode(agentId, workdir, modeId)
-  }
-
-  async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('[ACP] ACP provider not found')
-    }
-    await provider.setSessionMode(conversationId, modeId)
-  }
-
-  async prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('[ACP] ACP provider not found')
-    }
-    await provider.prepareSession(conversationId, agentId, workdir)
-  }
-
-  async getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return null
-    }
-    return await provider.getSessionModes(conversationId)
   }
 
   async getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null> {

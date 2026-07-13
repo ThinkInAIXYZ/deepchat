@@ -100,7 +100,7 @@ describe('MemoryPresenter.searchMemories (read-only facade)', () => {
       agentId: 'deepchat'
     })
     await presenter.processPendingEmbeddings('deepchat')
-    repo.archive(id, Date.now())
+    repo.seedArchived(id, Date.now())
     const filterPrunable = vi.spyOn(repo, 'filterPrunableVectorRefs')
     const deleteByMemoryIds = vi.spyOn(store, 'deleteByMemoryIds')
 

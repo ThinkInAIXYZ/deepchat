@@ -213,7 +213,7 @@ export class EmbeddingPipeline {
       const now = Date.now()
       if (now - lastRetryAt >= ERROR_RETRY_COOLDOWN_MS) {
         let afterId = this.errorRetryAfterId.get(agentId) ?? null
-        let retryIds = this.ports.repository.listEmbeddingStatusIds(
+        let retryIds = this.ports.repository.listEmbeddingStateIds(
           agentId,
           ['error'],
           ERROR_RETRY_BATCH_LIMIT,
@@ -221,7 +221,7 @@ export class EmbeddingPipeline {
         )
         if (!retryIds.length && afterId !== null) {
           afterId = null
-          retryIds = this.ports.repository.listEmbeddingStatusIds(
+          retryIds = this.ports.repository.listEmbeddingStateIds(
             agentId,
             ['error'],
             ERROR_RETRY_BATCH_LIMIT,
@@ -458,7 +458,7 @@ export class EmbeddingPipeline {
     if (inFlightDrain) await inFlightDrain.catch(() => undefined)
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     const requeued = this.ports.repository.requeueForEmbedding(agentId, [
-      'embedded',
+      'ready',
       'error',
       'fts_only'
     ])
@@ -492,7 +492,7 @@ export class EmbeddingPipeline {
   private async runBackfill(agentId: string): Promise<void> {
     await Promise.resolve()
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
-    if (this.ports.repository.listEmbeddingStatusIds(agentId, ['fts_only'], 1).length) {
+    if (this.ports.repository.listEmbeddingStateIds(agentId, ['fts_only'], 1).length) {
       this.ports.repository.requeueForEmbedding(agentId, ['fts_only'])
     }
     await this.drainUntilExhausted(agentId)

@@ -1,7 +1,7 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 import { presenter } from '@/presenter'
-import { AcpRegistryMigrationService } from '@/presenter/configPresenter/acpRegistryMigrationService'
+import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 
 export const acpRegistryMigrationHook: LifecycleHook = {
   name: 'acp-registry-migration',

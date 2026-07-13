@@ -1,7 +1,9 @@
 # Memory Runtime Metric Dictionary
 
-> Version: **1**  
-> Scope: **local in-process diagnostics only**  
+> Version: **1**
+>
+> Scope: **local in-process diagnostics only**
+>
 > Persistence: **none**
 
 Metrics retain only numbers, booleans, timestamps, and shared closed enums. The collector does not accept or

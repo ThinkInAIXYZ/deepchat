@@ -21,9 +21,8 @@ vi.mock('@shared/logger', () => ({
   }
 }))
 
-vi.mock('../../../../../src/main/lib/agentRuntime/shellEnvHelper', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../../../src/main/lib/agentRuntime/shellEnvHelper')>()
+vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/agent/shared/process/shellEnvHelper')>()
 
   return {
     ...actual,

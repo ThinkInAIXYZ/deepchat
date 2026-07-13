@@ -670,11 +670,18 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const result = await sessionClient.create(input)
       const session = result.session
-      const lightweightSession = mapToUISession(session)
+      const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
+      const lightweightSession = {
+        ...mapToUISession(session),
+        ...(hasInitialTurn ? { status: 'working' as const } : {})
+      }
       upsertSessions([lightweightSession])
       setActiveSessionId(session.id)
       bootstrapActiveSession.value = lightweightSession
-      activeSessionSummary.value = mapToUIActiveSessionSummary(session)
+      activeSessionSummary.value = {
+        ...mapToUIActiveSessionSummary(session),
+        ...(hasInitialTurn ? { status: 'working' as const } : {})
+      }
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
       await completeOnboardingStep('first-chat')
@@ -777,10 +784,12 @@ export const useSessionStore = defineStore('session', () => {
 
   async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     error.value = null
+    applySessionStatus(sessionId, 'generating')
     try {
       await chatClient.sendMessage(sessionId, content)
       await completeOnboardingStep('first-chat')
     } catch (sendError) {
+      applySessionStatus(sessionId, 'error')
       error.value = `Failed to send message: ${sendError}`
       throw sendError
     }

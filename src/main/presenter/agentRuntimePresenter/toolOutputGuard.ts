@@ -2,7 +2,13 @@ import fs from 'fs/promises'
 import path from 'path'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
+import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
+import type {
+  PreparedToolOutput,
+  ToolBatchOutputCandidate,
+  ToolBatchOutputFit,
+  ToolBatchOutputFitItem
+} from '@/agent/deepchat/loop/ports'
 import { preflightRequestContext } from './contextBudget'
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
@@ -10,31 +16,6 @@ const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
 const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'cdp_send'])
 
 type ToolMessageUpdateMode = 'append' | 'replace'
-
-export interface ToolBatchOutputCandidate {
-  toolCallId: string
-  toolName: string
-  responseText: string
-  isError: boolean
-  offloadPath?: string
-}
-
-export interface ToolBatchOutputFitItem extends ToolBatchOutputCandidate {
-  contextResponseText: string
-  downgraded: boolean
-}
-
-export type PreparedToolOutputResult =
-  | {
-      kind: 'ok'
-      content: string
-      offloaded: boolean
-      offloadPath?: string
-    }
-  | {
-      kind: 'tool_error'
-      message: string
-    }
 
 export type ToolOutputGuardResult =
   | {
@@ -50,17 +31,6 @@ export type ToolOutputGuardResult =
   | {
       kind: 'terminal_error'
       message: string
-    }
-
-export type ToolBatchOutputFitResult =
-  | {
-      kind: 'ok'
-      results: ToolBatchOutputFitItem[]
-    }
-  | {
-      kind: 'terminal_error'
-      message: string
-      results: ToolBatchOutputFitItem[]
     }
 
 interface PrepareToolOutputParams {
@@ -96,7 +66,7 @@ interface FitToolBatchOutputsParams extends ContextBudgetParams {
 }
 
 export class ToolOutputGuard {
-  async prepareToolOutput(params: PrepareToolOutputParams): Promise<PreparedToolOutputResult> {
+  async prepareToolOutput(params: PrepareToolOutputParams): Promise<PreparedToolOutput> {
     const { sessionId, toolCallId, toolName, rawContent } = params
 
     if (!this.requiresOffload(toolName) || rawContent.length <= TOOL_OUTPUT_OFFLOAD_THRESHOLD) {
@@ -169,7 +139,7 @@ export class ToolOutputGuard {
     return overflowResult
   }
 
-  async fitToolBatchOutputs(params: FitToolBatchOutputsParams): Promise<ToolBatchOutputFitResult> {
+  async fitToolBatchOutputs(params: FitToolBatchOutputsParams): Promise<ToolBatchOutputFit> {
     if (params.results.length === 0) {
       return {
         kind: 'ok',
@@ -397,7 +367,7 @@ export class ToolOutputGuard {
     return [
       '[Tool output offloaded]',
       `Total characters: ${rawContent.length}`,
-      `Offload file: ${path.basename(filePath)}`,
+      `Offload file: ${filePath}`,
       `first ${preview.length} chars:`,
       preview
     ].join('\n')

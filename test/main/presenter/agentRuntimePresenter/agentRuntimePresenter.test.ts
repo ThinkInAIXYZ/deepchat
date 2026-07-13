@@ -18,6 +18,16 @@ import {
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
+import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
+import { createState } from '@/presenter/agentRuntimePresenter/types'
+import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
+import { AcpAgentRuntime } from '@/agent/acp/instance'
+import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
+import type { AcpAgentConfig } from '@shared/presenter'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import { nanoid } from 'nanoid'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -76,7 +86,7 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
+vi.mock('@/agent/deepchat/resources/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
   buildSystemEnvPrompt: vi.fn(
     async (options?: {
@@ -99,7 +109,8 @@ vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
 }))
 
 // Mock processStream to avoid timer/async complexity
-vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
+vi.mock('@/presenter/agentRuntimePresenter/process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/presenter/agentRuntimePresenter/process')>()),
   processStream: vi.fn().mockResolvedValue({ status: 'completed' })
 }))
 
@@ -110,7 +121,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '@/lib/agentRuntime/systemEnvPromptBuilder'
+} from '@/agent/deepchat/resources/systemEnvPromptBuilder'
 
 function getPublishedPayloads(eventName: string): any[] {
   return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
@@ -120,6 +131,12 @@ function getPublishedPayloads(eventName: string): any[] {
 
 function expectPublished(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEvent).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
+}
+
+function getRuntimeState(agent: AgentRuntimePresenter, sessionId: string): DeepChatSessionState {
+  const state = agent.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId)).getRuntimeState()
+  if (!state) throw new Error(`Missing runtime state for ${sessionId}`)
+  return state
 }
 
 function getEventHandler(eventName: string): () => void {
@@ -230,7 +247,6 @@ function createMockSqlitePresenter() {
     insert: vi.fn(),
     updateContent: vi.fn(),
     updateStatus: vi.fn(),
-    updateMetadata: vi.fn(),
     incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
     getBySession: vi.fn().mockReturnValue([]),
@@ -686,6 +702,13 @@ describe('AgentRuntimePresenter', () => {
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
+  const getMemoryCoordinator = () =>
+    (agent as unknown as { memoryCoordinator: MemoryRuntimeCoordinator }).memoryCoordinator
+
+  const setMemoryPort = (port: any) => {
+    getMemoryCoordinator().setPort(port)
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     ;(processStream as ReturnType<typeof vi.fn>).mockReset()
@@ -722,11 +745,12 @@ describe('AgentRuntimePresenter', () => {
       new NewSessionHooksBridge(hookDispatcher),
       {
         skillPresenter,
-        sessionPermissionPort
+        sessionPermissionPort,
+        acpAsLlmProviderPermission: {
+          resolveAgentPermission: llmProvider.resolveAgentPermission
+        }
       }
     )
-    let runToken = 0
-    ;(agent as any).generationControlService.createRunToken = () => `run-${++runToken}`
   })
 
   afterEach(async () => {
@@ -739,176 +763,23 @@ describe('AgentRuntimePresenter', () => {
     }
   })
 
-  describe('memory injection', () => {
-    it('keeps the injected prompt when the view anchor write fails', async () => {
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
-        isEnabled: vi.fn(() => true),
-        recordInjectionAccess: vi.fn(),
-        buildInjection: vi.fn(async () => ({
-          payload: {
-            selfModel: null,
-            working: null,
-            memories: [{ id: 'm1', kind: 'semantic', content: 'redis fact' }]
-          },
-          manifest: {
-            policyVersion: 1,
-            selected: [{ id: 'm1', kind: 'semantic', score: 1 }],
-            dropped: [],
-            tokenBudget: 1200,
-            estimatedTokens: 20,
-            queryHash: 'query-hash'
-          }
-        }))
-      }
-      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockImplementation(() => {
-        throw new Error('anchor failed')
-      })
-
-      const prompt = await (agent as any).memoryCompactionService.appendMemoryInjection(
-        's1',
-        'base prompt',
-        'redis'
-      )
-
-      expect(prompt).toContain('base prompt')
-      expect(prompt).toContain('## Relevant Memories')
-      expect(prompt).toContain('redis fact')
-      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).toHaveBeenCalledWith(
-        expect.objectContaining({ sessionId: 's1', name: 'memory/view_assembled' })
-      )
-    })
-
-    it('records access only for selected injected memories and dedupes by message', async () => {
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
-      const recordInjectionAccess = vi.fn()
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
-        isEnabled: vi.fn(() => true),
-        recordInjectionAccess,
-        buildInjection: vi.fn(async () => ({
-          payload: {
-            selfModel: null,
-            working: null,
-            memories: [
-              { id: 'selected', kind: 'semantic', content: 'redis fact' },
-              { id: 'dropped', kind: 'semantic', content: 'x'.repeat(10_000) }
-            ],
-            tokenBudget: 80
-          },
-          manifest: {
-            policyVersion: 1,
-            selected: [],
-            dropped: [],
-            tokenBudget: 80,
-            estimatedTokens: 0,
-            queryHash: 'query-hash'
-          }
-        }))
-      }
-
-      await (agent as any).memoryCompactionService.appendMemoryInjection(
-        's1',
-        'base prompt',
-        'redis',
-        'user-message-1'
-      )
-      await (agent as any).memoryCompactionService.appendMemoryInjection(
-        's1',
-        'base prompt',
-        'redis',
-        'user-message-1'
-      )
-      await (agent as any).memoryCompactionService.appendMemoryInjection(
-        's1',
-        'base prompt',
-        'redis',
-        null
-      )
-      await (agent as any).memoryCompactionService.appendMemoryInjection(
-        's1',
-        'base prompt',
-        'redis',
-        null
-      )
-
-      expect(recordInjectionAccess.mock.calls).toEqual([
-        ['a', ['selected']],
-        ['a', ['selected']],
-        ['a', ['selected']]
-      ])
-    })
-
-    it('bounds injection access dedupe state per session and clears it on destroy', async () => {
-      const recordInjectionAccess = vi.fn()
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
-        recordInjectionAccess
-      }
-
-      for (let index = 0; index < 130; index += 1) {
-        ;(agent as any).memoryCompactionService.recordMemoryInjectionAccess(
-          'a',
-          's1',
-          [{ id: `selected-${index}` }],
-          `message-${index}`
-        )
-      }
-
-      const accessByTurn = (agent as any).memoryCompactionService
-        .memoryInjectionAccessByTurn as Map<string, unknown>
-      const sessionKeys = [...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))
-      expect(sessionKeys).toHaveLength(128)
-      expect(recordInjectionAccess).toHaveBeenCalledTimes(130)
-
-      await agent.destroySession('s1')
-      expect([...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))).toHaveLength(0)
-    })
-
-    it('expires old injection access dedupe turns for active sessions', () => {
-      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
-        recordInjectionAccess: vi.fn()
-      }
-
-      ;(agent as any).memoryCompactionService.recordMemoryInjectionAccess(
-        'a',
-        's1',
-        [{ id: 'old' }],
-        'old-message'
-      )
-      nowSpy.mockReturnValue(31 * 60 * 1000)
-      ;(agent as any).memoryCompactionService.recordMemoryInjectionAccess(
-        'a',
-        's1',
-        [{ id: 'new' }],
-        'new-message'
-      )
-
-      const accessByTurn = (agent as any).memoryCompactionService
-        .memoryInjectionAccessByTurn as Map<string, unknown>
-      expect([...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))).toEqual([
-        's1\u0000new-message'
-      ])
-      nowSpy.mockRestore()
-    })
-  })
-
   describe('memory extraction lifecycle', () => {
     function installDeferredExtraction() {
       const extraction = deferred<{ ok: true; createdIds: string[] }>()
       const extractAndStore = vi.fn(() => extraction.promise)
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         extractAndStore
-      }
+      })
       return { extraction, extractAndStore }
     }
 
     function installResolvedExtraction() {
       const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: [] })
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         extractAndStore
-      }
+      })
       return extractAndStore
     }
 
@@ -995,18 +866,17 @@ describe('AgentRuntimePresenter', () => {
     }
 
     async function triggerFallbackAndWait() {
-      ;(agent as any).memoryCompactionService.triggerMemoryExtractionFallback('s1')
-      const chain = (agent as any).memoryCompactionService.memoryExtractionChains.get('s1') as
-        | Promise<void>
-        | undefined
-      await chain
+      agent.memoryIngestionObserver.afterTurnSettled({
+        session: agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).getMemorySessionHandle(),
+        origin: 'initial',
+        outcome: { kind: 'returned', status: 'completed' }
+      })
+      await getMemoryCoordinator().waitForSession('s1')
     }
 
     function startExtraction(toOrderSeq = 10) {
-      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
-        's1'
-      ) as number
-      return (agent as any).memoryCompactionService.runMemoryExtractionChunks(
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
+      return getMemoryCoordinator().runExtractionChunks(
         's1',
         {
           chunks: [
@@ -1049,14 +919,7 @@ describe('AgentRuntimePresenter', () => {
     }
 
     async function waitForExtractionChain() {
-      while (true) {
-        const chain = (agent as any).memoryCompactionService.memoryExtractionChains.get('s1') as
-          | Promise<void>
-          | undefined
-        if (!chain) return
-        await chain
-        await Promise.resolve()
-      }
+      await getMemoryCoordinator().waitForSession('s1')
     }
 
     it('admits a short single-turn span when the window used a tool', async () => {
@@ -1140,10 +1003,10 @@ describe('AgentRuntimePresenter', () => {
     it('keeps the cursor unchanged when extraction returns ok:false', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = vi.fn().mockResolvedValue({ ok: false })
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => true),
         extractAndStore
-      }
+      })
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
       sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
 
@@ -1159,12 +1022,10 @@ describe('AgentRuntimePresenter', () => {
     it('continues after four chunks on the same session extraction chain', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = installResolvedExtraction()
-      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
-        's1'
-      ) as number
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
 
-      await (agent as any).memoryCompactionService.runMemoryExtractionChunks(
+      await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [1, 2, 3, 4, 5].map(extractionChunk), reason: 'fallback' },
         epoch
@@ -1185,16 +1046,11 @@ describe('AgentRuntimePresenter', () => {
         .fn()
         .mockResolvedValueOnce({ ok: true, createdIds: [] })
         .mockResolvedValueOnce({ ok: false })
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
-        isEnabled: vi.fn(() => true),
-        extractAndStore
-      }
-      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
-        's1'
-      ) as number
+      setMemoryPort({ isEnabled: vi.fn(() => true), extractAndStore })
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
 
-      await (agent as any).memoryCompactionService.runMemoryExtractionChunks(
+      await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [1, 2, 3].map(extractionChunk), reason: 'fallback' },
         epoch
@@ -1213,16 +1069,11 @@ describe('AgentRuntimePresenter', () => {
     it('writes only the completed chunk lineage into the extraction anchor', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: ['memory-2'] })
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
-        isEnabled: vi.fn(() => true),
-        extractAndStore
-      }
-      const epoch = (agent as any).memoryCompactionService.ensureMemoryExtractionEpoch(
-        's1'
-      ) as number
+      setMemoryPort({ isEnabled: vi.fn(() => true), extractAndStore })
+      const epoch = getMemoryCoordinator().ensureSessionEpoch('s1')
       sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
 
-      await (agent as any).memoryCompactionService.runMemoryExtractionChunks(
+      await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [extractionChunk(2)], reason: 'compaction' },
         epoch
@@ -1241,6 +1092,46 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('keeps Memory ingestion behind stable instance handles', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installRuntimeRecords([
+        userRecord('u1', 1, 'Remember that Redis is preferred.'),
+        assistantRecord('a1', 2, [contentBlock('Noted.')])
+      ])
+      const extractAndStore = installResolvedExtraction()
+      const sessionId = toAppSessionId('s1')
+      const instance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      const memorySession = instance.getMemorySessionHandle()
+
+      expect(instance.getMemorySessionHandle()).toBe(memorySession)
+      expect(memorySession.sessionId).toBe(sessionId)
+
+      agent.memoryIngestionObserver.afterCompactionApplyReturned({
+        session: memorySession,
+        origin: 'initial',
+        targetCursorOrderSeq: 2
+      })
+      await waitForExtractionChain()
+
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        2
+      )
+
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(replacement.getMemorySessionHandle()).not.toBe(memorySession)
+      expect(() =>
+        agent.memoryIngestionObserver.afterCompactionApplyReturned({
+          session: memorySession,
+          origin: 'initial',
+          targetCursorOrderSeq: 2
+        })
+      ).not.toThrow()
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+    })
+
     it('computes tool admission signals from one tape read', async () => {
       installRuntimeRecords([
         userRecord('u1', 1, 'Read package metadata.'),
@@ -1248,7 +1139,7 @@ describe('AgentRuntimePresenter', () => {
       ])
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-      const window = (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 2)
+      const window = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
 
       expect(window).toEqual(
         expect.objectContaining({
@@ -1300,11 +1191,7 @@ describe('AgentRuntimePresenter', () => {
         invalidateSession: vi.fn()
       }
 
-      const rebuiltWindow = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
-        's1',
-        0,
-        2
-      )
+      const rebuiltWindow = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
       expect(rebuiltWindow).toEqual(
         expect.objectContaining({
           hadToolUse: true,
@@ -1315,11 +1202,7 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
-      const rangeWindow = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
-        's1',
-        0,
-        2
-      )
+      const rangeWindow = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
 
       expect(rangeWindow).toEqual(rebuiltWindow)
       expect(replaceSession).toHaveBeenCalledTimes(1)
@@ -1339,7 +1222,7 @@ describe('AgentRuntimePresenter', () => {
       }
       sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-      const window = (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
+      const window = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
 
       expect(window).toEqual(
         expect.objectContaining({
@@ -1350,9 +1233,7 @@ describe('AgentRuntimePresenter', () => {
       expect(invalidateSession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
-      expect(
-        (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
-      ).toBeNull()
+      expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toBeNull()
       expect(
         sqlitePresenter.deepchatMemoryIngestionProjectionTable.readCurrentRange
       ).toHaveBeenCalledTimes(1)
@@ -1404,65 +1285,30 @@ describe('AgentRuntimePresenter', () => {
         }
         sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
 
-        const fallback = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
-          's1',
-          0,
-          1
-        )
+        const fallback = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
         expect(fallback.chunks.every((chunk: any) => chunk.cursorCommitOrderSeq === null)).toBe(
           true
         )
         expect(replaceSession).toHaveBeenCalledTimes(1)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
-        expect(
-          (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
-        ).toBeNull()
+        expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toBeNull()
         expect(readCurrentRange).toHaveBeenCalledTimes(1)
         expect(replaceSession).toHaveBeenCalledTimes(1)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
 
         now.mockReturnValue(31_000)
         failReplacement = false
-        const recovered = (agent as any).memoryCompactionService.buildMemoryExtractionWindow(
-          's1',
-          0,
-          1
-        )
+        const recovered = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
         expect(recovered.chunks.at(-1)?.cursorCommitOrderSeq).toBe(1)
         expect(replaceSession).toHaveBeenCalledTimes(2)
 
-        expect(
-          (agent as any).memoryCompactionService.buildMemoryExtractionWindow('s1', 0, 1)
-        ).toEqual(recovered)
+        expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toEqual(recovered)
         expect(readCurrentRange).toHaveBeenCalledTimes(3)
         expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(2)
       } finally {
         now.mockRestore()
       }
-    })
-
-    it('bounds projection failure cooldown state and clears it with session lifecycle', async () => {
-      const internals = (agent as any).memoryCompactionService
-      internals.recordMemoryIngestionProjectionFailure('s1')
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(true)
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
-
-      internals.recordMemoryIngestionProjectionFailure('s1')
-      await agent.clearMessages('s1')
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
-
-      for (let index = 0; index < 257; index += 1) {
-        internals.recordMemoryIngestionProjectionFailure(`session-${index}`)
-      }
-      expect(internals.memoryIngestionProjectionRetryAfter.size).toBe(256)
-      expect(internals.memoryIngestionProjectionRetryAfter.has('session-0')).toBe(false)
-
-      internals.recordMemoryIngestionProjectionFailure('s1')
-      await agent.destroySession('s1')
-      expect(internals.memoryIngestionProjectionRetryAfter.has('s1')).toBe(false)
     })
 
     it('drops an in-flight extraction commit after clearMessages resets the session', async () => {
@@ -1511,6 +1357,7 @@ describe('AgentRuntimePresenter', () => {
         sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
       ).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).not.toHaveBeenCalled()
+      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
     })
   })
 
@@ -1798,6 +1645,15 @@ describe('AgentRuntimePresenter', () => {
     })
 
     it('calls processStream with correct params', async () => {
+      let activeDuringStream: { eventId: string; runId: string } | null = null
+      let registeredRunMatches = false
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        activeDuringStream = agent.getActiveGeneration('s1')
+        registeredRunMatches =
+          agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).getActiveGeneration() ===
+          params.run
+        return { status: 'completed' }
+      })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
@@ -1805,12 +1661,29 @@ describe('AgentRuntimePresenter', () => {
         expect.objectContaining({
           providerId: 'openai',
           modelId: 'gpt-4',
-          io: expect.objectContaining({
+          run: expect.objectContaining({
             sessionId: 's1',
             messageId: 'mock-msg-id'
           })
         })
       )
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(activeDuringStream).toEqual({
+        eventId: 'mock-msg-id',
+        runId: callArgs.run.runId
+      })
+      expect(registeredRunMatches).toBe(true)
+      expect(callArgs.run).toMatchObject({
+        sessionId: 's1',
+        messageId: 'mock-msg-id',
+        requestSeq: 0,
+        providerRoundCount: 0
+      })
+      expect(
+        sqlitePresenter.deepchatMessagesTable.insert.mock.calls.some(
+          ([row]) => row.id === 'mock-msg-id' && row.role === 'assistant'
+        )
+      ).toBe(true)
     })
 
     it('resets agent plan state for each new assistant turn', async () => {
@@ -1880,6 +1753,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.steerActiveTurn('s1', 'Refine before stream')
       expect(processStream).not.toHaveBeenCalled()
+      expect(agent.getActiveGeneration('s1')).toBeNull()
 
       releaseTools?.()
       await firstProcess
@@ -1915,10 +1789,10 @@ describe('AgentRuntimePresenter', () => {
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
             await new Promise((resolve, reject) => {
-              firstAbortSignal = params.io.abortSignal
+              firstAbortSignal = params.run.abortController.signal
               // The active stream rejects with an AbortError as soon as it is interrupted, mirroring
               // a real provider stream reacting to the abort signal.
-              params.io.abortSignal.addEventListener('abort', () => {
+              params.run.abortController.signal.addEventListener('abort', () => {
                 const abortError = new Error('Aborted')
                 abortError.name = 'AbortError'
                 reject(abortError)
@@ -1980,8 +1854,8 @@ describe('AgentRuntimePresenter', () => {
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
             await new Promise((resolve, reject) => {
-              firstAbortSignal = params.io.abortSignal
-              params.io.abortSignal.addEventListener('abort', () => {
+              firstAbortSignal = params.run.abortController.signal
+              params.run.abortController.signal.addEventListener('abort', () => {
                 const abortError = new Error('Aborted')
                 abortError.name = 'AbortError'
                 reject(abortError)
@@ -2044,7 +1918,7 @@ describe('AgentRuntimePresenter', () => {
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
             await new Promise((_resolve, reject) => {
-              params.io.abortSignal.addEventListener('abort', () => {
+              params.run.abortController.signal.addEventListener('abort', () => {
                 const abortError = new Error('Aborted')
                 abortError.name = 'AbortError'
                 reject(abortError)
@@ -2172,31 +2046,38 @@ describe('AgentRuntimePresenter', () => {
 
     it('dispatches tool and permission hooks through process callbacks', async () => {
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
-        params.hooks?.onPreToolUse?.({
-          callId: 'tool-1',
-          name: 'write_file',
-          params: '{"path":"a.txt"}'
-        })
-        params.hooks?.onPermissionRequest?.(
-          {
-            permissionType: 'write',
-            description: 'Need permission'
-          },
-          {
+        params.notificationObserver?.notify({
+          event: 'PreToolUse',
+          tool: {
             callId: 'tool-1',
             name: 'write_file',
             params: '{"path":"a.txt"}'
           }
-        )
-        params.hooks?.onPostToolUseFailure?.({
-          callId: 'tool-1',
-          name: 'write_file',
-          params: '{"path":"a.txt"}',
-          error: 'permission denied'
+        })
+        params.notificationObserver?.notify({
+          event: 'PermissionRequest',
+          permission: {
+            permissionType: 'write',
+            description: 'Need permission'
+          },
+          tool: {
+            callId: 'tool-1',
+            name: 'write_file',
+            params: '{"path":"a.txt"}'
+          }
+        })
+        params.notificationObserver?.notify({
+          event: 'PostToolUseFailure',
+          tool: {
+            callId: 'tool-1',
+            name: 'write_file',
+            params: '{"path":"a.txt"}',
+            error: 'permission denied'
+          }
         })
         return {
           status: 'error',
-          stopReason: 'tool_error',
+          stopReason: 'error',
           errorMessage: 'permission denied'
         }
       })
@@ -2247,7 +2128,7 @@ describe('AgentRuntimePresenter', () => {
 
       const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
       await expect(
-        params.hooks?.autoGrantPermission?.({
+        params.controls?.autoGrantPermission?.({
           permissionType: 'write',
           description: 'Need permission',
           toolName: 'write_file',
@@ -2302,10 +2183,10 @@ describe('AgentRuntimePresenter', () => {
 
       // processStream should receive messages with history
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].role).toBe('system')
-      expect(callArgs.messages[0].content).toContain('RUNTIME_CAPABILITIES')
-      expect(callArgs.messages[0].content).toContain('You are a helpful assistant.')
-      expect(callArgs.messages.slice(1)).toEqual([
+      expect(callArgs.run.messages[0].role).toBe('system')
+      expect(callArgs.run.messages[0].content).toContain('RUNTIME_CAPABILITIES')
+      expect(callArgs.run.messages[0].content).toContain('You are a helpful assistant.')
+      expect(callArgs.run.messages.slice(1)).toEqual([
         { role: 'user', content: 'First message' },
         { role: 'assistant', content: 'First reply' },
         { role: 'user', content: 'Second message' }
@@ -2444,7 +2325,7 @@ describe('AgentRuntimePresenter', () => {
       )
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].content).toContain('## Conversation Summary')
+      expect(callArgs.run.messages[0].content).toContain('## Conversation Summary')
     })
 
     it('keeps runtime and env sections when user system prompt is empty', async () => {
@@ -2454,10 +2335,10 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].role).toBe('system')
-      expect(callArgs.messages[0].content).toContain('RUNTIME_CAPABILITIES')
-      expect(callArgs.messages[0].content).toContain('ENV_BLOCK')
-      expect(callArgs.messages[1]).toEqual({ role: 'user', content: 'Hello' })
+      expect(callArgs.run.messages[0].role).toBe('system')
+      expect(callArgs.run.messages[0].content).toContain('RUNTIME_CAPABILITIES')
+      expect(callArgs.run.messages[0].content).toContain('ENV_BLOCK')
+      expect(callArgs.run.messages[1]).toEqual({ role: 'user', content: 'Hello' })
     })
 
     it('uses session generation settings for context and model config', async () => {
@@ -2477,9 +2358,9 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].role).toBe('system')
-      expect(callArgs.messages[0].content).toContain('Custom system prompt')
-      expect(callArgs.messages[0].content.trim().startsWith('Custom system prompt')).toBe(true)
+      expect(callArgs.run.messages[0].role).toBe('system')
+      expect(callArgs.run.messages[0].content).toContain('Custom system prompt')
+      expect(callArgs.run.messages[0].content.trim().startsWith('Custom system prompt')).toBe(true)
       expect(callArgs.temperature).toBe(1.3)
       expect(callArgs.maxTokens).toBe(2048)
       expect(callArgs.modelConfig.contextLength).toBe(8192)
@@ -2495,21 +2376,21 @@ describe('AgentRuntimePresenter', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2538,21 +2419,21 @@ describe('AgentRuntimePresenter', () => {
         sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mock.calls.length
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2601,12 +2482,12 @@ describe('AgentRuntimePresenter', () => {
       })
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2628,12 +2509,12 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
         void _event
       }
@@ -2671,12 +2552,12 @@ describe('AgentRuntimePresenter', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -2716,7 +2597,7 @@ describe('AgentRuntimePresenter', () => {
         blocks: []
       })
       expect(typedRateLimitShow).toMatchObject({
-        requestId: expect.stringMatching(/^s1:[A-Za-z0-9_-]+$/),
+        requestId: expect.stringMatching(/^s1:\d+$/),
         sessionId: 's1',
         blocks: [
           expect.objectContaining({
@@ -2727,7 +2608,7 @@ describe('AgentRuntimePresenter', () => {
         ]
       })
       expect(typedRateLimitClear).toMatchObject({
-        requestId: expect.stringMatching(/^s1:[A-Za-z0-9_-]+$/),
+        requestId: expect.stringMatching(/^s1:\d+$/),
         sessionId: 's1',
         blocks: []
       })
@@ -2787,21 +2668,23 @@ describe('AgentRuntimePresenter', () => {
             maxTokens: number,
             tools: any[]
           ) => AsyncGenerator<unknown>
-          messages: any[]
+          run: {
+            messages: any[]
+            resources: { toolDefinitions: any[] }
+          }
           modelId: string
           modelConfig: any
           temperature: number
           maxTokens: number
-          tools: any[]
         }) => {
           try {
             for await (const _event of params.coreStream(
-              params.messages,
+              params.run.messages,
               params.modelId,
               params.modelConfig,
               params.temperature,
               params.maxTokens,
-              params.tools
+              params.run.resources.toolDefinitions
             )) {
             }
 
@@ -2860,21 +2743,23 @@ describe('AgentRuntimePresenter', () => {
             maxTokens: number,
             tools: any[]
           ) => AsyncGenerator<unknown>
-          messages: any[]
+          run: {
+            messages: any[]
+            resources: { toolDefinitions: any[] }
+          }
           modelId: string
           modelConfig: any
           temperature: number
           maxTokens: number
-          tools: any[]
         }) => {
           try {
             for await (const _event of params.coreStream(
-              params.messages,
+              params.run.messages,
               params.modelId,
               params.modelConfig,
               params.temperature,
               params.maxTokens,
-              params.tools
+              params.run.resources.toolDefinitions
             )) {
             }
 
@@ -2930,7 +2815,7 @@ describe('AgentRuntimePresenter', () => {
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(firstCallArgs.messages[0].content).toBe(secondCallArgs.messages[0].content)
+      expect(firstCallArgs.run.messages[0].content).toBe(secondCallArgs.run.messages[0].content)
     })
 
     it('invalidates cached tools when the MCP client list changes', async () => {
@@ -2943,6 +2828,42 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'After MCP update')
 
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not let stale turn cleanup clear replacement instance resources', async () => {
+      const streamResult = deferred<{ status: 'completed' }>()
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        async () => await streamResult.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const turn = agent.processMessage('s1', {
+        text: 'Use the selected skill',
+        activeSkills: ['stale-skill']
+      })
+      await vi.waitFor(() => expect(processStream).toHaveBeenCalledTimes(1))
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.replaceRuntimeActivatedSkills(['replacement-skill'])
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'day',
+        fingerprint: 'replacement'
+      })
+
+      streamResult.resolve({ status: 'completed' })
+      await turn
+
+      expect(replacement.getRuntimeActivatedSkills()).toEqual(['replacement-skill'])
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
     })
 
     it('omits historical MCP and plugin policies from session tool discovery', async () => {
@@ -2973,7 +2894,7 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('Updated user prompt')
+      expect(secondCallArgs.run.messages[0].content).toContain('Updated user prompt')
     })
 
     it('invalidates cached prompt after session project directory update', async () => {
@@ -2990,7 +2911,7 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('WORKDIR:/tmp/workspace')
+      expect(secondCallArgs.run.messages[0].content).toContain('WORKDIR:/tmp/workspace')
     })
 
     it('uses persisted project directory when runtime state was restored from DB', async () => {
@@ -3012,7 +2933,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s-restored', 'Restored session follow-up')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0].content).toContain('WORKDIR:/tmp/restored-workspace')
+      expect(callArgs.run.messages[0].content).toContain('WORKDIR:/tmp/restored-workspace')
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({
           conversationId: 's-restored',
@@ -3036,8 +2957,8 @@ describe('AgentRuntimePresenter', () => {
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(firstCallArgs.messages[0].content).toContain('DATE:Thu Mar 05 2026')
-      expect(secondCallArgs.messages[0].content).toContain('DATE:Fri Mar 06 2026')
+      expect(firstCallArgs.run.messages[0].content).toContain('DATE:Thu Mar 05 2026')
+      expect(secondCallArgs.run.messages[0].content).toContain('DATE:Fri Mar 06 2026')
     })
 
     it('invalidates cached prompt when pinned skills change', async () => {
@@ -3062,9 +2983,9 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('## Active Skills')
-      expect(secondCallArgs.messages[0].content).toContain('### skill-a')
-      expect(secondCallArgs.messages[0].content).toContain('Skill A instructions')
+      expect(secondCallArgs.run.messages[0].content).toContain('## Active Skills')
+      expect(secondCallArgs.run.messages[0].content).toContain('### skill-a')
+      expect(secondCallArgs.run.messages[0].content).toContain('Skill A instructions')
     })
 
     it('does not load stale skill pins when the skill is absent from available metadata', async () => {
@@ -3081,7 +3002,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Click a native app button')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
+      const systemPrompt = String(callArgs.run.messages[0].content)
 
       expect(systemPrompt).not.toContain('## Active Skills')
       expect(skillPresenter.loadSkillContent).not.toHaveBeenCalled()
@@ -3140,10 +3061,10 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Check order')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
+      const systemPrompt = String(callArgs.run.messages[0].content)
 
       expect(
-        callArgs.messages.filter((message: { role: string }) => message.role === 'system')
+        callArgs.run.messages.filter((message: { role: string }) => message.role === 'system')
       ).toHaveLength(1)
       const runtimeIndex = systemPrompt.indexOf('RUNTIME_CAPABILITIES')
       const skillsIndex = systemPrompt.indexOf('## Skills')
@@ -3166,6 +3087,464 @@ describe('AgentRuntimePresenter', () => {
       expect(systemPrompt).toContain('`skill_view`')
       expect(systemPrompt).not.toContain('`skill_control`')
       expect(systemPrompt).toContain('desc-a')
+    })
+
+    it('composes the direct ACP production adapters with full prompt, manifest, file fallback, and rate UI parity', async () => {
+      let id = 0
+      vi.mocked(nanoid).mockImplementation(() => `direct-id-${++id}`)
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        agent_id: 'agent-id',
+        session_kind: 'regular'
+      })
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? true : undefined
+      )
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getMetadataList.mockResolvedValue([
+        { name: 'skill-a', description: 'direct skill' }
+      ])
+      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'DIRECT_SKILL_BODY' })
+      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+        {
+          type: 'function',
+          source: 'agent',
+          function: { name: 'read', description: 'read', parameters: {} },
+          server: { name: 'agent-filesystem', description: '' }
+        },
+        {
+          type: 'function',
+          source: 'agent',
+          function: { name: 'skill_list', description: 'skills', parameters: {} },
+          server: { name: 'agent-skills', description: '' }
+        },
+        {
+          type: 'function',
+          source: 'agent',
+          function: { name: 'skill_view', description: 'skill', parameters: {} },
+          server: { name: 'agent-skills', description: '' }
+        }
+      ])
+      toolPresenter.buildToolSystemPrompt.mockReturnValue('DIRECT_TOOLING')
+      llmProvider.executeWithRateLimit.mockImplementation(
+        async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
+          options?.onQueued?.({
+            providerId: 'acp',
+            qpsLimit: 1,
+            currentQps: 1,
+            queueLength: 1,
+            estimatedWaitTime: 25
+          })
+        }
+      )
+
+      await agent.initSession('s1', {
+        providerId: 'acp',
+        modelId: 'agent-id',
+        agentId: 'agent-id',
+        projectDir: '/workspace',
+        generationSettings: {
+          systemPrompt: 'DIRECT_CONFIGURED',
+          contextLength: 8192,
+          maxTokens: 2048,
+          timeout: 5000
+        }
+      })
+
+      let activeHooks: any
+      const prompt = vi.fn(async (request: schema.PromptRequest) => {
+        activeHooks.onEvents([{ type: 'text', content: 'direct response' }])
+        return { stopReason: 'end_turn' } as schema.PromptResponse
+      })
+      const remoteSession = {
+        sessionId: toAcpRemoteSessionId('remote-direct'),
+        connection: { prompt, cancel: vi.fn() },
+        detachHandlers: [],
+        workdir: '/workspace',
+        providerId: 'acp',
+        agentId: 'agent-id',
+        conversationId: 's1',
+        status: 'active',
+        createdAt: 1,
+        updatedAt: 1,
+        metadata: {},
+        systemPromptSent: false
+      }
+      const sessionController = {
+        open: vi.fn(async (_sessionId, _agent, hooks) => {
+          activeHooks = hooks
+          return remoteSession
+        }),
+        prepare: vi.fn(async () => remoteSession),
+        updateWorkdir: vi.fn(async (_sessionId, _agentId, workdir) => workdir ?? '/workspace'),
+        getSession: vi.fn(() => remoteSession),
+        clearMappedSession: vi.fn(),
+        clear: vi.fn(),
+        getModes: vi.fn(() => null),
+        setMode: vi.fn(),
+        getConfigOptions: vi.fn(() => null),
+        setConfigOption: vi.fn(async () => null),
+        getCommands: vi.fn(() => [])
+      }
+      const sharedClient = {
+        promptController: new AcpPromptController(),
+        sessionController,
+        sessionPersistence: { startTurn: vi.fn(), finishTurn: vi.fn() },
+        processManager: {
+          appendDebugEvent: vi.fn(),
+          shutdown: vi.fn(),
+          release: vi.fn()
+        },
+        sessionManager: { clearAllSessions: vi.fn(), clearSessionsByAgent: vi.fn() }
+      } as unknown as AcpClientRuntime
+      const owner = new AcpRuntimeOwner(() => sharedClient)
+      const directRuntime = new AcpAgentRuntime(
+        owner,
+        (input) => agent.createAcpAgentInstanceDependencies(input),
+        agent.getAcpPendingInputFacet()
+      )
+      const descriptor: AcpAgentDescriptor = {
+        id: 'agent-id',
+        kind: 'acp',
+        source: 'manual',
+        name: 'Agent',
+        enabled: true,
+        protected: false,
+        description: null,
+        icon: null,
+        avatar: null,
+        launch: { command: 'agent', args: [], env: {} }
+      }
+      const acpAgent: AcpAgentConfig = {
+        id: 'agent-id',
+        name: 'Agent',
+        command: 'agent',
+        source: 'manual'
+      }
+
+      const directInput = {
+        sessionId: toAppSessionId('s1'),
+        descriptor,
+        agent: acpAgent,
+        scope: 'regular',
+        workdir: '/workspace'
+      } as const
+      await directRuntime.send(directInput, {
+        text: 'Inspect attachment',
+        files: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/notes.txt',
+            type: 'text/plain',
+            content: 'do-not-inline'
+          }
+        ]
+      })
+      expect(sharedClient.processManager.appendDebugEvent).not.toHaveBeenCalledWith(
+        'agent-id',
+        expect.objectContaining({ kind: 'error' })
+      )
+      expect(await directRuntime.getHydrated(directInput.sessionId)?.snapshot()).toMatchObject({
+        status: 'idle'
+      })
+
+      const request = prompt.mock.calls[0][0]
+      const systemPrompt = String((request.prompt[0] as { text: string }).text)
+      const userPrompt = String((request.prompt[1] as { text: string }).text)
+      const orderedSections = [
+        'DIRECT_CONFIGURED',
+        'RUNTIME_CAPABILITIES',
+        'ENV_BLOCK',
+        '## Skills',
+        '## Active Skills',
+        'DIRECT_TOOLING',
+        '## Permission Rules',
+        '## Verification Policy'
+      ]
+      for (let index = 1; index < orderedSections.length; index += 1) {
+        expect(systemPrompt.indexOf(orderedSections[index])).toBeGreaterThan(
+          systemPrompt.indexOf(orderedSections[index - 1])
+        )
+      }
+      expect(userPrompt).toContain('[Attached File 1]')
+      expect(userPrompt).toContain('path: /tmp/notes.txt')
+      expect(userPrompt).not.toContain('do-not-inline')
+
+      const manifestRow = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .find((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+      const manifest = JSON.parse(manifestRow.payload_json).data.manifest
+      expect(manifest).toMatchObject({
+        taskType: 'chat',
+        policy: 'legacy_context_v1',
+        policyVersion: null,
+        tokenBudget: {
+          contextLength: 8192,
+          requestedMaxTokens: 2048,
+          effectiveMaxTokens: 2048,
+          reserveTokens: 2048
+        },
+        meta: {
+          providerId: 'acp',
+          modelId: 'agent-id',
+          summaryCursorOrderSeq: 1,
+          supportsVision: false,
+          supportsAudioInput: false,
+          traceDebugEnabled: true
+        }
+      })
+      expect(manifest.hashes.promptHash).toEqual(expect.any(String))
+      expect(manifest.hashes.toolDefinitionsHash).toEqual(expect.any(String))
+
+      const rateUpdates = getPublishedPayloads('chat.stream.updated').filter(
+        (payload) => payload.messageId === 'rate-limit-acp:s1'
+      )
+      expect(rateUpdates).toHaveLength(2)
+      expect(rateUpdates[0].blocks).toEqual([
+        expect.objectContaining({ action_type: 'rate_limit', status: 'pending' })
+      ])
+      expect(rateUpdates[1].blocks).toEqual([])
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'acp',
+        expect.objectContaining({ scope: 'acp-direct' })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'SessionStart',
+        expect.objectContaining({ conversationId: 's1', providerId: 'acp' })
+      )
+    })
+
+    it('keeps initial and skill-refresh prompt phases around compaction in fixed order', async () => {
+      const order: string[] = []
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getMetadataList.mockResolvedValue([
+        { name: 'skill-a', description: 'phase skill' }
+      ])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'SKILL_PHASE_CONTENT' })
+      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_PHASE_CONTENT')
+
+      const previousState = {
+        summaryText: null,
+        summaryCursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      }
+      const intent = {
+        sessionId: 's1',
+        previousState,
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['old turn'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 128000
+        },
+        reserveTokens: 4096
+      }
+      vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockImplementation(
+        async (input: { systemPrompt: string }) => {
+          order.push('compaction-prepare')
+          expect(input.systemPrompt).toContain('BASE_PHASE_CONTENT')
+          expect(input.systemPrompt).toContain('RUNTIME_CAPABILITIES')
+          expect(input.systemPrompt).toContain('ENV_BLOCK')
+          expect(input.systemPrompt).toContain('TOOLING_PHASE_CONTENT')
+          expect(input.systemPrompt).not.toContain('## Conversation Summary')
+          expect(input.systemPrompt).not.toContain('## Relevant Memories')
+          return intent
+        }
+      )
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockImplementation(async () => {
+        order.push('compaction-apply')
+        return {
+          succeeded: true,
+          summaryState: {
+            summaryText: 'SUMMARY_PHASE_CONTENT',
+            summaryCursorOrderSeq: 3,
+            summaryUpdatedAt: 123
+          }
+        }
+      })
+      ;(sqlitePresenter.deepchatTapeEntriesTable as any).getLatestReconstructionAnchor = vi.fn(
+        () => ({
+          session_id: 's1',
+          entry_id: 10,
+          kind: 'anchor',
+          name: 'handoff/phase-order',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          provenance_key: null,
+          payload_json: JSON.stringify({
+            name: 'handoff/phase-order',
+            state: { summary: 'RECONSTRUCTION_PHASE_CONTENT' }
+          }),
+          meta_json: '{}',
+          created_at: 100
+        })
+      )
+      const buildInjection = vi.fn(async () => {
+        return {
+          payload: {
+            selfModel: null,
+            working: null,
+            memories: [{ id: 'memory-1', kind: 'semantic', content: 'MEMORY_PHASE_CONTENT' }]
+          },
+          manifest: {
+            policyVersion: 1,
+            selected: [{ id: 'memory-1', kind: 'semantic', score: 1 }],
+            dropped: [],
+            tokenBudget: 1200,
+            estimatedTokens: 20,
+            queryHash: 'phase-query'
+          }
+        }
+      })
+      setMemoryPort({
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      })
+      const memoryContributor = (agent as any).memoryPromptContributor
+      const contributeMemory = memoryContributor.contribute.bind(memoryContributor)
+      vi.spyOn(memoryContributor, 'contribute').mockImplementation(async (input: any) => {
+        const summaryIndex = input.basePrompt.indexOf('## Conversation Summary')
+        const reconstructionIndex = input.basePrompt.indexOf('## Tape Handoff State')
+        expect(summaryIndex).toBeGreaterThanOrEqual(0)
+        expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+        order.push('memory')
+        return await contributeMemory(input)
+      })
+
+      const buildBasePrompt = (agent as any).buildSystemPromptWithSkills.bind(agent)
+      vi.spyOn(agent as any, 'buildSystemPromptWithSkills').mockImplementation(
+        async (...args: unknown[]) => {
+          order.push('base')
+          return await buildBasePrompt(...args)
+        }
+      )
+      const postAssembler = (agent as any).postCompactionPromptAssembler
+      const assemblePostCompaction = postAssembler.assemble.bind(postAssembler)
+      vi.spyOn(postAssembler, 'assemble').mockImplementation(async (input: unknown) => {
+        order.push('post-compaction')
+        return await assemblePostCompaction(input)
+      })
+
+      let initialSystemPrompt = ''
+      let refreshedSystemPrompt = ''
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        order.push('provider-request')
+        initialSystemPrompt = String(params.run.messages[0]?.content ?? '')
+        refreshedSystemPrompt = await params.refreshSystemPrompt(
+          ['skill-a'],
+          params.run.resources.toolDefinitions
+        )
+        order.push('skill-refresh-complete')
+        return { status: 'completed' }
+      })
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { systemPrompt: 'BASE_PHASE_CONTENT' }
+      })
+      await agent.processMessage('s1', 'phase query')
+
+      expect(order).toEqual([
+        'base',
+        'compaction-prepare',
+        'compaction-apply',
+        'post-compaction',
+        'memory',
+        'provider-request',
+        'base',
+        'post-compaction',
+        'memory',
+        'skill-refresh-complete'
+      ])
+      for (const prompt of [initialSystemPrompt, refreshedSystemPrompt]) {
+        const baseIndex = prompt.indexOf('BASE_PHASE_CONTENT')
+        const summaryIndex = prompt.indexOf('## Conversation Summary')
+        const reconstructionIndex = prompt.indexOf('## Tape Handoff State')
+        const memoryIndex = prompt.indexOf('## Relevant Memories')
+
+        expect(baseIndex).toBeGreaterThanOrEqual(0)
+        expect(summaryIndex).toBeGreaterThan(baseIndex)
+        expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+        expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
+      }
+      expect(refreshedSystemPrompt).toContain('SKILL_PHASE_CONTENT')
+      expect(buildInjection).toHaveBeenCalledTimes(2)
+    })
+
+    it.each([
+      { mode: 'disabled', enabled: false, rejects: false, expectedCalls: 0 },
+      { mode: 'failure', enabled: true, rejects: true, expectedCalls: 1 }
+    ])(
+      'keeps the no-intent post-compaction prompt when Memory is $mode',
+      async ({ enabled, rejects, expectedCalls }) => {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+          summaryText: 'NO_INTENT_SUMMARY',
+          summaryCursorOrderSeq: 3,
+          summaryUpdatedAt: 222
+        })
+        vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockResolvedValue(null)
+        const buildInjection = rejects
+          ? vi.fn().mockRejectedValue(new Error('memory unavailable'))
+          : vi.fn()
+        setMemoryPort({
+          isEnabled: vi.fn(() => enabled),
+          buildInjection,
+          recordInjectionAccess: vi.fn()
+        })
+
+        await agent.processMessage('s1', 'no intent')
+
+        const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+        const systemPrompt = String(params.run.messages[0]?.content ?? '')
+        expect(systemPrompt).toContain('NO_INTENT_SUMMARY')
+        expect(systemPrompt).not.toContain('## Relevant Memories')
+        expect(buildInjection).toHaveBeenCalledTimes(expectedCalls)
+      }
+    )
+
+    it('does not enter post-compaction contributors when compaction throws', async () => {
+      const intent = {
+        sessionId: 's1',
+        previousState: {
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
+        },
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['old turn'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 128000
+        },
+        reserveTokens: 4096
+      }
+      vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockResolvedValue(intent)
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValue(
+        new Error('compaction failed')
+      )
+      const postAssembler = (agent as any).postCompactionPromptAssembler
+      const postSpy = vi.spyOn(postAssembler, 'assemble')
+      const buildInjection = vi.fn()
+      setMemoryPort({
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      })
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'stop after compaction')
+      consoleError.mockRestore()
+
+      expect(postSpy).not.toHaveBeenCalled()
+      expect(buildInjection).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
     })
 
     it('derives runtime capabilities from the current enabled agent tools', async () => {
@@ -3237,7 +3616,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'No skill tools')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
+      const systemPrompt = String(callArgs.run.messages[0].content)
 
       expect(systemPrompt).not.toContain('## Skills')
       expect(systemPrompt).not.toContain('- skill-a')
@@ -3368,7 +3747,7 @@ describe('AgentRuntimePresenter', () => {
       )
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual(tools)
+      expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
     })
 
     it('skips DeepChat runtime prompt layers and local tools for ACP-backed subagent sessions', async () => {
@@ -3418,8 +3797,8 @@ describe('AgentRuntimePresenter', () => {
       expect(buildSystemEnvPrompt).not.toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual([])
-      expect(callArgs.messages).toEqual([{ role: 'user', content: 'Delegated task' }])
+      expect(callArgs.run.resources.toolDefinitions).toEqual([])
+      expect(callArgs.run.messages).toEqual([{ role: 'user', content: 'Delegated task' }])
     })
 
     it('keeps local tool injection for regular ACP sessions', async () => {
@@ -3471,8 +3850,8 @@ describe('AgentRuntimePresenter', () => {
       expect(toolPresenter.buildToolSystemPrompt).toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual(tools)
-      expect(callArgs.messages[0].role).toBe('system')
+      expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
+      expect(callArgs.run.messages[0].role).toBe('system')
     })
 
     it('passes empty tools when no toolPresenter or no tools', async () => {
@@ -3482,7 +3861,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.tools).toEqual([])
+      expect(callArgs.run.resources.toolDefinitions).toEqual([])
     })
 
     it('passes preserveInterleavedReasoning into next-turn compaction checks', async () => {
@@ -3608,7 +3987,7 @@ describe('AgentRuntimePresenter', () => {
         key === 'traceDebugEnabled' ? true : undefined
       )
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (args) => {
-        args.hooks?.onInterleavedReasoningGap?.({
+        args.diagnostics?.onInterleavedReasoningGap?.({
           providerId: 'zenmux',
           modelId: 'moonshotai/kimi-k2.5',
           providerDbSourceUrl: 'https://example.com/dist/all.json',
@@ -3653,12 +4032,12 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
       for await (const _event of callArgs.coreStream(
-        callArgs.messages,
+        callArgs.run.messages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
         void _event
       }
@@ -3885,21 +4264,23 @@ describe('AgentRuntimePresenter', () => {
         })
       )
 
-      const interleavedConfig = (
-        agent as any
-      ).turnPreparationService.resolveInterleavedReasoningConfig('openai', 'gpt-4', disabled)
+      const interleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'gpt-4',
+        disabled
+      )
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
       expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
-      const deepseekDisabledConfig = (
-        agent as any
-      ).turnPreparationService.resolveInterleavedReasoningConfig('openai', 'deepseek-v4', disabled)
+      const deepseekDisabledConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'deepseek-v4',
+        disabled
+      )
       expect(deepseekDisabledConfig.preserveReasoningContent).toBe(true)
       expect(deepseekDisabledConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const deepseekInterleavedConfig = (
-        agent as any
-      ).turnPreparationService.resolveInterleavedReasoningConfig(
+      const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
         'deepseek',
         'deepseek-v4',
         defaults
@@ -3907,9 +4288,11 @@ describe('AgentRuntimePresenter', () => {
       expect(deepseekInterleavedConfig.preserveReasoningContent).toBe(true)
       expect(deepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const nonDeepseekInterleavedConfig = (
-        agent as any
-      ).turnPreparationService.resolveInterleavedReasoningConfig('openai', 'gpt-4', defaults)
+      const nonDeepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'gpt-4',
+        defaults
+      )
       expect(nonDeepseekInterleavedConfig.preserveReasoningContent).toBe(true)
       expect(nonDeepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
@@ -4412,15 +4795,12 @@ describe('AgentRuntimePresenter', () => {
 
     it('rejects model switching while the session is generating', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      ;((agent as any).runtimeSharedState.runtimeState as Map<string, DeepChatSessionState>).set(
-        's1',
-        {
-          status: 'generating',
-          providerId: 'openai',
-          modelId: 'gpt-4',
-          permissionMode: 'full_access'
-        }
-      )
+      agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
 
       await expect(agent.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')).rejects.toThrow(
         'Cannot switch model while session is generating.'
@@ -4466,33 +4846,26 @@ describe('AgentRuntimePresenter', () => {
         streamResolve(undefined)
       }
       await processPromise.catch(() => {}) // ignore error from status update on destroyed session
+      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
     })
   })
 
   describe('cancelGeneration', () => {
     it('sets status back to idle', async () => {
-      const cancelManualCompaction = vi.spyOn(
-        (agent as any).memoryCompactionService,
-        'cancelManualCompaction'
-      )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.cancelGeneration('s1')
 
       const state = await agent.getSessionState('s1')
       expect(state!.status).toBe('idle')
-      expect(cancelManualCompaction).toHaveBeenCalledWith('s1')
     })
 
-    it('aborts the active stream and leaves terminal persistence to processStream', async () => {
+    it('finalizes the active assistant message on stop', async () => {
       let resolveRun: ((value: any) => void) | null = null
-      let streamSignal: AbortSignal | undefined
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        (params: { io: { abortSignal: AbortSignal } }) => {
-          streamSignal = params.io.abortSignal
-          return new Promise((resolve) => {
+        () =>
+          new Promise((resolve) => {
             resolveRun = resolve
           })
-        }
       )
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
         id: 'mock-msg-id',
@@ -4512,7 +4885,6 @@ describe('AgentRuntimePresenter', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
 
       await agent.cancelGeneration('s1')
-      expect(streamSignal?.aborted).toBe(true)
       resolveRun?.({
         status: 'aborted',
         stopReason: 'user_stop',
@@ -4520,7 +4892,18 @@ describe('AgentRuntimePresenter', () => {
       })
       await processPromise
 
-      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+      const [messageId, contentJson, status] =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+      expect(messageId).toBe('mock-msg-id')
+      expect(status).toBe('error')
+      expect(JSON.parse(contentJson)).toEqual([
+        {
+          type: 'error',
+          content: 'common.error.userCanceledGeneration',
+          status: 'error',
+          timestamp: expect.any(Number)
+        }
+      ])
       expect((await agent.getSessionState('s1'))!.status).toBe('idle')
     })
 
@@ -4637,17 +5020,25 @@ describe('AgentRuntimePresenter', () => {
 
     it('cancels generation only when the event id matches the active assistant message', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const abortController = new AbortController()
-      ;(agent as any).generationControlService.registerActiveGeneration(
-        's1',
-        'msg-active',
-        abortController
+      const cancelSpy = vi.spyOn(agent, 'cancelGeneration').mockResolvedValue(undefined)
+      const controller = new AbortController()
+      agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).registerActiveGeneration(
+        createLoopRun({
+          runId: 'run-1',
+          sessionId: toAppSessionId('s1'),
+          messageId: 'msg-active',
+          abortController: controller,
+          messages: [],
+          streamState: createState(),
+          resources: { toolDefinitions: [], activeSkillNames: [] }
+        })
       )
 
       await expect(agent.cancelGenerationByEventId('s1', 'msg-other')).resolves.toBe(false)
-      expect(abortController.signal.aborted).toBe(false)
       await expect(agent.cancelGenerationByEventId('s1', 'msg-active')).resolves.toBe(true)
-      expect(abortController.signal.aborted).toBe(true)
+
+      expect(cancelSpy).toHaveBeenCalledTimes(1)
+      expect(cancelSpy).toHaveBeenCalledWith('s1')
     })
   })
 
@@ -4668,11 +5059,9 @@ describe('AgentRuntimePresenter', () => {
         updatedAt: 1
       }
       const queueSpy = vi
-        .spyOn((agent as any).pendingInputService.coordinator, 'queuePendingInput')
+        .spyOn((agent as any).pendingInputCoordinator, 'queuePendingInput')
         .mockReturnValue(claimedRecord)
-      const processSpy = vi
-        .spyOn((agent as any).streamLifecycleService, 'processMessage')
-        .mockResolvedValue()
+      const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
 
       const result = await agent.queuePendingInput('s1', 'Hello', {
         projectDir: '/tmp/workspace'
@@ -4706,19 +5095,11 @@ describe('AgentRuntimePresenter', () => {
         updatedAt: 1
       }
       const queueSpy = vi
-        .spyOn((agent as any).pendingInputService.coordinator, 'queuePendingInput')
+        .spyOn((agent as any).pendingInputCoordinator, 'queuePendingInput')
         .mockReturnValue(pendingRecord)
-      const processSpy = vi
-        .spyOn((agent as any).streamLifecycleService, 'processMessage')
-        .mockResolvedValue()
-      vi.spyOn(
-        (agent as any).interactionResumeService,
-        'isAwaitingToolQuestionFollowUp'
-      ).mockReturnValue(true)
-      vi.spyOn(
-        (agent as any).pendingInputService,
-        'shouldStartQueuedInputImmediately'
-      ).mockReturnValue(false)
+      const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
+      vi.spyOn(agent as any, 'isAwaitingToolQuestionFollowUp').mockReturnValue(true)
+      vi.spyOn(agent as any, 'shouldStartQueuedInputImmediately').mockReturnValue(false)
 
       const result = await agent.queuePendingInput('s1', 'Queued later', { source: 'queue' })
 
@@ -4735,8 +5116,8 @@ describe('AgentRuntimePresenter', () => {
       ;(nanoid as ReturnType<typeof vi.fn>)
         .mockReturnValueOnce('queued-1')
         .mockReturnValueOnce('queued-2')
-      ;(agent as any).pendingInputService.coordinator.queuePendingInput('s1', 'First queued')
-      ;(agent as any).pendingInputService.coordinator.queuePendingInput('s1', 'Second queued')
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'First queued')
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'Second queued')
 
       let resolveStreamStarted: () => void = () => {}
       const streamStarted = new Promise<void>((resolve) => {
@@ -4761,10 +5142,7 @@ describe('AgentRuntimePresenter', () => {
           stopReason: 'complete'
         })
 
-      const drainPromise = (agent as any).pendingInputService.drainPendingQueueIfPossible(
-        's1',
-        'enqueue'
-      )
+      const drainPromise = (agent as any).drainPendingQueueIfPossible('s1', 'enqueue')
       await streamStarted
 
       // Stopping the first (queue-launched) turn aborts it but must not bounce it back to the
@@ -4904,15 +5282,10 @@ describe('AgentRuntimePresenter', () => {
         makeDeepchatUserRow(5, 'pending text', 'pending-user')
       )
       const releaseSpy = vi
-        .spyOn((agent as any).pendingInputService.coordinator, 'releaseClaimedQueueInput')
+        .spyOn((agent as any).pendingInputCoordinator, 'releaseClaimedQueueInput')
         .mockImplementation(() => ({}) as any)
 
-      ;(agent as any).pendingInputService.rollbackClaimedInputTurn(
-        's1',
-        'pending-1',
-        'queue',
-        'pending-user'
-      )
+      ;(agent as any).rollbackClaimedPendingInputTurn('s1', 'pending-1', 'queue', 'pending-user')
 
       expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
         's1',
@@ -4971,7 +5344,7 @@ describe('AgentRuntimePresenter', () => {
     async function collectProviderEvents(
       callArgs: any,
       requestMessages: any[],
-      tools = callArgs.tools
+      tools = callArgs.run.resources.toolDefinitions
     ) {
       const events: any[] = []
       for await (const event of callArgs.coreStream(
@@ -4990,7 +5363,7 @@ describe('AgentRuntimePresenter', () => {
     async function collectProviderErrorMessage(
       callArgs: any,
       requestMessages: any[],
-      tools = callArgs.tools
+      tools = callArgs.run.resources.toolDefinitions
     ) {
       try {
         await collectProviderEvents(callArgs, requestMessages, tools)
@@ -5036,7 +5409,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -5098,7 +5471,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'new prompt')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const messageText = JSON.stringify(callArgs.messages)
+      const messageText = JSON.stringify(callArgs.run.messages)
 
       expect(prepareSpy).not.toHaveBeenCalled()
       expect(messageText).toContain('U'.repeat(2400))
@@ -5281,7 +5654,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         4096,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -5305,11 +5678,11 @@ describe('AgentRuntimePresenter', () => {
     it('recovers when the first provider event is context overflow with memory disabled', async () => {
       const buildInjection = vi.fn()
       const extractAndStore = vi.fn()
-      ;(agent as any).memoryCompactionService.dependencies.memoryPort = {
+      setMemoryPort({
         isEnabled: vi.fn(() => false),
         buildInjection,
         extractAndStore
-      }
+      })
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -5699,7 +6072,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -5729,7 +6102,29 @@ describe('AgentRuntimePresenter', () => {
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
     })
 
-    it('uses strict trim retry after local preflight compaction and provider overflow', async () => {
+    it('keeps reconstruction and Memory after context-pressure compaction in provider prompt', async () => {
+      const buildInjection = vi.fn(async () => ({
+        payload: {
+          selfModel: null,
+          working: null,
+          memories: [
+            { id: 'pressure-memory', kind: 'semantic', content: 'PRESSURE_MEMORY_CONTENT' }
+          ]
+        },
+        manifest: {
+          policyVersion: 1,
+          selected: [{ id: 'pressure-memory', kind: 'semantic', score: 1 }],
+          dropped: [],
+          tokenBudget: 1200,
+          estimatedTokens: 20,
+          queryHash: 'pressure-query'
+        }
+      }))
+      setMemoryPort({
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      })
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -5739,6 +6134,68 @@ describe('AgentRuntimePresenter', () => {
         }
       })
       await agent.processMessage('s1', 'Hello')
+      buildInjection.mockClear()
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      ;(sqlitePresenter.deepchatTapeEntriesTable as any).getLatestReconstructionAnchor = vi.fn(
+        () => ({
+          session_id: 's1',
+          entry_id: 12,
+          kind: 'anchor',
+          name: 'handoff/pressure-order',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          provenance_key: null,
+          payload_json: JSON.stringify({
+            name: 'handoff/pressure-order',
+            state: { summary: 'PRESSURE_RECONSTRUCTION_CONTENT' }
+          }),
+          meta_json: '{}',
+          created_at: 102
+        })
+      )
+      llmProvider.generateText.mockClear()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockClear()
+      const pressureText = makeTextWithEstimatedTokens(4100)
+      for await (const _event of callArgs.coreStream(
+        [
+          { role: 'system', content: 'oversized request prompt' },
+          { role: 'user', content: pressureText }
+        ],
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.run.resources.toolDefinitions
+      )) {
+      }
+
+      const providerSystemPrompt = String(providerCoreStream.mock.calls[0][0][0]?.content ?? '')
+      const summaryIndex = providerSystemPrompt.indexOf('## Conversation Summary')
+      const reconstructionIndex = providerSystemPrompt.indexOf('## Tape Handoff State')
+      const memoryIndex = providerSystemPrompt.indexOf('## Relevant Memories')
+      expect(llmProvider.generateText).toHaveBeenCalled()
+      expect(summaryIndex).toBeGreaterThanOrEqual(0)
+      expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+      expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
+      expect(providerSystemPrompt).toContain('PRESSURE_RECONSTRUCTION_CONTENT')
+      expect(providerSystemPrompt).toContain('PRESSURE_MEMORY_CONTENT')
+      expect(buildInjection).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps strict overflow retry within one provider round while advancing request sequence', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Hello', { maxProviderRounds: 1 })
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
       llmProvider.generateText.mockClear()
 
@@ -5765,10 +6222,12 @@ describe('AgentRuntimePresenter', () => {
       const strictRetryExtraReserve = Math.max(256, Math.min(Math.floor(contextLength * 0.1), 8192))
 
       expect(events).toEqual([{ type: 'text', content: 'Recovered by strict trim' }])
+      expect(callArgs.maxProviderRounds).toBe(1)
       expect(providerCoreStream).toHaveBeenCalledTimes(2)
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
       expect(getContextOverflowAnchorCalls()).toHaveLength(1)
-      expect(manifests).toHaveLength(2)
+      expect(manifests.map((manifest: any) => manifest.requestSeq)).toEqual([1, 2])
+      expect(callArgs.run.requestSeq).toBe(2)
       expect(strictManifest).toMatchObject({
         requestSeq: 2,
         policy: 'context_pressure_recovery_shadow',
@@ -5852,7 +6311,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -6027,24 +6486,154 @@ describe('AgentRuntimePresenter', () => {
         }
       })
 
-      const getGenerationSettings = (
-        agent as any
-      ).sessionSettingsService.getEffectiveGenerationSettings.bind(
-        (agent as any).sessionSettingsService
-      )
+      const getGenerationSettings = (agent as any).getEffectiveSessionGenerationSettings.bind(agent)
       const generationSettingsSpy = vi
-        .spyOn((agent as any).sessionSettingsService, 'getEffectiveGenerationSettings')
-        .mockImplementation(async (sessionId: string) => {
-          expect((agent as any).runtimeSharedState.runtimeState.get(sessionId).status).toBe(
-            'generating'
-          )
-          return await getGenerationSettings(sessionId)
+        .spyOn(agent as any, 'getEffectiveSessionGenerationSettings')
+        .mockImplementation(async (sessionId: string, expectedInstance: unknown) => {
+          expect(getRuntimeState(agent, sessionId).status).toBe('generating')
+          return await getGenerationSettings(sessionId, expectedInstance)
         })
 
       await agent.compactSession('s1')
 
-      expect(generationSettingsSpy).toHaveBeenCalledWith('s1')
-      expect((agent as any).runtimeSharedState.runtimeState.get('s1').status).toBe('idle')
+      expect(generationSettingsSpy).toHaveBeenCalledWith('s1', expect.anything())
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
+    })
+
+    it('does not let stale manual compaction reset replacement instance resources', async () => {
+      const preparation = deferred<null>()
+      vi.spyOn(
+        (agent as any).compactionService,
+        'prepareForManualCompaction'
+      ).mockImplementationOnce(async () => await preparation.promise)
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+
+      const compaction = agent.compactSession('s1')
+      await vi.waitFor(() =>
+        expect((agent as any).compactionService.prepareForManualCompaction).toHaveBeenCalledTimes(1)
+      )
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'replacement day',
+        fingerprint: 'replacement prompt fingerprint'
+      })
+      replacement.setToolProfileCache({
+        profile: 'general',
+        fingerprint: 'replacement tool fingerprint',
+        tools: []
+      })
+      replacement.setCompactionState({
+        status: 'compacted',
+        cursorOrderSeq: 11,
+        summaryUpdatedAt: 444
+      })
+
+      preparation.resolve(null)
+      await expect(compaction).rejects.toMatchObject({
+        name: 'StaleDeepChatAgentInstanceError'
+      })
+
+      expect(replacement.getRuntimeState()?.status).toBe('generating')
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+      expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
+      expect(replacement.getActiveGeneration()).toBeUndefined()
+      expect(replacement.getCompactionState()).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 11,
+        summaryUpdatedAt: 444
+      })
+    })
+
+    it('does not let a stale manual compaction completion update the replacement projection', async () => {
+      const application = deferred<{
+        succeeded: true
+        summaryState: {
+          summaryText: string
+          summaryCursorOrderSeq: number
+          summaryUpdatedAt: number
+        }
+      }>()
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockReturnValue(6)
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockImplementationOnce(
+        async () => await application.promise
+      )
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+
+      const sessionId = toAppSessionId('s1')
+      const staleInstance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      const compaction = agent.compactSession('s1')
+      await vi.waitFor(() =>
+        expect((agent as any).compactionService.applyCompaction).toHaveBeenCalledTimes(1)
+      )
+      expect(staleInstance.getCompactionState()?.status).toBe('compacting')
+
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setCompactionState({
+        status: 'compacted',
+        cursorOrderSeq: 17,
+        summaryUpdatedAt: 777
+      })
+
+      application.resolve({
+        succeeded: true,
+        summaryState: {
+          summaryText: 'stale summary',
+          summaryCursorOrderSeq: 7,
+          summaryUpdatedAt: 555
+        }
+      })
+
+      await expect(compaction).rejects.toMatchObject({
+        name: 'StaleDeepChatAgentInstanceError'
+      })
+      expect(replacement.getCompactionState()).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 17,
+        summaryUpdatedAt: 777
+      })
+      expect(getPublishedPayloads('sessions.compaction.changed')).toEqual([
+        expect.objectContaining({ sessionId: 's1', status: 'compacting' })
+      ])
+    })
+
+    it('preserves the missing-session error when manual compaction hydration finds no row', async () => {
+      await expect(agent.compactSession('missing')).rejects.toMatchObject({
+        name: 'Error',
+        message: 'Session missing not found'
+      })
+      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('missing'))).toBeUndefined()
     })
 
     it('restores idle status when manual compaction has no eligible history', async () => {
@@ -6062,7 +6651,7 @@ describe('AgentRuntimePresenter', () => {
       const result = await agent.compactSession('s1')
 
       expect(result.compacted).toBe(false)
-      expect((agent as any).runtimeSharedState.runtimeState.get('s1').status).toBe('idle')
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
     })
 
     it('does not manually compact ACP sessions', async () => {
@@ -6084,7 +6673,7 @@ describe('AgentRuntimePresenter', () => {
         providerId: 'openai',
         modelId: 'gpt-4'
       })
-      ;(agent as any).runtimeSharedState.runtimeState.get('s1').status = 'generating'
+      getRuntimeState(agent, 's1').status = 'generating'
 
       await expect(agent.compactSession('s1')).rejects.toThrow(
         'Manual compaction is only available when the session is idle.'
@@ -6134,16 +6723,18 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
     })
 
-    it('rejects pre-aborted compaction without creating transient state', async () => {
+    it('treats aborted compaction signals as cancellation even for non-abort errors', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       sqlitePresenter.deepchatMessagesTable.delete.mockClear()
 
       const abortController = new AbortController()
       abortController.abort()
-      const applyCompaction = vi.spyOn((agent as any).compactionService, 'applyCompaction')
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValueOnce(
+        new Error('late failure')
+      )
 
       await expect(
-        (agent as any).memoryCompactionService.applyCompactionIntent(
+        (agent as any).applyCompactionIntent(
           's1',
           {
             sessionId: 's1',
@@ -6163,15 +6754,20 @@ describe('AgentRuntimePresenter', () => {
           },
           { signal: abortController.signal }
         )
-      ).rejects.toMatchObject({ name: 'AbortError' })
+      ).rejects.toThrow('late failure')
 
-      expect(applyCompaction).not.toHaveBeenCalled()
-      expect(sqlitePresenter.deepchatMessagesTable.delete).not.toHaveBeenCalled()
-      expect(getPublishedPayloads('sessions.compaction.changed')).toEqual([])
+      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+      expectPublished('sessions.compaction.changed', {
+        sessionId: 's1',
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
     })
 
     it('emits idle when clearMessages resets compaction state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
         summaryText: 'summary',
         summaryCursorOrderSeq: 3,
@@ -6186,6 +6782,27 @@ describe('AgentRuntimePresenter', () => {
         cursorOrderSeq: 1,
         summaryUpdatedAt: null
       })
+      expect(instance.getCompactionState()).toEqual({
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+    })
+
+    it('clears the owned compaction projection when the session is destroyed', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const sessionId = toAppSessionId('s1')
+      const instance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      instance.setCompactionState({
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123
+      })
+
+      await agent.destroySession('s1')
+
+      expect(instance.getCompactionState()).toBeUndefined()
+      expect(agent.deepChatRuntime.getHydrated(sessionId)).toBeUndefined()
     })
 
     it('returns persisted compacted state for reopened sessions', async () => {
@@ -6237,6 +6854,38 @@ describe('AgentRuntimePresenter', () => {
         summaryUpdatedAt: 333
       })
     })
+
+    it('prioritizes in-flight compaction before refreshing from persisted summary state', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+        summaryText: 'persisted summary',
+        summaryCursorOrderSeq: 7,
+        summaryUpdatedAt: 555
+      })
+      instance.setCompactionState({
+        status: 'compacting',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 111
+      })
+
+      await expect(agent.getSessionCompactionState('s1')).resolves.toEqual({
+        status: 'compacting',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 111
+      })
+
+      instance.setCompactionState({
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+      await expect(agent.getSessionCompactionState('s1')).resolves.toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 7,
+        summaryUpdatedAt: 555
+      })
+    })
   })
 
   describe('retry context overflow recovery', () => {
@@ -6276,7 +6925,7 @@ describe('AgentRuntimePresenter', () => {
         callArgs.modelConfig,
         callArgs.temperature,
         callArgs.maxTokens,
-        callArgs.tools
+        callArgs.run.resources.toolDefinitions
       )) {
       }
 
@@ -6350,7 +6999,6 @@ describe('AgentRuntimePresenter', () => {
       orderSeq?: number
       status?: 'pending' | 'sent' | 'error'
       blocks?: unknown[]
-      metadata?: Record<string, unknown>
     }) => {
       const row = {
         id: overrides?.id ?? 'm1',
@@ -6360,7 +7008,7 @@ describe('AgentRuntimePresenter', () => {
         content: JSON.stringify(overrides?.blocks ?? []),
         status: overrides?.status ?? 'pending',
         is_context_edge: 0,
-        metadata: JSON.stringify(overrides?.metadata ?? {}),
+        metadata: '{}',
         created_at: Date.now(),
         updated_at: Date.now()
       }
@@ -6370,6 +7018,133 @@ describe('AgentRuntimePresenter', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
       return row
     }
+
+    it('assembles resume context after compaction and preserves base-only round refresh', async () => {
+      const order: string[] = []
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const assistantRow = makeAssistantRow({ orderSeq: 2, blocks: [] })
+      const userRow = makeDeepchatUserRow(1, 'resume query', 'resume-user')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([userRow, assistantRow])
+
+      const buildBasePrompt = (agent as any).buildSystemPromptWithSkills.bind(agent)
+      vi.spyOn(agent as any, 'buildSystemPromptWithSkills').mockImplementation(
+        async (...args: unknown[]) => {
+          order.push('base')
+          return await buildBasePrompt(...args)
+        }
+      )
+      vi.spyOn((agent as any).compactionService, 'prepareForResumeTurn').mockImplementation(
+        async () => {
+          order.push('resume-compaction')
+          return {
+            sessionId: 's1',
+            previousState: {
+              summaryText: null,
+              summaryCursorOrderSeq: 1,
+              summaryUpdatedAt: null
+            },
+            targetCursorOrderSeq: 2,
+            summaryBlocks: ['resume turn'],
+            currentModel: {
+              providerId: 'openai',
+              modelId: 'gpt-4',
+              contextLength: 128000
+            },
+            reserveTokens: 4096
+          }
+        }
+      )
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockResolvedValue({
+        succeeded: true,
+        summaryState: {
+          summaryText: 'RESUME_SUMMARY_CONTENT',
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: 321
+        }
+      })
+      ;(sqlitePresenter.deepchatTapeEntriesTable as any).getLatestReconstructionAnchor = vi.fn(
+        () => ({
+          session_id: 's1',
+          entry_id: 11,
+          kind: 'anchor',
+          name: 'handoff/resume-order',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          provenance_key: null,
+          payload_json: JSON.stringify({
+            name: 'handoff/resume-order',
+            state: { summary: 'RESUME_RECONSTRUCTION_CONTENT' }
+          }),
+          meta_json: '{}',
+          created_at: 101
+        })
+      )
+      const buildInjection = vi.fn(async () => {
+        order.push('memory')
+        return {
+          payload: {
+            selfModel: null,
+            working: null,
+            memories: [{ id: 'resume-memory', kind: 'semantic', content: 'RESUME_MEMORY_CONTENT' }]
+          },
+          manifest: {
+            policyVersion: 1,
+            selected: [{ id: 'resume-memory', kind: 'semantic', score: 1 }],
+            dropped: [],
+            tokenBudget: 1200,
+            estimatedTokens: 20,
+            queryHash: 'resume-query'
+          }
+        }
+      })
+      setMemoryPort({
+        isEnabled: vi.fn(() => true),
+        buildInjection,
+        recordInjectionAccess: vi.fn()
+      })
+      const postAssembler = (agent as any).postCompactionPromptAssembler
+      const assemblePostCompaction = postAssembler.assemble.bind(postAssembler)
+      vi.spyOn(postAssembler, 'assemble').mockImplementation(async (input: unknown) => {
+        order.push('post-compaction')
+        return await assemblePostCompaction(input)
+      })
+
+      let streamParams: any
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        order.push('provider-request')
+        streamParams = params
+        return { status: 'completed' }
+      })
+
+      await expect((agent as any).resumeAssistantMessage('s1', 'm1', [])).resolves.toBe(true)
+
+      expect(order).toEqual([
+        'base',
+        'resume-compaction',
+        'post-compaction',
+        'memory',
+        'provider-request'
+      ])
+      const systemPrompt = String(streamParams.run.messages[0]?.content ?? '')
+      const summaryIndex = systemPrompt.indexOf('## Conversation Summary')
+      const reconstructionIndex = systemPrompt.indexOf('## Tape Handoff State')
+      const memoryIndex = systemPrompt.indexOf('## Relevant Memories')
+      expect(summaryIndex).toBeGreaterThanOrEqual(0)
+      expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
+      expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
+
+      order.length = 0
+      const refreshedSystemPrompt = await streamParams.refreshSystemPrompt(
+        undefined,
+        streamParams.run.resources.toolDefinitions
+      )
+      expect(order).toEqual(['base'])
+      expect(refreshedSystemPrompt).not.toContain('## Conversation Summary')
+      expect(refreshedSystemPrompt).not.toContain('## Tape Handoff State')
+      expect(refreshedSystemPrompt).not.toContain('## Relevant Memories')
+      expect(buildInjection).toHaveBeenCalledTimes(1)
+    })
 
     it('handles question_option and resumes assistant message', async () => {
       const prepareForResumeTurn = vi.spyOn(
@@ -6568,7 +7343,7 @@ describe('AgentRuntimePresenter', () => {
 
       expect(result).toEqual({ resumed: true })
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const assistantMessage = callArgs.messages.find(
+      const assistantMessage = callArgs.run.messages.find(
         (message: any) => message.role === 'assistant'
       )
       expect(callArgs.interleavedReasoning.preserveReasoningContent).toBe(true)
@@ -6588,42 +7363,17 @@ describe('AgentRuntimePresenter', () => {
 
     it('treats an aborted resume signal as cancellation even for non-abort errors', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      makeAssistantRow({
-        blocks: [],
-        metadata: {
-          runId: 'paused-run',
-          runOutcome: 'paused',
-          runStopReason: 'interaction',
-          inputTokens: 10,
-          outputTokens: 2,
-          totalTokens: 12,
-          providerRounds: 2,
-          toolCalls: 3
-        }
+      makeAssistantRow({ blocks: [] })
+      vi.spyOn((agent as any).compactionService, 'prepareForResumeTurn').mockResolvedValue(null)
+      vi.spyOn(agent as any, 'runStreamForMessage').mockImplementation(async () => {
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.abort()
+        throw new Error('late failure')
       })
-      vi.spyOn(
-        (agent as any).memoryCompactionService,
-        'resolveCompactionStateForResumeTurn'
-      ).mockResolvedValue({
-        summaryText: null,
-        summaryCursorOrderSeq: 1,
-        summaryUpdatedAt: null
-      })
-      vi.spyOn((agent as any).streamLifecycleService, 'runStreamForMessage').mockImplementation(
-        async () => {
-          ;(agent as any).runtimeSharedState.abortControllers.get('s1')?.abort()
-          throw new Error('late failure')
-        }
-      )
 
-      const resumed = await (agent as any).interactionResumeService.resumeAssistantMessage(
-        's1',
-        'm1',
-        []
-      )
+      const resumed = await (agent as any).resumeAssistantMessage('s1', 'm1', [])
 
       expect(resumed).toBe(false)
-      const [messageId, contentJson, status, metadataJson] =
+      const [messageId, contentJson, status] =
         sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.at(-1)
       expect(messageId).toBe('m1')
       expect(status).toBe('error')
@@ -6635,17 +7385,47 @@ describe('AgentRuntimePresenter', () => {
           timestamp: expect.any(Number)
         }
       ])
-      expect(JSON.parse(metadataJson)).toMatchObject({
-        runId: 'paused-run',
-        runOutcome: 'aborted',
-        runStopReason: 'user_stop',
-        inputTokens: 10,
-        outputTokens: 2,
-        totalTokens: 12,
-        providerRounds: 2,
-        toolCalls: 3
-      })
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('does not continue a stale resume after resource loading rehydrates the session', async () => {
+      const toolDefinitions = deferred<[]>()
+      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+        async () => await toolDefinitions.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const resume = (agent as any).resumeAssistantMessage('s1', 'm1', []) as Promise<boolean>
+      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1))
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'replacement day',
+        fingerprint: 'replacement prompt fingerprint'
+      })
+      replacement.setToolProfileCache({
+        profile: 'general',
+        fingerprint: 'replacement tool fingerprint',
+        tools: []
+      })
+
+      toolDefinitions.resolve([])
+
+      await expect(resume).resolves.toBe(false)
+      expect(processStream).not.toHaveBeenCalled()
+      expect(replacement.getRuntimeState()?.status).toBe('idle')
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+      expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
+      expect(replacement.getActiveGeneration()).toBeUndefined()
     })
 
     it('views a skill draft inline and keeps the confirmation pending', async () => {
@@ -6728,17 +7508,9 @@ describe('AgentRuntimePresenter', () => {
         skillName: 'draft-skill',
         installedSkillName: 'draft-skill'
       })
-      const invalidateSystemPromptCache = vi.spyOn(
-        (agent as any).turnPreparationService,
-        'invalidateSystemPromptCache'
-      )
-      const invalidateToolProfileCache = vi.spyOn(
-        (agent as any).turnPreparationService,
-        'invalidateToolProfileCache'
-      )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      invalidateSystemPromptCache.mockClear()
-      invalidateToolProfileCache.mockClear()
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const invalidateResourceCaches = vi.spyOn(instance, 'invalidateResourceCaches')
       makeAssistantRow({
         blocks: [
           {
@@ -6779,8 +7551,7 @@ describe('AgentRuntimePresenter', () => {
       expect(result).toEqual({ resumed: true })
       expect(skillPresenter.installDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
       expect(processStream).toHaveBeenCalledTimes(1)
-      expect(invalidateSystemPromptCache).toHaveBeenCalledWith('s1')
-      expect(invalidateToolProfileCache).toHaveBeenCalledWith('s1')
+      expect(invalidateResourceCaches).toHaveBeenCalledTimes(1)
 
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
@@ -6790,6 +7561,91 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
       expect(updatedBlocks[1].extra.answerText).toBe('chat.skillDraft.actions.install')
       expect(updatedBlocks[1].extra.skillDraftStatus).toBe('installed')
+    })
+
+    it('does not resume a stale skill draft interaction after the session is rehydrated', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const installation = deferred<{
+        success: true
+        action: 'install'
+        draftId: string
+        skillName: string
+        installedSkillName: string
+      }>()
+      skillPresenter.installDraftSkill.mockImplementationOnce(
+        async () => await installation.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: '',
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [{ label: 'chat.skillDraft.actions.install' }],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1',
+              skillDraftName: 'draft-skill',
+              skillDraftStatus: 'viewed'
+            }
+          }
+        ]
+      })
+
+      const interaction = agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.install'
+      })
+      await vi.waitFor(() => expect(skillPresenter.installDraftSkill).toHaveBeenCalledTimes(1))
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+      replacement.setSystemPromptCache({
+        prompt: 'replacement prompt',
+        dayKey: 'replacement day',
+        fingerprint: 'replacement prompt fingerprint'
+      })
+      replacement.setToolProfileCache({
+        profile: 'general',
+        fingerprint: 'replacement tool fingerprint',
+        tools: []
+      })
+
+      installation.resolve({
+        success: true,
+        action: 'install',
+        draftId: 'draft-1',
+        skillName: 'draft-skill',
+        installedSkillName: 'draft-skill'
+      })
+
+      await expect(interaction).resolves.toEqual({ resumed: false })
+      expect(processStream).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
+      expect(replacement.getRuntimeState()?.status).toBe('idle')
+      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+      expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
+      expect(replacement.getActiveGeneration()).toBeUndefined()
     })
 
     it('discards a skill draft and resumes assistant message', async () => {
@@ -6850,16 +7706,6 @@ describe('AgentRuntimePresenter', () => {
     it('handles question_other and waits for user message without resume', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
-        metadata: {
-          runId: 'paused-run',
-          runOutcome: 'paused',
-          runStopReason: 'interaction',
-          inputTokens: 10,
-          outputTokens: 2,
-          totalTokens: 12,
-          providerRounds: 1,
-          toolCalls: 1
-        },
         blocks: [
           {
             type: 'tool_call',
@@ -6898,19 +7744,6 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('success')
-      const metadata = JSON.parse(
-        sqlitePresenter.deepchatMessagesTable.updateMetadata.mock.calls[0][1]
-      )
-      expect(metadata).toMatchObject({
-        runId: 'paused-run',
-        runOutcome: 'completed',
-        runStopReason: 'user_follow_up',
-        inputTokens: 10,
-        outputTokens: 2,
-        totalTokens: 12,
-        providerRounds: 1,
-        toolCalls: 1
-      })
     })
 
     it('enforces pending interaction queue order', async () => {
@@ -6959,9 +7792,9 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
     })
 
-    it('does not resume when there are remaining pending interactions', async () => {
+    it('starts one fresh resume only after the final pending interaction', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      makeAssistantRow({
+      const row = makeAssistantRow({
         blocks: [
           {
             type: 'tool_call',
@@ -6995,33 +7828,326 @@ describe('AgentRuntimePresenter', () => {
           }
         ]
       })
+      sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+        (id: string, content: string) => {
+          if (id === row.id) row.content = content
+        }
+      )
 
-      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+      const firstResult = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'question_option',
         optionLabel: 'A'
       })
 
-      expect(result).toEqual({ resumed: false })
+      expect(firstResult).toEqual({ resumed: false })
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
         'm1',
         'pending'
       )
       expect(processStream).not.toHaveBeenCalled()
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getFirstPendingInteraction()
+      ).toEqual({ messageId: 'm1', toolCallId: 'tc2', origin: 'question', order: 1 })
+
+      const finalResult = await agent.respondToolInteraction('s1', 'm1', 'tc2', {
+        kind: 'question_option',
+        optionLabel: 'B'
+      })
+
+      expect(finalResult).toEqual({ resumed: true })
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
+      ).toBe(false)
+    })
+
+    it('does not replay a post-call permission side effect while later interactions remain', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const blocks: AssistantMessageBlock[] = [
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 1,
+          tool_call: { id: 'tc-post', name: 'write_file', params: '{}', response: '' }
+        },
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          timestamp: 2,
+          content: 'Need pre-check permission',
+          tool_call: { id: 'tc-post', name: 'write_file', params: '{}' },
+          extra: {
+            needsUserAction: true,
+            permissionType: 'write',
+            permissionRequest: JSON.stringify({
+              permissionType: 'write',
+              description: 'Need pre-check permission',
+              toolName: 'write_file',
+              serverName: 'agent-filesystem',
+              paths: ['a.txt']
+            })
+          }
+        },
+        {
+          type: 'tool_call',
+          status: 'pending',
+          timestamp: 3,
+          tool_call: { id: 'tc-question', name: 'ask_question', params: '{}', response: '' }
+        },
+        {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: 4,
+          content: 'Continue?',
+          tool_call: { id: 'tc-question', name: 'ask_question', params: '{}' },
+          extra: { needsUserAction: true, questionText: 'Continue?' }
+        },
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 5,
+          tool_call: {
+            id: 'tc-skill',
+            name: 'skill_manage',
+            params: '{"action":"create"}',
+            response: 'draft created'
+          }
+        },
+        {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: 6,
+          content: '',
+          tool_call: {
+            id: 'tc-skill',
+            name: 'skill_manage',
+            params: '{"action":"create"}'
+          },
+          extra: {
+            needsUserAction: true,
+            questionText: 'chat.skillDraft.confirmationQuestion',
+            questionOptions: [{ label: 'chat.skillDraft.actions.discard' }],
+            questionCustom: false,
+            skillDraftAction: 'confirm',
+            skillDraftId: 'draft-1',
+            skillDraftName: 'draft-skill',
+            skillDraftStatus: 'pending'
+          }
+        }
+      ]
+      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      let row: ReturnType<typeof makeAssistantRow> | undefined
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        row = makeAssistantRow({ id: params.run.messageId, blocks: [] })
+        sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+          (id: string, content: string) => {
+            if (id === row?.id) row.content = content
+          }
+        )
+        params.io.messageStore.updateAssistantContent(params.run.messageId, blocks)
+        return {
+          status: 'paused',
+          pendingInteractions: [
+            {
+              type: 'permission',
+              origin: 'pre-check-permission',
+              order: 0,
+              messageId: params.run.messageId,
+              toolCallId: 'tc-post',
+              toolName: 'write_file',
+              toolArgs: '{}',
+              permission: {
+                permissionType: 'write',
+                description: 'Need pre-check permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                paths: ['a.txt']
+              }
+            },
+            {
+              type: 'question',
+              origin: 'question',
+              order: 1,
+              messageId: params.run.messageId,
+              toolCallId: 'tc-question',
+              toolName: 'ask_question',
+              toolArgs: '{}',
+              question: {
+                question: 'Continue?',
+                options: [],
+                custom: true,
+                multiple: false
+              }
+            },
+            {
+              type: 'question',
+              origin: 'skill-draft-confirmation',
+              order: 2,
+              messageId: params.run.messageId,
+              toolCallId: 'tc-skill',
+              toolName: 'skill_manage',
+              toolArgs: '{"action":"create"}',
+              question: {
+                question: 'chat.skillDraft.confirmationQuestion',
+                options: [{ label: 'chat.skillDraft.actions.discard' }],
+                custom: false,
+                multiple: false
+              }
+            }
+          ],
+          toolBatchExecutionState: {
+            callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+            invokedCallIds: ['tc-skill'],
+            committedResultCallIds: ['tc-skill'],
+            pendingInteractionCallIds: ['tc-post', 'tc-question', 'tc-skill']
+          }
+        }
+      })
+
+      const started = await agent.processMessage('s1', 'Start the interaction batch')
+      expect(row?.id).toBe(started.messageId)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill'],
+        committedResultCallIds: ['tc-skill'],
+        pendingInteractionCallIds: ['tc-post', 'tc-question', 'tc-skill']
+      })
+      toolPresenter.callTool
+        .mockResolvedValueOnce({
+          content: 'post-call permission required',
+          rawData: {
+            content: 'post-call permission required',
+            isError: true,
+            requiresPermission: true,
+            permissionRequest: {
+              permissionType: 'write',
+              description: 'Need post-call permission',
+              toolName: 'write_file',
+              serverName: 'agent-filesystem',
+              paths: ['a.txt']
+            }
+          }
+        })
+        .mockResolvedValueOnce({
+          content: 'side effect committed',
+          rawData: { content: 'side effect committed', isError: false }
+        })
+
+      const preCheckResult = await agent.respondToolInteraction(
+        's1',
+        started.messageId,
+        'tc-post',
+        {
+          kind: 'permission',
+          granted: true
+        }
+      )
+
+      expect(preCheckResult).toEqual({ resumed: false })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      await agent.getSessionState('s1')
+      expect(instance?.getFirstPendingInteraction()).toEqual({
+        messageId: started.messageId,
+        toolCallId: 'tc-post',
+        origin: 'post-call-permission',
+        order: 0
+      })
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill'],
+        pendingInteractionCallIds: ['tc-post', 'tc-question', 'tc-skill']
+      })
+
+      const permissionResult = await agent.respondToolInteraction(
+        's1',
+        started.messageId,
+        'tc-post',
+        {
+          kind: 'permission',
+          granted: true
+        }
+      )
+
+      expect(permissionResult).toEqual({ resumed: false })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(instance?.getFirstPendingInteraction()).toEqual({
+        messageId: started.messageId,
+        toolCallId: 'tc-question',
+        origin: 'question',
+        order: 1
+      })
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill', 'tc-post'],
+        pendingInteractionCallIds: ['tc-question', 'tc-skill']
+      })
+
+      const questionResult = await agent.respondToolInteraction(
+        's1',
+        started.messageId,
+        'tc-question',
+        {
+          kind: 'question_option',
+          optionLabel: 'Yes'
+        }
+      )
+
+      expect(questionResult).toEqual({ resumed: false })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(instance?.getFirstPendingInteraction()).toEqual({
+        messageId: started.messageId,
+        toolCallId: 'tc-skill',
+        origin: 'skill-draft-confirmation',
+        order: 2
+      })
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc-post', 'tc-question', 'tc-skill'],
+        invokedCallIds: ['tc-skill', 'tc-post'],
+        committedResultCallIds: ['tc-skill', 'tc-post', 'tc-question'],
+        pendingInteractionCallIds: ['tc-skill']
+      })
+
+      getSkillPresenterMock().discardDraftSkill.mockResolvedValueOnce({
+        success: true,
+        action: 'discard',
+        draftId: 'draft-1',
+        skillName: 'draft-skill'
+      })
+      const finalResult = await agent.respondToolInteraction('s1', started.messageId, 'tc-skill', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.discard'
+      })
+
+      expect(finalResult).toEqual({ resumed: true })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(processStream).toHaveBeenCalledTimes(2)
+      expect(instance?.getPendingToolBatchState()).toBeUndefined()
     })
 
     it('handles permission grant by executing deferred tool and resuming', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
-        metadata: {
-          runId: 'paused-run',
-          runOutcome: 'paused',
-          runStopReason: 'interaction',
-          inputTokens: 10,
-          outputTokens: 2,
-          totalTokens: 12,
-          providerRounds: 2,
-          toolCalls: 3
-        },
         blocks: [
           {
             type: 'tool_call',
@@ -7083,17 +8209,6 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
-      expect(
-        (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].initialAccounting
-      ).toEqual(
-        expect.objectContaining({
-          inputTokens: 10,
-          outputTokens: 2,
-          totalTokens: 12,
-          providerRounds: 2,
-          toolCalls: 4
-        })
-      )
     })
 
     it('fails loudly when a confirmed permission grant has no session permission port', async () => {
@@ -7324,9 +8439,9 @@ describe('AgentRuntimePresenter', () => {
       }
     })
 
-    it('handles permission deny and resumes with denial result', async () => {
+    it('commits a denied permission before the final pending interaction resumes', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      makeAssistantRow({
+      const row = makeAssistantRow({
         blocks: [
           {
             type: 'tool_call',
@@ -7342,16 +8457,54 @@ describe('AgentRuntimePresenter', () => {
             content: 'Need permission',
             tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}' },
             extra: { needsUserAction: true, permissionType: 'command' }
+          },
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 3,
+            tool_call: { id: 'tc2', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 4,
+            content: 'Continue?',
+            tool_call: { id: 'tc2', name: 'ask_question', params: '{}' },
+            extra: { needsUserAction: true, questionText: 'Continue?' }
           }
         ]
       })
+      sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+        (id: string, content: string) => {
+          if (id === row.id) row.content = content
+        }
+      )
+      const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      instance?.replacePendingToolBatch(
+        [
+          {
+            messageId: 'm1',
+            toolCallId: 'tc1',
+            origin: 'pre-check-permission',
+            order: 0
+          },
+          { messageId: 'm1', toolCallId: 'tc2', origin: 'question', order: 1 }
+        ],
+        {
+          callOrder: ['tc1', 'tc2'],
+          invokedCallIds: [],
+          committedResultCallIds: [],
+          pendingInteractionCallIds: ['tc1', 'tc2']
+        }
+      )
 
       const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'permission',
         granted: false
       })
 
-      expect(result).toEqual({ resumed: true })
+      expect(result).toEqual({ resumed: false })
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
@@ -7375,6 +8528,20 @@ describe('AgentRuntimePresenter', () => {
           })
         })
       )
+      expect(processStream).not.toHaveBeenCalled()
+      expect(instance?.getPendingToolBatchState()).toEqual({
+        callOrder: ['tc1', 'tc2'],
+        invokedCallIds: [],
+        committedResultCallIds: ['tc1'],
+        pendingInteractionCallIds: ['tc2']
+      })
+
+      const finalResult = await agent.respondToolInteraction('s1', 'm1', 'tc2', {
+        kind: 'question_option',
+        optionLabel: 'Yes'
+      })
+
+      expect(finalResult).toEqual({ resumed: true })
       expect(processStream).toHaveBeenCalledTimes(1)
     })
 
@@ -7413,9 +8580,9 @@ describe('AgentRuntimePresenter', () => {
         ]
       })
 
-      ;(agent as any).interactionResumeService.activeProviderPermissions.set('acp-req-1', {
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      instance.registerActiveProviderPermission({
         requestId: 'acp-req-1',
-        sessionId: 's1',
         messageId: 'm1',
         toolCallId: 'tc1',
         providerId: 'acp',
@@ -7478,25 +8645,23 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
-      expect(
-        (agent as any).interactionResumeService.activeProviderPermissions.has('acp-req-1')
-      ).toBe(false)
+      expect(instance.hasActiveProviderPermission('acp-req-1')).toBe(false)
     })
 
-    it('cancels live ACP permission resolvers when clearing a session', async () => {
+    it('cancels only the target session live ACP permission resolvers', async () => {
       const resolve = vi.fn().mockResolvedValue(undefined)
-      ;(agent as any).interactionResumeService.activeProviderPermissions.set('acp-req-1', {
+      const first = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const second = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s2'))
+      first.registerActiveProviderPermission({
         requestId: 'acp-req-1',
-        sessionId: 's1',
         messageId: 'm1',
         toolCallId: 'tc1',
         providerId: 'acp',
         permissionType: 'command',
         resolve
       })
-      ;(agent as any).interactionResumeService.activeProviderPermissions.set('acp-req-2', {
+      second.registerActiveProviderPermission({
         requestId: 'acp-req-2',
-        sessionId: 's2',
         messageId: 'm2',
         toolCallId: 'tc2',
         providerId: 'acp',
@@ -7504,16 +8669,12 @@ describe('AgentRuntimePresenter', () => {
         resolve: vi.fn().mockResolvedValue(undefined)
       })
 
-      ;(agent as any).interactionResumeService.clearActiveProviderPermissionsForSession('s1')
+      await agent.cancelGeneration('s1')
       await Promise.resolve()
 
       expect(resolve).toHaveBeenCalledWith(false)
-      expect(
-        (agent as any).interactionResumeService.activeProviderPermissions.has('acp-req-1')
-      ).toBe(false)
-      expect(
-        (agent as any).interactionResumeService.activeProviderPermissions.has('acp-req-2')
-      ).toBe(true)
+      expect(first.hasActiveProviderPermission('acp-req-1')).toBe(false)
+      expect(second.hasActiveProviderPermission('acp-req-2')).toBe(true)
     })
 
     it('falls back to direct ACP permission resolve when live resolver is missing', async () => {
@@ -7570,7 +8731,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('clears stale ACP permission modals when the provider request no longer exists', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
-      ;(agent as any).runtimeSharedState.runtimeState.get('s1').status = 'generating'
+      getRuntimeState(agent, 's1').status = 'generating'
       llmProvider.resolveAgentPermission.mockRejectedValueOnce(
         new Error('Unknown ACP permission request: acp-stale-req')
       )
@@ -7623,7 +8784,7 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].content).toBe('Permission request expired.')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m1', 'sent')
-      expect((agent as any).runtimeSharedState.runtimeState.get('s1').status).toBe('idle')
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
     })
   })
 
@@ -7667,9 +8828,7 @@ describe('AgentRuntimePresenter', () => {
     it('falls back to ask_user when auto-review returns invalid JSON', async () => {
       llmProvider.generateCompletionStandalone.mockResolvedValueOnce('not json')
 
-      const result = await (
-        agent as any
-      ).interactionResumeService.reviewToolPermissionForAutoApprove(
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7706,9 +8865,7 @@ describe('AgentRuntimePresenter', () => {
         })
       )
 
-      const result = await (
-        agent as any
-      ).interactionResumeService.reviewToolPermissionForAutoApprove(
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7747,9 +8904,7 @@ describe('AgentRuntimePresenter', () => {
           })
       )
 
-      const resultPromise = (
-        agent as any
-      ).interactionResumeService.reviewToolPermissionForAutoApprove(
+      const resultPromise = (agent as any).reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7791,9 +8946,7 @@ describe('AgentRuntimePresenter', () => {
         }
       )
 
-      const result = await (
-        agent as any
-      ).interactionResumeService.reviewToolPermissionForAutoApprove(
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7835,9 +8988,7 @@ describe('AgentRuntimePresenter', () => {
         }
       )
 
-      const result = await (
-        agent as any
-      ).interactionResumeService.reviewToolPermissionForAutoApprove(
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
         {
           sessionId: 's1',
           messageId: 'm1',
@@ -7872,15 +9023,11 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
-        's1',
-        'm1',
-        {
-          id: 'tc1',
-          name: 'exec',
-          params: '{"command":"npm test"}'
-        }
-      )
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'exec',
+        params: '{"command":"npm test"}'
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -7922,15 +9069,11 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
-        's1',
-        'm1',
-        {
-          id: 'tc1',
-          name: 'view_image',
-          params: '{}'
-        }
-      )
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'view_image',
+        params: '{}'
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -7984,16 +9127,7 @@ describe('AgentRuntimePresenter', () => {
         ]),
         status: 'pending',
         is_context_edge: 0,
-        metadata: JSON.stringify({
-          runId: 'paused-run',
-          runOutcome: 'paused',
-          runStopReason: 'interaction',
-          inputTokens: 10,
-          outputTokens: 2,
-          totalTokens: 12,
-          providerRounds: 2,
-          toolCalls: 3
-        }),
+        metadata: '{}',
         created_at: Date.now(),
         updated_at: Date.now()
       }
@@ -8003,11 +9137,10 @@ describe('AgentRuntimePresenter', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
 
       const executeDeferredToolCallSpy = vi
-        .spyOn((agent as any).interactionResumeService, 'executeDeferredToolCall')
+        .spyOn(agent as any, 'executeDeferredToolCall')
         .mockResolvedValue({
           responseText: 'terminal failure',
           isError: true,
-          countedToolCall: true,
           terminalError: 'terminal failure'
         })
 
@@ -8027,21 +9160,6 @@ describe('AgentRuntimePresenter', () => {
             error: 'terminal failure'
           })
         )
-        const metadata = JSON.parse(
-          sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
-            (call) => call[0] === 'm1' && call[2] === 'error'
-          )?.[3] ?? '{}'
-        )
-        expect(metadata).toMatchObject({
-          runId: 'paused-run',
-          runOutcome: 'error',
-          runStopReason: 'tool_error',
-          inputTokens: 10,
-          outputTokens: 2,
-          totalTokens: 12,
-          providerRounds: 2,
-          toolCalls: 4
-        })
       } finally {
         executeDeferredToolCallSpy.mockRestore()
       }
@@ -8066,7 +9184,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      await (agent as any).interactionResumeService.executeDeferredToolCall('s1', 'm1', {
+      await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'echo',
         params: '{}'
@@ -8114,15 +9232,11 @@ describe('AgentRuntimePresenter', () => {
         modelId: 'gpt-4o'
       })
 
-      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
-        's1',
-        'm1',
-        {
-          id: 'tc1',
-          name: 'cdp_send',
-          params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
-        }
-      )
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'cdp_send',
+        params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
+      })
 
       expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
         'openai',
@@ -8196,27 +9310,36 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const executionPromise = (agent as any).interactionResumeService.executeDeferredToolCall(
-        's1',
-        'm1',
-        {
-          id: 'tc-subagent',
-          name: 'subagent_orchestrator',
-          params: '{}'
-        }
-      )
+      const executionPromise = (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-subagent',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
 
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(capturedSignal).toBeDefined()
       expect(capturedSignal?.aborted).toBe(false)
-      expect((agent as any).runtimeSharedState.deferredToolAbortControllers.size).toBe(1)
+      expect(
+        agent.deepChatRuntime
+          .getHydrated(toAppSessionId('s1'))
+          ?.hasDeferredToolAbortController('tc-subagent')
+      ).toBe(true)
 
       await agent.cancelGeneration('s1')
 
       expect(capturedSignal?.aborted).toBe(true)
-      await expect(executionPromise).rejects.toMatchObject({ name: 'AbortError' })
-      expect((agent as any).runtimeSharedState.deferredToolAbortControllers.size).toBe(0)
+      await expect(executionPromise).resolves.toEqual(
+        expect.objectContaining({
+          isError: true,
+          responseText: 'Error: Aborted'
+        })
+      )
+      expect(
+        agent.deepChatRuntime
+          .getHydrated(toAppSessionId('s1'))
+          ?.hasDeferredToolAbortController('tc-subagent')
+      ).toBe(false)
     })
 
     it('persists final-only deferred subagent snapshots', async () => {
@@ -8280,15 +9403,11 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
-        's1',
-        'm1',
-        {
-          id: 'tc-final',
-          name: 'subagent_orchestrator',
-          params: '{}'
-        }
-      )
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-final',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -8368,7 +9487,7 @@ describe('AgentRuntimePresenter', () => {
         }
       ])
       const emitMessageRefreshSpy = vi
-        .spyOn((agent as any).streamLifecycleService, 'emitMessageRefresh')
+        .spyOn(agent as any, 'emitMessageRefresh')
         .mockImplementation(() => {})
       toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
         options?.onProgress?.({
@@ -8393,15 +9512,11 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).interactionResumeService.executeDeferredToolCall(
-        's1',
-        'm1',
-        {
-          id: 'tc1',
-          name: 'subagent_orchestrator',
-          params: '{}'
-        }
-      )
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -8448,7 +9563,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
+      const normalized = await (agent as any).normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',
@@ -8483,7 +9598,7 @@ describe('AgentRuntimePresenter', () => {
       const abortController = new AbortController()
       abortController.abort()
 
-      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
+      const normalized = await (agent as any).normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',
@@ -8519,7 +9634,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
+      const normalized = await (agent as any).normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',
@@ -8544,7 +9659,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const normalized = await (agent as any).interactionResumeService.normalizeToolResultContent({
+      const normalized = await (agent as any).normalizeToolResultContent({
         sessionId: 's1',
         toolCallId: 'tc1',
         toolName: 'cdp_send',

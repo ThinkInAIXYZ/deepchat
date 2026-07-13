@@ -492,7 +492,7 @@ describe('deleteDeepChatAgent cleanup', () => {
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       deepChatAgentDeleteCleanup: cleanup,
       getAgentRepositoryOrThrow: vi.fn(() => repository),
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
 
     const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('writer')
@@ -501,7 +501,7 @@ describe('deleteDeepChatAgent cleanup', () => {
     expect(cleanup).toHaveBeenCalledWith('writer')
     expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
     expect(calls).toEqual(['delete', 'cleanup'])
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+    expect(presenter.notifyAgentCatalogChanged).toHaveBeenCalledTimes(1)
   })
 
   it('does not cleanup memory when deletion is blocked', async () => {
@@ -512,7 +512,7 @@ describe('deleteDeepChatAgent cleanup', () => {
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       deepChatAgentDeleteCleanup: cleanup,
       getAgentRepositoryOrThrow: vi.fn(() => repository),
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
 
     const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('deepchat')
@@ -520,7 +520,7 @@ describe('deleteDeepChatAgent cleanup', () => {
     expect(removed).toBe(false)
     expect(cleanup).not.toHaveBeenCalled()
     expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('deepchat')
-    expect(presenter.notifyAcpAgentsChanged).not.toHaveBeenCalled()
+    expect(presenter.notifyAgentCatalogChanged).not.toHaveBeenCalled()
   })
 })
 
@@ -543,7 +543,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     const callback = vi.fn()
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
     ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
@@ -556,7 +556,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       config
     })
     expect(callback).toHaveBeenCalledWith('writer')
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+    expect(presenter.notifyAgentCatalogChanged).toHaveBeenCalledTimes(1)
   })
 
   it('does not notify for custom updates without maintenance-relevant config fields', async () => {
@@ -567,7 +567,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     const callback = vi.fn()
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
     ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
@@ -585,7 +585,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     })
 
     expect(callback).not.toHaveBeenCalled()
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(4)
+    expect(presenter.notifyAgentCatalogChanged).toHaveBeenCalledTimes(4)
   })
 
   it('does not notify when a maintenance-relevant custom update finds no agent', async () => {
@@ -595,7 +595,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     const callback = vi.fn()
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
     ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
@@ -605,7 +605,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
 
     expect(result).toBeNull()
     expect(callback).not.toHaveBeenCalled()
-    expect(presenter.notifyAcpAgentsChanged).not.toHaveBeenCalled()
+    expect(presenter.notifyAgentCatalogChanged).not.toHaveBeenCalled()
   })
 
   it('does not fail config updates when the memory maintenance callback throws', async () => {
@@ -618,7 +618,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     })
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
     ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
@@ -629,7 +629,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     ).resolves.toBe(updated)
 
     expect(callback).toHaveBeenCalledWith('writer')
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+    expect(presenter.notifyAgentCatalogChanged).toHaveBeenCalledTimes(1)
   })
 
   it.each([
@@ -650,7 +650,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     const callback = vi.fn()
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       agentRepository: repository,
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
     ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
@@ -664,7 +664,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       config: updates
     })
     expect(callback).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID)
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+    expect(presenter.notifyAgentCatalogChanged).toHaveBeenCalledTimes(1)
   })
 
   it.each([
@@ -681,7 +681,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     const callback = vi.fn()
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       agentRepository: repository,
-      notifyAcpAgentsChanged: vi.fn()
+      notifyAgentCatalogChanged: vi.fn()
     })
     ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
@@ -695,6 +695,6 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       config: updates
     })
     expect(callback).not.toHaveBeenCalled()
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+    expect(presenter.notifyAgentCatalogChanged).toHaveBeenCalledTimes(1)
   })
 })

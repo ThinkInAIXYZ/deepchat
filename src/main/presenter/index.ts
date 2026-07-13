@@ -67,8 +67,21 @@ import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { CronJobsService } from './cronJobs'
+import { AgentManager } from '@/agent/manager/agentManager'
+import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
+import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
+import { AppSessionService } from '@/agent/shared/appSessionService'
+import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
+import { AcpAgentRuntime } from '@/agent/acp/instance'
+import type {
+  MemoryIngestionDrainOutcome,
+  MemoryIngestionObserver
+} from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { MemoryPresenter, isSafeAgentId } from './memoryPresenter'
 import { MemoryVectorStore } from './memoryPresenter/infra/memoryVectorStore'
 import { ProjectPresenter } from './projectPresenter'
@@ -81,8 +94,10 @@ import { DatabaseSecurityPresenter } from './databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type {
+  AcpAsLlmProviderPermissionPort,
+  AcpAsLlmProviderSessionControlPort,
+  AcpProviderAdminPort,
   ProviderCatalogPort,
-  ProviderSessionPort,
   SessionPermissionPort,
   SessionUiPort
 } from './runtimePorts'
@@ -93,6 +108,13 @@ import {
 } from '@/routes/publishDeepchatEvent'
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
+import { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
+import { UsageStatsService } from './usageStatsService'
+import type { SessionDataMigrationSQLitePort } from './startupMigrations/sessionDataMigrations'
+import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
+import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
+import { AgentSessionExportService } from './exporter/agentSessionExporter'
 
 type MemoryMaintenanceConfigChangeTarget = Pick<
   MemoryPresenter,
@@ -117,6 +139,7 @@ export class Presenter implements IPresenter {
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
+  acpProviderAdminPort: AcpProviderAdminPort
   configPresenter: IConfigPresenter
 
   exporter: IConversationExporter
@@ -141,7 +164,10 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  agentManager: AgentManager
+  acpAgentRuntime: AcpAgentRuntime
   memoryPresenter: MemoryPresenter
+  private memoryIngestionObserver: MemoryIngestionObserver
   projectPresenter: IProjectPresenter
   remoteControlPresenter: IRemoteControlPresenter
   pluginPresenter: PluginPresenter
@@ -152,8 +178,17 @@ export class Presenter implements IPresenter {
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  legacyChatImportService: LegacyChatImportService
+  usageStatsService: UsageStatsService
+  appSessionService: AppSessionService
+  sessionDataMigrationSQLite: SessionDataMigrationSQLitePort
+  sessionHistorySearch: SessionHistorySearch
+  agentSessionExportService: AgentSessionExportService
+  sessionTranslation: SessionTranslation
   private sessionMessageManager: MessageManager
   private sessionPresenterInternal?: SessionPresenter
+  private acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
+  private acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   private hasInitialized = false
   #remoteControlPresenter: RemoteControlPresenterLike
 
@@ -181,6 +216,10 @@ export class Presenter implements IPresenter {
     this.startupWorkloadCoordinator =
       (context.startupWorkloadCoordinator as StartupWorkloadCoordinator | undefined) ??
       new StartupWorkloadCoordinator()
+    const concreteSQLitePresenter = this.sqlitePresenter as unknown as SQLitePresenter
+    this.sessionDataMigrationSQLite = concreteSQLitePresenter
+    this.legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
+    this.usageStatsService = new UsageStatsService(concreteSQLitePresenter, this.configPresenter)
 
     // Initialize presenters and their dependencies.
     this.windowPresenter = new WindowPresenter(
@@ -188,7 +227,7 @@ export class Presenter implements IPresenter {
       this.startupWorkloadCoordinator
     )
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(
+    const llmProviderPresenter = new LLMProviderPresenter(
       this.configPresenter,
       this.sqlitePresenter,
       {
@@ -196,6 +235,10 @@ export class Presenter implements IPresenter {
         getUvRegistry: () => this.mcpPresenter.getUvRegistry?.() ?? null
       }
     )
+    this.llmproviderPresenter = llmProviderPresenter
+    this.acpProviderAdminPort = llmProviderPresenter
+    this.acpAsLlmProviderSessionControl = llmProviderPresenter
+    this.acpAsLlmProviderPermission = llmProviderPresenter
     const commandPermissionHandler = new CommandPermissionService()
     this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
@@ -457,12 +500,7 @@ export class Presenter implements IPresenter {
         sqlitePresenter.newEnvironmentsTable?.syncForSession(conversationId)
       },
       repairImportedLegacySessionSkills: async (conversationId) => {
-        const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
-          repairImportedLegacySessionSkills?: (sessionId: string) => Promise<string[]>
-        }
-        return (
-          (await agentSessionPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
-        )
+        return await this.legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
       }
     }
 
@@ -549,21 +587,6 @@ export class Presenter implements IPresenter {
         }
       }
     }
-    const providerSessionPort: ProviderSessionPort = {
-      setAcpWorkdir: async (conversationId, agentId, workdir) =>
-        await this.llmproviderPresenter.setAcpWorkdir(conversationId, agentId, workdir),
-      prepareAcpSession: async (conversationId, agentId, workdir) =>
-        await this.llmproviderPresenter.prepareAcpSession(conversationId, agentId, workdir),
-      getAcpSessionConfigOptions: async (conversationId) =>
-        await this.llmproviderPresenter.getAcpSessionConfigOptions(conversationId),
-      setAcpSessionConfigOption: async (conversationId, configId, value) =>
-        await this.llmproviderPresenter.setAcpSessionConfigOption(conversationId, configId, value),
-      getAcpSessionCommands: async (conversationId) =>
-        await this.llmproviderPresenter.getAcpSessionCommands(conversationId),
-      clearAcpSession: async (conversationId) =>
-        await this.llmproviderPresenter.clearAcpSession(conversationId)
-    }
-
     // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
     const memoryDbDir = path.join(dbDir, 'AgentMemory')
     const memoryVectorDbPath = (agentId: string) => path.join(memoryDbDir, `${agentId}.duckdb`)
@@ -648,21 +671,90 @@ export class Presenter implements IPresenter {
       {
         providerCatalogPort,
         sessionPermissionPort,
+        acpAsLlmProviderPermission: this.acpAsLlmProviderPermission,
         sessionUiPort,
         memoryPort: this.memoryPresenter,
         cacheImage: (data) => this.devicePresenter.cacheImage(data),
         skillPresenter: this.skillPresenter
       }
     )
+    this.memoryIngestionObserver = agentRuntimePresenter.memoryIngestionObserver
+    this.acpAgentRuntime = new AcpAgentRuntime(
+      (this.llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner(),
+      (input) => agentRuntimePresenter.createAcpAgentInstanceDependencies(input),
+      agentRuntimePresenter.getAcpPendingInputFacet()
+    )
+    const sqlitePresenter = this
+      .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+    this.appSessionService = new AppSessionService({
+      newSessionsTable: sqlitePresenter.newSessionsTable,
+      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+    })
+    const agentSharedData: AgentSharedDataPorts = {
+      sessionState: agentRuntimePresenter,
+      transcript: agentRuntimePresenter,
+      transcriptMutation: agentRuntimePresenter,
+      tape: agentRuntimePresenter
+    }
+    const appSessionService = this.appSessionService
+    this.agentManager = new AgentManager(agentRepository, appSessionService, {
+      deepchat: createDeepChatAgentBackend({
+        port: agentRuntimePresenter,
+        runtime: agentRuntimePresenter.deepChatRuntime
+      }),
+      acp: createDirectAcpAgentBackend({
+        runtime: this.acpAgentRuntime,
+        sessionState: agentSharedData.sessionState,
+        transcript: agentSharedData.transcript,
+        tape: agentSharedData.tape,
+        deleteDurableSession: async (sessionId) => {
+          await sqlitePresenter.deleteAcpSessions(sessionId)
+        },
+        resolveInput: async (sessionId, descriptor) => {
+          const session = appSessionService.get(sessionId)
+          if (!session || resolveAcpAgentAlias(session.agentId) !== descriptor.id) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          const agent = (await this.configPresenter.getAcpAgents()).find(
+            (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
+          )
+          if (!agent || !agent.command.trim()) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          return {
+            sessionId: toAppSessionId(session.id),
+            descriptor,
+            agent,
+            scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
+            workdir: session.projectDir?.trim() ?? ''
+          }
+        }
+      })
+    })
+    this.sessionHistorySearch = new SessionHistorySearch(sqlitePresenter, appSessionService)
+    this.agentSessionExportService = new AgentSessionExportService({
+      agentManager: this.agentManager,
+      appSessionService,
+      transcript: agentSharedData.transcript,
+      configPresenter: this.configPresenter
+    })
+    this.sessionTranslation = new SessionTranslation({
+      agentManager: this.agentManager,
+      configPresenter: this.configPresenter,
+      llmProviderPresenter: this.llmproviderPresenter
+    })
     this.agentSessionPresenter = new AgentSessionPresenter(
-      agentRuntimePresenter,
+      this.agentManager,
+      appSessionService,
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      agentSharedData,
       this.skillPresenter,
-      undefined,
       {
-        providerSessionPort,
+        acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
         sessionPermissionPort,
         sessionUiPort
       }
@@ -676,7 +768,7 @@ export class Presenter implements IPresenter {
       configPresenter: this.configPresenter,
       agentSessionPresenter: this.agentSessionPresenter,
       filePresenter: this.filePresenter,
-      agentRuntimePresenter,
+      agentManager: this.agentManager,
       windowPresenter: this.windowPresenter,
       tabPresenter: this.tabPresenter
     })
@@ -702,7 +794,7 @@ export class Presenter implements IPresenter {
 
   async cleanupConversationRuntimeArtifacts(conversationId: string): Promise<void> {
     try {
-      await this.llmproviderPresenter.clearAcpSession(conversationId)
+      await this.acpAsLlmProviderSessionControl.clearAcpSession(conversationId)
     } catch (error) {
       console.warn('[Presenter] Failed to clear ACP session:', error)
     }
@@ -714,6 +806,7 @@ export class Presenter implements IPresenter {
         messageManager: this.sessionMessageManager,
         sqlitePresenter: this.sqlitePresenter,
         llmProviderPresenter: this.llmproviderPresenter,
+        acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
         configPresenter: this.configPresenter,
         exporter: this.exporter,
         commandPermissionService: this.commandPermissionService
@@ -1000,9 +1093,33 @@ export class Presenter implements IPresenter {
     await this.runDestroyStep('destroyRemoteControl', () => this.destroyRemoteControl())
     this.floatingButtonPresenter.destroy()
     this.tabPresenter.destroy()
-    // Drain in-flight memory consolidation before the shared SQLite connection closes, so a pass
-    // that already fired cannot write to a closed database during teardown.
+    // Fence new ingestion synchronously, then let Memory disposal abort provider-bound work before
+    // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
+    const memoryIngestionDrain = (() => {
+      try {
+        return this.memoryIngestionObserver.drainAndFence().then(
+          (outcome) => ({ outcome }) as const,
+          (error) => ({ error }) as const
+        )
+      } catch (error) {
+        return Promise.resolve({ error } as const)
+      }
+    })()
     await this.runDestroyStep('memoryPresenter.dispose', () => this.memoryPresenter.dispose())
+    let memoryIngestionDrainOutcome: MemoryIngestionDrainOutcome | undefined
+    await this.runDestroyStep('memoryIngestionObserver.drainAndFence', async () => {
+      const result = await memoryIngestionDrain
+      if ('error' in result) throw result.error
+      memoryIngestionDrainOutcome = result.outcome
+    })
+    if (memoryIngestionDrainOutcome?.timedOut) {
+      logger.warn(
+        `[Presenter] Memory ingestion drain timed out with ${memoryIngestionDrainOutcome.pendingSessions.length} pending session(s); late writes remain fenced.`
+      )
+    }
+    await this.runDestroyStep('acpRuntime.shutdown', () =>
+      (this.llmproviderPresenter as LLMProviderPresenter).shutdownAcpRuntime()
+    )
     await this.runDestroyStep('sqlitePresenter.close', () => this.sqlitePresenter.close())
     this.shortcutPresenter.destroy()
     this.syncPresenter.destroy()
@@ -1052,6 +1169,7 @@ const buildMainKernelRouteRuntime = () =>
   createMainKernelRouteRuntime({
     configPresenter: presenter.configPresenter,
     llmProviderPresenter: presenter.llmproviderPresenter,
+    acpProviderAdminPort: presenter.acpProviderAdminPort,
     agentSessionPresenter: presenter.agentSessionPresenter,
     skillPresenter: presenter.skillPresenter,
     skillSyncPresenter: presenter.skillSyncPresenter,
@@ -1077,7 +1195,12 @@ const buildMainKernelRouteRuntime = () =>
     pluginPresenter: presenter.pluginPresenter,
     databaseSecurityPresenter: presenter.databaseSecurityPresenter,
     memoryPresenter: presenter.memoryPresenter,
-    cronJobs: presenter.cronJobs
+    cronJobs: presenter.cronJobs,
+    usageStatsService: presenter.usageStatsService,
+    rtkRuntimeService,
+    sessionHistorySearch: presenter.sessionHistorySearch,
+    agentSessionExportService: presenter.agentSessionExportService,
+    sessionTranslation: presenter.sessionTranslation
   })
 
 export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelRouteRuntime> {

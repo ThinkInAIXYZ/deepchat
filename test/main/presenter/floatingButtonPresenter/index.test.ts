@@ -167,7 +167,6 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
 vi.mock('../../../../src/main/presenter/index', () => ({
   presenter: {
     agentSessionPresenter: {
-      getAgents: getAgentsMock,
       getSessionList: getSessionListMock,
       activateSession: vi.fn()
     },
@@ -194,6 +193,8 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       getFloatingButtonEnabled: vi.fn(() => true),
       getLanguage: vi.fn(() => 'zh-CN'),
       getCurrentThemeIsDark: vi.fn(async () => false),
+      listAgents: getAgentsMock,
+      getAcpEnabled: vi.fn(async () => true),
       getFloatingButtonBounds: vi.fn(() => null),
       setFloatingButtonBounds: vi.fn()
     }) as any
@@ -346,6 +347,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     ]
 
     await floatingPresenter.refreshWidgetState()
+    expect(getAgentsMock).toHaveBeenCalled()
     expect(floatingWindowState.bounds).toMatchObject({
       width: getCollapsedWidgetSize(0).width,
       height: getCollapsedWidgetSize(0).height

@@ -33,7 +33,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     })
     const { presenter, repo } = makeLLMPresenter(generateText)
     const id = await seedEmbedded(presenter, 'user likes redis')
-    repo.archive(id, 1)
+    repo.seedArchived(id, 1)
     expect(repo.getById(id)?.status).toBe('archived')
 
     const result = await presenter.extractAndStore({
@@ -58,7 +58,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const { presenter, repo } = makeLLMPresenter(generateText)
     const aId = await seedEmbedded(presenter, 'user likes redis')
     const bId = await seedEmbedded(presenter, 'user dislikes redis')
-    repo.markSuperseded(aId, bId)
+    repo.seedSupersededBy(aId, bId)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -83,7 +83,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const { presenter, repo } = makeLLMPresenter(generateText)
     const ownerId = await seedEmbedded(presenter, 'user likes redis')
     const headId = await seedEmbedded(presenter, 'user dislikes redis')
-    repo.markSuperseded(ownerId, headId)
+    repo.seedSupersededBy(ownerId, headId)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -108,7 +108,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const { presenter, repo } = makeLLMPresenter(generateText)
     const ownerId = await seedEmbedded(presenter, 'user likes redis')
     const headId = await seedEmbedded(presenter, 'user dislikes redis')
-    repo.markSuperseded(ownerId, headId)
+    repo.seedSupersededBy(ownerId, headId)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -132,7 +132,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
         return '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
       }
       if (prompt.includes('Choose exactly ONE decision')) {
-        if (headId) repo.archive(headId, Date.now())
+        if (headId) repo.seedArchived(headId, Date.now())
         return '{"decision":"CHALLENGE","targetIndex":0,"mergedContent":null}'
       }
       return ''
@@ -140,7 +140,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const { presenter } = makeLLMPresenter(generateText, embeddingConfig, repo)
     const ownerId = await seedEmbedded(presenter, 'user likes redis')
     headId = await seedEmbedded(presenter, 'user dislikes redis')
-    repo.markSuperseded(ownerId, headId)
+    repo.seedSupersededBy(ownerId, headId)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -165,7 +165,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const { presenter, repo } = makeLLMPresenter(generateText)
     const targetId = await seedEmbedded(presenter, 'user likes redis')
     const archivedId = await seedEmbedded(presenter, 'user prefers postgres')
-    repo.archive(archivedId, 1)
+    repo.seedArchived(archivedId, 1)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -186,7 +186,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const targetId = await seedEmbedded(presenter, 'user likes redis')
     const collisionId = await seedEmbedded(presenter, 'user prefers postgres')
     const headId = await seedEmbedded(presenter, 'team uses mysql')
-    repo.markSuperseded(collisionId, headId)
+    repo.seedSupersededBy(collisionId, headId)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -290,7 +290,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const { presenter, repo } = makeLLMPresenter(generateText)
     const ownerId = await seedEmbedded(presenter, 'user prefers vue')
     const targetId = await seedEmbedded(presenter, 'user likes redis')
-    repo.archive(ownerId, 1)
+    repo.seedArchived(ownerId, 1)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -313,7 +313,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const { presenter, repo } = makeLLMPresenter(generateText)
     const ownerId = await seedEmbedded(presenter, 'user prefers vue')
     const targetId = await seedEmbedded(presenter, 'user likes redis')
-    repo.archive(ownerId, 1)
+    repo.seedArchived(ownerId, 1)
     const markSuperseded = vi.spyOn(repo, 'markSupersededIfRevision')
     markSuperseded.mockImplementationOnce(() => {
       throw new Error('fold failed')
@@ -339,7 +339,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const targetId = await seedEmbedded(presenter, 'user likes redis')
     const ownerId = await seedEmbedded(presenter, 'user prefers vue')
     const headId = await seedEmbedded(presenter, 'user prefers react')
-    repo.markSuperseded(ownerId, headId)
+    repo.seedSupersededBy(ownerId, headId)
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -405,7 +405,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       expect(presenter.restoreMemory('a', id)).toBe(true)
       expect(auditRepo.hasForgetEvent('a', id)).toBe(false)
       vi.setSystemTime(4000)
-      repo.archive(id, Date.now())
+      repo.seedArchived(id, Date.now())
 
       vi.setSystemTime(5000)
       const result = await presenter.extractAndStore({
@@ -436,7 +436,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       vi.setSystemTime(3000)
       expect(presenter.restoreMemory('a', id)).toBe(true)
       vi.setSystemTime(4000)
-      repo.archive(id, Date.now())
+      repo.seedArchived(id, Date.now())
       vi.setSystemTime(5000)
       expect(await presenter.forgetMemory('a', id)).toBe(true)
       expect(auditRepo.hasForgetEvent('a', id)).toBe(true)
@@ -474,7 +474,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const newId = await seedEmbedded(presenter, 'user likes redis b')
     repo.rows.get(oldId)!.created_at = now - 2000
     repo.rows.get(newId)!.created_at = now - 1000
-    const markSpy = vi.spyOn(repo, 'markSuperseded')
+    const markSpy = vi.spyOn(repo, 'seedSupersededBy')
 
     const pass = presenter.runConsolidationPass('a', now)
     await Promise.resolve()
@@ -754,7 +754,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     // An embedded row that matches the current fingerprint so recall reaches getVectorStore (not the
     // stale-reindex branch). No store is opened during setup, so the recall is the first open.
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -819,7 +819,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -875,7 +875,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -928,7 +928,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     })
     for (const agentId of ['a', 'b']) {
       repo.insert({ id: `m-${agentId}`, agentId, kind: 'semantic', content: 'redis fact' })
-      repo.updateStatus(`m-${agentId}`, 'embedded', {
+      repo.seedLegacyStatus(`m-${agentId}`, 'embedded', {
         embeddingId: `m-${agentId}`,
         embeddingDim: 4,
         embeddingModel: 'p:m'
@@ -969,7 +969,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1005,7 +1005,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:legacy'
@@ -1035,19 +1035,19 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'legacy-ref', agentId: 'a', kind: 'semantic', content: 'legacy ref' })
-    repo.updateStatus('legacy-ref', 'embedded', {
+    repo.seedLegacyStatus('legacy-ref', 'embedded', {
       embeddingId: 'legacy-ref',
       embeddingDim: 4,
       embeddingModel: 'p:legacy'
     })
     repo.insert({ id: 'current-ref', agentId: 'a', kind: 'semantic', content: 'current ref' })
-    repo.updateStatus('current-ref', 'embedded', {
+    repo.seedLegacyStatus('current-ref', 'embedded', {
       embeddingId: 'current-ref',
       embeddingDim: 6,
       embeddingModel: 'p:current'
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: null,
       embeddingModel: 'p:legacy'
@@ -1073,7 +1073,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'
@@ -1102,7 +1102,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       resetVectorStore: async () => undefined
     })
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
-    repo.updateStatus('m1', 'embedded', {
+    repo.seedLegacyStatus('m1', 'embedded', {
       embeddingId: 'm1',
       embeddingDim: 4,
       embeddingModel: 'p:m'

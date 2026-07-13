@@ -7,7 +7,6 @@ import type {
   MESSAGE_METADATA,
   ParentSelection
 } from './thread.presenter'
-import type { AcpWorkdirInfo } from './acp.presenter'
 
 export type SessionStatus =
   | 'idle'
@@ -154,17 +153,6 @@ export interface ISessionPresenter extends IThreadPresenter {
 
   generateTitle(sessionId: string): Promise<string>
   clearCommandPermissionCache(conversationId?: string): void
-
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir?: string
-  ): Promise<{ availableModes?: any; currentModeId?: string } | undefined>
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{ current: string; available: any[] } | null>
 
   exportConversation(
     conversationId: string,
