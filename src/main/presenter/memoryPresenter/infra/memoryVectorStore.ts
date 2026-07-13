@@ -15,13 +15,19 @@ import type {
 import { LegacyV1Reader, MigrationAbandonFence } from './legacyV1Reader'
 import { LegacyVssUnavailableError } from './legacyVssLoader'
 import {
+  assertMemoryVectorDimensions,
+  createMemoryVectorStoreV2FormatPlan,
+  MEMORY_VECTOR_STORE_FORMAT_VERSION,
+  MEMORY_VECTOR_STORE_TABLES,
+  readSafeMemoryVectorRowCount
+} from './memoryVectorStoreFormat'
+import {
   isDuckDbFatalError,
   MemoryVectorStorePostCommitError,
   MemoryVectorStoreQuarantineRequiredError,
   MemoryVectorStoreTerminalRecoveryError
 } from './vectorStoreErrors'
 
-const MEMORY_VECTOR_STORE_FORMAT_VERSION = 2
 const QUARANTINE_FILE_SUFFIX = '.v2.duckdb.quarantine'
 
 interface EmbeddingIdentity {
@@ -124,12 +130,6 @@ function sweepLegacyBestEffort(paths: MemoryVectorStorePaths): void {
   }
 }
 
-function assertValidDimensions(dimensions: number): void {
-  if (!Number.isSafeInteger(dimensions) || dimensions <= 0) {
-    throw new Error(`[MemoryVectorStore] invalid vector dimensions: ${String(dimensions)}`)
-  }
-}
-
 function legacyIdentityMatches(
   identity: Awaited<ReturnType<LegacyV1Reader['readEmbeddingIdentity']>>,
   dimensions: number,
@@ -148,8 +148,8 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   private connection!: DuckDBConnection
   private connectionOpen = false
   private instanceOpen = false
-  private readonly vectorTable = 'memory_vector'
-  private readonly metaTable = 'embedding_meta'
+  private readonly vectorTable = MEMORY_VECTOR_STORE_TABLES.vector
+  private readonly metaTable = MEMORY_VECTOR_STORE_TABLES.meta
   private usable = true
 
   private constructor(
@@ -165,7 +165,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     metric: 'cosine' | 'l2sq' | 'ip' = 'cosine',
     perfObserver?: MemoryPerfObserver
   ): Promise<MemoryVectorStore> {
-    assertValidDimensions(dimensions)
+    assertMemoryVectorDimensions(dimensions)
     fs.mkdirSync(path.dirname(paths.current), { recursive: true })
     let recoveryFilesRemoved = false
 
@@ -576,26 +576,12 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   ): Promise<void> {
     logger.info(`[MemoryVectorStore] initializing v2 at ${this.dbPath} (dim=${dimensions})`)
     await this.connect(fence)
-    await this.connection.run(
-      `CREATE TABLE ${this.vectorTable} (
-         memory_id VARCHAR PRIMARY KEY,
-         embedding FLOAT[${dimensions}]
-       );`
-    )
+    const plan = createMemoryVectorStoreV2FormatPlan(dimensions, embedding)
+    await this.connection.run(plan.createVectorTableSql)
     fence?.markProgress()
-    await this.connection.run(
-      `CREATE TABLE ${this.metaTable} (
-         provider VARCHAR NOT NULL,
-         model VARCHAR NOT NULL,
-         dim INTEGER NOT NULL,
-         format_version INTEGER NOT NULL
-       );`
-    )
+    await this.connection.run(plan.createMetaTableSql)
     fence?.markProgress()
-    await this.connection.run(
-      `INSERT INTO ${this.metaTable} (provider, model, dim, format_version) VALUES (?, ?, ?, ?);`,
-      [embedding.providerId, embedding.modelId, dimensions, MEMORY_VECTOR_STORE_FORMAT_VERSION]
-    )
+    await this.connection.run(plan.insertMetaSql, plan.metaParams)
     fence?.markProgress()
   }
 
@@ -776,11 +762,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       `SELECT count(*) AS row_count FROM ${this.vectorTable};`
     )
     fence?.markProgress()
-    const rowCount = Number(reader.getRowObjectsJson()[0]?.row_count)
-    if (!Number.isSafeInteger(rowCount) || rowCount < 0) {
-      throw new Error(`[MemoryVectorStore] invalid v2 row count: ${String(rowCount)}`)
-    }
-    return rowCount
+    return readSafeMemoryVectorRowCount(reader.getRowObjectsJson(), 'v2')
   }
 
   async query(

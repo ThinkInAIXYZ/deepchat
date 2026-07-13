@@ -355,7 +355,7 @@ unbounded await turns out to be.
       anchor; discard late results.
 - [ ] Extend `MemoryInjectionManifest` with optional `degradations` propagated by
       `buildInjection()`.
-- [ ] Implement store format v2 + one-time migration per
+- [x] Implement store format v2 + one-time migration per
       [docs/architecture/memory-vector-store-v2/tasks.md](../../architecture/memory-vector-store-v2/tasks.md).
 - [ ] Pre-stream step wrapper with stuck-step watchdog (`PRE_STREAM_STUCK_WARN_MS`) in
       `agentRuntimePresenter/index.ts`; async awaited steps only; final segment cleared by the

@@ -19,8 +19,13 @@ import {
   type MemoryVectorStorePaths
 } from '@/presenter/memoryPresenter/infra/memoryVectorStore'
 import {
+  createMemoryVectorStoreV2FormatPlan,
+  readSafeMemoryVectorRowCount
+} from '@/presenter/memoryPresenter/infra/memoryVectorStoreFormat'
+import {
   isDuckDbFatalError,
-  MemoryVectorStorePostCommitError
+  MemoryVectorStorePostCommitError,
+  MemoryVectorStoreTerminalRecoveryError
 } from '@/presenter/memoryPresenter/infra/vectorStoreErrors'
 import type { MemoryVectorRecord } from '@/presenter/memoryPresenter/types'
 import { app } from 'electron'
@@ -80,6 +85,28 @@ function makeStore(onRun: (sql: string) => void = () => {}) {
 }
 
 const records: MemoryVectorRecord[] = [{ memoryId: 'm1', embedding: [0.1, 0.2] }]
+const EMB = { providerId: 'p', modelId: 'm' }
+
+describe('MemoryVectorStore v2 format contract', () => {
+  it('defines the schema and metadata consumed by native crash fixtures', () => {
+    const plan = createMemoryVectorStoreV2FormatPlan(2, EMB)
+
+    expect(plan.createVectorTableSql).toContain('embedding FLOAT[2]')
+    expect(plan.createMetaTableSql).toContain('format_version INTEGER NOT NULL')
+    expect(plan.createVectorTableSql).not.toMatch(/HNSW|VSS/i)
+    expect(plan.metaParams).toEqual(['p', 'm', 2, 2])
+  })
+
+  it('rejects malformed and unsafe row counts', () => {
+    expect(readSafeMemoryVectorRowCount([{ row_count: '51' }], 'test')).toBe(51)
+    expect(() => readSafeMemoryVectorRowCount([{ row_count: null }], 'test')).toThrow(
+      'invalid test row count'
+    )
+    expect(() =>
+      readSafeMemoryVectorRowCount([{ row_count: Number.MAX_SAFE_INTEGER + 1 }], 'test')
+    ).toThrow('invalid test row count')
+  })
+})
 
 describe('MemoryVectorStore.upsert transaction (C4, AC-4.2)', () => {
   it('wraps DELETE+INSERT in a single BEGIN/COMMIT', async () => {
@@ -297,6 +324,8 @@ function mockV2DuckDbLifecycle(
     beforeLegacyPage?: (pageIndex: number) => Promise<void> | void
     failTargetInsert?: Error
     targetRowCountOverride?: number
+    stagingRunError?: Error
+    stagingCloseError?: Error
   } = {}
 ) {
   const dimensions = options.dimensions ?? 2
@@ -360,6 +389,9 @@ function mockV2DuckDbLifecycle(
     const connection = {
       run: vi.fn(async (statement: string, params: unknown[] = []) => {
         sql.push(statement)
+        if (dbPath === paths.staging && options.stagingRunError) {
+          throw options.stagingRunError
+        }
         if (statement.includes('INSERT INTO memory_vector')) {
           if (options.failTargetInsert) throw options.failTargetInsert
           targetRowCount += params.length / 2
@@ -390,7 +422,11 @@ function mockV2DuckDbLifecycle(
           }
         }
       }),
-      closeSync: vi.fn()
+      closeSync: vi.fn(() => {
+        if (dbPath === paths.staging && options.stagingCloseError) {
+          throw options.stagingCloseError
+        }
+      })
     }
     connections.push(connection)
     return {
@@ -468,8 +504,6 @@ function makeOpenableStore(opts: { meta?: EmbeddingMeta | null }) {
   store.connect = async () => undefined
   return store
 }
-
-const EMB = { providerId: 'p', modelId: 'm' }
 
 function makeVssLoadableStore(
   onRun: (sql: string) => void = () => {},
@@ -576,6 +610,57 @@ describe('MemoryVectorStore v2 staged publish', () => {
       await store.close()
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('retains the initialization cause when closing a failed fresh store also fails', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-close-cause-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    const initializationError = new Error('initialization failed')
+    mockV2DuckDbLifecycle(paths, {
+      stagingRunError: initializationError,
+      stagingCloseError: new Error('close failed')
+    })
+
+    try {
+      const failure = await MemoryVectorStore.create(paths, 2, EMB).catch((error) => error)
+
+      expect(failure).toBeInstanceOf(MemoryVectorStoreTerminalRecoveryError)
+      expect(failure).toMatchObject({
+        cause: initializationError,
+        recoveryCause: expect.objectContaining({ message: expect.stringContaining('close failed') })
+      })
+      expect(fs.existsSync(paths.staging)).toBe(true)
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('retains the initialization cause when failed fresh-store cleanup is blocked', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-cleanup-cause-'))
+    const paths = createMemoryVectorStorePaths(root, 'agent-a')
+    const initializationError = new Error('initialization failed')
+    mockV2DuckDbLifecycle(paths, { stagingRunError: initializationError })
+    vi.mocked(fs.rmSync).mockImplementation((target, options) => {
+      if (String(target) === paths.staging && actualFs.existsSync(target)) {
+        throw Object.assign(new Error('staging busy'), { code: 'EBUSY' })
+      }
+      return actualFs.rmSync(target, options)
+    })
+
+    try {
+      const failure = await MemoryVectorStore.create(paths, 2, EMB).catch((error) => error)
+
+      expect(failure).toBeInstanceOf(MemoryVectorStoreTerminalRecoveryError)
+      expect(failure).toMatchObject({
+        cause: initializationError,
+        recoveryCause: expect.objectContaining({ message: expect.stringContaining('staging busy') })
+      })
+      expect(fs.existsSync(paths.staging)).toBe(true)
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
     }
   })
 
@@ -1160,6 +1245,33 @@ describe('MemoryVectorStore v2 staged publish', () => {
     try {
       MemoryVectorStore.recoverQuarantinedStores(root)
       expect(fs.readdirSync(root)).toEqual([])
+    } finally {
+      actualFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('retains a deleted agent marker when its startup file sweep is blocked', async () => {
+    const actualFs = await setupRealFileSystem()
+    const root = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-memory-sweep-blocked-'))
+    const paths = createMemoryVectorStorePaths(root, 'deleted-agent')
+    fs.writeFileSync(paths.current, 'old')
+    fs.writeFileSync(paths.quarantine, 'old')
+    const logError = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    vi.mocked(fs.rmSync).mockImplementation((target, options) => {
+      if (String(target) === paths.current) {
+        throw Object.assign(new Error('current busy'), { code: 'EBUSY' })
+      }
+      return actualFs.rmSync(target, options)
+    })
+
+    try {
+      MemoryVectorStore.recoverQuarantinedStores(root)
+
+      expect(fs.existsSync(paths.current)).toBe(true)
+      expect(fs.existsSync(paths.quarantine)).toBe(true)
+      expect(logError).toHaveBeenCalledWith(
+        expect.stringContaining('startup quarantine sweep deferred')
+      )
     } finally {
       actualFs.rmSync(root, { recursive: true, force: true })
     }

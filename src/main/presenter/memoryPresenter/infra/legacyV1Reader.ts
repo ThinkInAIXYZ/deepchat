@@ -2,6 +2,7 @@ import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api'
 
 import type { MemoryVectorRecord } from '../types'
 import { escapeDuckDbSqlPath, LegacyVssUnavailableError, loadLegacyVss } from './legacyVssLoader'
+import { readSafeMemoryVectorRowCount } from './memoryVectorStoreFormat'
 
 const LEGACY_SCHEMA = 'legacy'
 export const LEGACY_V1_MIGRATION_PAGE_SIZE = 50
@@ -132,11 +133,7 @@ export class LegacyV1Reader {
       `SELECT count(*) AS row_count FROM ${LEGACY_SCHEMA}.memory_vector;`
     )
     fence.markProgress()
-    const rowCount = Number(reader.getRowObjectsJson()[0]?.row_count)
-    if (!Number.isSafeInteger(rowCount) || rowCount < 0) {
-      throw new Error(`[MemoryVectorStore] invalid legacy v1 row count: ${String(rowCount)}`)
-    }
-    return rowCount
+    return readSafeMemoryVectorRowCount(reader.getRowObjectsJson(), 'legacy v1')
   }
 
   async readPage(

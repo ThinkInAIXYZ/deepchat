@@ -3,9 +3,9 @@ import fs from 'node:fs'
 
 const CRASH_EXIT_CODE = 73
 
-function parsePaths() {
-  const raw = process.argv[3]
-  if (!raw) throw new Error('Missing serialized vector store paths')
+function parseJsonArgument(index, label) {
+  const raw = process.argv[index]
+  if (!raw) throw new Error(`Missing serialized ${label}`)
   return JSON.parse(raw)
 }
 
@@ -15,18 +15,11 @@ async function openDatabase(dbPath) {
   return { instance, connection }
 }
 
-async function createV2(dbPath, { checkpoint = false, close = false } = {}) {
+async function createV2(dbPath, formatPlan, { checkpoint = false, close = false } = {}) {
   const { instance, connection } = await openDatabase(dbPath)
-  await connection.run(
-    'CREATE TABLE memory_vector (memory_id VARCHAR PRIMARY KEY, embedding FLOAT[2]);'
-  )
-  await connection.run(
-    'CREATE TABLE embedding_meta (provider VARCHAR NOT NULL, model VARCHAR NOT NULL, dim INTEGER NOT NULL, format_version INTEGER NOT NULL);'
-  )
-  await connection.run(
-    'INSERT INTO embedding_meta (provider, model, dim, format_version) VALUES (?, ?, ?, ?);',
-    ['p', 'm', 2, 2]
-  )
+  await connection.run(formatPlan.createVectorTableSql)
+  await connection.run(formatPlan.createMetaTableSql)
+  await connection.run(formatPlan.insertMetaSql, formatPlan.metaParams)
   await connection.run('INSERT INTO memory_vector (memory_id, embedding) VALUES (?, ?::FLOAT[]);', [
     'crash-row',
     arrayValue([1, 0])
@@ -38,11 +31,9 @@ async function createV2(dbPath, { checkpoint = false, close = false } = {}) {
   }
 }
 
-async function createPartialStaging(dbPath, includeRow) {
+async function createPartialStaging(dbPath, includeRow, formatPlan) {
   const { connection } = await openDatabase(dbPath)
-  await connection.run(
-    'CREATE TABLE memory_vector (memory_id VARCHAR PRIMARY KEY, embedding FLOAT[2]);'
-  )
+  await connection.run(formatPlan.createVectorTableSql)
   if (includeRow) {
     await connection.run(
       'INSERT INTO memory_vector (memory_id, embedding) VALUES (?, ?::FLOAT[]);',
@@ -51,13 +42,9 @@ async function createPartialStaging(dbPath, includeRow) {
   }
 }
 
-async function holdLegacy(paths, extensionPath, writeMarker) {
+async function holdLegacy(paths, statements, writeMarker) {
   const { connection } = await openDatabase(':memory:')
-  const escapedExtension = extensionPath.replace(/\\/g, '\\\\').replace(/'/g, "''")
-  const escapedLegacy = paths.legacy.replace(/\\/g, '\\\\').replace(/'/g, "''")
-  await connection.run(`LOAD '${escapedExtension}';`)
-  await connection.run('SET hnsw_enable_experimental_persistence = true;')
-  await connection.run(`ATTACH '${escapedLegacy}' AS legacy (READ_ONLY);`)
+  for (const statement of statements) await connection.run(statement)
   if (writeMarker) fs.writeFileSync(paths.quarantine, '')
   process.stdout.write('READY\n')
   setInterval(() => undefined, 60_000)
@@ -65,29 +52,30 @@ async function holdLegacy(paths, extensionPath, writeMarker) {
 
 async function main() {
   const mode = process.argv[2]
-  const paths = parsePaths()
+  const paths = parseJsonArgument(3, 'vector store paths')
+  const formatPlan = parseJsonArgument(4, 'v2 format plan')
 
   switch (mode) {
     case 'staging-schema':
-      await createPartialStaging(paths.staging, false)
+      await createPartialStaging(paths.staging, false, formatPlan)
       break
     case 'staging-write':
-      await createPartialStaging(paths.staging, true)
+      await createPartialStaging(paths.staging, true, formatPlan)
       break
     case 'checkpoint-before':
-      await createV2(paths.staging)
+      await createV2(paths.staging, formatPlan)
       break
     case 'checkpoint-after':
     case 'rename-before':
-      await createV2(paths.staging, { checkpoint: true, close: true })
+      await createV2(paths.staging, formatPlan, { checkpoint: true, close: true })
       break
     case 'rename-after':
-      await createV2(paths.staging, { checkpoint: true, close: true })
+      await createV2(paths.staging, formatPlan, { checkpoint: true, close: true })
       fs.renameSync(paths.staging, paths.current)
       fs.writeFileSync(paths.legacy, 'legacy-cleanup-pending')
       break
     case 'v2-wal':
-      await createV2(paths.current)
+      await createV2(paths.current, formatPlan)
       break
     case 'marker-before-sweep':
       fs.writeFileSync(paths.quarantine, '')
@@ -101,15 +89,16 @@ async function main() {
     case 'marker-after-sweep':
       fs.writeFileSync(paths.quarantine, '')
       break
-    case 'marker-after-publish':
-      fs.writeFileSync(paths.quarantine, '')
-      await createV2(paths.current, { checkpoint: true, close: true })
+    case 'marker-after-delete':
+      break
+    case 'marker-during-publish':
+      await createPartialStaging(paths.staging, true, formatPlan)
       break
     case 'hold-legacy':
-      await holdLegacy(paths, process.argv[4], false)
+      await holdLegacy(paths, parseJsonArgument(5, 'legacy hold statements'), false)
       return
     case 'hold-quarantined-legacy':
-      await holdLegacy(paths, process.argv[4], true)
+      await holdLegacy(paths, parseJsonArgument(5, 'legacy hold statements'), true)
       return
     default:
       throw new Error(`Unknown crash worker mode: ${String(mode)}`)

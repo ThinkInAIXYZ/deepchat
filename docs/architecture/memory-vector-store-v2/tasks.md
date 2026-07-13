@@ -92,5 +92,5 @@
       call native resources.
 - [x] Return `cleanupPendingRestart` from memory clear and agent delete; run deletion cleanup
       preflight before deleting repository state and surface the restart cleanup notice in UI.
-- [ ] Add unit, native, Windows handle, performance, and crash regression coverage, including a
+- [x] Add unit, native, Windows handle, performance, and crash regression coverage, including a
       genuine HNSW v1 file renamed to the v2 path reaching the metadata self-check.
