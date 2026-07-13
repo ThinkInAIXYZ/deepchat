@@ -2599,7 +2599,7 @@ export class AgentRuntimePresenter {
         return { resumed: false, waitingForUserMessage: true }
       }
 
-      this.clearSessionAbortController(sessionId, interactionAbortController)
+      this.clearSessionAbortController(sessionId, interactionAbortController ?? undefined)
       const resumed = await this.resumeAssistantMessage(
         sessionId,
         messageId,
