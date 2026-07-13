@@ -235,6 +235,72 @@ describe('ToolPresenter', () => {
     expect(sharedDefs[0].server?.name).toBe('mcp')
   })
 
+  it('keeps concurrent catalog resolutions isolated for the same conversation', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+    const agentToolManager = (toolPresenter as any).ensureAgentToolManager('C:\\\\workspace')
+    let resolveFirst!: (tools: MCPToolDefinition[]) => void
+    let resolveSecond!: (tools: MCPToolDefinition[]) => void
+    const firstAgentTools = new Promise<MCPToolDefinition[]>((resolve) => {
+      resolveFirst = resolve
+    })
+    const secondAgentTools = new Promise<MCPToolDefinition[]>((resolve) => {
+      resolveSecond = resolve
+    })
+    const getAgentToolDefinitions = vi
+      .spyOn(agentToolManager, 'getAllToolDefinitions')
+      .mockReturnValueOnce(firstAgentTools)
+      .mockReturnValueOnce(secondAgentTools)
+    const context = {
+      chatMode: 'agent' as const,
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\\\workspace',
+      conversationId: 'conversation-1'
+    }
+
+    const firstResolution = toolPresenter.getAllToolDefinitions(context)
+    const secondResolution = toolPresenter.getAllToolDefinitions(context)
+    await vi.waitFor(() => expect(getAgentToolDefinitions).toHaveBeenCalledTimes(2))
+
+    const agentTools = [buildToolDefinition('read', 'agent-filesystem')]
+    resolveFirst(agentTools)
+    await expect(firstResolution).resolves.toMatchObject([
+      { source: 'agent', function: { name: 'read' } }
+    ])
+    resolveSecond(agentTools)
+    await expect(secondResolution).resolves.toMatchObject([
+      { source: 'agent', function: { name: 'read' } }
+    ])
+
+    const callTool = vi.fn().mockResolvedValue('ok')
+    agentToolManager.callTool = callTool
+    await toolPresenter.callTool({
+      id: 'tool-1',
+      type: 'function',
+      function: { name: 'read', arguments: '{}' },
+      conversationId: 'conversation-1'
+    })
+
+    expect(callTool).toHaveBeenCalledWith(
+      'read',
+      {},
+      'conversation-1',
+      expect.objectContaining({ toolCallId: 'tool-1' })
+    )
+  })
+
   it('clears only agent plan state without clearing tool mappings', async () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),

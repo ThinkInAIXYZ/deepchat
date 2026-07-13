@@ -140,11 +140,7 @@ export class ToolPresenter implements IToolPresenter {
    */
   async getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
-    const mapper = this.resolveMapper(context.conversationId)
-    this.mapper.clear()
-    if (mapper !== this.mapper) {
-      mapper.clear()
-    }
+    const mapper = new ToolMapper()
 
     const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
@@ -167,7 +163,7 @@ export class ToolPresenter implements IToolPresenter {
       'mcp'
     )
     defs.push(...mcpDefs)
-    this.registerToolsForMapper(mapper, mcpDefs, 'mcp')
+    mapper.registerTools(mcpDefs, 'mcp')
 
     // 2. Get Agent tools (always load in agent or acp agent mode)
     const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
@@ -195,11 +191,12 @@ export class ToolPresenter implements IToolPresenter {
         (tool) => !disabledAgentToolSet.has(tool.function.name)
       )
       defs.push(...filteredAgentDefs)
-      this.registerToolsForMapper(mapper, filteredAgentDefs, 'agent')
+      mapper.registerTools(filteredAgentDefs, 'agent')
     } catch (error) {
       console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
     }
 
+    this.publishMapper(context.conversationId, mapper)
     return defs
   }
 
@@ -426,30 +423,15 @@ export class ToolPresenter implements IToolPresenter {
       : undefined
   }
 
-  private resolveMapper(conversationId?: string): ToolMapper {
+  private publishMapper(conversationId: string | undefined, mapper: ToolMapper): void {
     const normalizedConversationId = conversationId?.trim()
-    if (!normalizedConversationId) {
-      return this.mapper
+    if (normalizedConversationId) {
+      this.conversationMappers.set(normalizedConversationId, mapper)
     }
 
-    const existingMapper = this.conversationMappers.get(normalizedConversationId)
-    if (existingMapper) {
-      return existingMapper
-    }
-
-    const mapper = new ToolMapper()
-    this.conversationMappers.set(normalizedConversationId, mapper)
-    return mapper
-  }
-
-  private registerToolsForMapper(
-    mapper: ToolMapper,
-    tools: MCPToolDefinition[],
-    source: ToolSource
-  ): void {
-    mapper.registerTools(tools, source)
-    if (mapper !== this.mapper) {
-      this.mapper.registerTools(tools, source)
+    this.mapper.clear()
+    for (const mapping of mapper.getAllMappings()) {
+      this.mapper.registerTool(mapping.toolName, mapping.source, mapping.originalName)
     }
   }
 
