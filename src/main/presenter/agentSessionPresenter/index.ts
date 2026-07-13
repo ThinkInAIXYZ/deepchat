@@ -70,10 +70,13 @@ import type {
   SessionAgentAssignmentPort,
   SessionAssignmentPolicyPort,
   SessionAssignmentWorkdirPort,
-  SessionLifecycleDeletionPort
+  SessionInitialTurnPort,
+  SessionLifecycleDeletionPort,
+  SessionTurnPort
 } from '../sessionApplication/ports'
 import {
   normalizeActiveSkills,
+  normalizeCreateSessionInput,
   normalizeDisabledAgentTools
 } from '@/agent/shared/agentSessionNormalization'
 import {
@@ -253,6 +256,8 @@ export class AgentSessionPresenter {
   private sessionAssignmentPolicy: SessionAssignmentPolicyPort
   private sessionAssignment: SessionAgentAssignmentPort
   private sessionAssignmentWorkdir: SessionAssignmentWorkdirPort
+  private sessionTurn: SessionTurnPort
+  private sessionInitialTurn: SessionInitialTurnPort
   private sessionDeletion: SessionLifecycleDeletionPort
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   private sessionPermissionPort?: SessionPermissionPort
@@ -271,6 +276,8 @@ export class AgentSessionPresenter {
     sessionAssignmentPolicy: SessionAssignmentPolicyPort,
     sessionAssignment: SessionAgentAssignmentPort,
     sessionAssignmentWorkdir: SessionAssignmentWorkdirPort,
+    sessionTurn: SessionTurnPort,
+    sessionInitialTurn: SessionInitialTurnPort,
     sessionDeletion: SessionLifecycleDeletionPort,
     skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
     runtimePorts?: {
@@ -286,6 +293,8 @@ export class AgentSessionPresenter {
     this.sessionAssignmentPolicy = sessionAssignmentPolicy
     this.sessionAssignment = sessionAssignment
     this.sessionAssignmentWorkdir = sessionAssignmentWorkdir
+    this.sessionTurn = sessionTurn
+    this.sessionInitialTurn = sessionInitialTurn
     this.sessionDeletion = sessionDeletion
     this.skillPresenter = skillPresenter
     this.sessionManager = appSessionService
@@ -321,7 +330,7 @@ export class AgentSessionPresenter {
     logger.info(
       `[AgentSessionPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`
     )
-    const normalizedInput = this.normalizeCreateSessionInput(input)
+    const normalizedInput = normalizeCreateSessionInput(input)
     logger.info(`[AgentSessionPresenter] resolved provider=${providerId} model=${modelId}`)
 
     // Create session record
@@ -389,27 +398,14 @@ export class AgentSessionPresenter {
       modelId: state?.modelId ?? modelId
     }
 
-    // Start the first message (non-blocking) after returning session ID.
-    const hasInitialTurn =
-      normalizedInput.text.trim().length > 0 || (normalizedInput.files?.length ?? 0) > 0
-    if (hasInitialTurn) {
-      logger.info(`[AgentSessionPresenter] firing initial send (non-blocking)`)
-      handle
-        .send({
-          content: this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
-          context: { projectDir },
-          queue: { source: 'send', projectDir }
-        })
-        .catch((err) => {
-          console.error('[AgentSessionPresenter] initial send failed:', err)
-        })
-      this.sessionProjection.scheduleTitleGeneration({
-        sessionId,
-        initialTitle: title,
-        fallbackProviderId: providerId,
-        fallbackModelId: modelId
-      })
-    }
+    this.sessionInitialTurn.startInitialTurn({
+      sessionId,
+      content: normalizedInput,
+      projectDir,
+      initialTitle: title,
+      fallbackProviderId: providerId,
+      fallbackModelId: modelId
+    })
 
     return sessionResult
   }
@@ -668,207 +664,47 @@ export class AgentSessionPresenter {
     content: string | SendMessageInput,
     options?: { maxProviderRounds?: number }
   ): Promise<MessageStartResult> {
-    let session = this.sessionManager.get(sessionId)
-    if (!session) throw new Error(`Session not found: ${sessionId}`)
-    const wasDraft = session.isDraft
-    const normalizedInput = this.normalizeSendMessageInput(content)
-
-    if (session.isDraft) {
-      const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
-      this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.sessionProjection.notify({
-        sessionIds: [sessionId],
-        reason: 'updated'
-      })
-      session = this.sessionManager.get(sessionId)
-      if (!session) throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
-    const state = await handle.snapshot()
-    const hadMessages = await this.sharedData.transcript.hasMessages(sessionId)
-    let providerId = state?.providerId ?? ''
-    if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.sessionAssignmentWorkdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      session.agentId,
-      session.projectDir ?? null
-    )
-    const result = await handle.send({
-      content: normalizedInput,
-      context: {
-        projectDir: session.projectDir ?? null,
-        maxProviderRounds: options?.maxProviderRounds
-      },
-      queue: {
-        source: 'send',
-        projectDir: session.projectDir ?? null
-      }
-    })
-    if (!hadMessages && !wasDraft) {
-      this.sessionProjection.scheduleTitleGeneration({
-        sessionId,
-        initialTitle: session.title,
-        fallbackProviderId: providerId,
-        fallbackModelId: state?.modelId ?? ''
-      })
-    }
-    return result
+    return await this.sessionTurn.sendMessage(sessionId, content, options)
   }
 
   async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
-    let session = this.sessionManager.get(sessionId)
-    if (!session) throw new Error(`Session not found: ${sessionId}`)
-    const normalizedInput = this.normalizeSendMessageInput(content)
-
-    if (session.isDraft) {
-      const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
-      this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.sessionProjection.notify({
-        sessionIds: [sessionId],
-        reason: 'updated'
-      })
-      session = this.sessionManager.get(sessionId)
-      if (!session) throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
-    const state = await handle.snapshot()
-    let providerId = state?.providerId ?? ''
-    if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.sessionAssignmentWorkdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      session.agentId,
-      session.projectDir ?? null
-    )
-
-    await handle.pending.steerActiveTurn(normalizedInput)
+    await this.sessionTurn.steerActiveTurn(sessionId, content)
   }
 
   async listPendingInputs(sessionId: string) {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      return []
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.pending.list()
+    return await this.sessionTurn.listPendingInputs(sessionId)
   }
 
   async queuePendingInput(sessionId: string, content: string | SendMessageInput) {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    let currentSession = session
-    const normalizedInput = this.normalizeSendMessageInput(content)
-    if (currentSession.isDraft) {
-      const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
-      this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.sessionProjection.notify({
-        sessionIds: [sessionId],
-        reason: 'updated'
-      })
-      currentSession = this.sessionManager.get(sessionId) ?? currentSession
-    }
-
-    const { handle } = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId))
-    let providerId = (await handle.snapshot())?.providerId ?? ''
-    if (!providerId && handle.kind === 'acp') providerId = 'acp'
-    this.sessionAssignmentWorkdir.assertAcpSessionHasWorkdir(
-      providerId,
-      currentSession.projectDir ?? null
-    )
-    await this.sessionAssignmentWorkdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      currentSession.agentId,
-      currentSession.projectDir ?? null
-    )
-    return await handle.pending.queue(normalizedInput, {
-      source: 'queue',
-      projectDir: currentSession.projectDir ?? null
-    })
+    return await this.sessionTurn.queuePendingInput(sessionId, content)
   }
 
   async updateQueuedInput(sessionId: string, itemId: string, content: string | SendMessageInput) {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.pending.update(itemId, this.normalizeSendMessageInput(content))
+    return await this.sessionTurn.updateQueuedInput(sessionId, itemId, content)
   }
 
   async moveQueuedInput(sessionId: string, itemId: string, toIndex: number) {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.pending.move(itemId, toIndex)
+    return await this.sessionTurn.moveQueuedInput(sessionId, itemId, toIndex)
   }
 
   async convertPendingInputToSteer(sessionId: string, itemId: string) {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.pending.convertToSteer(itemId)
+    return await this.sessionTurn.convertPendingInputToSteer(sessionId, itemId)
   }
 
   async steerPendingInput(sessionId: string, itemId: string) {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.pending.steer(itemId)
+    return await this.sessionTurn.steerPendingInput(sessionId, itemId)
   }
 
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.pending.delete(itemId)
+    await this.sessionTurn.deletePendingInput(sessionId, itemId)
   }
 
   async retryMessage(sessionId: string, messageId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    const prepared = await this.sharedData.transcriptMutation.prepareRetryMessage(
-      sessionId,
-      messageId
-    )
-    await handle.send({
-      content: prepared.content,
-      context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
-    })
+    await this.sessionTurn.retryMessage(sessionId, messageId)
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    await this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle.cancel()
-    await this.sharedData.transcriptMutation.deleteMessage(sessionId, messageId)
+    await this.sessionTurn.deleteMessage(sessionId, messageId)
   }
 
   async editUserMessage(
@@ -876,11 +712,7 @@ export class AgentSessionPresenter {
     messageId: string,
     text: string
   ): Promise<ChatMessageRecord> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.sharedData.transcriptMutation.editUserMessage(sessionId, messageId, text)
+    return await this.sessionTurn.editUserMessage(sessionId, messageId, text)
   }
 
   async forkSession(
@@ -1164,42 +996,13 @@ export class AgentSessionPresenter {
   }
 
   async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind !== 'deepchat') {
-      return {
-        status: 'idle',
-        cursorOrderSeq: 1,
-        summaryUpdatedAt: null
-      }
-    }
-
-    return await handle.deepchat.getCompactionState()
+    return await this.sessionTurn.getSessionCompactionState(sessionId)
   }
 
   async compactSession(
     sessionId: string
   ): Promise<{ compacted: boolean; state: SessionCompactionState }> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind !== 'deepchat') {
-      throw new Error(`Agent ${session.agentId} does not support manual compaction.`)
-    }
-
-    const state = await handle.snapshot()
-    if (state?.providerId === 'acp') {
-      throw new Error('Manual compaction is only available for DeepChat agent sessions.')
-    }
-
-    return await handle.deepchat.compact()
+    return await this.sessionTurn.compactSession(sessionId)
   }
 
   async getTapeInfo(sessionId: string): Promise<AgentTapeInfo> {
@@ -1542,17 +1345,7 @@ export class AgentSessionPresenter {
   }
 
   async clearSessionMessages(sessionId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    await this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle.cancel()
-    await this.sharedData.transcriptMutation.clearMessages(sessionId)
-    this.sessionProjection.notify({
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
+    await this.sessionTurn.clearSessionMessages(sessionId)
   }
 
   async exportSession(
@@ -1615,9 +1408,7 @@ export class AgentSessionPresenter {
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) return
-    await this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle.cancel()
+    await this.sessionTurn.cancelGeneration(sessionId)
   }
 
   clearSessionPermissions(sessionId: string): void {
@@ -1630,13 +1421,7 @@ export class AgentSessionPresenter {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    return await this.agentManager
-      .resolveSessionHandle(toAppSessionId(sessionId))
-      .handle.toolInteractions.respond(messageId, toolCallId, response)
+    return await this.sessionTurn.respondToolInteraction(sessionId, messageId, toolCallId, response)
   }
 
   async getAcpSessionCommands(sessionId: string): Promise<
@@ -2657,56 +2442,6 @@ export class AgentSessionPresenter {
       return 'English'
     }
     return 'English'
-  }
-
-  private normalizeSendMessageInput(content: string | SendMessageInput): SendMessageInput {
-    if (typeof content === 'string') {
-      return { text: content, files: [] }
-    }
-
-    if (!content || typeof content !== 'object') {
-      return { text: '', files: [] }
-    }
-
-    const text = typeof content.text === 'string' ? content.text : ''
-    const files = Array.isArray(content.files)
-      ? content.files.filter((file): file is MessageFile => Boolean(file))
-      : []
-    const activeSkills = normalizeActiveSkills(content.activeSkills)
-    const inlineItems = Array.isArray(content.inlineItems) ? content.inlineItems : []
-    return {
-      text,
-      files,
-      ...(activeSkills.length > 0 ? { activeSkills } : {}),
-      ...(inlineItems.length > 0 ? { inlineItems } : {})
-    }
-  }
-
-  private normalizeCreateSessionInput(input: CreateSessionInput): SendMessageInput {
-    const text = typeof input.message === 'string' ? input.message : ''
-    const files = Array.isArray(input.files)
-      ? input.files.filter((file): file is MessageFile => Boolean(file))
-      : []
-    const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
-    return this.withInitialMessageActiveSkills(
-      {
-        text,
-        files,
-        ...(inlineItems.length > 0 ? { inlineItems } : {})
-      },
-      input.activeSkills
-    )
-  }
-
-  private withInitialMessageActiveSkills(
-    input: SendMessageInput,
-    activeSkills?: string[]
-  ): SendMessageInput {
-    const normalizedActiveSkills = normalizeActiveSkills(activeSkills ?? input.activeSkills)
-    return {
-      ...input,
-      ...(normalizedActiveSkills.length > 0 ? { activeSkills: normalizedActiveSkills } : {})
-    }
   }
 
   private areStringArraysEqual(left: string[], right: string[]): boolean {

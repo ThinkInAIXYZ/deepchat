@@ -1,3 +1,9 @@
+import type {
+  CreateSessionInput,
+  MessageFile,
+  SendMessageInput
+} from '@shared/types/agent-interface'
+
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'ls'])
 const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
@@ -37,3 +43,34 @@ export const normalizeActiveSkills = (activeSkills?: string[]): string[] => {
     )
   )
 }
+
+export const normalizeSendMessageInput = (content: string | SendMessageInput): SendMessageInput => {
+  if (typeof content === 'string') {
+    return { text: content, files: [] }
+  }
+
+  if (!content || typeof content !== 'object') {
+    return { text: '', files: [] }
+  }
+
+  const text = typeof content.text === 'string' ? content.text : ''
+  const files = Array.isArray(content.files)
+    ? content.files.filter((file): file is MessageFile => Boolean(file))
+    : []
+  const activeSkills = normalizeActiveSkills(content.activeSkills)
+  const inlineItems = Array.isArray(content.inlineItems) ? content.inlineItems : []
+  return {
+    text,
+    files,
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
+  }
+}
+
+export const normalizeCreateSessionInput = (input: CreateSessionInput): SendMessageInput =>
+  normalizeSendMessageInput({
+    text: typeof input.message === 'string' ? input.message : '',
+    files: Array.isArray(input.files) ? input.files : [],
+    activeSkills: input.activeSkills,
+    inlineItems: Array.isArray(input.inlineItems) ? input.inlineItems : []
+  })

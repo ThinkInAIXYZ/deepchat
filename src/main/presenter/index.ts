@@ -80,6 +80,7 @@ import { SessionProjectionCoordinator } from './sessionApplication/projectionCoo
 import { SessionAgentAssignmentPolicy } from './sessionApplication/agentAssignmentPolicy'
 import { SessionAgentAssignmentCoordinator } from './sessionApplication/agentAssignmentCoordinator'
 import { SessionDeletionTransaction } from './sessionApplication/lifecycleDeletionTransaction'
+import { SessionTurnCoordinator } from './sessionApplication/turnCoordinator'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
@@ -164,6 +165,7 @@ export class Presenter implements IPresenter {
   sessionProjectionCoordinator: SessionProjectionCoordinator
   sessionAgentAssignmentPolicy: SessionAgentAssignmentPolicy
   sessionAgentAssignmentCoordinator: SessionAgentAssignmentCoordinator
+  sessionTurnCoordinator: SessionTurnCoordinator
   sessionDeletionTransaction: SessionDeletionTransaction
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
@@ -806,6 +808,43 @@ export class Presenter implements IPresenter {
       },
       acp: this.acpAsLlmProviderSessionControl
     })
+    this.sessionTurnCoordinator = new SessionTurnCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        resolveSession: (sessionId) => {
+          const { handle } = this.agentManager.resolveSessionHandle(sessionId)
+          const turn = {
+            pending: handle.pending,
+            toolInteractions: handle.toolInteractions,
+            send: (input: Parameters<typeof handle.send>[0]) => handle.send(input),
+            cancel: () => handle.cancel(),
+            snapshot: () => handle.snapshot()
+          }
+          return handle.kind === 'deepchat'
+            ? {
+                ...turn,
+                kind: handle.kind,
+                compaction: {
+                  getState: () => handle.deepchat.getCompactionState(),
+                  compact: () => handle.deepchat.compact()
+                }
+              }
+            : { ...turn, kind: handle.kind }
+        }
+      },
+      transcript: {
+        hasMessages: (sessionId) => agentSharedData.transcript.hasMessages(sessionId),
+        clearMessages: (sessionId) => agentSharedData.transcriptMutation.clearMessages(sessionId),
+        prepareRetryMessage: (sessionId, messageId) =>
+          agentSharedData.transcriptMutation.prepareRetryMessage(sessionId, messageId),
+        deleteMessage: (sessionId, messageId) =>
+          agentSharedData.transcriptMutation.deleteMessage(sessionId, messageId),
+        editUserMessage: (sessionId, messageId, text) =>
+          agentSharedData.transcriptMutation.editUserMessage(sessionId, messageId, text)
+      },
+      workdir: this.sessionAgentAssignmentCoordinator,
+      projection: this.sessionProjectionCoordinator
+    })
     this.agentSessionPresenter = new AgentSessionPresenter(
       this.agentManager,
       appSessionService,
@@ -817,6 +856,8 @@ export class Presenter implements IPresenter {
       this.sessionAgentAssignmentPolicy,
       this.sessionAgentAssignmentCoordinator,
       this.sessionAgentAssignmentCoordinator,
+      this.sessionTurnCoordinator,
+      this.sessionTurnCoordinator,
       this.sessionDeletionTransaction,
       this.skillPresenter,
       {

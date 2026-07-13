@@ -724,6 +724,8 @@ describe('Integration: createSession end-to-end', () => {
       sessionApplications.policy,
       sessionApplications.assignment,
       sessionApplications.assignment,
+      sessionApplications.turn,
+      sessionApplications.turn,
       sessionApplications.deletion
     )
   })
@@ -912,6 +914,8 @@ describe('Integration: ACP hooks bridge', () => {
       sessionApplications.policy,
       sessionApplications.assignment,
       sessionApplications.assignment,
+      sessionApplications.turn,
+      sessionApplications.turn,
       sessionApplications.deletion
     )
   })
@@ -1028,6 +1032,8 @@ describe('Integration: multi-turn context', () => {
       sessionApplications.policy,
       sessionApplications.assignment,
       sessionApplications.assignment,
+      sessionApplications.turn,
+      sessionApplications.turn,
       sessionApplications.deletion
     )
   })

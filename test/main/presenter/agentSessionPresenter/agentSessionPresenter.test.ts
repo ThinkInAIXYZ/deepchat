@@ -609,6 +609,8 @@ function createDescriptorIndependentDeleteHarness(options: {
     sessionApplications.policy,
     sessionApplications.assignment,
     sessionApplications.assignment,
+    sessionApplications.turn,
+    sessionApplications.turn,
     sessionApplications.deletion,
     skillPresenter,
     { sessionPermissionPort }
@@ -768,6 +770,8 @@ describe('AgentSessionPresenter', () => {
       sessionApplications.policy,
       sessionApplications.assignment,
       sessionApplications.assignment,
+      sessionApplications.turn,
+      sessionApplications.turn,
       sessionApplications.deletion,
       skillPresenter,
       undefined
@@ -1029,6 +1033,8 @@ describe('AgentSessionPresenter', () => {
       sessionApplications.policy,
       sessionApplications.assignment,
       sessionApplications.assignment,
+      sessionApplications.turn,
+      sessionApplications.turn,
       sessionApplications.deletion,
       skillPresenter
     )

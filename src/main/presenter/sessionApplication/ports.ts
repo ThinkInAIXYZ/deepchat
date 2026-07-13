@@ -2,8 +2,14 @@ import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type {
   AgentSessionStatePort,
   AgentTapePort,
+  AgentTranscriptMutationPort,
   AgentTranscriptReadPort
 } from '@/agent/shared/agentSharedData'
+import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
+import type {
+  AgentPendingInputFacet,
+  AgentToolInteractionFacet
+} from '@/agent/manager/sessionHandles'
 import type {
   ResolvedAgentSession,
   ResolvedDeepChatTransferTarget,
@@ -12,15 +18,22 @@ import type {
 } from '@/agent/manager/agentManager'
 import type {
   AgentTransferImpact,
+  ChatMessageRecord,
   DeepChatAgentConfig,
   DeepChatSessionState,
+  MessageStartResult,
+  PendingSessionInputRecord,
   PermissionMode,
+  SendMessageInput,
+  SessionCompactionState,
   SessionGenerationSettings,
   SessionLightweightListResult,
   SessionListItem,
   SessionPageCursor,
   SessionRecord,
-  SessionWithState
+  SessionWithState,
+  ToolInteractionResponse,
+  ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { AcpConfigState } from '@shared/presenter'
 import type { AcpAsLlmProviderSessionControlPort } from '../runtimePorts'
@@ -165,6 +178,97 @@ export interface SessionProjectionMutationPort {
   notify(input?: SessionProjectionUpdate): void
   forgetStatus(sessionIds: string[]): void
   scheduleTitleGeneration(input: TitleGenerationInput): void
+}
+
+export interface SessionTurnStorePort {
+  get(sessionId: string): SessionRecord | null
+  update(sessionId: string, fields: Partial<Pick<SessionRecord, 'isDraft' | 'title'>>): void
+}
+
+interface SessionTurnRuntimeBase {
+  readonly pending: AgentPendingInputFacet
+  readonly toolInteractions: AgentToolInteractionFacet
+  send(input: AgentSessionSendInput): Promise<MessageStartResult>
+  cancel(): Promise<void>
+  snapshot(): Promise<DeepChatSessionState | null>
+}
+
+export type SessionTurnRuntimeSession =
+  | (SessionTurnRuntimeBase & {
+      readonly kind: 'deepchat'
+      readonly compaction: {
+        getState(): Promise<SessionCompactionState>
+        compact(): Promise<{ compacted: boolean; state: SessionCompactionState }>
+      }
+    })
+  | (SessionTurnRuntimeBase & { readonly kind: 'acp' })
+
+export interface SessionTurnRuntimePort {
+  resolveSession(sessionId: AppSessionId): SessionTurnRuntimeSession
+}
+
+export type SessionTurnTranscriptPort = Pick<AgentTranscriptReadPort, 'hasMessages'> &
+  Pick<
+    AgentTranscriptMutationPort,
+    'clearMessages' | 'prepareRetryMessage' | 'deleteMessage' | 'editUserMessage'
+  >
+
+export type SessionTurnProjectionPort = Pick<
+  SessionProjectionMutationPort,
+  'notify' | 'scheduleTitleGeneration'
+>
+
+export interface SessionInitialTurnInput {
+  sessionId: string
+  content: SendMessageInput
+  projectDir: string | null
+  initialTitle: string
+  fallbackProviderId: string
+  fallbackModelId: string
+}
+
+export interface SessionInitialTurnPort {
+  startInitialTurn(input: SessionInitialTurnInput): void
+}
+
+export interface SessionTurnPort {
+  sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { maxProviderRounds?: number }
+  ): Promise<MessageStartResult>
+  steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
+  listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]>
+  queuePendingInput(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord>
+  updateQueuedInput(
+    sessionId: string,
+    itemId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord>
+  moveQueuedInput(
+    sessionId: string,
+    itemId: string,
+    toIndex: number
+  ): Promise<PendingSessionInputRecord[]>
+  convertPendingInputToSteer(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  deletePendingInput(sessionId: string, itemId: string): Promise<void>
+  retryMessage(sessionId: string, messageId: string): Promise<void>
+  deleteMessage(sessionId: string, messageId: string): Promise<void>
+  editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
+  getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
+  compactSession(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
+  clearSessionMessages(sessionId: string): Promise<void>
+  cancelGeneration(sessionId: string): Promise<void>
+  respondToolInteraction(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    response: ToolInteractionResponse
+  ): Promise<ToolInteractionResult>
 }
 
 export interface SessionAssignmentCatalogPort {

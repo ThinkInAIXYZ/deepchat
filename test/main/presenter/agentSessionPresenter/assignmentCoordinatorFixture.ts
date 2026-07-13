@@ -11,6 +11,7 @@ import { SessionAgentAssignmentPolicy } from '@/presenter/sessionApplication/age
 import { SessionAgentAssignmentCoordinator } from '@/presenter/sessionApplication/agentAssignmentCoordinator'
 import { SessionDeletionTransaction } from '@/presenter/sessionApplication/lifecycleDeletionTransaction'
 import type { SessionProjectionCoordinator } from '@/presenter/sessionApplication/projectionCoordinator'
+import { SessionTurnCoordinator } from '@/presenter/sessionApplication/turnCoordinator'
 
 export const createAssignmentCoordinatorFixture = (input: {
   agentManager: AgentManager
@@ -25,6 +26,7 @@ export const createAssignmentCoordinatorFixture = (input: {
 }): {
   policy: SessionAgentAssignmentPolicy
   assignment: SessionAgentAssignmentCoordinator
+  turn: SessionTurnCoordinator
   deletion: SessionDeletionTransaction
 } => {
   const policy = new SessionAgentAssignmentPolicy(
@@ -79,6 +81,43 @@ export const createAssignmentCoordinatorFixture = (input: {
     },
     acp: input.acp
   })
+  const turn = new SessionTurnCoordinator({
+    sessions: input.appSessionService,
+    runtime: {
+      resolveSession: (sessionId) => {
+        const { handle } = input.agentManager.resolveSessionHandle(sessionId)
+        const base = {
+          pending: handle.pending,
+          toolInteractions: handle.toolInteractions,
+          send: (sendInput: Parameters<typeof handle.send>[0]) => handle.send(sendInput),
+          cancel: () => handle.cancel(),
+          snapshot: () => handle.snapshot()
+        }
+        return handle.kind === 'deepchat'
+          ? {
+              ...base,
+              kind: handle.kind,
+              compaction: {
+                getState: () => handle.deepchat.getCompactionState(),
+                compact: () => handle.deepchat.compact()
+              }
+            }
+          : { ...base, kind: handle.kind }
+      }
+    },
+    transcript: {
+      hasMessages: (sessionId) => input.sharedData.transcript.hasMessages(sessionId),
+      clearMessages: (sessionId) => input.sharedData.transcriptMutation.clearMessages(sessionId),
+      prepareRetryMessage: (sessionId, messageId) =>
+        input.sharedData.transcriptMutation.prepareRetryMessage(sessionId, messageId),
+      deleteMessage: (sessionId, messageId) =>
+        input.sharedData.transcriptMutation.deleteMessage(sessionId, messageId),
+      editUserMessage: (sessionId, messageId, text) =>
+        input.sharedData.transcriptMutation.editUserMessage(sessionId, messageId, text)
+    },
+    workdir: assignment,
+    projection: input.projection
+  })
 
-  return { policy, assignment, deletion }
+  return { policy, assignment, turn, deletion }
 }

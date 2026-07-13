@@ -36,11 +36,11 @@
 
 ## 4. SessionTurnCoordinator
 
-- [ ] Extract send, steer, and pending-input operations.
-- [ ] Extract retry/delete/edit/clear message operations.
-- [ ] Extract cancellation, tool-interaction response, and compaction.
-- [ ] Add the narrow initial-turn operation used by Lifecycle.
-- [ ] Rewire compatibility presenter forwarding and move owner tests.
+- [x] Extract send, steer, and pending-input operations.
+- [x] Extract retry/delete/edit/clear message operations.
+- [x] Extract cancellation, tool-interaction response, and compaction.
+- [x] Add the narrow initial-turn operation used by Lifecycle.
+- [x] Rewire compatibility presenter forwarding and move owner tests.
 
 ## 5. SessionLifecycleCoordinator
 
