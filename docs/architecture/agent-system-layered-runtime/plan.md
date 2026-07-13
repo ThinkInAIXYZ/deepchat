@@ -459,6 +459,19 @@ Deliverables:
 - regenerate architecture baseline only after the new graph is final;
 - mark all tasks done only after full validation.
 
+Implementation progress:
+
+- `ASLR-090` removed `IAgentImplementation`, the reflection-based legacy backend and session-handle
+  `runtimeKind` branching. The composition root now owns backend wiring and `AcpAgentRuntime` construction;
+  the retained `AgentRuntimePresenter` still initializes `DeepChatAgentRuntime` as its DeepChat
+  state/delegate façade. Runtime objects and instances remain implemented under `agent/deepchat` and
+  `agent/acp`.
+- Tool-round Tape persistence now calls the stable per-fact `TapeRecorder.appendToolFact` port from
+  `afterRoundPersisted`, preserving projection-before-Tape order, provenance, pending exclusion,
+  idempotency and fail-open behavior without adding a schema or entry kind.
+- Current-document convergence, architecture guards and final baseline regeneration remain assigned to
+  `ASLR-091..092`.
+
 Exit gate:
 
 - all acceptance criteria in `spec.md` pass;

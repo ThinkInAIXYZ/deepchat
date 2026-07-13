@@ -202,7 +202,7 @@ PR 不允许同时修改行为或公共类型。
    event union。
 6. 把两个 backend 改为依赖 ports，而不是互相或 Presenter root。（direct ACP shared-data slice 已由
    `ASLR-072` 完成；compatibility ACP session/permission/admin port separation 已由 `ASLR-073` 完成；
-   legacy DeepChat retirement 仍待后续 task）
+   DeepChat typed backend 与 legacy façade retirement 已由 `ASLR-090` 完成）
 7. 逐项移动 `lib/agentRuntime` 文件，在同一 slice 更新 imports/tests 并删除旧路径。（已完成）
 8. 所有 import 收敛后删除旧 mixed repository API 和旧目录。
 

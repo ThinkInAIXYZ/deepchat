@@ -1,7 +1,7 @@
 # AgentManager 与顶层控制面
 
-> 状态：已实施到 `ASLR-073`；production `kind=acp` direct switch 与 legacy ACP contract retirement
-> 已完成，DeepChat legacy backend/`IAgentImplementation` retirement 属于 `ASLR-090`。
+> 状态：已实施到 `ASLR-090`；production `kind=acp` direct switch、legacy ACP contract retirement、
+> DeepChat typed backend 与 `IAgentImplementation` retirement 已完成。
 > 上位合同：[总体设计](../README.md) · [规格](../spec.md) ·
 > [迁移与验证](../migration-and-validation.md)
 
@@ -118,7 +118,6 @@ codec。catalog list 对 malformed legacy row 保持当前宽容/null/default/fi
 interface AgentSessionHandle {
   readonly sessionId: AppSessionId
   readonly kind: 'deepchat' | 'acp'
-  readonly runtimeKind: 'legacy' | 'direct'
   readonly lifecycle: AgentSessionLifecycleFacet
   readonly pending: AgentPendingInputFacet
   readonly settings: AgentSessionSettingsFacet
@@ -138,20 +137,20 @@ required facet 暴露：
 ```ts
 interface DeepChatSessionHandle extends AgentSessionHandle {
   kind: 'deepchat'
-  runtimeKind: 'legacy'
   deepchat: DeepChatControlFacet
 }
 
 interface DirectAcpSessionHandle extends AgentSessionHandle {
   kind: 'acp'
-  runtimeKind: 'direct'
   acp: DirectAcpControlFacet
 }
 ```
 
-`AgentManager` 本身不 proxy transcript/Tape，也不做 method-name lookup。legacy adapter 只在 composition
-时一次性 capture required methods；production ACP backend 则直接组合 `AcpAgentRuntime`。这避免 manager
-重新长成 `IAgentImplementation` façade。
+`AgentManager` 本身不 proxy transcript/Tape，也不做 method-name lookup。DeepChat backend 显式组合
+`DeepChatAgentRuntime` 和 required presenter port；production ACP backend 则直接组合 `AcpAgentRuntime`。
+composition root 负责 backend wiring 和 `AcpAgentRuntime` 构造；作为保留的 DeepChat state/delegate
+façade，`AgentRuntimePresenter` 继续初始化 `DeepChatAgentRuntime`。runtime 对象与 instance 的实现所有权仍在
+`agent/deepchat` 和 `agent/acp`，manager 不会重新长成 generic optional-method façade。
 
 ## 5. 路由规则
 
@@ -239,7 +238,8 @@ catalog 的变更通知按 domain 发送：
    `ASLR-072` 已完成）
 8. 两个 backend 均独立后删除 generic provider ACP methods 和 legacy ACP backend glue。（`ASLR-073`
    已完成）
-9. 删除 DeepChat legacy backend 和 `IAgentImplementation`。（待 `ASLR-090`）
+9. 删除 DeepChat legacy backend、session-handle `runtimeKind` 分支和 `IAgentImplementation`。
+   （`ASLR-090` 已完成）
 10. façade 全部变成薄 adapter 后，再单独评估命名和目录移动。
 
 每一步都必须保持旧 route、event、DTO 和数据库 schema 可用。

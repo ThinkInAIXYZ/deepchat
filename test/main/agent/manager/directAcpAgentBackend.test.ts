@@ -131,7 +131,6 @@ describe('direct ACP agent backend', () => {
     })
 
     expect(handle.kind).toBe('acp')
-    expect(handle.runtimeKind).toBe('direct')
     expect(harness.sessionState.initSession).toHaveBeenCalledWith(sessionId, {
       providerId: 'acp',
       modelId: descriptor.id
@@ -242,7 +241,6 @@ describe('direct ACP agent backend', () => {
       {
         deepchat: {
           kind: 'deepchat',
-          runtimeKind: 'legacy',
           open: deepchatOpen
         } as never,
         acp: harness.backend
@@ -257,7 +255,7 @@ describe('direct ACP agent backend', () => {
 
   it('keeps DeepChat providerId=acp sessions on the DeepChat backend', () => {
     const harness = createHarness()
-    const deepchatHandle = { kind: 'deepchat', runtimeKind: 'legacy' }
+    const deepchatHandle = { kind: 'deepchat' }
     const deepchatOpen = vi.fn().mockReturnValue(deepchatHandle)
     const manager = new AgentManager(
       {
@@ -278,7 +276,6 @@ describe('direct ACP agent backend', () => {
       {
         deepchat: {
           kind: 'deepchat',
-          runtimeKind: 'legacy',
           open: deepchatOpen
         } as never,
         acp: harness.backend

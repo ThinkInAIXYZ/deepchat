@@ -68,7 +68,7 @@ import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { CronJobsService } from './cronJobs'
 import { AgentManager } from '@/agent/manager/agentManager'
-import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
+import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
@@ -77,7 +77,7 @@ import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
-import type { AcpAgentRuntime } from '@/agent/acp/instance'
+import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
@@ -666,8 +666,10 @@ export class Presenter implements IPresenter {
       }
     )
     this.memoryIngestionObserver = agentRuntimePresenter.memoryIngestionObserver
-    this.acpAgentRuntime = agentRuntimePresenter.createAcpAgentRuntime(
-      (this.llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner()
+    this.acpAgentRuntime = new AcpAgentRuntime(
+      (this.llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner(),
+      (input) => agentRuntimePresenter.createAcpAgentInstanceDependencies(input),
+      agentRuntimePresenter.getAcpPendingInputFacet()
     )
     const sqlitePresenter = this
       .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
@@ -684,11 +686,10 @@ export class Presenter implements IPresenter {
       tape: agentRuntimePresenter
     }
     this.agentManager = new AgentManager(agentRepository, appSessionService, {
-      deepchat: createLegacyAgentBackend(
-        'deepchat',
-        agentRuntimePresenter,
-        agentRuntimePresenter.deepChatRuntime
-      ),
+      deepchat: createDeepChatAgentBackend({
+        port: agentRuntimePresenter,
+        runtime: agentRuntimePresenter.deepChatRuntime
+      }),
       acp: createDirectAcpAgentBackend({
         runtime: this.acpAgentRuntime,
         sessionState: agentSharedData.sessionState,
@@ -726,7 +727,6 @@ export class Presenter implements IPresenter {
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       agentSharedData,
       this.skillPresenter,
-      undefined,
       {
         acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
         sessionPermissionPort,

@@ -23,6 +23,7 @@ import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
+import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AcpAgentConfig } from '@shared/presenter'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
@@ -3197,7 +3198,11 @@ describe('AgentRuntimePresenter', () => {
         sessionManager: { clearAllSessions: vi.fn(), clearSessionsByAgent: vi.fn() }
       } as unknown as AcpClientRuntime
       const owner = new AcpRuntimeOwner(() => sharedClient)
-      const directRuntime = agent.createAcpAgentRuntime(owner)
+      const directRuntime = new AcpAgentRuntime(
+        owner,
+        (input) => agent.createAcpAgentInstanceDependencies(input),
+        agent.getAcpPendingInputFacet()
+      )
       const descriptor: AcpAgentDescriptor = {
         id: 'agent-id',
         kind: 'acp',

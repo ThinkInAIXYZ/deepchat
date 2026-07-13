@@ -1,4 +1,6 @@
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
+import type { TapeToolFactInput } from '@/agent/deepchat/loop/ports'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatTapeEntriesTable } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { buildEffectiveTapeView } from './tapeEffectiveView'
@@ -63,6 +65,123 @@ function collectPendingInteractionToolIds(blocks: AssistantMessageBlock[]): Set<
   return ids
 }
 
+export function buildTapeToolFactInputs(record: ChatMessageRecord): TapeToolFactInput[] {
+  if (record.role !== 'assistant') return []
+
+  const inputs: TapeToolFactInput[] = []
+  const blocks = parseAssistantBlocks(record.content)
+  const pendingInteractionToolIds = collectPendingInteractionToolIds(blocks)
+  blocks.forEach((block, blockIndex) => {
+    if (block.type !== 'tool_call' || !block.tool_call) return
+    if (block.status !== 'success' && block.status !== 'error') return
+
+    const toolCallId = block.tool_call.id
+    if (!toolCallId || pendingInteractionToolIds.has(toolCallId)) return
+    const sourceId = `${record.id}:${toolCallId}`
+    const factBlock =
+      block.timestamp === undefined ? { ...block, timestamp: record.updatedAt } : block
+    inputs.push({
+      sessionId: toAppSessionId(record.sessionId),
+      messageId: record.id,
+      orderSeq: record.orderSeq,
+      blockIndex,
+      block: factBlock,
+      provenance: { source: 'tool_call', sourceId, sequence: blockIndex }
+    })
+    if (typeof block.tool_call.response === 'string' && block.tool_call.response.length > 0) {
+      inputs.push({
+        sessionId: toAppSessionId(record.sessionId),
+        messageId: record.id,
+        orderSeq: record.orderSeq,
+        blockIndex,
+        block: factBlock,
+        provenance: { source: 'tool_result', sourceId, sequence: blockIndex }
+      })
+    }
+  })
+  return inputs
+}
+
+export function appendTapeToolFact(
+  table: DeepChatTapeEntriesTable | undefined,
+  input: TapeToolFactInput,
+  source: TapeFactSource,
+  reason?: string
+): DeepChatTapeEntryRow | null {
+  if (!table || typeof table.append !== 'function') return null
+
+  const block = input.block
+  const toolCall = block.type === 'tool_call' ? block.tool_call : undefined
+  if (
+    !toolCall?.id ||
+    (block.status !== 'success' && block.status !== 'error') ||
+    (input.provenance.source !== 'tool_call' && input.provenance.source !== 'tool_result')
+  ) {
+    return null
+  }
+
+  table.ensureBootstrapAnchor?.(input.sessionId)
+  const meta = reason
+    ? { source, role: 'assistant', status: block.status, reason }
+    : { source, role: 'assistant', status: block.status }
+  if (input.provenance.source === 'tool_call') {
+    const payload = {
+      messageId: input.messageId,
+      orderSeq: input.orderSeq,
+      toolCall: {
+        id: toolCall.id,
+        name: toolCall.name,
+        params: toolCall.params,
+        serverName: toolCall.server_name,
+        serverIcons: toolCall.server_icons,
+        serverDescription: toolCall.server_description
+      }
+    }
+    return table.append({
+      sessionId: input.sessionId,
+      kind: 'tool_call',
+      name: toolCall.name || 'unknown',
+      source: {
+        type: input.provenance.source,
+        id: input.provenance.sourceId,
+        seq: input.provenance.sequence
+      },
+      provenanceKey: buildToolFactProvenanceKey('tool_call', input.messageId, toolCall.id, payload),
+      payload,
+      meta,
+      createdAt: block.timestamp,
+      idempotent: true
+    })
+  }
+
+  if (typeof toolCall.response !== 'string' || toolCall.response.length === 0) return null
+  const payload = {
+    messageId: input.messageId,
+    orderSeq: input.orderSeq,
+    toolCallId: toolCall.id,
+    response: toolCall.response,
+    rtkApplied: toolCall.rtkApplied,
+    rtkMode: toolCall.rtkMode,
+    rtkFallbackReason: toolCall.rtkFallbackReason,
+    imagePreviews: toolCall.imagePreviews
+  }
+  return table.append({
+    sessionId: input.sessionId,
+    kind: 'tool_result',
+    name: toolCall.name || 'unknown',
+    source: {
+      type: input.provenance.source,
+      id: input.provenance.sourceId,
+      seq: input.provenance.sequence
+    },
+    provenanceKey: buildToolFactProvenanceKey('tool_result', input.messageId, toolCall.id, payload),
+    payload,
+    meta,
+    createdAt: block.timestamp,
+    idempotent: true
+  })
+}
+
 export function appendToolFactsToTape(
   table: DeepChatTapeEntriesTable | undefined,
   record: ChatMessageRecord,
@@ -73,99 +192,10 @@ export function appendToolFactsToTape(
     return 0
   }
 
-  table.ensureBootstrapAnchor?.(record.sessionId)
-
-  let appended = 0
-  const blocks = parseAssistantBlocks(record.content)
-  const pendingInteractionToolIds = collectPendingInteractionToolIds(blocks)
-  blocks.forEach((block, index) => {
-    if (block.type !== 'tool_call' || !block.tool_call) {
-      return
-    }
-    if (block.status !== 'success' && block.status !== 'error') {
-      return
-    }
-
-    const toolCall = block.tool_call
-    if (typeof toolCall.id !== 'string' || toolCall.id.length === 0) {
-      return
-    }
-    const toolCallId = toolCall.id
-    if (pendingInteractionToolIds.has(toolCallId)) {
-      return
-    }
-    const sourceId = `${record.id}:${toolCallId}`
-    const meta = reason
-      ? { source, role: record.role, status: block.status, reason }
-      : { source, role: record.role, status: block.status }
-
-    const callPayload = {
-      messageId: record.id,
-      orderSeq: record.orderSeq,
-      toolCall: {
-        id: toolCallId,
-        name: toolCall.name,
-        params: toolCall.params,
-        serverName: toolCall.server_name,
-        serverIcons: toolCall.server_icons,
-        serverDescription: toolCall.server_description
-      }
-    }
-    table.append({
-      sessionId: record.sessionId,
-      kind: 'tool_call',
-      name: toolCall.name || 'unknown',
-      source: {
-        type: 'tool_call',
-        id: sourceId,
-        seq: index
-      },
-      provenanceKey: buildToolFactProvenanceKey('tool_call', record.id, toolCallId, callPayload),
-      payload: callPayload,
-      meta,
-      createdAt: block.timestamp ?? record.updatedAt,
-      idempotent: true
-    })
-    appended += 1
-
-    if (typeof toolCall.response !== 'string' || toolCall.response.length === 0) {
-      return
-    }
-
-    const resultPayload = {
-      messageId: record.id,
-      orderSeq: record.orderSeq,
-      toolCallId,
-      response: toolCall.response,
-      rtkApplied: toolCall.rtkApplied,
-      rtkMode: toolCall.rtkMode,
-      rtkFallbackReason: toolCall.rtkFallbackReason,
-      imagePreviews: toolCall.imagePreviews
-    }
-    table.append({
-      sessionId: record.sessionId,
-      kind: 'tool_result',
-      name: toolCall.name || 'unknown',
-      source: {
-        type: 'tool_result',
-        id: sourceId,
-        seq: index
-      },
-      provenanceKey: buildToolFactProvenanceKey(
-        'tool_result',
-        record.id,
-        toolCallId,
-        resultPayload
-      ),
-      payload: resultPayload,
-      meta,
-      createdAt: block.timestamp ?? record.updatedAt,
-      idempotent: true
-    })
-    appended += 1
-  })
-
-  return appended
+  return buildTapeToolFactInputs(record).reduce(
+    (appended, input) => appended + (appendTapeToolFact(table, input, source, reason) ? 1 : 0),
+    0
+  )
 }
 
 export function appendMessageRecordToTape(

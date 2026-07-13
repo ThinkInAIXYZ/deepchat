@@ -14,7 +14,6 @@ import type {
   ChatMessagePageResult,
   ChatMessageRecord,
   DeepChatSessionState,
-  IAgentImplementation,
   MessagePageCursor,
   MessageStartResult,
   MessageFile,
@@ -192,8 +191,7 @@ import {
   prepareToolImagePreviewPresentation
 } from './imageGenerationBlocks'
 import { isContextWindowErrorLike } from './contextWindowError'
-import { AcpAgentRuntime } from '@/agent/acp/instance'
-import type { AcpRuntimeOwner } from '@/agent/acp/client'
+import type { AcpAgentInstanceDependencyFactory, AcpPendingInputFacet } from '@/agent/acp/instance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime'
 import {
   AcpCompatibilityProjectionAdapter,
@@ -605,7 +603,7 @@ function buildTapeViewSelection(
   }
 }
 
-export class AgentRuntimePresenter implements IAgentImplementation {
+export class AgentRuntimePresenter {
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly configPresenter: IConfigPresenter
   private readonly sqlitePresenter: SQLitePresenter
@@ -786,215 +784,216 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     eventBus.on(MCP_EVENTS.INITIALIZED, this.handleToolRegistryChanged)
   }
 
-  createAcpAgentRuntime(owner: AcpRuntimeOwner): AcpAgentRuntime {
-    return new AcpAgentRuntime(
-      owner,
-      ({ runtime, session }) => {
-        const sessionId = session.sessionId
-        const rateLimitMessageId = `rate-limit-acp:${sessionId}`
-        const rateLimitRequestId = `acp:${sessionId}`
-        let queuedForRateLimit = false
-        const projection = new AcpCompatibilityProjectionAdapter({
-          messageStore: this.messageStore,
-          tapeService: this.tapeService,
-          writeViewManifest: async (input) => {
-            this.appendTapeViewManifest({
-              sessionId: input.sessionId,
-              messageId: input.messageId,
-              requestSeq: input.requestSeq,
-              taskType: input.taskType,
-              policy: input.policy,
-              policyVersion: input.policyVersion,
-              messages: input.messages,
-              tools: input.localToolDefinitions,
-              tokenBudget: input.tokenBudget,
-              providerId: input.providerId,
-              modelId: input.modelId,
-              summaryCursorOrderSeq: input.summaryCursorOrderSeq,
-              supportsVision: input.supportsVision,
-              supportsAudioInput: input.supportsAudioInput,
-              traceDebugEnabled: input.traceDebugEnabled
-            })
-          },
-          setStatus: (status) => this.setSessionStatus(sessionId, status)
+  createAcpAgentInstanceDependencies(
+    input: Parameters<AcpAgentInstanceDependencyFactory>[0]
+  ): ReturnType<AcpAgentInstanceDependencyFactory> {
+    const { runtime, session } = input
+    const sessionId = session.sessionId
+    const rateLimitMessageId = `rate-limit-acp:${sessionId}`
+    const rateLimitRequestId = `acp:${sessionId}`
+    let queuedForRateLimit = false
+    const projection = new AcpCompatibilityProjectionAdapter({
+      messageStore: this.messageStore,
+      tapeService: this.tapeService,
+      writeViewManifest: async (input) => {
+        this.appendTapeViewManifest({
+          sessionId: input.sessionId,
+          messageId: input.messageId,
+          requestSeq: input.requestSeq,
+          taskType: input.taskType,
+          policy: input.policy,
+          policyVersion: input.policyVersion,
+          messages: input.messages,
+          tools: input.localToolDefinitions,
+          tokenBudget: input.tokenBudget,
+          providerId: input.providerId,
+          modelId: input.modelId,
+          summaryCursorOrderSeq: input.summaryCursorOrderSeq,
+          supportsVision: input.supportsVision,
+          supportsAudioInput: input.supportsAudioInput,
+          traceDebugEnabled: input.traceDebugEnabled
         })
+      },
+      setStatus: (status) => this.setSessionStatus(sessionId, status)
+    })
 
-        return {
-          promptResources: {
-            resolve: async ({ content, scope, workdir, signal }) => {
-              this.throwIfAbortRequested(signal)
-              const state = await this.getSessionState(sessionId)
-              if (!state) throw new Error(`Session ${sessionId} not found`)
-              const resourceInstance = this.getDeepChatInstance(sessionId)
-              resourceInstance.setAgentId(session.descriptor.id)
-              resourceInstance.setProjectDir(workdir)
-              const generationSettings = await this.getEffectiveSessionGenerationSettings(
-                sessionId,
-                resourceInstance
-              )
-              const normalizedInput = this.normalizeUserMessageInput(content)
-              resourceInstance.replaceRuntimeActivatedSkills(normalizedInput.activeSkills ?? [])
+    return {
+      promptResources: {
+        resolve: async ({ content, scope, workdir, signal }) => {
+          this.throwIfAbortRequested(signal)
+          const state = await this.getSessionState(sessionId)
+          if (!state) throw new Error(`Session ${sessionId} not found`)
+          const resourceInstance = this.getDeepChatInstance(sessionId)
+          resourceInstance.setAgentId(session.descriptor.id)
+          resourceInstance.setProjectDir(workdir)
+          const generationSettings = await this.getEffectiveSessionGenerationSettings(
+            sessionId,
+            resourceInstance
+          )
+          const normalizedInput = this.normalizeUserMessageInput(content)
+          resourceInstance.replaceRuntimeActivatedSkills(normalizedInput.activeSkills ?? [])
 
-              let tools: MCPToolDefinition[] = []
-              let systemPrompt = ''
-              if (scope === 'regular') {
-                const sessionSkills = await this.resolveActiveSkillNamesForToolProfile(
-                  sessionId,
-                  resourceInstance
-                )
-                const activeSkills = this.resolveEffectiveActiveSkillNames(
-                  sessionSkills,
-                  resourceInstance
-                )
-                tools = await this.loadToolDefinitionsForSession(
-                  sessionId,
-                  workdir,
-                  activeSkills,
-                  resourceInstance
-                )
-                systemPrompt = await this.buildSystemPromptWithSkills(
-                  sessionId,
-                  generationSettings.systemPrompt,
-                  tools,
-                  activeSkills,
-                  resourceInstance
-                )
-              }
+          let tools: MCPToolDefinition[] = []
+          let systemPrompt = ''
+          if (scope === 'regular') {
+            const sessionSkills = await this.resolveActiveSkillNamesForToolProfile(
+              sessionId,
+              resourceInstance
+            )
+            const activeSkills = this.resolveEffectiveActiveSkillNames(
+              sessionSkills,
+              resourceInstance
+            )
+            tools = await this.loadToolDefinitionsForSession(
+              sessionId,
+              workdir,
+              activeSkills,
+              resourceInstance
+            )
+            systemPrompt = await this.buildSystemPromptWithSkills(
+              sessionId,
+              generationSettings.systemPrompt,
+              tools,
+              activeSkills,
+              resourceInstance
+            )
+          }
 
-              this.throwIfAbortRequested(signal)
-              const traceEnabled =
-                this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
-              const contextLength = Math.max(1, generationSettings.contextLength)
-              const effectiveMaxTokens = capAgentRequestMaxTokens(
-                generationSettings.maxTokens,
-                contextLength
-              )
-              const summaryCursorOrderSeq =
-                this.sessionStore.getSummaryState(sessionId).summaryCursorOrderSeq
-              return {
-                latestUserMessage: createUserChatMessage(normalizedInput, false, false),
-                userContent: {
-                  text: normalizedInput.text,
-                  files: normalizedInput.files ?? [],
-                  links: [],
-                  search: false,
-                  think: false,
-                  ...(normalizedInput.activeSkills?.length
-                    ? { activeSkills: normalizedInput.activeSkills }
-                    : {}),
-                  ...(normalizedInput.inlineItems?.length
-                    ? { inlineItems: normalizedInput.inlineItems }
-                    : {})
-                },
-                sections: {
-                  configured: systemPrompt,
-                  runtime: '',
-                  environment: '',
-                  skills: '',
-                  activeSkills: '',
-                  tooling: '',
-                  permission: '',
-                  verification: ''
-                },
-                localToolDefinitions: scope === 'regular' ? tools : [],
-                requestTimeoutMs: generationSettings.timeout,
-                traceEnabled,
-                viewManifest: {
-                  taskType: 'chat',
-                  policy: 'legacy_context_v1',
-                  policyVersion: null,
-                  tokenBudget: {
-                    contextLength,
-                    requestedMaxTokens: generationSettings.maxTokens,
-                    effectiveMaxTokens,
-                    reserveTokens: effectiveMaxTokens,
-                    toolReserveTokens: estimateToolReserveTokens(tools)
-                  },
-                  summaryCursorOrderSeq,
-                  supportsVision: false,
-                  supportsAudioInput: false,
-                  traceDebugEnabled: traceEnabled
-                }
-              }
-            }
-          },
-          promptBuilder: new AcpCompatibilityPromptBuilder(),
-          projection,
-          trace: new AcpRequestTraceAdapter(this.messageStore),
-          rateGate: {
-            wait: async (signal) => {
-              await this.llmProviderPresenter.executeWithRateLimit('acp', {
-                signal,
-                scope: 'acp-direct',
-                onQueued: (snapshot) => {
-                  queuedForRateLimit = true
-                  this.emitRateLimitWaitingMessage(
-                    sessionId,
-                    rateLimitMessageId,
-                    rateLimitRequestId,
-                    snapshot
-                  )
-                }
-              })
+          this.throwIfAbortRequested(signal)
+          const traceEnabled =
+            this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+          const contextLength = Math.max(1, generationSettings.contextLength)
+          const effectiveMaxTokens = capAgentRequestMaxTokens(
+            generationSettings.maxTokens,
+            contextLength
+          )
+          const summaryCursorOrderSeq =
+            this.sessionStore.getSummaryState(sessionId).summaryCursorOrderSeq
+          return {
+            latestUserMessage: createUserChatMessage(normalizedInput, false, false),
+            userContent: {
+              text: normalizedInput.text,
+              files: normalizedInput.files ?? [],
+              links: [],
+              search: false,
+              think: false,
+              ...(normalizedInput.activeSkills?.length
+                ? { activeSkills: normalizedInput.activeSkills }
+                : {}),
+              ...(normalizedInput.inlineItems?.length
+                ? { inlineItems: normalizedInput.inlineItems }
+                : {})
             },
-            clearWaiting: () => {
-              if (!queuedForRateLimit) return
-              this.clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, rateLimitRequestId)
-              queuedForRateLimit = false
-            }
-          },
-          turns: {
-            startTurn: (input) => runtime.sessionPersistence.startTurn(input),
-            finishTurn: (input) => runtime.sessionPersistence.finishTurn(input)
-          },
-          debug: {
-            appendDebugEvent: (agentId, entry) => {
-              runtime.processManager.appendDebugEvent(agentId, entry)
-            }
-          },
-          observer: {
-            userPromptSubmitted: (input) => {
-              this.dispatchHook('UserPromptSubmit', {
-                sessionId: input.sessionId,
-                messageId: input.messageId,
-                promptPreview: input.promptPreview,
-                providerId: 'acp',
-                modelId: input.agentId,
-                projectDir: input.workdir
-              })
-              this.dispatchHook('SessionStart', {
-                sessionId: input.sessionId,
-                messageId: input.messageId,
-                promptPreview: input.promptPreview,
-                providerId: 'acp',
-                modelId: input.agentId,
-                projectDir: input.workdir
-              })
+            sections: {
+              configured: systemPrompt,
+              runtime: '',
+              environment: '',
+              skills: '',
+              activeSkills: '',
+              tooling: '',
+              permission: '',
+              verification: ''
             },
-            terminal: (input) => {
-              this.dispatchHook('Stop', {
-                sessionId: input.sessionId,
-                providerId: 'acp',
-                modelId: input.agentId,
-                projectDir: input.workdir,
-                stop: {
-                  reason: input.stopReason,
-                  userStop: input.status === 'aborted'
-                }
-              })
-              this.dispatchHook('SessionEnd', {
-                sessionId: input.sessionId,
-                providerId: 'acp',
-                modelId: input.agentId,
-                projectDir: input.workdir,
-                error: input.errorMessage ? { message: input.errorMessage } : null
-              })
+            localToolDefinitions: scope === 'regular' ? tools : [],
+            requestTimeoutMs: generationSettings.timeout,
+            traceEnabled,
+            viewManifest: {
+              taskType: 'chat',
+              policy: 'legacy_context_v1',
+              policyVersion: null,
+              tokenBudget: {
+                contextLength,
+                requestedMaxTokens: generationSettings.maxTokens,
+                effectiveMaxTokens,
+                reserveTokens: effectiveMaxTokens,
+                toolReserveTokens: estimateToolReserveTokens(tools)
+              },
+              summaryCursorOrderSeq,
+              supportsVision: false,
+              supportsAudioInput: false,
+              traceDebugEnabled: traceEnabled
             }
           }
         }
       },
-      this.pendingInputCoordinator
-    )
+      promptBuilder: new AcpCompatibilityPromptBuilder(),
+      projection,
+      trace: new AcpRequestTraceAdapter(this.messageStore),
+      rateGate: {
+        wait: async (signal) => {
+          await this.llmProviderPresenter.executeWithRateLimit('acp', {
+            signal,
+            scope: 'acp-direct',
+            onQueued: (snapshot) => {
+              queuedForRateLimit = true
+              this.emitRateLimitWaitingMessage(
+                sessionId,
+                rateLimitMessageId,
+                rateLimitRequestId,
+                snapshot
+              )
+            }
+          })
+        },
+        clearWaiting: () => {
+          if (!queuedForRateLimit) return
+          this.clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, rateLimitRequestId)
+          queuedForRateLimit = false
+        }
+      },
+      turns: {
+        startTurn: (input) => runtime.sessionPersistence.startTurn(input),
+        finishTurn: (input) => runtime.sessionPersistence.finishTurn(input)
+      },
+      debug: {
+        appendDebugEvent: (agentId, entry) => {
+          runtime.processManager.appendDebugEvent(agentId, entry)
+        }
+      },
+      observer: {
+        userPromptSubmitted: (input) => {
+          this.dispatchHook('UserPromptSubmit', {
+            sessionId: input.sessionId,
+            messageId: input.messageId,
+            promptPreview: input.promptPreview,
+            providerId: 'acp',
+            modelId: input.agentId,
+            projectDir: input.workdir
+          })
+          this.dispatchHook('SessionStart', {
+            sessionId: input.sessionId,
+            messageId: input.messageId,
+            promptPreview: input.promptPreview,
+            providerId: 'acp',
+            modelId: input.agentId,
+            projectDir: input.workdir
+          })
+        },
+        terminal: (input) => {
+          this.dispatchHook('Stop', {
+            sessionId: input.sessionId,
+            providerId: 'acp',
+            modelId: input.agentId,
+            projectDir: input.workdir,
+            stop: {
+              reason: input.stopReason,
+              userStop: input.status === 'aborted'
+            }
+          })
+          this.dispatchHook('SessionEnd', {
+            sessionId: input.sessionId,
+            providerId: 'acp',
+            modelId: input.agentId,
+            projectDir: input.workdir,
+            error: input.errorMessage ? { message: input.errorMessage } : null
+          })
+        }
+      }
+    }
+  }
+
+  getAcpPendingInputFacet(): AcpPendingInputFacet {
+    return this.pendingInputCoordinator
   }
 
   private requireSessionPermissionPort(): SessionPermissionPort {
@@ -3782,7 +3781,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           }
         },
         io: {
-          messageStore: this.messageStore
+          messageStore: this.messageStore,
+          tapeRecorder: this.tapeService
         }
       })
       return {

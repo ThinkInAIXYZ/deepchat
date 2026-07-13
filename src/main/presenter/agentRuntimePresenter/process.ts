@@ -27,6 +27,7 @@ import {
 } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
 import type { OutputSink } from '@/agent/deepchat/loop/ports'
+import { buildTapeToolFactInputs } from './tapeFacts'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
@@ -34,13 +35,7 @@ export const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 const deepChatLoopEngine = new DeepChatLoopEngine()
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
-type LegacyToolBatch = { prevBlockCount: number }
-
-// Transitional compatibility port. Retire with the snapshot path in ASLR-090 after per-fact
-// TapeRecorder writes replace the existing MessageStore capability.
-interface LegacyToolFactsSnapshotPort {
-  appendToolFactsSnapshot(input: { messageId: string; reason: string }): void
-}
+type ToolRoundBatch = { prevBlockCount: number }
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -506,10 +501,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     complete: () => finalize(state, io),
     fail: ({ error }) => finalizeError(state, io, error)
   }
-  const legacyTapeAdapter: LegacyToolFactsSnapshotPort = {
-    appendToolFactsSnapshot: ({ messageId, reason }) =>
-      io.messageStore.appendAssistantToolFactsSnapshot(messageId, reason)
-  }
   const updateOutput = (): void => {
     outputSink.update({
       runId: run.runId,
@@ -535,12 +526,21 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         console.warn('[ProcessStream] first provider round readiness callback failed:', error)
       }
     },
-    afterRoundPersisted: () => {
+    afterRoundPersisted: async () => {
       updateOutput()
-      legacyTapeAdapter.appendToolFactsSnapshot({
-        messageId: run.messageId,
-        reason: 'tool_loop'
-      })
+      const record = io.messageStore.getMessage(run.messageId)
+      if (!record) return
+      try {
+        for (const input of buildTapeToolFactInputs(record)) {
+          await params.io.tapeRecorder.appendToolFact(input)
+        }
+      } catch (error) {
+        logger.warn(
+          `[ProcessStream] Failed to append tool facts: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
     },
     settleTurn: ({ outcome }) => {
       if (outcome.type === 'thrown') {
@@ -556,7 +556,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
 
   try {
-    return await deepChatLoopEngine.run<StreamState, LegacyToolBatch, ProcessResult, ProcessResult>(
+    return await deepChatLoopEngine.run<StreamState, ToolRoundBatch, ProcessResult, ProcessResult>(
       run,
       {
         maxProviderRounds: params.maxProviderRounds,

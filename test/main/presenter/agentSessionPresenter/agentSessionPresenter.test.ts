@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { nanoid } from 'nanoid'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
-import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import { AgentRepository } from '@/presenter/agentRepository'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
@@ -502,7 +502,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     .fn()
     .mockRejectedValue(new AgentUnavailableError('fixture-agent', 'invalid-config', 'acp'))
   const manager = new AgentManager(repository, appSessionService, {
-    deepchat: createLegacyAgentBackend('deepchat', deepchatImplementation as never),
+    deepchat: createDeepChatAgentBackendFixture(deepchatImplementation as never),
     acp: createDirectAcpAgentBackend({
       runtime: { cleanupSession: directRuntimeCleanup } as never,
       sessionState: deepchatImplementation,
@@ -530,7 +530,6 @@ function createDescriptorIndependentDeleteHarness(options: {
       tape: deepchatImplementation
     } as any,
     skillPresenter,
-    undefined,
     { sessionPermissionPort }
   )
 
@@ -579,7 +578,7 @@ describe('AgentSessionPresenter', () => {
     closeDirectAcpSession = vi.fn().mockResolvedValue(undefined)
     closeDirectAcpRuntime = vi.fn().mockResolvedValue(undefined)
     directAcpControl = createMockDirectAcpControl()
-    const backend = createLegacyAgentBackend('deepchat', deepChatAgent as never)
+    const backend = createDeepChatAgentBackendFixture(deepChatAgent as never)
     const resolveBackend = vi.fn((agentId: string) => {
       if (agentId === 'disabled-agent') throw new Error(`Agent not found: ${agentId}`)
       const kind = agentId.includes('acp') || agentId === 'kimi' ? 'acp' : 'deepchat'
@@ -602,23 +601,22 @@ describe('AgentSessionPresenter', () => {
       resolveSessionBackend,
       resolveSessionHandle: vi.fn((sessionId: string) => {
         const { kind, descriptor, backend } = resolveSessionBackend(sessionId)
-        const legacyHandle = backend.open(sessionId)
+        const backendHandle = backend.open(sessionId)
         const handle =
           kind === 'acp'
             ? {
-                ...legacyHandle,
+                ...backendHandle,
                 kind: 'acp',
-                runtimeKind: 'direct',
                 close: async () => {
                   await closeDirectAcpSession(sessionId)
-                  await legacyHandle.close()
+                  await backendHandle.close()
                 },
                 acp: {
                   ...directAcpControl,
                   closeRuntime: vi.fn().mockResolvedValue(undefined)
                 }
               }
-            : legacyHandle
+            : backendHandle
         return { kind, descriptor, handle }
       }),
       resolveTransferSource: vi.fn((sessionId: string) => {
@@ -663,7 +661,6 @@ describe('AgentSessionPresenter', () => {
         tape: deepChatAgent
       } as any,
       skillPresenter,
-      undefined,
       { acpAsLlmProviderSessionControl: llmProviderPresenter }
     )
   })
@@ -878,7 +875,7 @@ describe('AgentSessionPresenter', () => {
       }
     )
     const realManager = new AgentManager(repository, appSessionService, {
-      deepchat: createLegacyAgentBackend('deepchat', deepchatImplementation),
+      deepchat: createDeepChatAgentBackendFixture(deepchatImplementation),
       acp: createDirectAcpAgentBackend({
         runtime: directAcpRuntime as never,
         sessionState: deepchatImplementation,
@@ -2490,7 +2487,7 @@ describe('AgentSessionPresenter', () => {
       expect(sessions[0].modelId).toBe('gpt-4')
     })
 
-    it('skips sessions whose agent implementation cannot be resolved', async () => {
+    it('skips sessions whose agent backend cannot be resolved', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       sqlitePresenter.newSessionsTable.list.mockReturnValue([
         {
@@ -2614,7 +2611,7 @@ describe('AgentSessionPresenter', () => {
   })
 
   describe('getSessionCompactionState', () => {
-    it('delegates to the agent implementation', async () => {
+    it('delegates to the DeepChat backend', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'deepchat',

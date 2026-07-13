@@ -70,8 +70,7 @@ function createMockMessageStore() {
     getMessage: vi.fn().mockReturnValue(null),
     updateAssistantContent: vi.fn(),
     finalizeAssistantMessage: vi.fn(),
-    setMessageError: vi.fn(),
-    appendAssistantToolFactsSnapshot: vi.fn()
+    setMessageError: vi.fn()
   } as any
 }
 
@@ -108,6 +107,7 @@ function makeStreamEvents(...events: LLMCoreStreamEvent[]): LLMCoreStreamEvent[]
 
 describe('processStream', () => {
   let messageStore: ReturnType<typeof createMockMessageStore>
+  let tapeRecorder: { appendToolFact: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
@@ -115,6 +115,12 @@ describe('processStream', () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     messageStore = createMockMessageStore()
+    tapeRecorder = {
+      appendToolFact: vi.fn(async (input) => ({
+        sessionId: input.sessionId,
+        entryId: 1
+      }))
+    }
   })
 
   afterEach(() => {
@@ -152,7 +158,7 @@ describe('processStream', () => {
       )
     }) as unknown as ProcessParams['coreStream']
 
-    return {
+    const params: ProcessParams = {
       run:
         providedRun ??
         createLoopRun({
@@ -181,10 +187,25 @@ describe('processStream', () => {
       interleavedReasoning: DEFAULT_INTERLEAVED_REASONING,
       permissionMode: 'full_access',
       io: {
-        messageStore
+        messageStore,
+        tapeRecorder
       },
       ...processOverrides
     }
+    messageStore.getMessage.mockImplementation((messageId: string) => ({
+      id: messageId,
+      sessionId: params.run.sessionId,
+      orderSeq: 1,
+      role: 'assistant',
+      content: JSON.stringify(params.run.streamState.blocks),
+      status: 'pending',
+      isContextEdge: false,
+      metadata: '{}',
+      traceCount: 0,
+      createdAt: 1,
+      updatedAt: 1
+    }))
+    return params
   }
 
   function observeCommitOrder(order: string[]): void {
@@ -197,8 +218,9 @@ describe('processStream', () => {
     messageStore.setMessageError.mockImplementation(() => {
       order.push('message:error')
     })
-    messageStore.appendAssistantToolFactsSnapshot.mockImplementation(() => {
-      order.push('tape:tool-snapshot')
+    tapeRecorder.appendToolFact.mockImplementation(async (input) => {
+      order.push(`tape:${input.provenance.source}`)
+      return { sessionId: input.sessionId, entryId: 1 }
     })
     publishDeepchatEventMock.mockImplementation((eventName: string) => {
       if (eventName === 'chat.stream.updated') {
@@ -267,7 +289,8 @@ describe('processStream', () => {
       'message:update',
       'renderer:update',
       'message:update',
-      'tape:tool-snapshot'
+      'tape:tool_call',
+      'tape:tool_result'
     ]
     const ERROR_TERMINAL_COMMIT_ORDER = ['message:error', 'renderer:update', 'renderer:error']
     const COMPLETED_TERMINAL_COMMIT_ORDER = [
@@ -314,7 +337,7 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:complete'
       ])
-      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('keeps the legacy error fallback inside one settlement stage invocation', async () => {
@@ -341,7 +364,7 @@ describe('processStream', () => {
       ])
       expect(messageStore.finalizeAssistantMessage).toHaveBeenCalledTimes(1)
       expect(messageStore.setMessageError).toHaveBeenCalledTimes(1)
-      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('persists each tool round before entering the next provider round', async () => {
@@ -389,15 +412,50 @@ describe('processStream', () => {
         'message:update',
         'renderer:update',
         'message:update',
-        'tape:tool-snapshot',
+        'tape:tool_call',
+        'tape:tool_result',
         'renderer:update',
         'message:update',
-        'tape:tool-snapshot',
+        'tape:tool_call',
+        'tape:tool_result',
+        'tape:tool_call',
+        'tape:tool_result',
         'message:complete',
         'renderer:update',
         'renderer:complete'
       ])
-      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(2)
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(6)
+      expect(
+        tapeRecorder.appendToolFact.mock.calls.map(([input]) => [
+          input.provenance.source,
+          input.provenance.sourceId,
+          input.provenance.sequence
+        ])
+      ).toEqual([
+        ['tool_call', 'm1:tc1', 0],
+        ['tool_result', 'm1:tc1', 0],
+        ['tool_call', 'm1:tc1', 0],
+        ['tool_result', 'm1:tc1', 0],
+        ['tool_call', 'm1:tc2', 1],
+        ['tool_result', 'm1:tc2', 1]
+      ])
+    })
+
+    it('keeps the tool loop fail-open when TapeRecorder rejects a fact', async () => {
+      tapeRecorder.appendToolFact.mockRejectedValue(new Error('tape unavailable'))
+      const coreStream = createToolThenCompleteStream('action')
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
+          tools: [makeTool('action')]
+        })
+      )
+
+      expect(result.status).toBe('completed')
+      expect(coreStream).toHaveBeenCalledTimes(2)
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(1)
     })
 
     it('persists a paused tool round before its terminal projection', async () => {
@@ -445,11 +503,11 @@ describe('processStream', () => {
         'message:update',
         'renderer:update',
         'message:update',
-        'tape:tool-snapshot',
         'message:update',
         'renderer:update',
         'renderer:complete'
       ])
+      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('settles a thrown provider error without a tool Tape snapshot', async () => {
@@ -470,7 +528,7 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:error'
       ])
-      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('settles an in-stream abort without a tool Tape snapshot', async () => {
@@ -493,7 +551,7 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:error'
       ])
-      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('persists the executed batch before a max-provider-round terminal error', async () => {
@@ -516,7 +574,7 @@ describe('processStream', () => {
       })
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
       expect(coreStream).toHaveBeenCalledTimes(1)
-      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
     it('does not snapshot an oversized tool batch that never executes', async () => {
@@ -556,7 +614,7 @@ describe('processStream', () => {
         ...COMPLETED_TERMINAL_COMMIT_ORDER
       ])
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
-      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('persists a terminal tool-output error before the failed projection', async () => {
@@ -577,7 +635,7 @@ describe('processStream', () => {
 
       expect(result.status).toBe('error')
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
-      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
     it('settles a post-stream abort without a tool Tape snapshot', async () => {
@@ -594,7 +652,7 @@ describe('processStream', () => {
 
       expect(result.status).toBe('aborted')
       expect(order).toEqual(['renderer:update', 'message:update', ...ERROR_TERMINAL_COMMIT_ORDER])
-      expect(messageStore.appendAssistantToolFactsSnapshot).not.toHaveBeenCalled()
+      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('persists the completed tool batch before a post-tool abort', async () => {
@@ -621,7 +679,7 @@ describe('processStream', () => {
 
       expect(result.status).toBe('aborted')
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
-      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
     it('persists the completed batch before settling for pending input', async () => {
@@ -645,7 +703,7 @@ describe('processStream', () => {
       })
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...COMPLETED_TERMINAL_COMMIT_ORDER])
       expect(coreStream).toHaveBeenCalledTimes(1)
-      expect(messageStore.appendAssistantToolFactsSnapshot).toHaveBeenCalledTimes(1)
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -1807,6 +1865,17 @@ describe('processStream', () => {
 
   it('does not finalize user-cancel twice when the message is already cancelled', async () => {
     const abortController = new AbortController()
+    const coreStream = vi.fn(function () {
+      return (async function* () {
+        abortController.abort()
+        yield { type: 'text', content: 'ignored' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      abortController
+    })
     messageStore.getMessage.mockReturnValue({
       id: 'm1',
       role: 'assistant',
@@ -1825,18 +1894,6 @@ describe('processStream', () => {
           timestamp: Date.now()
         }
       ])
-    })
-
-    const coreStream = vi.fn(function () {
-      return (async function* () {
-        abortController.abort()
-        yield { type: 'text', content: 'ignored' } as LLMCoreStreamEvent
-      })()
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({
-      coreStream,
-      abortController
     })
 
     const promise = processStream(params)

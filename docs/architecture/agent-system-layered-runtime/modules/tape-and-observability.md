@@ -1,12 +1,13 @@
 # Tape 与可观测性
 
-> 状态：已实施到 `ASLR-081`。继续使用现有 Tape；不新建 event store 或 entry kind。
+> 状态：已实施到 `ASLR-090`。继续使用现有 Tape；不新建 event store 或 entry kind。
 
 > Implementation progress: ASLR-052 placed the existing tool-round snapshot behind the fixed
-> `afterRoundPersisted` callback. The transitional `LegacyToolFactsSnapshotPort` still delegates to
-> `DeepChatMessageStore.appendAssistantToolFactsSnapshot`; the stable per-fact `TapeRecorder`
-> contract remains unchanged until individual assistant/tool fact writes migrate. No Tape schema,
-> entry kind, provenance field, or per-token write was added. ASLR-054 moved the existing
+> `afterRoundPersisted` callback. ASLR-090 retired that snapshot adapter: after the message projection
+> commit, the callback now writes terminal tool-call/result facts through the stable per-fact
+> `TapeRecorder.appendToolFact` port. Existing provenance, idempotency, pending exclusion, fact ordering and
+> fail-open behavior remain unchanged. No Tape schema, entry kind, provenance field, or per-token write was
+> added. ASLR-054 moved the existing
 > ViewManifest attempt into the typed provider-attempt coordinator: each actual request sequence
 > synchronously attempts its matching manifest before rate admission/provider streaming, and a
 > persistence failure remains fail-open.

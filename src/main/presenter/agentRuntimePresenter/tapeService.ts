@@ -37,7 +37,8 @@ import type {
   DeepChatTapeSearchProjectionRow
 } from '../sqlitePresenter/tables/deepchatTapeSearchProjection'
 import type { DeepChatMessageTraceRow } from '../sqlitePresenter/tables/deepchatMessageTraces'
-import { appendMessageRecordToTape } from './tapeFacts'
+import { appendMessageRecordToTape, appendTapeToolFact } from './tapeFacts'
+import type { TapeEntryRef, TapeRecorder, TapeToolFactInput } from '@/agent/deepchat/loop/ports'
 import {
   buildEffectiveTapeView,
   getLastEffectiveTokenUsage,
@@ -855,7 +856,7 @@ function withReplaySliceHash(
   }
 }
 
-export class DeepChatTapeService {
+export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'> {
   constructor(private readonly sqlitePresenter: SQLitePresenter) {}
 
   private get table(): SQLitePresenter['deepchatTapeEntriesTable'] | undefined {
@@ -935,6 +936,12 @@ export class DeepChatTapeService {
     }
 
     return appendMessageRecordToTape(table, record, 'live')
+  }
+
+  async appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
+    const row = appendTapeToolFact(this.table, input, 'live', 'tool_loop')
+    if (!row) throw new Error('Tape tool fact was not appendable.')
+    return { sessionId: input.sessionId, entryId: row.entry_id }
   }
 
   getMessageRecords(sessionId: string): ChatMessageRecord[] {

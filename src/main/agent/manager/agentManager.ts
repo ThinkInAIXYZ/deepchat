@@ -7,7 +7,7 @@ import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionRecord } from '@shared/types/agent-interface'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { DirectAcpSessionBackend } from './directAcpAgentBackend'
-import type { LegacyDeepChatSessionBackend } from './legacyAgentBackends'
+import type { DeepChatAgentBackend } from './deepChatAgentBackend'
 import type {
   AgentActiveGeneration,
   AgentSubagentFacet,
@@ -52,7 +52,7 @@ export class AgentCapabilityUnavailableError extends Error {
 }
 
 export interface AgentBackendSet {
-  readonly deepchat: LegacyDeepChatSessionBackend
+  readonly deepchat: DeepChatAgentBackend
   readonly acp: DirectAcpSessionBackend
 }
 
@@ -60,7 +60,7 @@ export type ResolvedAgentBackend =
   | {
       kind: 'deepchat'
       descriptor: DeepChatAgentDescriptor
-      backend: LegacyDeepChatSessionBackend
+      backend: DeepChatAgentBackend
     }
   | { kind: 'acp'; descriptor: AcpAgentDescriptor; backend: DirectAcpSessionBackend }
 
@@ -144,7 +144,7 @@ export class AgentManager implements AgentManagerGenerationPort {
     const resolved = this.resolveSessionBackend(sessionId)
     const session = this.resolveSessionHandle(sessionId)
     let closeRuntime: (() => Promise<void>) | undefined
-    if (session.handle.kind === 'acp' && session.handle.runtimeKind === 'direct') {
+    if (session.handle.kind === 'acp') {
       const directHandle = session.handle
       closeRuntime = () => directHandle.acp.closeRuntime()
     }

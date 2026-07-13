@@ -138,9 +138,6 @@ const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
   yo_browser_window_list: 'get_browser_status'
 }
 
-type LegacySessionRuntimePort = SessionUiPort &
-  Pick<SessionPermissionPort, 'clearSessionPermissions' | 'approvePermission'>
-
 const clampHistorySearchLimit = (value: number | undefined): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return 12
@@ -291,7 +288,6 @@ export class AgentSessionPresenter {
     sqlitePresenter: SQLitePresenter,
     sharedData: AgentSharedDataPorts,
     skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
-    sessionRuntimePort?: LegacySessionRuntimePort,
     runtimePorts?: {
       acpAsLlmProviderSessionControl?: AcpAsLlmProviderSessionControlPort
       sessionPermissionPort?: SessionPermissionPort
@@ -307,8 +303,8 @@ export class AgentSessionPresenter {
     this.sessionManager = appSessionService
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
     this.acpAsLlmProviderSessionControl = runtimePorts?.acpAsLlmProviderSessionControl
-    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort ?? sessionRuntimePort
-    this.sessionUiPort = runtimePorts?.sessionUiPort ?? sessionRuntimePort
+    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
+    this.sessionUiPort = runtimePorts?.sessionUiPort
   }
 
   // ---- IPC-facing methods ----
@@ -2154,7 +2150,7 @@ export class AgentSessionPresenter {
     const session = this.sessionManager.get(sessionId)
     if (!session) return []
     const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind === 'acp' && handle.runtimeKind === 'direct') {
+    if (handle.kind === 'acp') {
       return await handle.acp.getCommands()
     }
     if ((await handle.snapshot())?.providerId !== 'acp') {
@@ -2169,7 +2165,7 @@ export class AgentSessionPresenter {
       return null
     }
     const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind === 'acp' && handle.runtimeKind === 'direct') {
+    if (handle.kind === 'acp') {
       return await handle.acp.getConfigOptions()
     }
     if ((await handle.snapshot())?.providerId !== 'acp') {
@@ -2188,7 +2184,7 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
     const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind === 'acp' && handle.runtimeKind === 'direct') {
+    if (handle.kind === 'acp') {
       return await handle.acp.setConfigOption(configId, value)
     }
     if ((await handle.snapshot())?.providerId !== 'acp') {
@@ -2584,7 +2580,7 @@ export class AgentSessionPresenter {
 
   private requireDirectAcpHandle(sessionId: string): DirectAcpSessionHandle {
     const handle = this.agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle
-    if (handle.kind !== 'acp' || handle.runtimeKind !== 'direct') {
+    if (handle.kind !== 'acp') {
       throw new Error(`Session ${sessionId} is not a direct ACP session.`)
     }
     return handle
@@ -2810,9 +2806,9 @@ export class AgentSessionPresenter {
     const targetContext = await this.resolveTransferTargetContext(targetAgentId, session.projectDir)
     const source = this.agentManager.resolveTransferSource(toAppSessionId(sessionId))
     const sourceState = await source.handle.snapshot()
-    const previousDirectAcp = source.handle.kind === 'acp' && source.handle.runtimeKind === 'direct'
+    const previousDirectAcp = source.handle.kind === 'acp'
     const previousCompatibilityAcp =
-      !previousDirectAcp && (source.handle.kind === 'acp' || sourceState?.providerId === 'acp')
+      source.handle.kind === 'deepchat' && sourceState?.providerId === 'acp'
     const { facet: transferTarget } = this.agentManager.resolveDeepChatTransferTarget(
       targetContext.agentId
     )
@@ -3056,7 +3052,7 @@ export class AgentSessionPresenter {
 
     try {
       const handle = this.agentManager.resolveSessionHandle(toAppSessionId(conversationId)).handle
-      if (handle.kind === 'acp' && handle.runtimeKind === 'direct') {
+      if (handle.kind === 'acp') {
         await handle.acp.updateWorkdir(normalizedProjectDir)
         return
       }

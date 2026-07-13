@@ -15,6 +15,7 @@ import type {
   DeepChatLoopNotificationObserver,
   PendingToolInteractionOrigin,
   PersistedToolBatchState,
+  TapeRecorder,
   ToolCatalogPort,
   ToolExecutionPort,
   ToolResultPort
@@ -70,7 +71,9 @@ export interface IoParams {
   abortSignal: AbortSignal
 }
 
-export type ProcessIoParams = Pick<IoParams, 'messageStore'>
+export type ProcessIoParams = Pick<IoParams, 'messageStore'> & {
+  tapeRecorder: Pick<TapeRecorder, 'appendToolFact'>
+}
 
 export interface ProcessControlCollaborators {
   autoGrantPermission?: (

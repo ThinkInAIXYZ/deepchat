@@ -59,7 +59,6 @@ export interface AgentToolInteractionFacet {
 export interface AgentSessionHandle {
   readonly sessionId: AppSessionId
   readonly kind: 'deepchat' | 'acp'
-  readonly runtimeKind: 'legacy' | 'direct'
   readonly lifecycle: AgentSessionLifecycleFacet
   readonly pending: AgentPendingInputFacet
   readonly settings: AgentSessionSettingsFacet
@@ -81,7 +80,6 @@ export interface DeepChatControlFacet {
 
 export interface DeepChatSessionHandle extends AgentSessionHandle {
   readonly kind: 'deepchat'
-  readonly runtimeKind: 'legacy'
   readonly deepchat: DeepChatControlFacet
 }
 
@@ -98,7 +96,6 @@ export interface DirectAcpControlFacet {
 
 export interface DirectAcpSessionHandle extends AgentSessionHandle {
   readonly kind: 'acp'
-  readonly runtimeKind: 'direct'
   readonly acp: DirectAcpControlFacet
 }
 

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentManager, AppSessionNotFoundError } from '@/agent/manager/agentManager'
-import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
+import { createDeepChatAgentBackendFixture } from './deepChatAgentBackendFixture'
 
 const implementation = (name: string) =>
   ({
@@ -42,12 +42,10 @@ const implementation = (name: string) =>
 
 const directBackend = (selected: ReturnType<typeof implementation>) => ({
   kind: 'acp' as const,
-  runtimeKind: 'direct' as const,
   runtime: selected,
   cleanupSession: vi.fn().mockResolvedValue(undefined),
   open: vi.fn(() => ({
     kind: 'acp',
-    runtimeKind: 'direct',
     acp: { closeRuntime: vi.fn().mockResolvedValue(undefined) }
   })),
   transferSource: {
@@ -101,7 +99,7 @@ describe('AgentManager', () => {
   it.each(['deepchat', 'acp'] as const)('routes %s descriptors to the explicit backend', (kind) => {
     const deepchat = implementation('deepchat')
     const acp = implementation('acp')
-    const deepchatBackend = createLegacyAgentBackend('deepchat', deepchat)
+    const deepchatBackend = createDeepChatAgentBackendFixture(deepchat)
     const acpBackend = directBackend(acp)
     const manager = new AgentManager(
       { resolveExecutableDescriptor: vi.fn(() => descriptor(kind)) },
@@ -129,7 +127,7 @@ describe('AgentManager', () => {
         get: vi.fn(() => ({ agentId: 'agent', sessionKind }) as never)
       },
       {
-        deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
+        deepchat: createDeepChatAgentBackendFixture(implementation('deepchat')),
         acp: directBackend(implementation('acp')) as never
       }
     )
@@ -146,7 +144,7 @@ describe('AgentManager', () => {
         { resolveExecutableDescriptor: vi.fn(() => descriptor(kind)) },
         { get: vi.fn(() => ({ agentId: 'agent', sessionKind: 'regular' }) as never) },
         {
-          deepchat: createLegacyAgentBackend('deepchat', deepchat),
+          deepchat: createDeepChatAgentBackendFixture(deepchat),
           acp: directBackend(acp) as never
         }
       )
@@ -173,8 +171,7 @@ describe('AgentManager', () => {
         { resolveExecutableDescriptor: vi.fn(() => descriptor(kind)) },
         { get: vi.fn(() => ({ agentId: 'agent', sessionKind: 'regular' }) as never) },
         {
-          deepchat: createLegacyAgentBackend(
-            'deepchat',
+          deepchat: createDeepChatAgentBackendFixture(
             kind === 'deepchat' ? selected : implementation('deepchat')
           ),
           acp: directBackend(kind === 'acp' ? selected : implementation('acp')) as never
@@ -196,7 +193,7 @@ describe('AgentManager', () => {
       { resolveExecutableDescriptor: vi.fn(() => descriptor('deepchat')) },
       { get: vi.fn(() => null) },
       {
-        deepchat: createLegacyAgentBackend('deepchat', deepchat),
+        deepchat: createDeepChatAgentBackendFixture(deepchat),
         acp: directBackend(implementation('acp')) as never
       }
     )
@@ -211,7 +208,7 @@ describe('AgentManager', () => {
       { resolveExecutableDescriptor: vi.fn(() => descriptor('acp')) },
       { get: vi.fn(() => null) },
       {
-        deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
+        deepchat: createDeepChatAgentBackendFixture(implementation('deepchat')),
         acp: directBackend(implementation('acp')) as never
       }
     )
@@ -229,7 +226,7 @@ describe('AgentManager', () => {
       { resolveExecutableDescriptor: vi.fn(() => descriptor('deepchat')) },
       { get: vi.fn(() => null) },
       {
-        deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
+        deepchat: createDeepChatAgentBackendFixture(implementation('deepchat')),
         acp: directBackend(implementation('acp')) as never
       }
     )
@@ -249,7 +246,7 @@ describe('AgentManager', () => {
       },
       { get: vi.fn(() => null) },
       {
-        deepchat: createLegacyAgentBackend('deepchat', implementation('deepchat')),
+        deepchat: createDeepChatAgentBackendFixture(implementation('deepchat')),
         acp: directBackend(implementation('acp')) as never
       }
     )

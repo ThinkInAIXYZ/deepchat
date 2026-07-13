@@ -181,7 +181,7 @@ session，具体实例管理自己的 session state，DeepChat loop 只负责 tu
 ### Architecture
 
 - [ ] `AgentRegistry` no longer exists in production flow.
-- [ ] `IAgentImplementation` optional mega-interface is removed.
+- [x] `IAgentImplementation` optional mega-interface is removed.
 - [ ] Internal descriptors use one canonical `kind`; legacy aliases are quarantined at boundary adapters.
 - [ ] `AgentManager` contains no prompt, provider round, tool execution, compaction or Memory logic.
 - [ ] `kind=acp` cannot be dispatched through DeepChat `LoopEngine`; the generic provider port still supports

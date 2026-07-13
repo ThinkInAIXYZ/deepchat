@@ -8,8 +8,9 @@
 > guards、deferred-tool cancellation、live provider-permission continuation、message-scoped runtime skill
 > selection、prompt/tool snapshot caches 和 compaction in-flight projection。持久 pending rows 已归入
 > `agent/deepchat/pending`，持久 interaction blocks、Skill/Tool/MCP owners、configured selections 和
-> persisted summary 仍是事实源。instance 只持有 stable Memory session handle；legacy Memory maps、schema、
-> cursor、trigger timing 和 `MemoryPresenter` 调用均未迁移。
+> persisted summary 仍是事实源。ASLR-090 让 typed DeepChat backend 直接组合 runtime/instance 与 required
+> presenter port，并删除 reflection-based legacy backend；instance 只持有 stable Memory session handle，
+> Memory schema、cursor、trigger timing 和 presenter ownership 保持不变。
 
 ## 1. 模块目的
 
@@ -196,7 +197,7 @@ job 或旧 async callback 回写新 lineage。
    只使对应 snapshot 失效，不复制 Skill/Tool/MCP owner 内部状态。（ASLR-045 已完成）
 8. 迁移 compaction in-flight projection；persisted summary 继续作为事实源，并只给 instance 一个 stable
    legacy Memory session handle，不迁移四组 Memory maps。（ASLR-046 已完成）
-9. 让 route/runtime cache 只通过 instance 操作 session。
+9. 让 route/runtime cache 只通过 instance 操作 session。（`ASLR-090` 已完成 typed backend 接线）
 10. 对每个旧 Map 做“无读写引用”检查后逐个删除。
 11. 最后把 loop orchestration 迁入 `LoopEngine`；Memory 接线在其他状态稳定后迁移。
 

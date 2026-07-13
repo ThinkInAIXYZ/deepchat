@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
-import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
+import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToMain: vi.fn(), on: vi.fn() }
@@ -452,7 +452,7 @@ describe('AgentSessionPresenter usage dashboard', () => {
         resolveBackend: () => ({
           kind: 'deepchat',
           descriptor: { id: 'deepchat', kind: 'deepchat', source: 'builtin', config: {} },
-          backend: createLegacyAgentBackend('deepchat', deepChatAgent as never)
+          backend: createDeepChatAgentBackendFixture(deepChatAgent as never)
         })
       } as any,
       new AppSessionService({

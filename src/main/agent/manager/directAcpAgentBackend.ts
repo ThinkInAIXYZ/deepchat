@@ -32,7 +32,6 @@ export interface DirectAcpAgentBackendOptions {
 
 export interface DirectAcpSessionBackend {
   readonly kind: 'acp'
-  readonly runtimeKind: 'direct'
   readonly runtime: AcpAgentRuntime
   readonly transferSource: AgentTransferSourceFacet
   readonly subagent: AgentSubagentFacet
@@ -105,7 +104,6 @@ export const createDirectAcpAgentBackend = (
   ): DirectAcpSessionHandle => {
     const handle: DirectAcpSessionHandle = {
       kind: 'acp',
-      runtimeKind: 'direct',
       sessionId,
       lifecycle: {
         async initialize(config) {
@@ -251,7 +249,6 @@ export const createDirectAcpAgentBackend = (
 
   return {
     kind: 'acp',
-    runtimeKind: 'direct',
     runtime,
     open,
     cleanupSession,

@@ -7,9 +7,9 @@ import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSession
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
-import { createLegacyAgentBackend } from '@/agent/manager/legacyAgentBackends'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -636,12 +636,8 @@ function createMockToolPresenter() {
   } as any
 }
 
-function createLegacyManager(deepchatAgent: AgentRuntimePresenter, sqlitePresenter: any) {
-  const backend = createLegacyAgentBackend(
-    'deepchat',
-    deepchatAgent as never,
-    deepchatAgent.deepChatRuntime
-  )
+function createDeepChatManager(deepchatAgent: AgentRuntimePresenter, sqlitePresenter: any) {
+  const backend = createDeepChatAgentBackendFixture(deepchatAgent, deepchatAgent.deepChatRuntime)
   const descriptor = (agentId: string) => ({
     id: agentId,
     kind: 'deepchat' as const,
@@ -686,7 +682,7 @@ describe('Integration: createSession end-to-end', () => {
       createMockToolPresenter()
     )
     agentPresenter = new AgentSessionPresenter(
-      createLegacyManager(deepchatAgent, sqlitePresenter) as any,
+      createDeepChatManager(deepchatAgent, sqlitePresenter) as any,
       new AppSessionService({
         newSessionsTable: sqlitePresenter.newSessionsTable,
         deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
@@ -849,7 +845,7 @@ describe('Integration: ACP hooks bridge', () => {
       new NewSessionHooksBridge(hookDispatcher)
     )
     agentPresenter = new AgentSessionPresenter(
-      createLegacyManager(deepchatAgent, sqlitePresenter) as any,
+      createDeepChatManager(deepchatAgent, sqlitePresenter) as any,
       new AppSessionService({
         newSessionsTable: sqlitePresenter.newSessionsTable,
         deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
@@ -865,7 +861,6 @@ describe('Integration: ACP hooks bridge', () => {
         transcriptMutation: deepchatAgent,
         tape: deepchatAgent
       },
-      undefined,
       undefined,
       { acpAsLlmProviderSessionControl: llmProvider }
     )
@@ -943,7 +938,7 @@ describe('Integration: multi-turn context', () => {
       createMockToolPresenter()
     )
     agentPresenter = new AgentSessionPresenter(
-      createLegacyManager(deepchatAgent, sqlitePresenter) as any,
+      createDeepChatManager(deepchatAgent, sqlitePresenter) as any,
       new AppSessionService({
         newSessionsTable: sqlitePresenter.newSessionsTable,
         deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,

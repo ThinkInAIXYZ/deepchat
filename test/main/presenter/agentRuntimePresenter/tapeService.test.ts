@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
 import { buildContext } from '@/presenter/agentRuntimePresenter/contextBuilder'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeService'
 import { createTapeViewManifest } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 import {
@@ -481,6 +482,36 @@ describe('DeepChatTapeService', () => {
     expect(entries.filter((entry) => entry.kind === 'tool_call')).toHaveLength(1)
     expect(entries.filter((entry) => entry.kind === 'tool_result')).toHaveLength(1)
     expect(entries.filter((entry) => entry.name === 'migration/backfill')).toHaveLength(1)
+  })
+
+  it('appends live tool facts through the stable recorder port idempotently', async () => {
+    const { table, entries } = createTapeTableMock()
+    const service = createTapeService(table)
+    const input = {
+      sessionId: toAppSessionId('s1'),
+      messageId: 'a1',
+      orderSeq: 2,
+      blockIndex: 0,
+      block: {
+        type: 'tool_call' as const,
+        status: 'success' as const,
+        timestamp: 120,
+        tool_call: { id: 'tc1', name: 'search', params: '{"q":"x"}', response: 'result' }
+      },
+      provenance: { source: 'tool_call' as const, sourceId: 'a1:tc1', sequence: 0 }
+    }
+
+    const first = await service.appendToolFact(input)
+    const second = await service.appendToolFact(input)
+
+    expect(second).toEqual(first)
+    expect(entries.filter((entry) => entry.kind === 'tool_call')).toHaveLength(1)
+    expect(JSON.parse(entries.find((entry) => entry.kind === 'tool_call').meta_json)).toEqual({
+      source: 'live',
+      role: 'assistant',
+      status: 'success',
+      reason: 'tool_loop'
+    })
   })
 
   it('reports info, search, and handoff within one session scope', () => {
