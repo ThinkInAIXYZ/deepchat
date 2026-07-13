@@ -9,6 +9,11 @@ const mcpClientMock = vi.hoisted(() => ({
   startServer: vi.fn().mockResolvedValue(undefined),
   stopServer: vi.fn().mockResolvedValue(undefined),
   isServerRunning: vi.fn().mockResolvedValue(false),
+  getServerAuthStatus: vi.fn().mockResolvedValue({
+    serverName: 'demo',
+    state: 'none',
+    authenticated: false
+  }),
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
   getMcpClients: vi.fn().mockResolvedValue([]),
   getAllResources: vi.fn().mockResolvedValue([])
@@ -69,16 +74,6 @@ vi.mock('vue-i18n', () => ({
   })
 }))
 
-vi.mock('@/events', () => ({
-  MCP_EVENTS: {
-    SERVER_STARTED: 'server-started',
-    SERVER_STOPPED: 'server-stopped',
-    CONFIG_CHANGED: 'config-changed',
-    SERVER_STATUS_CHANGED: 'server-status-changed',
-    TOOL_CALL_RESULT: 'tool-call-result'
-  }
-}))
-
 const setupStore = async () => {
   vi.resetModules()
   vi.doUnmock('pinia')
@@ -94,6 +89,12 @@ describe('useMcpStore toggleServer rollback', () => {
     setMcpServerEnabledMutate.mockReset()
     mcpClientMock.startServer.mockClear()
     mcpClientMock.stopServer.mockClear()
+    mcpClientMock.getServerAuthStatus.mockReset()
+    mcpClientMock.getServerAuthStatus.mockResolvedValue({
+      serverName: 'demo',
+      state: 'none',
+      authenticated: false
+    })
   })
 
   it('restores local state and persisted config when runtime sync fails', async () => {
@@ -129,6 +130,44 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(setMcpServerEnabledMutate).toHaveBeenNthCalledWith(2, ['demo', false])
     expect(mcpClientMock.startServer).not.toHaveBeenCalled()
     expect(mcpClientMock.stopServer).not.toHaveBeenCalled()
+  })
+
+  it('keeps enabled state when startup requires OAuth authentication', async () => {
+    const store = await setupStore()
+
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'demo-command',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: false
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+
+    setMcpServerEnabledMutate.mockRejectedValueOnce(new Error('authorization required'))
+    mcpClientMock.getServerAuthStatus.mockResolvedValueOnce({
+      serverName: 'demo',
+      state: 'required',
+      authenticated: false
+    })
+
+    const result = await store.toggleServer('demo')
+
+    expect(result).toBe(true)
+    expect(store.config.mcpServers.demo.enabled).toBe(true)
+    expect(store.serverAuthStatuses.demo?.state).toBe('required')
+    expect(store.serverStatuses.demo).toBe(false)
+    expect(setMcpServerEnabledMutate).toHaveBeenCalledTimes(1)
+    expect(setMcpServerEnabledMutate).toHaveBeenCalledWith(['demo', true])
   })
 
   it('hides enabled servers when MCP is globally disabled', async () => {
@@ -190,9 +229,15 @@ describe('useMcpStore toggleServer rollback', () => {
           enabled: true
         },
         'cua-driver': {
-          command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
-          args: ['mcp'],
-          env: {},
+          command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
+          args: ['mcp', '--no-daemon-relaunch'],
+          env: {
+            CUA_DRIVER_MCP_MODE: '1',
+            CUA_DRIVER_RS_MCP_NO_RELAUNCH: '1',
+            DEEPCHAT_COMPUTER_USE_APP_PATH: '/Applications/DeepChat Computer Use.app',
+            DEEPCHAT_COMPUTER_USE_BINARY_PATH:
+              '/Applications/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver'
+          },
           descriptions: 'Computer Use',
           icons: 'plugin',
           autoApprove: [],
@@ -214,5 +259,51 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(store.enabledPluginServers.map((server) => server.name)).toEqual(['cua-driver'])
     expect(store.enabledServerCount).toBe(1)
     expect(store.config.mcpServers['cua-driver']).toBeDefined()
+  })
+
+  it('sorts enabled servers before disabled servers', async () => {
+    const store = await setupStore()
+
+    store.config = {
+      mcpServers: {
+        memory: {
+          command: 'memory-command',
+          args: [],
+          env: {},
+          descriptions: 'Memory',
+          icons: 'M',
+          autoApprove: [],
+          disable: false,
+          type: 'inmemory',
+          enabled: false
+        },
+        tavily: {
+          command: 'tavily-command',
+          args: [],
+          env: {},
+          descriptions: 'Tavily',
+          icons: 'T',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: false
+        },
+        linear: {
+          command: 'https://mcp.linear.app/mcp',
+          args: [],
+          env: {},
+          descriptions: 'Linear',
+          icons: 'L',
+          autoApprove: [],
+          disable: false,
+          type: 'sse',
+          enabled: true
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+
+    expect(store.serverList.map((server) => server.name)).toEqual(['linear', 'memory', 'tavily'])
   })
 })

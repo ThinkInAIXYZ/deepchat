@@ -10,12 +10,14 @@ import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
+import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
   AGENT_TAPE_TOOL_SERVER_NAME,
   TAPE_TOOL_NAMES,
+  CRON_JOB_TOOL_SERVER_NAME,
   type AgentToolCallResult
 } from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
@@ -56,11 +58,14 @@ interface PreCheckedPermissionResult {
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    enabledMcpServerIds?: string[]
+    agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]>
   syncAgentToolContext?(context: {
     chatMode?: 'agent' | 'acp agent'
@@ -72,6 +77,10 @@ export interface IToolPresenter {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
       permissionMode?: PermissionMode
+      activeSkillNames?: string[]
+      enabledSkillNames?: string[] | null
+      agentId?: string
+      enabledMcpServerIds?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
@@ -79,6 +88,7 @@ export interface IToolPresenter {
     options?: { permissionMode?: PermissionMode }
   ): Promise<PreCheckedPermissionResult | null>
   clearConversationToolMapping?(conversationId: string): void
+  clearAgentPlanState?(conversationId: string): void
   buildToolSystemPrompt(context: {
     conversationId?: string
     toolDefinitions?: MCPToolDefinition[]
@@ -98,6 +108,7 @@ const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
+  CRON_JOB_AGENT_TOOL_NAME,
   ...Object.values(TAPE_TOOL_NAMES)
 ])
 
@@ -122,6 +133,17 @@ const normalizeToolNames = (toolNames?: string[]): string[] => {
   )
 }
 
+const normalizeOptionalToolNames = (toolNames?: string[]): string[] | undefined =>
+  Array.isArray(toolNames) ? normalizeToolNames(toolNames) : undefined
+
+const allowsExternalFileAccess = (mode?: PermissionMode): boolean =>
+  mode === 'full_access' || mode === 'auto_approve'
+
+type StoredMcpAccessContext = {
+  agentId?: string
+  enabledMcpServerIds?: string[]
+}
+
 /**
  * ToolPresenter - Unified tool routing presenter
  * Manages all tool sources (MCP, Agent) and provides unified interface
@@ -129,6 +151,7 @@ const normalizeToolNames = (toolNames?: string[]): string[] => {
 export class ToolPresenter implements IToolPresenter {
   private readonly mapper: ToolMapper
   private readonly conversationMappers: Map<string, ToolMapper>
+  private readonly conversationMcpAccessContexts = new Map<string, StoredMcpAccessContext>()
   private readonly options: ToolPresenterOptions
   private agentToolManager: AgentToolManager | null = null
 
@@ -157,11 +180,14 @@ export class ToolPresenter implements IToolPresenter {
    */
   async getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    enabledMcpServerIds?: string[]
+    agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const mapper = this.resolveMapper(context.conversationId)
@@ -173,12 +199,21 @@ export class ToolPresenter implements IToolPresenter {
     const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
     const agentWorkspacePath = context.agentWorkspacePath || null
+    this.rememberConversationMcpAccessContext(context.conversationId, {
+      agentId: context.agentId,
+      enabledMcpServerIds: context.enabledMcpServerIds
+    })
 
     // 1. Get MCP tools
     const mcpDefs = withToolSource(
-      (await this.options.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools)).filter(
-        (tool) => !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name)
-      ),
+      (
+        await this.options.mcpPresenter.getAllToolDefinitions({
+          enabledTools: context.enabledMcpTools,
+          enabledServerIds: context.enabledMcpServerIds,
+          agentId: context.agentId,
+          conversationId: context.conversationId
+        })
+      ).filter((tool) => !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name)),
       'mcp'
     )
     defs.push(...mcpDefs)
@@ -193,7 +228,8 @@ export class ToolPresenter implements IToolPresenter {
           chatMode,
           supportsVision,
           agentWorkspacePath,
-          conversationId: context.conversationId
+          conversationId: context.conversationId,
+          activeSkillNames: context.activeSkillNames
         }),
         'agent'
       )
@@ -238,6 +274,17 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     this.conversationMappers.delete(normalizedConversationId)
+    this.conversationMcpAccessContexts.delete(normalizedConversationId)
+    this.clearAgentPlanState(normalizedConversationId)
+  }
+
+  clearAgentPlanState(conversationId: string): void {
+    const normalizedConversationId = conversationId.trim()
+    if (!normalizedConversationId) {
+      return
+    }
+
+    this.agentToolManager?.clearPlanState(normalizedConversationId)
   }
 
   /**
@@ -249,6 +296,10 @@ export class ToolPresenter implements IToolPresenter {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
       permissionMode?: PermissionMode
+      activeSkillNames?: string[]
+      enabledSkillNames?: string[] | null
+      agentId?: string
+      enabledMcpServerIds?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
@@ -289,7 +340,9 @@ export class ToolPresenter implements IToolPresenter {
           toolCallId: request.id,
           onProgress: options?.onProgress,
           signal: options?.signal,
-          allowExternalFileAccess: options?.permissionMode === 'full_access'
+          allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode),
+          activeSkillNames: options?.activeSkillNames,
+          enabledSkillNames: options?.enabledSkillNames
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
@@ -322,7 +375,11 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     // Route to MCP (default)
-    return await this.options.mcpPresenter.callTool(request)
+    const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
+    return await this.options.mcpPresenter.callTool(request, {
+      agentId: options?.agentId ?? storedAccess?.agentId,
+      enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds
+    })
   }
 
   /**
@@ -374,7 +431,7 @@ export class ToolPresenter implements IToolPresenter {
         args,
         request.conversationId,
         {
-          allowExternalFileAccess: options?.permissionMode === 'full_access'
+          allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode)
         }
       )
       if (!result) {
@@ -385,7 +442,11 @@ export class ToolPresenter implements IToolPresenter {
 
     // Route to MCP for permission pre-check
     if (this.options.mcpPresenter.preCheckToolPermission) {
-      return await this.options.mcpPresenter.preCheckToolPermission(request)
+      const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
+      return await this.options.mcpPresenter.preCheckToolPermission(request, {
+        agentId: storedAccess?.agentId,
+        enabledServerIds: storedAccess?.enabledMcpServerIds
+      })
     }
 
     // If MCP presenter doesn't support preCheckToolPermission, skip it
@@ -397,6 +458,30 @@ export class ToolPresenter implements IToolPresenter {
       return { content: response }
     }
     return response
+  }
+
+  private rememberConversationMcpAccessContext(
+    conversationId: string | undefined,
+    context: StoredMcpAccessContext
+  ): void {
+    const normalizedConversationId = conversationId?.trim()
+    if (!normalizedConversationId) {
+      return
+    }
+
+    this.conversationMcpAccessContexts.set(normalizedConversationId, {
+      agentId: context.agentId?.trim() || undefined,
+      enabledMcpServerIds: normalizeOptionalToolNames(context.enabledMcpServerIds)
+    })
+  }
+
+  private getConversationMcpAccessContext(
+    conversationId?: string
+  ): StoredMcpAccessContext | undefined {
+    const normalizedConversationId = conversationId?.trim()
+    return normalizedConversationId
+      ? this.conversationMcpAccessContexts.get(normalizedConversationId)
+      : undefined
   }
 
   private resolveMapper(conversationId?: string): ToolMapper {
@@ -464,6 +549,7 @@ export class ToolPresenter implements IToolPresenter {
       this.buildImageGenerationPrompt(toolNames),
       this.buildProgressPrompt(toolNames),
       this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
+      this.buildCronJobPrompt(groupedTools.get(CRON_JOB_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
       this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
@@ -602,12 +688,12 @@ export class ToolPresenter implements IToolPresenter {
     let hasContent = false
 
     if (toolNames.has('skill_list')) {
-      lines.push('- Use `skill_list` to inspect installed skills and pinned status.')
+      lines.push('- Use `skill_list` to inspect installed skills and manual pin status.')
       hasContent = true
     }
     if (toolNames.has('skill_view')) {
       lines.push(
-        '- Use `skill_view` to inspect a skill or one of its linked files before relying on it.'
+        '- Use `skill_view` to inspect a skill or one of its linked files before relying on it. Root skill views activate the skill for the current message/tool loop only; they do not pin it to the conversation.'
       )
       hasContent = true
     }
@@ -618,7 +704,9 @@ export class ToolPresenter implements IToolPresenter {
       hasContent = true
     }
     if (toolNames.has('skill_run')) {
-      lines.push('- Use `skill_run` to execute bundled scripts from pinned skills.')
+      lines.push(
+        '- Use `skill_run` to execute bundled scripts from skills active in the current message/tool loop.'
+      )
       hasContent = true
     }
 
@@ -652,6 +740,7 @@ export class ToolPresenter implements IToolPresenter {
       'Keep the checklist current as work progresses.',
       'At most one step may be in_progress at a time.',
       'When a step completes, update the checklist immediately and move the next active step to in_progress in the same call.',
+      'Before ending the turn, reconcile the checklist so no step remains in_progress.',
       'Use explanation only when the plan changes materially or progress would otherwise be unclear.'
     ].join('\n')
   }
@@ -673,6 +762,11 @@ export class ToolPresenter implements IToolPresenter {
         '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped canonical tape lookup.'
       )
     }
+    if (toolNames.has(TAPE_TOOL_NAMES.context)) {
+      lines.push(
+        '`tape_context` expands selected `entryIds` from compact `tape_search` results into bounded evidence/context without dumping raw payloads.'
+      )
+    }
     if (toolNames.has(TAPE_TOOL_NAMES.anchors)) {
       lines.push('`tape_anchors` lists recent bub-style phase-transition anchors.')
     }
@@ -683,6 +777,18 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     return lines.join('\n')
+  }
+
+  private buildCronJobPrompt(tools: MCPToolDefinition[]): string {
+    if (tools.length === 0) {
+      return ''
+    }
+
+    return [
+      '## Scheduled Task Tool',
+      `Use \`${CRON_JOB_AGENT_TOOL_NAME}\` only when the user explicitly asks to create, inspect, run, pause, resume, update, delete, or preview Scheduled tasks.`,
+      'Scheduled task deliveries are notification-only and do not continue normal Remote conversations.'
+    ].join('\n')
   }
 
   private buildSettingsPrompt(tools: MCPToolDefinition[]): string {

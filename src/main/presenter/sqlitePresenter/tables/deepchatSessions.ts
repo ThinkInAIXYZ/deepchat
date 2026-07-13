@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
-import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import {
   isReasoningEffort,
   isReasoningVisibility,
@@ -38,7 +38,7 @@ export interface DeepChatSessionRow {
   id: string
   provider_id: string
   model_id: string
-  permission_mode: 'default' | 'full_access'
+  permission_mode: PermissionMode
   system_prompt: string | null
   temperature: number | null
   top_p: number | null
@@ -55,12 +55,21 @@ export interface DeepChatSessionRow {
   summary_text: string | null
   summary_cursor_order_seq: number | null
   summary_updated_at: number | null
+  memory_cursor_order_seq: number | null
 }
 
 export interface DeepChatSessionSummaryRow {
   summary_text: string | null
   summary_cursor_order_seq: number | null
   summary_updated_at: number | null
+}
+
+interface RawDeepChatSessionRow extends Omit<DeepChatSessionRow, 'permission_mode'> {
+  permission_mode: string | null
+}
+
+function normalizePersistedPermissionMode(mode: string | null | undefined): PermissionMode {
+  return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
 }
 
 export class DeepChatSessionsTable extends BaseTable {
@@ -86,7 +95,7 @@ export class DeepChatSessionsTable extends BaseTable {
       throw new Error(message)
     }
 
-    this.db.exec(this.getCreateTableSQLForVersion(recordedVersion))
+    this.db.exec(this.getCreateTableSQL())
   }
 
   private getCreateTableSQLForVersion(version: number): string {
@@ -139,6 +148,10 @@ export class DeepChatSessionsTable extends BaseTable {
 
     if (version >= 20) {
       columns.push('reasoning_visibility TEXT')
+    }
+
+    if (version >= 31) {
+      columns.push('memory_cursor_order_seq INTEGER')
     }
 
     return `
@@ -211,6 +224,9 @@ export class DeepChatSessionsTable extends BaseTable {
         'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
       )
     }
+    if (!this.hasColumn('memory_cursor_order_seq')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN memory_cursor_order_seq INTEGER;')
+    }
 
     return statements
   }
@@ -260,11 +276,14 @@ export class DeepChatSessionsTable extends BaseTable {
     if (version === 29) {
       return 'ALTER TABLE deepchat_sessions ADD COLUMN top_p REAL;'
     }
+    if (version === 31) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN memory_cursor_order_seq INTEGER;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 29
+    return 31
   }
 
   private serializeImageGenerationOptions(
@@ -311,7 +330,7 @@ export class DeepChatSessionsTable extends BaseTable {
     id: string,
     providerId: string,
     modelId: string,
-    permissionMode: 'default' | 'full_access' = 'full_access',
+    permissionMode: PermissionMode = 'full_access',
     generationSettings?: Partial<DeepChatSessionGenerationSettings>
   ): void {
     this.db
@@ -369,9 +388,15 @@ export class DeepChatSessionsTable extends BaseTable {
   }
 
   get(id: string): DeepChatSessionRow | undefined {
-    return this.db.prepare('SELECT * FROM deepchat_sessions WHERE id = ?').get(id) as
-      | DeepChatSessionRow
+    const row = this.db.prepare('SELECT * FROM deepchat_sessions WHERE id = ?').get(id) as
+      | RawDeepChatSessionRow
       | undefined
+    return row
+      ? {
+          ...row,
+          permission_mode: normalizePersistedPermissionMode(row.permission_mode)
+        }
+      : undefined
   }
 
   getGenerationSettings(id: string): Partial<DeepChatSessionGenerationSettings> | null {
@@ -427,7 +452,7 @@ export class DeepChatSessionsTable extends BaseTable {
     return settings
   }
 
-  updatePermissionMode(id: string, mode: 'default' | 'full_access'): void {
+  updatePermissionMode(id: string, mode: PermissionMode): void {
     this.db.prepare('UPDATE deepchat_sessions SET permission_mode = ? WHERE id = ?').run(mode, id)
   }
 
@@ -577,6 +602,33 @@ export class DeepChatSessionsTable extends BaseTable {
       )
 
     return result.changes > 0
+  }
+
+  getMemoryCursorOrderSeq(id: string): number | null {
+    const row = this.db
+      .prepare('SELECT memory_cursor_order_seq FROM deepchat_sessions WHERE id = ?')
+      .get(id) as { memory_cursor_order_seq: number | null } | undefined
+    return row?.memory_cursor_order_seq ?? null
+  }
+
+  updateMemoryCursorOrderSeq(id: string, cursorOrderSeq: number): void {
+    this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET memory_cursor_order_seq = MAX(COALESCE(memory_cursor_order_seq, 0), ?)
+         WHERE id = ?`
+      )
+      .run(Math.max(0, Math.floor(cursorOrderSeq)), id)
+  }
+
+  rewindMemoryCursorOrderSeq(id: string, cursorOrderSeq: number): void {
+    this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET memory_cursor_order_seq = ?
+         WHERE id = ?`
+      )
+      .run(Math.max(0, Math.floor(cursorOrderSeq)), id)
   }
 
   resetSummaryState(id: string): void {

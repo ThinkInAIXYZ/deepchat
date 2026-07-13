@@ -309,6 +309,7 @@ export interface FeishuRemoteRuntimeConfig {
   verificationToken: string
   encryptKey: string
   enabled: boolean
+  enableStreamingCards: boolean
   defaultAgentId: string
   defaultWorkdir: string
   pairedUserOpenIds: string[]
@@ -933,6 +934,7 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     verificationToken: '',
     encryptKey: '',
     enabled: false,
+    enableStreamingCards: false,
     defaultAgentId: FEISHU_REMOTE_DEFAULT_AGENT_ID,
     defaultWorkdir: '',
     pairedUserOpenIds: [],
@@ -982,122 +984,103 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
   }
 })
 
-const RemoteEndpointBindingMetaSchema = z
-  .object({
-    channel: z.enum(['telegram', 'feishu', 'qqbot', 'discord', 'weixin-ilink']).optional(),
-    kind: z.enum(['dm', 'group', 'topic']).optional(),
-    chatId: z.string().optional(),
-    threadId: z.string().nullable().optional()
-  })
-  .strip()
+const RemoteEndpointBindingMetaSchema = z.object({
+  channel: z.enum(['telegram', 'feishu', 'qqbot', 'discord', 'weixin-ilink']).optional(),
+  kind: z.enum(['dm', 'group', 'topic']).optional(),
+  chatId: z.string().optional(),
+  threadId: z.string().nullable().optional()
+})
 
-const RemoteEndpointBindingSchema = z
-  .object({
-    sessionId: z.string().min(1),
-    updatedAt: z.number().int().nonnegative().optional(),
-    meta: RemoteEndpointBindingMetaSchema.optional()
-  })
-  .strip()
+const RemoteEndpointBindingSchema = z.object({
+  sessionId: z.string().min(1),
+  updatedAt: z.number().int().nonnegative().optional(),
+  meta: RemoteEndpointBindingMetaSchema.optional()
+})
 
-const PairingStateSchema = z
-  .object({
-    code: z.string().nullable().optional(),
-    expiresAt: z.number().int().nonnegative().nullable().optional(),
-    failedAttempts: z.number().int().nonnegative().optional()
-  })
-  .strip()
+const PairingStateSchema = z.object({
+  code: z.string().nullable().optional(),
+  expiresAt: z.number().int().nonnegative().nullable().optional(),
+  failedAttempts: z.number().int().nonnegative().optional()
+})
 
-const TelegramRemoteRuntimeConfigSchema = z
-  .object({
-    botToken: z.string().optional(),
-    enabled: z.boolean().optional(),
-    allowlist: z.array(z.union([z.number(), z.string()])).optional(),
-    defaultAgentId: z.string().optional(),
-    defaultWorkdir: z.string().optional(),
-    streamMode: z.enum(['draft', 'final']).optional(),
-    pollOffset: z.number().int().nonnegative().optional(),
-    lastFatalError: z.string().nullable().optional(),
-    pairing: PairingStateSchema.optional(),
-    bindings: z.record(z.string(), z.unknown()).optional()
-  })
-  .strip()
+const TelegramRemoteRuntimeConfigSchema = z.object({
+  botToken: z.string().optional(),
+  enabled: z.boolean().optional(),
+  allowlist: z.array(z.union([z.number(), z.string()])).optional(),
+  defaultAgentId: z.string().optional(),
+  defaultWorkdir: z.string().optional(),
+  streamMode: z.enum(['draft', 'final']).optional(),
+  pollOffset: z.number().int().nonnegative().optional(),
+  lastFatalError: z.string().nullable().optional(),
+  pairing: PairingStateSchema.optional(),
+  bindings: z.record(z.string(), z.unknown()).optional()
+})
 
-const FeishuRemoteRuntimeConfigSchema = z
-  .object({
-    brand: z.enum(['feishu', 'lark']).optional(),
-    appId: z.string().optional(),
-    appSecret: z.string().optional(),
-    verificationToken: z.string().optional(),
-    encryptKey: z.string().optional(),
-    enabled: z.boolean().optional(),
-    defaultAgentId: z.string().optional(),
-    defaultWorkdir: z.string().optional(),
-    pairedUserOpenIds: z.array(z.string()).optional(),
-    lastFatalError: z.string().nullable().optional(),
-    pairing: PairingStateSchema.optional(),
-    bindings: z.record(z.string(), z.unknown()).optional()
-  })
-  .strip()
+const FeishuRemoteRuntimeConfigSchema = z.object({
+  brand: z.enum(['feishu', 'lark']).optional(),
+  appId: z.string().optional(),
+  appSecret: z.string().optional(),
+  verificationToken: z.string().optional(),
+  encryptKey: z.string().optional(),
+  enabled: z.boolean().optional(),
+  enableStreamingCards: z.boolean().optional(),
+  defaultAgentId: z.string().optional(),
+  defaultWorkdir: z.string().optional(),
+  pairedUserOpenIds: z.array(z.string()).optional(),
+  lastFatalError: z.string().nullable().optional(),
+  pairing: PairingStateSchema.optional(),
+  bindings: z.record(z.string(), z.unknown()).optional()
+})
 
-const QQBotRemoteRuntimeConfigSchema = z
-  .object({
-    appId: z.string().optional(),
-    clientSecret: z.string().optional(),
-    enabled: z.boolean().optional(),
-    defaultAgentId: z.string().optional(),
-    defaultWorkdir: z.string().optional(),
-    pairedUserIds: z.array(z.union([z.string(), z.number()])).optional(),
-    pairedGroupIds: z.array(z.union([z.string(), z.number()])).optional(),
-    lastFatalError: z.string().nullable().optional(),
-    pairing: PairingStateSchema.optional(),
-    bindings: z.record(z.string(), z.unknown()).optional()
-  })
-  .strip()
+const QQBotRemoteRuntimeConfigSchema = z.object({
+  appId: z.string().optional(),
+  clientSecret: z.string().optional(),
+  enabled: z.boolean().optional(),
+  defaultAgentId: z.string().optional(),
+  defaultWorkdir: z.string().optional(),
+  pairedUserIds: z.array(z.union([z.string(), z.number()])).optional(),
+  pairedGroupIds: z.array(z.union([z.string(), z.number()])).optional(),
+  lastFatalError: z.string().nullable().optional(),
+  pairing: PairingStateSchema.optional(),
+  bindings: z.record(z.string(), z.unknown()).optional()
+})
 
-const DiscordRemoteRuntimeConfigSchema = z
-  .object({
-    botToken: z.string().optional(),
-    enabled: z.boolean().optional(),
-    defaultAgentId: z.string().optional(),
-    defaultWorkdir: z.string().optional(),
-    pairedChannelIds: z.array(z.union([z.string(), z.number()])).optional(),
-    lastFatalError: z.string().nullable().optional(),
-    pairing: PairingStateSchema.optional(),
-    bindings: z.record(z.string(), z.unknown()).optional()
-  })
-  .strip()
+const DiscordRemoteRuntimeConfigSchema = z.object({
+  botToken: z.string().optional(),
+  enabled: z.boolean().optional(),
+  defaultAgentId: z.string().optional(),
+  defaultWorkdir: z.string().optional(),
+  pairedChannelIds: z.array(z.union([z.string(), z.number()])).optional(),
+  lastFatalError: z.string().nullable().optional(),
+  pairing: PairingStateSchema.optional(),
+  bindings: z.record(z.string(), z.unknown()).optional()
+})
 
-const WeixinIlinkAccountRuntimeConfigSchema = z
-  .object({
-    accountId: z.string().optional(),
-    ownerUserId: z.string().optional(),
-    baseUrl: z.string().optional(),
-    botToken: z.string().optional(),
-    enabled: z.boolean().optional(),
-    syncCursor: z.string().optional(),
-    lastFatalError: z.string().nullable().optional(),
-    bindings: z.record(z.string(), z.unknown()).optional()
-  })
-  .strip()
+const WeixinIlinkAccountRuntimeConfigSchema = z.object({
+  accountId: z.string().optional(),
+  ownerUserId: z.string().optional(),
+  baseUrl: z.string().optional(),
+  botToken: z.string().optional(),
+  enabled: z.boolean().optional(),
+  syncCursor: z.string().optional(),
+  lastFatalError: z.string().nullable().optional(),
+  bindings: z.record(z.string(), z.unknown()).optional()
+})
 
-const WeixinIlinkRemoteRuntimeConfigSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    defaultAgentId: z.string().optional(),
-    defaultWorkdir: z.string().optional(),
-    accounts: z.array(WeixinIlinkAccountRuntimeConfigSchema).optional()
-  })
-  .strip()
+const WeixinIlinkRemoteRuntimeConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  defaultAgentId: z.string().optional(),
+  defaultWorkdir: z.string().optional(),
+  accounts: z.array(WeixinIlinkAccountRuntimeConfigSchema).optional()
+})
 
-const RemoteControlConfigSchema = z
-  .object({
-    telegram: TelegramRemoteRuntimeConfigSchema.optional(),
-    feishu: FeishuRemoteRuntimeConfigSchema.optional(),
-    qqbot: QQBotRemoteRuntimeConfigSchema.optional(),
-    discord: DiscordRemoteRuntimeConfigSchema.optional(),
-    weixinIlink: WeixinIlinkRemoteRuntimeConfigSchema.optional()
-  })
-  .strip()
+const RemoteControlConfigSchema = z.object({
+  telegram: TelegramRemoteRuntimeConfigSchema.optional(),
+  feishu: FeishuRemoteRuntimeConfigSchema.optional(),
+  qqbot: QQBotRemoteRuntimeConfigSchema.optional(),
+  discord: DiscordRemoteRuntimeConfigSchema.optional(),
+  weixinIlink: WeixinIlinkRemoteRuntimeConfigSchema.optional()
+})
 
 type LegacyTelegramRemoteConfig = z.infer<typeof TelegramRemoteRuntimeConfigSchema>
 type LegacyFeishuRemoteConfig = z.infer<typeof FeishuRemoteRuntimeConfigSchema>
@@ -1127,7 +1110,7 @@ const extractLegacyTelegramConfig = (input: unknown): LegacyTelegramRemoteConfig
 
   const record = input as Record<string, unknown>
   if (
-    !hasAnyOwn(record, ['allowlist', 'streamMode', 'pollOffset', 'lastFatalError']) &&
+    !hasAnyOwn(record, ['botToken', 'allowlist', 'streamMode', 'pollOffset', 'lastFatalError']) &&
     !hasBindingPrefix(record, 'telegram:')
   ) {
     return null
@@ -1149,6 +1132,7 @@ const extractLegacyFeishuConfig = (input: unknown): LegacyFeishuRemoteConfig | n
       'appSecret',
       'verificationToken',
       'encryptKey',
+      'enableStreamingCards',
       'pairedUserOpenIds',
       'lastFatalError'
     ]) &&
@@ -1367,6 +1351,9 @@ const normalizeBindings = (
   return bindings
 }
 
+const resolveRemoteEnabled = (enabled: boolean | undefined, configured: boolean): boolean =>
+  typeof enabled === 'boolean' ? enabled : configured
+
 export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfig => {
   const defaults = createDefaultRemoteControlConfig()
   const parsed = RemoteControlConfigSchema.safeParse(input)
@@ -1379,11 +1366,12 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
   const qqbot = parsed.data.qqbot ?? extractLegacyQQBotConfig(input) ?? {}
   const discord = parsed.data.discord ?? extractLegacyDiscordConfig(input) ?? {}
   const weixinIlink = parsed.data.weixinIlink ?? extractLegacyWeixinIlinkConfig(input) ?? {}
+  const weixinIlinkAccounts = normalizeWeixinIlinkRuntimeAccounts(weixinIlink.accounts)
 
   return {
     telegram: {
       botToken: telegram.botToken?.trim() || '',
-      enabled: Boolean(telegram.enabled),
+      enabled: resolveRemoteEnabled(telegram.enabled, Boolean(telegram.botToken?.trim())),
       allowlist: normalizeTelegramUserIds(telegram.allowlist),
       streamMode: telegram.streamMode === 'final' ? 'final' : defaults.telegram.streamMode,
       defaultAgentId: telegram.defaultAgentId?.trim() || defaults.telegram.defaultAgentId,
@@ -1411,7 +1399,11 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       appSecret: feishu.appSecret?.trim() || '',
       verificationToken: feishu.verificationToken?.trim() || '',
       encryptKey: feishu.encryptKey?.trim() || '',
-      enabled: Boolean(feishu.enabled),
+      enabled: resolveRemoteEnabled(
+        feishu.enabled,
+        Boolean(feishu.appId?.trim() && feishu.appSecret?.trim())
+      ),
+      enableStreamingCards: Boolean(feishu.enableStreamingCards),
       defaultAgentId: feishu.defaultAgentId?.trim() || defaults.feishu.defaultAgentId,
       defaultWorkdir: feishu.defaultWorkdir?.trim() || '',
       pairedUserOpenIds: normalizeFeishuOpenIds(feishu.pairedUserOpenIds),
@@ -1429,7 +1421,10 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
     qqbot: {
       appId: qqbot.appId?.trim() || '',
       clientSecret: qqbot.clientSecret?.trim() || '',
-      enabled: Boolean(qqbot.enabled),
+      enabled: resolveRemoteEnabled(
+        qqbot.enabled,
+        Boolean(qqbot.appId?.trim() && qqbot.clientSecret?.trim())
+      ),
       defaultAgentId: qqbot.defaultAgentId?.trim() || defaults.qqbot.defaultAgentId,
       defaultWorkdir: qqbot.defaultWorkdir?.trim() || '',
       pairedUserIds: normalizeQQBotUserIds(qqbot.pairedUserIds),
@@ -1447,7 +1442,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
     },
     discord: {
       botToken: discord.botToken?.trim() || '',
-      enabled: Boolean(discord.enabled),
+      enabled: resolveRemoteEnabled(discord.enabled, Boolean(discord.botToken?.trim())),
       defaultAgentId: discord.defaultAgentId?.trim() || defaults.discord.defaultAgentId,
       defaultWorkdir: discord.defaultWorkdir?.trim() || '',
       pairedChannelIds: normalizeDiscordChannelIds(discord.pairedChannelIds),
@@ -1464,10 +1459,10 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       bindings: normalizeBindings(discord.bindings, 'discord')
     },
     weixinIlink: {
-      enabled: Boolean(weixinIlink.enabled),
+      enabled: resolveRemoteEnabled(weixinIlink.enabled, weixinIlinkAccounts.length > 0),
       defaultAgentId: weixinIlink.defaultAgentId?.trim() || defaults.weixinIlink.defaultAgentId,
       defaultWorkdir: weixinIlink.defaultWorkdir?.trim() || '',
-      accounts: normalizeWeixinIlinkRuntimeAccounts(weixinIlink.accounts)
+      accounts: weixinIlinkAccounts
     }
   }
 }
@@ -1721,6 +1716,7 @@ export const normalizeFeishuSettingsInput = (
   verificationToken: input.verificationToken?.trim() ?? '',
   encryptKey: input.encryptKey?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
+  enableStreamingCards: Boolean(input.enableStreamingCards),
   defaultAgentId: input.defaultAgentId?.trim() || FEISHU_REMOTE_DEFAULT_AGENT_ID,
   defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
   pairedUserOpenIds: normalizeFeishuOpenIds(input.pairedUserOpenIds)

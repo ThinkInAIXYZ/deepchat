@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getActivePinia } from 'pinia'
 import type { UIAgent } from '@/stores/ui/agent'
 import { useThemeStore } from '@/stores/theme'
+import { ensureIconAvailable } from '@/lib/iconLoader'
 import AcpAgentIcon from './AcpAgentIcon.vue'
 import deepchatLogo from '@/assets/logo.png?url'
 
@@ -22,6 +23,7 @@ const props = withDefaults(
 
 const activePinia = getActivePinia()
 const themeStore = activePinia ? useThemeStore(activePinia) : null
+const lucideIconVersion = ref(0)
 
 const isDarkTheme = computed(() => {
   if (props.theme) {
@@ -73,6 +75,23 @@ const showImageIcon = computed(
     !showAcpIcon.value &&
     props.agent.avatar?.kind !== 'lucide'
 )
+
+watch(
+  () => (props.agent.avatar?.kind === 'lucide' ? props.agent.avatar.icon.trim() : ''),
+  async (iconName) => {
+    if (!iconName) {
+      return
+    }
+
+    try {
+      await ensureIconAvailable(`lucide:${iconName}`)
+      lucideIconVersion.value += 1
+    } catch (error) {
+      console.warn(`[AgentAvatar] Failed to load lucide icon "${iconName}":`, error)
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -99,7 +118,11 @@ const showImageIcon = computed(
     ]"
     :style="lucideColor ? { color: lucideColor } : undefined"
   >
-    <Icon :icon="`lucide:${agent.avatar.icon}`" class="h-full w-full" />
+    <Icon
+      :key="`${agent.avatar.icon}-${lucideIconVersion}`"
+      :icon="`lucide:${agent.avatar.icon}`"
+      class="h-full w-full"
+    />
   </span>
   <span
     v-else

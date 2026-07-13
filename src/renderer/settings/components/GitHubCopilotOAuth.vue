@@ -137,7 +137,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createOAuthClient } from '@api/OAuthClient'
 import { useProviderStore } from '@/stores/providerStore'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -153,7 +153,7 @@ const emit = defineEmits<{
   'auth-error': [error: string]
 }>()
 
-const oauthPresenter = useLegacyPresenter('oauthPresenter')
+const oauthClient = createOAuthClient()
 const providerStore = useProviderStore()
 const modelCheckStore = useModelCheckStore()
 
@@ -199,7 +199,7 @@ const startDeviceFlowLogin = async () => {
   validationResult.value = null
 
   try {
-    const success = await oauthPresenter.startGitHubCopilotDeviceFlowLogin(props.provider.id)
+    const success = await oauthClient.startGitHubCopilotDeviceFlowLogin(props.provider.id)
 
     if (success) {
       emit('auth-success')
@@ -234,7 +234,7 @@ const startOAuthLogin = async () => {
   validationResult.value = null
 
   try {
-    const success = await oauthPresenter.startGitHubCopilotLogin(props.provider.id)
+    const success = await oauthClient.startGitHubCopilotLogin(props.provider.id)
 
     if (success) {
       emit('auth-success')

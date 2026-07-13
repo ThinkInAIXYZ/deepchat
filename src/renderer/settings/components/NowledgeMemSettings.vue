@@ -1,6 +1,7 @@
 <template>
   <div class="border rounded-lg overflow-hidden">
     <div
+      data-testid="nowledge-mem-panel-toggle"
       class="flex items-center p-4 hover:bg-accent cursor-default"
       @click="toggleNowledgeMemConfigPanel"
     >
@@ -30,6 +31,7 @@
           </Label>
           <Input
             id="baseUrl"
+            data-testid="nowledge-mem-base-url-input"
             v-model="config.baseUrl"
             type="url"
             placeholder="http://127.0.0.1:14242"
@@ -44,6 +46,7 @@
           <div class="relative">
             <Input
               id="apiKey"
+              data-testid="nowledge-mem-api-key-input"
               v-model="config.apiKey"
               :type="showApiKey ? 'text' : 'password'"
               placeholder="Your API key (optional)"
@@ -125,6 +128,7 @@
         <!-- Save Configuration Button -->
         <div class="flex gap-2">
           <Button
+            data-testid="nowledge-mem-save-button"
             @click="saveConfiguration"
             :disabled="savingConfig"
             variant="default"
@@ -138,10 +142,17 @@
             }}
           </Button>
 
-          <Button @click="resetConfiguration" variant="outline" size="sm" class="text-xs">
+          <Button
+            data-testid="nowledge-mem-reset-button"
+            @click="resetConfiguration"
+            variant="outline"
+            size="sm"
+            class="text-xs"
+          >
             {{ $t('settings.knowledgeBase.nowledgeMem.resetConfig') }}
           </Button>
           <Button
+            data-testid="nowledge-mem-test-button"
             @click="testConnection"
             :disabled="testingConnection"
             variant="outline"
@@ -163,14 +174,14 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createNowledgeMemClient } from '@api/NowledgeMemClient'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
 
-const exporterPresenter = useLegacyPresenter('exporter')
+const nowledgeMemClient = createNowledgeMemClient()
 const { toast } = useToast()
 const { t } = useI18n()
 
@@ -209,7 +220,7 @@ onMounted(async () => {
 
 const loadConfiguration = async () => {
   try {
-    const savedConfig = exporterPresenter.getNowledgeMemConfig()
+    const savedConfig = await nowledgeMemClient.getConfig()
     if (savedConfig) {
       Object.assign(config, savedConfig)
       // Convert milliseconds to seconds for UI
@@ -259,7 +270,7 @@ const testConnection = async () => {
   testingConnection.value = true
 
   try {
-    const result = await exporterPresenter.testNowledgeMemConnection()
+    const result = await nowledgeMemClient.testConnection()
     toast({
       title: t('settings.knowledgeBase.nowledgeMem.testConnection'),
       description: result.message || 'Connection successful'
@@ -279,7 +290,7 @@ const saveConfiguration = async () => {
   savingConfig.value = true
 
   try {
-    await exporterPresenter.updateNowledgeMemConfig({
+    await nowledgeMemClient.updateConfig({
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
       timeout: config.timeout
@@ -301,7 +312,7 @@ const resetConfiguration = async () => {
       timeout: 30000 // 30 seconds in milliseconds
     }
 
-    await exporterPresenter.updateNowledgeMemConfig(defaultConfig)
+    await nowledgeMemClient.updateConfig(defaultConfig)
 
     Object.assign(config, defaultConfig)
   } catch (error) {

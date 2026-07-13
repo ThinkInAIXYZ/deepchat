@@ -25,20 +25,6 @@ import {
   type SlashSuggestionItem
 } from '../mentions/utils'
 
-export interface MentionDialogState {
-  mode: 'command' | 'prompt'
-  title: string
-  description?: string
-  fields: Array<{
-    name: string
-    label: string
-    description?: string
-    placeholder?: string
-    required?: boolean
-  }>
-  confirmText?: string
-}
-
 export interface UseChatInputMentionsOptions {
   getEditor: () => Editor | null
   workspacePath: Ref<string | null>
@@ -103,9 +89,12 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const registeredWorkspacePath = ref<string | null>(null)
   let unsubscribeAcpCommandsReady: (() => void) | null = null
 
-  const dialogState = ref<MentionDialogState | null>(null)
-  const pendingCommand = ref<AcpSessionCommand | null>(null)
-  const pendingPrompt = ref<PromptListEntry | null>(null)
+  // Stores the pending command/prompt context for the inline CommandForm
+  const pendingFormData = ref<{
+    type: 'command' | 'prompt'
+    command?: AcpSessionCommand
+    prompt?: PromptListEntry
+  } | null>(null)
 
   const shouldSuppressSubmit = () => Date.now() < suppressSubmitUntil.value
   const markSuggestionSelected = () => {
@@ -113,9 +102,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   }
 
   const closeDialog = () => {
-    dialogState.value = null
-    pendingCommand.value = null
-    pendingPrompt.value = null
+    pendingFormData.value = null
   }
 
   const notifyPendingSkills = () => {
@@ -309,6 +296,20 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
   }
 
+  /** Insert a CommandForm block node at the given range */
+  function insertCommandFormNode(editor: Editor, range: Range, attrs: Record<string, unknown>) {
+    // Clear the trigger text first, then insert the form node at the same position
+    editor
+      .chain()
+      .focus()
+      .insertContentAt(range, '')
+      .insertContentAt(range.from, {
+        type: 'commandForm',
+        attrs
+      })
+      .run()
+  }
+
   const handleSlashSelection = async (editor: Editor, range: Range, item: SlashSuggestionItem) => {
     const action = resolveSlashSelectionAction(item)
 
@@ -319,13 +320,13 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
 
     if (action.kind === 'request-command-input') {
-      editor.chain().focus().insertContentAt(range, '').run()
-      pendingCommand.value = action.command
-      dialogState.value = {
+      pendingFormData.value = { type: 'command', command: action.command }
+      insertCommandFormNode(editor, range, {
         mode: 'command',
-        title: `/${action.command.name}`,
+        commandName: action.command.name,
         description: action.command.description || action.command.input?.hint || '',
-        fields: [
+        confirmText: 'Send',
+        fields: JSON.stringify([
           {
             name: 'input',
             label: 'Input',
@@ -333,14 +334,14 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
             placeholder: action.command.input?.hint,
             required: true
           }
-        ],
-        confirmText: 'Send'
-      }
+        ])
+      })
       return
     }
 
     if (action.kind === 'activate-skill') {
       editor.chain().focus().insertContentAt(range, '').run()
+
       if (options.onActivateSkill) {
         await options.onActivateSkill(action.skillName)
         return
@@ -355,21 +356,22 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
 
     if (action.kind === 'request-prompt-args') {
-      editor.chain().focus().insertContentAt(range, '').run()
-      pendingPrompt.value = action.prompt
-      dialogState.value = {
+      pendingFormData.value = { type: 'prompt', prompt: action.prompt }
+      insertCommandFormNode(editor, range, {
         mode: 'prompt',
-        title: `/${action.prompt.name}`,
+        commandName: action.prompt.name,
         description: action.prompt.description || 'Fill prompt arguments before insertion.',
-        fields: (action.prompt.arguments ?? []).map((arg) => ({
-          name: arg.name,
-          label: arg.name,
-          description: arg.description,
-          placeholder: arg.description,
-          required: Boolean(arg.required)
-        })),
-        confirmText: 'Insert'
-      }
+        confirmText: 'Insert',
+        fields: JSON.stringify(
+          (action.prompt.arguments ?? []).map((arg) => ({
+            name: arg.name,
+            label: arg.name,
+            description: arg.description,
+            placeholder: arg.description,
+            required: Boolean(arg.required)
+          }))
+        )
+      })
       return
     }
 
@@ -378,18 +380,17 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   }
 
   const submitDialog = async (values: Record<string, string>) => {
-    if (!dialogState.value) {
-      return
-    }
+    const data = pendingFormData.value
+    if (!data) return
 
-    if (dialogState.value.mode === 'command' && pendingCommand.value) {
+    if (data.type === 'command' && data.command) {
       const input = values.input ?? ''
-      options.onCommandSubmit(buildCommandText(pendingCommand.value.name, input))
+      options.onCommandSubmit(buildCommandText(data.command.name, input))
       closeDialog()
       return
     }
 
-    if (dialogState.value.mode === 'prompt' && pendingPrompt.value) {
+    if (data.type === 'prompt' && data.prompt) {
       const args: Record<string, string> = {}
       for (const [key, value] of Object.entries(values)) {
         const normalized = value.trim()
@@ -397,7 +398,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
           args[key] = normalized
         }
       }
-      await insertPromptText(pendingPrompt.value, args)
+      await insertPromptText(data.prompt, args)
       closeDialog()
       return
     }
@@ -572,7 +573,6 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     isSuggestionMenuOpen,
     shouldSuppressSubmit,
     pendingSkills,
-    dialogState,
     submitDialog,
     closeDialog
   }

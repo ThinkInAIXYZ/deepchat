@@ -3,8 +3,10 @@ import {
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
   deviceRestartAppRoute,
+  deviceResetDataByTypeRoute,
   deviceSanitizeSvgRoute,
-  deviceSelectDirectoryRoute
+  deviceSelectDirectoryRoute,
+  deviceSelectFilesRoute
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 import { copyRuntimeImage, copyRuntimeText, readRuntimeClipboardText } from './runtime'
@@ -24,8 +26,19 @@ export function createDeviceClient(bridge: DeepchatBridge = getDeepchatBridge())
     return await bridge.invoke(deviceSelectDirectoryRoute.name, {})
   }
 
+  async function selectFiles(options?: {
+    filters?: { name: string; extensions: string[] }[]
+    multiple?: boolean
+  }) {
+    return await bridge.invoke(deviceSelectFilesRoute.name, options ?? {})
+  }
+
   async function restartApp() {
     return await bridge.invoke(deviceRestartAppRoute.name, {})
+  }
+
+  async function resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all') {
+    return await bridge.invoke(deviceResetDataByTypeRoute.name, { resetType })
   }
 
   async function sanitizeSvgContent(svgContent: string) {
@@ -49,7 +62,9 @@ export function createDeviceClient(bridge: DeepchatBridge = getDeepchatBridge())
     getAppVersion,
     getDeviceInfo,
     selectDirectory,
+    selectFiles,
     restartApp,
+    resetDataByType,
     sanitizeSvgContent,
     copyText,
     copyImage,

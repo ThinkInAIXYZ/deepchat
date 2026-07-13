@@ -2,11 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { createSkillClient } from '@api/SkillClient'
 import type {
-  SkillMetadata,
   SkillInstallResult,
   SkillExtensionConfig,
   SkillScriptDescriptor
 } from '@shared/types/skill'
+import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 
 function createDefaultSkillExtension(): SkillExtensionConfig {
   return {
@@ -24,7 +24,7 @@ export const useSkillsStore = defineStore('skills', () => {
   const skillClient = createSkillClient()
   let catalogListenerRegistered = false
 
-  const skills = ref<SkillMetadata[]>([])
+  const skills = ref<UnifiedSkillItem[]>([])
   const skillExtensions = ref<Record<string, SkillExtensionConfig>>({})
   const skillScripts = ref<Record<string, SkillScriptDescriptor[]>>({})
   const loading = ref(false)
@@ -60,7 +60,7 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
-  const loadSkillRuntimeData = async (items: SkillMetadata[] = skills.value) => {
+  const loadSkillRuntimeData = async (items: UnifiedSkillItem[] = skills.value) => {
     const nextExtensions: Record<string, SkillExtensionConfig> = {}
     const nextScripts: Record<string, SkillScriptDescriptor[]> = {}
 
@@ -89,7 +89,7 @@ export const useSkillsStore = defineStore('skills', () => {
     loading.value = true
     error.value = null
     try {
-      const nextSkills = await skillClient.getMetadataList()
+      const nextSkills = await skillClient.getUnifiedSkillCatalog()
       skills.value = nextSkills
       await loadSkillRuntimeData(nextSkills)
     } catch (e) {
@@ -187,6 +187,11 @@ export const useSkillsStore = defineStore('skills', () => {
     await loadSkillRuntime(name)
   }
 
+  const setSkillDisabled = async (name: string, disabled: boolean): Promise<void> => {
+    await skillClient.setSkillDisabled(name, disabled)
+    await loadSkills()
+  }
+
   const saveSkillWithExtension = async (
     name: string,
     content: string,
@@ -233,6 +238,7 @@ export const useSkillsStore = defineStore('skills', () => {
     openSkillsFolder,
     updateSkillFile,
     saveSkillExtension,
+    setSkillDisabled,
     saveSkillWithExtension,
     getSkillFolderTree
   }

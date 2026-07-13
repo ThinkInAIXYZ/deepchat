@@ -1,7 +1,8 @@
 import logger from '@shared/logger'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { BuiltinKnowledgeConfig, MCPServerConfig } from '@shared/presenter'
 import { MCP_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
 // import { app } from 'electron'
@@ -327,9 +328,15 @@ export class McpConfHelper {
   }
 
   private emitConfigChanged(servers: Record<string, MCPServerConfig>): void {
-    eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+    const mcpEnabled = Boolean(this.mcpStore.get('mcpEnabled'))
+    eventBus.sendToMain(MCP_EVENTS.CONFIG_CHANGED, {
       mcpServers: servers,
-      mcpEnabled: this.mcpStore.get('mcpEnabled')
+      mcpEnabled
+    })
+    publishDeepchatEvent('mcp.config.changed', {
+      mcpServers: servers,
+      mcpEnabled,
+      version: Date.now()
     })
   }
 
@@ -865,10 +872,18 @@ export class McpConfHelper {
       `MCP batch import completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
     )
 
-    // Emit event to notify about the import
-    eventBus.sendToRenderer(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+    const mcpServers = await this.getMcpServers()
+    const mcpEnabled = await this.getMcpEnabled()
+    eventBus.sendToMain(MCP_EVENTS.CONFIG_CHANGED, {
       action: 'batch_import',
-      result
+      result,
+      mcpServers,
+      mcpEnabled
+    })
+    publishDeepchatEvent('mcp.config.changed', {
+      mcpServers,
+      mcpEnabled,
+      version: Date.now()
     })
 
     return result

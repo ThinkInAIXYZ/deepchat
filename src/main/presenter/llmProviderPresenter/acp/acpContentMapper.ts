@@ -1,13 +1,14 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpConfigState } from '@shared/presenter'
 import type { AssistantMessageBlock } from '@shared/chat'
+import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { normalizeAcpConfigState } from './acpConfigState'
 
 export interface PlanEntry {
-  content: string
+  step: string
   priority?: string | null
-  status?: string | null
+  status: 'pending' | 'in_progress' | 'completed'
 }
 
 export interface MappedContent {
@@ -54,6 +55,18 @@ const now = () => Date.now()
 
 export class AcpContentMapper {
   private readonly toolCallStates = new Map<string, ToolCallState>()
+  private readonly planRevisions = new Map<string, number>()
+
+  clearSession(sessionId: string): void {
+    this.planRevisions.delete(sessionId)
+
+    const keyPrefix = `${sessionId}:`
+    for (const key of this.toolCallStates.keys()) {
+      if (key.startsWith(keyPrefix)) {
+        this.toolCallStates.delete(key)
+      }
+    }
+  }
 
   map(notification: schema.SessionNotification): MappedContent {
     const { update, sessionId } = notification
@@ -72,7 +85,7 @@ export class AcpContentMapper {
         break
       case 'plan':
         console.info('[ACP] Plan update received:', JSON.stringify(update))
-        this.handlePlanUpdate(update, payload)
+        this.handlePlanUpdate(sessionId, update, payload)
         break
       case 'current_mode_update':
         console.info('[ACP] Mode update received:', update)
@@ -227,6 +240,7 @@ export class AcpContentMapper {
   }
 
   private handlePlanUpdate(
+    sessionId: string,
     update: Extract<schema.SessionNotification['update'], { sessionUpdate: 'plan' }>,
     payload: MappedContent
   ) {
@@ -235,18 +249,15 @@ export class AcpContentMapper {
 
     // Store structured plan entries
     payload.planEntries = entries.map((entry) => ({
-      content: entry.content,
+      step: entry.content,
       priority: entry.priority ?? null,
-      status: entry.status ?? null
+      status: normalizeAgentPlanStatus(entry.status)
     }))
 
-    // Create dedicated plan block
-    payload.events.push(createStreamEvent.reasoning('')) // Empty event for plan
-    payload.blocks.push(
-      this.createBlock('plan', '', {
-        extra: { plan_entries: payload.planEntries }
-      })
-    )
+    const updatedAt = new Date().toISOString()
+    const revision = (this.planRevisions.get(sessionId) ?? 0) + 1
+    this.planRevisions.set(sessionId, revision)
+    payload.events.push(createStreamEvent.plan(payload.planEntries, { revision, updatedAt }))
   }
 
   private handleModeUpdate(

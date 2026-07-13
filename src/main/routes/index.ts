@@ -1,14 +1,20 @@
-import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, app, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import type {
   IAgentSessionPresenter,
   IConfigPresenter,
+  IConversationExporter,
   IDevicePresenter,
   IDialogPresenter,
   IFilePresenter,
+  IKnowledgePresenter,
   ILlmProviderPresenter,
   IMCPPresenter,
+  IOAuthPresenter,
   IProjectPresenter,
+  IRemoteControlPresenter,
   ISQLitePresenter,
+  IShortcutPresenter,
+  ISkillSyncPresenter,
   ISkillPresenter,
   ISyncPresenter,
   ITabPresenter,
@@ -19,8 +25,16 @@ import type {
   IYoBrowserPresenter
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
+import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
+import { isAgentMemoryCategory } from '@shared/types/agent-memory'
+import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
+import { DEV_EVENTS } from '../events'
+import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
+  acpTerminalInputRoute,
+  acpTerminalKillRoute,
   browserAttachCurrentWindowRoute,
+  browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
   browserGetStatusRoute,
@@ -37,28 +51,80 @@ import {
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
   configDeleteCustomPromptRoute,
+  configDeleteDeepChatAgentRoute,
   configDeleteSystemPromptRoute,
+  configRemoveManualAcpAgentRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
+  configSetAcpAgentEnabledRoute,
+  configSetAcpEnabledRoute,
   configSetAcpSharedMcpSelectionsRoute,
   configSetCustomPromptsRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
   configSetKnowledgeConfigsRoute,
   configSetSystemPromptsRoute,
+  configUninstallAcpRegistryAgentRoute,
   configUpdateCustomPromptRoute,
+  configUpdateDeepChatAgentRoute,
+  configUpdateManualAcpAgentRoute,
   configUpdateSystemPromptRoute,
+  cronJobsDeleteRoute,
+  cronJobsGetRunRoute,
+  cronJobsGetSchedulerStatusRoute,
+  cronJobsListDeliveriesRoute,
+  cronJobsListRoute,
+  cronJobsListRunsRoute,
+  cronJobsPreviewScheduleRoute,
+  cronJobsReconcileSchedulerRoute,
+  cronJobsRestartSchedulerRoute,
+  cronJobsRunNowRoute,
+  cronJobsToggleRoute,
+  cronJobsValidateScheduleRoute,
+  cronJobsUpsertRoute,
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
+  databaseSecurityRepairSchemaRoute,
+  debugCreateMockChatSessionRoute,
+  memoryAddRoute,
+  memoryArchiveRoute,
+  memoryApprovePersonaDraftRoute,
+  memoryClearRoute,
+  memoryDeleteRoute,
+  memoryGetByIdsRoute,
+  memoryGetSourceSpanRoute,
+  memoryGetHealthRoute,
+  memoryGetArchiveCandidateLifecyclePreviewRoute,
+  memoryGetLifecycleRoute,
+  memoryGetStatusRoute,
+  memoryListAuditEventsRoute,
+  memoryListConflictsRoute,
+  memoryListPersonaDraftsRoute,
+  memoryListPersonaVersionsRoute,
+  memoryPageRoute,
+  memoryListRoute,
+  memoryListViewManifestsRoute,
+  memoryRejectPersonaDraftRoute,
+  memoryReindexRoute,
+  memoryResolveConflictRoute,
+  memoryRestoreRoute,
+  memoryRollbackPersonaRoute,
+  memorySearchRoute,
+  memorySetPersonaAnchorRoute,
+  memoryUpdateRoute,
+  decodeMemoryPageCursor,
+  encodeMemoryPageCursor,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
   deviceRestartAppRoute,
+  deviceResetDataByTypeRoute,
   deviceSanitizeSvgRoute,
   deviceSelectDirectoryRoute,
+  deviceSelectFilesRoute,
   fileCopyImageRoute,
   fileGetMimeTypeRoute,
   fileIsDirectoryRoute,
@@ -68,26 +134,48 @@ import {
   fileSaveImageRoute,
   fileWriteImageBase64Route,
   hasDeepchatRouteContract,
+  knowledgeAddFileRoute,
+  knowledgeDeleteFileRoute,
+  knowledgeGetSeparatorsForLanguageRoute,
+  knowledgeGetSupportedFileExtensionsRoute,
+  knowledgeGetSupportedLanguagesRoute,
+  knowledgeIsSupportedRoute,
+  knowledgeListFilesRoute,
+  knowledgePauseAllRunningTasksRoute,
+  knowledgeReAddFileRoute,
+  knowledgeResumeAllPausedTasksRoute,
+  knowledgeSimilarityQueryRoute,
+  knowledgeValidateFileRoute,
   mcpAddServerRoute,
   mcpCallToolRoute,
   mcpCancelSamplingRequestRoute,
   mcpClearNpmRegistryCacheRoute,
+  mcpCompleteServerAuthFromCallbackUrlRoute,
   mcpGetClientsRoute,
   mcpGetEnabledRoute,
   mcpGetNpmRegistryStatusRoute,
   mcpGetPromptRoute,
+  mcpGetServerAuthStatusRoute,
   mcpGetServersRoute,
   mcpIsServerRunningRoute,
   mcpListPromptsRoute,
   mcpListResourcesRoute,
   mcpListToolDefinitionsRoute,
+  mcpLogoutServerAuthRoute,
   mcpReadResourceRoute,
   mcpRefreshNpmRegistryRoute,
   mcpRemoveServerRoute,
+  mcpRouterGetApiKeyRoute,
+  mcpRouterInstallServerRoute,
+  mcpRouterIsServerInstalledRoute,
+  mcpRouterListServersRoute,
+  mcpRouterSetApiKeyRoute,
+  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
   mcpSetServerEnabledRoute,
+  mcpStartServerAuthRoute,
   mcpStartServerRoute,
   mcpStopServerRoute,
   mcpSubmitSamplingDecisionRoute,
@@ -98,14 +186,51 @@ import {
   onboardingResetRoute,
   onboardingSetStepStatusRoute,
   onboardingStartRoute,
+  nowledgeMemGetConfigRoute,
+  nowledgeMemTestConnectionRoute,
+  nowledgeMemUpdateConfigRoute,
+  oauthGithubCopilotStartDeviceFlowLoginRoute,
+  oauthGithubCopilotStartLoginRoute,
+  oauthOpenAICodexCancelLoginRoute,
+  oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
+  oauthOpenAICodexGetStatusRoute,
+  oauthOpenAICodexLogoutRoute,
+  oauthOpenAICodexStartBrowserLoginRoute,
+  remoteControlCancelFeishuAuthRoute,
+  remoteControlCancelFeishuInstallRoute,
+  remoteControlClearChannelPairCodeRoute,
+  remoteControlCreateChannelPairCodeRoute,
+  remoteControlGetChannelBindingsRoute,
+  remoteControlGetChannelPairingSnapshotRoute,
+  remoteControlGetChannelSettingsRoute,
+  remoteControlGetChannelStatusRoute,
+  remoteControlGetTelegramStatusRoute,
+  remoteControlGetWeixinIlinkStatusRoute,
+  remoteControlListChannelsRoute,
+  remoteControlRemoveChannelBindingRoute,
+  remoteControlRemoveChannelPrincipalRoute,
+  remoteControlRemoveWeixinIlinkAccountRoute,
+  remoteControlRestartWeixinIlinkAccountRoute,
+  remoteControlSaveChannelSettingsRoute,
+  remoteControlStartFeishuAuthRoute,
+  remoteControlStartFeishuInstallRoute,
+  remoteControlStartWeixinIlinkLoginRoute,
+  remoteControlWaitForFeishuAuthRoute,
+  remoteControlWaitForFeishuInstallRoute,
+  remoteControlWaitForWeixinIlinkLoginRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
   pluginsInvokeActionRoute,
   pluginsListRoute,
+  projectArchiveEnvironmentRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
+  projectPathExistsRoute,
+  projectRemoveEnvironmentRoute,
+  projectReorderEnvironmentsRoute,
+  projectRestoreEnvironmentRoute,
   projectSelectDirectoryRoute,
   modelsSetBatchStatusRoute,
   modelsSetStatusRoute,
@@ -130,6 +255,7 @@ import {
   sessionsDeactivateRoute,
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
+  sessionsExportMessageTapeReplaySliceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
   sessionsGetAcpSessionCommandsRoute,
@@ -142,6 +268,8 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetTapeContextRoute,
+  sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
@@ -152,7 +280,7 @@ import {
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
-  sessionsResumePendingQueueRoute,
+  sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute,
   sessionsSearchHistoryRoute,
@@ -161,6 +289,7 @@ import {
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
   sessionsSetSubagentEnabledRoute,
+  sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
   sessionsUpdateDisabledAgentToolsRoute,
@@ -170,22 +299,53 @@ import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
+  shortcutDestroyRoute,
+  shortcutRegisterRoute,
+  shortcutUnregisterRoute,
   startupGetBootstrapRoute,
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
   skillsGetFolderTreeRoute,
+  skillsGetSyncConfigRoute,
+  skillsExecuteSyncDirectoryExportRoute,
+  skillsExecuteSyncDirectoryImportRoute,
+  skillsInstallFromGitRoute,
   skillsInstallFromFolderRoute,
   skillsInstallFromUrlRoute,
   skillsInstallFromZipRoute,
+  skillsListCatalogRoute,
   skillsListMetadataRoute,
   skillsListScriptsRoute,
   skillsOpenFolderRoute,
+  skillsPreviewSyncDirectoryExportRoute,
+  skillsPreviewSyncDirectoryImportRoute,
+  skillsReadFileRoute,
+  skillsScanGitRepoRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
+  skillsSetDisabledRoute,
+  skillsSetSyncDirectoryRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute,
+  skillSyncAcknowledgeDiscoveriesRoute,
+  skillSyncExecuteAdoptAgentSkillRoute,
+  skillSyncExecuteExportRoute,
+  skillSyncExecuteImportRoute,
+  skillSyncExecuteLinkDeepChatSkillsRoute,
+  skillSyncGetAgentDetailRoute,
+  skillSyncGetAgentSkillDetailRoute,
+  skillSyncGetNewDiscoveriesRoute,
+  skillSyncGetRegisteredToolsRoute,
+  skillSyncPreviewAdoptAgentSkillRoute,
+  skillSyncPreviewExportRoute,
+  skillSyncPreviewImportRoute,
+  skillSyncPreviewLinkDeepChatSkillsRoute,
+  skillSyncRemoveAgentSkillLinkRoute,
+  skillSyncRepairAgentSkillLinkRoute,
+  skillSyncScanAgentsRoute,
+  skillSyncScanExternalToolsRoute,
   syncGetBackupStatusRoute,
   syncImportRoute,
   syncListBackupsRoute,
@@ -211,9 +371,16 @@ import {
   upgradeStartDownloadRoute,
   windowCloseCurrentRoute,
   windowCloseFloatingCurrentRoute,
+  windowCloseSettingsRoute,
+  windowConsumePendingSettingsProviderInstallRoute,
+  windowFocusMainRoute,
   windowGetCurrentStateRoute,
+  windowGetRuntimeIdentityRoute,
   windowMinimizeCurrentRoute,
+  windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
+  windowRequeuePendingSettingsProviderInstallRoute,
+  windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute,
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,
@@ -230,6 +397,12 @@ import {
   workspaceWatchRoute,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
+import {
+  createEmptyArchiveCandidateLifecyclePreview,
+  createEmptyMemoryHealth
+} from '@shared/contracts/routes/memory.routes'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import { buildEffectiveTapeView } from '../presenter/agentRuntimePresenter/tapeEffectiveView'
 import { ChatService } from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import { createPresenterHotPathPorts } from './hotPathPorts'
@@ -251,22 +424,30 @@ import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
+import type { MemoryPresenter } from '@/presenter/memoryPresenter'
+import type { MemoryWriteOutcome } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
+import type { AgentMemoryAuditRow } from '@/presenter/memoryPresenter/domain/audit'
+import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
-import {
-  scheduledTasksDeleteRoute,
-  scheduledTasksFireNowRoute,
-  scheduledTasksListRoute,
-  scheduledTasksToggleRoute,
-  scheduledTasksUpsertRoute
-} from '@shared/contracts/routes/scheduledTasks.routes'
+import type { CronJobsService } from '@/presenter/cronJobs'
+import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
+
+const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
+type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
+const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STATES)
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
   agentSessionPresenter: IAgentSessionPresenter
   skillPresenter: ISkillPresenter
+  skillSyncPresenter: ISkillSyncPresenter
+  exporter: IConversationExporter
+  oauthPresenter: IOAuthPresenter
   mcpPresenter: IMCPPresenter
+  remoteControlPresenter: IRemoteControlPresenter
+  shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
@@ -281,13 +462,256 @@ export type MainKernelRouteRuntime = {
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
   filePresenter: IFilePresenter
+  knowledgePresenter: IKnowledgePresenter
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  scheduledTasks: ScheduledTasksService
+  memoryPresenter: MemoryPresenter
+  cronJobs: CronJobsService
+}
+
+export function formatMemorySourceRecordContent(record: ChatMessageRecord): string {
+  try {
+    const parsed = JSON.parse(record.content) as unknown
+    if (record.role === 'user') {
+      const text = (parsed as { text?: unknown })?.text
+      return typeof text === 'string' ? text.trim() : ''
+    }
+    const blockText = (block: unknown): string => {
+      const b = block as {
+        type?: string
+        content?: unknown
+      }
+      if (b?.type === 'content' && typeof b.content === 'string') return b.content
+      return ''
+    }
+    if (Array.isArray(parsed)) {
+      return parsed.map(blockText).filter(Boolean).join(' ').trim()
+    }
+    const objectText = blockText(parsed)
+    return objectText.trim()
+  } catch {
+    return ''
+  }
+}
+
+function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null {
+  if (typeof value === 'string' && MEMORY_PERSONA_STATE_SET.has(value)) {
+    return value as MemoryPersonaState
+  }
+  return null
+}
+
+function normalizeMemoryCategory(value: unknown) {
+  return isAgentMemoryCategory(value) ? value : null
+}
+
+const CRON_JOB_AGENT_CHANGE_ROUTES: ReadonlySet<string> = new Set([
+  configSetAcpEnabledRoute.name,
+  configSetAcpAgentEnabledRoute.name,
+  configUninstallAcpRegistryAgentRoute.name,
+  configUpdateManualAcpAgentRoute.name,
+  configRemoveManualAcpAgentRoute.name,
+  configUpdateDeepChatAgentRoute.name,
+  configDeleteDeepChatAgentRoute.name
+])
+
+async function reconcileCronJobsAfterAgentChange(
+  runtime: MainKernelRouteRuntime,
+  routeName: string
+): Promise<void> {
+  if (!CRON_JOB_AGENT_CHANGE_ROUTES.has(routeName)) {
+    return
+  }
+  try {
+    await runtime.cronJobs.reconcileScheduler('agent-change')
+  } catch (error) {
+    console.warn('[CronJobs] Failed to reconcile jobs after agent change:', error)
+  }
+}
+
+export function toMemoryItemDto(row: AgentMemoryRow) {
+  return {
+    id: row.id,
+    agentId: row.agent_id,
+    kind: row.kind,
+    category: normalizeMemoryCategory(row.category),
+    content: row.content,
+    importance: row.importance,
+    status: row.status,
+    sourceSession: row.source_session,
+    sourceEntryIds: parseAgentMemorySourceEntryIds(row.source_entry_ids),
+    supersededBy: row.superseded_by,
+    createdAt: row.created_at,
+    confidence: row.confidence,
+    conflictState: row.conflict_state,
+    conflictWith: row.conflict_with,
+    personaState: normalizeMemoryPersonaState(row.persona_state),
+    isAnchor: row.is_anchor === 1
+  }
+}
+
+function toMemoryAddResultDto(outcome: MemoryWriteOutcome) {
+  switch (outcome.action) {
+    case 'created':
+      return { action: 'created' as const, memoryId: outcome.id }
+    case 'updated':
+      return { action: 'updated' as const, memoryId: outcome.id }
+    case 'superseded':
+      return {
+        action: 'superseded' as const,
+        memoryId: outcome.id,
+        supersededId: outcome.supersededId
+      }
+    case 'challenged':
+      return {
+        action: 'challenged' as const,
+        memoryId: outcome.challengerId,
+        conflictWith: outcome.targetId
+      }
+    case 'noop':
+      return { action: 'noop' as const, reason: outcome.reason }
+  }
+}
+
+function parseJsonRecord(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {}
+  return {}
+}
+
+function sanitizeRouteRefs(record: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {}
+  const safeKey = /(id|ids|type|status|action|reason|policy|seq|count|hash)$/i
+  for (const [key, value] of Object.entries(record)) {
+    if (safeKey.test(key) || key === 'createdAt' || key === 'updatedAt') {
+      if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean' ||
+        value === null
+      ) {
+        safe[key] = value
+      } else if (Array.isArray(value)) {
+        safe[key] = value.filter(
+          (item) =>
+            typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+        )
+      } else {
+        safe[key] = '{...}'
+      }
+    } else if (Array.isArray(value)) {
+      safe[key] = `[${value.length}]`
+    } else if (value && typeof value === 'object') {
+      safe[key] = '{...}'
+    } else if (value !== undefined) {
+      safe[key] = '[redacted]'
+    }
+  }
+  return safe
+}
+
+function toMemoryAuditEventDto(row: AgentMemoryAuditRow) {
+  return {
+    id: row.id,
+    agentId: row.agent_id,
+    eventType: row.event_type,
+    actorType: row.actor_type,
+    sessionId: row.session_id,
+    inputRefs: sanitizeRouteRefs(parseJsonRecord(row.input_refs_json)),
+    outputRefs: sanitizeRouteRefs(parseJsonRecord(row.output_refs_json)),
+    modelProviderId: row.model_provider_id,
+    modelId: row.model_id,
+    status: row.status,
+    reason: row.reason,
+    createdAt: row.created_at
+  }
+}
+
+function readNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function deriveSelectedMemoryIds(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null
+  const ids: string[] = []
+  const seen = new Set<string>()
+  const pushId = (id: string): void => {
+    if (id.length === 0 || seen.has(id)) return
+    seen.add(id)
+    ids.push(id)
+  }
+  for (const item of value) {
+    if (typeof item === 'string' && item.length > 0) {
+      pushId(item)
+      continue
+    }
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const id = (item as Record<string, unknown>).id
+      if (typeof id === 'string') pushId(id)
+    }
+  }
+  return ids
+}
+
+function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
+  const payload = parseJsonRecord(row.payload_json)
+  const meta = parseJsonRecord(row.meta_json)
+  const state = payload.state
+  const manifest =
+    state && typeof state === 'object' && !Array.isArray(state)
+      ? (state as Record<string, unknown>)
+      : null
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    return null
+  }
+  const record = manifest as Record<string, unknown>
+  const messageId = typeof meta.messageId === 'string' ? meta.messageId : null
+  return {
+    sessionId: row.session_id,
+    messageId,
+    entryId: row.entry_id,
+    policyVersion:
+      typeof record.policyVersion === 'number' && Number.isFinite(record.policyVersion)
+        ? record.policyVersion
+        : null,
+    tokenBudget: readNumber(record.tokenBudget),
+    estimatedTokens: readNumber(record.estimatedTokens),
+    selectedCount: Array.isArray(record.selected) ? record.selected.length : 0,
+    selectedIds: deriveSelectedMemoryIds(record.selected),
+    droppedCount: Array.isArray(record.dropped) ? record.dropped.length : 0,
+    queryHash: typeof record.queryHash === 'string' ? record.queryHash : null,
+    createdAt: row.created_at
+  }
+}
+
+function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, memoryId: string) {
+  const [row] = runtime.memoryPresenter.getManagementVisibleByIds(agentId, [memoryId])
+  if (!row || row.agent_id !== agentId || !row.source_session) return null
+  const sourceEntryIds = parseAgentMemorySourceEntryIds(row.source_entry_ids)
+  if (!sourceEntryIds?.length) return null
+  const sourceSet = new Set(sourceEntryIds)
+  const tapeEntriesTable = getMemorySourceTapeEntriesTable(runtime)
+  if (!tapeEntriesTable) return null
+  const rows = tapeEntriesTable.getBySession(row.source_session)
+  const entries = buildEffectiveTapeView(rows)
+    .messageEntries.filter((entry) => sourceSet.has(entry.entryId))
+    .map((entry) => ({
+      entryId: entry.entryId,
+      role: entry.record.role,
+      content: formatMemorySourceRecordContent(entry.record),
+      orderSeq: entry.record.orderSeq
+    }))
+    .filter((entry) => entry.content.length > 0)
+  if (!entries.length) return null
+  return { sessionId: row.source_session, entries }
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -295,7 +719,12 @@ export function createMainKernelRouteRuntime(deps: {
   llmProviderPresenter: ILlmProviderPresenter
   agentSessionPresenter: IAgentSessionPresenter
   skillPresenter: ISkillPresenter
+  skillSyncPresenter: ISkillSyncPresenter
+  exporter: IConversationExporter
+  oauthPresenter: IOAuthPresenter
   mcpPresenter: IMCPPresenter
+  remoteControlPresenter: IRemoteControlPresenter
+  shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
@@ -305,13 +734,15 @@ export function createMainKernelRouteRuntime(deps: {
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
   filePresenter: IFilePresenter
+  knowledgePresenter: IKnowledgePresenter
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  scheduledTasks: ScheduledTasksService
+  memoryPresenter: MemoryPresenter
+  cronJobs: CronJobsService
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -336,30 +767,87 @@ export function createMainKernelRouteRuntime(deps: {
     scheduler
   })
 
-  // Wire scheduled tasks -> sessions for the auto-send action.
-  deps.scheduledTasks.setSessionCreator({
-    async createSessionForTask(input) {
-      const session = await sessionService.createSession(
-        {
-          agentId: input.agentId,
-          message: input.message,
-          providerId: input.providerId,
-          modelId: input.modelId,
-          ...(input.systemPrompt
-            ? { generationSettings: { systemPrompt: input.systemPrompt } }
-            : {})
-        },
-        {
-          webContentsId: deps.windowPresenter.mainWindow?.webContents?.id ?? -1,
-          windowId: deps.windowPresenter.mainWindow?.id ?? null
-        }
-      )
-      if (!session?.id) {
-        return { sessionId: null }
+  deps.cronJobs.setRunSessionStarter({
+    async createSessionForRun({ job, run }) {
+      if (!job.agentId) {
+        throw new Error('Cron job requires an enabled agent.')
       }
+      console.info('[CronJobs] Resolving agent for session:', {
+        jobId: job.id,
+        runId: run.id,
+        agentId: job.agentId
+      })
+      const agentType = await deps.configPresenter.getAgentType(job.agentId)
+      const snapshotConfig = job.agentSnapshot?.config as
+        | {
+            defaultModelPreset?: { providerId?: string; modelId?: string } | null
+            permissionMode?: 'default' | 'auto_approve' | 'full_access'
+            disabledAgentTools?: string[]
+            subagentEnabled?: boolean
+            systemPrompt?: string
+          }
+        | null
+        | undefined
+      const modelPreset =
+        agentType === 'deepchat' && job.modelPolicy === 'pin_current'
+          ? snapshotConfig?.defaultModelPreset
+          : null
+      const systemPrompt = job.taskSystemInstruction?.trim() || snapshotConfig?.systemPrompt
 
-      await chatService.sendMessage(session.id, input.message)
+      const session = await deps.agentSessionPresenter.createDetachedSession({
+        agentId: job.agentId,
+        title: job.name,
+        ...(agentType === 'acp' ? { providerId: 'acp', modelId: job.agentId } : {}),
+        ...(modelPreset?.providerId ? { providerId: modelPreset.providerId } : {}),
+        ...(modelPreset?.modelId ? { modelId: modelPreset.modelId } : {}),
+        ...(job.permissionPolicy === 'snapshot' && snapshotConfig?.permissionMode
+          ? { permissionMode: snapshotConfig.permissionMode }
+          : {}),
+        ...(job.toolPolicy === 'snapshot' && snapshotConfig?.disabledAgentTools
+          ? { disabledAgentTools: snapshotConfig.disabledAgentTools }
+          : {}),
+        ...(snapshotConfig?.subagentEnabled !== undefined
+          ? { subagentEnabled: snapshotConfig.subagentEnabled }
+          : {}),
+        ...(systemPrompt ? { generationSettings: { systemPrompt } } : {}),
+        metadata: {
+          source: 'cron_job',
+          cronJobId: job.id,
+          cronJobRunId: run.id,
+          scheduledAt: run.scheduledAt
+        }
+      })
+      console.info('[CronJobs] Detached session created:', {
+        jobId: job.id,
+        runId: run.id,
+        sessionId: session.id,
+        agentType
+      })
       return { sessionId: session.id }
+    },
+    async startSessionRun({ job, sessionId }) {
+      if (!job.taskPrompt.trim()) {
+        throw new Error('Cron job task prompt is empty.')
+      }
+      console.info('[CronJobs] Sending task prompt to session:', {
+        jobId: job.id,
+        sessionId,
+        promptLength: job.taskPrompt.length
+      })
+      const result = await deps.agentSessionPresenter.sendMessage(sessionId, job.taskPrompt, {
+        maxProviderRounds: job.runtime.maxTurns
+      })
+      console.info('[CronJobs] Task prompt accepted by session:', {
+        jobId: job.id,
+        sessionId,
+        outputMessageId: result.messageId ?? null
+      })
+      return {
+        outputMessageId: result.messageId ?? null
+      }
+    },
+    async cancelSessionRun({ sessionId }) {
+      await deps.agentSessionPresenter.cancelGeneration(sessionId)
     }
   })
 
@@ -368,7 +856,12 @@ export function createMainKernelRouteRuntime(deps: {
     llmProviderPresenter: deps.llmProviderPresenter,
     agentSessionPresenter: deps.agentSessionPresenter,
     skillPresenter: deps.skillPresenter,
+    skillSyncPresenter: deps.skillSyncPresenter,
+    exporter: deps.exporter,
+    oauthPresenter: deps.oauthPresenter,
     mcpPresenter: deps.mcpPresenter,
+    remoteControlPresenter: deps.remoteControlPresenter,
+    shortcutPresenter: deps.shortcutPresenter,
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
     dialogPresenter: deps.dialogPresenter,
@@ -404,19 +897,32 @@ export function createMainKernelRouteRuntime(deps: {
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
     filePresenter: deps.filePresenter,
+    knowledgePresenter: deps.knowledgePresenter,
     workspacePresenter: deps.workspacePresenter,
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     pluginPresenter: deps.pluginPresenter,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
-    scheduledTasks: deps.scheduledTasks
+    memoryPresenter: deps.memoryPresenter,
+    cronJobs: deps.cronJobs
   }
 }
 
 type RouteContext = {
   webContentsId: number
   windowId: number | null
+}
+
+const publishProjectEnvironmentsChanged = (
+  action: 'reorder' | 'archive' | 'restore' | 'remove',
+  path: string | null
+) => {
+  publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
+    action,
+    path,
+    version: Date.now()
+  })
 }
 
 type WindowState = {
@@ -464,6 +970,30 @@ function getDatabaseSecuritySQLitePresenter(runtime: MainKernelRouteRuntime): SQ
     throw new Error('SQLite presenter is required for database encryption')
   }
   return runtime.sqlitePresenter as unknown as SQLitePresenter
+}
+
+function getMemorySourceTapeEntriesTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['deepchatTapeEntriesTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
+  if (!table || typeof table.getBySession !== 'function') return null
+  return table
+}
+
+function getMemoryViewManifestTapeEntriesTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['deepchatTapeEntriesTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
+  if (!table || typeof table.listMemoryViewManifestAnchorsByAgent !== 'function') return null
+  return table
+}
+
+function getMemoryAuditTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['agentMemoryAuditTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).agentMemoryAuditTable
+  if (!table || typeof table.listByAgent !== 'function') return null
+  return table
 }
 
 function recordSkillSettingsActivity(
@@ -996,6 +1526,7 @@ export async function dispatchDeepchatRoute(
   const configResult = await dispatchConfigRoute(runtime.configPresenter, routeName, rawInput)
   if (configResult !== undefined) {
     recordConfigRouteActivity(runtime, routeName, rawInput)
+    await reconcileCronJobsAfterAgentChange(runtime, routeName)
     return configResult
   }
 
@@ -1007,7 +1538,8 @@ export async function dispatchDeepchatRoute(
         providerImportService: runtime.providerImportService
       },
       routeName,
-      rawInput
+      rawInput,
+      context
     )
   })
   if (providerResult !== undefined) {
@@ -1031,10 +1563,48 @@ export async function dispatchDeepchatRoute(
   }
 
   switch (routeName) {
+    case acpTerminalInputRoute.name: {
+      const input = acpTerminalInputRoute.input.parse(rawInput)
+      writeToTerminal(input.data)
+      return acpTerminalInputRoute.output.parse({ sent: true })
+    }
+
+    case acpTerminalKillRoute.name: {
+      acpTerminalKillRoute.input.parse(rawInput)
+      killTerminal()
+      return acpTerminalKillRoute.output.parse({ killed: true })
+    }
+
+    case shortcutRegisterRoute.name: {
+      shortcutRegisterRoute.input.parse(rawInput)
+      runtime.shortcutPresenter.registerShortcuts()
+      return shortcutRegisterRoute.output.parse({ registered: true })
+    }
+
+    case shortcutUnregisterRoute.name: {
+      shortcutUnregisterRoute.input.parse(rawInput)
+      runtime.shortcutPresenter.unregisterShortcuts()
+      return shortcutUnregisterRoute.output.parse({ unregistered: true })
+    }
+
+    case shortcutDestroyRoute.name: {
+      shortcutDestroyRoute.input.parse(rawInput)
+      runtime.shortcutPresenter.destroy()
+      return shortcutDestroyRoute.output.parse({ destroyed: true })
+    }
+
     case windowGetCurrentStateRoute.name: {
       windowGetCurrentStateRoute.input.parse(rawInput)
       return windowGetCurrentStateRoute.output.parse({
         state: readCurrentWindowState(runtime, context)
+      })
+    }
+
+    case windowGetRuntimeIdentityRoute.name: {
+      windowGetRuntimeIdentityRoute.input.parse(rawInput)
+      return windowGetRuntimeIdentityRoute.output.parse({
+        windowId: context.windowId,
+        webContentsId: context.webContentsId
       })
     }
 
@@ -1087,6 +1657,48 @@ export async function dispatchDeepchatRoute(
       return windowPreviewFileRoute.output.parse({ previewed: true })
     }
 
+    case windowCloseSettingsRoute.name: {
+      windowCloseSettingsRoute.input.parse(rawInput)
+      const hadSettingsWindow = runtime.windowPresenter.getSettingsWindowId() != null
+      runtime.windowPresenter.closeSettingsWindow()
+      return windowCloseSettingsRoute.output.parse({ closed: hadSettingsWindow })
+    }
+
+    case windowFocusMainRoute.name: {
+      windowFocusMainRoute.input.parse(rawInput)
+      return windowFocusMainRoute.output.parse({
+        focused: runtime.windowPresenter.focusMainWindow()
+      })
+    }
+
+    case windowNotifySettingsReadyRoute.name: {
+      windowNotifySettingsReadyRoute.input.parse(rawInput)
+      runtime.windowPresenter.notifySettingsReady(context.webContentsId)
+      return windowNotifySettingsReadyRoute.output.parse({ notified: true })
+    }
+
+    case windowConsumePendingSettingsProviderInstallRoute.name: {
+      windowConsumePendingSettingsProviderInstallRoute.input.parse(rawInput)
+      return windowConsumePendingSettingsProviderInstallRoute.output.parse({
+        preview: runtime.windowPresenter.consumePendingSettingsProviderInstall()
+      })
+    }
+
+    case windowRequeuePendingSettingsProviderInstallRoute.name: {
+      const input = windowRequeuePendingSettingsProviderInstallRoute.input.parse(rawInput)
+      runtime.windowPresenter.setPendingSettingsProviderInstall(input.preview)
+      return windowRequeuePendingSettingsProviderInstallRoute.output.parse({ queued: true })
+    }
+
+    case windowStartGuidedOnboardingRoute.name: {
+      windowStartGuidedOnboardingRoute.input.parse(rawInput)
+      await runtime.windowPresenter.sendToAllWindows(DEV_EVENTS.START_GUIDED_ONBOARDING)
+      return windowStartGuidedOnboardingRoute.output.parse({
+        started: true,
+        focused: runtime.windowPresenter.focusMainWindow()
+      })
+    }
+
     case deviceGetAppVersionRoute.name: {
       deviceGetAppVersionRoute.input.parse(rawInput)
       return deviceGetAppVersionRoute.output.parse({
@@ -1108,10 +1720,21 @@ export async function dispatchDeepchatRoute(
       )
     }
 
+    case deviceSelectFilesRoute.name: {
+      const input = deviceSelectFilesRoute.input.parse(rawInput)
+      return deviceSelectFilesRoute.output.parse(await runtime.devicePresenter.selectFiles(input))
+    }
+
     case deviceRestartAppRoute.name: {
       deviceRestartAppRoute.input.parse(rawInput)
       await runtime.devicePresenter.restartApp()
       return deviceRestartAppRoute.output.parse({ restarted: true })
+    }
+
+    case deviceResetDataByTypeRoute.name: {
+      const input = deviceResetDataByTypeRoute.input.parse(rawInput)
+      await runtime.devicePresenter.resetDataByType(input.resetType)
+      return deviceResetDataByTypeRoute.output.parse({ reset: true })
     }
 
     case deviceSanitizeSvgRoute.name: {
@@ -1168,16 +1791,51 @@ export async function dispatchDeepchatRoute(
     }
 
     case projectListEnvironmentsRoute.name: {
-      projectListEnvironmentsRoute.input.parse(rawInput)
+      const input = projectListEnvironmentsRoute.input.parse(rawInput)
       return projectListEnvironmentsRoute.output.parse({
-        environments: await runtime.projectPresenter.getEnvironments()
+        environments: await runtime.projectPresenter.getEnvironments({ status: input.status })
       })
+    }
+
+    case projectReorderEnvironmentsRoute.name: {
+      const input = projectReorderEnvironmentsRoute.input.parse(rawInput)
+      await runtime.projectPresenter.reorderEnvironments(input.paths)
+      publishProjectEnvironmentsChanged('reorder', null)
+      return projectReorderEnvironmentsRoute.output.parse({ updated: true })
+    }
+
+    case projectArchiveEnvironmentRoute.name: {
+      const input = projectArchiveEnvironmentRoute.input.parse(rawInput)
+      await runtime.projectPresenter.archiveEnvironment(input.path)
+      publishProjectEnvironmentsChanged('archive', input.path)
+      return projectArchiveEnvironmentRoute.output.parse({ updated: true })
+    }
+
+    case projectRestoreEnvironmentRoute.name: {
+      const input = projectRestoreEnvironmentRoute.input.parse(rawInput)
+      await runtime.projectPresenter.restoreEnvironment(input.path)
+      publishProjectEnvironmentsChanged('restore', input.path)
+      return projectRestoreEnvironmentRoute.output.parse({ updated: true })
+    }
+
+    case projectRemoveEnvironmentRoute.name: {
+      const input = projectRemoveEnvironmentRoute.input.parse(rawInput)
+      const result = await runtime.projectPresenter.removeEnvironment(input.path)
+      publishProjectEnvironmentsChanged('remove', input.path)
+      return projectRemoveEnvironmentRoute.output.parse(result)
     }
 
     case projectOpenDirectoryRoute.name: {
       const input = projectOpenDirectoryRoute.input.parse(rawInput)
       await runtime.projectPresenter.openDirectory(input.path)
       return projectOpenDirectoryRoute.output.parse({ opened: true })
+    }
+
+    case projectPathExistsRoute.name: {
+      const input = projectPathExistsRoute.input.parse(rawInput)
+      return projectPathExistsRoute.output.parse({
+        exists: await runtime.projectPresenter.pathExists(input.path)
+      })
     }
 
     case projectSelectDirectoryRoute.name: {
@@ -1237,6 +1895,90 @@ export async function dispatchDeepchatRoute(
     case fileCopyImageRoute.name: {
       const input = fileCopyImageRoute.input.parse(rawInput)
       return fileCopyImageRoute.output.parse(await runtime.filePresenter.copyImage(input))
+    }
+
+    case knowledgeIsSupportedRoute.name: {
+      knowledgeIsSupportedRoute.input.parse(rawInput)
+      return knowledgeIsSupportedRoute.output.parse({
+        supported: await runtime.knowledgePresenter.isSupported()
+      })
+    }
+
+    case knowledgeGetSupportedLanguagesRoute.name: {
+      knowledgeGetSupportedLanguagesRoute.input.parse(rawInput)
+      return knowledgeGetSupportedLanguagesRoute.output.parse({
+        languages: await runtime.knowledgePresenter.getSupportedLanguages()
+      })
+    }
+
+    case knowledgeGetSeparatorsForLanguageRoute.name: {
+      const input = knowledgeGetSeparatorsForLanguageRoute.input.parse(rawInput)
+      return knowledgeGetSeparatorsForLanguageRoute.output.parse({
+        separators: await runtime.knowledgePresenter.getSeparatorsForLanguage(input.language)
+      })
+    }
+
+    case knowledgeGetSupportedFileExtensionsRoute.name: {
+      knowledgeGetSupportedFileExtensionsRoute.input.parse(rawInput)
+      return knowledgeGetSupportedFileExtensionsRoute.output.parse({
+        extensions: await runtime.knowledgePresenter.getSupportedFileExtensions()
+      })
+    }
+
+    case knowledgeListFilesRoute.name: {
+      const input = knowledgeListFilesRoute.input.parse(rawInput)
+      return knowledgeListFilesRoute.output.parse({
+        files: await runtime.knowledgePresenter.listFiles(input.knowledgeBaseId)
+      })
+    }
+
+    case knowledgeSimilarityQueryRoute.name: {
+      const input = knowledgeSimilarityQueryRoute.input.parse(rawInput)
+      return knowledgeSimilarityQueryRoute.output.parse({
+        results: await runtime.knowledgePresenter.similarityQuery(
+          input.knowledgeBaseId,
+          input.query
+        )
+      })
+    }
+
+    case knowledgeValidateFileRoute.name: {
+      const input = knowledgeValidateFileRoute.input.parse(rawInput)
+      return knowledgeValidateFileRoute.output.parse({
+        result: await runtime.knowledgePresenter.validateFile(input.filePath)
+      })
+    }
+
+    case knowledgeAddFileRoute.name: {
+      const input = knowledgeAddFileRoute.input.parse(rawInput)
+      return knowledgeAddFileRoute.output.parse({
+        result: await runtime.knowledgePresenter.addFile(input.knowledgeBaseId, input.filePath)
+      })
+    }
+
+    case knowledgeDeleteFileRoute.name: {
+      const input = knowledgeDeleteFileRoute.input.parse(rawInput)
+      await runtime.knowledgePresenter.deleteFile(input.knowledgeBaseId, input.fileId)
+      return knowledgeDeleteFileRoute.output.parse({ deleted: true })
+    }
+
+    case knowledgeReAddFileRoute.name: {
+      const input = knowledgeReAddFileRoute.input.parse(rawInput)
+      return knowledgeReAddFileRoute.output.parse({
+        result: await runtime.knowledgePresenter.reAddFile(input.knowledgeBaseId, input.fileId)
+      })
+    }
+
+    case knowledgePauseAllRunningTasksRoute.name: {
+      const input = knowledgePauseAllRunningTasksRoute.input.parse(rawInput)
+      await runtime.knowledgePresenter.pauseAllRunningTasks(input.knowledgeBaseId)
+      return knowledgePauseAllRunningTasksRoute.output.parse({ paused: true })
+    }
+
+    case knowledgeResumeAllPausedTasksRoute.name: {
+      const input = knowledgeResumeAllPausedTasksRoute.input.parse(rawInput)
+      await runtime.knowledgePresenter.resumeAllPausedTasks(input.knowledgeBaseId)
+      return knowledgeResumeAllPausedTasksRoute.output.parse({ resumed: true })
     }
 
     case workspaceRegisterRoute.name: {
@@ -1425,6 +2167,12 @@ export async function dispatchDeepchatRoute(
       })
     }
 
+    case browserClearSandboxDataRoute.name: {
+      browserClearSandboxDataRoute.input.parse(rawInput)
+      await runtime.yoBrowserPresenter.clearSandboxData()
+      return browserClearSandboxDataRoute.output.parse({ cleared: true })
+    }
+
     case tabNotifyRendererReadyRoute.name: {
       tabNotifyRendererReadyRoute.input.parse(rawInput)
       await runtime.tabPresenter.onRendererTabReady(context.webContentsId)
@@ -1575,6 +2323,289 @@ export async function dispatchDeepchatRoute(
       return databaseSecurityDisableRoute.output.parse({ status })
     }
 
+    case databaseSecurityRepairSchemaRoute.name: {
+      databaseSecurityRepairSchemaRoute.input.parse(rawInput)
+      return databaseSecurityRepairSchemaRoute.output.parse({
+        report: await runtime.sqlitePresenter.repairSchema()
+      })
+    }
+
+    case memoryListRoute.name: {
+      const input = memoryListRoute.input.parse(rawInput)
+      const memories = runtime.memoryPresenter.listMemories(input.agentId).map(toMemoryItemDto)
+      return memoryListRoute.output.parse({ memories })
+    }
+
+    case memoryPageRoute.name: {
+      const input = memoryPageRoute.input.parse(rawInput)
+      const cursor = input.cursor ? decodeMemoryPageCursor(input.cursor) : null
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryPageRoute.output.parse({ items: [], nextCursor: null })
+      }
+      const page = runtime.memoryPresenter.pageMemories(input.agentId, cursor, input.limit)
+      return memoryPageRoute.output.parse({
+        items: page.rows.map(toMemoryItemDto),
+        nextCursor: page.nextCursor ? encodeMemoryPageCursor({ v: 1, ...page.nextCursor }) : null
+      })
+    }
+
+    case memorySearchRoute.name: {
+      const input = memorySearchRoute.input.parse(rawInput)
+      const hits = await runtime.memoryPresenter.searchMemories(input.agentId, input.query, {
+        limit: input.limit
+      })
+      const results = hits.map((hit) => ({
+        ...toMemoryItemDto(hit.row),
+        score: hit.score,
+        sources: hit.sources,
+        similarity: hit.similarity
+      }))
+      return memorySearchRoute.output.parse({ results })
+    }
+
+    case memoryAddRoute.name: {
+      const input = memoryAddRoute.input.parse(rawInput)
+      const outcome = await runtime.memoryPresenter.addUserMemory(
+        input.agentId,
+        {
+          content: input.content,
+          kind: input.kind,
+          category: input.category,
+          importance: input.importance
+        },
+        input.sessionId
+      )
+      return memoryAddRoute.output.parse({ result: toMemoryAddResultDto(outcome) })
+    }
+
+    case memoryUpdateRoute.name: {
+      const input = memoryUpdateRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryUpdateRoute.output.parse({ result: { action: 'noop' } })
+      }
+      const result = runtime.memoryPresenter.updateMemory(
+        input.agentId,
+        input.memoryId,
+        input.patch
+      )
+      return memoryUpdateRoute.output.parse({ result })
+    }
+
+    case memoryGetByIdsRoute.name: {
+      const input = memoryGetByIdsRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryGetByIdsRoute.output.parse({ memories: [] })
+      }
+      const memories = runtime.memoryPresenter
+        .getByIds(input.agentId, input.memoryIds)
+        .map(toMemoryItemDto)
+      return memoryGetByIdsRoute.output.parse({ memories })
+    }
+
+    case memoryGetStatusRoute.name: {
+      const input = memoryGetStatusRoute.input.parse(rawInput)
+      return memoryGetStatusRoute.output.parse({
+        status: runtime.memoryPresenter.getStatus(input.agentId)
+      })
+    }
+
+    case memoryGetHealthRoute.name: {
+      const input = memoryGetHealthRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryGetHealthRoute.output.parse({ health: createEmptyMemoryHealth() })
+      }
+      return memoryGetHealthRoute.output.parse({
+        health: runtime.memoryPresenter.getHealth(input.agentId)
+      })
+    }
+
+    case memoryReindexRoute.name: {
+      const input = memoryReindexRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat' || !runtime.memoryPresenter.canReindex(input.agentId)) {
+        return memoryReindexRoute.output.parse({ started: false })
+      }
+      const already = runtime.memoryPresenter.isReindexing(input.agentId)
+      void runtime.memoryPresenter.reindexEmbeddings(input.agentId, true).catch((error) => {
+        console.warn(`[Memory] manual reindex failed for ${input.agentId}: ${String(error)}`)
+      })
+      return memoryReindexRoute.output.parse({ started: !already })
+    }
+
+    case memoryGetLifecycleRoute.name: {
+      const input = memoryGetLifecycleRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryGetLifecycleRoute.output.parse({ lifecycle: null })
+      }
+      return memoryGetLifecycleRoute.output.parse({
+        lifecycle: runtime.memoryPresenter.getLifecycle(input.agentId, input.memoryId)
+      })
+    }
+
+    case memoryGetArchiveCandidateLifecyclePreviewRoute.name: {
+      const input = memoryGetArchiveCandidateLifecyclePreviewRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
+          preview: createEmptyArchiveCandidateLifecyclePreview()
+        })
+      }
+      return memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
+        preview: runtime.memoryPresenter.getArchiveCandidateLifecyclePreview(input.agentId)
+      })
+    }
+
+    case memoryListAuditEventsRoute.name: {
+      const input = memoryListAuditEventsRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryListAuditEventsRoute.output.parse({ events: [] })
+      }
+      const auditTable = getMemoryAuditTable(runtime)
+      if (!auditTable) {
+        return memoryListAuditEventsRoute.output.parse({ events: [] })
+      }
+      const events = auditTable
+        .listByAgent(input.agentId, {
+          eventType: input.eventType,
+          actorType: input.actorType,
+          sessionId: input.sessionId,
+          status: input.status,
+          startCreatedAt: input.startCreatedAt,
+          endCreatedAt: input.endCreatedAt,
+          limit: input.limit
+        })
+        .map(toMemoryAuditEventDto)
+      return memoryListAuditEventsRoute.output.parse({ events })
+    }
+
+    case memoryListViewManifestsRoute.name: {
+      const input = memoryListViewManifestsRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
+      }
+      const tapeEntriesTable = getMemoryViewManifestTapeEntriesTable(runtime)
+      if (!tapeEntriesTable) {
+        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
+      }
+      const limit = input.limit ?? 100
+      const manifests = tapeEntriesTable
+        .listMemoryViewManifestAnchorsByAgent(input.agentId, {
+          sessionId: input.sessionId,
+          limit,
+          messageId: input.messageId
+        })
+        .map(toMemoryViewManifestDto)
+        .filter((manifest): manifest is NonNullable<typeof manifest> => Boolean(manifest))
+        .filter((manifest) => !input.messageId || manifest.messageId === input.messageId)
+        .slice(0, limit)
+      return memoryListViewManifestsRoute.output.parse({ manifests })
+    }
+
+    case memoryDeleteRoute.name: {
+      const input = memoryDeleteRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.deleteMemory(input.agentId, input.memoryId)
+      return memoryDeleteRoute.output.parse({ ok })
+    }
+
+    case memoryArchiveRoute.name: {
+      const input = memoryArchiveRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryArchiveRoute.output.parse({ ok: false })
+      }
+      const ok = await runtime.memoryPresenter.archiveUserMemory(input.agentId, input.memoryId)
+      return memoryArchiveRoute.output.parse({ ok })
+    }
+
+    case memoryClearRoute.name: {
+      const input = memoryClearRoute.input.parse(rawInput)
+      const removed = await runtime.memoryPresenter.clearMemories(input.agentId)
+      return memoryClearRoute.output.parse({ removed })
+    }
+
+    case memoryRestoreRoute.name: {
+      const input = memoryRestoreRoute.input.parse(rawInput)
+      const ok = runtime.memoryPresenter.restoreMemory(input.agentId, input.memoryId)
+      return memoryRestoreRoute.output.parse({ ok })
+    }
+
+    case memoryGetSourceSpanRoute.name: {
+      const input = memoryGetSourceSpanRoute.input.parse(rawInput)
+      const span = getMemorySourceSpan(runtime, input.agentId, input.memoryId)
+      return memoryGetSourceSpanRoute.output.parse({ span })
+    }
+
+    case memoryListConflictsRoute.name: {
+      const input = memoryListConflictsRoute.input.parse(rawInput)
+      const conflicts = runtime.memoryPresenter.listConflicts(input.agentId).map((pair) => ({
+        challenger: toMemoryItemDto(pair.challenger),
+        target: toMemoryItemDto(pair.target)
+      }))
+      return memoryListConflictsRoute.output.parse({ conflicts })
+    }
+
+    case memoryResolveConflictRoute.name: {
+      const input = memoryResolveConflictRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.resolveConflict(
+        input.agentId,
+        input.challengerId,
+        input.outcome,
+        'user'
+      )
+      return memoryResolveConflictRoute.output.parse({ ok })
+    }
+
+    case memoryListPersonaVersionsRoute.name: {
+      const input = memoryListPersonaVersionsRoute.input.parse(rawInput)
+      const versions = runtime.memoryPresenter
+        .listPersonaVersions(input.agentId)
+        .map(toMemoryItemDto)
+      return memoryListPersonaVersionsRoute.output.parse({ versions })
+    }
+
+    case memoryRollbackPersonaRoute.name: {
+      const input = memoryRollbackPersonaRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.rollbackPersona(input.agentId, input.versionId)
+      return memoryRollbackPersonaRoute.output.parse({ ok })
+    }
+
+    case memoryListPersonaDraftsRoute.name: {
+      const input = memoryListPersonaDraftsRoute.input.parse(rawInput)
+      const drafts = runtime.memoryPresenter
+        .listPersonaDrafts(input.agentId)
+        .map(({ row, needsReview }) => ({ ...toMemoryItemDto(row), needsReview }))
+      return memoryListPersonaDraftsRoute.output.parse({ drafts })
+    }
+
+    case memoryApprovePersonaDraftRoute.name: {
+      const input = memoryApprovePersonaDraftRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.approvePersonaDraft(input.agentId, input.draftId)
+      return memoryApprovePersonaDraftRoute.output.parse({ ok })
+    }
+
+    case memoryRejectPersonaDraftRoute.name: {
+      const input = memoryRejectPersonaDraftRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.rejectPersonaDraft(input.agentId, input.draftId)
+      return memoryRejectPersonaDraftRoute.output.parse({ ok })
+    }
+
+    case memorySetPersonaAnchorRoute.name: {
+      const input = memorySetPersonaAnchorRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.setPersonaAnchor(
+        input.agentId,
+        input.versionId,
+        input.anchored
+      )
+      return memorySetPersonaAnchorRoute.output.parse({ ok })
+    }
+
     case onboardingGetStateRoute.name: {
       onboardingGetStateRoute.input.parse(rawInput)
       const state = readGuidedOnboardingState(runtime.configPresenter)
@@ -1607,34 +2638,153 @@ export async function dispatchDeepchatRoute(
       return onboardingResetRoute.output.parse({ state })
     }
 
-    case scheduledTasksListRoute.name: {
-      scheduledTasksListRoute.input.parse(rawInput)
-      const settings = runtime.scheduledTasks.list()
-      return scheduledTasksListRoute.output.parse({ settings })
+    case nowledgeMemGetConfigRoute.name: {
+      nowledgeMemGetConfigRoute.input.parse(rawInput)
+      return nowledgeMemGetConfigRoute.output.parse({
+        config: runtime.exporter.getNowledgeMemConfig()
+      })
     }
 
-    case scheduledTasksUpsertRoute.name: {
-      const input = scheduledTasksUpsertRoute.input.parse(rawInput)
-      const { task, settings } = runtime.scheduledTasks.upsert(input)
-      return scheduledTasksUpsertRoute.output.parse({ task, settings })
+    case nowledgeMemUpdateConfigRoute.name: {
+      const input = nowledgeMemUpdateConfigRoute.input.parse(rawInput)
+      await runtime.exporter.updateNowledgeMemConfig(input.config)
+      return nowledgeMemUpdateConfigRoute.output.parse({
+        config: runtime.exporter.getNowledgeMemConfig()
+      })
     }
 
-    case scheduledTasksDeleteRoute.name: {
-      const input = scheduledTasksDeleteRoute.input.parse(rawInput)
-      const settings = runtime.scheduledTasks.delete(input.id)
-      return scheduledTasksDeleteRoute.output.parse({ settings })
+    case nowledgeMemTestConnectionRoute.name: {
+      nowledgeMemTestConnectionRoute.input.parse(rawInput)
+      return nowledgeMemTestConnectionRoute.output.parse({
+        result: await runtime.exporter.testNowledgeMemConnection()
+      })
     }
 
-    case scheduledTasksToggleRoute.name: {
-      const input = scheduledTasksToggleRoute.input.parse(rawInput)
-      const { task, settings } = runtime.scheduledTasks.toggle(input.id, input.enabled)
-      return scheduledTasksToggleRoute.output.parse({ task, settings })
+    case oauthGithubCopilotStartLoginRoute.name: {
+      const input = oauthGithubCopilotStartLoginRoute.input.parse(rawInput)
+      return oauthGithubCopilotStartLoginRoute.output.parse({
+        success: await runtime.oauthPresenter.startGitHubCopilotLogin(input.providerId)
+      })
     }
 
-    case scheduledTasksFireNowRoute.name: {
-      const input = scheduledTasksFireNowRoute.input.parse(rawInput)
-      const { task, settings } = await runtime.scheduledTasks.fireNow(input.id)
-      return scheduledTasksFireNowRoute.output.parse({ task, settings })
+    case oauthGithubCopilotStartDeviceFlowLoginRoute.name: {
+      const input = oauthGithubCopilotStartDeviceFlowLoginRoute.input.parse(rawInput)
+      return oauthGithubCopilotStartDeviceFlowLoginRoute.output.parse({
+        success: await runtime.oauthPresenter.startGitHubCopilotDeviceFlowLogin(input.providerId)
+      })
+    }
+
+    case oauthOpenAICodexGetStatusRoute.name: {
+      oauthOpenAICodexGetStatusRoute.input.parse(rawInput)
+      return oauthOpenAICodexGetStatusRoute.output.parse({
+        status: await runtime.oauthPresenter.getOpenAICodexStatus()
+      })
+    }
+
+    case oauthOpenAICodexStartBrowserLoginRoute.name: {
+      oauthOpenAICodexStartBrowserLoginRoute.input.parse(rawInput)
+      return oauthOpenAICodexStartBrowserLoginRoute.output.parse({
+        status: await runtime.oauthPresenter.startOpenAICodexBrowserLogin()
+      })
+    }
+
+    case oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.name: {
+      const input = oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.input.parse(rawInput)
+      return oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.output.parse({
+        status: await runtime.oauthPresenter.completeOpenAICodexBrowserLoginFromUrl(
+          input.callbackUrl
+        )
+      })
+    }
+
+    case oauthOpenAICodexCancelLoginRoute.name: {
+      oauthOpenAICodexCancelLoginRoute.input.parse(rawInput)
+      return oauthOpenAICodexCancelLoginRoute.output.parse({
+        status: await runtime.oauthPresenter.cancelOpenAICodexLogin()
+      })
+    }
+
+    case oauthOpenAICodexLogoutRoute.name: {
+      oauthOpenAICodexLogoutRoute.input.parse(rawInput)
+      return oauthOpenAICodexLogoutRoute.output.parse({
+        status: await runtime.oauthPresenter.logoutOpenAICodex()
+      })
+    }
+
+    case cronJobsListRoute.name: {
+      cronJobsListRoute.input.parse(rawInput)
+      const { jobs, schedulerStatus } = await runtime.cronJobs.list()
+      return cronJobsListRoute.output.parse({ jobs, schedulerStatus })
+    }
+
+    case cronJobsUpsertRoute.name: {
+      const input = cronJobsUpsertRoute.input.parse(rawInput)
+      const { job, schedulerStatus } = await runtime.cronJobs.upsert(input)
+      return cronJobsUpsertRoute.output.parse({ job, schedulerStatus })
+    }
+
+    case cronJobsDeleteRoute.name: {
+      const input = cronJobsDeleteRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.delete(input.id)
+      return cronJobsDeleteRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsToggleRoute.name: {
+      const input = cronJobsToggleRoute.input.parse(rawInput)
+      const { job, schedulerStatus } = await runtime.cronJobs.toggle(input.id, input.enabled)
+      return cronJobsToggleRoute.output.parse({ job, schedulerStatus })
+    }
+
+    case cronJobsRunNowRoute.name: {
+      const input = cronJobsRunNowRoute.input.parse(rawInput)
+      const { job, run, schedulerStatus } = await runtime.cronJobs.runNow(input.id)
+      return cronJobsRunNowRoute.output.parse({ job, run, schedulerStatus })
+    }
+
+    case cronJobsListRunsRoute.name: {
+      const input = cronJobsListRunsRoute.input.parse(rawInput)
+      const runs = runtime.cronJobs.listRuns(input.jobId, input.limit)
+      return cronJobsListRunsRoute.output.parse({ runs })
+    }
+
+    case cronJobsGetRunRoute.name: {
+      const input = cronJobsGetRunRoute.input.parse(rawInput)
+      return cronJobsGetRunRoute.output.parse({ run: runtime.cronJobs.getRun(input.runId) })
+    }
+
+    case cronJobsListDeliveriesRoute.name: {
+      const input = cronJobsListDeliveriesRoute.input.parse(rawInput)
+      return cronJobsListDeliveriesRoute.output.parse({
+        deliveries: runtime.cronJobs.listDeliveries(input.runId)
+      })
+    }
+
+    case cronJobsGetSchedulerStatusRoute.name: {
+      cronJobsGetSchedulerStatusRoute.input.parse(rawInput)
+      const schedulerStatus = runtime.cronJobs.getSchedulerStatus()
+      return cronJobsGetSchedulerStatusRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsReconcileSchedulerRoute.name: {
+      const input = cronJobsReconcileSchedulerRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.reconcileScheduler(input.reason)
+      return cronJobsReconcileSchedulerRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsRestartSchedulerRoute.name: {
+      cronJobsRestartSchedulerRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.restartScheduler()
+      return cronJobsRestartSchedulerRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsValidateScheduleRoute.name: {
+      const input = cronJobsValidateScheduleRoute.input.parse(rawInput)
+      return cronJobsValidateScheduleRoute.output.parse(runtime.cronJobs.validateSchedule(input))
+    }
+
+    case cronJobsPreviewScheduleRoute.name: {
+      const input = cronJobsPreviewScheduleRoute.input.parse(rawInput)
+      return cronJobsPreviewScheduleRoute.output.parse(runtime.cronJobs.previewSchedule(input))
     }
 
     case startupGetBootstrapRoute.name: {
@@ -1650,9 +2800,10 @@ export async function dispatchDeepchatRoute(
               await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
             )[0] ?? null)
           : null
-        const [agents, acpEnabled] = await Promise.all([
+        const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
           runtime.configPresenter.listAgents(),
-          runtime.configPresenter.getAcpEnabled()
+          runtime.configPresenter.getAcpEnabled(),
+          runtime.projectPresenter.ensureDefaultWorkspace()
         ])
 
         const bootstrap = {
@@ -1673,7 +2824,8 @@ export async function dispatchDeepchatRoute(
               source: agent.source,
               avatar: agent.avatar
             })),
-          defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+          defaultProjectPath: runtime.configPresenter.getDefaultProjectPath(),
+          defaultChatWorkspacePath
         }
 
         return startupGetBootstrapRoute.output.parse({ bootstrap })
@@ -1698,9 +2850,10 @@ export async function dispatchDeepchatRoute(
                 await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
               )[0] ?? null)
             : null
-          const [agents, acpEnabled] = await Promise.all([
+          const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
             runtime.configPresenter.listAgents(),
-            runtime.configPresenter.getAcpEnabled()
+            runtime.configPresenter.getAcpEnabled(),
+            runtime.projectPresenter.ensureDefaultWorkspace()
           ])
 
           const bootstrap = {
@@ -1721,7 +2874,8 @@ export async function dispatchDeepchatRoute(
                 source: agent.source,
                 avatar: agent.avatar
               })),
-            defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+            defaultProjectPath: runtime.configPresenter.getDefaultProjectPath(),
+            defaultChatWorkspacePath
           }
 
           coordinator.replayTarget('main')
@@ -1841,16 +2995,19 @@ export async function dispatchDeepchatRoute(
       return sessionsConvertPendingInputToSteerRoute.output.parse({ item })
     }
 
+    case sessionsSteerPendingInputRoute.name: {
+      const input = sessionsSteerPendingInputRoute.input.parse(rawInput)
+      const item = await runtime.agentSessionPresenter.steerPendingInput(
+        input.sessionId,
+        input.itemId
+      )
+      return sessionsSteerPendingInputRoute.output.parse({ item })
+    }
+
     case sessionsDeletePendingInputRoute.name: {
       const input = sessionsDeletePendingInputRoute.input.parse(rawInput)
       await runtime.agentSessionPresenter.deletePendingInput(input.sessionId, input.itemId)
       return sessionsDeletePendingInputRoute.output.parse({ deleted: true })
-    }
-
-    case sessionsResumePendingQueueRoute.name: {
-      const input = sessionsResumePendingQueueRoute.input.parse(rawInput)
-      await runtime.agentSessionPresenter.resumePendingQueue(input.sessionId)
-      return sessionsResumePendingQueueRoute.output.parse({ resumed: true })
     }
 
     case sessionsRetryMessageRoute.name: {
@@ -1900,10 +3057,32 @@ export async function dispatchDeepchatRoute(
       return sessionsGetSearchResultsRoute.output.parse({ results })
     }
 
+    case sessionsGetTapeContextRoute.name: {
+      const input = sessionsGetTapeContextRoute.input.parse(rawInput)
+      const context = await runtime.agentSessionPresenter.getTapeContext(
+        input.sessionId,
+        input.entryIds,
+        input.options
+      )
+      return sessionsGetTapeContextRoute.output.parse({ context })
+    }
+
     case sessionsListMessageTracesRoute.name: {
       const input = sessionsListMessageTracesRoute.input.parse(rawInput)
       const traces = await runtime.agentSessionPresenter.listMessageTraces(input.messageId)
-      return sessionsListMessageTracesRoute.output.parse({ traces })
+      const manifests = await runtime.agentSessionPresenter.listMessageViewManifests(
+        input.messageId
+      )
+      return sessionsListMessageTracesRoute.output.parse({ traces, manifests })
+    }
+
+    case sessionsExportMessageTapeReplaySliceRoute.name: {
+      const input = sessionsExportMessageTapeReplaySliceRoute.input.parse(rawInput)
+      const slice = await runtime.agentSessionPresenter.exportMessageTapeReplaySlice(
+        input.messageId,
+        input.options
+      )
+      return sessionsExportMessageTapeReplaySliceRoute.output.parse({ slice })
     }
 
     case sessionsTranslateTextRoute.name: {
@@ -1920,6 +3099,18 @@ export async function dispatchDeepchatRoute(
       sessionsGetAgentsRoute.input.parse(rawInput)
       const agents = await runtime.agentSessionPresenter.getAgents()
       return sessionsGetAgentsRoute.output.parse({ agents })
+    }
+
+    case sessionsGetUsageDashboardRoute.name: {
+      sessionsGetUsageDashboardRoute.input.parse(rawInput)
+      const dashboard = await runtime.agentSessionPresenter.getUsageDashboard()
+      return sessionsGetUsageDashboardRoute.output.parse({ dashboard })
+    }
+
+    case sessionsRetryRtkHealthCheckRoute.name: {
+      sessionsRetryRtkHealthCheckRoute.input.parse(rawInput)
+      await runtime.agentSessionPresenter.retryRtkHealthCheck()
+      return sessionsRetryRtkHealthCheckRoute.output.parse({ retried: true })
     }
 
     case sessionsRenameRoute.name: {
@@ -2098,6 +3289,21 @@ export async function dispatchDeepchatRoute(
       })
     }
 
+    case skillsListCatalogRoute.name: {
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        skillsListCatalogRoute.input.parse(rawInput)
+        const skills = await runtime.skillPresenter.getUnifiedSkillCatalog()
+        return skillsListCatalogRoute.output.parse({ skills })
+      })
+    }
+
+    case skillsSetDisabledRoute.name: {
+      const input = skillsSetDisabledRoute.input.parse(rawInput)
+      await runtime.skillPresenter.setSkillDeepChatDisabled(input.name, input.disabled)
+      recordSkillUpdatedActivity(runtime, input.name, 'skill-disabled-state')
+      return skillsSetDisabledRoute.output.parse({ saved: true })
+    }
+
     case skillsGetDirectoryRoute.name: {
       skillsGetDirectoryRoute.input.parse(rawInput)
       const path = await runtime.skillPresenter.getSkillsDir()
@@ -2131,6 +3337,57 @@ export async function dispatchDeepchatRoute(
       return skillsInstallFromUrlRoute.output.parse({ result })
     }
 
+    case skillsScanGitRepoRoute.name: {
+      const input = skillsScanGitRepoRoute.input.parse(rawInput)
+      const result = await runtime.skillPresenter.scanGitSkillRepo(input.repoUrl)
+      return skillsScanGitRepoRoute.output.parse({ result })
+    }
+
+    case skillsInstallFromGitRoute.name: {
+      const input = skillsInstallFromGitRoute.input.parse(rawInput)
+      const results = await runtime.skillPresenter.installSkillsFromGit(input)
+      if (results.some(didSkillOperationSucceed)) {
+        recordSkillSettingsActivity(runtime, 'created', 'skill Git source')
+      }
+      return skillsInstallFromGitRoute.output.parse({ results })
+    }
+
+    case skillsGetSyncConfigRoute.name: {
+      skillsGetSyncConfigRoute.input.parse(rawInput)
+      const config = await runtime.skillPresenter.getSkillsSyncConfig()
+      return skillsGetSyncConfigRoute.output.parse({ config })
+    }
+
+    case skillsSetSyncDirectoryRoute.name: {
+      const input = skillsSetSyncDirectoryRoute.input.parse(rawInput)
+      const config = await runtime.skillPresenter.setSkillsSyncDirectory(input)
+      return skillsSetSyncDirectoryRoute.output.parse({ config })
+    }
+
+    case skillsPreviewSyncDirectoryExportRoute.name: {
+      const input = skillsPreviewSyncDirectoryExportRoute.input.parse(rawInput)
+      const preview = await runtime.skillPresenter.previewSyncDirectoryExport(input)
+      return skillsPreviewSyncDirectoryExportRoute.output.parse({ preview })
+    }
+
+    case skillsExecuteSyncDirectoryExportRoute.name: {
+      const input = skillsExecuteSyncDirectoryExportRoute.input.parse(rawInput)
+      const result = await runtime.skillPresenter.executeSyncDirectoryExport(input)
+      return skillsExecuteSyncDirectoryExportRoute.output.parse({ result })
+    }
+
+    case skillsPreviewSyncDirectoryImportRoute.name: {
+      skillsPreviewSyncDirectoryImportRoute.input.parse(rawInput)
+      const preview = await runtime.skillPresenter.previewSyncDirectoryImport()
+      return skillsPreviewSyncDirectoryImportRoute.output.parse({ preview })
+    }
+
+    case skillsExecuteSyncDirectoryImportRoute.name: {
+      const input = skillsExecuteSyncDirectoryImportRoute.input.parse(rawInput)
+      const result = await runtime.skillPresenter.executeSyncDirectoryImport(input)
+      return skillsExecuteSyncDirectoryImportRoute.output.parse({ result })
+    }
+
     case skillsUninstallRoute.name: {
       const input = skillsUninstallRoute.input.parse(rawInput)
       const result = await runtime.skillPresenter.uninstallSkill(input.name)
@@ -2138,6 +3395,13 @@ export async function dispatchDeepchatRoute(
         recordSkillRemovedActivity(runtime, input.name)
       }
       return skillsUninstallRoute.output.parse({ result })
+    }
+
+    case skillsReadFileRoute.name: {
+      const input = skillsReadFileRoute.input.parse(rawInput)
+      return skillsReadFileRoute.output.parse({
+        content: await runtime.skillPresenter.readSkillFile(input.name)
+      })
     }
 
     case skillsUpdateFileRoute.name: {
@@ -2217,6 +3481,130 @@ export async function dispatchDeepchatRoute(
         }
       })
       return skillsSetActiveRoute.output.parse({ skills })
+    }
+
+    case skillSyncScanExternalToolsRoute.name: {
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        skillSyncScanExternalToolsRoute.input.parse(rawInput)
+        return skillSyncScanExternalToolsRoute.output.parse({
+          results: await runtime.skillSyncPresenter.scanExternalTools()
+        })
+      })
+    }
+
+    case skillSyncGetNewDiscoveriesRoute.name: {
+      skillSyncGetNewDiscoveriesRoute.input.parse(rawInput)
+      return skillSyncGetNewDiscoveriesRoute.output.parse({
+        discoveries: await runtime.skillSyncPresenter.getNewDiscoveries()
+      })
+    }
+
+    case skillSyncAcknowledgeDiscoveriesRoute.name: {
+      skillSyncAcknowledgeDiscoveriesRoute.input.parse(rawInput)
+      await runtime.skillSyncPresenter.acknowledgeDiscoveries()
+      return skillSyncAcknowledgeDiscoveriesRoute.output.parse({ acknowledged: true })
+    }
+
+    case skillSyncGetRegisteredToolsRoute.name: {
+      skillSyncGetRegisteredToolsRoute.input.parse(rawInput)
+      return skillSyncGetRegisteredToolsRoute.output.parse({
+        tools: runtime.skillSyncPresenter.getRegisteredTools()
+      })
+    }
+
+    case skillSyncScanAgentsRoute.name: {
+      skillSyncScanAgentsRoute.input.parse(rawInput)
+      return skillSyncScanAgentsRoute.output.parse({
+        agents: await runtime.skillSyncPresenter.scanSkillAgents()
+      })
+    }
+
+    case skillSyncGetAgentDetailRoute.name: {
+      const input = skillSyncGetAgentDetailRoute.input.parse(rawInput)
+      return skillSyncGetAgentDetailRoute.output.parse({
+        agent: await runtime.skillSyncPresenter.scanSkillAgent({ agentId: input.agentId })
+      })
+    }
+
+    case skillSyncGetAgentSkillDetailRoute.name: {
+      const input = skillSyncGetAgentSkillDetailRoute.input.parse(rawInput)
+      return skillSyncGetAgentSkillDetailRoute.output.parse({
+        detail: await runtime.skillSyncPresenter.getAgentSkillDetail(input)
+      })
+    }
+
+    case skillSyncPreviewAdoptAgentSkillRoute.name: {
+      const input = skillSyncPreviewAdoptAgentSkillRoute.input.parse(rawInput)
+      return skillSyncPreviewAdoptAgentSkillRoute.output.parse({
+        preview: await runtime.skillSyncPresenter.previewAdoptAgentSkill(input)
+      })
+    }
+
+    case skillSyncExecuteAdoptAgentSkillRoute.name: {
+      const input = skillSyncExecuteAdoptAgentSkillRoute.input.parse(rawInput)
+      return skillSyncExecuteAdoptAgentSkillRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeAdoptAgentSkill(input)
+      })
+    }
+
+    case skillSyncPreviewLinkDeepChatSkillsRoute.name: {
+      const input = skillSyncPreviewLinkDeepChatSkillsRoute.input.parse(rawInput)
+      return skillSyncPreviewLinkDeepChatSkillsRoute.output.parse({
+        preview: await runtime.skillSyncPresenter.previewLinkDeepChatSkills(input)
+      })
+    }
+
+    case skillSyncExecuteLinkDeepChatSkillsRoute.name: {
+      const input = skillSyncExecuteLinkDeepChatSkillsRoute.input.parse(rawInput)
+      return skillSyncExecuteLinkDeepChatSkillsRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeLinkDeepChatSkills(input)
+      })
+    }
+
+    case skillSyncRepairAgentSkillLinkRoute.name: {
+      const input = skillSyncRepairAgentSkillLinkRoute.input.parse(rawInput)
+      return skillSyncRepairAgentSkillLinkRoute.output.parse({
+        result: await runtime.skillSyncPresenter.repairAgentSkillLink(input)
+      })
+    }
+
+    case skillSyncRemoveAgentSkillLinkRoute.name: {
+      const input = skillSyncRemoveAgentSkillLinkRoute.input.parse(rawInput)
+      return skillSyncRemoveAgentSkillLinkRoute.output.parse({
+        result: await runtime.skillSyncPresenter.removeAgentSkillLink(input)
+      })
+    }
+
+    case skillSyncPreviewImportRoute.name: {
+      const input = skillSyncPreviewImportRoute.input.parse(rawInput)
+      return skillSyncPreviewImportRoute.output.parse({
+        previews: await runtime.skillSyncPresenter.previewImport(input.toolId, input.skillNames)
+      })
+    }
+
+    case skillSyncExecuteImportRoute.name: {
+      const input = skillSyncExecuteImportRoute.input.parse(rawInput)
+      return skillSyncExecuteImportRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeImport(input.previews, input.strategies)
+      })
+    }
+
+    case skillSyncPreviewExportRoute.name: {
+      const input = skillSyncPreviewExportRoute.input.parse(rawInput)
+      return skillSyncPreviewExportRoute.output.parse({
+        previews: await runtime.skillSyncPresenter.previewExport(
+          input.skillNames,
+          input.targetToolId,
+          input.options
+        )
+      })
+    }
+
+    case skillSyncExecuteExportRoute.name: {
+      const input = skillSyncExecuteExportRoute.input.parse(rawInput)
+      return skillSyncExecuteExportRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeExport(input.previews, input.strategies)
+      })
     }
 
     case mcpGetServersRoute.name: {
@@ -2401,6 +3789,37 @@ export async function dispatchDeepchatRoute(
       return mcpStopServerRoute.output.parse({ stopped: true })
     }
 
+    case mcpGetServerAuthStatusRoute.name: {
+      const input = mcpGetServerAuthStatusRoute.input.parse(rawInput)
+      return mcpGetServerAuthStatusRoute.output.parse({
+        status: await runtime.mcpPresenter.getMcpServerAuthStatus(input.serverName)
+      })
+    }
+
+    case mcpStartServerAuthRoute.name: {
+      const input = mcpStartServerAuthRoute.input.parse(rawInput)
+      return mcpStartServerAuthRoute.output.parse({
+        status: await runtime.mcpPresenter.startMcpServerAuth(input.serverName)
+      })
+    }
+
+    case mcpCompleteServerAuthFromCallbackUrlRoute.name: {
+      const input = mcpCompleteServerAuthFromCallbackUrlRoute.input.parse(rawInput)
+      return mcpCompleteServerAuthFromCallbackUrlRoute.output.parse({
+        status: await runtime.mcpPresenter.completeMcpServerAuthFromCallbackUrl(
+          input.serverName,
+          input.callbackUrl
+        )
+      })
+    }
+
+    case mcpLogoutServerAuthRoute.name: {
+      const input = mcpLogoutServerAuthRoute.input.parse(rawInput)
+      return mcpLogoutServerAuthRoute.output.parse({
+        status: await runtime.mcpPresenter.logoutMcpServerAuth(input.serverName)
+      })
+    }
+
     case mcpGetPromptRoute.name: {
       const input = mcpGetPromptRoute.input.parse(rawInput)
       const result = await runtime.mcpPresenter.getPrompt(input.prompt, input.args)
@@ -2480,6 +3899,183 @@ export async function dispatchDeepchatRoute(
       }
       await runtime.mcpPresenter.clearNpmRegistryCache()
       return mcpClearNpmRegistryCacheRoute.output.parse({ cleared: true })
+    }
+
+    case mcpRouterListServersRoute.name: {
+      const input = mcpRouterListServersRoute.input.parse(rawInput)
+      const data = await runtime.mcpPresenter.listMcpRouterServers?.(input.page, input.limit)
+      return mcpRouterListServersRoute.output.parse({
+        servers: data?.servers ?? []
+      })
+    }
+
+    case mcpRouterInstallServerRoute.name: {
+      const input = mcpRouterInstallServerRoute.input.parse(rawInput)
+      return mcpRouterInstallServerRoute.output.parse({
+        installed: (await runtime.mcpPresenter.installMcpRouterServer?.(input.serverKey)) ?? false
+      })
+    }
+
+    case mcpRouterGetApiKeyRoute.name: {
+      mcpRouterGetApiKeyRoute.input.parse(rawInput)
+      return mcpRouterGetApiKeyRoute.output.parse({
+        key: (await runtime.mcpPresenter.getMcpRouterApiKey?.()) ?? ''
+      })
+    }
+
+    case mcpRouterSetApiKeyRoute.name: {
+      const input = mcpRouterSetApiKeyRoute.input.parse(rawInput)
+      await runtime.mcpPresenter.setMcpRouterApiKey?.(input.key)
+      return mcpRouterSetApiKeyRoute.output.parse({ saved: true })
+    }
+
+    case mcpRouterIsServerInstalledRoute.name: {
+      const input = mcpRouterIsServerInstalledRoute.input.parse(rawInput)
+      return mcpRouterIsServerInstalledRoute.output.parse({
+        installed:
+          (await runtime.mcpPresenter.isServerInstalled?.(input.source, input.sourceId)) ?? false
+      })
+    }
+
+    case mcpRouterUpdateServersAuthRoute.name: {
+      const input = mcpRouterUpdateServersAuthRoute.input.parse(rawInput)
+      await runtime.mcpPresenter.updateMcpRouterServersAuth?.(input.apiKey)
+      return mcpRouterUpdateServersAuthRoute.output.parse({ updated: true })
+    }
+
+    case remoteControlListChannelsRoute.name: {
+      remoteControlListChannelsRoute.input.parse(rawInput)
+      const channels = await runtime.remoteControlPresenter.listRemoteChannels()
+      return remoteControlListChannelsRoute.output.parse({ channels })
+    }
+
+    case remoteControlGetChannelSettingsRoute.name: {
+      const input = remoteControlGetChannelSettingsRoute.input.parse(rawInput)
+      const settings = await runtime.remoteControlPresenter.getChannelSettings(input.channel)
+      return remoteControlGetChannelSettingsRoute.output.parse({ settings })
+    }
+
+    case remoteControlSaveChannelSettingsRoute.name: {
+      const input = remoteControlSaveChannelSettingsRoute.input.parse(rawInput)
+      const settings = await runtime.remoteControlPresenter.saveChannelSettings(
+        input.channel,
+        input.settings
+      )
+      return remoteControlSaveChannelSettingsRoute.output.parse({ settings })
+    }
+
+    case remoteControlGetChannelStatusRoute.name: {
+      const input = remoteControlGetChannelStatusRoute.input.parse(rawInput)
+      const status = await runtime.remoteControlPresenter.getChannelStatus(input.channel)
+      return remoteControlGetChannelStatusRoute.output.parse({ status })
+    }
+
+    case remoteControlGetChannelBindingsRoute.name: {
+      const input = remoteControlGetChannelBindingsRoute.input.parse(rawInput)
+      const bindings = await runtime.remoteControlPresenter.getChannelBindings(input.channel)
+      return remoteControlGetChannelBindingsRoute.output.parse({ bindings })
+    }
+
+    case remoteControlRemoveChannelBindingRoute.name: {
+      const input = remoteControlRemoveChannelBindingRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.removeChannelBinding(input.channel, input.endpointKey)
+      return remoteControlRemoveChannelBindingRoute.output.parse({ removed: true })
+    }
+
+    case remoteControlRemoveChannelPrincipalRoute.name: {
+      const input = remoteControlRemoveChannelPrincipalRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.removeChannelPrincipal(input.channel, input.principalId)
+      return remoteControlRemoveChannelPrincipalRoute.output.parse({ removed: true })
+    }
+
+    case remoteControlGetChannelPairingSnapshotRoute.name: {
+      const input = remoteControlGetChannelPairingSnapshotRoute.input.parse(rawInput)
+      const snapshot = await runtime.remoteControlPresenter.getChannelPairingSnapshot(input.channel)
+      return remoteControlGetChannelPairingSnapshotRoute.output.parse({ snapshot })
+    }
+
+    case remoteControlCreateChannelPairCodeRoute.name: {
+      const input = remoteControlCreateChannelPairCodeRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.createChannelPairCode(input.channel)
+      return remoteControlCreateChannelPairCodeRoute.output.parse(result)
+    }
+
+    case remoteControlClearChannelPairCodeRoute.name: {
+      const input = remoteControlClearChannelPairCodeRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.clearChannelPairCode(input.channel)
+      return remoteControlClearChannelPairCodeRoute.output.parse({ cleared: true })
+    }
+
+    case remoteControlGetTelegramStatusRoute.name: {
+      remoteControlGetTelegramStatusRoute.input.parse(rawInput)
+      const status = await runtime.remoteControlPresenter.getTelegramStatus()
+      return remoteControlGetTelegramStatusRoute.output.parse({ status })
+    }
+
+    case remoteControlStartFeishuAuthRoute.name: {
+      const input = remoteControlStartFeishuAuthRoute.input.parse(rawInput)
+      const session = await runtime.remoteControlPresenter.startFeishuAuth(input)
+      return remoteControlStartFeishuAuthRoute.output.parse({ session })
+    }
+
+    case remoteControlWaitForFeishuAuthRoute.name: {
+      const input = remoteControlWaitForFeishuAuthRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.waitForFeishuAuth(input)
+      return remoteControlWaitForFeishuAuthRoute.output.parse({ result })
+    }
+
+    case remoteControlCancelFeishuAuthRoute.name: {
+      const input = remoteControlCancelFeishuAuthRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.cancelFeishuAuth(input.sessionKey)
+      return remoteControlCancelFeishuAuthRoute.output.parse({ cancelled: true })
+    }
+
+    case remoteControlStartFeishuInstallRoute.name: {
+      const input = remoteControlStartFeishuInstallRoute.input.parse(rawInput)
+      const session = await runtime.remoteControlPresenter.startFeishuInstall(input)
+      return remoteControlStartFeishuInstallRoute.output.parse({ session })
+    }
+
+    case remoteControlWaitForFeishuInstallRoute.name: {
+      const input = remoteControlWaitForFeishuInstallRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.waitForFeishuInstall(input)
+      return remoteControlWaitForFeishuInstallRoute.output.parse({ result })
+    }
+
+    case remoteControlCancelFeishuInstallRoute.name: {
+      const input = remoteControlCancelFeishuInstallRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.cancelFeishuInstall(input.sessionKey)
+      return remoteControlCancelFeishuInstallRoute.output.parse({ cancelled: true })
+    }
+
+    case remoteControlGetWeixinIlinkStatusRoute.name: {
+      remoteControlGetWeixinIlinkStatusRoute.input.parse(rawInput)
+      const status = await runtime.remoteControlPresenter.getWeixinIlinkStatus()
+      return remoteControlGetWeixinIlinkStatusRoute.output.parse({ status })
+    }
+
+    case remoteControlStartWeixinIlinkLoginRoute.name: {
+      const input = remoteControlStartWeixinIlinkLoginRoute.input.parse(rawInput)
+      const session = await runtime.remoteControlPresenter.startWeixinIlinkLogin(input)
+      return remoteControlStartWeixinIlinkLoginRoute.output.parse({ session })
+    }
+
+    case remoteControlWaitForWeixinIlinkLoginRoute.name: {
+      const input = remoteControlWaitForWeixinIlinkLoginRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.waitForWeixinIlinkLogin(input)
+      return remoteControlWaitForWeixinIlinkLoginRoute.output.parse({ result })
+    }
+
+    case remoteControlRemoveWeixinIlinkAccountRoute.name: {
+      const input = remoteControlRemoveWeixinIlinkAccountRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.removeWeixinIlinkAccount(input.accountId)
+      return remoteControlRemoveWeixinIlinkAccountRoute.output.parse({ removed: true })
+    }
+
+    case remoteControlRestartWeixinIlinkAccountRoute.name: {
+      const input = remoteControlRestartWeixinIlinkAccountRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.restartWeixinIlinkAccount(input.accountId)
+      return remoteControlRestartWeixinIlinkAccountRoute.output.parse({ restarted: true })
     }
 
     case syncGetBackupStatusRoute.name: {
@@ -2632,6 +4228,28 @@ export async function dispatchDeepchatRoute(
       upgradeClearMockRoute.input.parse(rawInput)
       const updated = runtime.upgradePresenter.clearMockUpdate()
       return upgradeClearMockRoute.output.parse({ updated })
+    }
+
+    case debugCreateMockChatSessionRoute.name: {
+      debugCreateMockChatSessionRoute.input.parse(rawInput)
+      if (!import.meta.env.DEV || app.isPackaged) {
+        return debugCreateMockChatSessionRoute.output.parse({
+          created: false,
+          sessionId: null,
+          title: null,
+          messageCount: 0
+        })
+      }
+
+      const { createDebugMockChatSession } = await import('./debug/createMockChatSession')
+      const result = createDebugMockChatSession(runtime.sqlitePresenter.getDatabase())
+      if (result.sessionId) {
+        publishDeepchatEvent(sessionsUpdatedEvent.name, {
+          sessionIds: [result.sessionId],
+          reason: 'created'
+        })
+      }
+      return debugCreateMockChatSessionRoute.output.parse(result)
     }
 
     case upgradeRestartToUpdateRoute.name: {

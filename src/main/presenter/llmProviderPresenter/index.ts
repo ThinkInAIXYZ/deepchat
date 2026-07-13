@@ -693,7 +693,12 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private getEnabledProviderIdsUsingProviderDb(): string[] {
     return this.providerInstanceManager
       .getProviders()
-      .filter((provider) => provider.enable && isProviderDbBackedProvider(provider.id))
+      .filter(
+        (provider) =>
+          provider.enable &&
+          isProviderDbBackedProvider(provider.id) &&
+          provider.id !== 'openai-codex'
+      )
       .map((provider) => provider.id)
   }
 

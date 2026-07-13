@@ -15,11 +15,13 @@
   "settings-acp": "ACP 프록시",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "훅",
-  "settings-scheduled-tasks": "예약된 작업",
+  "settings-scheduled-tasks": "예약 작업",
   "settings-dashboard": "Dashboard",
   "settings-environments": "환경",
   "settings-remote": "원격 제어",
   "settings-deepchat-agents": "DeepChat 에이전트",
   "settings-plugins": "Plugins",
-  "settings-overview": "설정 개요"
+  "settings-overview": "설정 개요",
+  "settings-memory": "메모리",
+  "plugins": "Plugins"
 }

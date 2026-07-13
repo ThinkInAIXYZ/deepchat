@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import type {
@@ -44,10 +44,14 @@ vi.mock('@/components/message/MessageItemAssistant.vue', () => ({
       isReadOnly: {
         type: Boolean,
         default: false
+      },
+      disableMarkdownVirtualization: {
+        type: Boolean,
+        default: false
       }
     },
     template:
-      '<div class="assistant-item" :data-read-only="String(isReadOnly)">{{ message.id }}</div>'
+      '<div class="assistant-item" :data-read-only="String(isReadOnly)" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)">{{ message.id }}</div>'
   })
 }))
 
@@ -64,12 +68,21 @@ vi.mock('@/components/message/MessageBlockAction.vue', () => ({
   })
 }))
 
-vi.mock('@/composables/message/useMessageCapture', () => ({
-  useMessageCapture: () => ({
-    isCapturing: false,
-    captureMessage: vi.fn().mockResolvedValue(undefined)
-  })
+const { isCapturingRef } = vi.hoisted(() => ({
+  isCapturingRef: { current: undefined as undefined | import('vue').Ref<boolean> }
 }))
+
+vi.mock('@/composables/message/useMessageCapture', async () => {
+  const { ref } = await import('vue')
+  const isCapturing = ref(false)
+  isCapturingRef.current = isCapturing
+  return {
+    useMessageCapture: () => ({
+      isCapturing,
+      captureMessage: vi.fn().mockResolvedValue(undefined)
+    })
+  }
+})
 
 import MessageList from '@/components/chat/MessageList.vue'
 
@@ -128,6 +141,12 @@ function createCompactionMessage(
 }
 
 describe('MessageList', () => {
+  beforeEach(() => {
+    if (isCapturingRef.current) {
+      isCapturingRef.current.value = false
+    }
+  })
+
   it('renders persisted compaction messages inline with the message list', () => {
     const wrapper = mount(MessageList, {
       props: {
@@ -203,5 +222,34 @@ describe('MessageList', () => {
     expect(wrapper.find('[data-rate-limit-indicator="true"]').exists()).toBe(true)
     expect(wrapper.find('.rate-limit-block-stub').text()).toBe('rate_limit')
     expect(wrapper.findAll('.assistant-item')).toHaveLength(0)
+  })
+
+  it('passes markdown virtualization disable state to assistant rows', () => {
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createMessage('a1', 'assistant', 1)],
+        disableMarkdownVirtualization: true
+      }
+    })
+
+    expect(wrapper.find('.assistant-item').attributes('data-disable-markdown-virtualization')).toBe(
+      'true'
+    )
+  })
+
+  it('disables markdown virtualization while capturing message screenshots', () => {
+    if (isCapturingRef.current) {
+      isCapturingRef.current.value = true
+    }
+
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createMessage('a1', 'assistant', 1)]
+      }
+    })
+
+    expect(wrapper.find('.assistant-item').attributes('data-disable-markdown-virtualization')).toBe(
+      'true'
+    )
   })
 })

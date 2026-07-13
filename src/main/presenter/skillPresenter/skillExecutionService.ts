@@ -41,6 +41,7 @@ export interface SkillRunRequest {
 
 export interface SkillRunOptions {
   conversationId: string
+  activeSkillNames?: string[]
 }
 
 interface SkillExecutionServiceOptions {
@@ -87,7 +88,7 @@ export class SkillExecutionService {
 
   async execute(input: SkillRunRequest, options: SkillRunOptions): Promise<SkillExecutionResult> {
     const plan = await this.preparePlanForExecution(
-      await this.buildSpawnPlan(input, options.conversationId)
+      await this.buildSpawnPlan(input, options.conversationId, options.activeSkillNames)
     )
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
@@ -125,10 +126,15 @@ export class SkillExecutionService {
     }
   }
 
-  private async buildSpawnPlan(input: SkillRunRequest, conversationId: string): Promise<SpawnPlan> {
-    const activeSkills = await this.skillPresenter.getActiveSkills(conversationId)
+  private async buildSpawnPlan(
+    input: SkillRunRequest,
+    conversationId: string,
+    activeSkillNames?: string[]
+  ): Promise<SpawnPlan> {
+    const activeSkills =
+      activeSkillNames ?? (await this.skillPresenter.getActiveSkills(conversationId))
     if (!activeSkills.includes(input.skill)) {
-      throw new Error(`Skill "${input.skill}" is not pinned in this conversation`)
+      throw new Error(`Skill "${input.skill}" is not active in the current message/tool loop`)
     }
 
     const metadata = (await this.skillPresenter.getMetadataList()).find(
@@ -178,7 +184,7 @@ export class SkillExecutionService {
   private async resolveExecutionCwd(conversationId: string, skillRoot: string): Promise<string> {
     const normalizedSkillRoot = path.resolve(skillRoot)
     if (!this.resolveConversationWorkdir) {
-      return normalizedSkillRoot
+      return this.resolveFallbackExecutionCwd(conversationId, normalizedSkillRoot)
     }
 
     try {
@@ -191,22 +197,16 @@ export class SkillExecutionService {
           if (stat.isDirectory()) {
             return resolvedPath
           }
-          logger.warn(
-            '[SkillExecutionService] Conversation workdir is not a directory, falling back to skill root',
-            {
-              conversationId,
-              invalidWorkdir: resolvedPath
-            }
-          )
+          logger.warn('[SkillExecutionService] Conversation workdir is not a directory', {
+            conversationId,
+            invalidWorkdir: resolvedPath
+          })
         } catch (error) {
-          logger.warn(
-            '[SkillExecutionService] Conversation workdir is invalid, falling back to skill root',
-            {
-              conversationId,
-              invalidWorkdir: resolvedPath,
-              error
-            }
-          )
+          logger.warn('[SkillExecutionService] Conversation workdir is invalid', {
+            conversationId,
+            invalidWorkdir: resolvedPath,
+            error
+          })
         }
       }
     } catch (error) {
@@ -216,14 +216,35 @@ export class SkillExecutionService {
       })
     }
 
-    logger.warn(
-      '[SkillExecutionService] Missing conversation workdir, falling back to skill root',
-      {
-        conversationId,
-        skillRoot: normalizedSkillRoot
-      }
-    )
-    return normalizedSkillRoot
+    logger.warn('[SkillExecutionService] Missing conversation workdir, using session directory', {
+      conversationId,
+      skillRoot: normalizedSkillRoot
+    })
+    return this.resolveFallbackExecutionCwd(conversationId, normalizedSkillRoot)
+  }
+
+  private resolveFallbackExecutionCwd(conversationId: string, skillRoot: string): string {
+    const sessionDir = resolveSessionDir(conversationId)
+    if (!sessionDir) {
+      return skillRoot
+    }
+
+    try {
+      fs.mkdirSync(sessionDir, { recursive: true })
+      return sessionDir
+    } catch (error) {
+      logger.warn(
+        '[SkillExecutionService] Failed to create session directory, falling back to skill root',
+        {
+          conversationId,
+          sessionDir,
+          skillRoot,
+          error
+        }
+      )
+    }
+
+    return skillRoot
   }
 
   private resolveRequestedScript(

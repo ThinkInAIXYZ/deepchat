@@ -2,8 +2,6 @@ import { BrowserWindow, WebContents, WebContentsView } from 'electron'
 import type { Rectangle } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { nanoid } from 'nanoid'
-import { eventBus, SendTarget } from '@/eventbus'
-import { YO_BROWSER_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import logger from '@shared/logger'
 import {
@@ -231,7 +229,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     this.emitWindowClosed(sessionId)
-    this.emitWindowCount()
   }
 
   async goBack(sessionId: string): Promise<void> {
@@ -385,7 +382,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.sessionBrowsers.set(sessionId, state)
     this.setupPageListeners(state, view.webContents)
     this.emitWindowCreated(sessionId)
-    this.emitWindowCount()
     return state
   }
 
@@ -491,7 +487,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     state.visible = false
     this.sessionBrowsers.delete(sessionId)
     this.emitWindowClosed(sessionId)
-    this.emitWindowCount()
   }
 
   private attachHostWindowListeners(windowId: number): void {
@@ -722,7 +717,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       status: this.toStatus(this.sessionBrowsers.get(sessionId) ?? null)
     }
 
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_CREATED, SendTarget.ALL_WINDOWS, payload)
     publishDeepchatEvent('browser.status.changed', {
       sessionId,
       reason: 'created',
@@ -741,7 +735,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       url
     }
 
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.OPEN_REQUESTED, SendTarget.ALL_WINDOWS, payload)
     publishDeepchatEvent('browser.open.requested', {
       ...payload,
       version: Date.now()
@@ -750,10 +743,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   private emitWindowUpdated(sessionId: string): void {
     const status = this.toStatus(this.sessionBrowsers.get(sessionId) ?? null)
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_UPDATED, SendTarget.ALL_WINDOWS, {
-      sessionId,
-      status
-    })
     publishDeepchatEvent('browser.status.changed', {
       sessionId,
       reason: 'updated',
@@ -764,9 +753,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private emitWindowClosed(sessionId: string): void {
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_CLOSED, SendTarget.ALL_WINDOWS, {
-      sessionId
-    })
     publishDeepchatEvent('browser.status.changed', {
       sessionId,
       reason: 'closed',
@@ -777,10 +763,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private emitWindowFocused(sessionId: string, windowId: number): void {
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_FOCUSED, SendTarget.ALL_WINDOWS, {
-      sessionId,
-      windowId
-    })
     publishDeepchatEvent('browser.status.changed', {
       sessionId,
       reason: 'focused',
@@ -790,19 +772,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     })
   }
 
-  private emitWindowCount(): void {
-    eventBus.sendToRenderer(
-      YO_BROWSER_EVENTS.WINDOW_COUNT_CHANGED,
-      SendTarget.ALL_WINDOWS,
-      this.sessionBrowsers.size
-    )
-  }
-
   private emitWindowVisibility(sessionId: string, visible: boolean): void {
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED, SendTarget.ALL_WINDOWS, {
-      sessionId,
-      visible
-    })
     publishDeepchatEvent('browser.status.changed', {
       sessionId,
       reason: 'visibility',

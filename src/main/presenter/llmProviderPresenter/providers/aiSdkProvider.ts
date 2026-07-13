@@ -6,6 +6,8 @@ import {
   isDeepSeekSeriesModelId,
   isGeminiFamilyModelId,
   isNewApiEndpointType,
+  resolveNewApiModelTypeFromMetadata,
+  resolveNewApiSelectableEndpointTypes,
   resolveNewApiEndpointTypeFromRoute,
   resolveProviderCapabilityProviderId,
   type NewApiEndpointType
@@ -67,6 +69,24 @@ import { isImageInputSupported } from '@shared/types/model-db'
 
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
 const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
+const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
+  'gpt-5.5',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+  'gpt-5.4',
+  'gpt-5.4-mini',
+  'gpt-5.3-codex-spark'
+]
+// Keep this aligned with the OpenCode Go docs table for models served by /messages.
+const OPENCODE_GO_ANTHROPIC_MODEL_IDS = new Set([
+  'minimax-m3',
+  'minimax-m2.7',
+  'minimax-m2.5',
+  'qwen3.7-max',
+  'qwen3.7-plus',
+  'qwen3.6-plus'
+])
 const DEFAULT_NEW_API_BASE_URL = 'https://www.newapi.ai'
 
 type RouteDecision = {
@@ -301,6 +321,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   private getBehaviorPreset(decision: RouteDecision): AiSdkBehaviorPreset {
     switch (this.getRouteStrategy()) {
       case 'new-api':
+      case 'opencode-go':
       case 'zenmux':
         if (decision.providerKind === 'anthropic' || decision.providerKind === 'aws-bedrock') {
           return 'anthropic'
@@ -455,6 +476,17 @@ export class AiSdkProvider extends BaseLLMProvider {
         providerPatch: {
           apiType: 'anthropic',
           baseUrl: this.getConfiguredAnthropicBaseUrl(),
+          capabilityProviderId: 'anthropic'
+        }
+      }
+    }
+
+    if (strategy === 'opencode-go' && OPENCODE_GO_ANTHROPIC_MODEL_IDS.has(modelId)) {
+      return {
+        providerKind: 'anthropic',
+        providerPatch: {
+          apiType: 'anthropic',
+          baseUrl: this.provider.baseUrl,
           capabilityProviderId: 'anthropic'
         }
       }
@@ -664,6 +696,8 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     if (this.isAzureOpenAI(decision, runtimeProvider)) {
       headers['api-key'] = this.resolveTraceAuthToken(runtimeProvider)
+    } else if (decision.providerKind === 'openai-codex') {
+      headers.Authorization = 'Bearer OPENAI_CODEX_OAUTH'
     } else if (this.usesGeminiApiKeyHeader(runtimeProvider)) {
       headers['x-goog-api-key'] = this.resolveTraceAuthToken(runtimeProvider)
     } else {
@@ -725,9 +759,10 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
     const resolvedModelConfig = this.getModelConfigForDecision(modelId, modelConfig)
 
-    const cleanHeaders = this.isAzureOpenAI(decision, runtimeProvider)
-      ? false
-      : !this.isOfficialOpenAIService(decision, runtimeProvider)
+    const cleanHeaders =
+      this.isAzureOpenAI(decision, runtimeProvider) || runtimeProvider.id === 'kimi-for-coding'
+        ? false
+        : !this.isOfficialOpenAIService(decision, runtimeProvider)
 
     const shouldUseImageGeneration =
       decision.endpointType === 'grok-image' || decision.endpointType === 'image-generation'
@@ -1447,6 +1482,30 @@ export class AiSdkProvider extends BaseLLMProvider {
     })
   }
 
+  private mapOpenAICodexModels(): MODEL_META[] {
+    const models = this.mapProviderDbModels(this.definition.providerDbGroup || 'Codex')
+    const modelsById = new Map(models.map((model) => [model.id, model]))
+    const recommended = OPENAI_CODEX_RECOMMENDED_MODEL_IDS.flatMap((id) => {
+      const model = modelsById.get(id)
+      return model ? [model] : []
+    })
+
+    if (recommended.length > 0) {
+      return recommended
+    }
+
+    return models.filter(
+      (model) =>
+        model.id.toLowerCase().includes('codex') || model.name.toLowerCase().includes('codex')
+    )
+  }
+
+  private mapKimiForCodingModels(): MODEL_META[] {
+    const models = this.mapProviderDbModels(this.definition.providerDbGroup || 'Kimi Code')
+    const stableModel = models.find((model) => model.id === 'kimi-for-coding')
+    return stableModel ? [stableModel] : models
+  }
+
   private syncProviderModelConfig(modelId: string, nextConfig: Partial<ModelConfig>): void {
     const existingConfig = this.getProviderModelConfig(modelId)
     const merged = {
@@ -1471,6 +1530,12 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchConfigDbModels()
       case 'provider-db':
         return this.mapProviderDbModels(this.definition.providerDbGroup || 'default')
+      case 'openai-codex':
+        return this.mapOpenAICodexModels()
+      case 'opencode-go':
+        return this.fetchOpenCodeGoModels()
+      case 'kimi-for-coding':
+        return this.mapKimiForCodingModels()
       case 'github': {
         const response = await this.fetchOpenAIModelRecords({
           timeout: this.getModelFetchTimeout()
@@ -1816,6 +1881,38 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
   }
 
+  private async fetchOpenCodeGoModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+
+    return records
+      .filter((model): model is Record<string, unknown> & { id: string } => {
+        return typeof model.id === 'string' && model.id.trim().length > 0
+      })
+      .map((model) => {
+        const modelId = model.id.trim()
+        const isAnthropicModel = OPENCODE_GO_ANTHROPIC_MODEL_IDS.has(modelId)
+        const existingConfig = this.getProviderModelConfig(modelId)
+        const endpointType = isAnthropicModel ? 'anthropic' : 'openai'
+
+        return {
+          id: modelId,
+          name: modelId,
+          group: isAnthropicModel ? 'Messages' : 'Chat Completions',
+          providerId: this.provider.id,
+          isCustom: false,
+          endpointType,
+          supportedEndpointTypes: [endpointType],
+          ownedBy: typeof model.owned_by === 'string' ? model.owned_by : 'opencode',
+          contextLength: existingConfig.contextLength || DEFAULT_MODEL_CONTEXT_LENGTH,
+          maxTokens: existingConfig.maxTokens || DEFAULT_MODEL_MAX_TOKENS,
+          vision: existingConfig.vision || false,
+          functionCall: existingConfig.functionCall || false,
+          reasoning: existingConfig.reasoning || false,
+          type: ModelType.Chat
+        } satisfies MODEL_META
+      })
+  }
+
   private async fetchNewApiModels(): Promise<MODEL_META[]> {
     type NewApiModelRecord = {
       id?: unknown
@@ -1861,35 +1958,26 @@ export class AiSdkProvider extends BaseLLMProvider {
           typeof rawModel.owned_by === 'string' && rawModel.owned_by.trim().length > 0
             ? rawModel.owned_by.trim()
             : undefined
-        const supportedEndpointTypes = Array.isArray(rawModel.supported_endpoint_types)
+        const rawSupportedEndpointTypes = Array.isArray(rawModel.supported_endpoint_types)
           ? rawModel.supported_endpoint_types.filter(isNewApiEndpointType)
           : []
 
         const normalizedRawType =
           typeof rawModel.type === 'string' ? rawModel.type.trim().toLowerCase() : ''
-        const normalizedModelId = rawModel.id.toLowerCase()
-        const type =
-          normalizedRawType === 'imagegeneration' ||
-          normalizedRawType === 'image-generation' ||
-          normalizedRawType === 'image' ||
-          supportedEndpointTypes.includes('image-generation')
-            ? ModelType.ImageGeneration
-            : normalizedRawType === 'videogeneration' ||
-                normalizedRawType === 'video-generation' ||
-                normalizedRawType === 'video' ||
-                supportedEndpointTypes.includes('video-generation')
-              ? ModelType.VideoGeneration
-              : normalizedRawType === 'tts' ||
-                  normalizedRawType === 'audio-speech' ||
-                  normalizedRawType === 'audiospeech'
-                ? ModelType.TTS
-                : normalizedRawType === 'embedding' ||
-                    normalizedRawType === 'embeddings' ||
-                    normalizedModelId.includes('embedding')
-                  ? ModelType.Embedding
-                  : normalizedRawType === 'rerank' || normalizedModelId.includes('rerank')
-                    ? ModelType.Rerank
-                    : undefined
+        const type = resolveNewApiModelTypeFromMetadata(
+          rawSupportedEndpointTypes,
+          rawModel.id,
+          normalizedRawType
+        )
+        const supportedEndpointTypes = rawSupportedEndpointTypes
+        const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
+          rawSupportedEndpointTypes,
+          rawModel.id,
+          {
+            type,
+            rawType: normalizedRawType
+          }
+        )
 
         const contextLengthCandidate = [
           rawModel.context_length,
@@ -1961,6 +2049,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           providerId: this.provider.id,
           isCustom: false,
           supportedEndpointTypes,
+          ...(selectableEndpointTypes ? { selectableEndpointTypes } : {}),
           endpointType: defaultEndpointType,
           ownedBy,
           ...(capabilityVision !== undefined ? { vision: capabilityVision } : {}),

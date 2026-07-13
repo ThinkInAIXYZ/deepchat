@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
-import { RATE_LIMIT_EVENTS } from '@/events'
-import { eventBus, SendTarget } from '@/eventbus'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
 import {
   ExecuteWithRateLimitOptions,
@@ -155,10 +154,11 @@ export class RateLimitManager {
       logger.info(
         `[RateLimitManager] Request queued for ${providerId}, queue length: ${state.queue.length}`
       )
-      eventBus.send(RATE_LIMIT_EVENTS.REQUEST_QUEUED, SendTarget.ALL_WINDOWS, {
+      publishDeepchatEvent('providers.rateLimit.requestQueued', {
         providerId,
         queueLength: state.queue.length,
-        requestId: queueItem.id
+        requestId: queueItem.id,
+        version: Date.now()
       })
       try {
         options?.onQueued?.(snapshot)
@@ -237,9 +237,10 @@ export class RateLimitManager {
       currentState.config = newConfig
     }
     logger.info(`[RateLimitManager] Updated rate limit config for ${providerId}:`, newConfig)
-    eventBus.send(RATE_LIMIT_EVENTS.CONFIG_UPDATED, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('providers.rateLimit.configUpdated', {
       providerId,
-      config: newConfig
+      config: newConfig,
+      version: Date.now()
     })
   }
 
@@ -262,10 +263,11 @@ export class RateLimitManager {
     const state = this.getOrCreateRateLimitState(providerId)
     const now = Date.now()
     state.lastRequestTime = now
-    eventBus.send(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('providers.rateLimit.requestExecuted', {
       providerId,
       timestamp: now,
-      currentQps: this.getCurrentQps(providerId)
+      currentQps: this.getCurrentQps(providerId),
+      version: Date.now()
     })
   }
 

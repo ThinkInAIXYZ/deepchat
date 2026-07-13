@@ -31,11 +31,14 @@ export interface IToolPresenter {
    */
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    enabledMcpServerIds?: string[]
+    agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]>
 
   /**
@@ -56,6 +59,10 @@ export interface IToolPresenter {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
       permissionMode?: PermissionMode
+      activeSkillNames?: string[]
+      enabledSkillNames?: string[] | null
+      agentId?: string
+      enabledMcpServerIds?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 
@@ -97,6 +104,11 @@ export interface IToolPresenter {
    * Release any cached tool mapping for a conversation.
    */
   clearConversationToolMapping?(conversationId: string): void
+
+  /**
+   * Reset only the per-turn agent plan state for a conversation.
+   */
+  clearAgentPlanState?(conversationId: string): void
 
   /**
    * Build system prompt section for tool-related behavior.

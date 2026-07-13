@@ -4,6 +4,7 @@ import {
   mcpSamplingCancelledEvent,
   mcpSamplingDecisionEvent,
   mcpSamplingRequestEvent,
+  mcpServerAuthChangedEvent,
   mcpServerStartedEvent,
   mcpServerStatusChangedEvent,
   mcpServerStoppedEvent,
@@ -14,22 +15,32 @@ import {
   mcpCallToolRoute,
   mcpCancelSamplingRequestRoute,
   mcpClearNpmRegistryCacheRoute,
+  mcpCompleteServerAuthFromCallbackUrlRoute,
   mcpGetClientsRoute,
   mcpGetEnabledRoute,
   mcpGetNpmRegistryStatusRoute,
   mcpGetPromptRoute,
+  mcpGetServerAuthStatusRoute,
   mcpGetServersRoute,
   mcpIsServerRunningRoute,
   mcpListPromptsRoute,
   mcpListResourcesRoute,
   mcpListToolDefinitionsRoute,
+  mcpLogoutServerAuthRoute,
   mcpReadResourceRoute,
   mcpRefreshNpmRegistryRoute,
   mcpRemoveServerRoute,
+  mcpRouterGetApiKeyRoute,
+  mcpRouterInstallServerRoute,
+  mcpRouterIsServerInstalledRoute,
+  mcpRouterListServersRoute,
+  mcpRouterSetApiKeyRoute,
+  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
   mcpSetServerEnabledRoute,
+  mcpStartServerAuthRoute,
   mcpStartServerRoute,
   mcpStopServerRoute,
   mcpSubmitSamplingDecisionRoute,
@@ -120,6 +131,29 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     await bridge.invoke(mcpStopServerRoute.name, { serverName })
   }
 
+  async function getServerAuthStatus(serverName: string) {
+    const result = await bridge.invoke(mcpGetServerAuthStatusRoute.name, { serverName })
+    return result.status
+  }
+
+  async function startServerAuth(serverName: string) {
+    const result = await bridge.invoke(mcpStartServerAuthRoute.name, { serverName })
+    return result.status
+  }
+
+  async function completeServerAuthFromCallbackUrl(serverName: string, callbackUrl: string) {
+    const result = await bridge.invoke(mcpCompleteServerAuthFromCallbackUrlRoute.name, {
+      serverName,
+      callbackUrl
+    })
+    return result.status
+  }
+
+  async function logoutServerAuth(serverName: string) {
+    const result = await bridge.invoke(mcpLogoutServerAuthRoute.name, { serverName })
+    return result.status
+  }
+
   async function getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>) {
     const result = await bridge.invoke(mcpGetPromptRoute.name, { prompt, args })
     return result.result
@@ -160,6 +194,33 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     await bridge.invoke(mcpClearNpmRegistryCacheRoute.name, {})
   }
 
+  async function listMcpRouterServers(page: number, limit: number) {
+    return await bridge.invoke(mcpRouterListServersRoute.name, { page, limit })
+  }
+
+  async function installMcpRouterServer(serverKey: string) {
+    const result = await bridge.invoke(mcpRouterInstallServerRoute.name, { serverKey })
+    return result.installed
+  }
+
+  async function getMcpRouterApiKey() {
+    const result = await bridge.invoke(mcpRouterGetApiKeyRoute.name, {})
+    return result.key
+  }
+
+  async function setMcpRouterApiKey(key: string) {
+    await bridge.invoke(mcpRouterSetApiKeyRoute.name, { key })
+  }
+
+  async function isServerInstalled(source: string, sourceId: string) {
+    const result = await bridge.invoke(mcpRouterIsServerInstalledRoute.name, { source, sourceId })
+    return result.installed
+  }
+
+  async function updateMcpRouterServersAuth(apiKey: string) {
+    await bridge.invoke(mcpRouterUpdateServersAuthRoute.name, { apiKey })
+  }
+
   function onServerStarted(listener: (payload: { serverName: string; version: number }) => void) {
     return bridge.on(mcpServerStartedEvent.name, listener)
   }
@@ -182,6 +243,16 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     listener: (payload: { serverName: string; isRunning: boolean; version: number }) => void
   ) {
     return bridge.on(mcpServerStatusChangedEvent.name, listener)
+  }
+
+  function onServerAuthChanged(
+    listener: (payload: {
+      serverName: string
+      status: Awaited<ReturnType<typeof getServerAuthStatus>>
+      version: number
+    }) => void
+  ) {
+    return bridge.on(mcpServerAuthChangedEvent.name, listener)
   }
 
   function onToolCallResult(
@@ -228,6 +299,10 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     isServerRunning,
     startServer,
     stopServer,
+    getServerAuthStatus,
+    startServerAuth,
+    completeServerAuthFromCallbackUrl,
+    logoutServerAuth,
     getPrompt,
     readResource,
     submitSamplingDecision,
@@ -237,10 +312,17 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     setCustomNpmRegistry,
     setAutoDetectNpmRegistry,
     clearNpmRegistryCache,
+    listMcpRouterServers,
+    installMcpRouterServer,
+    getMcpRouterApiKey,
+    setMcpRouterApiKey,
+    isServerInstalled,
+    updateMcpRouterServersAuth,
     onServerStarted,
     onServerStopped,
     onConfigChanged,
     onServerStatusChanged,
+    onServerAuthChanged,
     onToolCallResult,
     onSamplingRequest,
     onSamplingDecision,

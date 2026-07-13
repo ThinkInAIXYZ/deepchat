@@ -5,7 +5,8 @@
   "publisher": "DeepChat",
   "engines": {
     "deepchat": ">=${app.version}",
-    "platforms": ["darwin"]
+    "platforms": ["darwin", "win32", "linux"],
+    "targets": ["darwin/arm64", "darwin/x64", "win32/x64", "win32/arm64", "linux/x64"]
   },
   "activationEvents": ["onEnable"],
   "capabilities": [
@@ -14,11 +15,12 @@
     "skills.register",
     "settings.contribute",
     "shell.openExternal",
+    "shell.openPath",
     "process.execDeclared"
   ],
   "source": {
     "type": "deepchat-official",
-    "url": "${github.release.download}/deepchat-plugin-cua-${app.version}-darwin-${arch}.dcplugin",
+    "url": "${github.release.download}/deepchat-plugin-cua-${app.version}-${target.platform}-${arch}.dcplugin",
     "publisher": "DeepChat"
   },
   "runtime": {
@@ -26,14 +28,16 @@
     "type": "external-helper",
     "displayName": "Cua Driver",
     "detect": [
-      "plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
-      "/Applications/CuaDriver.app/Contents/MacOS/cua-driver"
+      "app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver",
+      "plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver",
+      "plugin:runtime/win32/${arch}/cua-driver.exe",
+      "plugin:runtime/linux/${arch}/cua-driver"
     ],
     "install": {
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.1.0",
+      "minVersion": "0.7.1",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
@@ -43,9 +47,10 @@
       "displayName": "CUA Driver",
       "transport": "stdio",
       "command": "${runtime.cua-driver.command}",
-      "args": ["mcp"],
+      "args": ["mcp", "--no-daemon-relaunch"],
       "env": {
         "CUA_DRIVER_MCP_MODE": "1",
+        "CUA_DRIVER_RS_MCP_NO_RELAUNCH": "1",
         "DEEPCHAT_COMPUTER_USE_APP_PATH": "${runtime.cua-driver.helperAppPath}",
         "DEEPCHAT_COMPUTER_USE_BINARY_PATH": "${runtime.cua-driver.command}"
       },
@@ -54,8 +59,8 @@
   ],
   "skills": [
     {
-      "id": "cua-driver",
-      "path": "skills/cua-driver/SKILL.md",
+      "id": "computer-use",
+      "path": "skills/computer-use/SKILL.md",
       "scope": "agent"
     }
   ],
@@ -77,12 +82,19 @@
         "list_windows": "allow",
         "get_screen_size": "allow",
         "get_window_state": "allow",
+        "get_accessibility_tree": "allow",
+        "get_desktop_state": "allow",
         "get_cursor_position": "allow",
         "get_config": "allow",
         "get_recording_state": "allow",
         "get_agent_cursor_state": "allow",
-        "screenshot": "allow",
+        "check_for_update": "allow",
+        "health_report": "allow",
+        "start_session": "allow",
+        "end_session": "allow",
         "launch_app": "ask",
+        "kill_app": "ask",
+        "bring_to_front": "ask",
         "click": "ask",
         "right_click": "ask",
         "double_click": "ask",
@@ -94,7 +106,9 @@
         "hotkey": "ask",
         "set_value": "ask",
         "set_config": "ask",
-        "set_recording": "ask",
+        "start_recording": "ask",
+        "stop_recording": "ask",
+        "install_ffmpeg": "ask",
         "set_agent_cursor_enabled": "ask",
         "set_agent_cursor_motion": "ask",
         "set_agent_cursor_style": "ask",

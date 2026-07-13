@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
@@ -25,40 +25,38 @@ import type { AgentToolRuntimePort } from '../runtimePorts'
 
 export { IMAGE_GENERATE_TOOL_NAME, IMAGE_GENERATION_TOOL_SERVER_NAME }
 
-const imageGenerateSchema = z
-  .object({
-    prompt: z
-      .string()
-      .trim()
-      .min(1)
-      .max(8000)
-      .describe('Detailed text prompt for the image to generate.'),
-    size: z
-      .string()
-      .trim()
-      .refine((value) => !value || isValidOpenAIImageGenerationSize(value), {
-        message: 'size must be a valid WIDTHxHEIGHT image generation size'
-      })
-      .optional()
-      .describe('Optional output size, such as 1024x1024, 1536x1024, or 1024x1536.'),
-    quality: z
-      .enum(IMAGE_GENERATION_QUALITY_VALUES)
-      .optional()
-      .describe('Optional quality hint when the selected image model supports it.'),
-    outputFormat: z
-      .enum(IMAGE_GENERATION_OUTPUT_FORMAT_VALUES)
-      .optional()
-      .describe('Optional output format hint when the selected image model supports it.'),
-    background: z
-      .enum(OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES)
-      .optional()
-      .describe('Optional background hint when the selected image model supports it.'),
-    moderation: z
-      .enum(IMAGE_GENERATION_MODERATION_VALUES)
-      .optional()
-      .describe('Optional moderation hint when the selected image model supports it.')
-  })
-  .strict()
+const imageGenerateSchema = z.strictObject({
+  prompt: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8000)
+    .describe('Detailed text prompt for the image to generate.'),
+  size: z
+    .string()
+    .trim()
+    .refine((value) => !value || isValidOpenAIImageGenerationSize(value), {
+      message: 'size must be a valid WIDTHxHEIGHT image generation size'
+    })
+    .optional()
+    .describe('Optional output size, such as 1024x1024, 1536x1024, or 1024x1536.'),
+  quality: z
+    .enum(IMAGE_GENERATION_QUALITY_VALUES)
+    .optional()
+    .describe('Optional quality hint when the selected image model supports it.'),
+  outputFormat: z
+    .enum(IMAGE_GENERATION_OUTPUT_FORMAT_VALUES)
+    .optional()
+    .describe('Optional output format hint when the selected image model supports it.'),
+  background: z
+    .enum(OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES)
+    .optional()
+    .describe('Optional background hint when the selected image model supports it.'),
+  moderation: z
+    .enum(IMAGE_GENERATION_MODERATION_VALUES)
+    .optional()
+    .describe('Optional moderation hint when the selected image model supports it.')
+})
 
 type ImageGenerateInput = z.infer<typeof imageGenerateSchema>
 type ImageGenerationModelSelection = {
@@ -99,7 +97,7 @@ export class AgentImageGenerationTool {
         name: IMAGE_GENERATE_TOOL_NAME,
         description:
           'Generate a new image from a text prompt using the DeepChat Agent configured image generation model. Use this when the user asks to create, draw, render, or generate an image. The generated image is returned as a DeepChat image preview, not as text.',
-        parameters: zodToJsonSchema(imageGenerateSchema) as {
+        parameters: toDeepChatJsonSchema(imageGenerateSchema) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]

@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "유도",
     "queueCount": "전송 대기 {count}/{max}",
-    "resumeQueue": "전송 계속",
-    "toSteer": "유도로 전환",
+    "toSteer": "중단하고 보내기",
     "locked": "잠금됨",
     "reorder": "순서 변경",
     "files": "파일 {count}개",
     "attachmentsOnly": "첨부 {count}개",
     "empty": "빈 메시지",
-    "limitReached": "대기 영역이 가득 찼습니다 (최대 {max}개)."
+    "limitReached": "대기 영역이 가득 찼습니다 (최대 {max}개).",
+    "remove": "삭제",
+    "steerUnavailable": "지금은 중단할 수 없습니다",
+    "steerFailed": "이 턴을 중단하지 못했습니다"
   },
   "features": {
     "webSearch": "웹 검색",
@@ -210,6 +212,10 @@
         "title": "워크스페이스 없음",
         "description": "폴더를 선택하거나 드래그하여 워크스페이스 설정",
         "button": "폴더 선택"
+      },
+      "watchStatus": {
+        "degraded": "대체 모드로 감시 중입니다. 변경 사항 반영이 더 느릴 수 있습니다.",
+        "failed": "파일 감시를 사용할 수 없습니다. 새로 고치거나 작업 공간을 다시 선택하세요."
       }
     },
     "git": {
@@ -228,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "완전한",
-        "failed": "실패하다",
         "in_progress": "진행 중",
         "pending": "보류 중",
-        "skipped": "건너뛰었습니다"
-      }
+        "interrupted": "중단됨"
+      },
+      "completedCount": "{completed}/{total} 완료"
     },
     "terminal": {
       "empty": "아직 출력이 없습니다",
@@ -305,7 +311,8 @@
   },
   "permissionMode": {
     "default": "기본 권한",
-    "fullAccess": "전체 접근"
+    "fullAccess": "전체 접근",
+    "autoApprove": "대신 승인"
   },
   "sidebar": {
     "allAgents": "모든 에이전트",
@@ -326,13 +333,22 @@
     "groupByDate": "날짜별 그룹화",
     "groupByProject": "프로젝트별 그룹화",
     "pinned": "고정됨",
+    "chats": "채팅",
     "emptyTitle": "아직 대화가 없습니다",
     "emptyDescription": "새 대화를 시작해 보세요",
     "remoteControlDisabled": "사용 안 함",
     "searchPlaceholder": "채팅 제목 검색",
     "searchAriaLabel": "채팅 제목 검색",
     "searchEmptyTitle": "일치하는 대화가 없습니다",
-    "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요"
+    "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요",
+    "projectGroupActions": "프로젝트 그룹 작업",
+    "moveProjectGroupTop": "맨 위로 이동",
+    "moveProjectGroupUp": "위로 이동",
+    "moveProjectGroupDown": "아래로 이동",
+    "moveProjectGroupBottom": "맨 아래로 이동",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "작업 개요",
@@ -416,6 +432,58 @@
       "hour": "시간",
       "minute": "분",
       "second": "초"
+    }
+  },
+  "memory": {
+    "toolbar": "사용된 메모리",
+    "status": {
+      "archived": "잊음"
+    },
+    "actions": {
+      "undo": "되돌리기",
+      "forget": "잊기",
+      "edit": "편집"
+    },
+    "chip": {
+      "title": "메모리 업데이트 {count}",
+      "heading": "메모리 업데이트",
+      "description": "이번 턴에서 다음 메모리가 추가되었습니다."
+    },
+    "selection": {
+      "remember": "이 내용 기억"
+    },
+    "turn": {
+      "title": "이번 턴에 사용된 메모리",
+      "empty": "이번 턴에는 메모리가 주입되지 않았습니다",
+      "selected": "선택됨",
+      "dropped": "제외됨",
+      "tokens": "토큰",
+      "budget": "예산",
+      "countOnly": "이 기록에는 개수 요약만 포함되어 있습니다.",
+      "unavailable": "이 메모리는 더 이상 사용할 수 없습니다.",
+      "noSelectedDetails": "이번 턴에 표시할 메모리 세부 정보가 없습니다.",
+      "refreshFailed": "새로 고치지 못했습니다. 마지막으로 불러온 메모리를 표시합니다.",
+      "error": "이번 턴에 사용된 기억을 불러올 수 없습니다."
+    },
+    "toast": {
+      "undoSuccess": "메모리를 되돌렸습니다",
+      "undoFailed": "메모리를 되돌리지 못했습니다",
+      "forgetSuccess": "메모리를 잊었습니다",
+      "forgetFailed": "메모리를 잊지 못했습니다",
+      "amendFailed": "메모리를 업데이트하지 못했습니다",
+      "rememberFailed": "메모리를 저장하지 못했습니다",
+      "add": {
+        "created": "새 메모리로 저장했습니다",
+        "updated": "기존 메모리를 업데이트했습니다",
+        "superseded": "업데이트된 메모리에 병합했습니다",
+        "challenged": "검토할 메모리로 기록했습니다",
+        "noop": "새 메모리가 추가되지 않았습니다"
+      }
+    },
+    "errors": {
+      "actionFailed": "작업에 실패했습니다. 다시 시도하세요.",
+      "amendRetryable": "수정에 실패했습니다. 원래 기억은 복원되었으니 다시 시도하세요.",
+      "amendRestoreFailed": "수정에 실패했고 원래 기억도 복원하지 못했습니다."
     }
   }
 }

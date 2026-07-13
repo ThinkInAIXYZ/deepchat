@@ -41,6 +41,15 @@ export type NewApiRouteMeta = {
 
 type NewApiSpecialEndpointType = Extract<NewApiEndpointType, 'anthropic' | 'gemini'>
 
+const NEW_API_CHAT_ENDPOINT_TYPES: readonly NewApiEndpointType[] = [
+  'openai',
+  'openai-response',
+  'anthropic',
+  'gemini'
+] as const
+
+const OPENAI_COMPATIBLE_NEW_API_ENDPOINT_TYPES: readonly NewApiEndpointType[] = ['openai'] as const
+
 export const isNewApiEndpointType = (value: unknown): value is NewApiEndpointType =>
   typeof value === 'string' && NEW_API_ENDPOINT_TYPES.includes(value as NewApiEndpointType)
 
@@ -54,6 +63,194 @@ function normalizeProviderValue(value: string | undefined): string {
 
 function normalizeRouteHintValue(value: string | undefined): string {
   return normalizeProviderValue(value).replace(/[./_-]+/g, ' ')
+}
+
+export function isNewApiResponsesIncompatibleModelId(modelId: string | undefined): boolean {
+  const normalizedModelId = normalizeModelId(modelId)
+  return (
+    normalizedModelId.startsWith('tts-') ||
+    normalizedModelId.startsWith('whisper-') ||
+    normalizedModelId.startsWith('audio-') ||
+    normalizedModelId.startsWith('dall-e-') ||
+    normalizedModelId.startsWith('gpt-image-') ||
+    normalizedModelId.startsWith('sora-') ||
+    normalizedModelId.includes('embedding') ||
+    normalizedModelId.includes('embed') ||
+    normalizedModelId.includes('rerank') ||
+    normalizedModelId.includes('speech') ||
+    normalizedModelId.includes('transcribe') ||
+    normalizedModelId.includes('moderation')
+  )
+}
+
+function isExplicitNonChatNewApiModelType(type: ModelType | undefined): boolean {
+  return (
+    type === ModelType.Embedding ||
+    type === ModelType.Rerank ||
+    type === ModelType.ImageGeneration ||
+    type === ModelType.VideoGeneration ||
+    type === ModelType.TTS
+  )
+}
+
+function resolveNewApiRawModelType(rawType: string | undefined): ModelType | undefined {
+  const normalizedRawType = normalizeProviderValue(rawType)
+  switch (normalizedRawType) {
+    case 'chat':
+    case 'text':
+    case 'llm':
+      return ModelType.Chat
+    case 'embedding':
+    case 'embeddings':
+      return ModelType.Embedding
+    case 'rerank':
+      return ModelType.Rerank
+    case 'imagegeneration':
+    case 'image-generation':
+    case 'image':
+      return ModelType.ImageGeneration
+    case 'videogeneration':
+    case 'video-generation':
+    case 'video':
+      return ModelType.VideoGeneration
+    case 'tts':
+    case 'audio-speech':
+    case 'audiospeech':
+      return ModelType.TTS
+    default:
+      return undefined
+  }
+}
+
+function dedupeNewApiEndpointTypes(
+  endpointTypes: readonly NewApiEndpointType[] | null | undefined
+): NewApiEndpointType[] {
+  const seen = new Set<NewApiEndpointType>()
+  const result: NewApiEndpointType[] = []
+
+  for (const endpointType of endpointTypes ?? []) {
+    if (!isNewApiEndpointType(endpointType) || seen.has(endpointType)) {
+      continue
+    }
+    seen.add(endpointType)
+    result.push(endpointType)
+  }
+
+  return result
+}
+
+function isPureNewApiMediaEndpointRoute(
+  endpointTypes: readonly NewApiEndpointType[],
+  endpointType: Extract<NewApiEndpointType, 'image-generation' | 'video-generation'>
+): boolean {
+  return endpointTypes.length > 0 && endpointTypes.every((value) => value === endpointType)
+}
+
+export function resolveNewApiModelTypeFromMetadata(
+  supportedEndpointTypes: readonly NewApiEndpointType[],
+  modelId: string | undefined,
+  rawTypeValue: string | undefined
+): ModelType | undefined {
+  const rawType = resolveNewApiRawModelType(rawTypeValue)
+  if (rawType) {
+    return rawType
+  }
+
+  const normalizedModelId = normalizeModelId(modelId)
+  if (normalizedModelId.includes('embedding') || normalizedModelId.includes('embed')) {
+    return ModelType.Embedding
+  }
+  if (normalizedModelId.includes('rerank')) {
+    return ModelType.Rerank
+  }
+  if (
+    normalizedModelId.startsWith('tts-') ||
+    normalizedModelId.startsWith('whisper-') ||
+    normalizedModelId.startsWith('audio-') ||
+    normalizedModelId.includes('speech') ||
+    normalizedModelId.includes('transcribe')
+  ) {
+    return ModelType.TTS
+  }
+
+  if (normalizedModelId.startsWith('dall-e-') || normalizedModelId.startsWith('gpt-image-')) {
+    return ModelType.ImageGeneration
+  }
+  if (normalizedModelId.startsWith('sora-')) {
+    return ModelType.VideoGeneration
+  }
+
+  if (isPureNewApiMediaEndpointRoute(supportedEndpointTypes, 'image-generation')) {
+    return ModelType.ImageGeneration
+  }
+  if (isPureNewApiMediaEndpointRoute(supportedEndpointTypes, 'video-generation')) {
+    return ModelType.VideoGeneration
+  }
+
+  return undefined
+}
+
+function resolveNewApiSelectableModelType(
+  supportedEndpointTypes: readonly NewApiEndpointType[],
+  modelId: string | undefined,
+  options: {
+    type?: ModelType
+    rawType?: string
+  }
+): ModelType {
+  return (
+    options.type ??
+    resolveNewApiModelTypeFromMetadata(supportedEndpointTypes, modelId, options.rawType) ??
+    ModelType.Chat
+  )
+}
+
+function appendMissingNewApiEndpointTypes(
+  endpointTypes: readonly NewApiEndpointType[],
+  additions: readonly NewApiEndpointType[]
+): NewApiEndpointType[] {
+  const result = [...endpointTypes]
+  for (const endpointType of additions) {
+    if (!result.includes(endpointType)) {
+      result.push(endpointType)
+    }
+  }
+  return result
+}
+
+export function resolveNewApiSelectableEndpointTypes(
+  supportedEndpointTypes: readonly NewApiEndpointType[] | null | undefined,
+  modelId: string | undefined,
+  options: {
+    type?: ModelType
+    rawType?: string
+  } = {}
+): NewApiEndpointType[] | undefined {
+  const normalizedEndpointTypes = dedupeNewApiEndpointTypes(supportedEndpointTypes)
+  const selectableModelType = resolveNewApiSelectableModelType(normalizedEndpointTypes, modelId, {
+    type: options.type,
+    rawType: options.rawType
+  })
+
+  if (selectableModelType === ModelType.ImageGeneration) {
+    return ['image-generation']
+  }
+
+  if (selectableModelType === ModelType.VideoGeneration) {
+    return ['video-generation']
+  }
+
+  if (
+    isExplicitNonChatNewApiModelType(selectableModelType) ||
+    isNewApiResponsesIncompatibleModelId(modelId)
+  ) {
+    return [...OPENAI_COMPATIBLE_NEW_API_ENDPOINT_TYPES]
+  }
+
+  const supportedChatEndpointTypes = normalizedEndpointTypes.filter((endpointType) =>
+    NEW_API_CHAT_ENDPOINT_TYPES.includes(endpointType)
+  )
+  return appendMissingNewApiEndpointTypes(supportedChatEndpointTypes, NEW_API_CHAT_ENDPOINT_TYPES)
 }
 
 function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean {

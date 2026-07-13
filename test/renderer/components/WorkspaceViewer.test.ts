@@ -163,6 +163,24 @@ describe('WorkspaceViewer', () => {
     ).toBe('common.restore')
   })
 
+  it('emits back when optional back button is clicked', async () => {
+    const { wrapper } = await setup({
+      props: {
+        showBackButton: true
+      }
+    })
+
+    const backButton = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === 'common.back')
+
+    expect(backButton).toBeTruthy()
+
+    await backButton!.trigger('click')
+
+    expect(wrapper.emitted('back')).toEqual([[]])
+  })
+
   it('shows raw artifact preview through preview pane fallback', async () => {
     const { wrapper } = await setup()
 

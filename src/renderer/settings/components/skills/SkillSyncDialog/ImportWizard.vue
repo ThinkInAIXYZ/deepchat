@@ -91,7 +91,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSkillSyncClient } from '@api/SkillSyncClient'
 import { useToast } from '@/components/use-toast'
 import type { ScanResult, ImportPreview } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
@@ -111,7 +111,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
+const skillSyncClient = createSkillSyncClient()
 
 // State
 const scanning = ref(false)
@@ -210,10 +210,7 @@ const previewImport = async () => {
 
   loading.value = true
   try {
-    const previews = await skillSyncPresenter.previewImport(
-      selectedToolId.value,
-      selectedSkills.value
-    )
+    const previews = await skillSyncClient.previewImport(selectedToolId.value, selectedSkills.value)
     importPreviews.value = previews
 
     // Initialize conflict strategies
@@ -241,7 +238,7 @@ const executeImport = async () => {
   importProgress.value = { current: 0, total: importPreviews.value.length, currentSkill: '' }
 
   try {
-    const result = await skillSyncPresenter.executeImport(
+    const result = await skillSyncClient.executeImport(
       importPreviews.value,
       conflictStrategies.value
     )
@@ -286,7 +283,7 @@ onMounted(async () => {
 const scanTools = async () => {
   scanning.value = true
   try {
-    scanResults.value = await skillSyncPresenter.scanExternalTools()
+    scanResults.value = await skillSyncClient.scanExternalTools()
   } catch (error) {
     console.error('Scan error:', error)
     toast({

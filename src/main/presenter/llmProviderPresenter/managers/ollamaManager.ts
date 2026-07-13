@@ -1,5 +1,3 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { OLLAMA_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { OllamaModel } from '@shared/presenter'
 import { ShowResponse } from 'ollama'
@@ -73,7 +71,6 @@ export class OllamaManager {
         modelName,
         ...progress
       }
-      eventBus.sendToRenderer(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, SendTarget.ALL_WINDOWS, payload)
       publishDeepchatEvent('providers.ollama.pull.progress', {
         ...payload,
         version: Date.now()

@@ -36,6 +36,24 @@ describe('MessageBlock media', () => {
     expect(wrapper.find('img').attributes('src')).toBe('https://example.com/image.png')
   })
 
+  it('reserves a stable image frame before decode', () => {
+    const wrapper = mount(MessageBlockImage, {
+      props: {
+        block: createBlock({
+          type: 'image',
+          image_data: {
+            data: 'https://example.com/image.png',
+            mimeType: 'deepchat/image-url'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.find('.image-frame').exists()).toBe(true)
+    expect(wrapper.find('.image-frame').classes()).toContain('image-frame')
+    expect(wrapper.find('img').classes()).toContain('object-contain')
+  })
+
   it('renders image from legacy persisted payload', () => {
     const wrapper = mount(MessageBlockImage, {
       props: {

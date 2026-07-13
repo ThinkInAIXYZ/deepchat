@@ -92,14 +92,16 @@
   "pendingInput": {
     "steer": "Steer",
     "queueCount": "Queued {count}/{max}",
-    "resumeQueue": "Resume sending",
-    "toSteer": "Steer",
+    "toSteer": "Interrupt & send",
     "locked": "Locked",
     "reorder": "Reorder",
     "files": "{count} files",
     "attachmentsOnly": "{count} attachments",
     "empty": "Empty message",
-    "limitReached": "Waiting lane is full (max {max})."
+    "limitReached": "Waiting lane is full (max {max}).",
+    "remove": "Remove",
+    "steerUnavailable": "Can't interrupt right now",
+    "steerFailed": "Couldn't interrupt this turn"
   },
   "features": {
     "webSearch": "Web Search",
@@ -262,9 +264,9 @@
         "pending": "Pending",
         "in_progress": "In Progress",
         "completed": "Completed",
-        "failed": "Failed",
-        "skipped": "Skipped"
-      }
+        "interrupted": "Interrupted"
+      },
+      "completedCount": "{completed}/{total} completed"
     },
     "files": {
       "section": "Files",
@@ -279,6 +281,10 @@
         "openFile": "Open file",
         "revealInFolder": "Show in file manager",
         "insertPath": "Insert into input"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {
@@ -340,6 +346,7 @@
   },
   "permissionMode": {
     "default": "Default permissions",
+    "autoApprove": "Approve for me",
     "fullAccess": "Full access"
   },
   "sidebar": {
@@ -350,6 +357,9 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace",
     "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",
@@ -361,7 +371,13 @@
     },
     "groupByDate": "Group by date",
     "groupByProject": "Group by project",
+    "projectGroupActions": "Project group actions",
+    "moveProjectGroupTop": "Move to Top",
+    "moveProjectGroupUp": "Move Up",
+    "moveProjectGroupDown": "Move Down",
+    "moveProjectGroupBottom": "Move to Bottom",
     "pinned": "Pinned",
+    "chats": "Chats",
     "emptyTitle": "No conversations yet",
     "emptyDescription": "Start a new chat to begin",
     "searchPlaceholder": "Search chats",
@@ -416,6 +432,58 @@
       "hour": "h ",
       "minute": "m ",
       "second": "s"
+    }
+  },
+  "memory": {
+    "toolbar": "Memories used",
+    "status": {
+      "archived": "Forgotten"
+    },
+    "actions": {
+      "undo": "Undo",
+      "forget": "Forget",
+      "edit": "Edit"
+    },
+    "chip": {
+      "title": "Memory updated {count}",
+      "heading": "Memory updated",
+      "description": "This turn added the following memories."
+    },
+    "selection": {
+      "remember": "Remember this"
+    },
+    "turn": {
+      "title": "Memories used in this turn",
+      "empty": "No memories were injected for this turn",
+      "selected": "Selected",
+      "dropped": "Dropped",
+      "tokens": "Tokens",
+      "budget": "Budget",
+      "countOnly": "This record only has a count summary.",
+      "unavailable": "This memory is no longer available.",
+      "noSelectedDetails": "There are no memory details to show for this turn.",
+      "refreshFailed": "Refresh failed. Showing the last loaded memories.",
+      "error": "Unable to load memories for this turn."
+    },
+    "toast": {
+      "undoSuccess": "Memory was undone",
+      "undoFailed": "Could not undo memory",
+      "forgetSuccess": "Memory was forgotten",
+      "forgetFailed": "Could not forget memory",
+      "amendFailed": "Could not update memory",
+      "rememberFailed": "Could not save memory",
+      "add": {
+        "created": "Saved as a new memory",
+        "updated": "Updated an existing memory",
+        "superseded": "Merged into an updated memory",
+        "challenged": "Recorded as a memory to review",
+        "noop": "No new memory was added"
+      }
+    },
+    "errors": {
+      "actionFailed": "Action failed. Please try again.",
+      "amendRetryable": "The edit failed. The original memory was restored, so you can retry.",
+      "amendRestoreFailed": "The edit failed, and the original memory could not be restored."
     }
   }
 }

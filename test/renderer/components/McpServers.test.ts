@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -22,7 +22,13 @@ const serverCardStub = defineComponent({
       required: true
     }
   },
-  template: '<div data-testid="server-card">{{ server.name }}</div>'
+  emits: ['toggle', 'authenticate'],
+  template: `
+    <div>
+      <button data-testid="server-card" @click="$emit('toggle')">{{ server.name }}:{{ server.enabled }}</button>
+      <button data-testid="authenticate-server" @click="$emit('authenticate')">auth</button>
+    </div>
+  `
 })
 
 type SetupOptions = {
@@ -99,6 +105,13 @@ const setup = async (options: SetupOptions = {}) => {
     updateServer: vi.fn().mockResolvedValue(true),
     removeServer: vi.fn().mockResolvedValue(true),
     toggleServer: vi.fn().mockResolvedValue(true),
+    startServerAuth: vi.fn().mockResolvedValue({
+      serverName: 'running-server',
+      state: 'authenticating',
+      authenticated: false
+    }),
+    completeServerAuthFromCallbackUrl: vi.fn(),
+    updateServerAuthStatus: vi.fn().mockResolvedValue(null),
     loadTools: vi.fn().mockResolvedValue(undefined),
     loadPrompts: vi.fn().mockResolvedValue(undefined),
     loadResources: vi.fn().mockResolvedValue(undefined)
@@ -133,11 +146,11 @@ const setup = async (options: SetupOptions = {}) => {
         ScrollArea: passthrough('ScrollArea'),
         Dialog: passthrough('Dialog'),
         DialogTrigger: passthrough('DialogTrigger'),
-        DialogContent: defineComponent({ name: 'DialogContent', template: '<div />' }),
-        DialogHeader: defineComponent({ name: 'DialogHeader', template: '<div />' }),
-        DialogTitle: defineComponent({ name: 'DialogTitle', template: '<div />' }),
-        DialogDescription: defineComponent({ name: 'DialogDescription', template: '<div />' }),
-        DialogFooter: defineComponent({ name: 'DialogFooter', template: '<div />' }),
+        DialogContent: passthrough('DialogContent'),
+        DialogHeader: passthrough('DialogHeader'),
+        DialogTitle: passthrough('DialogTitle'),
+        DialogDescription: passthrough('DialogDescription'),
+        DialogFooter: passthrough('DialogFooter'),
         McpServerCard: serverCardStub,
         McpServerForm: true,
         McpToolPanel: true,
@@ -209,8 +222,60 @@ describe('McpServers', () => {
 
     const cards = wrapper.findAll('[data-testid="server-card"]').map((card) => card.text())
 
-    expect(cards).toEqual(['user-server'])
+    expect(cards).toEqual(['user-server:false'])
     expect(wrapper.text()).not.toContain('feishu-tools')
+  })
+
+  it('uses agent-scoped toggle overrides without toggling the global server', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+
+    await wrapper.setProps({
+      agentScopedToggle: true,
+      serverEnabledOverrides: {
+        'running-server': false
+      }
+    })
+    await wrapper.find('[data-testid="server-card"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="server-card"]').text()).toContain('running-server:false')
+    expect(mcpStore.toggleServer).not.toHaveBeenCalled()
+    expect(wrapper.emitted('toggle-agent-server')?.[0]).toEqual(['running-server', true])
+  })
+
+  it('allows agent-scoped toggles for DeepChat-managed servers without global toggles', async () => {
+    const { wrapper, mcpStore } = await setup({
+      serverList: [
+        {
+          name: 'Artifacts',
+          icons: '',
+          descriptions: '',
+          command: '',
+          args: [],
+          enabled: true,
+          isRunning: true
+        }
+      ],
+      config: {
+        mcpServers: {
+          Artifacts: {
+            type: 'inmemory',
+            source: 'deepchat'
+          }
+        }
+      }
+    })
+
+    await wrapper.setProps({
+      agentScopedToggle: true,
+      serverEnabledOverrides: {
+        Artifacts: false
+      }
+    })
+    await wrapper.find('[data-testid="server-card"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="server-card"]').text()).toContain('Artifacts:false')
+    expect(mcpStore.toggleServer).not.toHaveBeenCalled()
+    expect(wrapper.emitted('toggle-agent-server')?.[0]).toEqual(['Artifacts', true])
   })
 
   it('shows the empty state when only plugin-owned MCP servers exist', async () => {
@@ -232,5 +297,42 @@ describe('McpServers', () => {
 
     expect(wrapper.text()).toContain('settings.mcp.noServersFound')
     expect(wrapper.findAll('[data-testid="server-card"]')).toHaveLength(0)
+  })
+
+  it('refreshes auth status when returning to the callback dialog', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    mcpStore.updateServerAuthStatus.mockResolvedValueOnce({
+      serverName: 'running-server',
+      state: 'authenticated',
+      authenticated: true
+    })
+
+    await wrapper.find('[data-testid="authenticate-server"]').trigger('click')
+    await flushPromises()
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    expect(mcpStore.startServerAuth).toHaveBeenCalledWith('running-server')
+    expect(mcpStore.updateServerAuthStatus).toHaveBeenCalledTimes(1)
+    expect(mcpStore.updateServerAuthStatus).toHaveBeenCalledWith('running-server', true)
+  })
+
+  it('ignores duplicate callback URL submissions while one is pending', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    mcpStore.completeServerAuthFromCallbackUrl.mockImplementation(() => new Promise(() => {}))
+
+    await wrapper.find('[data-testid="authenticate-server"]').trigger('click')
+    await flushPromises()
+
+    const authCallbackInput = wrapper.findAll('input').at(-1)
+    expect(authCallbackInput).toBeTruthy()
+
+    await authCallbackInput!.setValue('http://localhost:3333/callback?code=code&state=state')
+    await authCallbackInput!.trigger('keydown.enter')
+    await authCallbackInput!.trigger('keydown.enter')
+
+    expect(mcpStore.completeServerAuthFromCallbackUrl).toHaveBeenCalledTimes(1)
   })
 })

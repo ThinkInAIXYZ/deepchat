@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Presenter } from '@/presenter'
+import { Presenter, routeDeepChatAgentMemoryMaintenanceConfigChanged } from '@/presenter'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/presenter/agentRepository'
 
 vi.mock('electron-updater', () => ({
   default: {
@@ -31,5 +32,31 @@ describe('Presenter startup', () => {
       '[PluginHost] Failed to initialize plugins:',
       pluginError
     )
+  })
+})
+
+describe('DeepChat agent memory maintenance config routing', () => {
+  it('routes builtin config changes to builtin fan-out', () => {
+    const memoryPresenter = {
+      onBuiltinDeepChatMemoryMaintenanceConfigChanged: vi.fn(),
+      onAgentMemoryMaintenanceConfigChanged: vi.fn()
+    }
+
+    routeDeepChatAgentMemoryMaintenanceConfigChanged(memoryPresenter, BUILTIN_DEEPCHAT_AGENT_ID)
+
+    expect(memoryPresenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged).toHaveBeenCalledOnce()
+    expect(memoryPresenter.onAgentMemoryMaintenanceConfigChanged).not.toHaveBeenCalled()
+  })
+
+  it('routes custom agent config changes to single-agent arm', () => {
+    const memoryPresenter = {
+      onBuiltinDeepChatMemoryMaintenanceConfigChanged: vi.fn(),
+      onAgentMemoryMaintenanceConfigChanged: vi.fn()
+    }
+
+    routeDeepChatAgentMemoryMaintenanceConfigChanged(memoryPresenter, 'writer')
+
+    expect(memoryPresenter.onAgentMemoryMaintenanceConfigChanged).toHaveBeenCalledWith('writer')
+    expect(memoryPresenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged).not.toHaveBeenCalled()
   })
 })

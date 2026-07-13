@@ -36,6 +36,8 @@ asarUnpack:
   - '**/node_modules/@opendal/**/*'
   - '**/node_modules/ffi-rs/**/*'
   - '**/node_modules/@yuuang/ffi-rs-*/**/*'
+  - '**/node_modules/@parcel/watcher/**/*'
+  - '**/node_modules/@parcel/watcher-*/**/*'
 extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime
@@ -88,6 +90,10 @@ afterSign: scripts/notarize.js
 afterPack: scripts/afterPack.js
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  extraFiles:
+    - from: ./build/managed-helpers/
+      to: Helpers
+      filter: ['**/*']
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.

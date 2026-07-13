@@ -11,6 +11,9 @@ export type AiSdkBehaviorPreset =
 
 export type AiSdkModelSourceStrategy =
   | 'openai'
+  | 'openai-codex'
+  | 'opencode-go'
+  | 'kimi-for-coding'
   | 'github'
   | 'together'
   | 'provider-db'
@@ -39,7 +42,7 @@ export type AiSdkCheckStrategy = 'fetch-models' | 'key-status' | 'generate-text'
 
 export type AiSdkCredentialStrategy = 'none' | 'api-key' | 'anthropic' | 'vertex' | 'bedrock'
 
-export type AiSdkRouteStrategy = 'none' | 'grok' | 'new-api' | 'zenmux'
+export type AiSdkRouteStrategy = 'none' | 'grok' | 'new-api' | 'opencode-go' | 'zenmux'
 
 export type AiSdkEmbeddingStrategy = 'none' | 'openai' | 'google' | 'new-api' | 'zenmux'
 
@@ -90,6 +93,23 @@ const CHINESE_SUMMARY_OPENAI = createDefinition({
   behaviorPreset: 'chinese-summary'
 })
 
+const OPENAI_CODEX = createDefinition({
+  runtimeKind: 'openai-codex',
+  behaviorPreset: 'openai',
+  modelSource: 'openai-codex',
+  checkStrategy: 'generate-text',
+  credentialStrategy: 'none',
+  keyStatusStrategy: 'none',
+  routeStrategy: 'none',
+  embeddingStrategy: 'none',
+  providerDbSourceId: 'openai',
+  providerDbGroup: 'Codex',
+  checkModelId: 'gpt-5.6-luna',
+  checkPrompt: 'Hello',
+  checkTemperature: 0.2,
+  checkMaxTokens: 16
+})
+
 const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   [
     '302ai',
@@ -107,6 +127,36 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       defaultHeadersPatch: {
         'APP-Code': 'SMUE7630'
       }
+    })
+  ],
+  [
+    'alibaba-token-plan',
+    createDefinition({
+      ...ENGLISH_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'alibaba-token-plan',
+      providerDbGroup: 'Token Plan',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'deepseek-v4-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
+    'alibaba-token-plan-cn',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'alibaba-token-plan-cn',
+      providerDbGroup: 'Token Plan',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'deepseek-v4-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [
@@ -216,9 +266,43 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'huggingface',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'huggingface',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'Qwen/Qwen3-Coder-Next',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'jiekou',
     createDefinition({
       ...OPENAI_BASE
+    })
+  ],
+  [
+    'kimi-for-coding',
+    createDefinition({
+      runtimeKind: 'anthropic',
+      behaviorPreset: 'anthropic',
+      modelSource: 'kimi-for-coding',
+      providerDbSourceId: 'kimi-for-coding',
+      providerDbGroup: 'Kimi Code',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      keyStatusStrategy: 'none',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'kimi-for-coding',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [
@@ -261,6 +345,25 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'minimax-global',
+    createDefinition({
+      runtimeKind: 'anthropic',
+      behaviorPreset: 'anthropic',
+      modelSource: 'provider-db',
+      providerDbSourceId: 'minimax',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      keyStatusStrategy: 'none',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'MiniMax-M2.1',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'modelscope',
     createDefinition({
       ...TITLE_SUMMARY_OPENAI,
@@ -278,11 +381,56 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'moonshot-ai',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'moonshot-ai',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'kimi-k2-0905-preview',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
+    'nvidia',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'nvidia',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'microsoft/phi-4-mini-instruct',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'o3fan',
     createDefinition({
       ...TITLE_SUMMARY_OPENAI,
       modelSource: 'provider-db',
       providerDbGroup: 'o3fan'
+    })
+  ],
+  [
+    'opencode-go',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'opencode-go',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'opencode-go',
+      embeddingStrategy: 'none',
+      checkModelId: 'kimi-k2.7-code',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [
@@ -299,6 +447,7 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       runtimeKind: 'openai-responses'
     })
   ],
+  ['openai-codex', OPENAI_CODEX],
   [
     'openrouter',
     createDefinition({
@@ -340,6 +489,21 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'stepfun',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'stepfun',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'step-3.5-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'together',
     createDefinition({
       ...CHINESE_SUMMARY_OPENAI,
@@ -353,6 +517,41 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       modelSource: 'tokenflux',
       checkStrategy: 'key-status',
       keyStatusStrategy: 'tokenflux'
+    })
+  ],
+  [
+    'tokenlab',
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'gpt-5.4-mini',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
+    'daoxe',
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key'
+    })
+  ],
+  [
+    'upstage',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'upstage',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'solar-mini',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [
@@ -449,6 +648,7 @@ const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ['new-api', PROVIDER_ID_REGISTRY.get('new-api')!],
   ['o3fan', PROVIDER_ID_REGISTRY.get('o3fan')!],
   ['openai', PROVIDER_ID_REGISTRY.get('openai')!],
+  ['openai-codex', OPENAI_CODEX],
   ['openai-compatible', OPENAI_BASE],
   ['openai-completions', OPENAI_BASE],
   ['openai-responses', PROVIDER_ID_REGISTRY.get('openai-responses')!],

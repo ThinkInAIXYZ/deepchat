@@ -281,7 +281,7 @@ import {
   SheetTitle
 } from '@shadcn/components/ui/sheet'
 import { useToast } from '@/components/use-toast'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createFileClient } from '@api/FileClient'
 import { MessageFile } from '@shared/chat'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { FileItem } from '@shared/presenter'
@@ -317,7 +317,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const filePresenter = useLegacyPresenter('filePresenter')
+const fileClient = createFileClient()
 
 const form = reactive<PromptForm>({
   id: '',
@@ -415,9 +415,36 @@ const uploadFile = () => {
     try {
       await Promise.all(
         Array.from(files).map(async (file) => {
-          const path = window.api.getPathForFile(file)
-          const mimeType = await filePresenter.getMimeType(path)
-          const fileInfo: MessageFile = await filePresenter.prepareFile(path, mimeType)
+          const path = fileClient.getPathForFile(file)
+          const mimeType = await fileClient.getMimeType(path)
+          const preparedFile = await fileClient.prepareFile(path, mimeType)
+          const metadata = preparedFile.metadata as Partial<MessageFile['metadata']> | undefined
+          const fileInfo: MessageFile = {
+            ...preparedFile,
+            content: preparedFile.content ?? '',
+            mimeType: preparedFile.mimeType ?? mimeType ?? file.type,
+            token: preparedFile.token ?? 0,
+            metadata: {
+              fileName:
+                typeof metadata?.fileName === 'string' ? metadata.fileName : preparedFile.name,
+              fileSize:
+                typeof metadata?.fileSize === 'number'
+                  ? metadata.fileSize
+                  : (preparedFile.size ?? file.size),
+              fileDescription:
+                typeof metadata?.fileDescription === 'string'
+                  ? metadata.fileDescription
+                  : (preparedFile.type ?? file.type),
+              fileCreated:
+                metadata?.fileCreated instanceof Date
+                  ? metadata.fileCreated
+                  : new Date(file.lastModified),
+              fileModified:
+                metadata?.fileModified instanceof Date
+                  ? metadata.fileModified
+                  : new Date(file.lastModified)
+            }
+          }
 
           const fileItem: FileItem = {
             id: nanoid(8),

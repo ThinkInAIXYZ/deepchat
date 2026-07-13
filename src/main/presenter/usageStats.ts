@@ -116,7 +116,9 @@ export function normalizeUsageStatsBackfillStatus(value: unknown): UsageStatsBac
     startedAt: toFiniteNumber(input.startedAt) ?? null,
     finishedAt: toFiniteNumber(input.finishedAt) ?? null,
     error: typeof input.error === 'string' ? input.error : null,
-    updatedAt: toFiniteNumber(input.updatedAt) ?? 0
+    updatedAt: toFiniteNumber(input.updatedAt) ?? 0,
+    processedCount: toFiniteNumber(input.processedCount),
+    durationMs: toFiniteNumber(input.durationMs)
   }
 }
 

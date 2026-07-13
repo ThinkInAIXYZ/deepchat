@@ -3,8 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const eventBusMocks = vi.hoisted(() => ({
   on: vi.fn(),
   off: vi.fn(),
-  send: vi.fn(),
-  sendToRenderer: vi.fn()
+  send: vi.fn()
 }))
 
 const presenterMocks = vi.hoisted(() => ({
@@ -14,17 +13,13 @@ const presenterMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMocks,
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
-  }
+  eventBus: eventBusMocks
 }))
 
 vi.mock('@/events', () => ({
   MCP_EVENTS: {
     CLIENT_LIST_UPDATED: 'client-list-updated',
-    CONFIG_CHANGED: 'config-changed',
-    TOOL_CALL_RESULT: 'tool-call-result'
+    CONFIG_CHANGED: 'config-changed'
   },
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'show-error'
@@ -224,6 +219,101 @@ describe('ToolManager', () => {
     expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
   })
 
+  it('filters normal MCP definitions while keeping plugin-owned definitions available', async () => {
+    const normalClient = createClient('server-a')
+    const blockedClient = createClient('server-b')
+    const pluginClient = createClient('plugin-server', undefined, {
+      source: 'plugin',
+      ownerPluginId: 'plugin-a'
+    })
+    const configPresenter = createConfigPresenter('server-a')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([normalClient, blockedClient, pluginClient]) as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions({
+      agentId: 'agent-1',
+      enabledServerIds: ['server-a']
+    })
+
+    expect(definitions.map((tool) => tool.server.name).sort()).toEqual([
+      'plugin-server',
+      'server-a'
+    ])
+  })
+
+  it('keeps source plugin MCP servers available outside normal server policy', async () => {
+    const pluginClient = createClient('plugin-source-server', undefined, {
+      source: 'plugin',
+      sourceId: 'plugin-b'
+    })
+    const configPresenter = createConfigPresenter('plugin-source-server')
+    configPresenter.getMcpServers.mockResolvedValue({
+      'plugin-source-server': {
+        autoApprove: ['all'],
+        source: 'plugin',
+        sourceId: 'plugin-b'
+      }
+    })
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([pluginClient]) as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions({ enabledServerIds: [] })
+    const result = await manager.callTool(
+      {
+        id: 'plugin-tool',
+        type: 'function',
+        function: {
+          name: 'echo',
+          arguments: '{}'
+        },
+        conversationId: 'deepchat-session',
+        providerId: 'openai'
+      },
+      {
+        agentId: 'deepchat',
+        enabledServerIds: []
+      }
+    )
+
+    expect(definitions.map((tool) => tool.server.name)).toEqual(['plugin-source-server'])
+    expect(result.isError).toBe(false)
+    expect(pluginClient.callTool).toHaveBeenCalledWith('echo', {})
+  })
+
+  it('blocks DeepChat MCP tool calls outside enabled server policy', async () => {
+    const client = createClient('blocked-server')
+    const configPresenter = createConfigPresenter('blocked-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+
+    const result = await manager.callTool(
+      {
+        id: 'tool-deepchat-blocked',
+        type: 'function',
+        function: {
+          name: 'echo',
+          arguments: '{}'
+        },
+        conversationId: 'session-deepchat',
+        providerId: 'openai'
+      },
+      {
+        agentId: 'agent-1',
+        enabledServerIds: ['allowed-server']
+      }
+    )
+
+    expect(result.isError).toBe(true)
+    expect(result.content).toContain("MCP server 'blocked-server' is not allowed")
+    expect(client.callTool).not.toHaveBeenCalled()
+  })
+
   it('records plugin tool-list failures without showing a global toast', async () => {
     const client = createClient('plugin-server', [], {
       source: 'plugin',
@@ -241,7 +331,6 @@ describe('ToolManager', () => {
       'plugin-server',
       'tool list failed'
     )
-    expect(eventBusMocks.sendToRenderer).not.toHaveBeenCalled()
   })
 
   it('skips ACP session resolution when provider hint is non-ACP', async () => {
@@ -314,6 +403,60 @@ describe('ToolManager', () => {
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
+  })
+
+  it('normalizes CUA Windows launch bundle paths before dispatch', async () => {
+    const client = createClient('cua-driver', [], {
+      source: 'plugin',
+      ownerPluginId: 'com.deepchat.plugins.cua'
+    })
+    const configPresenter = createConfigPresenter('cua-driver')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+
+    const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
+      bundle_id: 'C:\\Windows\\System32\\notepad.exe'
+    })
+
+    expect(prepared).toEqual({
+      ok: true,
+      args: {
+        path: 'C:\\Windows\\System32\\notepad.exe'
+      }
+    })
+  })
+
+  it('fails CUA Windows launch quickly for unresolved macOS bundle ids', async () => {
+    const client = createClient('cua-driver', [], {
+      source: 'plugin',
+      ownerPluginId: 'com.deepchat.plugins.cua'
+    })
+    client.callTool.mockResolvedValue({
+      structuredContent: {
+        apps: [
+          {
+            name: 'Notepad',
+            aumid: 'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App'
+          }
+        ]
+      },
+      content: [],
+      isError: false
+    })
+    const configPresenter = createConfigPresenter('cua-driver')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+
+    const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
+      bundle_id: 'com.apple.TextEdit'
+    })
+
+    expect(prepared.error).toContain("Windows app target 'com.apple.TextEdit' was not found")
+    expect(client.callTool).toHaveBeenCalledWith('list_apps', {})
   })
 
   it('treats missing provider hint as a fallback to new session resolution', async () => {

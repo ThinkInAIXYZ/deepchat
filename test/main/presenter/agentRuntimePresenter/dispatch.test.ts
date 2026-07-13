@@ -13,17 +13,30 @@ import { createState } from '@/presenter/agentRuntimePresenter/types'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
-import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
+
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: {}
 }))
 
 vi.mock('@/events', () => ({
@@ -51,17 +64,19 @@ vi.mock('@/presenter', () => ({
 import {
   executeTools as executeToolsInternal,
   finalize,
-  finalizeError
+  finalizeError,
+  persistAbortExceptionPlanState
 } from '@/presenter/agentRuntimePresenter/dispatch'
 import type { EchoHandle } from '@/presenter/agentRuntimePresenter/echo'
 import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
-import { eventBus } from '@/eventbus'
 
 function createIo(overrides?: Partial<IoParams>): IoParams {
   return {
     sessionId: 's1',
     requestId: 'req-1',
     messageId: 'm1',
+    providerId: 'acp',
+    modelId: 'dimcode',
     messageStore: {
       addSearchResult: vi.fn(),
       updateAssistantContent: vi.fn(),
@@ -130,6 +145,10 @@ const DEFAULT_INTERLEAVED_REASONING: InterleavedReasoningConfig = {
   providerDbSourceUrl: 'https://example.com/provider-db.json'
 }
 
+function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
+  expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
+}
+
 async function executeTools(
   state: StreamState,
   conversation: any[],
@@ -138,7 +157,7 @@ async function executeTools(
   toolPresenter: IToolPresenter,
   modelId: string,
   io: IoParams,
-  permissionMode: 'default' | 'full_access',
+  permissionMode: PermissionMode,
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
@@ -151,28 +170,34 @@ async function executeTools(
     rendererFlushHandle ??
     ({
       flush: vi.fn(() => {
-        eventBus.sendToRenderer('stream:response', 'all', {
-          conversationId: io.sessionId,
-          eventId: io.messageId,
+        publishDeepchatEventMock('chat.stream.updated', {
+          kind: 'snapshot',
+          requestId: io.requestId,
+          sessionId: io.sessionId,
           messageId: io.messageId,
+          updatedAt: Date.now(),
           blocks: state.blocks
         })
         io.messageStore.updateAssistantContent(io.messageId, state.blocks)
       }),
       schedule: vi.fn(() => {
-        eventBus.sendToRenderer('stream:response', 'all', {
-          conversationId: io.sessionId,
-          eventId: io.messageId,
+        publishDeepchatEventMock('chat.stream.updated', {
+          kind: 'snapshot',
+          requestId: io.requestId,
+          sessionId: io.sessionId,
           messageId: io.messageId,
+          updatedAt: Date.now(),
           blocks: state.blocks
         })
         io.messageStore.updateAssistantContent(io.messageId, state.blocks)
       }),
       rescheduleRenderer: vi.fn(() => {
-        eventBus.sendToRenderer('stream:response', 'all', {
-          conversationId: io.sessionId,
-          eventId: io.messageId,
+        publishDeepchatEventMock('chat.stream.updated', {
+          kind: 'snapshot',
+          requestId: io.requestId,
+          sessionId: io.sessionId,
           messageId: io.messageId,
+          updatedAt: Date.now(),
           blocks: state.blocks
         })
         io.messageStore.updateAssistantContent(io.messageId, state.blocks)
@@ -341,33 +366,184 @@ describe('dispatch', () => {
         'openai'
       )
 
-      const planBlock = state.blocks.find((block) => block.type === 'plan')
       const toolBlock = state.blocks.find((block) => block.type === 'tool_call')
 
-      expect(planBlock).toBeUndefined()
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
       expect(toolBlock?.extra?.internalTool).toBe(true)
-
-      const planEventCall = vi
-        .mocked(eventBus.sendToRenderer)
-        .mock.calls.find(
-          ([channel, _target, envelope]) =>
-            channel === DEEPCHAT_EVENT_CHANNEL &&
-            envelope &&
-            typeof envelope === 'object' &&
-            (envelope as { name?: string }).name === 'chat.plan.updated'
-        )
-      expect(planEventCall?.[2]).toMatchObject({
-        name: 'chat.plan.updated',
-        payload: {
-          sessionId: 's1',
-          messageId: 'm1',
-          toolCallId: 'tc-plan',
-          plan: snapshot.plan,
-          explanation: 'Repository inspected',
-          revision: 1,
-          updatedAt: snapshot.updatedAt
-        }
+      expect(state.latestAgentPlanSnapshot).toMatchObject({
+        sessionId: 's1',
+        messageId: 'm1',
+        toolCallId: 'tc-plan',
+        plan: snapshot.plan,
+        explanation: 'Repository inspected',
+        revision: 1,
+        updatedAt: snapshot.updatedAt
       })
+
+      const planEventCall = publishDeepchatEventMock.mock.calls.find(
+        ([eventName]) => eventName === 'chat.plan.updated'
+      )
+      expect(planEventCall?.[1]).toMatchObject({
+        sessionId: 's1',
+        messageId: 'm1',
+        toolCallId: 'tc-plan',
+        plan: snapshot.plan,
+        explanation: 'Repository inspected',
+        revision: 1,
+        updatedAt: snapshot.updatedAt
+      })
+    })
+
+    it('publishes successive plan revisions without creating plan blocks', async () => {
+      const tools = [makeAgentTool('update_plan')]
+      const snapshots = [
+        {
+          sessionId: 's1',
+          toolCallId: 'tc-plan',
+          plan: [{ step: 'Inspect runtime', status: 'in_progress' as const }],
+          revision: 1,
+          updatedAt: '2026-05-18T00:00:00.000Z'
+        },
+        {
+          sessionId: 's1',
+          toolCallId: 'tc-plan',
+          plan: [
+            { step: 'Inspect runtime', status: 'completed' as const },
+            { step: 'Write tests', status: 'in_progress' as const }
+          ],
+          revision: 2,
+          updatedAt: '2026-05-18T00:00:01.000Z'
+        }
+      ]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async (_request, options) => {
+          for (const snapshot of snapshots) {
+            options?.onProgress?.({
+              kind: 'agent_plan',
+              toolCallId: 'tc-plan',
+              snapshot
+            })
+          }
+          return {
+            content: '{}',
+            rawData: {
+              toolCallId: 'tc-plan',
+              content: '{}',
+              isError: false
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+      const conversation = [{ role: 'user' as const, content: 'Plan this' }]
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-plan', name: 'update_plan', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc-plan', name: 'update_plan', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        undefined,
+        'openai'
+      )
+
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+      expect(state.latestAgentPlanSnapshot).toMatchObject({
+        plan: snapshots[1].plan,
+        revision: 2,
+        updatedAt: snapshots[1].updatedAt
+      })
+      const planEventCalls = publishDeepchatEventMock.mock.calls.filter(
+        ([eventName]) => eventName === 'chat.plan.updated'
+      )
+      expect(planEventCalls).toHaveLength(2)
+      expect(planEventCalls.map(([, payload]) => payload.revision)).toEqual([1, 2])
+    })
+
+    it('ignores agent plan progress from parallel read-only tool batches', async () => {
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async (request, options) => {
+          options?.onProgress?.({
+            kind: 'agent_plan',
+            toolCallId: request.id,
+            snapshot: {
+              sessionId: 's1',
+              toolCallId: request.id,
+              plan: [{ step: 'Subagent-only progress', status: 'in_progress' }],
+              revision: 1,
+              updatedAt: '2026-05-18T00:00:00.000Z'
+            }
+          })
+          return {
+            content: '{}',
+            rawData: {
+              toolCallId: request.id,
+              content: '{}',
+              isError: false
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+      const conversation = [{ role: 'user' as const, content: 'Read in parallel' }]
+
+      state.blocks.push(
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: { id: 'tc-read-a', name: 'read', params: '{}', response: '' }
+        },
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: { id: 'tc-read-b', name: 'read', params: '{}', response: '' }
+        }
+      )
+      state.completedToolCalls = [
+        { id: 'tc-read-a', name: 'read', arguments: '{}' },
+        { id: 'tc-read-b', name: 'read', arguments: '{}' }
+      ]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        undefined,
+        'openai'
+      )
+
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+      expect(
+        publishDeepchatEventMock.mock.calls.some(([eventName]) => eventName === 'chat.plan.updated')
+      ).toBe(false)
     })
 
     it('runs all-read-only Agent tool batches in parallel and preserves result order', async () => {
@@ -944,6 +1120,514 @@ describe('dispatch', () => {
       )
     })
 
+    it('auto-approves reviewed Agent tool calls with full-access capability reach', async () => {
+      const hooks = {
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'auto_allow',
+          riskLevel: 'low'
+        })
+      }
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-read',
+          name: 'read',
+          params: '{"path":"/tmp/outside.txt"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-read', name: 'read', arguments: '{"path":"/tmp/outside.txt"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(result.pendingInteractions).toHaveLength(0)
+      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc-read',
+          toolName: 'read',
+          toolArgs: '{"path":"/tmp/outside.txt"}',
+          toolSource: 'agent',
+          reason: 'tool_call',
+          permission: expect.objectContaining({
+            permissionType: 'read',
+            serverName: 'agent-filesystem',
+            paths: ['/tmp/outside.txt'],
+            rememberable: false
+          })
+        })
+      )
+      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-read' }),
+        expect.objectContaining({ permissionMode: 'full_access' })
+      )
+      expect(result.executed).toBe(1)
+    })
+
+    it('reviews command-runner Agent tool calls even without path args', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn(),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'ask_user',
+          riskLevel: 'high'
+        })
+      }
+      const tools = [makeAgentTool('exec')]
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-exec',
+          name: 'exec',
+          params: '{"command":"rm -rf /tmp/project"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-exec', name: 'exec', arguments: '{"command":"rm -rf /tmp/project"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolName: 'exec',
+          toolArgs: '{"command":"rm -rf /tmp/project"}',
+          permission: expect.objectContaining({
+            permissionType: 'command',
+            command: 'rm -rf /tmp/project'
+          })
+        })
+      )
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.pendingInteractions).toHaveLength(1)
+    })
+
+    it('marks tool calls as reviewing while auto approve reviewer is pending', async () => {
+      const reviewDecision = createDeferred<{ decision: 'auto_allow'; riskLevel: 'low' }>()
+      const hooks = {
+        reviewToolPermission: vi.fn(() => reviewDecision.promise)
+      }
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+      const flushedBlocks: any[] = []
+      const rendererFlushHandle = {
+        flush: vi.fn(() => {
+          flushedBlocks.push(JSON.parse(JSON.stringify(state.blocks)))
+        }),
+        schedule: vi.fn(),
+        rescheduleRenderer: vi.fn()
+      }
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-read',
+          name: 'read',
+          params: '{"path":"/tmp/outside.txt"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-read', name: 'read', arguments: '{"path":"/tmp/outside.txt"}' }
+      ]
+
+      const executePromise = executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks,
+        undefined,
+        DEFAULT_INTERLEAVED_REASONING,
+        rendererFlushHandle
+      )
+      await Promise.resolve()
+
+      expect(flushedBlocks[0][0].extra).toMatchObject({
+        autoApproveReviewStatus: 'reviewing'
+      })
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+
+      reviewDecision.resolve({ decision: 'auto_allow', riskLevel: 'low' })
+      const result = await executePromise
+
+      const lastFlushedToolBlock = flushedBlocks
+        .flat()
+        .filter((block) => block.tool_call?.id === 'tc-read')
+        .at(-1)
+      expect(lastFlushedToolBlock?.extra?.autoApproveReviewStatus).toBeUndefined()
+      expect(result.executed).toBe(1)
+    })
+
+    it('does not flash reviewing when no auto approve reviewer is registered', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn()
+      }
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+      const rendererFlushHandle = {
+        flush: vi.fn(),
+        schedule: vi.fn(),
+        rescheduleRenderer: vi.fn()
+      }
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-read',
+          name: 'read',
+          params: '{"path":"/tmp/outside.txt"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-read', name: 'read', arguments: '{"path":"/tmp/outside.txt"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks,
+        undefined,
+        DEFAULT_INTERLEAVED_REASONING,
+        rendererFlushHandle
+      )
+
+      expect(rendererFlushHandle.flush).not.toHaveBeenCalled()
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(
+        state.blocks.find((block) => block.tool_call?.id === 'tc-read')?.extra
+          ?.autoApproveReviewStatus
+      ).toBeUndefined()
+    })
+
+    it('pauses auto-approve Agent tool calls when the reviewer asks the user', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn(),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'ask_user',
+          riskLevel: 'high'
+        })
+      }
+      const tools = [makeAgentTool('write')]
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.executed).toBe(0)
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.pendingInteractions[0].permission).toEqual(
+        expect.objectContaining({
+          permissionType: 'write',
+          serverName: 'agent-filesystem',
+          paths: ['/tmp/outside.txt']
+        })
+      )
+      expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
+      expect(
+        state.blocks.find((block) => block.tool_call?.id === 'tc-write')?.extra
+          ?.autoApproveReviewStatus
+      ).toBeUndefined()
+      expect(state.blocks.at(-1)).toEqual(
+        expect.objectContaining({
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          extra: expect.objectContaining({
+            needsUserAction: true,
+            permissionType: 'write',
+            serverName: 'agent-filesystem'
+          })
+        })
+      )
+    })
+
+    it('clears reviewing marker when auto approve reviewer blocks a tool call', async () => {
+      const hooks = {
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'block',
+          riskLevel: 'critical',
+          rationale: 'blocked by reviewer'
+        })
+      }
+      const tools = [makeAgentTool('write')]
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      const toolBlock = state.blocks.find((block) => block.tool_call?.id === 'tc-write')
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.executed).toBe(1)
+      expect(toolBlock?.status).toBe('error')
+      expect(toolBlock?.tool_call?.response).toContain('blocked by reviewer')
+      expect(toolBlock?.extra?.autoApproveReviewStatus).toBeUndefined()
+    })
+
+    it('falls back to user approval for unknown auto approve reviewer decisions', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn(),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'unknown',
+          riskLevel: 'low'
+        })
+      }
+      const tools = [makeAgentTool('write')]
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('auto-approves pre-checked permissions before execution', async () => {
+      const hooks = {
+        autoGrantPermission: vi.fn().mockResolvedValue(undefined),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'auto_allow',
+          riskLevel: 'medium'
+        })
+      }
+      const tools = [makeAgentTool('write_file')]
+      const toolPresenter = createMockToolPresenter({ write_file: 'written' }) as IToolPresenter & {
+        preCheckToolPermission: ReturnType<typeof vi.fn>
+      }
+      toolPresenter.preCheckToolPermission = vi.fn().mockResolvedValue({
+        needsPermission: true,
+        permissionType: 'write',
+        description: 'Need write permission',
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        paths: ['/tmp/outside.txt'],
+        rememberable: false
+      })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write_file',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write_file',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(toolPresenter.preCheckToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-write' }),
+        { permissionMode: 'full_access' }
+      )
+      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'precheck',
+          permission: expect.objectContaining({
+            permissionType: 'write',
+            paths: ['/tmp/outside.txt']
+          })
+        })
+      )
+      expect(hooks.autoGrantPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          permissionType: 'write',
+          paths: ['/tmp/outside.txt']
+        })
+      )
+      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-write' }),
+        expect.objectContaining({ permissionMode: 'full_access' })
+      )
+      expect(result.executed).toBe(1)
+      expect(result.pendingInteractions).toHaveLength(0)
+    })
+
     it('enriches tool_call blocks with server info', async () => {
       const tools = [makeTool('get_weather')]
       const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
@@ -981,10 +1665,12 @@ describe('dispatch', () => {
       const toolPresenter = {
         ...createMockToolPresenter(),
         callTool: vi.fn().mockResolvedValue({
-          content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+          content:
+            '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
           rawData: {
             toolCallId: 'tc1',
-            content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+            content:
+              '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
             isError: false,
             toolResult: {
               activationApplied: true,
@@ -1548,13 +2234,13 @@ describe('dispatch', () => {
         1024
       )
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:response',
-        'all',
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'chat.stream.updated',
         expect.objectContaining({
-          conversationId: 's1',
+          kind: 'snapshot',
+          requestId: 'req-1',
+          sessionId: 's1',
           messageId: 'm1',
-          eventId: 'm1',
           blocks: expect.any(Array)
         })
       )
@@ -2455,21 +3141,17 @@ describe('dispatch', () => {
       expect(metadata.tokensPerSecond).toBeDefined()
     })
 
-    it('emits END event', () => {
+    it('emits completed event', () => {
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:end',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1'
-        })
-      )
+      expectDeepchatEvent('chat.stream.completed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1'
+      })
     })
 
-    it('emits RESPONSE with blocks', () => {
+    it('emits updated event with blocks', () => {
       state.blocks.push({
         type: 'content',
         content: 'test',
@@ -2479,16 +3161,40 @@ describe('dispatch', () => {
 
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:response',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1',
-          blocks: expect.any(Array)
-        })
+      expectDeepchatEvent('chat.stream.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        blocks: expect.any(Array)
+      })
+    })
+
+    it('publishes a max_steps terminal plan event before finalizing', () => {
+      state.planTerminalReason = 'max_steps'
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 3,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      finalize(state, io)
+
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('max_steps')
+      expect(io.messageStore.finalizeAssistantMessage).toHaveBeenCalledWith(
+        'm1',
+        state.blocks,
+        expect.any(String)
       )
+      expectDeepchatEvent('chat.plan.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        terminalReason: 'max_steps'
+      })
     })
   })
 
@@ -2526,19 +3232,15 @@ describe('dispatch', () => {
       expect(metadata.model).toBe('gpt-4')
     })
 
-    it('emits ERROR event', () => {
+    it('emits failed event', () => {
       finalizeError(state, io, new Error('boom'))
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:error',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1',
-          error: 'boom'
-        })
-      )
+      expectDeepchatEvent('chat.stream.failed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        error: 'boom'
+      })
     })
 
     it('handles non-Error objects', () => {
@@ -2546,6 +3248,123 @@ describe('dispatch', () => {
 
       const errorBlock = state.blocks.find((b) => b.type === 'error')
       expect(errorBlock!.content).toBe('string error')
+    })
+
+    it('publishes an error terminal plan event before setMessageError', () => {
+      const errorWrites: any[] = []
+      ;(io.messageStore.setMessageError as ReturnType<typeof vi.fn>).mockImplementation(
+        (_messageId, blocks) => {
+          errorWrites.push(structuredClone(blocks))
+        }
+      )
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      finalizeError(state, io, new Error('boom'))
+
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('error')
+      expect(errorWrites[0]?.some((block: { type: string }) => block.type === 'plan')).toBe(false)
+      expect(io.messageStore.setMessageError).toHaveBeenCalledWith(
+        'm1',
+        state.blocks,
+        expect.any(String)
+      )
+      expectDeepchatEvent('chat.plan.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        terminalReason: 'error'
+      })
+    })
+
+    it('stamps user cancel as aborted', () => {
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      finalizeError(state, io, 'common.error.userCanceledGeneration')
+
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('aborted')
+      expectDeepchatEvent('chat.plan.updated', {
+        terminalReason: 'aborted'
+      })
+    })
+  })
+
+  describe('persistAbortExceptionPlanState', () => {
+    it('publishes the aborted terminal marker for abort-exception early returns', () => {
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('aborted')
+      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
+      expectDeepchatEvent('chat.plan.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        terminalReason: 'aborted'
+      })
+    })
+
+    it('persists existing non-plan blocks for abort-exception early returns', () => {
+      state.blocks.push({
+        type: 'content',
+        content: 'Partial answer',
+        status: 'success',
+        timestamp: Date.now()
+      })
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(io.messageStore.updateAssistantContent).toHaveBeenCalledWith('m1', state.blocks)
+      expectDeepchatEvent('chat.stream.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1'
+      })
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+    })
+
+    it('is idempotent for already stamped plan snapshots', () => {
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      persistAbortExceptionPlanState(state, io)
+      publishDeepchatEventMock.mockClear()
+      ;(io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mockClear()
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
+      expect(
+        publishDeepchatEventMock.mock.calls.some(([eventName]) => eventName === 'chat.plan.updated')
+      ).toBe(false)
     })
   })
 })

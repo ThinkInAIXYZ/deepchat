@@ -6,7 +6,7 @@ import {
   UpdateProgress,
   IConfigPresenter
 } from '@shared/presenter'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { UPDATE_EVENTS, WINDOW_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -106,7 +106,6 @@ export class UpgradePresenter implements IUpgradePresenter {
     info?: VersionInfo | null
     type?: string
   }): void {
-    eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, payload)
     publishDeepchatEvent('upgrade.status.changed', {
       ...payload,
       version: Date.now()
@@ -114,7 +113,6 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   private emitProgress(progress: UpdateProgress): void {
-    eventBus.sendToRenderer(UPDATE_EVENTS.PROGRESS, SendTarget.ALL_WINDOWS, progress)
     publishDeepchatEvent('upgrade.progress', {
       ...progress,
       version: Date.now()
@@ -122,14 +120,12 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   private emitWillRestart(): void {
-    eventBus.sendToRenderer(UPDATE_EVENTS.WILL_RESTART, SendTarget.ALL_WINDOWS)
     publishDeepchatEvent('upgrade.willRestart', {
       version: Date.now()
     })
   }
 
   private emitError(error: string): void {
-    eventBus.sendToRenderer(UPDATE_EVENTS.ERROR, SendTarget.ALL_WINDOWS, { error })
     publishDeepchatEvent('upgrade.error', {
       error,
       version: Date.now()

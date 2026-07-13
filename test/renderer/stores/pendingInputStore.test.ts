@@ -38,9 +38,8 @@ const setupStore = async () => {
     queuePendingInput: vi.fn(),
     updateQueuedInput: vi.fn(),
     moveQueuedInput: vi.fn(),
-    convertPendingInputToSteer: vi.fn(),
+    steerPendingInput: vi.fn(),
     deletePendingInput: vi.fn(),
-    resumePendingQueue: vi.fn(),
     onPendingInputsChanged: vi.fn(() => unsubscribePendingInputsChanged)
   }
 
@@ -136,5 +135,33 @@ describe('pendingInput store', () => {
     expect(store.steerItems).toHaveLength(1)
     expect(store.activeCount).toBe(1)
     expect(store.isAtCapacity).toBe(false)
+  })
+
+  it('steers a queued input through the session client and reloads', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listPendingInputs.mockResolvedValueOnce([createPendingItem('q1', 's1')])
+    await store.loadPendingInputs('s1')
+
+    const steered = createPendingItem('q1', 's1', 'steer')
+    sessionClient.steerPendingInput.mockResolvedValue(steered)
+    sessionClient.listPendingInputs.mockResolvedValueOnce([steered])
+
+    await store.steerPendingInput('s1', 'q1')
+
+    expect(sessionClient.steerPendingInput).toHaveBeenCalledWith('s1', 'q1')
+    expect(store.steerItems).toHaveLength(1)
+    expect(store.queueItems).toHaveLength(0)
+    expect(store.error).toBeNull()
+  })
+
+  it('rethrows and records an error when steering a queued input fails', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listPendingInputs.mockResolvedValueOnce([createPendingItem('q1', 's1')])
+    await store.loadPendingInputs('s1')
+
+    sessionClient.steerPendingInput.mockRejectedValue(new Error('boom'))
+
+    await expect(store.steerPendingInput('s1', 'q1')).rejects.toThrow('boom')
+    expect(store.error).toContain('Failed to steer queued message')
   })
 })

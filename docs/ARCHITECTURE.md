@@ -1,7 +1,7 @@
 # DeepChat 当前架构概览
 
-本文档描述 `2026-05-28` 的主架构。当前目标不是再做一次全量 main-kernel rewrite，
-而是维持 typed renderer-main boundary，并把新增能力接到既有 route/runtime owner 上。
+本文档描述 `2026-06-13` 的主架构。当前目标是维持 typed renderer-main boundary，
+并把新增能力接到既有 route/runtime owner 上。
 
 ## 主链路
 
@@ -27,8 +27,8 @@ flowchart LR
 
 - renderer 业务代码优先经过 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
 - `src/main/routes/index.ts` 是 typed route dispatcher，并装配 settings、sessions、chat、
-  providers、models、config、MCP、plugins、skills、sync、browser、database security、
-  scheduled tasks 等 route。
+  providers、models、config、MCP、plugins、skills、skill sync、sync、browser、workspace、
+  onboarding、OAuth、knowledge、upgrade、dialog、tools、database security、scheduled tasks 等 route。
 - presenter 仍是 runtime owner，但 route services 只通过窄 port 或明确 client 依赖使用它们。
 - `SessionPresenter` 仍保留为 legacy 数据访问、导出和兼容边界，不再是当前聊天主链路 owner。
 
@@ -47,7 +47,7 @@ flowchart LR
 | `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider 实例、model/runtime 管理、ACP helper、AI SDK runtime |
 | `StartupWorkloadCoordinator` | `src/main/presenter/startupWorkloadCoordinator/` | startup/settings/floating 等目标的分阶段后台任务调度 |
 | `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink 远程控制 |
-| `ScheduledTasksService` | `src/main/presenter/scheduledTasks/` | 一次性、每日、每周任务调度和 prompt/notify action dispatch |
+| `CronJobsService` | `src/main/presenter/cronJobs/` | 定时任务持久化、cron 调度、Agent run 执行和 Remote 投递 |
 | `DatabaseSecurityPresenter` | `src/main/presenter/databaseSecurityPresenter/` | SQLCipher 启用、改密、关闭、safeStorage/manual unlock |
 | Spotlight search | `src/renderer/src/stores/ui/spotlight.ts` | 全局搜索、会话/消息跳转、设置导航和非破坏性 action |
 
@@ -58,8 +58,10 @@ flowchart LR
 - `src/shared/contracts/routes*.ts` 与 `events*.ts` 是 migrated path 的契约真源。
 - `src/preload/createBridge.ts` 统一 route invoke 和 typed event subscribe。
 - `src/renderer/api/*Client.ts` 是组件和 store 的默认入口。
-- `src/renderer/api/legacy/**` 是唯一 legacy quarantine。当前保留 `presenters.ts`、
-  `presenterTransport.ts`、`runtime.ts` 三个兼容文件；新业务模块不应直接导入 legacy transport。
+- `src/renderer/api/legacy/**` 已退休并从当前树删除；guard 会阻止它被重新创建。
+- raw IPC 只允许存在于 `createBridge`、`window.api` dedicated preload API 这类明确边界内，
+  业务层不得直接调用 `presenter:call`、`remoteControlPresenter:call` 或
+  `window.electron.ipcRenderer`。
 
 ### 2. Main Route Runtime
 
@@ -76,7 +78,9 @@ flowchart LR
   message trace 和结构化消息持久化。
 - `DeepChatMessageStore` 采用头表 + 结构化子表模型，并在读路径缺行时回退旧 JSON。
 - 历史搜索使用 `deepchat_search_documents` 与 FTS5，FTS 不可用时回退 `LIKE`。
-- Agent progress 使用 `agent-core/update_plan`、`chat.plan.updated` 和 renderer 浮层展示任务计划。
+- Agent progress 使用 `agent-core/update_plan`、`chat.plan.updated` 和 renderer 浮层展示任务计划；
+  plan 是按 session 保存的 transient progress UI，不作为 assistant 正文历史持久化或
+  rehydrate。切换 session 只显示当前 session 的 live plan，reload 后不恢复旧 plan。
 
 ### 4. Provider And Media Runtime
 
@@ -98,8 +102,9 @@ flowchart LR
 ## 防回归规则
 
 - 新 renderer-main 能力默认走 `renderer/api/*Client` + `window.deepchat` + shared contracts。
-- legacy transport 只能留在 `src/renderer/api/legacy/**`，不新增第二个 quarantine 目录。
-- `scripts/architecture-guard.mjs` 固定 quarantine 文件数、检测 direct legacy transport、
+- legacy transport 已退休；不要重新创建 `src/renderer/api/legacy/**`，也不要新增第二个
+  compatibility quarantine。确有兼容需要时，应先定义窄 typed route/event 或专用 preload API。
+- `scripts/architecture-guard.mjs` 检测 direct legacy transport、已退休 legacy 目录、
   并读取 `docs/architecture/baselines/main-kernel-bridge-register.json`。
 - `scripts/agent-cleanup-guard.mjs` 用于防止已退休 agent runtime 入口回流。
 
@@ -111,3 +116,4 @@ flowchart LR
 4. [architecture/agent-system.md](./architecture/agent-system.md)
 5. [architecture/tool-system.md](./architecture/tool-system.md)
 6. [architecture/session-management.md](./architecture/session-management.md)
+7. [architecture/agent-memory-system/spec.md](./architecture/agent-memory-system/spec.md)

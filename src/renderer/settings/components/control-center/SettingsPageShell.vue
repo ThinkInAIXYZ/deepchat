@@ -4,7 +4,14 @@
       :data-testid="dataTestid"
       class="mx-auto flex min-h-full w-full max-w-7xl min-w-0 flex-col gap-4 p-4 lg:p-6"
     >
-      <header class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <header
+        :class="[
+          'flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between',
+          stickyHeader
+            ? 'sticky top-0 z-20 -mx-4 border-b border-border/80 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 lg:-mx-6 lg:px-6'
+            : ''
+        ]"
+      >
         <div class="min-w-0">
           <div v-if="eyebrow" class="text-xs font-medium text-muted-foreground">
             {{ eyebrow }}
@@ -34,5 +41,6 @@ defineProps<{
   description?: string
   eyebrow?: string
   dataTestid?: string
+  stickyHeader?: boolean
 }>()
 </script>

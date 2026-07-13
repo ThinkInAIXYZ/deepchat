@@ -43,7 +43,9 @@ export const databaseInitHook: LifecycleHook = {
       })
 
       // Create database initializer
-      const dbInitializer = new DatabaseInitializer({ password })
+      const dbInitializer = new DatabaseInitializer({
+        password
+      })
 
       // Initialize database
       const database = await dbInitializer.initialize()

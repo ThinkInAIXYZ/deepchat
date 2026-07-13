@@ -1,4 +1,4 @@
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
@@ -65,7 +65,7 @@ export class UiSettingsHelper {
   setSearchPreviewEnabled(enabled: boolean): void {
     const boolValue = Boolean(enabled)
     this.setSetting('searchPreviewEnabled', boolValue)
-    eventBus.send(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
+    eventBus.sendToMain(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, boolValue)
   }
 
   getAutoScrollEnabled(): boolean {
@@ -77,7 +77,7 @@ export class UiSettingsHelper {
   setAutoScrollEnabled(enabled: boolean): void {
     const boolValue = Boolean(enabled)
     this.setSetting('autoScrollEnabled', boolValue)
-    eventBus.send(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
+    eventBus.sendToMain(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, boolValue)
   }
 
   getAutoCompactionEnabled(): boolean {
@@ -123,7 +123,7 @@ export class UiSettingsHelper {
 
   setContentProtectionEnabled(enabled: boolean): void {
     this.setSetting('contentProtectionEnabled', enabled)
-    eventBus.send(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    eventBus.sendToMain(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, enabled)
   }
 
   getPrivacyModeEnabled(): boolean {
@@ -142,12 +142,12 @@ export class UiSettingsHelper {
 
   setCopyWithCotEnabled(enabled: boolean): void {
     this.setSetting('copyWithCotEnabled', enabled)
-    eventBus.send(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    eventBus.sendToMain(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, enabled)
   }
 
   setTraceDebugEnabled(enabled: boolean): void {
     this.setSetting('traceDebugEnabled', enabled)
-    eventBus.send(CONFIG_EVENTS.TRACE_DEBUG_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    eventBus.sendToMain(CONFIG_EVENTS.TRACE_DEBUG_CHANGED, enabled)
   }
 
   getNotificationsEnabled(): boolean {
@@ -161,7 +161,7 @@ export class UiSettingsHelper {
   setNotificationsEnabled(enabled: boolean): void {
     const boolValue = Boolean(enabled)
     this.setSetting('notificationsEnabled', boolValue)
-    eventBus.send(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
+    eventBus.sendToMain(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, boolValue)
   }
 
   getFontFamily(): string {
@@ -171,7 +171,7 @@ export class UiSettingsHelper {
   setFontFamily(fontFamily?: string | null): void {
     const normalized = this.normalizeStoredFont(fontFamily)
     this.setSetting('fontFamily', normalized)
-    eventBus.send(CONFIG_EVENTS.FONT_FAMILY_CHANGED, SendTarget.ALL_WINDOWS, normalized)
+    eventBus.sendToMain(CONFIG_EVENTS.FONT_FAMILY_CHANGED, normalized)
   }
 
   getCodeFontFamily(): string {
@@ -181,7 +181,7 @@ export class UiSettingsHelper {
   setCodeFontFamily(fontFamily?: string | null): void {
     const normalized = this.normalizeStoredFont(fontFamily)
     this.setSetting('codeFontFamily', normalized)
-    eventBus.send(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED, SendTarget.ALL_WINDOWS, normalized)
+    eventBus.sendToMain(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED, normalized)
   }
 
   resetFontSettings(): void {

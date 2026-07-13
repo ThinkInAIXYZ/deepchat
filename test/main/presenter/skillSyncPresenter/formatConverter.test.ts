@@ -51,6 +51,27 @@ Do something useful.`
       expect(result.instructions).toContain('Do something useful.')
     })
 
+    it('should parse generic Agents format with agents source', async () => {
+      const content = `---
+name: shared-skill
+description: A shared Agents skill
+---
+
+Use the shared instructions.`
+
+      const context = {
+        toolId: 'agents',
+        filePath: '/home/user/.agents/skills/shared-skill/SKILL.md',
+        folderPath: '/home/user/.agents/skills/shared-skill'
+      }
+
+      const result = await converter.parseExternal(content, context)
+
+      expect(result.name).toBe('shared-skill')
+      expect(result.source?.tool).toBe('agents')
+      expect(result.instructions).toContain('shared instructions')
+    })
+
     it('should parse Cursor format correctly', async () => {
       const content = `---
 name: code-review
@@ -100,6 +121,20 @@ Review the code and provide feedback.`
       expect(result).toContain('description: A test skill')
       expect(result).toContain('allowed-tools:')
       expect(result).toContain('Do something useful.')
+    })
+
+    it('should serialize to generic Agents format', () => {
+      const skill: CanonicalSkill = {
+        name: 'shared-skill',
+        description: 'A shared Agents skill',
+        instructions: 'Use the shared instructions.'
+      }
+
+      const result = converter.serializeToExternal(skill, 'agents')
+
+      expect(result).toContain('name: shared-skill')
+      expect(result).toContain('description: A shared Agents skill')
+      expect(result).toContain('Use the shared instructions.')
     })
 
     it('should serialize to Cursor format', () => {

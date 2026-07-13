@@ -191,8 +191,10 @@ import { Input } from '@shadcn/components/ui/input'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import type { AcpDebugEventEntry, AcpDebugRequest } from '@shared/presenter'
-import { getLegacyWebContentsId, useLegacyPresenter } from '@api/legacy/presenters'
-import { ACP_DEBUG_EVENTS } from '@/events'
+import { getRuntimeWebContentsId } from '@api/runtime'
+import { createConfigClient } from '@api/ConfigClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createProviderClient } from '@api/ProviderClient'
 import { useToast } from '@/components/use-toast'
 import { nanoid } from 'nanoid'
 import { useMonaco } from 'stream-monaco'
@@ -210,9 +212,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter')
-const configPresenter = useLegacyPresenter('configPresenter')
-const devicePresenter = useLegacyPresenter('devicePresenter')
+const configClient = createConfigClient()
+const deviceClient = createDeviceClient()
+const providerClient = createProviderClient()
 const uiSettingsStore = useUiSettingsStore()
 
 const selectedMethod = ref<AcpDebugRequest['action']>('newSession')
@@ -222,11 +224,12 @@ const customMethod = ref('')
 const loading = ref(false)
 const events = ref<AcpDebugEventEntry[]>([])
 const seenIds = new Set<string>()
-const webContentsId = getLegacyWebContentsId()
+const webContentsId = ref<number | null>(null)
 const debugSessionId = ref(createDebugSessionId())
 const processReady = ref(false)
 const payloadEditor = ref<HTMLElement | null>(null)
 let editorCreated = false
+let stopDebugEvents: (() => void) | null = null
 const workdirLabel = computed(() =>
   workdirPath.value ? workdirPath.value : t('settings.acp.debug.workdirPlaceholder')
 )
@@ -495,14 +498,14 @@ const formatTime = (timestamp: number) => {
   return `${date.toLocaleTimeString()}`
 }
 
-const handleDebugEvent = (_event: unknown, payload: unknown) => {
+const handleDebugEvent = (payload: unknown) => {
   const parsed = payload as {
     webContentsId?: number
     agentId?: string
     event?: AcpDebugEventEntry
   }
   if (!parsed?.event || parsed.agentId !== props.agentId) return
-  if (parsed.webContentsId && parsed.webContentsId !== webContentsId) return
+  if (parsed.webContentsId && parsed.webContentsId !== webContentsId.value) return
   appendEvents([parsed.event])
 }
 
@@ -557,14 +560,13 @@ const handleSend = async () => {
 
   loading.value = true
   try {
-    const result = await llmProviderPresenter.runAcpDebugAction({
+    const result = await providerClient.runAcpDebugAction({
       agentId: props.agentId,
       action: selectedMethod.value,
       payload: payloadToSend,
       sessionId,
       workdir: workdirPath.value || undefined,
-      methodName: requiresCustomMethod.value ? customMethod.value.trim() : undefined,
-      webContentsId: webContentsId || undefined
+      methodName: requiresCustomMethod.value ? customMethod.value.trim() : undefined
     })
 
     if (result?.events?.length) {
@@ -598,14 +600,13 @@ const runHealthCheck = async () => {
   debugSessionId.value = ''
   loading.value = true
   try {
-    await configPresenter.ensureAcpAgentInstalled(props.agentId)
+    await configClient.ensureAcpAgentInstalled(props.agentId)
 
-    const initializeResult = await llmProviderPresenter.runAcpDebugAction({
+    const initializeResult = await providerClient.runAcpDebugAction({
       agentId: props.agentId,
       action: 'initialize',
       payload: templateForMethod('initialize'),
-      workdir: workdirPath.value || undefined,
-      webContentsId: webContentsId || undefined
+      workdir: workdirPath.value || undefined
     })
     appendEvents(initializeResult.events ?? [])
 
@@ -615,12 +616,11 @@ const runHealthCheck = async () => {
 
     processReady.value = true
 
-    const newSessionResult = await llmProviderPresenter.runAcpDebugAction({
+    const newSessionResult = await providerClient.runAcpDebugAction({
       agentId: props.agentId,
       action: 'newSession',
       payload: applyWorkdirToPayload(templateForMethod('newSession')),
-      workdir: workdirPath.value || undefined,
-      webContentsId: webContentsId || undefined
+      workdir: workdirPath.value || undefined
     })
     appendEvents(newSessionResult.events ?? [])
 
@@ -630,13 +630,12 @@ const runHealthCheck = async () => {
 
     const newSessionId = newSessionResult.sessionId
 
-    const cancelResult = await llmProviderPresenter.runAcpDebugAction({
+    const cancelResult = await providerClient.runAcpDebugAction({
       agentId: props.agentId,
       action: 'cancel',
       payload: templateForMethod('cancel'),
       sessionId: newSessionId,
-      workdir: workdirPath.value || undefined,
-      webContentsId: webContentsId || undefined
+      workdir: workdirPath.value || undefined
     })
     appendEvents(cancelResult.events ?? [])
 
@@ -659,7 +658,7 @@ const runHealthCheck = async () => {
 }
 
 const handleSelectWorkdir = async () => {
-  const result = await devicePresenter.selectDirectory()
+  const result = await deviceClient.selectDirectory()
   if (result?.canceled || !result.filePaths?.length) return
   workdirPath.value = result.filePaths[0]
   syncWorkdirIntoPayload()
@@ -710,20 +709,23 @@ watch(
 )
 
 onMounted(async () => {
+  try {
+    webContentsId.value = await getRuntimeWebContentsId()
+  } catch (error) {
+    console.warn('[AcpDebugDialog] Failed to resolve runtime webContents id:', error)
+  }
+
   if (props.open) {
     await nextTick()
     await ensureEditor()
     resetPayload()
   }
-  if (window.electron) {
-    window.electron.ipcRenderer.on(ACP_DEBUG_EVENTS.EVENT, handleDebugEvent)
-  }
+  stopDebugEvents = providerClient.onAcpDebugEvent(handleDebugEvent)
 })
 
 onBeforeUnmount(() => {
   disposeEditor()
-  if (window.electron) {
-    window.electron.ipcRenderer.removeListener(ACP_DEBUG_EVENTS.EVENT, handleDebugEvent)
-  }
+  stopDebugEvents?.()
+  stopDebugEvents = null
 })
 </script>

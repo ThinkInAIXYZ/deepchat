@@ -56,7 +56,12 @@ const setup = async () => {
   const SpotlightOverlay = (await import('@/components/spotlight/SpotlightOverlay.vue')).default
   document.body.innerHTML = ''
   const wrapper = mount(SpotlightOverlay, {
-    attachTo: document.body
+    attachTo: document.body,
+    global: {
+      stubs: {
+        Teleport: true
+      }
+    }
   })
 
   return {
@@ -70,7 +75,6 @@ describe('SpotlightOverlay', () => {
   it('marks the overlay as a no-drag region', async () => {
     const { wrapper } = await setup()
 
-    expect(wrapper.classes()).toContain('window-no-drag-region')
     expect(wrapper.find('.window-no-drag-region').exists()).toBe(true)
   })
 

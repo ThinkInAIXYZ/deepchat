@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import MessageBlockActivityGroup from '@/components/message/MessageBlockActivityGroup.vue'
 import type {
   DisplayAssistantMessageBlock,
@@ -114,6 +114,10 @@ const mountGroup = () =>
   })
 
 describe('MessageBlockActivityGroup', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('starts collapsed with duration and activity counts in the title', () => {
     const wrapper = mountGroup()
 
@@ -132,11 +136,12 @@ describe('MessageBlockActivityGroup', () => {
     expect(wrapper.get('[data-testid="activity-group-body-shell"]').classes()).toContain(
       'grid-rows-[0fr]'
     )
-    expect(wrapper.find('[data-testid="think-block"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="tool-block"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="think-block"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="tool-block"]').exists()).toBe(false)
   })
 
   it('toggles expanded state and shows the original activity blocks', async () => {
+    vi.useFakeTimers()
     const wrapper = mountGroup()
 
     await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
@@ -167,6 +172,17 @@ describe('MessageBlockActivityGroup', () => {
     expect(
       wrapper.get('[data-testid="activity-group-body-shell"]').attributes('inert')
     ).toBeDefined()
+
+    expect(wrapper.find('[data-testid="think-block"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="tool-block"]').exists()).toBe(true)
+
+    vi.runAllTimers()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="think-block"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="tool-block"]').exists()).toBe(false)
+
+    vi.useRealTimers()
   })
 
   it('does not persist expanded state across remounts', async () => {

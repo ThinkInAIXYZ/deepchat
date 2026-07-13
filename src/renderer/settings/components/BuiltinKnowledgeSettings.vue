@@ -598,17 +598,18 @@ import { BuiltinKnowledgeConfig, RENDERER_MODEL_META } from '@shared/presenter'
 import { toast } from '@/components/use-toast'
 import { useRoute } from 'vue-router'
 import { nanoid } from 'nanoid'
-import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useModelStore } from '@/stores/modelStore'
 import { createConfigClient } from '@api/ConfigClient'
+import { createKnowledgeClient } from '@api/KnowledgeClient'
+import { createProviderClient } from '@api/ProviderClient'
 // 全局对象
 const { t } = useI18n()
 const mcpStore = useMcpStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const configClient = createConfigClient()
-const llmP = useLegacyPresenter('llmproviderPresenter')
-const knowledgeP = useLegacyPresenter('knowledgePresenter')
+const knowledgeClient = createKnowledgeClient()
+const providerClient = createProviderClient()
 const emit = defineEmits<{
   (e: 'showDetail', config: BuiltinKnowledgeConfig): void
 }>()
@@ -815,7 +816,7 @@ const saveBuiltinConfig = async () => {
   }
   // 自动获取dimensions
   if (autoDetectDimensionsSwitch.value) {
-    const result = await llmP.getDimensions(
+    const result = await providerClient.getEmbeddingDimensions(
       editingBuiltinConfig.value.embedding.providerId,
       editingBuiltinConfig.value.embedding.modelId
     )
@@ -943,7 +944,7 @@ const loadBuiltinConfig = async () => {
 
 const separators = ref('')
 const supportedLanguages = ref<string[]>([])
-knowledgeP.getSupportedLanguages().then((res) => {
+knowledgeClient.getSupportedLanguages().then((res) => {
   supportedLanguages.value = res
   console.log('支持的语言:', supportedLanguages.value)
 })
@@ -955,7 +956,7 @@ const handleLanguageSelect = async (language: string) => {
 }
 
 const getSeparatorsForLanguage = async (language: string) => {
-  return await knowledgeP.getSeparatorsForLanguage(language)
+  return await knowledgeClient.getSeparatorsForLanguage(language)
 }
 
 /**

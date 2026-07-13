@@ -2,7 +2,7 @@
   <div
     :class="[
       'relative w-full overflow-hidden p-4 text-foreground',
-      props.embedded ? '' : 'tool-interaction-overlay max-w-2xl rounded-xl backdrop-blur-[26px]'
+      props.embedded ? '' : 'tool-interaction-overlay max-w-2xl rounded-xl'
     ]"
   >
     <div v-if="!props.embedded" class="tool-interaction-overlay__backdrop" aria-hidden="true" />
@@ -22,9 +22,10 @@
       <div class="text-[11px] uppercase tracking-wide text-muted-foreground">
         {{ t('chat.skillDraft.previewTitle') }}
       </div>
-      <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-5">{{
-        skillDraftPreview
-      }}</pre>
+      <pre
+        class="dc-overscroll-contain mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-5"
+        >{{ skillDraftPreview }}</pre
+      >
     </div>
 
     <div v-if="isPermission" class="mt-3 space-y-2">
@@ -271,6 +272,8 @@ const onQuestionOther = () => {
 .tool-interaction-overlay {
   isolation: isolate;
   border-color: transparent;
+  backdrop-filter: blur(var(--dc-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
     color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,

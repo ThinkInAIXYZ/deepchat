@@ -21,16 +21,22 @@ const ANALYSIS_TARGETS = [
     root: path.join(ROOT, 'src/main')
   },
   {
-    label: 'renderer',
+    label: 'renderer-main',
     root: path.join(ROOT, 'src/renderer/src')
+  },
+  {
+    label: 'renderer-settings',
+    root: path.join(ROOT, 'src/renderer/settings')
   }
 ]
 
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
+const RENDERER_SETTINGS_ROOT = path.join(ROOT, 'src/renderer/settings')
+const RENDERER_BUSINESS_ROOTS = [RENDERER_SOURCE_ROOT, RENDERER_SETTINGS_ROOT]
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
-const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
-const RENDERER_QUARANTINE_EXIT_MAX_FILES = 3
+const RENDERER_QUARANTINE_ROOTS = []
+const RENDERER_QUARANTINE_EXIT_MAX_FILES = 0
 const BRIDGE_REGISTER_PATH = path.join(
   ROOT,
   'docs/architecture/baselines/main-kernel-bridge-register.json'
@@ -444,7 +450,7 @@ function combineCountMaps(...maps) {
 }
 
 async function collectRendererPatternCountsByLayer(pattern) {
-  const businessFiles = await walk(RENDERER_SOURCE_ROOT)
+  const businessFiles = await collectFilesFromTargets(RENDERER_BUSINESS_ROOTS)
   const quarantineFiles = await collectFilesFromTargets(RENDERER_QUARANTINE_ROOTS)
 
   const business = await collectPatternCounts(businessFiles, pattern)
@@ -739,8 +745,8 @@ function renderBoundaryBaselineReport({
 
   lines.push('## Renderer Single-Track Split')
   lines.push('')
-  lines.push('- Business layer: `src/renderer/src/**`')
-  lines.push('- Quarantine layer: `src/renderer/api/legacy/**`')
+  lines.push('- Business layer: `src/renderer/src/**`, `src/renderer/settings/**`')
+  lines.push('- Retired quarantine layer: `src/renderer/api/legacy/**` must remain deleted')
   lines.push('')
   lines.push('| Legacy surface | Business layer | Quarantine layer | Total |')
   lines.push('| --- | --- | --- | --- |')
@@ -757,12 +763,12 @@ function renderBoundaryBaselineReport({
 
   lines.push('## Quarantine Exit Snapshot')
   lines.push('')
-  lines.push('- Retained capability family: `renderer legacy transport`')
+  lines.push('- Retained capability family: none; `renderer legacy transport` is retired')
   lines.push(
     `- Source files: ${quarantineSourceFiles.length} / ${RENDERER_QUARANTINE_EXIT_MAX_FILES}`
   )
   lines.push(
-    '- Delete condition: remove after settings compatibility surfaces stop importing the quarantine adapters.'
+    '- Delete condition: already satisfied; a recreated quarantine directory is a regression.'
   )
   lines.push('')
 
@@ -882,8 +888,11 @@ async function main() {
   }
 
   const archiveReferences = await collectArchiveReferences()
-  const mainAndRendererFiles = await collectFilesFromTargets([MAIN_SOURCE_ROOT, RENDERER_SOURCE_ROOT])
-  const rendererBusinessFiles = await walk(RENDERER_SOURCE_ROOT)
+  const mainAndRendererFiles = await collectFilesFromTargets([
+    MAIN_SOURCE_ROOT,
+    ...RENDERER_BUSINESS_ROOTS
+  ])
+  const rendererBusinessFiles = await collectFilesFromTargets(RENDERER_BUSINESS_ROOTS)
   const quarantineExists = await pathExists(RENDERER_QUARANTINE_ROOT)
   const quarantineSourceFiles = await collectFilesFromTargets(RENDERER_QUARANTINE_ROOTS)
   const usePresenterCountsByLayer = await collectRendererPatternCountsByLayer(
@@ -957,16 +966,19 @@ async function main() {
   const p2Ready = Object.values(p2PresenterCounts).every((count) => count === 0)
   const p3Ready = Object.values(p3PresenterCounts).every((count) => count === 0)
   const p4Ready = Object.values(p4PresenterCounts).every((count) => count === 0)
-  const p5Ready = p1Ready && quarantineSourceFiles.length <= RENDERER_QUARANTINE_EXIT_MAX_FILES
+  const p5Ready =
+    p1Ready &&
+    !quarantineExists &&
+    quarantineSourceFiles.length <= RENDERER_QUARANTINE_EXIT_MAX_FILES
   const phaseGates = [
     {
       phase: 'P0',
       indicator:
-        'Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics',
+        'Retired quarantine path `src/renderer/api/legacy/**` must remain deleted and baseline emits business/retired split metrics',
       current: quarantineExists
-        ? '`src/renderer/api/legacy/**` exists; split metrics emitted'
-        : '`src/renderer/api/legacy/**` missing',
-      status: quarantineExists ? 'ready' : 'blocked'
+        ? '`src/renderer/api/legacy/**` exists'
+        : '`src/renderer/api/legacy/**` deleted; split metrics emitted',
+      status: quarantineExists ? 'blocked' : 'ready'
     },
     {
       phase: 'P1',
@@ -1017,7 +1029,7 @@ async function main() {
     {
       phase: 'P5',
       indicator:
-        'Business layer direct legacy access must be `0`, and quarantine source files must satisfy the exit standard (`<= 3` source files)',
+        'Business layer direct legacy access must be `0`, and retired quarantine source files must stay at `0`',
       current:
         `businessLegacy=${metrics['renderer.business.usePresenter.count']}/` +
         `${metrics['renderer.business.windowElectron.count']}/` +

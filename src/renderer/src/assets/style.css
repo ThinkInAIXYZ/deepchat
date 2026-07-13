@@ -123,6 +123,25 @@
     --dc-ease-out-express: cubic-bezier(0.16, 1, 0.3, 1);
     --dc-ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
+    /* Glass blur tokens — prefer these over ad-hoc backdrop-blur utilities */
+    --dc-blur-soft: 8px;
+    --dc-blur-panel: 16px;
+    --dc-blur-overlay: 26px;
+
+    /*
+     * Stacking scale (lowest → highest). Prefer z-[var(--dc-z-*)] over raw z-10/z-50.
+     * base < sticky chrome < floats < sidepanel fullscreen < popover/tooltip < spotlight < modal < toast
+     * Note: tooltips/popovers use --dc-z-popover, never --dc-z-toast.
+     */
+    --dc-z-base: 0;
+    --dc-z-sticky: 10;
+    --dc-z-float: 20;
+    --dc-z-sidepanel: 30;
+    --dc-z-popover: 50;
+    --dc-z-spotlight: 90;
+    --dc-z-modal: 100;
+    --dc-z-toast: 1000;
+
     --display-weight: 700;
     --text-weight: 400;
 
@@ -1020,14 +1039,56 @@
   .font-text {
     font-weight: var(--text-weight);
   }
+
+  .dc-overscroll-contain {
+    overscroll-behavior: contain;
+  }
+
+  .dc-blur-soft {
+    backdrop-filter: blur(var(--dc-blur-soft));
+    -webkit-backdrop-filter: blur(var(--dc-blur-soft));
+  }
+
+  .dc-blur-panel {
+    backdrop-filter: blur(var(--dc-blur-panel));
+    -webkit-backdrop-filter: blur(var(--dc-blur-panel));
+  }
+
+  .dc-blur-overlay {
+    backdrop-filter: blur(var(--dc-blur-overlay));
+    -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
+  }
+
+  .dc-chat-switch-enter-active,
+  .dc-chat-switch-leave-active {
+    transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+  }
+
+  .dc-chat-switch-enter-from,
+  .dc-chat-switch-leave-to {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dc-chat-switch-enter-active,
+    .dc-chat-switch-leave-active {
+      transition: none;
+    }
+  }
 }
 
 @layer base {
   :root {
-    scrollbar-color: rgba(107, 114, 128, 0.65) transparent;
+    scrollbar-color: rgba(107, 114, 128, 0.55) transparent;
     scrollbar-width: thin;
   }
 
+  /*
+   * Always-visible thin scrollbars on all platforms.
+   * (Previous darwin "transparent until hover" made ChatPage thumbs effectively
+   * invisible: Chromium does not reliably style ::-webkit-scrollbar-thumb via
+   * ancestor :hover.)
+   */
   *::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -1038,11 +1099,30 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background: rgba(107, 114, 128, 0.65);
+    background: rgba(107, 114, 128, 0.55);
     border-radius: 9999px;
   }
 
   *::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.8);
+  }
+
+  .dark,
+  html.dark {
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .dark::-webkit-scrollbar-thumb,
+  .dark *::-webkit-scrollbar-thumb,
+  html.dark::-webkit-scrollbar-thumb,
+  html.dark *::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.45);
+  }
+
+  .dark::-webkit-scrollbar-thumb:hover,
+  .dark *::-webkit-scrollbar-thumb:hover,
+  html.dark::-webkit-scrollbar-thumb:hover,
+  html.dark *::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.7);
   }
 }

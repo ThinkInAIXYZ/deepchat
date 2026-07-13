@@ -6,8 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
   getPath: vi.fn(),
   getAppPath: vi.fn(),
-  send: vi.fn()
+  sendToMain: vi.fn(),
+  publishDeepchatEvent: vi.fn()
 }))
+const DEFAULT_PROVIDER_DB_URL =
+  'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
 
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
@@ -27,11 +30,12 @@ vi.mock('electron', () => ({
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
-    send: state.send
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: state.sendToMain
   }
+}))
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: state.publishDeepchatEvent
 }))
 
 describe('ProviderDbLoader', () => {
@@ -101,15 +105,18 @@ describe('ProviderDbLoader', () => {
       return userDataRoot
     })
     state.getAppPath.mockReturnValue(appRoot)
-    state.send.mockReset()
+    state.sendToMain.mockReset()
+    state.publishDeepchatEvent.mockReset()
     vi.unstubAllGlobals()
     delete process.env.PROVIDER_DB_TTL_HOURS
+    delete process.env.PROVIDER_DB_URL
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     delete process.env.PROVIDER_DB_TTL_HOURS
+    delete process.env.PROVIDER_DB_URL
     fs.rmSync(tempRoot, { recursive: true, force: true })
   })
 
@@ -141,8 +148,16 @@ describe('ProviderDbLoader', () => {
 
     expect(loader.getDb()?.providers).toHaveProperty('openai')
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(state.send).toHaveBeenCalledWith('provider-db:loaded', 'ALL_WINDOWS', {
+    expect(state.sendToMain).toHaveBeenCalledWith('provider-db:loaded', {
       providersCount: 1
+    })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('providers.changed', {
+      reason: 'provider-db-loaded',
+      version: expect.any(Number)
+    })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('models.changed', {
+      reason: 'provider-db-loaded',
+      version: expect.any(Number)
     })
   })
 
@@ -245,10 +260,40 @@ describe('ProviderDbLoader', () => {
     expect(result.status).toBe('updated')
     expect(result.providersCount).toBe(2)
     expect(loader.getDb()?.providers).toHaveProperty('anthropic')
-    expect(state.send).toHaveBeenCalledWith('provider-db:updated', 'ALL_WINDOWS', {
+    expect(state.sendToMain).toHaveBeenCalledWith('provider-db:updated', {
       providersCount: 2,
       lastUpdated: expect.any(Number)
     })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('providers.changed', {
+      reason: 'provider-db-updated',
+      version: expect.any(Number)
+    })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('models.changed', {
+      reason: 'provider-db-updated',
+      version: expect.any(Number)
+    })
+  })
+
+  it('uses the GitHub provider DB URL even when the legacy override env var is set', async () => {
+    process.env.PROVIDER_DB_URL = 'https://cdn.example.invalid/provider-db.json'
+    writeCachedDb(createAggregate(['openai']))
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      headers: {
+        get: vi.fn().mockReturnValue('"etag-github"')
+      },
+      text: vi.fn().mockResolvedValue(JSON.stringify(createAggregate(['openai', 'github'])))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ProviderDbLoader = await importLoader()
+    const loader = new ProviderDbLoader()
+
+    await loader.refreshIfNeeded(true)
+
+    expect(fetchMock).toHaveBeenCalledWith(DEFAULT_PROVIDER_DB_URL, expect.any(Object))
   })
 
   it('keeps manual refresh available while privacy mode is enabled', async () => {

@@ -11,6 +11,7 @@ import type {
   MCPConfig,
   MCPServerConfig,
   MCPToolDefinition,
+  McpServerAuthStatus,
   PromptListEntry,
   Resource,
   ResourceListEntry,
@@ -42,6 +43,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 服务器状态
   const serverStatuses = ref<Record<string, boolean>>({})
+  const serverAuthStatuses = ref<Record<string, McpServerAuthStatus>>({})
   const serverLoadingStates = ref<Record<string, boolean>>({})
   const configLoading = ref(false)
 
@@ -265,6 +267,40 @@ export const useMcpStore = defineStore('mcp', () => {
     return error instanceof Error ? error.message : String(error)
   })
 
+  const refreshAfterAuthenticated = async (serverName: string) => {
+    await Promise.all([
+      updateServerStatus(serverName),
+      loadTools({ force: true }),
+      loadClients({ force: true })
+    ])
+  }
+
+  const updateServerAuthStatus = async (
+    serverName: string,
+    refreshAuthenticated = false
+  ): Promise<McpServerAuthStatus | null> => {
+    try {
+      const status = await mcpClient.getServerAuthStatus(serverName)
+      serverAuthStatuses.value[serverName] = status
+      if (refreshAuthenticated && status.authenticated) {
+        await refreshAfterAuthenticated(serverName)
+      }
+      return status
+    } catch (error) {
+      console.warn('Failed to load MCP server auth status:', serverName, error)
+      return null
+    }
+  }
+
+  const isAuthWaitingStatus = (status?: McpServerAuthStatus) =>
+    status?.state === 'required' || status?.state === 'authenticating'
+
+  const loadAllServerAuthStatuses = async () => {
+    await Promise.all(
+      Object.keys(config.value.mcpServers).map((serverName) => updateServerAuthStatus(serverName))
+    )
+  }
+
   const syncConfigFromQuery = (data?: ConfigQueryResult | null) => {
     if (!data) {
       return
@@ -299,6 +335,7 @@ export const useMcpStore = defineStore('mcp', () => {
       mcpEnabled: data.mcpEnabled,
       ready: true
     }
+    void loadAllServerAuthStatuses()
 
     // If mcpEnabled state changed, trigger query refreshes
     if (previousReady && mcpEnabledChanged) {
@@ -397,23 +434,18 @@ export const useMcpStore = defineStore('mcp', () => {
       name,
       ...serverConfig,
       isRunning: serverStatuses.value[name] || false,
+      authStatus: serverAuthStatuses.value[name],
       isLoading: serverLoadingStates.value[name] || false
     }))
 
-    // 按照特定顺序排序：
-    // 1. 启用的inmemory服务
-    // 2. 其他启用的服务
-    // 3. 未启用的inmemory服务
-    // 4. 其他服务
+    // Sort enabled servers first, then keep built-in servers ahead within each state.
     return servers.sort((a, b) => {
       const aIsInmemory = a.type === 'inmemory' || a.source === 'deepchat'
       const bIsInmemory = b.type === 'inmemory' || b.source === 'deepchat'
+      const aRank = (a.enabled ? 0 : 2) + (aIsInmemory ? 0 : 1)
+      const bRank = (b.enabled ? 0 : 2) + (bIsInmemory ? 0 : 1)
 
-      // inmemory 都优先
-      if (aIsInmemory && !bIsInmemory) return -1
-      if (!aIsInmemory && bIsInmemory) return 1
-
-      return 0 // 保持原有顺序
+      return aRank - bRank
     })
   })
   const serverList = computed(() =>
@@ -697,6 +729,14 @@ export const useMcpStore = defineStore('mcp', () => {
       await updateServerStatus(serverName)
       return true
     } catch (error) {
+      if (nextEnabled) {
+        await updateServerAuthStatus(serverName)
+        if (isAuthWaitingStatus(serverAuthStatuses.value[serverName])) {
+          serverStatuses.value[serverName] = false
+          return true
+        }
+      }
+
       config.value.mcpServers = {
         ...config.value.mcpServers,
         [serverName]: previousConfig
@@ -710,6 +750,57 @@ export const useMcpStore = defineStore('mcp', () => {
       return false
     } finally {
       serverLoadingStates.value[serverName] = false
+    }
+  }
+
+  const startServerAuth = async (serverName: string): Promise<McpServerAuthStatus | null> => {
+    if (serverLoadingStates.value[serverName]) {
+      return serverAuthStatuses.value[serverName] ?? null
+    }
+
+    serverLoadingStates.value[serverName] = true
+    try {
+      const status = await mcpClient.startServerAuth(serverName)
+      serverAuthStatuses.value[serverName] = status
+      if (status.authenticated) {
+        await refreshAfterAuthenticated(serverName)
+      }
+      return status
+    } catch (error) {
+      console.error('Failed to start MCP server authentication:', serverName, error)
+      await updateServerAuthStatus(serverName)
+      return null
+    } finally {
+      serverLoadingStates.value[serverName] = false
+    }
+  }
+
+  const completeServerAuthFromCallbackUrl = async (
+    serverName: string,
+    callbackUrl: string
+  ): Promise<McpServerAuthStatus | null> => {
+    try {
+      const status = await mcpClient.completeServerAuthFromCallbackUrl(serverName, callbackUrl)
+      serverAuthStatuses.value[serverName] = status
+      if (status.authenticated) {
+        await refreshAfterAuthenticated(serverName)
+      }
+      return status
+    } catch (error) {
+      console.error('Failed to complete MCP server authentication:', serverName, error)
+      await updateServerAuthStatus(serverName)
+      return null
+    }
+  }
+
+  const logoutServerAuth = async (serverName: string): Promise<McpServerAuthStatus | null> => {
+    try {
+      const status = await mcpClient.logoutServerAuth(serverName)
+      serverAuthStatuses.value[serverName] = status
+      return status
+    } catch (error) {
+      console.error('Failed to clear MCP server authentication:', serverName, error)
+      return null
     }
   }
 
@@ -955,6 +1046,15 @@ export const useMcpStore = defineStore('mcp', () => {
       serverStatuses.value[serverName] = isRunning
     })
 
+    mcpClient.onServerAuthChanged(({ serverName, status }) => {
+      serverAuthStatuses.value[serverName] = status
+      if (status.authenticated) {
+        void refreshAfterAuthenticated(serverName).catch((error) => {
+          console.error('Failed to refresh MCP after authentication:', error)
+        })
+      }
+    })
+
     mcpClient.onToolCallResult((result) => {
       console.log(`MCP tool call result:`, result.functionName)
       if (result && result.functionName) {
@@ -1038,6 +1138,7 @@ export const useMcpStore = defineStore('mcp', () => {
     // 状态
     config,
     serverStatuses,
+    serverAuthStatuses,
     serverLoadingStates,
     configLoading,
     tools,
@@ -1075,6 +1176,10 @@ export const useMcpStore = defineStore('mcp', () => {
     updateServer,
     removeServer,
     toggleServer,
+    updateServerAuthStatus,
+    startServerAuth,
+    completeServerAuthFromCallbackUrl,
+    logoutServerAuth,
     setMcpEnabled,
 
     // 工具和资源方法

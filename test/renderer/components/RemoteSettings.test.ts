@@ -1,4 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('qrcode', () => ({
+  toDataURL: vi.fn(
+    async (value: string) => `data:image/png;base64,${Buffer.from(value).toString('base64')}`
+  )
+}))
 import { defineComponent, h, inject, provide, reactive, ref, watch, type Ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -13,6 +19,7 @@ type SetupOptions = {
   feishuChannelSettingsOverride?: Record<string, unknown>
   qqbotChannelSettingsOverride?: Record<string, unknown>
   discordChannelSettingsOverride?: Record<string, unknown>
+  weixinIlinkChannelSettingsOverride?: Record<string, unknown>
   status?: {
     enabled: boolean
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
@@ -91,6 +98,7 @@ const setup = async (options: SetupOptions = {}) => {
       verificationToken: '',
       encryptKey: '',
       remoteEnabled: false,
+      enableStreamingCards: false,
       defaultAgentId: 'deepchat',
       defaultWorkdir: '',
       pairedUserOpenIds: [] as string[]
@@ -244,7 +252,11 @@ const setup = async (options: SetupOptions = {}) => {
 
   const weixinIlinkSettingsSnapshot = () => ({
     ...weixinIlinkState.settings,
-    accounts: [...weixinIlinkState.settings.accounts]
+    ...(options.weixinIlinkChannelSettingsOverride ?? {}),
+    accounts: [
+      ...((options.weixinIlinkChannelSettingsOverride?.accounts ??
+        weixinIlinkState.settings.accounts) as typeof weixinIlinkState.settings.accounts)
+    ]
   })
 
   const syncWeixinIlinkStatusFromSettings = () => {
@@ -276,11 +288,36 @@ const setup = async (options: SetupOptions = {}) => {
 
   const remoteControlPresenter = {
     listRemoteChannels: vi.fn(async () => [
-      { id: 'telegram', implemented: true },
-      { id: 'feishu', implemented: true },
-      { id: 'qqbot', implemented: true },
-      { id: 'discord', implemented: true },
-      { id: 'weixin-ilink', implemented: true }
+      {
+        id: 'telegram' as const,
+        titleKey: 'settings.remote.telegram.title',
+        descriptionKey: 'settings.remote.telegram.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'feishu' as const,
+        titleKey: 'settings.remote.feishu.title',
+        descriptionKey: 'settings.remote.feishu.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'qqbot' as const,
+        titleKey: 'settings.remote.qqbot.title',
+        descriptionKey: 'settings.remote.qqbot.description',
+        supportsCronDelivery: false
+      },
+      {
+        id: 'discord' as const,
+        titleKey: 'settings.remote.discord.title',
+        descriptionKey: 'settings.remote.discord.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'weixin-ilink' as const,
+        titleKey: 'settings.remote.weixinIlink.title',
+        descriptionKey: 'settings.remote.weixinIlink.description',
+        supportsCronDelivery: true
+      }
     ]),
     getChannelSettings: vi.fn(
       async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') => {
@@ -308,33 +345,35 @@ const setup = async (options: SetupOptions = {}) => {
         channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink',
         nextSettings: any
       ) => {
+        const clonedSettings = structuredClone(nextSettings)
+
         if (channel === 'telegram') {
-          remoteState.settings = { ...nextSettings }
-          remoteState.status.enabled = nextSettings.remoteEnabled
+          remoteState.settings = { ...clonedSettings }
+          remoteState.status.enabled = clonedSettings.remoteEnabled
           return { ...remoteState.settings }
         }
 
         if (channel === 'feishu') {
-          feishuState.settings = { ...nextSettings }
-          feishuState.status.enabled = nextSettings.remoteEnabled
+          feishuState.settings = { ...clonedSettings }
+          feishuState.status.enabled = clonedSettings.remoteEnabled
           return { ...feishuState.settings }
         }
 
         if (channel === 'qqbot') {
-          qqbotState.settings = { ...nextSettings }
-          qqbotState.status.enabled = nextSettings.remoteEnabled
+          qqbotState.settings = { ...clonedSettings }
+          qqbotState.status.enabled = clonedSettings.remoteEnabled
           return { ...qqbotState.settings }
         }
 
         if (channel === 'discord') {
-          discordState.settings = { ...nextSettings }
-          discordState.status.enabled = nextSettings.remoteEnabled
+          discordState.settings = { ...clonedSettings }
+          discordState.status.enabled = clonedSettings.remoteEnabled
           return { ...discordState.settings }
         }
 
         weixinIlinkState.settings = {
-          ...nextSettings,
-          accounts: [...nextSettings.accounts]
+          ...clonedSettings,
+          accounts: [...clonedSettings.accounts]
         }
         syncWeixinIlinkStatusFromSettings()
         return {
@@ -562,6 +601,51 @@ const setup = async (options: SetupOptions = {}) => {
       )
       remoteState.status.bindingCount = remoteState.bindings.length
     }),
+    startFeishuAuth: vi.fn(async () => ({
+      sessionKey: 'feishu-session',
+      authUrl: 'https://accounts.feishu.cn/open-apis/authen/v1/authorize?state=mock',
+      redirectUri: 'http://127.0.0.1:32178/remote/feishu/auth/callback',
+      expiresAt: Date.now() + 300000,
+      messageKey: 'settings.remote.feishu.authStarted'
+    })),
+    waitForFeishuAuth: vi.fn(async () => {
+      feishuState.settings.pairedUserOpenIds = [
+        ...new Set([...feishuState.settings.pairedUserOpenIds, 'ou_scan'])
+      ]
+      feishuState.pairingSnapshot.pairedUserOpenIds = [...feishuState.settings.pairedUserOpenIds]
+      feishuState.status.pairedUserCount = feishuState.settings.pairedUserOpenIds.length
+      return {
+        authorized: true,
+        openId: 'ou_scan',
+        messageKey: 'settings.remote.feishu.authSuccess'
+      }
+    }),
+    cancelFeishuAuth: vi.fn(async () => undefined),
+    startFeishuInstall: vi.fn(async () => ({
+      sessionKey: 'feishu-install-session',
+      installUrl: 'https://open.feishu.cn/page/launcher?user_code=INSTALL',
+      userCode: 'INSTALL',
+      expiresAt: Date.now() + 300000,
+      intervalMs: 3000,
+      messageKey: 'settings.remote.feishu.installStarted'
+    })),
+    waitForFeishuInstall: vi.fn(async () => {
+      feishuState.settings.appId = 'cli_personal'
+      feishuState.settings.appSecret = 'secret_personal'
+      feishuState.settings.pairedUserOpenIds = [
+        ...new Set([...feishuState.settings.pairedUserOpenIds, 'ou_install'])
+      ]
+      feishuState.pairingSnapshot.pairedUserOpenIds = [...feishuState.settings.pairedUserOpenIds]
+      feishuState.status.pairedUserCount = feishuState.settings.pairedUserOpenIds.length
+      return {
+        installed: true,
+        brand: 'feishu',
+        appId: 'cli_personal',
+        openId: 'ou_install',
+        messageKey: 'settings.remote.feishu.installSuccess'
+      }
+    }),
+    cancelFeishuInstall: vi.fn(async () => undefined),
     startWeixinIlinkLogin: vi.fn(async () => ({
       sessionKey: 'weixin-session',
       loginUrl: 'https://ilinkai.weixin.qq.com/login/mock-session',
@@ -586,7 +670,7 @@ const setup = async (options: SetupOptions = {}) => {
     restartWeixinIlinkAccount: vi.fn(async () => undefined)
   }
 
-  const agentSessionPresenter = {
+  const sessionClient = {
     getAgents: vi.fn(async () => [
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'deepchat-alt', name: 'DeepChat Alt', type: 'deepchat', enabled: false },
@@ -595,10 +679,12 @@ const setup = async (options: SetupOptions = {}) => {
     ])
   }
   const projectPresenter = {
+    getRecentProjects: vi.fn(async () => options.recentProjects ?? []),
     selectDirectory: vi.fn(async () => options.selectedDirectory ?? null)
   }
 
   const toast = vi.fn()
+  const openExternal = vi.fn(async () => undefined)
   const tabsContextKey = Symbol('remote-settings-tabs')
   const tabsComponents = {
     Tabs: defineComponent({
@@ -697,18 +783,25 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }
 
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: string) => {
-      if (name === 'agentSessionPresenter') return agentSessionPresenter
-      if (name === 'projectPresenter') return projectPresenter
-      return null
-    },
-    useLegacyRemoteControlPresenter: () => remoteControlPresenter
+  vi.doMock('@api/RemoteControlClient', () => ({
+    createRemoteControlClient: () => remoteControlPresenter
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: () => sessionClient
+  }))
+  vi.doMock('@api/ProjectClient', () => ({
+    createProjectClient: () => ({
+      listRecent: projectPresenter.getRecentProjects,
+      selectDirectory: projectPresenter.selectDirectory
+    })
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
       toast
     })
+  }))
+  vi.doMock('@api/runtime', () => ({
+    openRuntimeExternal: openExternal
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -825,11 +918,12 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     remoteState,
     feishuState,
+    openExternal,
     qqbotState,
     discordState,
     weixinIlinkState,
     remoteControlPresenter,
-    agentSessionPresenter,
+    sessionClient,
     projectPresenter,
     toast,
     tabsComponents
@@ -908,6 +1002,89 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-bindings-button"]').exists()).toBe(true)
   })
 
+  it('saves remote settings with cloneable array payloads', async () => {
+    const { wrapper, qqbotState, discordState, weixinIlinkState, remoteControlPresenter } =
+      await setup({
+        feishuChannelSettingsOverride: {
+          appId: 'feishu-app',
+          appSecret: 'feishu-secret',
+          remoteEnabled: false,
+          pairedUserOpenIds: ['ou_1']
+        },
+        qqbotChannelSettingsOverride: {
+          appId: 'qq-app',
+          clientSecret: 'qq-secret',
+          remoteEnabled: false,
+          pairedUserIds: ['user-openid-1']
+        },
+        discordChannelSettingsOverride: {
+          botToken: 'discord-token',
+          remoteEnabled: false,
+          pairedChannelIds: ['channel-1']
+        },
+        weixinIlinkChannelSettingsOverride: {
+          remoteEnabled: false,
+          accounts: [
+            {
+              accountId: 'wx-1',
+              ownerUserId: 'owner-1',
+              baseUrl: 'https://ilinkai.weixin.qq.com',
+              enabled: true
+            }
+          ]
+        }
+      })
+
+    await wrapper.find('[data-testid="remote-channel-toggle-feishu"]').setValue(true)
+    await flushPromises()
+    await wrapper.find('[data-testid="remote-channel-toggle-qqbot"]').setValue(true)
+    await flushPromises()
+    await wrapper.find('[data-testid="remote-channel-toggle-discord"]').setValue(true)
+    await flushPromises()
+    await wrapper.find('[data-testid="remote-channel-toggle-weixin-ilink"]').setValue(true)
+    await flushPromises()
+
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'feishu',
+      expect.objectContaining({
+        remoteEnabled: true,
+        pairedUserOpenIds: ['ou_1']
+      })
+    )
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'qqbot',
+      expect.objectContaining({
+        remoteEnabled: true,
+        pairedUserIds: ['user-openid-1']
+      })
+    )
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'discord',
+      expect.objectContaining({
+        remoteEnabled: true,
+        pairedChannelIds: ['channel-1']
+      })
+    )
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'weixin-ilink',
+      expect.objectContaining({
+        remoteEnabled: true,
+        accounts: [
+          {
+            accountId: 'wx-1',
+            ownerUserId: 'owner-1',
+            baseUrl: 'https://ilinkai.weixin.qq.com',
+            enabled: true
+          }
+        ]
+      })
+    )
+
+    expect(qqbotState.settings.remoteEnabled).toBe(true)
+    expect(discordState.settings.remoteEnabled).toBe(true)
+    expect(weixinIlinkState.settings.remoteEnabled).toBe(true)
+  })
+
   it('shows enabled ACP agents in the default agent options', async () => {
     const { wrapper } = await setup({
       settings: {
@@ -958,9 +1135,11 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-principals-empty"]').exists()).toBe(true)
   })
 
-  it('shows feishu brand switch while keeping legacy paired-user raw inputs hidden', async () => {
+  it('shows feishu brand switch, setup helper, and scan auth controls', async () => {
     const { wrapper, tabsComponents } = await setup({
       feishuChannelSettingsOverride: {
+        appId: 'cli_scan',
+        appSecret: 'secret',
         remoteEnabled: true
       }
     })
@@ -978,8 +1157,261 @@ describe('RemoteSettings', () => {
       false
     )
     expect(wrapper.text()).toContain('settings.remote.feishu.brand')
+    expect(wrapper.text()).toContain('settings.remote.feishu.installTitle')
+    expect(wrapper.text()).toContain('settings.remote.feishu.openInstallWeb')
+    expect(wrapper.text()).toContain('settings.remote.feishu.showInstallQr')
+    expect(wrapper.text()).toContain('settings.remote.feishu.manualSetupTitle')
+    expect(wrapper.text()).toContain('settings.remote.feishu.userAuthTitle')
+    expect(wrapper.text()).toContain('settings.remote.feishu.pairAuthTitle')
+    expect(wrapper.text()).toContain('settings.remote.feishu.scanAuthTitle')
     expect(wrapper.text()).toContain('settings.remote.remoteControl.defaultWorkdir')
+    expect(wrapper.find('[data-testid="feishu-install-open-web-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="feishu-install-show-qr-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="feishu-pair-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="feishu-scan-auth-button"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="feishu-bindings-button"]').exists()).toBe(true)
+  })
+
+  it('persists the feishu streaming card setting', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true,
+        enableStreamingCards: false
+      }
+    })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('settings.remote.feishu.streamingCards')
+    expect(wrapper.text()).toContain('settings.remote.feishu.streamingCardsDescription')
+
+    const toggle = wrapper.find('[data-testid="feishu-streaming-cards-toggle"]')
+    expect(toggle.exists()).toBe(true)
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
+
+    await toggle.setValue(true)
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+        'feishu',
+        expect.objectContaining({
+          enableStreamingCards: true
+        })
+      )
+    })
+  })
+
+  it('starts the official feishu web install flow and refreshes credentials', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents, toast, openExternal } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="feishu-install-open-web-button"]').trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.startFeishuInstall).toHaveBeenCalledWith({
+      brand: 'feishu'
+    })
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://open.feishu.cn/page/launcher?user_code=INSTALL'
+    )
+    expect(remoteControlPresenter.waitForFeishuInstall).toHaveBeenCalledWith({
+      sessionKey: 'feishu-install-session',
+      timeoutMs: 300000
+    })
+    expect(wrapper.text()).toContain('settings.remote.feishu.installSuccess')
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.remote.feishu.installSuccessTitle'
+      })
+    )
+  })
+
+  it('shows an in-app QR install dialog without opening the browser', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents, openExternal } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
+    remoteControlPresenter.waitForFeishuInstall.mockImplementation(
+      async () => await new Promise<never>(() => {})
+    )
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="feishu-install-show-qr-button"]').trigger('click')
+    await flushPromises()
+
+    const qrDialog = wrapper.find('[data-testid="feishu-install-qr-dialog"]')
+    const qrCode = wrapper.find('[data-testid="feishu-install-qr-code"]')
+    expect(qrDialog.exists()).toBe(true)
+    expect(qrCode.attributes('data-qr-value')).toBe(
+      'https://open.feishu.cn/page/launcher?user_code=INSTALL'
+    )
+    expect(qrCode.find('img').attributes('src')).toContain('data:image/png;base64,')
+    expect(openExternal).not.toHaveBeenCalled()
+    expect(remoteControlPresenter.waitForFeishuInstall).toHaveBeenCalledWith({
+      sessionKey: 'feishu-install-session',
+      timeoutMs: 300000
+    })
+  })
+
+  it('uses the current lark brand for QR install and disables both install buttons while pending', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
+      feishuChannelSettingsOverride: {
+        brand: 'lark',
+        remoteEnabled: true
+      }
+    })
+
+    remoteControlPresenter.waitForFeishuInstall.mockImplementation(
+      async () => await new Promise<never>(() => {})
+    )
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="feishu-install-show-qr-button"]').trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.startFeishuInstall).toHaveBeenLastCalledWith({
+      brand: 'lark'
+    })
+    expect(remoteControlPresenter.startFeishuInstall).toHaveBeenCalledTimes(1)
+    expect(
+      wrapper.find('[data-testid="feishu-install-open-web-button"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="feishu-install-show-qr-button"]').attributes('disabled')
+    ).toBeDefined()
+  })
+
+  it('cancels pending feishu install and scan auth sessions on unmount', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
+      feishuChannelSettingsOverride: {
+        appId: 'cli_scan',
+        appSecret: 'secret',
+        remoteEnabled: true
+      }
+    })
+
+    remoteControlPresenter.waitForFeishuInstall.mockImplementation(
+      async () => await new Promise<never>(() => {})
+    )
+    remoteControlPresenter.waitForFeishuAuth.mockImplementation(
+      async () => await new Promise<never>(() => {})
+    )
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="feishu-install-show-qr-button"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="feishu-scan-auth-button"]').trigger('click')
+    await flushPromises()
+
+    wrapper.unmount()
+
+    expect(remoteControlPresenter.cancelFeishuInstall).toHaveBeenCalledWith(
+      'feishu-install-session'
+    )
+    expect(remoteControlPresenter.cancelFeishuAuth).toHaveBeenCalledWith('feishu-session')
+  })
+
+  it('opens feishu pair dialog from the combined authorization section', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="feishu-pair-button"]').trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.createChannelPairCode).toHaveBeenCalledWith('feishu')
+    expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('settings.remote.remoteControl.pairDialogInstructionFeishu')
+    expect(wrapper.text()).toContain('/pair 654321')
+  })
+
+  it('starts the feishu scan auth flow and refreshes paired principals', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents, toast } = await setup({
+      feishuChannelSettingsOverride: {
+        appId: 'cli_scan',
+        appSecret: 'secret',
+        remoteEnabled: true
+      }
+    })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="feishu-scan-auth-button"]').trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.startFeishuAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brand: 'feishu',
+        appId: 'cli_scan',
+        appSecret: 'secret'
+      })
+    )
+    expect(remoteControlPresenter.waitForFeishuAuth).toHaveBeenCalledWith({
+      sessionKey: 'feishu-session',
+      timeoutMs: 300000
+    })
+    expect(wrapper.text()).toContain('settings.remote.feishu.authSuccess')
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.remote.feishu.authSuccessTitle'
+      })
+    )
   })
 
   it('shows a discord tab with bot token and pairing controls, without webhook fields', async () => {

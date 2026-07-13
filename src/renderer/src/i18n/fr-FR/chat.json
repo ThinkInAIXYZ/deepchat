@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Guidage",
     "queueCount": "En attente {count}/{max}",
-    "resumeQueue": "Reprendre l'envoi",
-    "toSteer": "Guider",
+    "toSteer": "Interrompre et envoyer",
     "locked": "Verrouillé",
     "reorder": "Réorganiser",
     "files": "{count} fichiers",
     "attachmentsOnly": "{count} pièces jointes",
     "empty": "Message vide",
-    "limitReached": "La zone d'attente est pleine (max. {max})."
+    "limitReached": "La zone d'attente est pleine (max. {max}).",
+    "remove": "Supprimer",
+    "steerUnavailable": "Impossible d'interrompre pour le moment",
+    "steerFailed": "Impossible d'interrompre ce tour"
   },
   "features": {
     "webSearch": "Recherche web",
@@ -210,6 +212,10 @@
         "title": "Aucun espace de travail",
         "description": "Sélectionnez ou faites glisser un dossier pour définir l'espace de travail",
         "button": "Sélectionner un dossier"
+      },
+      "watchStatus": {
+        "degraded": "La surveillance fonctionne en mode de secours. Les changements peuvent s’actualiser plus lentement.",
+        "failed": "La surveillance des fichiers est indisponible. Actualisez ou resélectionnez l’espace de travail."
       }
     },
     "git": {
@@ -228,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Complété",
-        "failed": "échouer",
         "in_progress": "en cours",
         "pending": "En attente",
-        "skipped": "ignoré"
-      }
+        "interrupted": "Interrompu"
+      },
+      "completedCount": "{completed}/{total} terminés"
     },
     "terminal": {
       "empty": "Pas encore de sortie",
@@ -305,7 +311,8 @@
   },
   "permissionMode": {
     "default": "Autorisations par défaut",
-    "fullAccess": "Accès complet"
+    "fullAccess": "Accès complet",
+    "autoApprove": "Approuver pour moi"
   },
   "sidebar": {
     "allAgents": "Tous les agents",
@@ -326,13 +333,22 @@
     "groupByDate": "Grouper par date",
     "groupByProject": "Grouper par projet",
     "pinned": "Épinglés",
+    "chats": "Discussions",
     "emptyTitle": "Aucune conversation pour le moment",
     "emptyDescription": "Commencez une nouvelle discussion pour démarrer",
     "remoteControlDisabled": "Désactivé",
     "searchPlaceholder": "Rechercher des chats",
     "searchAriaLabel": "Rechercher des chats",
     "searchEmptyTitle": "Aucune conversation correspondante",
-    "searchEmptyDescription": "Essayez un autre mot-clé de titre"
+    "searchEmptyDescription": "Essayez un autre mot-clé de titre",
+    "projectGroupActions": "Actions du groupe de projets",
+    "moveProjectGroupTop": "Déplacer tout en haut",
+    "moveProjectGroupUp": "Déplacer vers le haut",
+    "moveProjectGroupDown": "Déplacer vers le bas",
+    "moveProjectGroupBottom": "Déplacer tout en bas",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "Aperçu des tâches",
@@ -416,6 +432,58 @@
       "hour": "h ",
       "minute": "min ",
       "second": "s"
+    }
+  },
+  "memory": {
+    "toolbar": "Mémoires utilisées",
+    "status": {
+      "archived": "Oubliée"
+    },
+    "actions": {
+      "undo": "Annuler",
+      "forget": "Oublier",
+      "edit": "Modifier"
+    },
+    "chip": {
+      "title": "Mémoire mise à jour {count}",
+      "heading": "Mémoire mise à jour",
+      "description": "Ce tour a ajouté les mémoires suivantes."
+    },
+    "selection": {
+      "remember": "Mémoriser ceci"
+    },
+    "turn": {
+      "title": "Mémoires utilisées dans ce tour",
+      "empty": "Aucune mémoire n’a été injectée pour ce tour",
+      "selected": "Sélectionnées",
+      "dropped": "Écartées",
+      "tokens": "Tokens",
+      "budget": "Budget",
+      "countOnly": "Cet enregistrement ne contient qu’un résumé chiffré.",
+      "unavailable": "Cette mémoire n’est plus disponible.",
+      "noSelectedDetails": "Aucun détail de mémoire à afficher pour ce tour.",
+      "refreshFailed": "Actualisation impossible. Les dernières mémoires chargées restent affichées.",
+      "error": "Impossible de charger les souvenirs de ce tour."
+    },
+    "toast": {
+      "undoSuccess": "La mémoire a été annulée",
+      "undoFailed": "Impossible d’annuler la mémoire",
+      "forgetSuccess": "La mémoire a été oubliée",
+      "forgetFailed": "Impossible d’oublier la mémoire",
+      "amendFailed": "Impossible de modifier la mémoire",
+      "rememberFailed": "Impossible d’enregistrer la mémoire",
+      "add": {
+        "created": "Enregistrée comme nouvelle mémoire",
+        "updated": "Mémoire existante mise à jour",
+        "superseded": "Fusionnée dans une mémoire mise à jour",
+        "challenged": "Enregistrée comme mémoire à vérifier",
+        "noop": "Aucune nouvelle mémoire ajoutée"
+      }
+    },
+    "errors": {
+      "actionFailed": "Action échouée. Veuillez réessayer.",
+      "amendRetryable": "La modification a échoué. Le souvenir initial a été restauré ; réessayez.",
+      "amendRestoreFailed": "La modification a échoué et le souvenir initial n’a pas pu être restauré."
     }
   }
 }

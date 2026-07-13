@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 describe('ThinkContent styles', () => {
-  it('keeps markdown headings at the reasoning body font size', () => {
+  it('keeps markdown headings at the reasoning body font size', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const { resolve } = await vi.importActual<typeof import('node:path')>('node:path')
     const source = readFileSync(
       resolve('src/renderer/src/components/think-content/ThinkContent.vue'),
       'utf8'

@@ -7,13 +7,16 @@ import logger from '@shared/logger'
 import { protocol, app } from 'electron'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import path from 'path'
-import fs from 'fs'
+import fs, { promises as fsp, Stats } from 'fs'
+import { Readable } from 'stream'
 import { is } from '@electron-toolkit/utils'
 import { LifecyclePhase } from '@shared/lifecycle'
 import {
   resolveWorkspacePreviewRequest,
   WORKSPACE_PREVIEW_PROTOCOL
 } from '@/presenter/workspacePresenter/workspacePreviewProtocol'
+
+const workspacePreviewMimeCache = new Map<string, string>()
 
 const getMimeTypeForPath = (filePath: string): string => {
   const extension = path.extname(filePath).toLowerCase()
@@ -63,6 +66,86 @@ const getMimeTypeForPath = (filePath: string): string => {
   }
 }
 
+const getDeepCdnMimeType = (filePath: string): string => {
+  if (filePath.endsWith('.wasm')) {
+    return 'application/wasm'
+  }
+
+  if (filePath.endsWith('.data')) {
+    return 'application/octet-stream'
+  }
+
+  return getMimeTypeForPath(filePath)
+}
+
+const getWorkspacePreviewMimeType = (fullPath: string): string => {
+  const cached = workspacePreviewMimeCache.get(fullPath)
+  if (cached) {
+    return cached
+  }
+
+  const mimeType = getMimeTypeForPath(fullPath)
+  workspacePreviewMimeCache.set(fullPath, mimeType)
+  return mimeType
+}
+
+const resolvePathInsideRoot = (rootDir: string, requestPath: string): string | null => {
+  let decodedPath: string
+  try {
+    decodedPath = decodeURIComponent(requestPath.split(/[?#]/, 1)[0] ?? '')
+  } catch {
+    return null
+  }
+
+  const root = path.resolve(rootDir)
+  const relativeRequestPath = decodedPath.replace(/^[/\\]+/, '')
+  const fullPath = path.resolve(root, relativeRequestPath)
+  const relativePath = path.relative(root, fullPath)
+  if (relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))) {
+    return fullPath
+  }
+  return null
+}
+
+const createStreamingResponse = async (
+  fullPath: string,
+  stat: Stats,
+  init: ResponseInit
+): Promise<Response> => {
+  try {
+    const body = Readable.toWeb(fs.createReadStream(fullPath)) as unknown as BodyInit
+    return new Response(body, {
+      ...init,
+      headers: {
+        ...init.headers,
+        'Content-Length': String(stat.size)
+      }
+    })
+  } catch {
+    const fileContent = await fsp.readFile(fullPath)
+    return new Response(fileContent, {
+      ...init,
+      headers: {
+        ...init.headers,
+        'Content-Length': String(stat.size)
+      }
+    })
+  }
+}
+
+const findDeepCdnResourcesDir = async (candidates: string[]): Promise<string> => {
+  for (const candidate of candidates) {
+    try {
+      await fsp.access(path.join(candidate, 'cdn'))
+      return candidate
+    } catch {
+      // Try the next packaged resource location.
+    }
+  }
+
+  return candidates[0]
+}
+
 export const protocolRegistrationHook: LifecycleHook = {
   name: 'protocol-registration',
   phase: LifecyclePhase.BEFORE_START,
@@ -72,7 +155,7 @@ export const protocolRegistrationHook: LifecycleHook = {
     logger.info('protocolRegistrationHook: Registering application protocols')
 
     // Register 'deepcdn' protocol for loading built-in resources (simulating CDN)
-    protocol.handle('deepcdn', (request) => {
+    protocol.handle('deepcdn', async (request) => {
       try {
         const filePath = request.url.slice('deepcdn://'.length)
         // Determine resource path based on dev/production environment
@@ -83,42 +166,38 @@ export const protocolRegistrationHook: LifecycleHook = {
               path.join(process.resourcesPath, 'resources'),
               process.resourcesPath
             ]
-        const baseResourcesDir =
-          candidates.find((p) => fs.existsSync(path.join(p, 'cdn'))) || candidates[0]
-
-        const fullPath = path.join(baseResourcesDir, 'cdn', filePath)
-
-        // Determine MIME type based on file extension
-        let mimeType = 'application/octet-stream' // Default type
-        if (filePath.endsWith('.js')) {
-          mimeType = 'text/javascript'
-        } else if (filePath.endsWith('.css')) {
-          mimeType = 'text/css'
-        } else if (filePath.endsWith('.json')) {
-          mimeType = 'application/json'
-        } else if (filePath.endsWith('.wasm')) {
-          mimeType = 'application/wasm'
-        } else if (filePath.endsWith('.data')) {
-          mimeType = 'application/octet-stream'
-        } else if (filePath.endsWith('.html')) {
-          mimeType = 'text/html'
+        const baseResourcesDir = await findDeepCdnResourcesDir(candidates)
+        const fullPath = resolvePathInsideRoot(path.join(baseResourcesDir, 'cdn'), filePath)
+        if (!fullPath) {
+          return new Response('Forbidden', {
+            status: 403,
+            headers: { 'Content-Type': 'text/plain' }
+          })
         }
+        const mimeType = getDeepCdnMimeType(filePath)
 
-        // Check if file exists
-        if (!fs.existsSync(fullPath)) {
-          console.warn(`protocolRegistrationHook: deepcdn handler: File not found: ${fullPath}`)
+        const stat = await fsp.stat(fullPath)
+        if (stat.isDirectory()) {
+          console.warn(`protocolRegistrationHook: deepcdn handler: File not found: ${filePath}`)
           return new Response(`File not found: ${filePath}`, {
             status: 404,
             headers: { 'Content-Type': 'text/plain' }
           })
         }
 
-        // Read file and return response
-        const fileContent = fs.readFileSync(fullPath)
-        return new Response(fileContent, {
+        return await createStreamingResponse(fullPath, stat, {
           headers: { 'Content-Type': mimeType }
         })
       } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          const filePath = request.url.slice('deepcdn://'.length)
+          console.warn(`protocolRegistrationHook: deepcdn handler: File not found: ${filePath}`)
+          return new Response(`File not found: ${filePath}`, {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
         console.error('protocolRegistrationHook: Error handling deepcdn request:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
         return new Response(`Server error: ${errorMessage}`, {
@@ -129,14 +208,20 @@ export const protocolRegistrationHook: LifecycleHook = {
     })
 
     // Register 'imgcache' protocol for handling image cache
-    protocol.handle('imgcache', (request) => {
-      try {
-        const filePath = request.url.slice('imgcache://'.length)
-        // Images are stored in the images subfolder of user data directory
-        const fullPath = path.join(app.getPath('userData'), 'images', filePath)
+    protocol.handle('imgcache', async (request) => {
+      const filePath = request.url.slice('imgcache://'.length)
+      // Images are stored in the images subfolder of user data directory
+      const fullPath = resolvePathInsideRoot(path.join(app.getPath('userData'), 'images'), filePath)
+      if (!fullPath) {
+        return new Response('Forbidden', {
+          status: 403,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      }
 
-        // Check if file exists
-        if (!fs.existsSync(fullPath)) {
+      try {
+        const stat = await fsp.stat(fullPath)
+        if (stat.isDirectory()) {
           console.warn(
             `protocolRegistrationHook: imgcache handler: Image file not found: ${fullPath}`
           )
@@ -146,32 +231,20 @@ export const protocolRegistrationHook: LifecycleHook = {
           })
         }
 
-        // Determine MIME type based on file extension
-        let mimeType = 'application/octet-stream' // Default type
-        if (filePath.endsWith('.png')) {
-          mimeType = 'image/png'
-        } else if (filePath.endsWith('.gif')) {
-          mimeType = 'image/gif'
-        } else if (filePath.endsWith('.webp')) {
-          mimeType = 'image/webp'
-        } else if (filePath.endsWith('.svg')) {
-          mimeType = 'image/svg+xml'
-        } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
-          mimeType = 'image/jpeg'
-        } else if (filePath.endsWith('.bmp')) {
-          mimeType = 'image/bmp'
-        } else if (filePath.endsWith('.ico')) {
-          mimeType = 'image/x-icon'
-        } else if (filePath.endsWith('.avif')) {
-          mimeType = 'image/avif'
-        }
-
-        // Read file and return response
-        const fileContent = fs.readFileSync(fullPath)
-        return new Response(fileContent, {
-          headers: { 'Content-Type': mimeType }
+        return await createStreamingResponse(fullPath, stat, {
+          headers: { 'Content-Type': getMimeTypeForPath(fullPath) }
         })
       } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          console.warn(
+            `protocolRegistrationHook: imgcache handler: Image file not found: ${fullPath}`
+          )
+          return new Response(`Image not found: ${filePath}`, {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
         console.error('protocolRegistrationHook: Error handling imgcache request:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
         return new Response(`Server error: ${errorMessage}`, {
@@ -181,17 +254,18 @@ export const protocolRegistrationHook: LifecycleHook = {
       }
     })
 
-    protocol.handle(WORKSPACE_PREVIEW_PROTOCOL, (request) => {
-      try {
-        const fullPath = resolveWorkspacePreviewRequest(request.url)
-        if (!fullPath) {
-          return new Response('Forbidden', {
-            status: 403,
-            headers: { 'Content-Type': 'text/plain' }
-          })
-        }
+    protocol.handle(WORKSPACE_PREVIEW_PROTOCOL, async (request) => {
+      const fullPath = resolveWorkspacePreviewRequest(request.url)
+      if (!fullPath) {
+        return new Response('Forbidden', {
+          status: 403,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      }
 
-        if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+      try {
+        const stat = await fsp.stat(fullPath)
+        if (stat.isDirectory()) {
           console.warn(
             `protocolRegistrationHook: ${WORKSPACE_PREVIEW_PROTOCOL} handler: File not found: ${fullPath}`
           )
@@ -201,15 +275,24 @@ export const protocolRegistrationHook: LifecycleHook = {
           })
         }
 
-        const fileContent = fs.readFileSync(fullPath)
-        return new Response(fileContent, {
+        return await createStreamingResponse(fullPath, stat, {
           headers: {
             'Cache-Control': 'no-store',
-            'Content-Type': getMimeTypeForPath(fullPath),
+            'Content-Type': getWorkspacePreviewMimeType(fullPath),
             'X-Content-Type-Options': 'nosniff'
           }
         })
       } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          console.warn(
+            `protocolRegistrationHook: ${WORKSPACE_PREVIEW_PROTOCOL} handler: File not found: ${fullPath}`
+          )
+          return new Response(`File not found: ${fullPath}`, {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
         console.error(
           `protocolRegistrationHook: Error handling ${WORKSPACE_PREVIEW_PROTOCOL} request:`,
           error

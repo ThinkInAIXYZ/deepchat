@@ -40,6 +40,52 @@ const createUserMessage = (id: string, orderSeq: number, text = 'hello'): Messag
   }
 })
 
+const createPendingAssistantPlaceholder = (): MessageListItem => ({
+  id: '__pending_assistant_1',
+  role: 'assistant',
+  timestamp: 1,
+  updatedAt: 1,
+  avatar: '',
+  name: 'Assistant',
+  model_name: 'Assistant',
+  model_id: 'model-1',
+  model_provider: 'provider-1',
+  status: 'pending',
+  error: '',
+  usage,
+  conversationId: 'session-1',
+  is_variant: 0,
+  orderSeq: 1,
+  content: []
+})
+
+const createStreamingAssistant = (): MessageListItem => ({
+  id: 'assistant-real-1',
+  renderKey: '__pending_assistant_1',
+  role: 'assistant',
+  timestamp: 2,
+  updatedAt: 2,
+  avatar: '',
+  name: 'Assistant',
+  model_name: 'Assistant',
+  model_id: 'model-1',
+  model_provider: 'provider-1',
+  status: 'pending',
+  error: '',
+  usage,
+  conversationId: 'session-1',
+  is_variant: 0,
+  orderSeq: 1,
+  content: [
+    {
+      type: 'content',
+      content: 'hello',
+      status: 'loading',
+      timestamp: 2
+    }
+  ]
+})
+
 const createMessages = (count: number): MessageListItem[] =>
   Array.from({ length: count }, (_, index) => createUserMessage(`message-${index}`, index))
 
@@ -84,6 +130,59 @@ describe('useMessageWindow', () => {
     expect(entry0!.estimatedHeight).toBeGreaterThan(0)
     expect(entry0!.bottom).toBe(entry0!.estimatedHeight)
     expect(entry1!.top).toBe(entry0!.bottom)
+  })
+
+  it('estimates pending assistant placeholder near its spinner row height', () => {
+    const messages = ref([createPendingAssistantPlaceholder()])
+    const window = useMessageWindow({ messages })
+
+    const entry = window.getEntry('__pending_assistant_1')
+
+    expect(entry?.estimatedHeight).toBe(80)
+    // Sub-threshold delta (< 4px) still stores measurement but does not report scroll delta.
+    expect(window.setMeasuredHeight('__pending_assistant_1', 78)).toBe(0)
+    expect(window.getEntry('__pending_assistant_1')?.measuredHeight).toBe(78)
+  })
+
+  it('reuses a pending placeholder measurement through the real streaming row render key', () => {
+    const messages = ref([createPendingAssistantPlaceholder()])
+    const window = useMessageWindow({ messages })
+
+    expect(window.setMeasuredHeight('__pending_assistant_1', 78)).toBe(0)
+
+    messages.value = [createStreamingAssistant()]
+
+    const entry = window.getEntry('assistant-real-1')
+    expect(entry?.measuredHeight).toBe(78)
+    expect(entry?.bottom).toBe(78)
+  })
+
+  it('estimates collapsed tool and thinking blocks near pill/header height', () => {
+    const messages = ref([
+      {
+        ...createPendingAssistantPlaceholder(),
+        id: 'assistant-tools',
+        status: 'sent' as const,
+        content: [
+          {
+            type: 'tool_call' as const,
+            status: 'success' as const,
+            timestamp: 1,
+            tool_call: { id: 't1', name: 'read_file' }
+          },
+          {
+            type: 'reasoning_content' as const,
+            content: 'thinking…',
+            status: 'success' as const,
+            timestamp: 2
+          }
+        ]
+      }
+    ])
+    const window = useMessageWindow({ messages })
+    const entry = window.getEntry('assistant-tools')
+    // ASSISTANT_BASE(136) + tool pill(40) + think header(28)
+    expect(entry?.estimatedHeight).toBe(204)
   })
 
   it('clearMeasurements resets to estimated heights', () => {

@@ -9,8 +9,11 @@ import { createI18n } from 'vue-i18n'
 import locales, { pluralRules } from '@/i18n'
 import { getSettingsRouteItems } from '@shared/settingsNavigation'
 import { preloadIcons } from '../src/lib/iconLoader'
+import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
 
-const settingsRouteItems = getSettingsRouteItems(window.electron?.process?.platform)
+const runtimePlatform = getRuntimePlatform()
+const runtimeArch = getRuntimeArch()
+const settingsRouteItems = getSettingsRouteItems(runtimePlatform, runtimeArch)
 
 const settingsRouteComponents = {
   'settings-overview': () => import('./components/SettingsOverview.vue'),
@@ -24,10 +27,11 @@ const settingsRouteComponents = {
   'settings-acp': () => import('./components/AcpSettings.vue'),
   'settings-remote': () => import('./components/RemoteSettings.vue'),
   'settings-notifications-hooks': () => import('./components/NotificationsHooksSettings.vue'),
-  'settings-scheduled-tasks': () => import('./components/ScheduledTasksSettings.vue'),
+  'settings-scheduled-tasks': () => import('./components/CronJobsSettings.vue'),
   'settings-plugins': () => import('./components/PluginsSettings.vue'),
   'settings-skills': () => import('./components/skills/SkillsSettings.vue'),
   'settings-prompt': () => import('./components/PromptSetting.vue'),
+  'settings-memory': () => import('./components/MemorySettings.vue'),
   'settings-knowledge-base': () => import('./components/KnowledgeBaseSettings.vue'),
   'settings-database': () => import('./components/DataSettings.vue'),
   'settings-shortcut': () => import('./components/ShortcutSettings.vue'),

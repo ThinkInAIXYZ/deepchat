@@ -46,10 +46,13 @@ const server = {
   isRunning: false
 }
 
-const mountCard = (onClick = vi.fn()) => {
+const mountCard = (onClick = vi.fn(), serverOverrides: Record<string, unknown> = {}) => {
   const wrapper = mount(McpServerCard, {
     props: {
-      server,
+      server: {
+        ...server,
+        ...serverOverrides
+      },
       toolsCount: 1,
       promptsCount: 1,
       resourcesCount: 1
@@ -109,5 +112,19 @@ describe('McpServerCard', () => {
     expect(wrapper.emitted('viewPrompts')).toHaveLength(1)
     expect(wrapper.emitted('viewResources')).toHaveLength(1)
     expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('labels OAuth error status as authentication failed', () => {
+    const { wrapper } = mountCard(vi.fn(), {
+      authStatus: {
+        serverName: 'demo',
+        state: 'error',
+        authenticated: false,
+        error: 'callback failed'
+      }
+    })
+
+    expect(wrapper.text()).toContain('settings.mcp.authFailed')
+    expect(wrapper.text()).not.toContain('settings.mcp.authRequired')
   })
 })

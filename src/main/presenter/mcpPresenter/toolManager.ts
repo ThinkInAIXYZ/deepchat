@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
-import { eventBus, SendTarget } from '@/eventbus'
-import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
+import { eventBus } from '@/eventbus'
+import { MCP_EVENTS } from '@/events'
 import {
   MCPToolCall,
   MCPToolDefinition,
@@ -8,6 +8,7 @@ import {
   MCPContentItem,
   MCPTextContent,
   IConfigPresenter,
+  MCPServerConfig,
   Resource
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
@@ -16,6 +17,37 @@ import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+
+const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
+
+type McpToolAccessContext = {
+  enabledTools?: string[]
+  enabledServerIds?: string[]
+  agentId?: string
+  conversationId?: string
+}
+
+const normalizeStringList = (items?: string[]): string[] | undefined => {
+  if (!Array.isArray(items)) {
+    return undefined
+  }
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)))
+}
+
+const normalizeToolAccessContext = (
+  input?: string[] | McpToolAccessContext
+): McpToolAccessContext => {
+  if (Array.isArray(input)) {
+    return { enabledTools: normalizeStringList(input) }
+  }
+  return {
+    enabledTools: normalizeStringList(input?.enabledTools),
+    enabledServerIds: normalizeStringList(input?.enabledServerIds),
+    agentId: input?.agentId?.trim() || undefined,
+    conversationId: input?.conversationId?.trim() || undefined
+  }
+}
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -53,21 +85,26 @@ export class ToolManager {
     return Boolean(serverConfig.ownerPluginId || serverConfig.source === 'plugin')
   }
 
+  private isCuaComputerUseServer(client: McpClient, serverConfig?: MCPServerConfig): boolean {
+    const clientConfig = client.serverConfig as {
+      ownerPluginId?: unknown
+      sourceId?: unknown
+    }
+    const ownerPluginId = serverConfig?.ownerPluginId ?? clientConfig.ownerPluginId
+    const sourceId = serverConfig?.sourceId ?? clientConfig.sourceId
+    return ownerPluginId === CUA_PLUGIN_ID || sourceId === CUA_PLUGIN_ID
+  }
+
   public async getRunningClients(): Promise<McpClient[]> {
     return this.serverManager.getRunningClients()
   }
   // Get all tool definitions
-  public async getAllToolDefinitions(enabledTools?: string[]): Promise<MCPToolDefinition[]> {
+  public async getAllToolDefinitions(
+    access?: string[] | McpToolAccessContext
+  ): Promise<MCPToolDefinition[]> {
+    const context = normalizeToolAccessContext(access)
     if (this.cachedToolDefinitions !== null && this.cachedToolDefinitions.length > 0) {
-      if (enabledTools) {
-        const enabledSet = new Set(enabledTools)
-        return this.cachedToolDefinitions.filter((toolDef) => {
-          const finalName = toolDef.function.name
-          const originalName = this.toolNameToTargetMap?.get(finalName)?.originalName || finalName
-          return enabledSet.has(finalName) || enabledSet.has(originalName)
-        })
-      }
-      return this.cachedToolDefinitions
+      return this.filterToolDefinitionsByContext(this.cachedToolDefinitions, context)
     }
 
     console.info('Fetching/refreshing tool definitions and target map...')
@@ -139,7 +176,7 @@ export class ToolManager {
               ?.replace('{serverName}', serverName)
               .replace('{errorMessage}', errorMessage) ||
             `Failed to get tool list from server '${serverName}': ${errorMessage}`
-          eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+          publishDeepchatEvent('notification.error', {
             title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
             message: formattedMessage,
             id: `mcp-error-pass1-${serverName}-${Date.now()}`,
@@ -228,16 +265,58 @@ export class ToolManager {
     this.cachedToolDefinitions = results
     console.info(`Cached ${results.length} final tool definitions and populated target map.`)
 
-    if (enabledTools && enabledTools.length > 0) {
-      const enabledSet = new Set(enabledTools)
-      return this.cachedToolDefinitions.filter((toolDef) => {
-        const finalName = toolDef.function.name
-        const originalName = this.toolNameToTargetMap?.get(finalName)?.originalName || finalName
-        return enabledSet.has(finalName) || enabledSet.has(originalName)
-      })
+    return this.filterToolDefinitionsByContext(this.cachedToolDefinitions, context)
+  }
+
+  private filterToolDefinitionsByContext(
+    toolDefinitions: MCPToolDefinition[],
+    context: McpToolAccessContext
+  ): MCPToolDefinition[] {
+    if (!context.enabledTools && !context.enabledServerIds) {
+      return toolDefinitions
     }
 
-    return this.cachedToolDefinitions
+    return toolDefinitions.filter((toolDef) => {
+      const finalName = toolDef.function.name
+      const target = this.toolNameToTargetMap?.get(finalName)
+      const originalName = target?.originalName || finalName
+      if (
+        context.enabledTools &&
+        !context.enabledTools.includes(finalName) &&
+        !context.enabledTools.includes(originalName)
+      ) {
+        return false
+      }
+      return this.isServerAllowedByContext(toolDef.server.name, context)
+    })
+  }
+
+  private isServerAllowedByContext(serverName: string, context: McpToolAccessContext): boolean {
+    const serverConfig = this.getServerConfigFromTargetMap(serverName)
+    if (!serverConfig) {
+      return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
+    }
+    return this.isServerConfigAllowedByContext(serverName, serverConfig, context)
+  }
+
+  private isServerConfigAllowedByContext(
+    serverName: string,
+    serverConfig: MCPServerConfig,
+    context: McpToolAccessContext
+  ): boolean {
+    if (serverConfig.ownerPluginId?.trim() || serverConfig.source === 'plugin') {
+      return true
+    }
+    return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
+  }
+
+  private getServerConfigFromTargetMap(serverName: string): MCPServerConfig | undefined {
+    for (const target of this.toolNameToTargetMap?.values() ?? []) {
+      if (target.client.serverName === serverName) {
+        return target.client.serverConfig as unknown as MCPServerConfig
+      }
+    }
+    return undefined
   }
 
   // 确定权限类型的新方法
@@ -379,7 +458,10 @@ export class ToolManager {
    * Pre-check tool permissions without executing the tool
    * Returns permission requirement info if permission is needed, null if already has permission
    */
-  async preCheckToolPermission(toolCall: MCPToolCall): Promise<{
+  async preCheckToolPermission(
+    toolCall: MCPToolCall,
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
+  ): Promise<{
     needsPermission: true
     toolName: string
     serverName: string
@@ -418,6 +500,17 @@ export class ToolManager {
     // Get server config to check auto-approve settings
     const servers = await this.configPresenter.getMcpServers()
     const serverConfig = servers[toolServerName]
+    const accessContext = normalizeToolAccessContext({
+      agentId: access?.agentId,
+      enabledServerIds: access?.enabledServerIds,
+      conversationId: toolCall.conversationId
+    })
+    if (
+      serverConfig &&
+      !this.isServerConfigAllowedByContext(toolServerName, serverConfig, accessContext)
+    ) {
+      return null
+    }
     const autoApprove = serverConfig?.autoApprove || []
     const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
 
@@ -447,7 +540,10 @@ export class ToolManager {
     }
   }
 
-  async callTool(toolCall: MCPToolCall): Promise<MCPToolResponse> {
+  async callTool(
+    toolCall: MCPToolCall,
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
+  ): Promise<MCPToolResponse> {
     try {
       const finalName = toolCall.function.name
       const argsString = toolCall.function.arguments
@@ -484,6 +580,11 @@ export class ToolManager {
 
       const { client: targetClient, originalName } = targetInfo
       const toolServerName = targetClient.serverName
+      const accessContext = normalizeToolAccessContext({
+        agentId: access?.agentId,
+        enabledServerIds: access?.enabledServerIds,
+        conversationId: toolCall.conversationId
+      })
       const hintedProviderId = toolCall.providerId?.trim()
       const shouldResolveAcpContext =
         Boolean(toolCall.conversationId) && (!hintedProviderId || hintedProviderId === 'acp')
@@ -553,6 +654,13 @@ export class ToolManager {
           isError: true
         }
       }
+      if (!this.isServerConfigAllowedByContext(toolServerName, serverConfig, accessContext)) {
+        return {
+          toolCallId: toolCall.id,
+          content: `MCP server '${toolServerName}' is not allowed for DeepChat agent '${accessContext.agentId ?? 'unknown'}'. Configure MCP access in DeepChat agent settings.`,
+          isError: true
+        }
+      }
       const autoApprove = serverConfig?.autoApprove || []
       const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
       if (pluginPolicy === 'deny') {
@@ -597,8 +705,22 @@ export class ToolManager {
         }
       }
 
+      const preparedArgs = await this.prepareToolArguments(
+        targetClient,
+        serverConfig,
+        originalName,
+        args || {}
+      )
+      if (!preparedArgs.ok) {
+        return {
+          toolCallId: toolCall.id,
+          content: `Error: ${preparedArgs.error}`,
+          isError: true
+        }
+      }
+
       // Call the tool on the target client using the ORIGINAL name
-      const result = await targetClient.callTool(originalName, args || {})
+      const result = await targetClient.callTool(originalName, preparedArgs.args)
 
       // Format response
       let formattedContent: string | MCPContentItem[] = ''
@@ -627,8 +749,11 @@ export class ToolManager {
         isError: result.isError
       }
 
-      // Trigger event
-      eventBus.send(MCP_EVENTS.TOOL_CALL_RESULT, SendTarget.ALL_WINDOWS, response)
+      publishDeepchatEvent('mcp.toolCall.result', {
+        functionName: toolCall.function.name,
+        content: response.content,
+        version: Date.now()
+      })
 
       return response
     } catch (error: unknown) {
@@ -640,6 +765,169 @@ export class ToolManager {
         isError: true
       }
     }
+  }
+
+  private async prepareToolArguments(
+    client: McpClient,
+    serverConfig: MCPServerConfig,
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
+    if (
+      toolName !== 'launch_app' ||
+      process.platform !== 'win32' ||
+      !this.isCuaComputerUseServer(client, serverConfig)
+    ) {
+      return { ok: true, args }
+    }
+
+    return await this.prepareCuaWindowsLaunchArgs(client, args)
+  }
+
+  private async prepareCuaWindowsLaunchArgs(
+    client: McpClient,
+    args: Record<string, unknown>
+  ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
+    const normalizedArgs = { ...args }
+    const bundleId = this.readStringArg(normalizedArgs.bundle_id)
+    const name = this.readStringArg(normalizedArgs.name)
+
+    if (bundleId && !bundleId.includes('!') && this.isWindowsPathLike(bundleId)) {
+      delete normalizedArgs.bundle_id
+      if (
+        !this.readStringArg(normalizedArgs.path) &&
+        !this.readStringArg(normalizedArgs.launch_path)
+      ) {
+        normalizedArgs.path = bundleId
+      }
+      return { ok: true, args: normalizedArgs }
+    }
+
+    if (
+      this.readStringArg(normalizedArgs.path) ||
+      this.readStringArg(normalizedArgs.launch_path) ||
+      this.readStringArg(normalizedArgs.aumid) ||
+      (bundleId && bundleId.includes('!')) ||
+      this.hasUrlLaunchTargets(normalizedArgs)
+    ) {
+      return { ok: true, args: normalizedArgs }
+    }
+
+    const target = bundleId || name
+    if (!target) {
+      return { ok: true, args: normalizedArgs }
+    }
+
+    const apps = await this.listCuaWindowsApps(client)
+    if (!apps) {
+      return {
+        ok: false,
+        error:
+          'Unable to validate the Windows app target before launching. Call list_apps first, then retry with a Windows name, path, launch_path, or aumid.'
+      }
+    }
+
+    if (!this.matchesCuaWindowsApp(apps, target)) {
+      return {
+        ok: false,
+        error: `Windows app target '${target}' was not found. Call list_apps first and use a Windows app name, path, launch_path, or aumid. Do not use macOS bundle ids on Windows.`
+      }
+    }
+
+    return { ok: true, args: normalizedArgs }
+  }
+
+  private readStringArg(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  }
+
+  private isWindowsPathLike(value: string): boolean {
+    return /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\') || /[\\/]/.test(value)
+  }
+
+  private hasUrlLaunchTargets(args: Record<string, unknown>): boolean {
+    return Array.isArray(args.urls) && args.urls.some((item) => this.readStringArg(item))
+  }
+
+  private async listCuaWindowsApps(
+    client: McpClient
+  ): Promise<Array<Record<string, unknown>> | null> {
+    try {
+      const result = (await client.callTool('list_apps', {})) as {
+        structuredContent?: unknown
+        content?: unknown
+      }
+      const structured = result.structuredContent
+      if (
+        structured &&
+        typeof structured === 'object' &&
+        Array.isArray((structured as { apps?: unknown }).apps)
+      ) {
+        return (structured as { apps: Array<Record<string, unknown>> }).apps
+      }
+
+      const parsed = this.parseToolResultJsonObject(result.content)
+      if (parsed && Array.isArray(parsed.apps)) {
+        return parsed.apps as Array<Record<string, unknown>>
+      }
+    } catch (error) {
+      console.warn('[MCP] Failed to preflight CUA Windows launch target:', error)
+    }
+    return null
+  }
+
+  private parseToolResultJsonObject(content: unknown): Record<string, unknown> | null {
+    const text = Array.isArray(content)
+      ? content
+          .map((item) =>
+            item && typeof item === 'object' && 'text' in item
+              ? String((item as { text?: unknown }).text ?? '')
+              : ''
+          )
+          .join('\n')
+      : typeof content === 'string'
+        ? content
+        : ''
+    if (!text.trim()) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(text)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
+  private matchesCuaWindowsApp(apps: Array<Record<string, unknown>>, target: string): boolean {
+    const normalizedTarget = this.normalizeWindowsAppIdentifier(target)
+    return apps.some((app) => {
+      const candidates = [app.name, app.bundle_id, app.launch_path, app.path, app.aumid].flatMap(
+        (value) => this.windowsAppIdentifierCandidates(value)
+      )
+      return candidates.some(
+        (candidate) =>
+          candidate === normalizedTarget ||
+          candidate.includes(normalizedTarget) ||
+          normalizedTarget.includes(candidate)
+      )
+    })
+  }
+
+  private windowsAppIdentifierCandidates(value: unknown): string[] {
+    const raw = this.readStringArg(value)
+    if (!raw) {
+      return []
+    }
+    const normalized = this.normalizeWindowsAppIdentifier(raw)
+    const basename = raw.split(/[\\/]/).pop()
+    return basename && basename !== raw
+      ? [normalized, this.normalizeWindowsAppIdentifier(basename)]
+      : [normalized]
+  }
+
+  private normalizeWindowsAppIdentifier(value: string): string {
+    return value.trim().replace(/^"|"$/g, '').toLowerCase()
   }
 
   // 根据客户端名称获取提示模板内容

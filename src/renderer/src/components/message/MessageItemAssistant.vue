@@ -29,14 +29,14 @@
 
         <div class="flex flex-col w-full space-y-1.5">
           <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
-          <Spinner
-            v-if="
-              currentContent.length === 0 &&
-              (currentMessage?.status ?? message.status) === 'pending'
-            "
-            class="size-3 text-muted-foreground"
-          />
-          <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
+          <div class="flex flex-col w-full gap-1.5" data-message-content="true">
+            <Spinner
+              v-if="
+                currentContent.length === 0 &&
+                (currentMessage?.status ?? message.status) === 'pending'
+              "
+              class="size-3 text-muted-foreground"
+            />
             <template v-for="item in currentRenderItems" :key="item.key">
               <MessageBlockActivityGroup
                 v-if="item.kind === 'activity-group'"
@@ -55,6 +55,7 @@
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :is-search-result="isSearchResult"
+                :disable-markdown-virtualization="disableMarkdownVirtualization"
               />
               <MessageBlockThink
                 v-else-if="
@@ -66,7 +67,6 @@
                 :usage="currentMessage.usage"
                 @toggle-collapse="handleCollapseToggle"
               />
-              <MessageBlockPlan v-else-if="item.block.type === 'plan'" :block="item.block" />
               <MessageBlockToolCall
                 v-else-if="item.block.type === 'tool_call' && !isInternalToolCall(item.block)"
                 :block="item.block"
@@ -118,6 +118,7 @@
             :is-in-generating-thread="resolvedIsInGeneratingThread"
             :is-capturing-image="isCapturingImage"
             :show-trace="showTrace"
+            :show-memory="memoryActivity.enabled && !isReadOnly"
             :is-read-only="isReadOnly"
             @retry="handleAction('retry')"
             @delete="handleAction('delete')"
@@ -128,6 +129,7 @@
             @next="handleAction('next')"
             @fork="handleAction('fork')"
             @trace="handleAction('trace')"
+            @memory="handleMemoryDetails"
           />
         </div>
       </div>
@@ -137,6 +139,12 @@
       <template v-if="showSelectionMenu">
         <ContextMenuItem @select="handleSelectionCopy">
           {{ t('common.copy') }}
+        </ContextMenuItem>
+        <ContextMenuItem
+          v-if="!isReadOnly && memoryActivity.enabled"
+          @select="handleSelectionRemember"
+        >
+          {{ t('chat.memory.selection.remember') }}
         </ContextMenuItem>
         <ContextMenuItem @select="handleSelectionTranslate">
           {{ t('contextMenu.translate.title') }}
@@ -190,9 +198,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type {
-  DisplayAssistantMessage,
-  DisplayAssistantMessageBlock
+import {
+  type DisplayAssistantMessage,
+  type DisplayAssistantMessageBlock,
+  filterRenderableAssistantBlocks,
+  isInternalAssistantToolCallBlock
 } from '@/components/chat/messageListItems'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
@@ -209,7 +219,6 @@ import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
-import MessageBlockPlan from './MessageBlockPlan.vue'
 import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
 import { buildAssistantRenderItems } from './messageActivityGroups'
 
@@ -231,6 +240,8 @@ import {
 } from '@shadcn/components/ui/context-menu'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
+import { useToast } from '@/components/use-toast'
+import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'
 const props = defineProps<{
   message: DisplayAssistantMessage
   isCapturingImage: boolean
@@ -238,12 +249,15 @@ const props = defineProps<{
   isInGeneratingThread?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
+  disableMarkdownVirtualization?: boolean
 }>()
 
 const themeStore = useThemeStore()
 const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
+const { toast } = useToast()
+const memoryActivity = useMemoryActivityStore()
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus']
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv']
@@ -263,7 +277,7 @@ const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
 }
 
 const isInternalToolCall = (block: DisplayAssistantMessageBlock): boolean => {
-  return block.tool_call?.name === 'update_plan' && block.extra?.internalTool === true
+  return isInternalAssistantToolCallBlock(block)
 }
 
 const isVideoUrl = (value: string): boolean => {
@@ -374,12 +388,14 @@ const totalVariants = computed(() => allVariants.value.length + 1)
 
 // 获取当前显示的内容
 const currentContent = computed(() => {
-  if (currentVariantIndex.value === 0) {
-    return props.message.content as DisplayAssistantMessageBlock[]
-  }
+  const blocks =
+    currentVariantIndex.value === 0
+      ? (props.message.content as DisplayAssistantMessageBlock[])
+      : ((allVariants.value[currentVariantIndex.value - 1]?.content || props.message.content) as
+          | DisplayAssistantMessageBlock[]
+          | undefined)
 
-  const variant = allVariants.value[currentVariantIndex.value - 1]
-  return (variant?.content || props.message.content) as DisplayAssistantMessageBlock[]
+  return filterRenderableAssistantBlocks(blocks ?? [])
 })
 
 const shouldGroupActivity = computed(() => {
@@ -541,6 +557,30 @@ const handleSelectionAskAI = () => {
     return
   }
   window.dispatchEvent(new CustomEvent('context-menu-ask-ai', { detail: text }))
+}
+
+const handleSelectionRemember = async () => {
+  if (isReadOnly.value || !memoryActivity.enabled) {
+    return
+  }
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+  const result = await memoryActivity.rememberSelection(text)
+  toast({
+    title: result
+      ? t(`chat.memory.toast.add.${result.action}`)
+      : t('chat.memory.toast.rememberFailed'),
+    variant: result ? 'default' : 'destructive'
+  })
+}
+
+const handleMemoryDetails = () => {
+  if (isReadOnly.value || !memoryActivity.enabled) {
+    return
+  }
+  void memoryActivity.openTurnMemories(props.message.id)
 }
 
 const handleBlockContinue = (conversationId: string, messageId: string) => {

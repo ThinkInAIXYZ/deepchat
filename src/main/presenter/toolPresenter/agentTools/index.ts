@@ -18,3 +18,8 @@ export {
   TAPE_TOOL_NAMES,
   AgentTapeToolHandler
 } from './agentTapeTools'
+export {
+  CRON_JOB_TOOL_SERVER_NAME,
+  CronJobToolHandler,
+  cronJobActionNeedsPermission
+} from './cronJobTool'

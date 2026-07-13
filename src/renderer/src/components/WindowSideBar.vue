@@ -158,75 +158,42 @@
         :aria-hidden="collapsed ? 'true' : undefined"
         :inert="collapsed ? true : undefined"
       >
-        <!-- Header -->
-        <div class="flex items-center justify-between px-3 h-10 shrink-0">
-          <span class="text-sm font-medium text-foreground truncate">
+        <!-- Header and command list -->
+        <div class="shrink-0 px-3 pb-3 pt-3">
+          <div class="truncate px-2 text-sm font-semibold text-foreground">
             {{ selectedAgentName }}
-          </span>
-          <div class="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button
-                  class="flex items-center justify-center w-7 h-7 rounded-md transition-all duration-150"
-                  :class="
-                    sessionStore.groupMode === 'project'
-                      ? 'text-foreground bg-accent/80'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                  "
-                  @click="sessionStore.toggleGroupMode()"
-                >
-                  <Icon icon="lucide:folder-kanban" class="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{
-                sessionStore.groupMode === 'project'
-                  ? t('chat.sidebar.groupByDate')
-                  : t('chat.sidebar.groupByProject')
-              }}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button
-                  data-testid="app-new-chat-button"
-                  class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-150"
-                  @click="handleNewChat"
-                >
-                  <Icon icon="lucide:plus" class="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
-            </Tooltip>
           </div>
-        </div>
 
-        <div
-          v-if="!collapsed"
-          data-testid="window-sidebar-search"
-          class="window-no-drag-region px-3 pb-2"
-        >
-          <div class="relative">
-            <Icon
-              icon="lucide:search"
-              class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70"
-            />
-            <Input
-              v-model="sessionSearchQuery"
-              class="h-8 rounded-xl border-0 bg-muted/60 pl-8 pr-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-primary/30"
-              :placeholder="t('chat.sidebar.searchPlaceholder')"
-              :aria-label="t('chat.sidebar.searchAriaLabel')"
-              autocapitalize="off"
-              autocomplete="off"
-              spellcheck="false"
-            />
+          <div class="mt-3 space-y-1">
             <button
-              v-if="sessionSearchQuery"
+              data-testid="app-new-chat-button"
               type="button"
-              class="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-              :title="t('common.close')"
-              :aria-label="t('common.close')"
-              @click="sessionSearchQuery = ''"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
+              @click="handleNewChat"
             >
-              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+              <Icon icon="lucide:square-pen" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('common.newChat') }}</span>
+            </button>
+
+            <button
+              data-testid="app-search-command-button"
+              type="button"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
+              @click="spotlightStore.toggleSpotlight()"
+            >
+              <Icon icon="lucide:search" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('chat.sidebar.searchCommand') }}</span>
+            </button>
+
+            <button
+              data-testid="app-plugins-button"
+              type="button"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm transition-colors hover:bg-accent/60"
+              :class="pluginsRouteActive ? 'bg-accent/70 text-foreground' : 'text-foreground'"
+              @click="openPlugins"
+            >
+              <Icon icon="lucide:blocks" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('routes.plugins') }}</span>
             </button>
           </div>
         </div>
@@ -248,7 +215,8 @@
           v-if="
             sessionStore.hasLoadedInitialPage &&
             pinnedSessions.length === 0 &&
-            filteredGroups.length === 0
+            !chatSectionGroup &&
+            workspaceGroups.length === 0
           "
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
@@ -313,27 +281,40 @@
             </div>
           </div>
 
-          <template v-for="group in filteredGroups" :key="getGroupIdentifier(group)">
-            <button
-              type="button"
-              class="mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
-              :data-group-id="getGroupIdentifier(group)"
-              :aria-expanded="!isGroupCollapsed(group)"
-              @click="toggleGroup(group)"
+          <div v-if="chatSectionGroup" class="pt-4">
+            <div
+              class="group flex w-full items-center gap-1 rounded-md pr-1 text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
             >
-              <span class="shrink-0 size-6 flex items-center justify-center">
-                <Icon
-                  :icon="isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'"
-                  class="size-4"
-                />
-              </span>
-              <span class="truncate">
-                {{ getGroupLabel(group) }}
-              </span>
-            </button>
-            <div v-show="!isGroupCollapsed(group)" class="space-y-0.5">
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center px-2 py-1.5 text-left"
+                :data-group-id="getGroupIdentifier(chatSectionGroup)"
+                :aria-expanded="!isGroupCollapsed(chatSectionGroup)"
+                @click="toggleGroup(chatSectionGroup)"
+              >
+                <span class="truncate">
+                  {{ t('chat.sidebar.chatSection') }}
+                </span>
+              </button>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    data-testid="window-sidebar-chat-new-button"
+                    class="flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                    :aria-label="t('common.newChat')"
+                    @click.stop="handleNewChatForProject(defaultChatWorkspacePath || null)"
+                  >
+                    <Icon icon="lucide:plus" class="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div v-show="!isGroupCollapsed(chatSectionGroup)" class="space-y-0.5">
               <WindowSideBarSessionItem
-                v-for="session in group.sessions"
+                v-for="session in chatSectionGroup.sessions"
                 :key="session.id"
                 :session="session"
                 :active="sessionStore.activeSessionId === session.id"
@@ -350,7 +331,158 @@
                 @delete="openDeleteDialog"
               />
             </div>
-          </template>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 px-2 pb-1 pt-4">
+            <div class="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+              {{ t('chat.sidebar.workspace') }}
+            </div>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button
+                  class="flex size-7 items-center justify-center rounded-md transition-all duration-150"
+                  :class="
+                    sessionStore.groupMode === 'project'
+                      ? 'bg-accent/80 text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  "
+                  @click="sessionStore.toggleGroupMode()"
+                >
+                  <Icon icon="lucide:folder-kanban" class="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{{
+                sessionStore.groupMode === 'project'
+                  ? t('chat.sidebar.groupByDate')
+                  : t('chat.sidebar.groupByProject')
+              }}</TooltipContent>
+            </Tooltip>
+          </div>
+
+          <draggable
+            :model-value="workspaceGroups"
+            item-key="id"
+            tag="div"
+            handle=".sidebar-project-folder-target"
+            :animation="150"
+            ghost-class="sidebar-project-group-ghost"
+            chosen-class="sidebar-project-group-chosen"
+            :disabled="!canReorderProjectGroups"
+            @start="handleProjectGroupDragStart"
+            @end="handleProjectGroupDragEnd"
+            @update:model-value="handleProjectGroupModelUpdate"
+          >
+            <template #item="{ element: group }">
+              <div>
+                <div
+                  class="group mt-2 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
+                  :class="isProjectGroupDragging ? 'pointer-events-none' : ''"
+                >
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
+                    :class="
+                      isProjectGroupReorderTarget(group) && canReorderProjectGroups
+                        ? 'sidebar-project-folder-target cursor-grab active:cursor-grabbing'
+                        : ''
+                    "
+                    :data-group-id="getGroupIdentifier(group)"
+                    :aria-expanded="!isGroupCollapsed(group)"
+                    @click="toggleGroup(group)"
+                  >
+                    <span class="shrink-0 size-6 flex items-center justify-center">
+                      <Icon
+                        :icon="getGroupIcon(group)"
+                        :data-icon="getGroupIcon(group)"
+                        data-testid="window-sidebar-group-icon"
+                        class="size-4"
+                      />
+                    </span>
+                    <span class="truncate">
+                      {{ getGroupLabel(group) }}
+                    </span>
+                  </button>
+
+                  <Tooltip v-if="isProjectDirectoryGroup(group)">
+                    <TooltipTrigger as-child>
+                      <button
+                        type="button"
+                        data-testid="window-sidebar-project-new-button"
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                        :aria-label="t('common.newChat')"
+                        @click.stop="handleNewChatForProject(group.id)"
+                      >
+                        <Icon icon="lucide:plus" class="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
+                  </Tooltip>
+
+                  <DropdownMenu
+                    v-if="isProjectGroupReorderTarget(group) && canReorderProjectGroups"
+                  >
+                    <DropdownMenuTrigger as-child>
+                      <button
+                        type="button"
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                        :aria-label="t('chat.sidebar.projectGroupActions')"
+                      >
+                        <Icon icon="lucide:ellipsis" class="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-40">
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, -1)"
+                        @select="handleMoveProjectGroup(group, 'top')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupTop') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, -1)"
+                        @select="handleMoveProjectGroup(group, 'up')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupUp') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, 1)"
+                        @select="handleMoveProjectGroup(group, 'down')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupDown') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, 1)"
+                        @select="handleMoveProjectGroup(group, 'bottom')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupBottom') }}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div v-show="!isGroupCollapsed(group)" class="space-y-0.5">
+                  <WindowSideBarSessionItem
+                    v-for="session in group.sessions"
+                    :key="session.id"
+                    :session="session"
+                    :active="sessionStore.activeSessionId === session.id"
+                    region="grouped"
+                    :hero-hidden="pinFlightSessionId === session.id"
+                    :hero-placeholder="pinFlightSessionId === session.id"
+                    :force-pin-docked="pinDockedSessionId === session.id"
+                    :pin-feedback-mode="
+                      pinFeedbackSessionId === session.id ? pinFeedbackMode : null
+                    "
+                    :search-query="sessionSearchQuery"
+                    :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                    :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
+                    @select="handleSessionClick"
+                    @toggle-pin="handleTogglePin"
+                    @delete="openDeleteDialog"
+                  />
+                </div>
+              </div>
+            </template>
+          </draggable>
 
           <div
             v-if="sessionStore.loadingMore"
@@ -383,6 +515,9 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
+import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import {
   Tooltip,
@@ -391,7 +526,6 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@shadcn/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -400,18 +534,21 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
 import { createSettingsClient } from '@api/SettingsClient'
-import { createRemoteControlRuntime } from '@api/RemoteControlRuntime'
+import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useAgentStore } from '@/stores/ui/agent'
+import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
-import type {
-  RemoteChannel,
-  RemoteChannelStatus,
-  RemoteChannelDescriptor,
-  RemoteRuntimeState
-} from '@shared/presenter'
+import { usePluginCatalogStore } from '@/stores/pluginCatalog'
+import type { RemoteChannel, RemoteRuntimeState } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
@@ -429,11 +566,14 @@ const PIN_TARGET_SETTLE_MAX_FRAMES = 10
 const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
 const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
 const SIDEBAR_SHORTCUT_MAX_ROWS = 10
+const CHAT_SECTION_GROUP_ID = '__chat__'
+const NO_PROJECT_GROUP_ID = '__no_project__'
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
 type SessionItemRegion = 'pinned' | 'grouped'
 type ShortcutPlatform = 'mac' | 'other'
+type ProjectGroupMoveTarget = 'top' | 'up' | 'down' | 'bottom'
 type SessionItemRect = {
   left: number
   top: number
@@ -442,14 +582,19 @@ type SessionItemRect = {
 }
 
 const settingsClient = createSettingsClient()
-const remoteControlRuntime = createRemoteControlRuntime()
+const remoteControlClient = createRemoteControlClient()
 const deviceClient = createDeviceClient()
 const { t } = useI18n()
+const router = useRouter()
 const agentStore = useAgentStore()
+const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 const themeStore = useThemeStore()
+const pluginCatalogStore = usePluginCatalogStore()
+const { remoteChannels: remoteChannelDescriptors, remoteStatuses: remoteControlStatus } =
+  storeToRefs(pluginCatalogStore)
 
 // line-md 过渡图标自带线条流动动画：切到该模式时，线条会绘制/morph 成对应形状
 const themeIcon = computed(() => {
@@ -477,77 +622,28 @@ const themeModeLabel = computed(() => {
   }
 })
 
-const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
-  {
-    id: 'telegram',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.telegram.title',
-    descriptionKey: 'settings.remote.telegram.description',
-    supportsPairing: true,
-    supportsNotifications: true
-  },
-  {
-    id: 'feishu',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.feishu.title',
-    descriptionKey: 'settings.remote.feishu.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'qqbot',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.qqbot.title',
-    descriptionKey: 'settings.remote.qqbot.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'discord',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.discord.title',
-    descriptionKey: 'settings.remote.discord.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'weixin-ilink',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.weixinIlink.title',
-    descriptionKey: 'settings.remote.weixinIlink.description',
-    supportsPairing: false,
-    supportsNotifications: false
-  }
-]
-
 const collapsed = computed(() => sidebarStore.collapsed)
 const sessionSearchQuery = ref('')
-const remoteChannelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackRemoteChannels)
-const createRemoteStatusMap = (): Record<RemoteChannel, RemoteChannelStatus | null> => ({
-  telegram: null,
-  feishu: null,
-  qqbot: null,
-  discord: null,
-  'weixin-ilink': null
-})
-const remoteControlStatus =
-  ref<Record<RemoteChannel, RemoteChannelStatus | null>>(createRemoteStatusMap())
+const pluginsRouteActive = computed(() =>
+  String(router?.currentRoute?.value?.name ?? '').startsWith('plugins')
+)
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
-let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
+let remoteControlStatusTimer: number | null = null
+let remoteControlStatusErrors = 0
+let remoteControlStatusUnmounted = false
 let pinFeedbackTimer: number | null = null
 let sessionListScrollFrame: number | null = null
+let sessionListFillFrame: number | null = null
+let sessionListResizeObserver: ResizeObserver | null = null
 let shortcutBadgeTimer: number | null = null
 const shortcutPlatform = ref<ShortcutPlatform>(
   navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
 )
 const shortcutModifierDown = ref(false)
 const showShortcutBadges = ref(false)
+const REMOTE_STATUS_ACTIVE_POLL_MS = 2_000
+const REMOTE_STATUS_IDLE_POLL_MS = 30_000
 const sidebarSelectedAgentId = computed(() => {
   const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
   if (sessionStore.hasActiveSession && activeSessionAgentId) {
@@ -574,19 +670,20 @@ const selectedAgentName = computed(() => {
   return matchedAgent?.name ?? t('chat.sidebar.allAgents')
 })
 
-const implementedRemoteChannels = computed(() =>
-  remoteChannelDescriptors.value
-    .filter((descriptor) => descriptor.implemented)
-    .map((descriptor) => descriptor.id)
+const remoteChannelIds = computed(() =>
+  remoteChannelDescriptors.value.map((descriptor) => descriptor.id)
 )
 const getRemoteChannelStatus = (channel: RemoteChannel) => remoteControlStatus.value[channel]
 const showRemoteControlButton = computed(() =>
-  implementedRemoteChannels.value.some((channel) =>
-    Boolean(getRemoteChannelStatus(channel)?.enabled)
-  )
+  remoteChannelIds.value.some((channel) => Boolean(getRemoteChannelStatus(channel)?.enabled))
+)
+const firstEnabledRemoteChannel = computed<RemoteChannel | null>(
+  () =>
+    remoteChannelIds.value.find((channel) => Boolean(getRemoteChannelStatus(channel)?.enabled)) ??
+    null
 )
 const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
-  const states = implementedRemoteChannels.value
+  const states = remoteChannelIds.value
     .map((channel) => getRemoteChannelStatus(channel))
     .filter((status) => status?.enabled)
     .map((status) => status?.state as RemoteRuntimeState)
@@ -612,7 +709,7 @@ const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
   return 'disabled'
 })
 const remoteControlTooltip = computed(() => {
-  return implementedRemoteChannels.value
+  return remoteChannelIds.value
     .map((channel) => {
       const descriptor = remoteChannelDescriptors.value.find((item) => item.id === channel)
       const title = descriptor ? t(descriptor.titleKey) : channel
@@ -654,10 +751,17 @@ const matchesSessionSearch = (session: UISession) => {
 
   return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
 }
+const pinFlightSessionId = ref<string | null>(null)
+const pinDockedSessionId = ref<string | null>(null)
+const pinFeedbackSessionId = ref<string | null>(null)
+const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
+const isProjectGroupDragging = ref(false)
+const projectGroupDragScrollTop = ref<number | null>(null)
+const projectEnvironmentMetadataReady = ref(false)
 const pinnedSessions = computed(() =>
   sessionStore.getPinnedSessions(sidebarSelectedAgentId.value).filter(matchesSessionSearch)
 )
-const filteredGroups = computed(() =>
+const baseFilteredGroups = computed(() =>
   sessionStore
     .getFilteredGroups(sidebarSelectedAgentId.value)
     .map((group) => ({
@@ -668,10 +772,140 @@ const filteredGroups = computed(() =>
     }))
     .filter((group) => group.sessions.length > 0)
 )
-const pinFlightSessionId = ref<string | null>(null)
-const pinDockedSessionId = ref<string | null>(null)
-const pinFeedbackSessionId = ref<string | null>(null)
-const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
+const projectOrderIndex = computed(
+  () => new Map(projectStore.environments.map((environment, index) => [environment.path, index]))
+)
+const archivedProjectPathSet = computed(
+  () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
+)
+const normalizeProjectPath = (projectPath: string | null | undefined) =>
+  projectPath?.trim().replace(/[\\/]+$/, '') ?? ''
+const defaultChatWorkspacePath = computed(() =>
+  normalizeProjectPath(projectStore.defaultChatWorkspacePath)
+)
+const isChatSession = (session: UISession) => {
+  const projectPath = normalizeProjectPath(session.projectDir)
+  return (
+    projectPath.length === 0 ||
+    (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
+  )
+}
+const isWorkspaceSession = (session: UISession) => !isChatSession(session)
+const isChatProjectGroup = (group: SessionGroup) =>
+  group.id === NO_PROJECT_GROUP_ID ||
+  (defaultChatWorkspacePath.value.length > 0 &&
+    normalizeProjectPath(group.id) === defaultChatWorkspacePath.value)
+const isProjectDirectoryGroup = (group: SessionGroup) =>
+  sessionStore.groupMode === 'project' &&
+  group.id !== NO_PROJECT_GROUP_ID &&
+  !group.labelKey &&
+  !isChatProjectGroup(group)
+const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
+  isProjectDirectoryGroup(group) && !archivedProjectPathSet.value.has(group.id)
+const getProjectGroupRank = (group: SessionGroup) => {
+  if (!isProjectDirectoryGroup(group)) {
+    return 2
+  }
+
+  return archivedProjectPathSet.value.has(group.id) ? 1 : 0
+}
+const compareProjectGroups = (left: SessionGroup, right: SessionGroup) => {
+  const leftRank = getProjectGroupRank(left)
+  const rightRank = getProjectGroupRank(right)
+
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank
+  }
+
+  if (leftRank !== 0) {
+    return 0
+  }
+
+  const leftOrder = projectOrderIndex.value.get(left.id) ?? Number.MAX_SAFE_INTEGER
+  const rightOrder = projectOrderIndex.value.get(right.id) ?? Number.MAX_SAFE_INTEGER
+  if (leftOrder !== rightOrder) {
+    return leftOrder - rightOrder
+  }
+
+  return 0
+}
+const filteredGroups = computed(() => {
+  const groups = baseFilteredGroups.value
+  if (sessionStore.groupMode !== 'project') {
+    return groups
+  }
+
+  return groups
+    .map((group, index) => ({ group, index }))
+    .sort(
+      (left, right) => compareProjectGroups(left.group, right.group) || left.index - right.index
+    )
+    .map(({ group }) => group)
+})
+const compareSidebarSessions = (left: UISession, right: UISession) => {
+  const leftUpdatedAt = Number.isFinite(left.updatedAt) ? left.updatedAt : 0
+  const rightUpdatedAt = Number.isFinite(right.updatedAt) ? right.updatedAt : 0
+  if (leftUpdatedAt !== rightUpdatedAt) {
+    return rightUpdatedAt - leftUpdatedAt
+  }
+
+  return left.title.localeCompare(right.title) || left.id.localeCompare(right.id)
+}
+const sortSidebarSessions = (sessions: UISession[]) => [...sessions].sort(compareSidebarSessions)
+const chatSessions = computed(() =>
+  sortSidebarSessions(
+    baseFilteredGroups.value.flatMap((group) => {
+      if (sessionStore.groupMode === 'project') {
+        return isChatProjectGroup(group) ? group.sessions : []
+      }
+
+      return group.sessions.filter(isChatSession)
+    })
+  )
+)
+const chatSectionGroup = computed<SessionGroup | null>(() => {
+  const sessions = chatSessions.value
+  if (sessions.length === 0) {
+    return null
+  }
+
+  return {
+    id: CHAT_SECTION_GROUP_ID,
+    label: 'chat.sidebar.chats',
+    labelKey: 'chat.sidebar.chats',
+    sessions
+  }
+})
+const workspaceGroups = computed(() => {
+  if (sessionStore.groupMode === 'project') {
+    return filteredGroups.value.filter(isProjectDirectoryGroup)
+  }
+
+  return baseFilteredGroups.value
+    .map((group) => ({
+      ...group,
+      sessions: sortSidebarSessions(group.sessions.filter(isWorkspaceSession))
+    }))
+    .filter((group) => group.sessions.length > 0)
+})
+const visibleGroups = computed(() => [
+  ...(chatSectionGroup.value ? [chatSectionGroup.value] : []),
+  ...workspaceGroups.value
+])
+const projectReorderableGroups = computed(() =>
+  workspaceGroups.value.filter(isActiveProjectDirectoryGroup)
+)
+const canReorderProjectGroups = computed(
+  () =>
+    !collapsed.value &&
+    sessionStore.groupMode === 'project' &&
+    normalizedSessionSearchQuery.value.length === 0 &&
+    !pinFlightSessionId.value &&
+    projectEnvironmentMetadataReady.value &&
+    sessionStore.hasLoadedInitialPage &&
+    !sessionStore.loading &&
+    projectReorderableGroups.value.length > 1
+)
 const sessionListRef = ref<HTMLElement | null>(null)
 const deleteTargetSession = ref<UISession | null>(null)
 
@@ -687,6 +921,8 @@ const deleteDialogOpen = computed({
 const getGroupIdentifier = (group: SessionGroup) => group.id
 
 const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
+const getGroupIcon = (group: SessionGroup) =>
+  isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
@@ -702,7 +938,7 @@ const visibleShortcutSessions = computed<UISession[]>(() => {
     sessions.push(...pinnedSessions.value)
   }
 
-  for (const group of filteredGroups.value) {
+  for (const group of visibleGroups.value) {
     if (!isGroupCollapsed(group)) {
       sessions.push(...group.sessions)
     }
@@ -738,8 +974,20 @@ const getShortcutBadgeLabelForSession = (sessionId: string) =>
 const hasShortcutBadgeForSession = (sessionId: string) =>
   showShortcutBadges.value && shortcutBadgeLabelBySessionId.value.has(sessionId)
 
+const scheduleSessionListFillCheck = () => {
+  if (sessionListFillFrame !== null) {
+    return
+  }
+
+  sessionListFillFrame = window.requestAnimationFrame(() => {
+    sessionListFillFrame = null
+    void ensureSessionListFilled()
+  })
+}
+
 const togglePinnedSection = () => {
   isPinnedSectionCollapsed.value = !isPinnedSectionCollapsed.value
+  scheduleSessionListFillCheck()
 }
 
 const toggleGroup = (group: SessionGroup) => {
@@ -753,6 +1001,111 @@ const toggleGroup = (group: SessionGroup) => {
   }
 
   collapsedGroupIds.value = nextCollapsedGroupIds
+  scheduleSessionListFillCheck()
+}
+
+const isProjectGroupReorderTarget = (group: SessionGroup) => isActiveProjectDirectoryGroup(group)
+
+const getCurrentProjectOrderPaths = () => {
+  const environmentPaths = projectStore.environments.map((environment) => environment.path)
+  return environmentPaths.length > 0
+    ? environmentPaths
+    : projectReorderableGroups.value.map((group) => group.id)
+}
+
+const commitVisibleProjectGroupOrder = async (nextVisiblePaths: string[]) => {
+  const currentOrder = getCurrentProjectOrderPaths()
+  const previousVisiblePaths = projectReorderableGroups.value.map((group) => group.id)
+  const previousVisiblePathSet = new Set(previousVisiblePaths)
+  const nextOrder = [...currentOrder]
+  let nextVisibleIndex = 0
+
+  for (let index = 0; index < nextOrder.length; index += 1) {
+    if (!previousVisiblePathSet.has(nextOrder[index])) {
+      continue
+    }
+
+    const nextPath = nextVisiblePaths[nextVisibleIndex]
+    if (nextPath) {
+      nextOrder[index] = nextPath
+    }
+    nextVisibleIndex += 1
+  }
+
+  for (const path of nextVisiblePaths) {
+    if (!nextOrder.includes(path)) {
+      nextOrder.push(path)
+    }
+  }
+
+  await projectStore.reorderEnvironments(nextOrder)
+}
+
+const handleProjectGroupModelUpdate = (nextGroups: SessionGroup[]) => {
+  if (!canReorderProjectGroups.value) {
+    return
+  }
+
+  const nextVisiblePaths = nextGroups.filter(isActiveProjectDirectoryGroup).map((group) => group.id)
+  void commitVisibleProjectGroupOrder(nextVisiblePaths).catch((error) => {
+    console.warn('[WindowSideBar] Failed to reorder project groups:', error)
+  })
+}
+
+const canMoveProjectGroup = (group: SessionGroup, delta: -1 | 1) => {
+  if (!canReorderProjectGroups.value || !isProjectGroupReorderTarget(group)) {
+    return false
+  }
+
+  const groups = projectReorderableGroups.value
+  const index = groups.findIndex((candidate) => candidate.id === group.id)
+  if (index < 0) {
+    return false
+  }
+
+  return delta < 0 ? index > 0 : index < groups.length - 1
+}
+
+const handleMoveProjectGroup = (group: SessionGroup, target: ProjectGroupMoveTarget) => {
+  if (!canReorderProjectGroups.value || !isProjectGroupReorderTarget(group)) {
+    return
+  }
+
+  const paths = projectReorderableGroups.value.map((candidate) => candidate.id)
+  const currentIndex = paths.indexOf(group.id)
+  if (currentIndex < 0) {
+    return
+  }
+
+  const [path] = paths.splice(currentIndex, 1)
+  const nextIndex =
+    target === 'top'
+      ? 0
+      : target === 'bottom'
+        ? paths.length
+        : target === 'up'
+          ? Math.max(0, currentIndex - 1)
+          : Math.min(paths.length, currentIndex + 1)
+
+  paths.splice(nextIndex, 0, path)
+  void commitVisibleProjectGroupOrder(paths).catch((error) => {
+    console.warn('[WindowSideBar] Failed to move project group:', error)
+  })
+}
+
+const handleProjectGroupDragStart = () => {
+  isProjectGroupDragging.value = true
+  projectGroupDragScrollTop.value = sessionListRef.value?.scrollTop ?? null
+  hideShortcutBadges()
+}
+
+const handleProjectGroupDragEnd = () => {
+  void nextTick(() => {
+    restoreSessionListScroll(projectGroupDragScrollTop.value)
+    projectGroupDragScrollTop.value = null
+    isProjectGroupDragging.value = false
+    void ensureSessionListFilled()
+  })
 }
 
 watch(
@@ -771,8 +1124,12 @@ watch(
 )
 
 watch(
-  [filteredGroups, () => sessionStore.activeSessionId],
+  [visibleGroups, () => sessionStore.activeSessionId],
   ([groups, activeSessionId]) => {
+    if (isProjectGroupDragging.value) {
+      return
+    }
+
     const validGroupIds = new Set(groups.map(getGroupIdentifier))
     const nextCollapsedGroupIds = new Set(
       [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
@@ -803,48 +1160,109 @@ const openSettings = () => {
   void settingsClient.openSettings()
 }
 
+const openPlugins = () => {
+  void router?.push({ name: 'plugins' })
+}
+
 const openRemoteSettings = async () => {
+  if (router?.hasRoute?.('plugins-detail') && firstEnabledRemoteChannel.value) {
+    await router.push({
+      name: 'plugins-detail',
+      params: { pluginId: `remote:${firstEnabledRemoteChannel.value}` }
+    })
+    return
+  }
+
   await settingsClient.openSettings({ routeName: 'settings-remote' })
 }
 
-const refreshRemoteControlStatus = async () => {
+const hasEnabledRemoteChannelStatus = () =>
+  Object.values(remoteControlStatus.value).some((status) => status?.enabled === true)
+
+const clearRemoteControlStatusTimer = () => {
+  if (!remoteControlStatusTimer) return
+  window.clearTimeout(remoteControlStatusTimer)
+  remoteControlStatusTimer = null
+}
+
+const runRemoteControlStatusRefresh = async () => {
+  const refreshed = await refreshRemoteControlStatus()
+  remoteControlStatusErrors = refreshed ? 0 : remoteControlStatusErrors + 1
+
+  if (remoteControlStatusUnmounted || document.visibilityState === 'hidden') return
+  const backoffMs = Math.min(30_000, 2_000 * 2 ** remoteControlStatusErrors)
+  scheduleRemoteControlStatusRefresh(
+    hasEnabledRemoteChannelStatus()
+      ? refreshed
+        ? REMOTE_STATUS_ACTIVE_POLL_MS
+        : backoffMs
+      : REMOTE_STATUS_IDLE_POLL_MS
+  )
+}
+
+const scheduleRemoteControlStatusRefresh = (delayMs = 0) => {
+  clearRemoteControlStatusTimer()
+  if (remoteControlStatusUnmounted || document.visibilityState === 'hidden') return
+
+  if (delayMs <= 0) {
+    void runRemoteControlStatusRefresh()
+    return
+  }
+
+  remoteControlStatusTimer = window.setTimeout(() => {
+    remoteControlStatusTimer = null
+    void runRemoteControlStatusRefresh()
+  }, delayMs)
+}
+
+const refreshRemoteControlStatus = async (): Promise<boolean> => {
+  const version = pluginCatalogStore.captureRemoteRefresh()
   try {
-    remoteChannelDescriptors.value =
-      (await remoteControlRuntime.listRemoteChannels()) ?? fallbackRemoteChannels
-
-    const channels = remoteChannelDescriptors.value
-      .filter((descriptor) => descriptor.implemented)
-      .map((descriptor) => descriptor.id)
+    const descriptors = await remoteControlClient.listRemoteChannels()
+    const channels = descriptors.map((descriptor) => descriptor.id)
     const statuses = await Promise.all(
-      channels.map(async (channel) => ({
-        channel,
-        status: await remoteControlRuntime.getChannelStatus(channel)
-      }))
+      channels.map((channel) => remoteControlClient.getChannelStatus(channel))
     )
-
-    if (statuses.every((entry) => entry.status !== null)) {
-      remoteControlStatus.value = statuses.reduce(
-        (acc, entry) => ({
-          ...acc,
-          [entry.channel]: entry.status as RemoteChannelStatus
-        }),
-        createRemoteStatusMap()
-      )
-      return
-    }
-
-    remoteControlStatus.value = {
-      ...createRemoteStatusMap(),
-      telegram: await remoteControlRuntime.getTelegramStatus(),
-      'weixin-ilink': await remoteControlRuntime.getWeixinIlinkStatus()
-    }
+    pluginCatalogStore.replaceRemoteSnapshot(descriptors, statuses, version)
+    return true
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
+    return false
   }
 }
 
-const handleNewChat = () => {
-  void sessionStore.startNewConversation({ refresh: true })
+const refreshProjectEnvironmentMetadata = async () => {
+  try {
+    await projectStore.fetchEnvironments()
+    projectEnvironmentMetadataReady.value = true
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to refresh project environment metadata:', error)
+  }
+}
+
+const navigateToChat = async () => {
+  if (!router) {
+    return
+  }
+
+  if (router.currentRoute.value.name !== 'chat') {
+    await router.push({ name: 'chat' })
+  }
+}
+
+const handleNewChat = async () => {
+  try {
+    await navigateToChat()
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to switch to chat route:', error)
+  } finally {
+    await sessionStore.startNewConversation({ refresh: true })
+  }
+}
+
+const handleNewChatForProject = async (projectPath: string | null) => {
+  await projectStore.selectProject(projectPath, 'manual')
+  await handleNewChat()
 }
 
 const handleAgentSelect = async (id: string | null) => {
@@ -887,8 +1305,14 @@ const handleAgentSelect = async (id: string | null) => {
   await agentSwitchQueue
 }
 
-const handleSessionClick = (session: { id: string }) => {
-  void sessionStore.selectSession(session.id)
+const handleSessionClick = async (session: { id: string }) => {
+  try {
+    await navigateToChat()
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to switch to chat route:', error)
+  } finally {
+    await sessionStore.selectSession(session.id)
+  }
 }
 
 const loadShortcutPlatform = async () => {
@@ -1032,7 +1456,11 @@ const handleWindowShortcutBlur = () => {
 const handleDocumentVisibilityChange = () => {
   if (document.visibilityState === 'hidden') {
     hideShortcutBadges()
+    clearRemoteControlStatusTimer()
+    return
   }
+
+  scheduleRemoteControlStatusRefresh()
 }
 
 watch(collapsed, (isCollapsed) => {
@@ -1101,7 +1529,12 @@ const restoreSessionListScroll = (scrollTop: number | null) => {
 
 const performSessionListScrollCheck = () => {
   const listElement = sessionListRef.value
-  if (!listElement || sessionStore.loadingMore || !sessionStore.hasMore) {
+  if (
+    !listElement ||
+    isProjectGroupDragging.value ||
+    sessionStore.loadingMore ||
+    !sessionStore.hasMore
+  ) {
     return
   }
 
@@ -1123,6 +1556,81 @@ const handleSessionListScroll = () => {
     performSessionListScrollCheck()
   })
 }
+
+// 当首屏返回的 regular 会话不足以填满列表容器时，不会产生滚动条，
+// `@scroll` 永远不触发，`loadNextPage` 也就永远不会被调用（issue #1762）。
+// 这里在加载/过滤变化后主动检测视口是否被填满，未满且仍有更多数据时继续加载。
+let isFillingSessionList = false
+const ensureSessionListFilled = async () => {
+  if (isFillingSessionList || isProjectGroupDragging.value || collapsed.value) {
+    return
+  }
+  isFillingSessionList = true
+  try {
+    // 轮数上限兜底，避免异常情况下（如 cursor 不推进）陷入死循环。
+    const MAX_FILL_ROUNDS = 50
+    for (let round = 0; round < MAX_FILL_ROUNDS; round += 1) {
+      await nextTick()
+      const listElement = sessionListRef.value
+      if (
+        !listElement ||
+        isProjectGroupDragging.value ||
+        collapsed.value ||
+        !sessionStore.hasMore ||
+        sessionStore.loadingMore ||
+        sessionStore.loading
+      ) {
+        return
+      }
+      // 内容高度已超过容器（存在可滚动空间），交还给滚动事件处理后续分页。
+      if (listElement.scrollHeight > listElement.clientHeight + 1) {
+        return
+      }
+      const beforeCount = sessionStore.sessions.length
+      const beforeHasMore = sessionStore.hasMore
+      await sessionStore.loadNextPage()
+      if (
+        beforeHasMore === sessionStore.hasMore &&
+        sessionStore.hasMore &&
+        sessionStore.sessions.length <= beforeCount
+      ) {
+        return
+      }
+    }
+  } finally {
+    isFillingSessionList = false
+  }
+}
+
+const visibleSessionFingerprint = computed(() =>
+  [
+    isPinnedSectionCollapsed.value ? 'pinned:collapsed' : 'pinned:expanded',
+    ...pinnedSessions.value.map((session) => `pinned:${session.id}`),
+    ...visibleGroups.value.flatMap((group) => [
+      `group:${getGroupIdentifier(group)}:${isGroupCollapsed(group) ? 'collapsed' : 'expanded'}`,
+      ...(!isGroupCollapsed(group) ? group.sessions.map((session) => session.id) : [])
+    ])
+  ].join('|')
+)
+
+// 会话列表内容、过滤、分组折叠或容器高度变化后，若视口未被填满则继续加载，
+// 保证「滚动加载更多」在首屏内容过少或可见内容被过滤/折叠后也能启动（issue #1762）。
+watch(
+  [
+    () => sessionStore.sessions.length,
+    () => sessionStore.hasMore,
+    () => sessionStore.loading,
+    () => sessionStore.groupMode,
+    sidebarSelectedAgentId,
+    normalizedSessionSearchQuery,
+    visibleSessionFingerprint,
+    collapsed
+  ],
+  () => {
+    scheduleSessionListFillCheck()
+  },
+  { immediate: true }
+)
 
 const getSessionItemElement = (sessionId: string, region: SessionItemRegion) =>
   document.querySelector<HTMLElement>(
@@ -1369,36 +1877,55 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
+  remoteControlStatusUnmounted = false
+  void refreshProjectEnvironmentMetadata()
   void loadShortcutPlatform()
   window.addEventListener('keydown', handleWindowShortcutKeydown)
   window.addEventListener('keyup', handleWindowShortcutKeyup)
   window.addEventListener('blur', handleWindowShortcutBlur)
   document.addEventListener('visibilitychange', handleDocumentVisibilityChange)
 
-  void refreshRemoteControlStatus()
-  remoteControlStatusTimer = setInterval(() => {
-    void refreshRemoteControlStatus()
-  }, 2_000)
+  if (typeof ResizeObserver !== 'undefined') {
+    sessionListResizeObserver = new ResizeObserver(() => {
+      scheduleSessionListFillCheck()
+    })
+    if (sessionListRef.value) {
+      sessionListResizeObserver.observe(sessionListRef.value)
+    }
+  }
+
+  scheduleSessionListFillCheck()
+  scheduleRemoteControlStatusRefresh()
 })
 
 onUnmounted(() => {
+  remoteControlStatusUnmounted = true
   window.removeEventListener('keydown', handleWindowShortcutKeydown)
   window.removeEventListener('keyup', handleWindowShortcutKeyup)
   window.removeEventListener('blur', handleWindowShortcutBlur)
   document.removeEventListener('visibilitychange', handleDocumentVisibilityChange)
 
-  if (remoteControlStatusTimer) {
-    clearInterval(remoteControlStatusTimer)
-    remoteControlStatusTimer = null
-  }
+  clearRemoteControlStatusTimer()
 
   if (sessionListScrollFrame !== null) {
     window.cancelAnimationFrame(sessionListScrollFrame)
     sessionListScrollFrame = null
   }
 
+  if (sessionListFillFrame !== null) {
+    window.cancelAnimationFrame(sessionListFillFrame)
+    sessionListFillFrame = null
+  }
+
+  if (sessionListResizeObserver) {
+    sessionListResizeObserver.disconnect()
+    sessionListResizeObserver = null
+  }
+
   pinFlightSessionId.value = null
   pinDockedSessionId.value = null
+  isProjectGroupDragging.value = false
+  projectGroupDragScrollTop.value = null
   clearPinFeedback()
   hideShortcutBadges()
 })
@@ -1423,6 +1950,14 @@ onUnmounted(() => {
 
 .session-list {
   overflow-anchor: none;
+}
+
+:deep(.sidebar-project-group-ghost) {
+  opacity: 0.45;
+}
+
+:deep(.sidebar-project-group-chosen) {
+  background: hsl(var(--accent) / 0.35);
 }
 
 button,

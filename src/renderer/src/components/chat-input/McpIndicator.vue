@@ -6,8 +6,8 @@
         size="sm"
         :class="
           isDeepchatContext
-            ? 'h-6 w-6 p-0 text-muted-foreground hover:text-foreground backdrop-blur-lg'
-            : 'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg'
+            ? 'dc-blur-panel h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
+            : 'dc-blur-panel h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground'
         "
         :title="triggerTitle"
         :aria-label="triggerTitle"
@@ -271,6 +271,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
@@ -282,7 +283,6 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
-import { createSettingsClient } from '@api/SettingsClient'
 import { createSessionClient } from '@api/SessionClient'
 import { createSkillClient } from '@api/SkillClient'
 import { createToolClient } from '@api/ToolClient'
@@ -354,12 +354,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const mcpStore = useMcpStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
-const settingsClient = createSettingsClient()
 const toolClient = createToolClient()
 const sessionClient = createSessionClient()
 const skillClient = createSkillClient()
@@ -609,7 +609,7 @@ const loadDeepchatTools = async () => {
 }
 
 const openSettings = async () => {
-  await settingsClient.openSettings({ routeName: 'settings-mcp' })
+  await router.push({ name: 'plugins-mcp' })
   panelOpen.value = false
 }
 

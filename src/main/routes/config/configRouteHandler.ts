@@ -1,9 +1,16 @@
 import type { IConfigPresenter, Prompt, ShortcutKeySetting } from '@shared/presenter'
+import type {
+  CreateDeepChatAgentInput,
+  UpdateDeepChatAgentInput
+} from '@shared/types/agent-interface'
 import {
   configAddCustomPromptRoute,
+  configAddManualAcpAgentRoute,
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
+  configCreateDeepChatAgentRoute,
   configDeleteCustomPromptRoute,
+  configDeleteDeepChatAgentRoute,
   configDeleteSystemPromptRoute,
   configGetAcpRegistryIconMarkupRoute,
   configGetAcpSharedMcpSelectionsRoute,
@@ -16,19 +23,34 @@ import {
   configGetEntriesRoute,
   configGetFloatingButtonRoute,
   configGetGeminiSafetyRoute,
+  configGetHooksNotificationsRoute,
   configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
   configGetMcpServersRoute,
+  configGetProxySettingsRoute,
   configGetShortcutKeysRoute,
+  configGetSkillDraftSuggestionsRoute,
   configGetSyncSettingsRoute,
   configGetSystemPromptsRoute,
   configGetThemeRoute,
+  configGetUpdateChannelRoute,
   configGetVoiceAiConfigRoute,
+  configEnsureAcpAgentInstalledRoute,
   configListAgentsRoute,
+  configListAcpRegistryAgentsRoute,
   configListCustomPromptsRoute,
+  configListManualAcpAgentsRoute,
+  configOpenLoggingFolderRoute,
+  configRefreshProviderDbRoute,
+  configRefreshAcpRegistryRoute,
+  configRemoveManualAcpAgentRoute,
+  configRepairAcpAgentRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
   configResolveDeepChatAgentConfigRoute,
+  configSetAcpAgentEnabledRoute,
+  configSetAcpAgentEnvOverrideRoute,
+  configSetAcpEnabledRoute,
   configSetAcpSharedMcpSelectionsRoute,
   configSetAwsBedrockCredentialRoute,
   configSetAzureApiVersionRoute,
@@ -38,13 +60,22 @@ import {
   configSetDefaultSystemPromptRoute,
   configSetFloatingButtonRoute,
   configSetGeminiSafetyRoute,
+  configSetHooksNotificationsRoute,
   configSetKnowledgeConfigsRoute,
   configSetLanguageRoute,
+  configSetCustomProxyUrlRoute,
+  configSetProxyModeRoute,
   configSetShortcutKeysRoute,
+  configSetSkillDraftSuggestionsRoute,
   configSetSystemPromptsRoute,
   configSetThemeRoute,
+  configSetUpdateChannelRoute,
+  configTestHookCommandRoute,
+  configUninstallAcpRegistryAgentRoute,
   configUpdateCustomPromptRoute,
+  configUpdateDeepChatAgentRoute,
   configUpdateEntriesRoute,
+  configUpdateManualAcpAgentRoute,
   configUpdateSyncSettingsRoute,
   configUpdateSystemPromptRoute,
   configUpdateVoiceAiConfigRoute
@@ -58,6 +89,7 @@ import {
   readConfigEntries,
   readGeminiSafety,
   readLanguageState,
+  readProxySettings,
   readSyncSettings,
   readSystemPromptState,
   readThemeState,
@@ -138,6 +170,87 @@ export async function dispatchConfigRoute(
         configPresenter.setSyncFolderPath(input.folderPath)
       }
       return configUpdateSyncSettingsRoute.output.parse(readSyncSettings(configPresenter))
+    }
+
+    case configGetProxySettingsRoute.name: {
+      configGetProxySettingsRoute.input.parse(rawInput)
+      return configGetProxySettingsRoute.output.parse(readProxySettings(configPresenter))
+    }
+
+    case configSetProxyModeRoute.name: {
+      const input = configSetProxyModeRoute.input.parse(rawInput)
+      configPresenter.setProxyMode(input.mode)
+      return configSetProxyModeRoute.output.parse(readProxySettings(configPresenter))
+    }
+
+    case configSetCustomProxyUrlRoute.name: {
+      const input = configSetCustomProxyUrlRoute.input.parse(rawInput)
+      configPresenter.setCustomProxyUrl(input.url)
+      return configSetCustomProxyUrlRoute.output.parse(readProxySettings(configPresenter))
+    }
+
+    case configOpenLoggingFolderRoute.name: {
+      configOpenLoggingFolderRoute.input.parse(rawInput)
+      await configPresenter.openLoggingFolder()
+      return configOpenLoggingFolderRoute.output.parse({ opened: true })
+    }
+
+    case configGetUpdateChannelRoute.name: {
+      configGetUpdateChannelRoute.input.parse(rawInput)
+      return configGetUpdateChannelRoute.output.parse({
+        channel: configPresenter.getUpdateChannel()
+      })
+    }
+
+    case configSetUpdateChannelRoute.name: {
+      const input = configSetUpdateChannelRoute.input.parse(rawInput)
+      configPresenter.setUpdateChannel(input.channel)
+      return configSetUpdateChannelRoute.output.parse({
+        channel: configPresenter.getUpdateChannel()
+      })
+    }
+
+    case configGetSkillDraftSuggestionsRoute.name: {
+      configGetSkillDraftSuggestionsRoute.input.parse(rawInput)
+      return configGetSkillDraftSuggestionsRoute.output.parse({
+        enabled: configPresenter.getSkillDraftSuggestionsEnabled()
+      })
+    }
+
+    case configSetSkillDraftSuggestionsRoute.name: {
+      const input = configSetSkillDraftSuggestionsRoute.input.parse(rawInput)
+      configPresenter.setSkillDraftSuggestionsEnabled(input.enabled)
+      return configSetSkillDraftSuggestionsRoute.output.parse({
+        enabled: configPresenter.getSkillDraftSuggestionsEnabled()
+      })
+    }
+
+    case configRefreshProviderDbRoute.name: {
+      const input = configRefreshProviderDbRoute.input.parse(rawInput)
+      return configRefreshProviderDbRoute.output.parse({
+        result: await configPresenter.refreshProviderDb(input.force ?? false)
+      })
+    }
+
+    case configGetHooksNotificationsRoute.name: {
+      configGetHooksNotificationsRoute.input.parse(rawInput)
+      return configGetHooksNotificationsRoute.output.parse({
+        config: configPresenter.getHooksNotificationsConfig()
+      })
+    }
+
+    case configSetHooksNotificationsRoute.name: {
+      const input = configSetHooksNotificationsRoute.input.parse(rawInput)
+      return configSetHooksNotificationsRoute.output.parse({
+        config: configPresenter.setHooksNotificationsConfig(input.config)
+      })
+    }
+
+    case configTestHookCommandRoute.name: {
+      const input = configTestHookCommandRoute.input.parse(rawInput)
+      return configTestHookCommandRoute.output.parse({
+        result: await configPresenter.testHookCommand(input.hookId)
+      })
     }
 
     case configGetDefaultProjectPathRoute.name: {
@@ -321,6 +434,88 @@ export async function dispatchConfigRoute(
       return configGetAcpStateRoute.output.parse(await readAcpState(configPresenter))
     }
 
+    case configSetAcpEnabledRoute.name: {
+      const input = configSetAcpEnabledRoute.input.parse(rawInput)
+      await configPresenter.setAcpEnabled(input.enabled)
+      return configSetAcpEnabledRoute.output.parse({
+        enabled: await configPresenter.getAcpEnabled()
+      })
+    }
+
+    case configListAcpRegistryAgentsRoute.name: {
+      configListAcpRegistryAgentsRoute.input.parse(rawInput)
+      return configListAcpRegistryAgentsRoute.output.parse({
+        agents: await configPresenter.listAcpRegistryAgents()
+      })
+    }
+
+    case configRefreshAcpRegistryRoute.name: {
+      const input = configRefreshAcpRegistryRoute.input.parse(rawInput)
+      return configRefreshAcpRegistryRoute.output.parse({
+        agents: await configPresenter.refreshAcpRegistry(input.force ?? true)
+      })
+    }
+
+    case configSetAcpAgentEnabledRoute.name: {
+      const input = configSetAcpAgentEnabledRoute.input.parse(rawInput)
+      await configPresenter.setAcpAgentEnabled(input.agentId, input.enabled)
+      return configSetAcpAgentEnabledRoute.output.parse({ ok: true })
+    }
+
+    case configSetAcpAgentEnvOverrideRoute.name: {
+      const input = configSetAcpAgentEnvOverrideRoute.input.parse(rawInput)
+      await configPresenter.setAcpAgentEnvOverride(input.agentId, input.env)
+      return configSetAcpAgentEnvOverrideRoute.output.parse({ ok: true })
+    }
+
+    case configEnsureAcpAgentInstalledRoute.name: {
+      const input = configEnsureAcpAgentInstalledRoute.input.parse(rawInput)
+      return configEnsureAcpAgentInstalledRoute.output.parse({
+        installState: await configPresenter.ensureAcpAgentInstalled(input.agentId)
+      })
+    }
+
+    case configRepairAcpAgentRoute.name: {
+      const input = configRepairAcpAgentRoute.input.parse(rawInput)
+      return configRepairAcpAgentRoute.output.parse({
+        installState: await configPresenter.repairAcpAgent(input.agentId)
+      })
+    }
+
+    case configUninstallAcpRegistryAgentRoute.name: {
+      const input = configUninstallAcpRegistryAgentRoute.input.parse(rawInput)
+      await configPresenter.uninstallAcpRegistryAgent(input.agentId)
+      return configUninstallAcpRegistryAgentRoute.output.parse({ ok: true })
+    }
+
+    case configListManualAcpAgentsRoute.name: {
+      configListManualAcpAgentsRoute.input.parse(rawInput)
+      return configListManualAcpAgentsRoute.output.parse({
+        agents: await configPresenter.listManualAcpAgents()
+      })
+    }
+
+    case configAddManualAcpAgentRoute.name: {
+      const input = configAddManualAcpAgentRoute.input.parse(rawInput)
+      return configAddManualAcpAgentRoute.output.parse({
+        agent: await configPresenter.addManualAcpAgent(input)
+      })
+    }
+
+    case configUpdateManualAcpAgentRoute.name: {
+      const input = configUpdateManualAcpAgentRoute.input.parse(rawInput)
+      return configUpdateManualAcpAgentRoute.output.parse({
+        agent: await configPresenter.updateManualAcpAgent(input.agentId, input.updates)
+      })
+    }
+
+    case configRemoveManualAcpAgentRoute.name: {
+      const input = configRemoveManualAcpAgentRoute.input.parse(rawInput)
+      return configRemoveManualAcpAgentRoute.output.parse({
+        removed: await configPresenter.removeManualAcpAgent(input.agentId)
+      })
+    }
+
     case configListAgentsRoute.name: {
       const input = configListAgentsRoute.input.parse(rawInput)
       const idSet = input.ids ? new Set(input.ids) : null
@@ -338,6 +533,30 @@ export async function dispatchConfigRoute(
       })
 
       return configListAgentsRoute.output.parse({ agents })
+    }
+
+    case configCreateDeepChatAgentRoute.name: {
+      const input = configCreateDeepChatAgentRoute.input.parse(rawInput)
+      return configCreateDeepChatAgentRoute.output.parse({
+        agent: await configPresenter.createDeepChatAgent(input as CreateDeepChatAgentInput)
+      })
+    }
+
+    case configUpdateDeepChatAgentRoute.name: {
+      const input = configUpdateDeepChatAgentRoute.input.parse(rawInput)
+      return configUpdateDeepChatAgentRoute.output.parse({
+        agent: await configPresenter.updateDeepChatAgent(
+          input.agentId,
+          input.updates as UpdateDeepChatAgentInput
+        )
+      })
+    }
+
+    case configDeleteDeepChatAgentRoute.name: {
+      const input = configDeleteDeepChatAgentRoute.input.parse(rawInput)
+      return configDeleteDeepChatAgentRoute.output.parse({
+        removed: await configPresenter.deleteDeepChatAgent(input.agentId)
+      })
     }
 
     case configResolveDeepChatAgentConfigRoute.name: {

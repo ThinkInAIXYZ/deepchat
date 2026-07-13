@@ -1,11 +1,8 @@
 /**
- * 延迟加载 Icon 集合，优化应用启动性能
- * Icons are loaded on-demand after app initialization to reduce startup time
+ * Load Iconify collections after app initialization to reduce startup cost.
  */
 
-import type lucideIconsType from '@iconify-json/lucide/icons.json'
-import type vscodeIconsType from '@iconify-json/vscode-icons/icons.json'
-import type lineMdThemeIconsType from './icons/line-md-theme.json'
+import { GENERATED_ICON_WHITELIST } from './icons/icon-whitelist.generated'
 
 interface IconLoadState {
   isLoading: boolean
@@ -13,18 +10,17 @@ interface IconLoadState {
   loadPromise: Promise<void> | null
 }
 
+type AddCollection = (collection: unknown) => void
+
 const state: IconLoadState = {
   isLoading: false,
   isLoaded: false,
   loadPromise: null
 }
 
-/**
- * 确保 Icon 集合已加载
- * 如果已加载，直接返回
- * 如果正在加载，返回当前的 Promise
- * 如果未加载，开始加载并返回 Promise
- */
+let fullLucideCollectionPromise: Promise<void> | null = null
+const reportedGeneratedIconMisses = new Set<string>()
+
 export async function ensureIconsLoaded(): Promise<void> {
   if (state.isLoaded) {
     return
@@ -38,30 +34,21 @@ export async function ensureIconsLoaded(): Promise<void> {
 
   state.loadPromise = (async () => {
     try {
-      // 动态导入 icon 数据和 addCollection，延迟加载
-      const [{ addCollection }, lucideIcons, vscodeIcons, lineMdThemeIcons] = await Promise.all([
-        import('@iconify/vue').then((m) => ({ addCollection: m.addCollection })),
-        import('@iconify-json/lucide/icons.json').then((m) => m.default as typeof lucideIconsType),
-        import('@iconify-json/vscode-icons/icons.json').then(
-          (m) => m.default as typeof vscodeIconsType
-        ),
-        import('./icons/line-md-theme.json').then((m) => m.default as typeof lineMdThemeIconsType)
+      const [{ addCollection }, iconCollections] = await Promise.all([
+        import('@iconify/vue').then((m) => ({ addCollection: m.addCollection as AddCollection })),
+        import('./icons/icon-collections.generated')
       ])
 
-      // 检查 addCollection 是否存在（可能在测试中被mock）
       if (typeof addCollection === 'function') {
-        // 添加到 Iconify 注册表
-        addCollection(lucideIcons)
-        addCollection(vscodeIcons)
-        // line-md 主题切换图标（自带线条流动过渡动画，离线可用）
-        addCollection(lineMdThemeIcons)
+        addCollection(iconCollections.lucideIconCollection)
+        addCollection(iconCollections.vscodeIconCollection)
+        addCollection(iconCollections.lineMdIconCollection)
       }
 
       state.isLoaded = true
       console.info('[Startup][Renderer] Icons loaded successfully')
     } catch (error) {
       console.error('[Startup][Renderer] Failed to load icons:', error)
-      // 继续执行，不要因为 icon 加载失败而中断应用
       state.isLoaded = true
     } finally {
       state.isLoading = false
@@ -71,13 +58,56 @@ export async function ensureIconsLoaded(): Promise<void> {
   return state.loadPromise
 }
 
-/**
- * 预加载 Icon 集合（不等待）
- * 可用于在应用空闲时预加载
- */
 export function preloadIcons(): Promise<void> {
   if (!state.isLoaded && !state.isLoading) {
     return ensureIconsLoaded()
   }
   return Promise.resolve()
+}
+
+export function hasGeneratedIcon(icon: string): boolean {
+  const [prefix, iconName] = icon.split(':')
+  if (!prefix || !iconName) {
+    return false
+  }
+
+  if (prefix === 'lucide') {
+    return GENERATED_ICON_WHITELIST.lucide.includes(iconName)
+  }
+  if (prefix === 'vscode-icons') {
+    return GENERATED_ICON_WHITELIST.vscodeIcons.includes(iconName)
+  }
+  if (prefix === 'line-md') {
+    return GENERATED_ICON_WHITELIST.lineMd.includes(iconName)
+  }
+  return false
+}
+
+export async function ensureIconAvailable(icon: string): Promise<void> {
+  if (hasGeneratedIcon(icon)) {
+    return
+  }
+
+  const [prefix, iconName] = icon.split(':')
+  if (prefix !== 'lucide' || !iconName) {
+    return
+  }
+
+  if (import.meta.env.DEV && !reportedGeneratedIconMisses.has(icon)) {
+    reportedGeneratedIconMisses.add(icon)
+    console.warn(`[Startup][Renderer] Lucide icon was not in generated collection: ${icon}`)
+  }
+
+  if (!fullLucideCollectionPromise) {
+    fullLucideCollectionPromise = Promise.all([
+      import('@iconify/vue').then((m) => ({ addCollection: m.addCollection as AddCollection })),
+      import('@iconify-json/lucide/icons.json').then((m) => m.default)
+    ]).then(([{ addCollection }, lucideIcons]) => {
+      if (typeof addCollection === 'function') {
+        addCollection(lucideIcons)
+      }
+    })
+  }
+
+  return fullLucideCollectionPromise
 }

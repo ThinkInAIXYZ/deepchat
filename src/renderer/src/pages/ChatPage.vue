@@ -5,7 +5,17 @@
       data-testid="chat-page"
       :data-generating="String(isGenerating)"
       class="message-list-container h-full w-full min-w-0 overflow-y-auto"
+      :class="{ 'dc-list-scrolling': isListScrolling }"
       @scroll.passive="onScroll"
+      @wheel.passive="onWheel"
+      @touchstart.passive="onListTouchStart"
+      @touchmove.passive="markListScrolling"
+      @touchend.passive="onListTouchEnd"
+      @touchcancel.passive="onListTouchEnd"
+      @pointerdown.passive="onListPointerDown"
+      @pointermove.passive="onListPointerMove"
+      @pointerup.passive="onListPointerEnd"
+      @pointercancel.passive="onListPointerEnd"
     >
       <ChatTopBar
         class="chat-capture-hide"
@@ -14,14 +24,18 @@
         :project="sessionProject"
         :is-read-only="isReadOnlySession"
       />
-      <div v-if="isChatSearchOpen" class="pointer-events-none sticky top-14 z-20 px-6">
+      <div
+        v-if="isChatSearchOpen"
+        class="pointer-events-none sticky top-14 px-6"
+        style="z-index: var(--dc-z-float)"
+      >
         <div class="mx-auto flex w-full max-w-5xl justify-end">
           <ChatSearchBar
             ref="chatSearchBarRef"
             v-model="chatSearchQuery"
             class="pointer-events-auto"
             :active-match="activeChatSearchIndex"
-            :total-matches="chatSearchMatches.length"
+            :total-matches="chatSearchResults.length"
             @previous="goToPreviousChatSearchMatch"
             @next="goToNextChatSearchMatch"
             @close="closeChatSearch"
@@ -37,13 +51,17 @@
         </div>
         <MessageList
           ref="messageListRef"
-          :messages="displayMessages"
+          :messages="visibleDisplayMessages"
+          :all-messages-for-capture="displayMessages"
+          :before-spacer-height="messageWindowBeforeHeight"
+          :after-spacer-height="messageWindowAfterHeight"
           :conversation-id="props.sessionId"
           :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
           :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
           :is-generating="isGenerating"
           :trace-message-ids="traceMessageIds"
           :is-read-only="isReadOnlySession"
+          :disable-markdown-virtualization="isChatSearchOpen"
           @retry="onMessageRetry"
           @delete="onMessageDelete"
           @fork="onMessageFork"
@@ -55,11 +73,13 @@
         <div ref="bottomScrollAnchor" class="h-px w-full" aria-hidden="true" />
       </div>
       <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
+      <MemoryTurnDialog :read-only="isReadOnlySession" />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div
         v-if="!isReadOnlySession"
-        class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
+        class="chat-capture-hide sticky bottom-0 w-full px-6 pb-3 pt-3"
+        style="z-index: var(--dc-z-sticky)"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <div class="relative w-full">
@@ -67,12 +87,12 @@
               :steer-items="pendingInputStore.steerItems"
               :queue-items="pendingInputStore.queueItems"
               :disable-steer-action="pendingInputStore.isAtCapacity"
-              :show-resume-queue="showResumePendingQueue"
+              :disable-queue-steer-action="disableQueueSteerAction"
               class="mx-auto mb-1.5 max-w-4xl"
               @update-queue="onPendingInputUpdate"
               @move-queue="onPendingInputMove"
+              @steer-queue="onPendingInputSteer"
               @delete-queue="onPendingInputDelete"
-              @resume-queue="onResumePendingQueue"
             />
             <!-- Anchor the plan/question float to the outer .relative (which includes the queue lane)
                  so bottom:calc(100%+0.75rem) lifts it above PendingInputLane instead of covering it. -->
@@ -80,13 +100,14 @@
               <div
                 v-if="latestPlanSnapshot || activePendingInteraction"
                 ref="planFloatLayer"
-                class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] z-20 flex w-full flex-col items-end gap-2"
+                class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] flex w-full flex-col items-end gap-2"
+                style="z-index: var(--dc-z-float)"
                 data-testid="agent-progress-float-layer"
               >
                 <!-- Both plan + question: unified glassmorphism panel -->
                 <div
                   v-if="activePendingInteraction && latestPlanSnapshot"
-                  class="agent-question-panel pointer-events-auto mx-auto w-full max-w-2xl overflow-hidden rounded-[20px] text-foreground backdrop-blur-[26px]"
+                  class="agent-question-panel dc-overscroll-contain pointer-events-auto mx-auto max-h-[min(70vh,calc(100vh-12rem))] w-full max-w-2xl overflow-x-hidden overflow-y-auto rounded-[20px] text-foreground"
                 >
                   <div class="agent-question-panel__backdrop" aria-hidden="true" />
                   <AgentProgressFloat
@@ -121,8 +142,20 @@
                   @toggle-collapse="agentPlanStore.toggleCollapsed(props.sessionId)"
                 />
               </div>
-              <template v-if="!activePendingInteraction">
-                <div ref="chatInputHeroHostRef" class="mx-auto flex w-full max-w-4xl flex-col">
+              <div
+                ref="chatInputHeroHostRef"
+                data-testid="chat-input-memory-host"
+                class="mx-auto flex w-full max-w-4xl flex-col"
+              >
+                <!-- Keep input/status mounted during permission/question so TipTap draft, IME,
+                     and StatusBar watchers are not torn down. Hide with v-show + inert. -->
+                <div
+                  v-show="!activePendingInteraction"
+                  class="flex w-full flex-col"
+                  :aria-hidden="activePendingInteraction ? 'true' : undefined"
+                  :inert="activePendingInteraction ? true : undefined"
+                >
+                  <MemoryUpdateChip :visible="!activePendingInteraction" />
                   <ChatInputBox
                     ref="chatInputRef"
                     v-model="message"
@@ -161,12 +194,30 @@
                   </ChatInputBox>
                   <ChatStatusBar max-width-class="max-w-4xl" />
                 </div>
-              </template>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    <AlertDialog :open="showDeleteMessageDialog" @update:open="onDeleteMessageDialogOpenChange">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ t('dialog.deleteMessage.title') }}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('dialog.deleteMessage.description') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelMessageDelete">
+            {{ t('dialog.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAction @click="confirmMessageDelete">
+            {{ t('dialog.deleteMessage.confirm') }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </TooltipProvider>
 </template>
 
@@ -174,6 +225,16 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@shadcn/components/ui/alert-dialog'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import ChatSearchBar from '@/components/chat/ChatSearchBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
@@ -182,12 +243,18 @@ import type {
   DisplayMessage,
   DisplayMessageUsage
 } from '@/components/chat/messageListItems'
+import {
+  filterRenderableAssistantBlocks,
+  hasRenderableAssistantBlocks
+} from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
+import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
+import MemoryUpdateChip from '@/components/chat/MemoryUpdateChip.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useToast } from '@/components/use-toast'
 import { createChatClient } from '../../api/ChatClient'
@@ -203,21 +270,25 @@ import { createSessionClient } from '@api/SessionClient'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import {
   applyChatSearchHighlights,
+  collectChatSearchResults,
   clearChatSearchHighlights,
-  setActiveChatSearchMatch,
-  type ChatSearchMatch
+  setActiveChatSearchResult,
+  type ChatSearchResult
 } from '@/lib/chatSearch'
-import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+
 import { WORKSPACE_EVENTS } from '@/events'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { useMessageWindow } from '@/composables/message/useMessageWindow'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
   MessageFile,
+  UserMessageInlineItem,
   MessageMetadata,
+  SendMessageInput,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
 
@@ -246,6 +317,12 @@ const isGenerating = computed(
 )
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const INITIAL_MESSAGE_RESTORE_COUNT = 40
+const MESSAGE_WINDOWING_THRESHOLD = 160
+const MESSAGE_INITIAL_WINDOW_COUNT = 90
+const MESSAGE_WINDOW_OVERSCAN_PX = 2400
+/** After the user stops scrolling, wait this long before resuming windowing/measure. */
+const SCROLL_IDLE_MS = 140
+const PLAN_FLOAT_CLEAR_DELAY_MS = 1200
 const isAcpWorkdirMissing = computed(() => {
   const activeSession = sessionStore.activeSession
   if (!activeSession || activeSession.providerId !== 'acp') {
@@ -266,23 +343,63 @@ const applyRestoredSessionSummary = (session: unknown) => {
   }
 }
 
+async function loadMessagesForSession(sessionId: string, count?: number) {
+  const restoredSession = await messageStore.loadMessages(sessionId, count)
+  return restoredSession
+}
+
+async function restoreSessionMessages(id: string, requestId: number) {
+  console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
+  const [restoredSession] = await Promise.all([
+    loadMessagesForSession(id, INITIAL_MESSAGE_RESTORE_COUNT),
+    pendingInputStore.loadPendingInputs(id)
+  ])
+
+  if (requestId !== sessionRestoreRequestId) {
+    return
+  }
+
+  applyRestoredSessionSummary(restoredSession)
+
+  await nextTick()
+  if (spotlightStore.pendingMessageJump?.sessionId === id) {
+    cancelSessionRestoreScrollSettle()
+    void focusPendingSpotlightMessageJump()
+    return
+  }
+  settleSessionRestoreScrollToBottom(requestId, id)
+}
+
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
 const bottomScrollAnchor = ref<HTMLDivElement | null>(null)
-const messageListRef = ref<{
-  scrollToBottom?: () => void
-  forceUpdate?: (clear?: boolean) => void
-} | null>(null)
 const planFloatLayer = ref<HTMLDivElement | null>(null)
+const planFloatLingerBySession = ref<Record<string, boolean>>({})
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
+const pendingDeleteMessageId = ref<string | null>(null)
+const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
+const pendingAssistantPlaceholder = ref<{
+  id: string
+  sessionId: string
+  baselineAssistantMessageIds: Set<string>
+  baselineMessageOrderSeq: number
+  baselineCreatedAt: number
+} | null>(null)
+const assistantRenderKeyByMessageId = ref<Record<string, string>>({})
+let pendingAssistantPlaceholderSeq = 0
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const shouldAutoFollow = ref(true)
+const scrollViewportTop = ref(0)
+const scrollViewportHeight = ref(0)
+/** True while the user is actively flinging/dragging the list — freezes windowing/measure. */
+const isListScrolling = ref(false)
 type ScrollMode = 'initial-bottom' | 'auto-follow' | 'anchored-reading' | 'manual-jump'
 const scrollMode = ref<ScrollMode>('initial-bottom')
 const NEAR_BOTTOM_THRESHOLD = 80 // px
 const TOP_HISTORY_THRESHOLD = 80
+const USER_SCROLL_AWAY_INTENT_MS = 300
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
@@ -300,6 +417,11 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
 ])
 const PLAN_FLOAT_SAFE_GAP = 16
 const planFloatReservedHeight = ref(0)
+const pendingMeasureQueue = new Map<string, number>()
+let scrollIdleTimer: number | null = null
+let pendingMeasureFlushFrame: number | null = null
+let userScrollInputUntil = 0
+let isListGestureActive = false
 const displayMessageCache = new Map<
   string,
   {
@@ -309,13 +431,13 @@ const displayMessageCache = new Map<
     modelId: string
     providerId: string
     status: DisplayMessage['status']
+    renderKey?: string
     message: DisplayMessage
   }
 >()
 const traceMessageId = ref<string | null>(null)
 const isChatSearchOpen = ref(false)
 const chatSearchQuery = ref('')
-const chatSearchMatches = ref<ChatSearchMatch[]>([])
 const activeChatSearchIndex = ref(0)
 const chatSearchBarRef = ref<{
   focusInput: () => void
@@ -326,11 +448,19 @@ let scrollReadFrame: number | null = null
 let pendingUserScrollMetrics = false
 let sessionRestoreScrollFrame: number | null = null
 let sessionRestoreScrollTimer: number | null = null
+const planSnapshotClearTimers = new Map<string, number>()
 let chatSearchRefreshFrame: number | null = null
 let programmaticScrollUntil = 0
+let sessionRestoreBottomScrollTop: number | null = null
+let userScrollAwayIntentUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
+let hasScheduledInitialSessionRestore = false
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
+// The immediate session watcher can call clearMessageWindowMeasurements before
+// messageWindow exists; keep this no-op forward reference and rebind it to
+// messageWindow.clearMeasurements after useMessageWindow is created below.
+let clearMessageWindowMeasurements = () => {}
 let sessionRestoreRequestId = 0
 let planFloatResizeObserver: ResizeObserver | null = null
 let sessionRestoreResizeObserver: ResizeObserver | null = null
@@ -338,8 +468,9 @@ type ViewportAnchor = {
   messageId: string
   viewportOffset: number
 }
-let pendingAnchorRestore: ViewportAnchor | null = null
 let anchorRestoreFrame: number | null = null
+/** Coalesce auto-follow / measure / stream-revision scroll writes into one tick. */
+let pendingScrollToBottom: { force: boolean } | false = false
 
 const resolveChatInputBoxElement = () =>
   (chatInputHeroHostRef.value?.querySelector(
@@ -367,6 +498,7 @@ function cancelSessionRestoreScrollSettle() {
   }
   cancelSessionRestoreScrollIntentListeners?.()
   cancelSessionRestoreScrollIntentListeners = null
+  sessionRestoreBottomScrollTop = null
   disconnectSessionRestoreResizeObserver()
 }
 
@@ -404,12 +536,29 @@ function syncPlanFloatReservedHeight() {
 
   const trigger = layer.querySelector<HTMLElement>('[data-testid="agent-progress-float-trigger"]')
   const triggerHeight = trigger?.offsetHeight ?? layer.offsetHeight
+  const next = triggerHeight + PLAN_FLOAT_SAFE_GAP
+  if (Math.abs(next - planFloatReservedHeight.value) < 1) {
+    return
+  }
+  planFloatReservedHeight.value = next
+}
 
-  planFloatReservedHeight.value = triggerHeight + PLAN_FLOAT_SAFE_GAP
+let planFloatHeightFrame: number | null = null
+
+function schedulePlanFloatReservedHeight() {
+  if (planFloatHeightFrame !== null) return
+  planFloatHeightFrame = window.requestAnimationFrame(() => {
+    planFloatHeightFrame = null
+    syncPlanFloatReservedHeight()
+  })
 }
 
 function observePlanFloatLayer() {
   disconnectPlanFloatResizeObserver()
+  if (planFloatHeightFrame !== null) {
+    window.cancelAnimationFrame(planFloatHeightFrame)
+    planFloatHeightFrame = null
+  }
 
   const layer = planFloatLayer.value
   if (!latestPlanSnapshot.value || !layer) {
@@ -423,7 +572,7 @@ function observePlanFloatLayer() {
   }
 
   planFloatResizeObserver = new ResizeObserver(() => {
-    syncPlanFloatReservedHeight()
+    schedulePlanFloatReservedHeight()
   })
   planFloatResizeObserver.observe(layer)
 }
@@ -460,36 +609,99 @@ function captureViewportAnchor(): ViewportAnchor | null {
   return fallback
 }
 
-function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
-  if (!anchor || isProgrammaticScrollActive()) {
+function messageIdSelector(messageId: string): string {
+  const escapedMessageId =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(messageId)
+      : messageId.replace(/["\\]/g, '\\$&')
+  return `[data-message-id="${escapedMessageId}"]`
+}
+
+type PendingAnchorRestore = {
+  anchor: ViewportAnchor | null
+  /** Cumulative measured height delta for rows above the viewport (fallback). */
+  aboveViewportDelta: number
+}
+
+let pendingAnchorRestoreState: PendingAnchorRestore | null = null
+
+function isBottomFollowingMode(): boolean {
+  return (
+    shouldAutoFollow.value &&
+    (scrollMode.value === 'initial-bottom' || scrollMode.value === 'auto-follow')
+  )
+}
+
+function scheduleViewportAnchorRestore(
+  anchor: ViewportAnchor | null,
+  heightDelta = 0,
+  measuredMessageId?: string
+): void {
+  // Auto-follow and reading-anchor restore must be mutually exclusive: both write
+  // scrollTop and form a feedback loop with ResizeObserver measurement.
+  if (isBottomFollowingMode() || isProgrammaticScrollActive() || hasRecentUserScrollAwayIntent()) {
     return
   }
 
-  pendingAnchorRestore = anchor
+  if (!pendingAnchorRestoreState) {
+    pendingAnchorRestoreState = { anchor, aboveViewportDelta: 0 }
+  } else if (anchor && !pendingAnchorRestoreState.anchor) {
+    // Keep the earliest pre-change anchor in this frame; later captures are
+    // already mid-mutation and would restore against mixed geometry.
+    pendingAnchorRestoreState.anchor = anchor
+  }
+
+  if (heightDelta !== 0 && measuredMessageId) {
+    const entry = messageWindow.getEntry(measuredMessageId)
+    const container = scrollContainer.value
+    if (entry && container && entry.bottom <= container.scrollTop + 1) {
+      pendingAnchorRestoreState.aboveViewportDelta += heightDelta
+    }
+  }
+
   if (anchorRestoreFrame !== null) {
     return
   }
 
   anchorRestoreFrame = window.requestAnimationFrame(() => {
     anchorRestoreFrame = null
-    const currentAnchor = pendingAnchorRestore
-    pendingAnchorRestore = null
-    if (!currentAnchor) return
+    const pending = pendingAnchorRestoreState
+    pendingAnchorRestoreState = null
+    if (!pending) return
+    if (
+      isBottomFollowingMode() ||
+      isProgrammaticScrollActive() ||
+      isListScrolling.value ||
+      hasRecentUserScrollAwayIntent()
+    ) {
+      return
+    }
 
     const container = scrollContainer.value
     const root = messageSearchRoot.value
     if (!container || !root) return
 
-    const target = root.querySelector<HTMLElement>(
-      `[data-message-id="${CSS.escape(currentAnchor.messageId)}"]`
-    )
-    if (!target) return
+    // Mark restore writes so onScroll does not treat them as user intent.
+    markProgrammaticScroll(120)
 
-    const containerRect = container.getBoundingClientRect()
-    const nextOffset = target.getBoundingClientRect().top - containerRect.top
-    const delta = nextOffset - currentAnchor.viewportOffset
-    if (Math.abs(delta) >= 1) {
-      container.scrollTop += delta
+    const currentAnchor = pending.anchor
+    if (currentAnchor) {
+      const target = root.querySelector<HTMLElement>(messageIdSelector(currentAnchor.messageId))
+      if (target) {
+        const containerRect = container.getBoundingClientRect()
+        const nextOffset = target.getBoundingClientRect().top - containerRect.top
+        const delta = nextOffset - currentAnchor.viewportOffset
+        if (Math.abs(delta) >= 1) {
+          container.scrollTop += delta
+        }
+        syncMessageViewportMetrics(container)
+        return
+      }
+    }
+
+    if (Math.abs(pending.aboveViewportDelta) >= 1) {
+      container.scrollTop += pending.aboveViewportDelta
+      syncMessageViewportMetrics(container)
     }
   })
 }
@@ -502,10 +714,128 @@ function isProgrammaticScrollActive(): boolean {
   return Date.now() < programmaticScrollUntil
 }
 
+function hasRecentUserScrollAwayIntent(): boolean {
+  return Date.now() < userScrollAwayIntentUntil
+}
+
+function enterAnchoredReadingMode(): void {
+  programmaticScrollUntil = 0
+  pendingScrollToBottom = false
+  isNearBottom.value = false
+  scrollMode.value = 'anchored-reading'
+  shouldAutoFollow.value = false
+}
+
+function markUserScrollAwayIntent(): void {
+  userScrollAwayIntentUntil = Date.now() + USER_SCROLL_AWAY_INTENT_MS
+  enterAnchoredReadingMode()
+}
+
 function isAtBottom(): boolean {
   const el = scrollContainer.value
   if (!el) return true
   return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_THRESHOLD
+}
+
+function syncMessageViewportMetrics(el: HTMLElement | null | undefined = scrollContainer.value) {
+  if (!el) {
+    scrollViewportTop.value = 0
+    scrollViewportHeight.value = 0
+    return
+  }
+
+  scrollViewportTop.value = el.scrollTop
+  scrollViewportHeight.value = el.clientHeight
+}
+
+function flushPendingMeasures(): void {
+  if (pendingMeasureFlushFrame !== null || pendingMeasureQueue.size === 0) return
+
+  pendingMeasureFlushFrame = window.requestAnimationFrame(() => {
+    pendingMeasureFlushFrame = null
+    const batch = Array.from(pendingMeasureQueue.entries()).slice(0, 12)
+    for (const [messageId, height] of batch) {
+      pendingMeasureQueue.delete(messageId)
+      applyMessageMeasure({ messageId, height })
+    }
+    flushPendingMeasures()
+  })
+}
+
+function finishListScrollingAfterIdle(delay = SCROLL_IDLE_MS): void {
+  if (scrollIdleTimer !== null) {
+    window.clearTimeout(scrollIdleTimer)
+  }
+  scrollIdleTimer = window.setTimeout(() => {
+    scrollIdleTimer = null
+    if (isListGestureActive) {
+      finishListScrollingAfterIdle()
+      return
+    }
+
+    isListScrolling.value = false
+    const el = scrollContainer.value
+    if (el) {
+      syncMessageViewportMetrics(el)
+    }
+    flushPendingMeasures()
+  }, delay)
+}
+
+function markListScrolling(): void {
+  userScrollInputUntil = Date.now() + SCROLL_IDLE_MS + 50
+
+  if (!isListScrolling.value) {
+    isListScrolling.value = true
+    // Pin the current window around the start of the gesture so overscan is centered.
+    const el = scrollContainer.value
+    if (el) {
+      scrollViewportTop.value = el.scrollTop
+      scrollViewportHeight.value = el.clientHeight
+    }
+  }
+
+  if (isListGestureActive) {
+    if (scrollIdleTimer !== null) {
+      window.clearTimeout(scrollIdleTimer)
+      scrollIdleTimer = null
+    }
+    return
+  }
+
+  finishListScrollingAfterIdle()
+}
+
+function beginListGesture(): void {
+  isListGestureActive = true
+  markListScrolling()
+}
+
+function endListGesture(): void {
+  isListGestureActive = false
+  finishListScrollingAfterIdle(0)
+}
+
+function onListTouchStart(): void {
+  beginListGesture()
+}
+
+function onListTouchEnd(): void {
+  endListGesture()
+}
+
+function onListPointerDown(): void {
+  beginListGesture()
+}
+
+function onListPointerMove(event: PointerEvent): void {
+  if (event.buttons !== 0) {
+    markListScrolling()
+  }
+}
+
+function onListPointerEnd(): void {
+  endListGesture()
 }
 
 function scrollDomToBottom(): void {
@@ -514,7 +844,10 @@ function scrollDomToBottom(): void {
   // Use the container's max scrollTop rather than `bottomScrollAnchor.scrollIntoView`:
   // the anchor sits before the sticky input area in flow, so scrollIntoView stops
   // short by the input's height and never reaches the true bottom during generation.
+  // Always tag programmatic writes so measure/onScroll cannot race into anchor restore.
+  markProgrammaticScroll(160)
   el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  syncMessageViewportMetrics(el)
 }
 
 function scrollToBottom(force = false) {
@@ -524,11 +857,28 @@ function scrollToBottom(force = false) {
     shouldAutoFollow.value = true
   } else if (!uiSettingsStore.autoScrollEnabled || !shouldAutoFollow.value) {
     return
+  } else {
+    // Continuous auto-follow also needs the short programmatic window; otherwise a
+    // frame where content grew before scrollTop caught up looks like user scroll-away.
+    markProgrammaticScroll(160)
   }
 
+  // Coalesce stream-revision + measure + submit paths into a single nextTick write.
+  if (pendingScrollToBottom) {
+    pendingScrollToBottom.force = pendingScrollToBottom.force || force
+    return
+  }
+
+  pendingScrollToBottom = { force }
   void nextTick(() => {
+    const pending = pendingScrollToBottom
+    pendingScrollToBottom = false
+    if (!pending) return
+    if (!pending.force && (!uiSettingsStore.autoScrollEnabled || !shouldAutoFollow.value)) {
+      return
+    }
     scrollDomToBottom()
-    if (force) {
+    if (pending.force) {
       scheduleScrollMetricsRead()
     }
   })
@@ -558,7 +908,9 @@ function applySessionRestoreBottomScroll(requestId: number, sessionId: string): 
     return false
   }
 
-  el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  const bottomScrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  el.scrollTop = bottomScrollTop
+  sessionRestoreBottomScrollTop = bottomScrollTop
   return true
 }
 
@@ -653,16 +1005,21 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
     const el = scrollContainer.value
     if (!el) return
 
+    syncMessageViewportMetrics(el)
+
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+
+    if (userInitiated && hasRecentUserScrollAwayIntent()) {
+      enterAnchoredReadingMode()
+      return
+    }
 
     if (isProgrammaticScrollActive()) {
       // During a forced/programmatic scroll, only a genuine user gesture (wheel,
       // drag) may break auto-follow. Content growth pushing us off-bottom must not.
       if (userInitiated && !isNearBottom.value) {
-        programmaticScrollUntil = 0
-        scrollMode.value = 'anchored-reading'
-        shouldAutoFollow.value = false
+        enterAnchoredReadingMode()
       }
       return
     }
@@ -680,11 +1037,40 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
   })
 }
 
+function onWheel(event: WheelEvent) {
+  markListScrolling()
+  if (event.deltaY < 0) {
+    markUserScrollAwayIntent()
+  } else if (event.deltaY > 0) {
+    userScrollAwayIntentUntil = 0
+  }
+}
+
 function onScroll() {
   const el = scrollContainer.value
   if (!el) return
 
-  scheduleScrollMetricsRead(true)
+  const userInitiatedScroll = Date.now() <= userScrollInputUntil
+
+  // Intent flags must run synchronously; viewport metrics are rAF-coalesced below.
+  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  const isNearBottomNow = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+  if (
+    isSessionRestoreScrollSettleActive() &&
+    sessionRestoreBottomScrollTop !== null &&
+    el.scrollTop < sessionRestoreBottomScrollTop - 1
+  ) {
+    cancelSessionRestoreScrollSettle()
+    markUserScrollAwayIntent()
+  } else if (
+    !isProgrammaticScrollActive() &&
+    !isNearBottomNow &&
+    scrollMode.value !== 'manual-jump'
+  ) {
+    markUserScrollAwayIntent()
+  }
+
+  scheduleScrollMetricsRead(userInitiatedScroll)
 
   if (el.scrollTop <= TOP_HISTORY_THRESHOLD) {
     void loadOlderMessagesAtTop()
@@ -705,16 +1091,32 @@ async function loadOlderMessagesAtTop(): Promise<void> {
     return
   }
 
+  const sessionId = props.sessionId
+  const requestId = sessionRestoreRequestId
   const previousScrollHeight = el.scrollHeight
-  const previousScrollTop = el.scrollTop
   const loadedCount = await messageStore.loadOlderMessages()
-  if (loadedCount === 0) {
+  if (loadedCount === 0 || props.sessionId !== sessionId || sessionRestoreRequestId !== requestId) {
     return
   }
 
   await nextTick()
-  const nextScrollHeight = el.scrollHeight
-  el.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight)
+  if (props.sessionId !== sessionId || sessionRestoreRequestId !== requestId) {
+    return
+  }
+
+  const container = scrollContainer.value
+  if (!container) {
+    return
+  }
+
+  // Use the *current* scrollTop after await, not the pre-await snapshot. The
+  // user may keep scrolling while history loads; writing back the old value
+  // feels like the viewport "snapped to a few seconds ago".
+  const heightDelta = container.scrollHeight - previousScrollHeight
+  if (heightDelta !== 0) {
+    container.scrollTop += heightDelta
+  }
+  syncMessageViewportMetrics(container)
 }
 
 async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
@@ -725,9 +1127,8 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 
   await nextTick()
 
-  let target = messageSearchRoot.value?.querySelector<HTMLElement>(
-    `[data-message-id="${CSS.escape(pendingJump.messageId)}"]`
-  )
+  const selector = messageIdSelector(pendingJump.messageId)
+  let target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
 
   if (!target) {
     const entry = messageWindow.getEntry(pendingJump.messageId)
@@ -735,10 +1136,9 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
     if (entry && container) {
       scrollMode.value = 'manual-jump'
       container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
+      syncMessageViewportMetrics(container)
       await nextTick()
-      target = messageSearchRoot.value?.querySelector<HTMLElement>(
-        `[data-message-id="${CSS.escape(pendingJump.messageId)}"]`
-      )
+      target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
     }
   }
 
@@ -778,41 +1178,27 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 watch(
   () => props.sessionId,
   async (id) => {
+    pendingDeleteMessageId.value = null
+    pendingAssistantPlaceholder.value = null
     clearChatSearchState()
     displayMessageCache.clear()
+    assistantRenderKeyByMessageId.value = {}
     sessionRestoreRequestId += 1
     cancelSessionRestoreTask?.()
     cancelSessionRestoreTask = null
     cancelSessionRestoreScrollSettle()
+    clearMessageWindowMeasurements()
     messageStore.clear()
     pendingInputStore.clear()
     if (id) {
       const requestId = sessionRestoreRequestId
-      cancelSessionRestoreTask = scheduleStartupDeferredTask(async () => {
-        if (requestId !== sessionRestoreRequestId) {
-          return
-        }
-
-        console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
-        const [restoredSession] = await Promise.all([
-          messageStore.loadMessages(id, INITIAL_MESSAGE_RESTORE_COUNT),
-          pendingInputStore.loadPendingInputs(id)
-        ])
-
-        if (requestId !== sessionRestoreRequestId) {
-          return
-        }
-
-        applyRestoredSessionSummary(restoredSession)
-
-        await nextTick()
-        if (spotlightStore.pendingMessageJump?.sessionId === id) {
-          cancelSessionRestoreScrollSettle()
-          void focusPendingSpotlightMessageJump()
-          return
-        }
-        settleSessionRestoreScrollToBottom(requestId, id)
-      })
+      const runRestore = () => restoreSessionMessages(id, requestId)
+      if (!hasScheduledInitialSessionRestore) {
+        hasScheduledInitialSessionRestore = true
+        cancelSessionRestoreTask = scheduleStartupDeferredTask(runRestore)
+      } else {
+        void runRestore()
+      }
       return
     }
   },
@@ -853,7 +1239,8 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     cached.metadata === record.metadata &&
     cached.modelId === modelId &&
     cached.providerId === providerId &&
-    cached.status === record.status
+    cached.status === record.status &&
+    cached.renderKey === assistantRenderKeyByMessageId.value[record.id]
   ) {
     return cached.message
   }
@@ -879,12 +1266,14 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
   } as const
 
+  const streamingRenderKey = assistantRenderKeyByMessageId.value[record.id]
   const nextMessage =
     record.role === 'assistant'
       ? ({
           ...baseMessage,
+          ...(streamingRenderKey ? { renderKey: streamingRenderKey } : {}),
           role: 'assistant',
-          content: messageStore.getAssistantMessageBlocks(record)
+          content: filterRenderableAssistantBlocks(messageStore.getAssistantMessageBlocks(record))
         } as DisplayMessage)
       : ({
           ...baseMessage,
@@ -899,6 +1288,7 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     modelId,
     providerId,
     status: record.status,
+    renderKey: streamingRenderKey,
     message: nextMessage
   })
 
@@ -912,13 +1302,14 @@ function toStreamingMessage(
 ): DisplayMessage {
   const modelId = sessionStore.activeSession?.modelId ?? ''
   const now = Date.now()
+  const renderableBlocks = filterRenderableAssistantBlocks(blocks as DisplayAssistantMessageBlock[])
   return {
     // Key the streaming row by the real message id when we have one, so that when
     // the persisted copy arrives at stream end Vue patches the SAME node in place
     // (markdown DOM reused) instead of unmount/remount — no completion flash.
     // Falls back to a synthetic id only when the backend hasn't assigned one yet.
     id: messageId ?? '__streaming__',
-    content: blocks as DisplayAssistantMessageBlock[],
+    content: renderableBlocks,
     role: 'assistant',
     timestamp: now,
     updatedAt: now,
@@ -936,11 +1327,30 @@ function toStreamingMessage(
   }
 }
 
+function shouldRenderDisplayMessage(message: DisplayMessage): boolean {
+  if (message.role !== 'assistant') {
+    return true
+  }
+
+  if (message.messageType === 'compaction') {
+    return true
+  }
+
+  if (message.status === 'pending') {
+    return true
+  }
+
+  return hasRenderableAssistantBlocks(message.content)
+}
+
 const hasInlineStreamingTarget = computed(() => {
   const messageId = messageStore.currentStreamMessageId
   if (!messageId) return false
   return messageStore.messageCache.has(messageId)
 })
+const hasFirstStreamingContent = computed(
+  () => messageStore.streamingBlocks.length > 0 && hasInlineStreamingTarget.value
+)
 
 const ephemeralRateLimitMessageId = computed(() => {
   const messageId = messageStore.currentStreamMessageId
@@ -972,15 +1382,38 @@ const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(()
   return firstBlock
 })
 
-const latestPlanSnapshot = computed(() => {
-  const snapshot = agentPlanStore.snapshots[props.sessionId]
-  if (!snapshot || snapshot.plan.length === 0) {
-    return null
-  }
-  return snapshot
+const hasNewAssistantMessageAfterPendingPlaceholder = computed(() => {
+  const pending = pendingAssistantPlaceholder.value
+  if (!pending || pending.sessionId !== props.sessionId) return false
+
+  return messageStore.messages.some(
+    (message) =>
+      message.role === 'assistant' &&
+      !pending.baselineAssistantMessageIds.has(message.id) &&
+      isMessageAfterPendingAssistantBaseline(message, pending)
+  )
 })
 
-const isPlanFloatCollapsed = computed(() => agentPlanStore.isCollapsed(props.sessionId))
+const shouldShowPendingAssistantPlaceholder = computed(() => {
+  const pending = pendingAssistantPlaceholder.value
+  return Boolean(
+    pending &&
+    pending.sessionId === props.sessionId &&
+    !hasFirstStreamingContent.value &&
+    !hasNewAssistantMessageAfterPendingPlaceholder.value &&
+    !ephemeralRateLimitBlock.value
+  )
+})
+
+watch(
+  () => hasFirstStreamingContent.value || hasNewAssistantMessageAfterPendingPlaceholder.value,
+  (shouldClearPendingAssistant) => {
+    if (shouldClearPendingAssistant) {
+      bindPendingAssistantRenderKey()
+      pendingAssistantPlaceholder.value = null
+    }
+  }
+)
 
 const messageSearchRootStyle = computed(() => {
   if (planFloatReservedHeight.value <= 0) {
@@ -993,32 +1426,127 @@ const messageSearchRootStyle = computed(() => {
 })
 
 function onDismissPlanFloat() {
-  agentPlanStore.setCollapsed(props.sessionId, true)
-  agentPlanStore.clear(props.sessionId)
+  agentPlanStore.dismiss(props.sessionId)
   planFloatReservedHeight.value = 0
 }
 
-const displayMessages = computed(() => {
+function createPendingAssistantPlaceholder(sessionId: string): string {
+  const id = `__pending_assistant_${Date.now()}_${++pendingAssistantPlaceholderSeq}`
+  const loadedMessages = messageStore.messages
+  const baselineAssistantMessageIds = new Set(
+    loadedMessages.filter((message) => message.role === 'assistant').map((message) => message.id)
+  )
+  const baselineMessageOrderSeq = Math.max(
+    Number.NEGATIVE_INFINITY,
+    ...loadedMessages.map((message) =>
+      Number.isFinite(message.orderSeq) ? message.orderSeq : Number.NEGATIVE_INFINITY
+    )
+  )
+  pendingAssistantPlaceholder.value = {
+    id,
+    sessionId,
+    baselineAssistantMessageIds,
+    baselineMessageOrderSeq,
+    baselineCreatedAt: Date.now()
+  }
+  return id
+}
+
+function isMessageAfterPendingAssistantBaseline(
+  message: ChatMessageRecord,
+  pending: NonNullable<typeof pendingAssistantPlaceholder.value>
+): boolean {
+  if (Number.isFinite(pending.baselineMessageOrderSeq) && Number.isFinite(message.orderSeq)) {
+    return message.orderSeq > pending.baselineMessageOrderSeq
+  }
+
+  return message.createdAt > pending.baselineCreatedAt
+}
+
+function clearPendingAssistantPlaceholder(id?: string): void {
+  if (!id || pendingAssistantPlaceholder.value?.id === id) {
+    pendingAssistantPlaceholder.value = null
+  }
+}
+
+function bindPendingAssistantRenderKey(): void {
+  const pending = pendingAssistantPlaceholder.value
+  const streamMessageId = messageStore.currentStreamMessageId
+  if (
+    !pending ||
+    pending.sessionId !== props.sessionId ||
+    !streamMessageId ||
+    !hasInlineStreamingTarget.value ||
+    assistantRenderKeyByMessageId.value[streamMessageId] === pending.id
+  ) {
+    return
+  }
+  assistantRenderKeyByMessageId.value = {
+    ...assistantRenderKeyByMessageId.value,
+    [streamMessageId]: pending.id
+  }
+}
+
+watch(
+  () => [messageStore.currentStreamMessageId, hasInlineStreamingTarget.value] as const,
+  bindPendingAssistantRenderKey
+)
+
+/**
+ * Stable history list: intentionally does NOT read streamRevision / streamingBlocks,
+ * so token-level updates do not rebuild every display message in long sessions.
+ * The in-flight assistant row is owned by streamingDisplayTail instead.
+ */
+const stableDisplayMessages = computed(() => {
+  void messageStore.lastPersistedRevision
+  const streamId =
+    messageStore.isStreaming && hasInlineStreamingTarget.value
+      ? messageStore.currentStreamMessageId
+      : null
+
   const msgs: DisplayMessage[] = []
   const activeMessageIds = new Set<string>()
+  const cache = messageStore.messageCache
 
-  for (const message of messageStore.messages) {
+  for (const id of messageStore.messageIds) {
+    if (streamId && id === streamId) {
+      continue
+    }
+    const message = cache.get(id)
+    if (!message) continue
     activeMessageIds.add(message.id)
-    msgs.push(toDisplayMessage(message))
+    const displayMessage = toDisplayMessage(message)
+    if (shouldRenderDisplayMessage(displayMessage)) {
+      msgs.push(displayMessage)
+    }
   }
 
   for (const cachedId of displayMessageCache.keys()) {
-    if (!activeMessageIds.has(cachedId)) {
+    if (!activeMessageIds.has(cachedId) && cachedId !== streamId) {
       displayMessageCache.delete(cachedId)
     }
   }
 
-  // Single-track rendering: streaming blocks are folded into their message record
-  // in place (applyStreamingBlocksToMessage), so the generating message is already
-  // in `msgs` above as a normal item. Only when that record isn't in the store yet
-  // do we append a virtual streaming item as a fallback. Stream end then reuses the
-  // same id/node — no separate trailing row, no completion flash.
-  if (
+  return msgs
+})
+
+/** High-frequency streaming row + pending placeholder only. */
+const streamingDisplayTail = computed(() => {
+  void messageStore.streamRevision
+  const msgs: DisplayMessage[] = []
+
+  // Single-track: stream blocks are folded into the message record in place, so the
+  // generating message is the same id/node through completion (no flash).
+  if (messageStore.isStreaming && hasInlineStreamingTarget.value) {
+    const streamId = messageStore.currentStreamMessageId
+    const record = streamId ? messageStore.messageCache.get(streamId) : undefined
+    if (record) {
+      const displayMessage = toDisplayMessage(record)
+      if (shouldRenderDisplayMessage(displayMessage)) {
+        msgs.push(displayMessage)
+      }
+    }
+  } else if (
     messageStore.isStreaming &&
     messageStore.streamingBlocks.length > 0 &&
     !hasInlineStreamingTarget.value &&
@@ -1027,51 +1555,160 @@ const displayMessages = computed(() => {
     msgs.push(toStreamingMessage(messageStore.streamingBlocks, messageStore.currentStreamMessageId))
   }
 
+  if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
+    msgs.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
+  }
+
   return msgs
+})
+
+const displayMessages = computed(() => {
+  const stable = stableDisplayMessages.value
+  const tail = streamingDisplayTail.value
+  if (tail.length === 0) {
+    return stable
+  }
+
+  const streamId = messageStore.currentStreamMessageId
+  // Common path: virtual/fallback streaming rows and pending placeholders append at end.
+  if (!(streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId)) {
+    return stable.concat(tail)
+  }
+
+  // Re-insert the in-flight row at its messageIds order while reusing stable objects.
+  const stableById = new Map(stable.map((message) => [message.id, message]))
+  const ordered: DisplayMessage[] = []
+  for (const id of messageStore.messageIds) {
+    if (id === streamId) {
+      ordered.push(tail[0])
+      continue
+    }
+    const item = stableById.get(id)
+    if (item) {
+      ordered.push(item)
+    }
+  }
+  for (let i = 1; i < tail.length; i += 1) {
+    ordered.push(tail[i])
+  }
+  return ordered
 })
 
 const messageWindow = useMessageWindow({
   messages: displayMessages
 })
+clearMessageWindowMeasurements = messageWindow.clearMeasurements
 
-function onMessageMeasure(payload: { messageId: string; height: number }) {
+const findFirstEntryWithBottomAtOrAfter = (
+  entries: Array<{ bottom: number }>,
+  target: number
+): number => {
+  let low = 0
+  let high = entries.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (entries[middle].bottom >= target) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+  return low
+}
+
+const findFirstEntryWithTopAfter = (entries: Array<{ top: number }>, target: number): number => {
+  let low = 0
+  let high = entries.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (entries[middle].top > target) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+  return low
+}
+
+const messageWindowRange = computed(() => {
+  const entries = messageWindow.entries.value
+  const total = entries.length
+  if (total === 0) {
+    return { start: 0, end: 0, before: 0, after: 0 }
+  }
+
+  if (total <= MESSAGE_WINDOWING_THRESHOLD) {
+    return { start: 0, end: total, before: 0, after: 0 }
+  }
+
+  const viewportHeight = scrollViewportHeight.value
+  if (viewportHeight <= 0) {
+    const start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
+    return {
+      start,
+      end: total,
+      before: entries[start]?.top ?? 0,
+      after: 0
+    }
+  }
+
+  const viewportTop = scrollViewportTop.value
+  const windowTop = Math.max(0, viewportTop - MESSAGE_WINDOW_OVERSCAN_PX)
+  const windowBottom = viewportTop + viewportHeight + MESSAGE_WINDOW_OVERSCAN_PX
+  let start = findFirstEntryWithBottomAtOrAfter(entries, windowTop)
+  if (start >= total) start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
+
+  let end = findFirstEntryWithTopAfter(entries, windowBottom)
+  end = Math.min(total, Math.max(end, start + 1))
+
+  return {
+    start,
+    end,
+    before: entries[start]?.top ?? 0,
+    after: Math.max((messageWindow.totalHeight.value ?? 0) - (entries[end - 1]?.bottom ?? 0), 0)
+  }
+})
+
+const visibleDisplayMessages = computed(() =>
+  displayMessages.value.slice(messageWindowRange.value.start, messageWindowRange.value.end)
+)
+const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)
+const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
+const chatSearchResults = computed(() =>
+  collectChatSearchResults(displayMessages.value, chatSearchQuery.value)
+)
+
+function applyMessageMeasure(payload: { messageId: string; height: number }) {
   // Snapshot the reading anchor from pre-change geometry: capturing after
   // setMeasuredHeight resizes the row would compare against post-layout DOM and
   // let anchored-reading/manual-jump drift when content above the viewport grows.
-  const isBottomFollowing =
-    scrollMode.value === 'initial-bottom' || scrollMode.value === 'auto-follow'
+  const isBottomFollowing = isBottomFollowingMode()
   const preChangeAnchor = isBottomFollowing ? null : captureViewportAnchor()
 
   const delta = messageWindow.setMeasuredHeight(payload.messageId, payload.height)
   if (delta === 0) return
   if (isBottomFollowing) {
+    // Unified coalesced auto-follow path (same as streamRevision watcher).
     scrollToBottom(scrollMode.value === 'initial-bottom')
   } else {
-    scheduleViewportAnchorRestore(preChangeAnchor)
+    scheduleViewportAnchorRestore(preChangeAnchor, delta, payload.messageId)
   }
+}
+
+function onMessageMeasure(payload: { messageId: string; height: number }) {
+  // Defer layout work while scrolling — measuring remounts/spacers is the main
+  // source of jank with markdown-heavy rows.
+  if (isListScrolling.value) {
+    pendingMeasureQueue.set(payload.messageId, payload.height)
+    return
+  }
+  applyMessageMeasure(payload)
 }
 
 const traceMessageIds = computed(() =>
   messageStore.messages
     .filter((msg) => msg.role === 'assistant' && (msg.traceCount ?? 0) > 0)
     .map((msg) => msg.id)
-)
-
-// Auto-scroll when displayMessages changes (new message added, streaming updates)
-watch(
-  [latestPlanSnapshot, isPlanFloatCollapsed],
-  async ([snapshot]) => {
-    if (!snapshot) {
-      disconnectPlanFloatResizeObserver()
-      planFloatReservedHeight.value = 0
-      return
-    }
-
-    await nextTick()
-    observePlanFloatLayer()
-    syncPlanFloatReservedHeight()
-  },
-  { flush: 'post', immediate: true }
 )
 
 watch(
@@ -1111,16 +1748,43 @@ async function refreshChatSearchHighlights() {
   }
 
   const root = messageSearchRoot.value
-  chatSearchMatches.value = applyChatSearchHighlights(root, chatSearchQuery.value)
+  applyChatSearchHighlights(root, chatSearchQuery.value)
 
-  if (chatSearchMatches.value.length === 0) {
+  if (chatSearchResults.value.length === 0) {
     activeChatSearchIndex.value = 0
     return
   }
 
-  const nextIndex = Math.min(activeChatSearchIndex.value, chatSearchMatches.value.length - 1)
+  const nextIndex = Math.min(activeChatSearchIndex.value, chatSearchResults.value.length - 1)
   activeChatSearchIndex.value = nextIndex
-  setActiveChatSearchMatch(chatSearchMatches.value, nextIndex, { behavior: 'auto' })
+  await revealChatSearchResult(chatSearchResults.value[nextIndex], 'auto')
+}
+
+async function revealChatSearchResult(
+  result: ChatSearchResult | undefined,
+  behavior: ScrollBehavior = 'smooth'
+) {
+  if (!result) return
+
+  await nextTick()
+  const root = messageSearchRoot.value
+  if (setActiveChatSearchResult(root, result, { behavior })) {
+    return
+  }
+
+  const entry = messageWindow.getEntry(result.messageId)
+  const container = scrollContainer.value
+  if (!entry || !container) {
+    return
+  }
+
+  scrollMode.value = 'manual-jump'
+  markProgrammaticScroll()
+  container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
+  syncMessageViewportMetrics(container)
+  await nextTick()
+  applyChatSearchHighlights(root, chatSearchQuery.value)
+  setActiveChatSearchResult(root, result, { behavior })
 }
 
 function cancelScheduledChatSearchRefresh() {
@@ -1152,7 +1816,6 @@ function focusChatSearchInput() {
 function clearChatSearchState() {
   cancelScheduledChatSearchRefresh()
   clearChatSearchHighlights(messageSearchRoot.value)
-  chatSearchMatches.value = []
   chatSearchQuery.value = ''
   activeChatSearchIndex.value = 0
   isChatSearchOpen.value = false
@@ -1169,17 +1832,17 @@ function closeChatSearch() {
 }
 
 function activateChatSearchMatch(index: number, behavior: ScrollBehavior = 'smooth') {
-  if (chatSearchMatches.value.length === 0) {
+  if (chatSearchResults.value.length === 0) {
     activeChatSearchIndex.value = 0
     return
   }
 
   const normalizedIndex =
-    ((index % chatSearchMatches.value.length) + chatSearchMatches.value.length) %
-    chatSearchMatches.value.length
+    ((index % chatSearchResults.value.length) + chatSearchResults.value.length) %
+    chatSearchResults.value.length
 
   activeChatSearchIndex.value = normalizedIndex
-  setActiveChatSearchMatch(chatSearchMatches.value, normalizedIndex, { behavior })
+  void revealChatSearchResult(chatSearchResults.value[normalizedIndex], behavior)
 }
 
 function goToNextChatSearchMatch() {
@@ -1233,7 +1896,7 @@ watch(chatSearchQuery, () => {
 })
 
 watch(
-  displayMessages,
+  [visibleDisplayMessages, chatSearchResults],
   () => {
     if (!isChatSearchOpen.value) {
       return
@@ -1250,6 +1913,10 @@ const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
+  getInlineItemsSnapshot?: () => UserMessageInlineItem[]
+  getPendingSkillsSnapshot?: () => string[]
+  consumePendingSkills?: () => string[]
+  clearPendingSkills?: () => void
 } | null>(null)
 const isVoiceInputEnabled = ref(false)
 const isHandlingInteraction = ref(false)
@@ -1489,33 +2156,210 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 })
 
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
-const isAwaitingToolQuestionFollowUp = computed(() => {
-  let latestUserOrderSeq = 0
 
-  for (const message of messageStore.messages) {
-    if (message.role === 'user') {
-      latestUserOrderSeq = Math.max(latestUserOrderSeq, message.orderSeq)
-    }
+function readSessionStatus(sessionId: string): 'working' | 'completed' | 'error' | 'none' | null {
+  if (sessionStore.activeSession?.id === sessionId) {
+    return sessionStore.activeSession.status
   }
 
-  return messageStore.messages.some((message) => {
-    if (message.role !== 'assistant' || message.orderSeq <= latestUserOrderSeq) {
-      return false
+  return sessionStore.sessions.find((session) => session.id === sessionId)?.status ?? null
+}
+
+function hasPendingInteractionForSession(sessionId: string): boolean {
+  return pendingInteractions.value.some((interaction) => interaction.sessionId === sessionId)
+}
+
+function isSessionPlanActive(sessionId: string): boolean {
+  if (sessionId === props.sessionId && messageStore.isStreaming) {
+    return true
+  }
+
+  return readSessionStatus(sessionId) === 'working'
+}
+
+function isPlanFloatLingerActive(sessionId: string): boolean {
+  return planFloatLingerBySession.value[sessionId] === true
+}
+
+function setPlanFloatLingerActive(sessionId: string, active: boolean): void {
+  const current = planFloatLingerBySession.value[sessionId] === true
+  if (current === active) {
+    return
+  }
+
+  const next = { ...planFloatLingerBySession.value }
+  if (active) {
+    next[sessionId] = true
+  } else {
+    delete next[sessionId]
+  }
+  planFloatLingerBySession.value = next
+}
+
+function shouldShowPlanSnapshotForSession(sessionId: string): boolean {
+  return (
+    isSessionPlanActive(sessionId) ||
+    hasPendingInteractionForSession(sessionId) ||
+    isPlanFloatLingerActive(sessionId)
+  )
+}
+
+const latestPlanSnapshot = computed(() => {
+  if (!shouldShowPlanSnapshotForSession(props.sessionId)) {
+    return null
+  }
+
+  if (!agentPlanStore.isVisible(props.sessionId)) {
+    return null
+  }
+
+  const snapshot = agentPlanStore.snapshots[props.sessionId]
+  if (!snapshot || snapshot.plan.length === 0) {
+    return null
+  }
+  return snapshot
+})
+
+const isPlanFloatCollapsed = computed(() => agentPlanStore.isCollapsed(props.sessionId))
+
+function cancelPlanSnapshotClearTimer(sessionId: string) {
+  const timer = planSnapshotClearTimers.get(sessionId)
+  if (timer === undefined) {
+    return
+  }
+
+  window.clearTimeout(timer)
+  planSnapshotClearTimers.delete(sessionId)
+}
+
+function cancelAllPlanSnapshotClearTimers() {
+  for (const timer of planSnapshotClearTimers.values()) {
+    window.clearTimeout(timer)
+  }
+  planSnapshotClearTimers.clear()
+}
+
+function canLingerPlanSnapshot(sessionId: string): boolean {
+  const snapshot = agentPlanStore.snapshots[sessionId]
+  if (!snapshot || snapshot.plan.length === 0) {
+    return false
+  }
+
+  return (
+    Boolean(snapshot.terminalReason) || snapshot.plan.every((entry) => entry.status === 'completed')
+  )
+}
+
+function scheduleInactivePlanSnapshotClear(sessionId: string = props.sessionId) {
+  const snapshot = agentPlanStore.snapshots[sessionId]
+  if (!snapshot) {
+    cancelPlanSnapshotClearTimer(sessionId)
+    setPlanFloatLingerActive(sessionId, false)
+    return
+  }
+
+  if (isSessionPlanActive(sessionId) || hasPendingInteractionForSession(sessionId)) {
+    cancelPlanSnapshotClearTimer(sessionId)
+    setPlanFloatLingerActive(sessionId, false)
+    return
+  }
+
+  cancelPlanSnapshotClearTimer(sessionId)
+
+  if (!canLingerPlanSnapshot(sessionId)) {
+    setPlanFloatLingerActive(sessionId, false)
+    return
+  }
+
+  setPlanFloatLingerActive(sessionId, true)
+  const timer = window.setTimeout(() => {
+    planSnapshotClearTimers.delete(sessionId)
+    if (!isSessionPlanActive(sessionId) && !hasPendingInteractionForSession(sessionId)) {
+      agentPlanStore.clearSnapshot(sessionId)
+      setPlanFloatLingerActive(sessionId, false)
+    }
+  }, PLAN_FLOAT_CLEAR_DELAY_MS)
+  planSnapshotClearTimers.set(sessionId, timer)
+}
+
+function resetPlanSnapshotLifecycle(sessionId: string): void {
+  cancelPlanSnapshotClearTimer(sessionId)
+  setPlanFloatLingerActive(sessionId, false)
+}
+
+function beginPlanTurn(sessionId: string): void {
+  resetPlanSnapshotLifecycle(sessionId)
+  agentPlanStore.beginTurn(sessionId)
+}
+
+function clearPlanSnapshotForDeletedMessage(sessionId: string, messageId: string): void {
+  const snapshot = agentPlanStore.snapshots[sessionId]
+  if (snapshot?.messageId !== messageId) {
+    return
+  }
+
+  resetPlanSnapshotLifecycle(sessionId)
+  agentPlanStore.clearSnapshot(sessionId)
+}
+
+const planSnapshotLifecycleKey = computed(() =>
+  Object.values(agentPlanStore.snapshots)
+    .map((snapshot) => {
+      const terminal = snapshot.terminalReason ?? ''
+      const statuses = snapshot.plan.map((entry) => entry.status).join(',')
+      return `${snapshot.sessionId}:${snapshot.messageId ?? ''}:${snapshot.revision}:${terminal}:${statuses}`
+    })
+    .join('|')
+)
+
+const sessionStatusLifecycleKey = computed(() => {
+  const entries = sessionStore.sessions.map((session) => `${session.id}:${session.status}`)
+  const active = sessionStore.activeSession
+  if (active) {
+    entries.push(`${active.id}:${active.status}`)
+  }
+  entries.push(`${props.sessionId}:${messageStore.isStreaming ? 'streaming' : 'not-streaming'}`)
+  return entries.sort().join('|')
+})
+
+const pendingInteractionLifecycleKey = computed(() =>
+  pendingInteractions.value
+    .map(
+      (interaction) => `${interaction.sessionId}:${interaction.messageId}:${interaction.toolCallId}`
+    )
+    .join('|')
+)
+
+function syncPlanSnapshotLifecycle(): void {
+  for (const sessionId of Object.keys(agentPlanStore.snapshots)) {
+    scheduleInactivePlanSnapshotClear(sessionId)
+  }
+}
+
+watch(
+  [latestPlanSnapshot, isPlanFloatCollapsed],
+  async ([snapshot]) => {
+    if (!snapshot) {
+      disconnectPlanFloatResizeObserver()
+      planFloatReservedHeight.value = 0
+      return
     }
 
-    return messageStore
-      .getAssistantMessageBlocks(message)
-      .some(
-        (block) =>
-          block.type === 'action' &&
-          block.action_type === 'question_request' &&
-          block.status === 'success' &&
-          block.extra?.needsUserAction === false &&
-          block.extra?.questionResolution === 'replied' &&
-          typeof block.extra?.answerText !== 'string'
-      )
-  })
-})
+    await nextTick()
+    observePlanFloatLayer()
+    syncPlanFloatReservedHeight()
+  },
+  { flush: 'post', immediate: true }
+)
+
+watch(
+  [planSnapshotLifecycleKey, sessionStatusLifecycleKey, pendingInteractionLifecycleKey],
+  () => {
+    syncPlanSnapshotLifecycle()
+  },
+  { flush: 'post' }
+)
+
 const hasInputText = computed(() => Boolean(message.value.trim()))
 const hasAttachments = computed(() => attachedFiles.value.length > 0)
 const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
@@ -1535,12 +2379,12 @@ const isInputSubmitDisabled = computed(
     (isGenerating.value && pendingInputStore.isAtCapacity) ||
     !hasDraftInput.value
 )
-const showResumePendingQueue = computed(
+const disableQueueSteerAction = computed(
   () =>
-    !isGenerating.value &&
-    !activePendingInteraction.value &&
-    !isAwaitingToolQuestionFollowUp.value &&
-    pendingInputStore.queueItems.length > 0
+    !isGenerating.value ||
+    isAcpWorkdirMissing.value ||
+    Boolean(activePendingInteraction.value) ||
+    isHandlingInteraction.value
 )
 
 function getActiveModelSelection(): { providerId: string; modelId: string } | null {
@@ -1597,6 +2441,50 @@ async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<Messag
   }
 }
 
+const getComposerSkillsSnapshot = (): string[] => {
+  return Array.from(new Set(chatInputRef.value?.getPendingSkillsSnapshot?.() ?? []))
+}
+
+const clearComposerSkills = () => {
+  chatInputRef.value?.clearPendingSkills?.()
+}
+
+const getComposerInlineItemsSnapshot = (): UserMessageInlineItem[] => {
+  return chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
+}
+
+const withMessageSkills = (text: string, files: MessageFile[]) => {
+  const activeSkills = getComposerSkillsSnapshot()
+  const inlineItems = getComposerInlineItemsSnapshot()
+  return {
+    text,
+    files,
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
+  }
+}
+
+function beginOutgoingTurnFeedback(sessionId: string, payload: SendMessageInput) {
+  const optimisticUserMessageId = messageStore.addOptimisticUserMessage(sessionId, payload)
+  const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(sessionId)
+  beginPlanTurn(sessionId)
+  return { optimisticUserMessageId, pendingAssistantPlaceholderId }
+}
+
+async function sendMessageWithOutgoingTurnFeedback(
+  sessionId: string,
+  payload: SendMessageInput,
+  feedback: ReturnType<typeof beginOutgoingTurnFeedback>
+) {
+  try {
+    await chatClient.sendMessage(sessionId, payload)
+  } catch (error) {
+    clearPendingAssistantPlaceholder(feedback.pendingAssistantPlaceholderId)
+    messageStore.removeOptimisticMessage(feedback.optimisticUserMessageId)
+    console.error('[ChatPage] send message failed:', error)
+  }
+}
+
 async function onSubmit() {
   if (isReadOnlySession.value) return
   if (isAcpWorkdirMissing.value) return
@@ -1610,15 +2498,22 @@ async function onSubmit() {
     }
     return
   }
+  const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
-    await pendingInputStore.queueInput(props.sessionId, { text, files })
+    await pendingInputStore.queueInput(props.sessionId, payload)
+    message.value = ''
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
   } else {
-    agentPlanStore.clear(props.sessionId)
-    await chatClient.sendMessage(props.sessionId, { text, files })
+    const sessionId = props.sessionId
+    const feedback = beginOutgoingTurnFeedback(sessionId, payload)
+    message.value = ''
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
+    await sendMessageWithOutgoingTurnFeedback(sessionId, payload, feedback)
   }
-  message.value = ''
-  attachedFiles.value = []
-  schedulePostSubmitScrollToBottom()
 }
 
 async function onCommandSubmit(command: string) {
@@ -1633,14 +2528,20 @@ async function onCommandSubmit(command: string) {
   }
 
   const files = await prepareFilesForCurrentModel([...attachedFiles.value])
+  const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
-    await pendingInputStore.queueInput(props.sessionId, { text, files })
-  } else {
-    agentPlanStore.clear(props.sessionId)
-    await chatClient.sendMessage(props.sessionId, { text, files })
+    await pendingInputStore.queueInput(props.sessionId, payload)
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
+    return
   }
+  const sessionId = props.sessionId
+  const feedback = beginOutgoingTurnFeedback(sessionId, payload)
   attachedFiles.value = []
+  clearComposerSkills()
   schedulePostSubmitScrollToBottom()
+  await sendMessageWithOutgoingTurnFeedback(sessionId, payload, feedback)
 }
 
 async function handleManualCompactionCommand(text: string): Promise<boolean> {
@@ -1656,7 +2557,7 @@ async function handleManualCompactionCommand(text: string): Promise<boolean> {
 
   try {
     const result = await sessionClient.compactSession(props.sessionId)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
     if (!result.compacted) {
       toast({
         title: t('chat.compaction.noopTitle'),
@@ -1684,9 +2585,10 @@ async function onQueueSubmit() {
   if (await handleManualCompactionCommand(text)) {
     return
   }
-  await pendingInputStore.queueInput(props.sessionId, { text, files })
+  await pendingInputStore.queueInput(props.sessionId, withMessageSkills(text, files))
   message.value = ''
   attachedFiles.value = []
+  clearComposerSkills()
 }
 
 async function onSteer() {
@@ -1699,10 +2601,11 @@ async function onSteer() {
   if (await handleManualCompactionCommand(text)) {
     return
   }
-  agentPlanStore.clear(props.sessionId)
-  await chatClient.steerActiveTurn(props.sessionId, { text, files })
+  beginPlanTurn(props.sessionId)
+  await chatClient.steerActiveTurn(props.sessionId, withMessageSkills(text, files))
   message.value = ''
   attachedFiles.value = []
+  clearComposerSkills()
 }
 
 function onAttach() {
@@ -1745,7 +2648,7 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
       toolCallId: interaction.toolCallId,
       response
     })
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
     if (result.handledInline) {
       return
     }
@@ -1760,6 +2663,7 @@ async function onStop() {
   if (isReadOnlySession.value) return
   if (!isGenerating.value) return
   try {
+    agentPlanStore.freezeActive(props.sessionId)
     await chatClient.stopStream({ sessionId: props.sessionId })
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
@@ -1771,23 +2675,46 @@ async function onMessageRetry(messageId: string) {
   if (!messageId) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   try {
+    beginPlanTurn(props.sessionId)
     messageStore.clearStreamingState()
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] retry message failed:', error)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
   }
 }
 
 async function onMessageDelete(messageId: string) {
   if (isReadOnlySession.value) return
   if (!messageId) return
+  pendingDeleteMessageId.value = messageId
+}
+
+async function confirmMessageDelete() {
+  const messageId = pendingDeleteMessageId.value
+  if (!messageId) return
+  if (isReadOnlySession.value) return
+  const sessionId = props.sessionId
+  pendingDeleteMessageId.value = null
   try {
     messageStore.clearStreamingState()
-    await sessionClient.deleteMessage(props.sessionId, messageId)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    await sessionClient.deleteMessage(sessionId, messageId)
+    clearPlanSnapshotForDeletedMessage(sessionId, messageId)
+    if (props.sessionId === sessionId) {
+      applyRestoredSessionSummary(await loadMessagesForSession(sessionId))
+    }
   } catch (error) {
     console.error('[ChatPage] delete message failed:', error)
+  }
+}
+
+function cancelMessageDelete() {
+  pendingDeleteMessageId.value = null
+}
+
+function onDeleteMessageDialogOpenChange(open: boolean) {
+  if (!open) {
+    cancelMessageDelete()
   }
 }
 
@@ -1821,11 +2748,12 @@ async function onMessageContinue(_conversationId: string, messageId: string) {
   if (isReadOnlySession.value) return
   if (!messageId) return
   try {
+    beginPlanTurn(props.sessionId)
     messageStore.clearStreamingState()
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] continue message failed:', error)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
   }
 }
 
@@ -1842,7 +2770,8 @@ async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
 
   await pendingInputStore.updateQueueInput(props.sessionId, payload.itemId, {
     text: payload.text,
-    files: target.payload.files ?? []
+    files: target.payload.files ?? [],
+    activeSkills: target.payload.activeSkills ?? []
   })
 }
 
@@ -1856,9 +2785,21 @@ async function onPendingInputDelete(itemId: string) {
   await pendingInputStore.deleteInput(props.sessionId, itemId)
 }
 
-async function onResumePendingQueue() {
+async function onPendingInputSteer(itemId: string) {
   if (isReadOnlySession.value) return
-  await pendingInputStore.resumeQueue(props.sessionId)
+  if (!isGenerating.value) return
+  if (isAcpWorkdirMissing.value) return
+  if (activePendingInteraction.value || isHandlingInteraction.value) return
+  try {
+    await pendingInputStore.steerPendingInput(props.sessionId, itemId)
+    beginPlanTurn(props.sessionId)
+  } catch (error) {
+    console.error('[ChatPage] steer queued input failed:', error)
+    toast({
+      title: t('chat.pendingInput.steerFailed'),
+      variant: 'destructive'
+    })
+  }
 }
 
 onMounted(() => {
@@ -1869,13 +2810,13 @@ onMounted(() => {
   )
   window.addEventListener('keydown', handleWindowKeydown)
   cancelPlanUpdatedListener = chatClient.onPlanUpdated((payload) => {
-    if (payload.sessionId === props.sessionId) {
-      agentPlanStore.applySnapshot(payload)
-    }
+    agentPlanStore.applySnapshot(payload)
+    scheduleInactivePlanSnapshotClear(payload.sessionId)
   })
   // 初始化滚动状态
   const el = scrollContainer.value
   if (el) {
+    syncMessageViewportMetrics(el)
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
   }
@@ -1889,12 +2830,13 @@ onMounted(() => {
 onUnmounted(() => {
   removeModelConfigChangedListener()
   disconnectPlanFloatResizeObserver()
+  cancelAllPlanSnapshotClearTimers()
   cancelSessionRestoreScrollSettle()
   cancelPlanUpdatedListener?.()
   cancelPlanUpdatedListener = null
-  voiceInput.cleanup()
   cancelSessionRestoreTask?.()
   cancelSessionRestoreTask = null
+  voiceInput.cleanup()
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.removeEventListener(
     WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
@@ -1910,10 +2852,24 @@ onUnmounted(() => {
     window.cancelAnimationFrame(anchorRestoreFrame)
     anchorRestoreFrame = null
   }
+  pendingAnchorRestoreState = null
+  pendingScrollToBottom = false
   if (scrollReadFrame !== null) {
     window.cancelAnimationFrame(scrollReadFrame)
     scrollReadFrame = null
   }
+  if (scrollIdleTimer !== null) {
+    window.clearTimeout(scrollIdleTimer)
+    scrollIdleTimer = null
+  }
+  if (pendingMeasureFlushFrame !== null) {
+    window.cancelAnimationFrame(pendingMeasureFlushFrame)
+    pendingMeasureFlushFrame = null
+  }
+  isListScrolling.value = false
+  isListGestureActive = false
+  userScrollInputUntil = 0
+  pendingMeasureQueue.clear()
   cancelScheduledChatSearchRefresh()
   pendingInputStore.clear()
 })
@@ -1922,19 +2878,32 @@ onUnmounted(() => {
 <style>
 .message-list-container {
   scrollbar-gutter: stable both-edges;
-  will-change: scroll-position;
+  /* Avoid will-change: scroll-position — it promotes a huge layer and hurts
+     scroll performance with windowed message rows. */
   overscroll-behavior: contain;
+  overflow-anchor: none;
   scroll-behavior: auto;
 }
 
-/* 流式生成时，最后一行始终渲染以保证流式流畅 */
-[data-generating='true'] .message-list-row:last-child {
-  content-visibility: visible;
+/*
+ * During active scroll, keep glass visible but use a cheaper blur budget.
+ * 0px made every glass surface appear broken; full overlay blur makes sticky chrome repaint-heavy.
+ */
+.message-list-container.dc-list-scrolling {
+  --dc-blur-soft: 4px;
+  --dc-blur-panel: 8px;
+  --dc-blur-overlay: 12px;
 }
 
 .agent-question-panel {
   isolation: isolate;
   border: 1px solid transparent;
+  max-height: min(70vh, calc(100vh - 12rem));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  backdrop-filter: blur(var(--dc-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
   background: linear-gradient(
     180deg,
     color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,

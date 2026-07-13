@@ -57,7 +57,7 @@ void window.floatingButtonAPI
     console.warn('Failed to initialize floating widget language:', error)
   })
 
-window.floatingButtonAPI.onLanguageChanged(applyLanguage)
+const unsubscribeLanguageChanged = window.floatingButtonAPI.onLanguageChanged(applyLanguage)
 
 void window.floatingButtonAPI
   .getTheme()
@@ -66,4 +66,13 @@ void window.floatingButtonAPI
     console.warn('Failed to initialize floating widget theme:', error)
   })
 
-window.floatingButtonAPI.onThemeChanged(applyTheme)
+const unsubscribeThemeChanged = window.floatingButtonAPI.onThemeChanged(applyTheme)
+
+window.addEventListener(
+  'beforeunload',
+  () => {
+    unsubscribeLanguageChanged()
+    unsubscribeThemeChanged()
+  },
+  { once: true }
+)

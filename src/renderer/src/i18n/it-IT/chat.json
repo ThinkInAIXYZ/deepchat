@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Guida",
     "queueCount": "In attesa {count}/{max}",
-    "resumeQueue": "Riprendi invio",
-    "toSteer": "Converti in guida",
+    "toSteer": "Interrompi e invia",
     "locked": "Bloccato",
     "reorder": "Riordina",
     "files": "{count} file",
     "attachmentsOnly": "{count} allegati",
     "empty": "Messaggio vuoto",
-    "limitReached": "Area di attesa piena (max {max})."
+    "limitReached": "Area di attesa piena (max {max}).",
+    "remove": "Rimuovi",
+    "steerUnavailable": "Impossibile interrompere ora",
+    "steerFailed": "Impossibile interrompere questo turno"
   },
   "features": {
     "webSearch": "Ricerca web",
@@ -243,9 +245,9 @@
         "pending": "Da fare",
         "in_progress": "In corso",
         "completed": "Completato",
-        "failed": "Non riuscito",
-        "skipped": "Saltato"
-      }
+        "interrupted": "Interrotto"
+      },
+      "completedCount": "{completed}/{total} completati"
     },
     "files": {
       "section": "File",
@@ -260,6 +262,10 @@
         "openFile": "Apri file",
         "revealInFolder": "Mostra nel file manager",
         "insertPath": "Inserisci nell'input"
+      },
+      "watchStatus": {
+        "degraded": "Il monitoraggio è in modalità di fallback. Le modifiche potrebbero aggiornarsi più lentamente.",
+        "failed": "Il monitoraggio dei file non è disponibile. Aggiorna o seleziona di nuovo lo spazio di lavoro."
       }
     },
     "git": {
@@ -321,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Permessi predefiniti",
-    "fullAccess": "Accesso completo"
+    "fullAccess": "Accesso completo",
+    "autoApprove": "Approva per me"
   },
   "sidebar": {
     "allAgents": "Tutti gli Agents",
@@ -343,12 +350,21 @@
     "groupByDate": "Raggruppa per data",
     "groupByProject": "Raggruppa per progetto",
     "pinned": "Conversazioni fissate",
+    "chats": "Chat",
     "emptyTitle": "Ancora nessuna conversazione",
     "emptyDescription": "Avvia una nuova conversazione",
     "searchPlaceholder": "Cerca titolo conversazione",
     "searchAriaLabel": "Cerca titolo conversazione",
     "searchEmptyTitle": "Nessuna conversazione corrispondente",
-    "searchEmptyDescription": "Prova con un'altra parola chiave nel titolo"
+    "searchEmptyDescription": "Prova con un'altra parola chiave nel titolo",
+    "projectGroupActions": "Azioni del gruppo progetto",
+    "moveProjectGroupTop": "Sposta in cima",
+    "moveProjectGroupUp": "Sposta su",
+    "moveProjectGroupDown": "Sposta giù",
+    "moveProjectGroupBottom": "Sposta in fondo",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Cerca conversazioni, Agent, impostazioni e azioni…",
@@ -416,6 +432,58 @@
       "hour": "h ",
       "minute": "min ",
       "second": "s"
+    }
+  },
+  "memory": {
+    "toolbar": "Memorie usate",
+    "status": {
+      "archived": "Dimenticata"
+    },
+    "actions": {
+      "undo": "Annulla",
+      "forget": "Dimentica",
+      "edit": "Modifica"
+    },
+    "chip": {
+      "title": "Memoria aggiornata {count}",
+      "heading": "Memoria aggiornata",
+      "description": "Questo turno ha aggiunto le seguenti memorie."
+    },
+    "selection": {
+      "remember": "Ricorda questo"
+    },
+    "turn": {
+      "title": "Memorie usate in questo turno",
+      "empty": "Nessuna memoria è stata iniettata per questo turno",
+      "selected": "Selezionate",
+      "dropped": "Scartate",
+      "tokens": "Token",
+      "budget": "Budget",
+      "countOnly": "Questo record contiene solo un riepilogo numerico.",
+      "unavailable": "Questa memoria non è più disponibile.",
+      "noSelectedDetails": "Non ci sono dettagli di memoria da mostrare per questo turno.",
+      "refreshFailed": "Aggiornamento non riuscito. Vengono mostrate le memorie caricate più di recente.",
+      "error": "Impossibile caricare i ricordi usati in questo turno."
+    },
+    "toast": {
+      "undoSuccess": "Memoria annullata",
+      "undoFailed": "Impossibile annullare la memoria",
+      "forgetSuccess": "Memoria dimenticata",
+      "forgetFailed": "Impossibile dimenticare la memoria",
+      "amendFailed": "Impossibile aggiornare la memoria",
+      "rememberFailed": "Impossibile salvare la memoria",
+      "add": {
+        "created": "Salvata come nuova memoria",
+        "updated": "Memoria esistente aggiornata",
+        "superseded": "Unita in una memoria aggiornata",
+        "challenged": "Registrata come memoria da verificare",
+        "noop": "Nessuna nuova memoria aggiunta"
+      }
+    },
+    "errors": {
+      "actionFailed": "Azione non riuscita. Riprova.",
+      "amendRetryable": "La modifica non è riuscita. La memoria originale è stata ripristinata; riprova.",
+      "amendRestoreFailed": "La modifica non è riuscita e non è stato possibile ripristinare la memoria originale."
     }
   }
 }

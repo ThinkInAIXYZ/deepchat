@@ -42,9 +42,14 @@ type PluginPresenterDeps = {
   mcpPresenter: IMCPPresenter
   skillPresenter: ISkillPresenter
   platform?: NodeJS.Platform
+  arch?: NodeJS.Architecture
   appPath?: string
   isPackaged?: boolean
   resourcesPath?: string
+}
+
+type ShutdownAwareMcpPresenter = IMCPPresenter & {
+  stopServerDuringShutdownByName?: (serverName: string) => Promise<void>
 }
 
 type ResolvedOfficialPlugin = {
@@ -57,8 +62,12 @@ type ResolvedOfficialPlugin = {
 type RuntimePermissionState = 'granted' | 'missing' | 'unknown'
 
 type RuntimePermissionCheckResult = {
+  platform: NodeJS.Platform
   accessibility: RuntimePermissionState
   screenRecording: RuntimePermissionState
+  uia?: RuntimePermissionState
+  postMessage?: RuntimePermissionState
+  diagnostics?: Record<string, string | number | boolean | null>
   error?: string
   command?: string
   stdout?: string
@@ -80,6 +89,7 @@ export class PluginPresenter {
   private readonly mcpPresenter: IMCPPresenter
   private readonly skillPresenter: SkillContributionPort
   private readonly platform: NodeJS.Platform
+  private readonly arch: NodeJS.Architecture
   private readonly appPath: string
   private readonly isPackaged: boolean
   private readonly resourcesPath: string
@@ -99,6 +109,7 @@ export class PluginPresenter {
     this.mcpPresenter = deps.mcpPresenter
     this.skillPresenter = deps.skillPresenter as SkillContributionPort
     this.platform = deps.platform ?? process.platform
+    this.arch = deps.arch ?? process.arch
     this.appPath = deps.appPath ?? app.getAppPath()
     this.isPackaged = deps.isPackaged ?? app.isPackaged
     this.resourcesPath = deps.resourcesPath ?? process.resourcesPath ?? ''
@@ -120,6 +131,71 @@ export class PluginPresenter {
         }
       }
     }
+  }
+
+  async shutdown(): Promise<void> {
+    const pluginIds = new Set(this.getInstallations().map((installation) => installation.pluginId))
+    const servers = await this.configPresenter.getMcpServers()
+    const pluginOwnedServers: Array<{ serverName: string; pluginId?: string }> = []
+
+    for (const [serverName, serverConfig] of Object.entries(servers)) {
+      if (!this.isPluginOwnedServerConfig(serverConfig)) {
+        continue
+      }
+
+      const ownerPluginId = this.getServerOwnerPluginId(serverConfig)
+      if (ownerPluginId) {
+        pluginIds.add(ownerPluginId)
+      }
+      pluginOwnedServers.push({ serverName, pluginId: ownerPluginId })
+    }
+
+    await this.stopPluginOwnedServers(pluginOwnedServers)
+
+    for (const pluginId of pluginIds) {
+      unregisterPluginToolPolicies(pluginId)
+    }
+
+    this.closeAllPluginSettingsWindows()
+  }
+
+  private async stopPluginOwnedServers(
+    servers: Array<{ serverName: string; pluginId?: string }>
+  ): Promise<void> {
+    const concurrency = 4
+    let nextIndex = 0
+
+    const stopNext = async (): Promise<void> => {
+      while (nextIndex < servers.length) {
+        const { serverName, pluginId } = servers[nextIndex++]
+        try {
+          if (await this.isMcpServerActive(serverName)) {
+            const mcpPresenter = this.mcpPresenter as ShutdownAwareMcpPresenter
+            if (mcpPresenter.stopServerDuringShutdownByName) {
+              await mcpPresenter.stopServerDuringShutdownByName(serverName)
+            } else {
+              await this.mcpPresenter.stopServer(serverName)
+            }
+          }
+        } catch (error) {
+          console.warn('[PluginHost] Failed to stop plugin-owned MCP server during shutdown:', {
+            pluginId,
+            serverName,
+            error
+          })
+        }
+      }
+    }
+
+    const workers = Array.from({ length: Math.min(concurrency, servers.length) }, () => stopNext())
+    await Promise.all(workers)
+  }
+
+  private async isMcpServerActive(serverName: string): Promise<boolean> {
+    return (
+      (await this.mcpPresenter.isServerActive?.(serverName)) ??
+      (await this.mcpPresenter.isServerRunning(serverName))
+    )
   }
 
   async listPlugins(): Promise<PluginListItem[]> {
@@ -282,12 +358,9 @@ export class PluginPresenter {
   private async disableByOwner(pluginId: string): Promise<void> {
     const servers = await this.configPresenter.getMcpServers()
     for (const [serverName, serverConfig] of Object.entries(servers)) {
-      if (
-        serverConfig.ownerPluginId === pluginId ||
-        (serverConfig.source === 'plugin' && serverConfig.sourceId === pluginId)
-      ) {
+      if (this.isServerOwnedByPlugin(serverConfig, pluginId)) {
         try {
-          if (await this.mcpPresenter.isServerRunning(serverName)) {
+          if (await this.isMcpServerActive(serverName)) {
             await this.mcpPresenter.stopServer(serverName)
           }
         } catch (error) {
@@ -305,6 +378,24 @@ export class PluginPresenter {
     unregisterPluginToolPolicies(pluginId)
     this.closePluginSettingsWindow(pluginId)
     this.removeResourceRecordsByOwner(pluginId)
+  }
+
+  private isPluginOwnedServerConfig(serverConfig: MCPServerConfig): boolean {
+    return Boolean(serverConfig.ownerPluginId || serverConfig.source === 'plugin')
+  }
+
+  private isServerOwnedByPlugin(serverConfig: MCPServerConfig, pluginId: string): boolean {
+    return (
+      serverConfig.ownerPluginId === pluginId ||
+      (serverConfig.source === 'plugin' && serverConfig.sourceId === pluginId)
+    )
+  }
+
+  private getServerOwnerPluginId(serverConfig: MCPServerConfig): string | undefined {
+    return (
+      serverConfig.ownerPluginId ||
+      (serverConfig.source === 'plugin' ? serverConfig.sourceId : undefined)
+    )
   }
 
   private async removePersistedInstallation(pluginId: string): Promise<void> {
@@ -472,6 +563,12 @@ export class PluginPresenter {
     this.settingsWindows.delete(pluginId)
   }
 
+  private closeAllPluginSettingsWindows(): void {
+    for (const pluginId of Array.from(this.settingsWindows.keys())) {
+      this.closePluginSettingsWindow(pluginId)
+    }
+  }
+
   private registerToolPolicies(plugin: ResolvedOfficialPlugin): void {
     for (const policy of plugin.manifest.toolPolicies ?? []) {
       registerPluginToolPolicy({
@@ -577,105 +674,131 @@ export class PluginPresenter {
         lastError: runtime.lastError
       })
       return {
+        platform: this.platform,
         accessibility: 'unknown',
         screenRecording: 'unknown',
         error: runtime.lastError || 'Runtime is missing'
       }
     }
 
-    try {
-      return await this.runRuntimePermissionProbe(pluginId, runtime.command)
-    } catch (probeError) {
-      console.warn('[PluginHost] Runtime permission probe failed, falling back to tool call:', {
-        pluginId,
-        command: runtime.command,
-        error: probeError
-      })
-      return await this.runRuntimePermissionToolFallback(pluginId, runtime.command, probeError)
-    }
+    return await this.runRuntimePermissionTool(pluginId, runtime.command)
   }
 
-  private async runRuntimePermissionProbe(
+  private async runRuntimePermissionTool(
     pluginId: string,
     command: string
   ): Promise<RuntimePermissionCheckResult> {
-    const tempRoot = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-cua-permissions-'))
-    const outputPath = path.join(tempRoot, 'status.json')
     try {
-      const { stdout, stderr } = await execFileAsync(
-        command,
-        ['deepchat-permission-probe', '--output', outputPath, '--prompt'],
-        {
-          timeout: 15000,
-          windowsHide: true
-        }
-      )
-      if (!fs.existsSync(outputPath)) {
-        throw new Error('Permission probe did not write a status file')
-      }
-
-      const status = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as {
-        accessibility?: unknown
-        screen_recording?: unknown
-        screenRecording?: unknown
-      }
-      const result: RuntimePermissionCheckResult = {
-        accessibility: this.toPermissionState(status.accessibility),
-        screenRecording: this.toPermissionState(status.screen_recording ?? status.screenRecording),
-        command
-      }
-      if (stdout.trim()) {
-        result.stdout = this.truncateOutput(stdout)
-      }
-      if (stderr.trim()) {
-        result.stderr = this.truncateOutput(stderr)
-      }
-      console.info('[PluginHost] Runtime permission probe completed:', {
-        pluginId,
-        command,
-        accessibility: result.accessibility,
-        screenRecording: result.screenRecording
-      })
-      return result
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true })
-    }
-  }
-
-  private async runRuntimePermissionToolFallback(
-    pluginId: string,
-    command: string,
-    probeError: unknown
-  ): Promise<RuntimePermissionCheckResult> {
-    try {
-      const { stdout, stderr } = await execFileAsync(command, ['check_permissions'], {
+      const { stdout, stderr } = await execFileAsync(command, this.runtimePermissionToolArgs(), {
         timeout: 10000,
         windowsHide: true
       })
-      const output = `${stdout}\n${stderr}`
-      return {
-        accessibility: this.parsePermissionState(output, 'Accessibility'),
-        screenRecording: this.parsePermissionState(output, 'Screen Recording'),
-        command,
-        stdout: this.truncateOutput(stdout),
-        stderr: this.truncateOutput(stderr),
-        error: `Permission probe failed; used fallback. ${this.describeError(probeError)}`
-      }
+      return this.parseRuntimePermissionToolResult(command, stdout, stderr)
     } catch (error) {
       console.warn('[PluginHost] Runtime permission fallback failed:', {
         pluginId,
         command,
         error
       })
+      const stdout = this.extractRawExecOutput(error, 'stdout')
+      const stderr = this.extractRawExecOutput(error, 'stderr')
+      const parsed = this.parseRuntimePermissionToolResult(command, stdout, stderr)
+      if (this.hasPermissionSignal(parsed)) {
+        parsed.error = `Permission check returned a non-zero status. ${this.describeExecError(error)}`
+        return parsed
+      }
       return {
+        platform: this.platform,
         accessibility: 'unknown',
         screenRecording: 'unknown',
         command,
-        error: `Permission check failed. Probe: ${this.describeError(probeError)}. Fallback: ${this.describeExecError(error)}`,
+        error: `Permission check failed. ${this.describeExecError(error)}`,
         stdout: this.extractExecOutput(error, 'stdout'),
         stderr: this.extractExecOutput(error, 'stderr')
       }
     }
+  }
+
+  private runtimePermissionToolArgs(): string[] {
+    return ['check_permissions', JSON.stringify({ prompt: false })]
+  }
+
+  private parseRuntimePermissionToolResult(
+    command: string,
+    stdout: string,
+    stderr: string
+  ): RuntimePermissionCheckResult {
+    const parsed =
+      this.parsePermissionJson(stdout) ?? this.parsePermissionJson(`${stdout}\n${stderr}`)
+    const result: RuntimePermissionCheckResult = {
+      platform: this.platform,
+      accessibility: 'unknown',
+      screenRecording: 'unknown',
+      command,
+      stdout: this.truncateOutput(stdout),
+      stderr: this.truncateOutput(stderr)
+    }
+
+    if (this.platform === 'win32' && parsed) {
+      result.uia = this.toPermissionState(parsed.uia)
+      result.postMessage = this.toPermissionState(parsed.post_message ?? parsed.postMessage)
+      result.diagnostics = this.toRuntimePermissionDiagnostics(parsed)
+      return result
+    }
+
+    const output = `${stdout}\n${stderr}`
+    result.accessibility = this.parsePermissionState(output, 'Accessibility')
+    result.screenRecording = this.parsePermissionState(output, 'Screen Recording')
+
+    if (this.platform === 'linux' && parsed) {
+      result.diagnostics = this.toRuntimePermissionDiagnostics(parsed)
+      if (typeof parsed.error === 'string' && parsed.error.trim()) {
+        result.error = parsed.error.trim()
+      }
+    }
+
+    return result
+  }
+
+  private hasPermissionSignal(result: RuntimePermissionCheckResult): boolean {
+    return (
+      result.accessibility !== 'unknown' ||
+      result.screenRecording !== 'unknown' ||
+      result.uia !== undefined ||
+      result.postMessage !== undefined
+    )
+  }
+
+  private parsePermissionJson(output: string): Record<string, unknown> | undefined {
+    const trimmed = output.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private toRuntimePermissionDiagnostics(
+    value: Record<string, unknown>
+  ): Record<string, string | number | boolean | null> {
+    const diagnostics: Record<string, string | number | boolean | null> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      if (
+        typeof entry === 'string' ||
+        typeof entry === 'number' ||
+        typeof entry === 'boolean' ||
+        entry === null
+      ) {
+        diagnostics[key] = entry
+      }
+    }
+    return diagnostics
   }
 
   private toPermissionState(value: unknown): RuntimePermissionState {
@@ -685,11 +808,22 @@ export class PluginPresenter {
     if (value === false) {
       return 'missing'
     }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (['granted', 'ok', 'true', 'available', 'enabled', 'yes'].includes(normalized)) {
+        return 'granted'
+      }
+      if (
+        ['missing', 'denied', 'deny', 'false', 'unavailable', 'disabled', 'no'].includes(normalized)
+      ) {
+        return 'missing'
+      }
+    }
     return 'unknown'
   }
 
   private describeError(error: unknown): string {
-    return error instanceof Error ? error.message : String(error)
+    return this.sanitizePermissionError(error instanceof Error ? error.message : String(error))
   }
 
   private describeExecError(error: unknown): string {
@@ -707,19 +841,31 @@ export class PluginPresenter {
   }
 
   private extractExecOutput(error: unknown, key: 'stdout' | 'stderr'): string | undefined {
-    if (!error || typeof error !== 'object') {
-      return undefined
-    }
-    const value = (error as { stdout?: unknown; stderr?: unknown })[key]
-    if (typeof value !== 'string' || !value.trim()) {
+    const value = this.extractRawExecOutput(error, key)
+    if (!value.trim()) {
       return undefined
     }
     return this.truncateOutput(value)
   }
 
+  private extractRawExecOutput(error: unknown, key: 'stdout' | 'stderr'): string {
+    if (!error || typeof error !== 'object') {
+      return ''
+    }
+    const value = (error as { stdout?: unknown; stderr?: unknown })[key]
+    if (typeof value !== 'string' || !value.trim()) {
+      return ''
+    }
+    return this.sanitizePermissionError(value)
+  }
+
   private truncateOutput(value: string): string {
-    const normalized = value.trim()
+    const normalized = this.sanitizePermissionError(value).trim()
     return normalized.length > 1200 ? `${normalized.slice(0, 1200)}...` : normalized
+  }
+
+  private sanitizePermissionError(value: string): string {
+    return value.replace(/\s*hint:\s*PowerShell 5\.1[\s\S]*?(?=(?:\sFallback:|$))/i, ' ').trim()
   }
 
   private parsePermissionState(output: string, label: string): 'granted' | 'missing' | 'unknown' {
@@ -740,8 +886,39 @@ export class PluginPresenter {
 
   private async openRuntimeGuide(pluginId: string): Promise<void> {
     const plugin = this.getInstalledOrOfficialPluginOrThrow(pluginId)
+    let helperOpenError: string | undefined
+
+    if (this.platform === 'darwin' && plugin.manifest.runtime) {
+      try {
+        const runtime = await this.refreshRuntime(pluginId)
+        if (runtime.helperAppPath) {
+          const openError = await shell.openPath(runtime.helperAppPath)
+          if (!openError) {
+            return
+          }
+          helperOpenError = openError
+          console.warn('[PluginHost] Runtime helper permission guide failed to open:', {
+            pluginId,
+            helperAppPath: runtime.helperAppPath,
+            error: openError
+          })
+        }
+      } catch (error) {
+        helperOpenError = this.describeError(error)
+        console.warn('[PluginHost] Runtime helper permission guide unavailable:', {
+          pluginId,
+          error
+        })
+      }
+    }
+
     const guideUrl = plugin.manifest.runtime?.install?.guideUrl?.trim()
     if (!guideUrl) {
+      if (helperOpenError) {
+        throw new Error(
+          `Failed to open runtime helper and plugin ${pluginId} does not declare a runtime guide URL. Helper: ${helperOpenError}`
+        )
+      }
       throw new Error(`Plugin ${pluginId} does not declare a runtime guide URL`)
     }
     await shell.openExternal(guideUrl)
@@ -749,24 +926,42 @@ export class PluginPresenter {
 
   private async loadOfficialPlugins(): Promise<void> {
     this.officialPlugins.clear()
-
-    for (const plugin of [
+    const plugins = [
       ...this.resolveOfficialPluginPackages(),
       ...this.resolveOfficialPluginDirectories()
-    ]) {
+    ]
+    const usablePluginIds = new Set<string>()
+
+    for (const plugin of plugins) {
+      if (!this.isPluginPlatformSupported(plugin.manifest)) {
+        continue
+      }
+      try {
+        this.assertTrustedOfficialPlugin(plugin.manifest)
+        usablePluginIds.add(plugin.manifest.id)
+      } catch {
+        // The main discovery pass logs untrusted plugin details and performs cleanup.
+      }
+    }
+
+    for (const plugin of plugins) {
       if (this.officialPlugins.has(plugin.manifest.id)) {
         continue
       }
       if (!this.isPluginPlatformSupported(plugin.manifest)) {
         console.info(`[PluginHost] Skipping plugin ${plugin.manifest.id}: platform not supported`)
-        await this.removePersistedInstallation(plugin.manifest.id)
+        if (!usablePluginIds.has(plugin.manifest.id)) {
+          await this.removePersistedInstallation(plugin.manifest.id)
+        }
         continue
       }
       try {
         this.assertTrustedOfficialPlugin(plugin.manifest)
       } catch (error) {
         console.warn(`[PluginHost] Skipping untrusted plugin ${plugin.manifest.id}:`, error)
-        await this.removePersistedInstallation(plugin.manifest.id)
+        if (!usablePluginIds.has(plugin.manifest.id)) {
+          await this.removePersistedInstallation(plugin.manifest.id)
+        }
         continue
       }
       console.info(`[PluginHost] Discovered plugin: ${plugin.manifest.id} at ${plugin.root}`)
@@ -986,13 +1181,17 @@ export class PluginPresenter {
 
   private assertPlatformSupported(manifest: DeepChatPluginManifest): void {
     if (!this.isPluginPlatformSupported(manifest)) {
-      throw new Error(`Plugin ${manifest.id} does not support ${this.platform}`)
+      throw new Error(`Plugin ${manifest.id} does not support ${this.platform}/${this.arch}`)
     }
   }
 
   private isPluginPlatformSupported(manifest: DeepChatPluginManifest): boolean {
     const platforms = new Set(manifest.engines.platforms.map((platform) => platform.toLowerCase()))
     const aliases = this.platform === 'darwin' ? ['darwin', 'macos', 'mac'] : [this.platform]
+    const targets = manifest.engines.targets?.map((target) => target.toLowerCase()) ?? []
+    if (targets.length > 0) {
+      return aliases.some((platform) => targets.includes(`${platform}/${this.arch}`))
+    }
     return aliases.some((platform) => platforms.has(platform))
   }
 
@@ -1361,7 +1560,10 @@ export class PluginPresenter {
   }
 
   private resolveRuntimeCandidate(candidate: string, pluginRoot: string): string | null {
-    candidate = candidate.replaceAll('${arch}', process.arch)
+    candidate = candidate.replaceAll('${arch}', this.arch)
+    if (candidate.startsWith('app-helper:')) {
+      return this.resolveAppHelperRelativePath(candidate.slice('app-helper:'.length))
+    }
     if (candidate.startsWith('plugin:')) {
       return this.resolvePluginRelativePath(pluginRoot, candidate.slice('plugin:'.length))
     }
@@ -1372,6 +1574,21 @@ export class PluginPresenter {
       return path.join(app.getPath('home'), candidate.slice(2))
     }
     return candidate
+  }
+
+  private resolveAppHelperRelativePath(relativePath: string): string | null {
+    if (this.platform !== 'darwin' || !this.isPackaged || !this.resourcesPath) {
+      return null
+    }
+
+    const normalized = this.assertSafeRelativePath(relativePath, 'app helper path')
+    const helperRoot = path.resolve(path.dirname(this.resourcesPath), 'Helpers')
+    const resolved = path.resolve(helperRoot, ...normalized.split('/').filter(Boolean))
+    const relativeToHelperRoot = path.relative(helperRoot, resolved)
+    if (relativeToHelperRoot.startsWith('..') || path.isAbsolute(relativeToHelperRoot)) {
+      throw new Error(`App helper path escapes helper root: ${relativePath}`)
+    }
+    return resolved
   }
 
   private resolvePluginTemplateRecord(
@@ -1412,8 +1629,14 @@ export class PluginPresenter {
 
     for (const serverName of serverNames) {
       try {
-        if (!(await this.mcpPresenter.isServerRunning(serverName))) {
-          await this.mcpPresenter.startServer(serverName)
+        if (!(await this.isMcpServerActive(serverName))) {
+          void this.mcpPresenter.startServer(serverName).catch((error) => {
+            console.warn('[PluginHost] Failed to auto-start plugin MCP server:', {
+              pluginId,
+              serverName,
+              error
+            })
+          })
         }
       } catch (error) {
         console.warn('[PluginHost] Failed to auto-start plugin MCP server:', {
@@ -1448,7 +1671,7 @@ export class PluginPresenter {
     return JSON.parse(
       JSON.stringify(manifest)
         .replaceAll('${app.version}', app.getVersion())
-        .replaceAll('${arch}', process.arch)
+        .replaceAll('${arch}', this.arch)
         .replaceAll('${target.platform}', this.platform)
         .replaceAll(
           '${github.release.download}',

@@ -22,11 +22,15 @@ import type {
   UsageDashboardData,
   AgentTapeInfo,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
   AgentTapeAnchorResult,
   AgentTransferImpact
 } from '../agent-interface'
+import type { DeepChatTapeViewManifestRecord } from '../tape-view-manifest'
+import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from '../tape-replay'
 import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
 
@@ -78,9 +82,13 @@ export interface IAgentSessionPresenter {
     toIndex: number
   ): Promise<PendingSessionInputRecord[]>
   convertPendingInputToSteer(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
   deletePendingInput(sessionId: string, itemId: string): Promise<void>
-  resumePendingQueue(sessionId: string): Promise<void>
-  sendMessage(sessionId: string, content: string | SendMessageInput): Promise<MessageStartResult>
+  sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { maxProviderRounds?: number }
+  ): Promise<MessageStartResult>
   steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
   retryMessage(sessionId: string, messageId: string): Promise<void>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
@@ -114,6 +122,11 @@ export interface IAgentSessionPresenter {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
+  getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult>
   listTapeAnchors(
     sessionId: string,
     options?: AgentTapeAnchorsOptions
@@ -137,6 +150,11 @@ export interface IAgentSessionPresenter {
   getLegacyImportStatus(): Promise<LegacyImportStatus>
   retryLegacyImport(): Promise<LegacyImportStatus>
   listMessageTraces(messageId: string): Promise<MessageTraceRecord[]>
+  listMessageViewManifests(messageId: string): Promise<DeepChatTapeViewManifestRecord[]>
+  exportMessageTapeReplaySlice(
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null>
   getMessageTraceCount(messageId: string): Promise<number>
   getMessageIds(sessionId: string): Promise<string[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>

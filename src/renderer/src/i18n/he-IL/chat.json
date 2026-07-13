@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "הכוונה",
     "queueCount": "ממתין לשליחה {count}/{max}",
-    "resumeQueue": "המשך שליחה",
-    "toSteer": "הפוך להכוונה",
+    "toSteer": "להפסיק ולשלוח",
     "locked": "נעול",
     "reorder": "שנה סדר",
     "files": "{count} קבצים",
     "attachmentsOnly": "{count} קבצים מצורפים",
     "empty": "הודעה ריקה",
-    "limitReached": "אזור ההמתנה מלא (מקסימום {max})."
+    "limitReached": "אזור ההמתנה מלא (מקסימום {max}).",
+    "remove": "הסר",
+    "steerUnavailable": "לא ניתן להפסיק כעת",
+    "steerFailed": "לא ניתן היה להפסיק את התור הזה"
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",
@@ -210,6 +212,10 @@
         "title": "אין אזור עבודה",
         "description": "בחר או גרור תיקייה כדי להגדיר את אזור העבודה",
         "button": "בחר תיקייה"
+      },
+      "watchStatus": {
+        "degraded": "המעקב פועל במצב גיבוי. ייתכן שהשינויים יתרעננו לאט יותר.",
+        "failed": "מעקב אחר קבצים אינו זמין. רענן או בחר מחדש את סביבת העבודה."
       }
     },
     "git": {
@@ -228,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "הושלם",
-        "failed": "לְהִכָּשֵׁל",
         "in_progress": "בתהליך",
         "pending": "תָלוּי וְעוֹמֵד",
-        "skipped": "דילג"
-      }
+        "interrupted": "הופסק"
+      },
+      "completedCount": "{completed}/{total} הושלמו"
     },
     "terminal": {
       "empty": "עדיין אין פלט",
@@ -305,7 +311,8 @@
   },
   "permissionMode": {
     "default": "הרשאות ברירת מחדל",
-    "fullAccess": "גישה מלאה"
+    "fullAccess": "גישה מלאה",
+    "autoApprove": "אשר עבורי"
   },
   "sidebar": {
     "allAgents": "כל הסוכנים",
@@ -326,13 +333,22 @@
     "groupByDate": "קבץ לפי תאריך",
     "groupByProject": "קבץ לפי פרויקט",
     "pinned": "נעוצים",
+    "chats": "צ'אטים",
     "emptyTitle": "עדיין אין שיחות",
     "emptyDescription": "התחילו שיחה חדשה כדי להתחיל",
     "remoteControlDisabled": "מושבת",
     "searchPlaceholder": "חיפוש בצ׳אטים",
     "searchAriaLabel": "חיפוש בצ׳אטים",
     "searchEmptyTitle": "לא נמצאו שיחות תואמות",
-    "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת"
+    "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת",
+    "projectGroupActions": "פעולות קבוצת פרויקט",
+    "moveProjectGroupTop": "העבר לראש הרשימה",
+    "moveProjectGroupUp": "העבר למעלה",
+    "moveProjectGroupDown": "העבר למטה",
+    "moveProjectGroupBottom": "העבר לתחתית הרשימה",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "סקירת משימות",
@@ -416,6 +432,58 @@
       "hour": " שעה ",
       "minute": " דק׳ ",
       "second": " שנ׳"
+    }
+  },
+  "memory": {
+    "toolbar": "זיכרונות שנעשה בהם שימוש",
+    "status": {
+      "archived": "נשכח"
+    },
+    "actions": {
+      "undo": "בטל",
+      "forget": "שכח",
+      "edit": "ערוך"
+    },
+    "chip": {
+      "title": "הזיכרון עודכן {count}",
+      "heading": "הזיכרון עודכן",
+      "description": "בסבב הזה נוספו הזיכרונות הבאים."
+    },
+    "selection": {
+      "remember": "זכור את זה"
+    },
+    "turn": {
+      "title": "זיכרונות שנעשה בהם שימוש בסבב הזה",
+      "empty": "לא הוזרקו זיכרונות בסבב הזה",
+      "selected": "נבחרו",
+      "dropped": "הושמטו",
+      "tokens": "טוקנים",
+      "budget": "תקציב",
+      "countOnly": "הרשומה הזו כוללת רק סיכום ספירה.",
+      "unavailable": "הזיכרון הזה אינו זמין עוד.",
+      "noSelectedDetails": "אין פרטי זיכרון להצגה עבור הסבב הזה.",
+      "refreshFailed": "הרענון נכשל. מוצגים הזיכרונות האחרונים שנטענו.",
+      "error": "לא ניתן לטעון את הזיכרונות לסבב הזה."
+    },
+    "toast": {
+      "undoSuccess": "הזיכרון בוטל",
+      "undoFailed": "לא ניתן היה לבטל את הזיכרון",
+      "forgetSuccess": "הזיכרון נשכח",
+      "forgetFailed": "לא ניתן היה לשכוח את הזיכרון",
+      "amendFailed": "לא ניתן היה לעדכן את הזיכרון",
+      "rememberFailed": "לא ניתן היה לשמור את הזיכרון",
+      "add": {
+        "created": "נשמר כזיכרון חדש",
+        "updated": "זיכרון קיים עודכן",
+        "superseded": "מוזג לתוך זיכרון מעודכן",
+        "challenged": "נרשם כזיכרון לבדיקה",
+        "noop": "לא נוסף זיכרון חדש"
+      }
+    },
+    "errors": {
+      "actionFailed": "הפעולה נכשלה. נסו שוב.",
+      "amendRetryable": "העריכה נכשלה. הזיכרון המקורי שוחזר, אפשר לנסות שוב.",
+      "amendRestoreFailed": "העריכה נכשלה, ולא ניתן היה לשחזר את הזיכרון המקורי."
     }
   }
 }

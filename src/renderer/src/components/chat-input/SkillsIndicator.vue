@@ -9,18 +9,18 @@
               variant="outline"
               :class="[
                 'flex text-accent-foreground rounded-lg shadow-sm items-center gap-1.5 h-7 text-xs px-1.5 w-auto',
-                activeCount > 0 ? 'text-primary border-primary/50' : ''
+                composerActiveCount > 0 ? 'text-primary border-primary/50' : ''
               ]"
               size="icon"
             >
               <Icon v-if="loading" icon="lucide:loader" class="w-4 h-4 animate-spin" />
               <Icon v-else icon="lucide:sparkles" class="w-4 h-4" />
-              <span v-if="activeCount > 0" class="text-sm">{{ activeCount }}</span>
+              <span v-if="composerActiveCount > 0" class="text-sm">{{ composerActiveCount }}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p v-if="activeCount > 0">
-              {{ t('chat.skills.indicator.active', { count: activeCount }) }}
+            <p v-if="composerActiveCount > 0">
+              {{ t('chat.skills.indicator.active', { count: composerActiveCount }) }}
             </p>
             <p v-else>{{ t('chat.skills.indicator.none') }}</p>
           </TooltipContent>
@@ -30,7 +30,7 @@
       <PopoverContent class="w-72 p-0" align="start">
         <SkillsPanel
           :skills="skills"
-          :active-skills="activeSkills"
+          :active-skills="composerActiveSkills"
           @toggle="handleToggle"
           @manage="openSettings"
         />
@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import {
   Tooltip,
@@ -51,7 +52,6 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Button } from '@shadcn/components/ui/button'
-import { createSettingsClient } from '@api/SettingsClient'
 import { useSkillsData } from './composables/useSkillsData'
 import SkillsPanel from './SkillsPanel.vue'
 
@@ -60,15 +60,14 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const settingsClient = createSettingsClient()
+const router = useRouter()
 
 // Panel open state
 const panelOpen = ref(false)
 
 // Use skills data composable
-const { skills, activeSkills, activeCount, loading, toggleSkill, pendingSkills } = useSkillsData(
-  computed(() => props.conversationId)
-)
+const { skills, composerActiveSkills, composerActiveCount, loading, toggleSkill, pendingSkills } =
+  useSkillsData(computed(() => props.conversationId))
 
 // Handle skill toggle
 const handleToggle = async (skillName: string) => {
@@ -77,7 +76,7 @@ const handleToggle = async (skillName: string) => {
 
 // Open settings page at Skills section
 const openSettings = () => {
-  void settingsClient.openSettings({ routeName: 'settings-skills' })
+  void router.push({ name: 'plugins-skills' })
   panelOpen.value = false
 }
 

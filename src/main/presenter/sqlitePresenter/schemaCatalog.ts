@@ -5,6 +5,7 @@ import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable } from './tables/acpSessions'
 import { AcpTurnsTable } from './tables/acpTurns'
 import { NewEnvironmentsTable } from './tables/newEnvironments'
+import { NewEnvironmentPreferencesTable } from './tables/newEnvironmentPreferences'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
@@ -19,17 +20,29 @@ import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import { DeepChatMemoryIngestionProjectionTable } from './tables/deepchatMemoryIngestionProjection'
+import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
+import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { AgentMemoryTable } from './tables/agentMemory'
+import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { CronJobsTable } from './tables/cronJobs'
+import { CronJobRunsTable } from './tables/cronJobRuns'
+import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
+import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
 
 interface CatalogDefinition {
   name: string
   createTable: (db: Database.Database) => BaseTable
+  // Per-table override for exceptional cases. When omitted, schemaCatalogMetadata.ts decides
+  // whether the table belongs to the fresh startup catalog.
+  createdOnFreshInstall?: boolean
   repairableColumns?: Record<string, string>
   typeCheckedColumns?: string[]
   afterRepair?: (db: Database.Database) => void
@@ -90,6 +103,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     }
   },
   {
+    name: 'new_environment_preferences',
+    createTable: (db) => new NewEnvironmentPreferencesTable(db)
+  },
+  {
     name: 'new_sessions',
     createTable: (db) => new NewSessionsTable(db),
     repairableColumns: {
@@ -134,7 +151,9 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       image_generation_options_json:
         'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;',
       video_generation_options_json:
-        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
+        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;',
+      memory_cursor_order_seq:
+        'ALTER TABLE deepchat_sessions ADD COLUMN memory_cursor_order_seq INTEGER;'
     },
     typeCheckedColumns: [
       'summary_cursor_order_seq',
@@ -192,12 +211,62 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new DeepChatTapeEntriesTable(db)
   },
   {
+    name: 'deepchat_memory_ingestion_projection',
+    createTable: (db) => new DeepChatMemoryIngestionProjectionTable(db)
+  },
+  {
+    name: 'deepchat_memory_ingestion_projection_meta',
+    createTable: (db) => new DeepChatMemoryIngestionProjectionTable(db)
+  },
+  {
+    name: 'deepchat_tape_search_projection',
+    createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
+  },
+  {
+    name: 'deepchat_tape_search_projection_meta',
+    createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
+  },
+  {
+    name: 'deepchat_tape_search_fts_meta',
+    createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
+  },
+  {
+    name: 'deepchat_session_metadata',
+    createTable: (db) => new DeepChatSessionMetadataTable(db)
+  },
+  {
     name: 'legacy_import_status',
     createTable: (db) => new LegacyImportStatusTable(db)
   },
   {
     name: 'agents',
     createTable: (db) => new AgentsTable(db)
+  },
+  {
+    name: 'agent_memory',
+    createTable: (db) => new AgentMemoryTable(db),
+    repairableColumns: {
+      source_entry_ids: 'ALTER TABLE agent_memory ADD COLUMN source_entry_ids TEXT;',
+      embedding_model: 'ALTER TABLE agent_memory ADD COLUMN embedding_model TEXT;',
+      confidence: 'ALTER TABLE agent_memory ADD COLUMN confidence REAL;',
+      last_consolidated_at: 'ALTER TABLE agent_memory ADD COLUMN last_consolidated_at INTEGER;',
+      conflict_state: 'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;',
+      conflict_with: 'ALTER TABLE agent_memory ADD COLUMN conflict_with TEXT;',
+      persona_state: 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;',
+      category: 'ALTER TABLE agent_memory ADD COLUMN category TEXT;',
+      decision_revision:
+        'ALTER TABLE agent_memory ADD COLUMN decision_revision INTEGER NOT NULL DEFAULT 1;'
+    }
+  },
+  {
+    name: 'agent_memory_audit',
+    createTable: (db) => new AgentMemoryAuditTable(db),
+    repairableColumns: {
+      memory_ref_id: 'ALTER TABLE agent_memory_audit ADD COLUMN memory_ref_id TEXT;'
+    },
+    afterRepair: (db) => {
+      new AgentMemoryAuditTable(db).backfillMemoryRefIds()
+    }
   },
   {
     name: 'new_session_active_skills',
@@ -210,6 +279,18 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'settings_activity',
     createTable: (db) => new SettingsActivityTable(db)
+  },
+  {
+    name: 'cron_jobs',
+    createTable: (db) => new CronJobsTable(db)
+  },
+  {
+    name: 'cron_job_runs',
+    createTable: (db) => new CronJobRunsTable(db)
+  },
+  {
+    name: 'cron_job_deliveries',
+    createTable: (db) => new CronJobDeliveriesTable(db)
   }
 ]
 
@@ -246,6 +327,10 @@ export function getSchemaCatalog(): SchemaTableSpec[] {
       return {
         name: definition.name,
         createSql,
+        // Explicit catalog definitions win; otherwise the shared metadata supplies the startup
+        // diagnosis/repair default.
+        createdOnFreshInstall:
+          definition.createdOnFreshInstall ?? isSchemaTableCreatedOnFreshInstall(definition.name),
         columns: columns.map((column) => ({
           name: column.name,
           declaredType: normalizeDeclaredType(column.type),
@@ -264,4 +349,8 @@ export function getSchemaCatalog(): SchemaTableSpec[] {
   } finally {
     catalogDb.close()
   }
+}
+
+export function getStartupSchemaCatalog(): SchemaTableSpec[] {
+  return getSchemaCatalog().filter((table) => table.createdOnFreshInstall)
 }

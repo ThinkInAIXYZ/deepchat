@@ -1,8 +1,7 @@
 import { nativeImage, Notification, NotificationConstructorOptions } from 'electron'
 import icon from '../../../resources/icon.png?asset'
-import { eventBus, SendTarget } from '@/eventbus'
-import { NOTIFICATION_EVENTS } from '@/events'
 import { presenter } from '.'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 interface NotificationItem {
   id: string
@@ -36,11 +35,9 @@ export class NotificationPresenter {
     const notification = new Notification(notificationOptions)
 
     notification.on('click', () => {
-      eventBus.sendToRenderer(
-        NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED,
-        SendTarget.ALL_WINDOWS,
-        options.id
-      )
+      publishDeepchatEvent('appRuntime.systemNotificationClicked', {
+        payload: options.id
+      })
       this.clearNotification(options.id)
     })
 

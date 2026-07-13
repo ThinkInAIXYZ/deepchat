@@ -8,6 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const fsExistsSyncMock = vi.hoisted(() => vi.fn())
+const terminateProcessTreeMock = vi.hoisted(() => vi.fn().mockResolvedValue(true))
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -34,12 +35,10 @@ vi.mock('../../../src/main/eventbus', () => ({
   eventBus: {
     emit: vi.fn(),
     send: vi.fn(),
+    sendToMain: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
     once: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all-windows'
   }
 }))
 
@@ -84,8 +83,16 @@ vi.mock('../../../src/main/events', () => ({
   }
 }))
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
+}))
+
 vi.mock('../../../src/main/presenter/mcpPresenter/inMemoryServers/builder', () => ({
   getInMemoryServer: vi.fn()
+}))
+
+vi.mock('../../../src/main/lib/agentRuntime/processTree', () => ({
+  terminateProcessTree: terminateProcessTreeMock
 }))
 
 // Mock MCP SDK modules
@@ -403,7 +410,185 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect(transportOptions.env.TOKEN).toBe('123')
       expect(transportOptions.env.EMPTY).toBe('')
       expect(transportOptions.env).not.toHaveProperty('SKIP')
-      expect(transportOptions.env.PATH).toContain('/custom/bin')
+      const pathEnv =
+        transportOptions.env.PATH ?? transportOptions.env.Path ?? transportOptions.env.path
+      expect(pathEnv).toContain('/custom/bin')
+    })
+
+    it('awaits process-tree cleanup before closing stdio transport on disconnect', async () => {
+      const order: string[] = []
+      const child = { pid: 123, exitCode: null, signalCode: null }
+      const closeMock = vi.fn(async () => {
+        order.push('transport-close')
+      })
+      terminateProcessTreeMock.mockImplementationOnce(async () => {
+        order.push('process-tree')
+        return true
+      })
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = closeMock
+        this._process = child
+      } as any)
+      const client = new McpClient('test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      await client.disconnect()
+
+      expect(terminateProcessTreeMock).toHaveBeenCalledWith(child, { graceMs: 2000 })
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(order).toEqual(['process-tree', 'transport-close'])
+    })
+
+    it('closes stdio transport even when process-tree cleanup fails', async () => {
+      const child = { pid: 456, exitCode: null, signalCode: null }
+      const cleanupError = new Error('cleanup failed')
+      const closeMock = vi.fn().mockResolvedValue(undefined)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      terminateProcessTreeMock.mockRejectedValueOnce(cleanupError)
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = closeMock
+        this._process = child
+      } as any)
+      const client = new McpClient('test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      await client.disconnect()
+
+      expect(terminateProcessTreeMock).toHaveBeenCalledWith(child, { graceMs: 2000 })
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to terminate MCP stdio process tree for test:',
+        cleanupError
+      )
+      consoleErrorSpy.mockRestore()
+    })
+  })
+
+  describe('Unsupported MCP capabilities', () => {
+    it('waits for background startup completion before foreground listTools calls', async () => {
+      vi.useFakeTimers()
+      let resolveConnect: () => void = () => undefined
+      const sdkClient = {
+        connect: vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveConnect = resolve
+            })
+        ),
+        callTool: vi.fn(),
+        listTools: vi.fn().mockResolvedValue({ tools: [] }),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn()
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const client = new McpClient('slow-server', {
+        type: 'stdio',
+        command: 'slow-server',
+        args: []
+      })
+
+      try {
+        const startupResult = client.connect({ phase: 'startup' })
+        await vi.advanceTimersByTimeAsync(45_000)
+        await expect(startupResult).resolves.toBe('soft-timeout-released')
+
+        const toolsResult = client.listTools()
+        await Promise.resolve()
+
+        expect(sdkClient.listTools).not.toHaveBeenCalled()
+
+        resolveConnect()
+        await expect(toolsResult).resolves.toEqual([])
+        expect(sdkClient.listTools).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('treats unknown prompts/list as an empty prompt list', async () => {
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi
+          .fn()
+          .mockRejectedValue(
+            new McpError(ErrorCode.MethodNotFound, 'Unknown method: prompts/list')
+          ),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn()
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const client = new McpClient('cua-driver', {
+        type: 'stdio',
+        command: 'cua-driver',
+        args: ['mcp']
+      })
+
+      await expect(client.listPrompts()).resolves.toEqual([])
+      await expect(client.listPrompts()).resolves.toEqual([])
+
+      expect(sdkClient.listPrompts).toHaveBeenCalledTimes(1)
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Failed to list MCP prompts:'),
+        expect.anything()
+      )
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('treats unknown resources/list as an empty resource list', async () => {
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi
+          .fn()
+          .mockRejectedValue(new Error('MCP error -32601: Unknown method: resources/list')),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn()
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const client = new McpClient('cua-driver', {
+        type: 'stdio',
+        command: 'cua-driver',
+        args: ['mcp']
+      })
+
+      await expect(client.listResources()).resolves.toEqual([])
+      await expect(client.listResources()).resolves.toEqual([])
+
+      expect(sdkClient.listResources).toHaveBeenCalledTimes(1)
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Failed to list MCP resources:'),
+        expect.anything()
+      )
+      consoleErrorSpy.mockRestore()
     })
   })
 

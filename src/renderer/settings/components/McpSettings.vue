@@ -4,7 +4,7 @@
   </div>
 
   <div
-    v-else-if="showMcpSkeleton"
+    v-else-if="showMcpSkeleton || agentPolicyLoading"
     data-testid="settings-mcp-page"
     class="w-full h-full flex flex-col p-4 gap-4 animate-pulse"
   >
@@ -45,6 +45,7 @@
             <Switch
               dir="ltr"
               :model-value="mcpEnabled"
+              :disabled="isAgentScope"
               @update:model-value="handleMcpEnabledChange"
             />
           </div>
@@ -56,7 +57,13 @@
     <!-- Server list -->
     <div class="min-h-0 flex-1 overflow-hidden">
       <div v-if="mcpEnabled" class="h-full min-h-0">
-        <McpServers ref="mcpServersRef" :show-footer-add-button="false">
+        <McpServers
+          ref="mcpServersRef"
+          :show-footer-add-button="false"
+          :server-enabled-overrides="serverEnabledOverrides"
+          :agent-scoped-toggle="isAgentScope"
+          @toggle-agent-server="handleToggleAgentServer"
+        >
           <template #status-bar>
             <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
               <span class="text-xs text-muted-foreground">
@@ -196,7 +203,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
 import McpBuiltinMarket from './McpBuiltinMarket.vue'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -214,20 +221,36 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
+import { useAgentStore } from '@/stores/ui/agent'
+import { useSessionStore } from '@/stores/ui/session'
 import { useToast } from '@/components/use-toast'
 import { useRoute, useRouter } from 'vue-router'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createWindowClient } from '@api/WindowClient'
 import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
+import { createConfigClient } from '@api/ConfigClient'
+import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
+
+const props = withDefaults(
+  defineProps<{
+    scope?: 'global' | 'agent'
+  }>(),
+  {
+    scope: 'global'
+  }
+)
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const mcpStore = useMcpStore()
+const agentStore = useAgentStore()
+const sessionStore = useSessionStore()
+const configClient = createConfigClient()
 const { toast } = useToast()
 const route = useRoute()
 const router = useRouter()
-const windowPresenter = useLegacyPresenter('windowPresenter')
+const windowClient = createWindowClient()
 const mcpServersRef = ref<{ openAddServerDialog: () => void } | null>(null)
 const guideRootRef = ref<HTMLElement | null>(null)
 const mcpActionsRef = ref<HTMLElement | null>(null)
@@ -255,6 +278,62 @@ const npmRegistryStatus = ref<{
 const refreshing = ref(false)
 const customRegistryInput = ref('')
 const npmAdvancedDialogOpen = ref(false)
+const targetAgent = ref<Agent | null>(null)
+const targetAgentConfig = ref<DeepChatAgentConfig>({})
+const agentPolicyLoading = ref(false)
+const agentPolicyRequestId = ref(0)
+
+const normalizeList = (value: string[] | null | undefined): string[] =>
+  Array.from(new Set((value ?? []).map((item) => item.trim()).filter(Boolean))).sort(
+    (left, right) => left.localeCompare(right)
+  )
+const isAgentScope = computed(() => props.scope === 'agent')
+const targetAgentId = computed(() => {
+  const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
+  if (activeSessionAgentId) {
+    return activeSessionAgentId
+  }
+
+  const selectedAgentId = agentStore.selectedAgentId?.trim()
+  if (selectedAgentId) {
+    return selectedAgentId
+  }
+
+  return 'deepchat'
+})
+const isDeepChatTarget = computed(() =>
+  Boolean(targetAgent.value && targetAgent.value.type === 'deepchat')
+)
+const globallyAvailableServerIds = computed(() =>
+  normalizeList(
+    mcpStore.serverList
+      .filter((server) => {
+        const config = mcpStore.config.mcpServers[server.name]
+        return config?.enabled !== false && !config?.disable
+      })
+      .map((server) => server.name)
+  )
+)
+const agentEnabledMcpServerIds = computed(() => targetAgentConfig.value.enabledMcpServerIds)
+const agentEnabledMcpServerSet = computed(() => {
+  const enabledServerIds = agentEnabledMcpServerIds.value
+  if (enabledServerIds === null || enabledServerIds === undefined) {
+    return new Set(globallyAvailableServerIds.value)
+  }
+  return new Set(normalizeList(enabledServerIds))
+})
+const serverEnabledOverrides = computed<Record<string, boolean>>(() => {
+  if (!isAgentScope.value) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    mcpStore.serverList.map((server) => [
+      server.name,
+      agentEnabledMcpServerSet.value.has(server.name)
+    ])
+  )
+})
 const runningCount = computed(() => mcpStore.serverList.filter((server) => server.isRunning).length)
 const builtInCount = computed(
   () =>
@@ -279,7 +358,7 @@ const handleMcpGuidePrimary = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -292,7 +371,7 @@ const handleMcpGuideBack = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -301,7 +380,7 @@ const handleMcpGuideSkip = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -310,12 +389,122 @@ const handleMcpGuideExpert = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
 const handleMcpEnabledChange = async (enabled: boolean) => {
   await mcpStore.setMcpEnabled(enabled)
+}
+
+watch(targetAgentId, () => {
+  void loadAgentPolicy()
+})
+
+const loadAgentPolicy = async () => {
+  if (!isAgentScope.value) {
+    agentPolicyRequestId.value += 1
+    targetAgent.value = null
+    targetAgentConfig.value = {}
+    agentPolicyLoading.value = false
+    return
+  }
+
+  const requestId = ++agentPolicyRequestId.value
+  const requestedAgentId = targetAgentId.value
+  agentPolicyLoading.value = true
+  try {
+    const agents = await configClient.listAgents({
+      agentType: 'deepchat',
+      ids: [requestedAgentId]
+    })
+    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
+      return
+    }
+
+    const agent = agents[0] ?? null
+    if (!agent) {
+      targetAgent.value = null
+      targetAgentConfig.value = {}
+      return
+    }
+
+    const effectiveConfig = await configClient.resolveDeepChatAgentConfig(requestedAgentId)
+    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
+      return
+    }
+
+    targetAgent.value = agent
+    targetAgentConfig.value = effectiveConfig ?? agent?.config ?? {}
+  } catch (error) {
+    if (requestId !== agentPolicyRequestId.value) {
+      return
+    }
+
+    targetAgent.value = null
+    targetAgentConfig.value = {}
+    toast({
+      title: t('settings.pluginsHub.agentScopeUnsupported'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    if (requestId === agentPolicyRequestId.value) {
+      agentPolicyLoading.value = false
+    }
+  }
+}
+
+const buildNextAgentMcpServerIds = (serverName: string, enabled: boolean): string[] => {
+  const currentPolicy = agentEnabledMcpServerIds.value
+  const visibleServerIds = globallyAvailableServerIds.value
+  const nextSet =
+    currentPolicy === null || currentPolicy === undefined
+      ? new Set(visibleServerIds)
+      : new Set(normalizeList(currentPolicy))
+
+  if (enabled && visibleServerIds.includes(serverName)) {
+    nextSet.add(serverName)
+  } else {
+    nextSet.delete(serverName)
+  }
+
+  return normalizeList(Array.from(nextSet))
+}
+
+const handleToggleAgentServer = async (serverName: string, enabled: boolean) => {
+  if (!targetAgent.value || !isDeepChatTarget.value) {
+    toast({
+      title: t('settings.pluginsHub.agentScopeUnsupported'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  try {
+    const enabledMcpServerIds = buildNextAgentMcpServerIds(serverName, enabled)
+    const updatedAgent = await configClient.updateDeepChatAgent(targetAgent.value.id, {
+      config: {
+        enabledMcpServerIds
+      }
+    })
+    targetAgent.value = updatedAgent ?? targetAgent.value
+    targetAgentConfig.value = {
+      ...targetAgentConfig.value,
+      ...updatedAgent?.config,
+      enabledMcpServerIds
+    }
+    await agentStore.refreshAgentsByIds('deepchat', [targetAgent.value.id])
+    toast({
+      title: t('settings.mcp.saveSuccess')
+    })
+  } catch (error) {
+    toast({
+      title: t('settings.mcp.saveFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  }
 }
 
 const openAddServerDialog = () => {
@@ -491,21 +680,30 @@ const clearCustomNpmRegistry = async () => {
 
 onMounted(() => {
   loadNpmRegistryStatus()
+  void loadAgentPolicy()
 })
 
 const closeMarketView = async () => {
   const nextQuery = { ...route.query }
   delete nextQuery.view
 
+  const routeName =
+    typeof router.hasRoute === 'function' && router.hasRoute('plugins-mcp')
+      ? 'plugins-mcp'
+      : 'settings-mcp'
   await router.replace({
-    name: 'settings-mcp',
+    name: routeName,
     query: nextQuery
   })
 }
 
 const openMarketView = async () => {
+  const routeName =
+    typeof router.hasRoute === 'function' && router.hasRoute('plugins-mcp')
+      ? 'plugins-mcp'
+      : 'settings-mcp'
   await router.push({
-    name: 'settings-mcp',
+    name: routeName,
     query: {
       ...route.query,
       view: 'market'

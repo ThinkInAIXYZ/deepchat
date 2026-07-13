@@ -1,6 +1,6 @@
 <template>
   <div
-    class="h-full min-h-0 w-full overflow-auto px-4 py-4 text-sm"
+    class="dc-overscroll-contain h-full min-h-0 w-full overflow-auto px-4 py-4 text-sm"
     data-testid="workspace-info-pane"
   >
     <div v-if="description" class="mb-3 text-foreground">{{ description }}</div>

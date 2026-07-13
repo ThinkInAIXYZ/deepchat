@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model-db'
+import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -10,6 +11,9 @@ const passthrough = (name: string) =>
   })
 
 const chatInputTriggerAttachMock = vi.fn()
+const chatInputClearPendingSkillsMock = vi.fn(() => {
+  chatInputPendingSkillsSnapshotRef.value = []
+})
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
 
 const createChatInputBoxStub = () =>
@@ -33,7 +37,8 @@ const createChatInputBoxStub = () =>
     setup(props, { expose }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
-        getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value]
+        getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value],
+        clearPendingSkills: chatInputClearPendingSkillsMock
       })
       return () =>
         h('div', {
@@ -57,6 +62,7 @@ const setup = async (options?: {
   } | null
   isDirectory?: boolean | ((path: string) => Promise<boolean> | boolean)
   defaultProjectPath?: string | null
+  defaultChatWorkspacePath?: string | null
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
   resolvedAgentConfig?: Record<string, unknown>
@@ -67,17 +73,28 @@ const setup = async (options?: {
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
+  chatInputClearPendingSkillsMock.mockClear()
   chatInputPendingSkillsSnapshotRef.value = []
+  const initialSelectedProject = Object.prototype.hasOwnProperty.call(
+    options ?? {},
+    'selectedProject'
+  )
+    ? (options?.selectedProject ?? null)
+    : {
+        path: '/tmp/workspace',
+        name: 'workspace'
+      }
 
   const projectStore = reactive({
-    selectedProject: (options?.selectedProject ?? {
-      path: '/tmp/workspace',
-      name: 'workspace'
-    }) as { path: string; name: string } | null,
-    selectedProjectName: options?.selectedProject?.name ?? 'workspace',
+    selectedProject: initialSelectedProject as { path: string; name: string } | null,
+    selectedProjectName: initialSelectedProject?.name ?? 'workspace',
     selectionSource: 'manual' as 'manual' | 'default',
     defaultProjectPath: options?.defaultProjectPath ?? null,
+    defaultChatWorkspacePath: options?.defaultChatWorkspacePath ?? null,
     projects: [],
+    environments: [],
+    archivedEnvironments: [],
+    removedEnvironments: [],
     selectProject: vi.fn((path: string | null, source: 'manual' | 'default' = 'manual') => {
       projectStore.selectionSource = source
       projectStore.selectedProject = path
@@ -140,7 +157,7 @@ const setup = async (options?: {
     projectDir: projectStore.selectedProject?.path ?? undefined,
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
-    permissionMode: 'full_access' as const,
+    permissionMode: 'full_access' as PermissionMode,
     disabledAgentTools: [] as string[],
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
@@ -328,6 +345,72 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       projectDir: '/tmp/default-workspace',
       permissionMode: 'full_access'
     })
+  })
+
+  it('labels the built-in default workspace as chats instead of its folder name', async () => {
+    const { wrapper } = await setup({
+      selectedProject: {
+        path: '/Users/test/Documents/DeepChat',
+        name: 'DeepChat'
+      },
+      defaultChatWorkspacePath: '/Users/test/Documents/DeepChat/'
+    })
+
+    expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(
+      wrapper.get('[data-testid="new-thread-project-trigger-icon"]').attributes('data-icon')
+    ).toBe('lucide:message-square')
+    expect(wrapper.get('[data-testid="new-thread-clear-project"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(wrapper.text()).not.toContain('common.project.none')
+    expect(
+      wrapper.get('[data-testid="new-thread-clear-project-icon"]').attributes('data-icon')
+    ).toBe('lucide:message-square')
+  })
+
+  it('labels an explicit no-project DeepChat draft as chats and submits null projectDir', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore } = await setup({
+      selectedProject: {
+        path: '/Users/test/Documents/DeepChat',
+        name: 'DeepChat'
+      },
+      defaultProjectPath: '/Users/test/Documents/DeepChat',
+      defaultChatWorkspacePath: '/Users/test/Documents/DeepChat'
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    await flushPromises()
+
+    ;(wrapper.vm as any).clearSelectedProject()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(
+      wrapper.get('[data-testid="new-thread-project-trigger-icon"]').attributes('data-icon')
+    ).toBe('lucide:message-square')
+
+    ;(wrapper.vm as any).message = 'hello no project'
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'hello no project',
+        agentId: 'deepchat',
+        projectDir: null
+      })
+    )
   })
 
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {
@@ -724,7 +807,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('prefers ChatInputBox pending skills snapshot when creating deepchat session', async () => {
+  it('sends ChatInputBox pending skills as initial message-scoped skills', async () => {
     const { wrapper, sessionStore, agentStore, modelStore } = await setup()
 
     agentStore.selectedAgentId = 'deepchat'
@@ -746,6 +829,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         activeSkills: ['live-skill']
       })
     )
+    expect(chatInputClearPendingSkillsMock).toHaveBeenCalled()
   })
 
   it('ignores stale ensureAcpDraftSession response after agent/workdir switches', async () => {

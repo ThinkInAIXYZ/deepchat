@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "panduan",
     "queueCount": "Siap dikirim {count}/{max}",
-    "resumeQueue": "terus mengirim",
-    "toSteer": "giliran untuk boot",
+    "toSteer": "Sela & kirim",
     "locked": "terkunci",
     "reorder": "Sesuaikan pesanan",
     "files": "{count} file",
     "attachmentsOnly": "{count} lampiran",
     "empty": "pesan kosong",
-    "limitReached": "Ruang tunggu penuh (maks {max} entri)."
+    "limitReached": "Ruang tunggu penuh (maks {max} entri).",
+    "remove": "Hapus",
+    "steerUnavailable": "Tidak bisa menyela saat ini",
+    "steerFailed": "Gagal menyela giliran ini"
   },
   "features": {
     "webSearch": "Pencarian internet",
@@ -243,9 +245,9 @@
         "pending": "Tertunda",
         "in_progress": "Sedang berlangsung",
         "completed": "Selesai",
-        "failed": "gagal",
-        "skipped": "dilewati"
-      }
+        "interrupted": "Terinterupsi"
+      },
+      "completedCount": "{completed}/{total} selesai"
     },
     "files": {
       "section": "Mengajukan",
@@ -260,6 +262,10 @@
         "openFile": "membuka berkas",
         "revealInFolder": "Buka di pengelola file",
         "insertPath": "Masukkan ke dalam kotak masukan"
+      },
+      "watchStatus": {
+        "degraded": "Pemantauan berjalan dalam mode cadangan. Perubahan mungkin dimuat ulang lebih lambat.",
+        "failed": "Pemantauan file tidak tersedia. Segarkan atau pilih ulang ruang kerja."
       }
     },
     "git": {
@@ -321,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Izin bawaan",
-    "fullAccess": "akses penuh"
+    "fullAccess": "akses penuh",
+    "autoApprove": "Setujui untuk saya"
   },
   "sidebar": {
     "allAgents": "Semua Agent",
@@ -343,12 +350,21 @@
     "groupByDate": "Kelompokkan berdasarkan waktu",
     "groupByProject": "Kelompokkan berdasarkan proyek",
     "pinned": "Sematkan percakapan",
+    "chats": "Chat",
     "emptyTitle": "Belum ada sesi",
     "emptyDescription": "Mulai sesi baru",
     "searchPlaceholder": "Judul sesi pencarian",
     "searchAriaLabel": "Judul sesi pencarian",
     "searchEmptyTitle": "Tidak ditemukan sesi yang cocok",
-    "searchEmptyDescription": "Coba ubah kata kunci judul"
+    "searchEmptyDescription": "Coba ubah kata kunci judul",
+    "projectGroupActions": "Tindakan grup proyek",
+    "moveProjectGroupTop": "Pindahkan ke paling atas",
+    "moveProjectGroupUp": "Pindahkan ke atas",
+    "moveProjectGroupDown": "Pindahkan ke bawah",
+    "moveProjectGroupBottom": "Pindahkan ke paling bawah",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Sesi pencarian, Agent, pengaturan dan tindakan…",
@@ -416,6 +432,58 @@
       "hour": "j ",
       "minute": "m ",
       "second": "d"
+    }
+  },
+  "memory": {
+    "toolbar": "Memori yang digunakan",
+    "status": {
+      "archived": "Dilupakan"
+    },
+    "actions": {
+      "undo": "Urungkan",
+      "forget": "Lupakan",
+      "edit": "Edit"
+    },
+    "chip": {
+      "title": "Memori diperbarui {count}",
+      "heading": "Memori diperbarui",
+      "description": "Giliran ini menambahkan memori berikut."
+    },
+    "selection": {
+      "remember": "Ingat ini"
+    },
+    "turn": {
+      "title": "Memori yang digunakan di giliran ini",
+      "empty": "Tidak ada memori yang disisipkan untuk giliran ini",
+      "selected": "Dipilih",
+      "dropped": "Dibuang",
+      "tokens": "Token",
+      "budget": "Batas",
+      "countOnly": "Catatan ini hanya berisi ringkasan jumlah.",
+      "unavailable": "Memori ini tidak lagi tersedia.",
+      "noSelectedDetails": "Tidak ada detail memori untuk ditampilkan pada giliran ini.",
+      "refreshFailed": "Gagal menyegarkan. Menampilkan memori yang terakhir dimuat.",
+      "error": "Tidak dapat memuat memori untuk giliran ini."
+    },
+    "toast": {
+      "undoSuccess": "Memori diurungkan",
+      "undoFailed": "Tidak dapat mengurungkan memori",
+      "forgetSuccess": "Memori dilupakan",
+      "forgetFailed": "Tidak dapat melupakan memori",
+      "amendFailed": "Tidak dapat memperbarui memori",
+      "rememberFailed": "Tidak dapat menyimpan memori",
+      "add": {
+        "created": "Disimpan sebagai memori baru",
+        "updated": "Memori yang ada diperbarui",
+        "superseded": "Digabungkan ke memori yang diperbarui",
+        "challenged": "Dicatat sebagai memori untuk ditinjau",
+        "noop": "Tidak ada memori baru yang ditambahkan"
+      }
+    },
+    "errors": {
+      "actionFailed": "Tindakan gagal. Coba lagi.",
+      "amendRetryable": "Pengeditan gagal. Memori asli sudah dipulihkan, silakan coba lagi.",
+      "amendRestoreFailed": "Pengeditan gagal, dan memori asli tidak dapat dipulihkan."
     }
   }
 }

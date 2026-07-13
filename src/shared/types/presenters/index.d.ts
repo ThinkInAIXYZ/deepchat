@@ -76,6 +76,10 @@ export type {
   WorkspaceInvalidationKind,
   WorkspaceInvalidationSource,
   WorkspaceInvalidationEvent,
+  WorkspaceWatchHealth,
+  WorkspaceWatchMode,
+  WorkspaceWatchStatusReason,
+  WorkspaceWatchStatusEvent,
   ResolveMarkdownLinkedFileInput,
   WorkspaceLinkedFileResolution,
   IWorkspacePresenter
@@ -83,6 +87,17 @@ export type {
 
 // Tool Presenter types
 export type { IToolPresenter } from './tool.presenter'
+
+export type { FloatingChatWindowLike, IWindowPresenter, TabData } from './window.presenter'
+
+export type {
+  AcpDebugActionType,
+  AcpDebugEventEntry,
+  AcpDebugEventKind,
+  AcpDebugRequest,
+  AcpDebugRunResult,
+  AcpWorkdirInfo
+} from './acp.presenter'
 
 // New agent architecture types
 export type {
@@ -100,7 +115,15 @@ export type {
   DiscordRemoteSettings,
   DiscordRemoteStatus,
   FeishuPairingSnapshot,
+  FeishuAuthResult,
+  FeishuAuthSession,
+  FeishuAuthStartInput,
+  FeishuAuthWaitInput,
   FeishuBrand,
+  FeishuInstallResult,
+  FeishuInstallSession,
+  FeishuInstallStartInput,
+  FeishuInstallWaitInput,
   FeishuRemoteBindingSummary,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
@@ -132,5 +155,5 @@ export type {
   WeixinIlinkRemoteStatus
 } from './remote-control.presenter'
 
-// Re-export legacy types temporarily for compatibility
-export * from './legacy.presenters'
+// Compatibility presenter types that still await finer-grained extraction.
+export * from './core.presenter'

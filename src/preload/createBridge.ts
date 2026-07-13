@@ -95,7 +95,7 @@ export function createBridge(ipcRenderer: IpcRendererLike): DeepchatBridge {
         routeName,
         normalizedInput
       )
-      return contract.output.parse(output)
+      return contract.output.parse(output) as DeepchatRouteOutput<T>
     },
 
     on<T extends DeepchatEventName>(

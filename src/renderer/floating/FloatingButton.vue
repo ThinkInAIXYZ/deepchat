@@ -39,6 +39,7 @@ const snapshot = ref<FloatingWidgetSnapshot>({
 })
 
 let closingTimer: number | null = null
+let unsubscribeSnapshotUpdate: (() => void) | null = null
 
 const dragState = ref<DragState>({
   isDragging: false,
@@ -235,7 +236,7 @@ onMounted(async () => {
     console.warn('Failed to initialize floating widget snapshot:', error)
   }
 
-  window.floatingButtonAPI.onSnapshotUpdate(handleSnapshotUpdate)
+  unsubscribeSnapshotUpdate = window.floatingButtonAPI.onSnapshotUpdate(handleSnapshotUpdate)
   window.addEventListener('blur', handleWindowBlur)
 })
 
@@ -246,7 +247,8 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
   window.removeEventListener('blur', handleWindowBlur)
-  window.floatingButtonAPI.removeAllListeners()
+  unsubscribeSnapshotUpdate?.()
+  unsubscribeSnapshotUpdate = null
 })
 </script>
 

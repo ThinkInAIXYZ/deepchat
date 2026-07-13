@@ -15,6 +15,7 @@ export interface SettingsNavigationItem {
     | 'settings-plugins'
     | 'settings-skills'
     | 'settings-prompt'
+    | 'settings-memory'
     | 'settings-knowledge-base'
     | 'settings-database'
     | 'settings-shortcut'
@@ -26,6 +27,7 @@ export interface SettingsNavigationItem {
   groupKey: SettingsNavigationGroupKey
   keywords: string[]
   supportedPlatforms?: string[]
+  supportedTargets?: string[]
   hiddenInSidebar?: boolean
 }
 
@@ -164,7 +166,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:server',
     position: 5,
     groupKey: 'tools',
-    keywords: ['mcp', 'tools', 'server', 'model context protocol', '工具', '服务']
+    keywords: ['mcp', 'tools', 'server', 'model context protocol', '工具', '服务'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-remote',
@@ -173,7 +176,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:smartphone',
     position: 5.25,
     groupKey: 'system',
-    keywords: ['remote', 'telegram', 'feishu', 'control', '远程', '控制']
+    keywords: ['remote', 'telegram', 'feishu', 'control', '远程', '控制'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-notifications-hooks',
@@ -188,7 +192,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     routeName: 'settings-scheduled-tasks',
     path: '/scheduled-tasks',
     titleKey: 'routes.settings-scheduled-tasks',
-    icon: 'lucide:clock-9',
+    icon: 'lucide:calendar-clock',
     position: 5.6,
     groupKey: 'tools',
     keywords: [
@@ -197,10 +201,13 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
       'reminder',
       'timer',
       'cron',
+      'cron jobs',
+      'agent jobs',
       '定时',
       '提醒',
       '计划',
-      '定时任务'
+      '定时任务',
+      '任务调度'
     ]
   },
   {
@@ -211,7 +218,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 5.75,
     groupKey: 'tools',
     keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时'],
-    supportedPlatforms: ['darwin']
+    supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-skills',
@@ -220,7 +228,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:wand-sparkles',
     position: 6,
     groupKey: 'knowledge',
-    keywords: ['skill', 'skills', '技能']
+    keywords: ['skill', 'skills', '技能'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-prompt',
@@ -230,6 +239,15 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 7,
     groupKey: 'knowledge',
     keywords: ['prompt', 'system prompt', '提示词']
+  },
+  {
+    routeName: 'settings-memory',
+    path: '/memory',
+    titleKey: 'routes.settings-memory',
+    icon: 'lucide:brain',
+    position: 7.5,
+    groupKey: 'knowledge',
+    keywords: ['memory', 'memories', 'persona', 'recall', '记忆', '长期记忆', '人格']
   },
   {
     routeName: 'settings-knowledge-base',
@@ -275,10 +293,10 @@ const getPlatformAliases = (platform?: string): Set<string> => {
     return new Set()
   }
 
-  if (normalized === 'darwin') {
+  if (['darwin', 'macos', 'mac'].includes(normalized)) {
     return new Set(['darwin', 'macos', 'mac'])
   }
-  if (normalized === 'win32') {
+  if (['win32', 'windows', 'win'].includes(normalized)) {
     return new Set(['win32', 'windows', 'win'])
   }
 
@@ -287,8 +305,21 @@ const getPlatformAliases = (platform?: string): Set<string> => {
 
 export const isSettingsNavigationItemSupported = (
   item: SettingsNavigationItem,
-  platform?: string
+  platform?: string,
+  arch?: string
 ): boolean => {
+  if (item.supportedTargets?.length) {
+    if (!platform || !arch) {
+      return true
+    }
+    const normalizedArch = arch.trim().toLowerCase()
+    const aliases = getPlatformAliases(platform)
+    const targets = item.supportedTargets.map((target) => target.trim().toLowerCase())
+    return [...aliases].some((platformAlias) =>
+      targets.includes(`${platformAlias}/${normalizedArch}`)
+    )
+  }
+
   if (!item.supportedPlatforms?.length) {
     return true
   }
@@ -302,14 +333,22 @@ export const isSettingsNavigationItemSupported = (
   )
 }
 
-export const getSettingsNavigationItems = (platform?: string): SettingsNavigationItem[] =>
-  getSettingsRouteItems(platform).filter((item) => !item.hiddenInSidebar)
+export const getSettingsRouteItems = (platform?: string, arch?: string): SettingsNavigationItem[] =>
+  SETTINGS_NAVIGATION_ITEMS.filter((item) =>
+    isSettingsNavigationItemSupported(item, platform, arch)
+  )
 
-export const getSettingsRouteItems = (platform?: string): SettingsNavigationItem[] =>
-  SETTINGS_NAVIGATION_ITEMS.filter((item) => isSettingsNavigationItemSupported(item, platform))
+export const getSettingsNavigationItems = (
+  platform?: string,
+  arch?: string
+): SettingsNavigationItem[] =>
+  getSettingsRouteItems(platform, arch).filter((item) => !item.hiddenInSidebar)
 
-export const getSettingsNavigationGroups = (platform?: string): SettingsNavigationGroup[] => {
-  const items = getSettingsNavigationItems(platform)
+export const getSettingsNavigationGroups = (
+  platform?: string,
+  arch?: string
+): SettingsNavigationGroup[] => {
+  const items = getSettingsNavigationItems(platform, arch)
 
   return SETTINGS_NAVIGATION_GROUPS.map((group) => ({
     ...group,
@@ -322,9 +361,10 @@ export const getSettingsNavigationGroups = (platform?: string): SettingsNavigati
 export const resolveSettingsNavigationPath = (
   routeName: SettingsNavigationItem['routeName'],
   params?: Record<string, string>,
-  platform?: string
+  platform?: string,
+  arch?: string
 ): string => {
-  const item = getSettingsRouteItems(platform).find(
+  const item = getSettingsRouteItems(platform, arch).find(
     (navigationItem) => navigationItem.routeName === routeName
   )
   if (!item) {

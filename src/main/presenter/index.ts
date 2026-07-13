@@ -1,7 +1,8 @@
 import logger from '@shared/logger'
+import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
+import { ipcMain, app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -65,14 +66,16 @@ import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
-import { ScheduledTasksService } from './scheduledTasks'
+import { CronJobsService } from './cronJobs'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
+import { MemoryPresenter, isSafeAgentId } from './memoryPresenter'
+import { MemoryVectorStore } from './memoryPresenter/infra/memoryVectorStore'
 import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
 import { PluginPresenter } from './pluginPresenter'
-import { AgentRepository } from './agentRepository'
+import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { DatabaseSecurityPresenter } from './databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
@@ -83,84 +86,33 @@ import type {
   SessionPermissionPort,
   SessionUiPort
 } from './runtimePorts'
-import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
-import { setupLegacyTypedEventBridge } from '@/routes/legacyTypedEventBridge'
+import {
+  publishDeepchatEvent,
+  setDeepchatEventWindowPresenter
+} from '@/routes/publishDeepchatEvent'
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 
-// IPC调用上下文接口
-interface IPCCallContext {
-  windowId?: number
-  webContentsId: number
-  presenterName: string
-  methodName: string
-  timestamp: number
+type MemoryMaintenanceConfigChangeTarget = Pick<
+  MemoryPresenter,
+  'onAgentMemoryMaintenanceConfigChanged' | 'onBuiltinDeepChatMemoryMaintenanceConfigChanged'
+>
+
+export const routeDeepChatAgentMemoryMaintenanceConfigChanged = (
+  memoryPresenter: MemoryMaintenanceConfigChangeTarget,
+  agentId: string
+): void => {
+  if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
+    memoryPresenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+  } else {
+    memoryPresenter.onAgentMemoryMaintenanceConfigChanged(agentId)
+  }
 }
 
-// 注意: 现在大部分事件已在各自的 presenter 中直接发送到渲染进程
-// 剩余的自动转发事件已在 EventBus 的 DEFAULT_RENDERER_EVENTS 中定义
-
-// 主 Presenter 类，负责协调其他 Presenter 并处理 IPC 通信
+// Coordinates presenters and owns main-process IPC wiring.
 export class Presenter implements IPresenter {
-  // 私有静态实例
   private static instance: Presenter
-  static readonly DISPATCHABLE_PRESENTERS = new Set<keyof IPresenter>([
-    'windowPresenter',
-    'sqlitePresenter',
-    'llmproviderPresenter',
-    'configPresenter',
-    'exporter',
-    'devicePresenter',
-    'upgradePresenter',
-    'shortcutPresenter',
-    'filePresenter',
-    'mcpPresenter',
-    'syncPresenter',
-    'deeplinkPresenter',
-    'notificationPresenter',
-    'tabPresenter',
-    'yoBrowserPresenter',
-    'oauthPresenter',
-    'dialogPresenter',
-    'knowledgePresenter',
-    'workspacePresenter',
-    'toolPresenter',
-    'skillPresenter',
-    'skillSyncPresenter',
-    'agentSessionPresenter',
-    'projectPresenter'
-  ])
-
-  static readonly REMOTE_CONTROL_METHODS = new Set<keyof IRemoteControlPresenter>([
-    'listRemoteChannels',
-    'getChannelSettings',
-    'saveChannelSettings',
-    'getChannelStatus',
-    'getChannelBindings',
-    'removeChannelBinding',
-    'removeChannelPrincipal',
-    'getChannelPairingSnapshot',
-    'createChannelPairCode',
-    'clearChannelPairCode',
-    'clearChannelBindings',
-    'getTelegramSettings',
-    'saveTelegramSettings',
-    'getTelegramStatus',
-    'getTelegramBindings',
-    'removeTelegramBinding',
-    'getTelegramPairingSnapshot',
-    'createTelegramPairCode',
-    'clearTelegramPairCode',
-    'clearTelegramBindings',
-    'getWeixinIlinkSettings',
-    'saveWeixinIlinkSettings',
-    'getWeixinIlinkStatus',
-    'startWeixinIlinkLogin',
-    'waitForWeixinIlinkLogin',
-    'removeWeixinIlinkAccount',
-    'restartWeixinIlinkAccount'
-  ])
 
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
@@ -189,11 +141,13 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  memoryPresenter: MemoryPresenter
   projectPresenter: IProjectPresenter
+  remoteControlPresenter: IRemoteControlPresenter
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   hooksNotifications: HooksNotificationsService
-  scheduledTasks: ScheduledTasksService
+  cronJobs: CronJobsService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
@@ -202,7 +156,6 @@ export class Presenter implements IPresenter {
   private sessionPresenterInternal?: SessionPresenter
   private hasInitialized = false
   #remoteControlPresenter: RemoteControlPresenterLike
-  readonly #remoteControlBridge: IRemoteControlPresenter
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -225,9 +178,11 @@ export class Presenter implements IPresenter {
         setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
       }
     ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
-    this.startupWorkloadCoordinator = new StartupWorkloadCoordinator()
+    this.startupWorkloadCoordinator =
+      (context.startupWorkloadCoordinator as StartupWorkloadCoordinator | undefined) ??
+      new StartupWorkloadCoordinator()
 
-    // 初始化各个 Presenter 实例及其依赖
+    // Initialize presenters and their dependencies.
     this.windowPresenter = new WindowPresenter(
       this.configPresenter,
       this.startupWorkloadCoordinator
@@ -247,7 +202,8 @@ export class Presenter implements IPresenter {
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.sessionMessageManager = messageManager
-    this.devicePresenter = new DevicePresenter()
+    const devicePresenter = new DevicePresenter()
+    this.devicePresenter = devicePresenter
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
@@ -274,6 +230,10 @@ export class Presenter implements IPresenter {
       dbDir,
       this.filePresenter
     )
+    devicePresenter.setResetRuntime({
+      closeSqlite: () => this.sqlitePresenter.close(),
+      destroyKnowledge: () => this.knowledgePresenter.destroy()
+    })
 
     // Initialize generic Workspace presenter (for all Agent modes)
     this.workspacePresenter = new WorkspacePresenter(this.filePresenter)
@@ -348,12 +308,46 @@ export class Presenter implements IPresenter {
       searchTape: async (conversationId, query, options) => {
         return await this.agentSessionPresenter.searchTape(conversationId, query, options)
       },
+      getTapeContext: async (conversationId, entryIds, options) => {
+        return await this.agentSessionPresenter.getTapeContext(conversationId, entryIds, options)
+      },
       listTapeAnchors: async (conversationId, options) => {
         return await this.agentSessionPresenter.listTapeAnchors(conversationId, options)
       },
       handoffTape: async (conversationId, name, state) => {
         return await this.agentSessionPresenter.handoffTape(conversationId, name, state)
       },
+      isMemoryEnabled: (agentId) => this.memoryPresenter.isEnabled(agentId),
+      rememberMemory: async (agentId, input, sourceSession, model) =>
+        this.memoryPresenter.rememberMemory(
+          {
+            kind: input.kind,
+            category: input.category,
+            content: input.content,
+            importance: input.importance
+          },
+          { agentId, sourceSession },
+          model
+        ),
+      recallMemory: async (agentId, query) => {
+        const items = await this.memoryPresenter.recall(agentId, query)
+        return items.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          content: item.content
+        }))
+      },
+      forgetMemory: async (agentId, memoryId) =>
+        await this.memoryPresenter.forgetMemory(agentId, memoryId),
+      listCronJobs: async () => await this.cronJobs.list(),
+      upsertCronJob: async (input) => (await this.cronJobs.upsert(input)).job,
+      deleteCronJob: async (id) => {
+        await this.cronJobs.delete(id)
+      },
+      toggleCronJob: async (id, enabled) => (await this.cronJobs.toggle(id, enabled)).job,
+      runCronJobNow: async (id) => (await this.cronJobs.runNow(id)).run,
+      listCronJobRuns: async (jobId, limit) => this.cronJobs.listRuns(jobId, limit),
+      previewCronSchedule: async (input) => this.cronJobs.previewSchedule(input),
       createSubagentSession: async (input) => {
         const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
           createSubagentSession?: (createInput: typeof input) => Promise<{
@@ -428,6 +422,8 @@ export class Presenter implements IPresenter {
       createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
         this.windowPresenter.sendToWindow(windowId, channel, ...args),
+      sendSettingsNavigation: (windowId, navigation) =>
+        this.windowPresenter.sendSettingsNavigation(windowId, navigation),
       getApprovedFilePaths: (conversationId, requiredPermission) =>
         this.filePermissionService.getApprovedPaths(conversationId, requiredPermission),
       consumeSettingsApproval: (conversationId, toolName) =>
@@ -489,10 +485,9 @@ export class Presenter implements IPresenter {
       getSession: async () => null,
       getMessage: async () => null
     })
-    this.scheduledTasks = new ScheduledTasksService({
-      configPresenter: this.configPresenter,
-      notificationPresenter: this.notificationPresenter,
-      windowPresenter: this.windowPresenter
+    this.cronJobs = new CronJobsService({
+      sqlitePresenter: this.sqlitePresenter as unknown as SQLitePresenter,
+      configPresenter: this.configPresenter
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
     const providerCatalogPort: ProviderCatalogPort = {
@@ -569,6 +564,80 @@ export class Presenter implements IPresenter {
         await this.llmproviderPresenter.clearAcpSession(conversationId)
     }
 
+    // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
+    const memoryDbDir = path.join(dbDir, 'AgentMemory')
+    const memoryVectorDbPath = (agentId: string) => path.join(memoryDbDir, `${agentId}.duckdb`)
+    this.memoryPresenter = new MemoryPresenter({
+      repository: (this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter)
+        .agentMemoryTable,
+      auditRepository: (
+        this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+      ).agentMemoryAuditTable,
+      resolveAgentConfig: (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId),
+      resolveAgentDefaultModel: (agentId) => {
+        const config = agentRepository.resolveDeepChatAgentConfig(agentId)
+        const model = config.assistantModel ?? config.defaultModelPreset
+        return model?.providerId && model?.modelId
+          ? { providerId: model.providerId, modelId: model.modelId }
+          : null
+      },
+      // Management memory APIs only read/write real DeepChat agents.
+      isManagedAgent: (agentId) => agentRepository.getDeepChatAgentConfig(agentId) !== null,
+      listManagedMemoryAgentIds: () =>
+        agentRepository
+          .listAgents({ agentType: 'deepchat', enabled: true })
+          .map((agent) => agent.id)
+          .filter(
+            (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
+          ),
+      executeWithRateLimit: (providerId, options) =>
+        this.llmproviderPresenter.executeWithRateLimit(providerId, { signal: options.signal }),
+      getEmbeddings: (providerId, modelId, texts) =>
+        this.llmproviderPresenter.getEmbeddings(providerId, modelId, texts),
+      getDimensions: (providerId, modelId) =>
+        this.llmproviderPresenter.getDimensions(providerId, modelId),
+      generateText: async (providerId, modelId, prompt) =>
+        (await this.llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ??
+        '',
+      createVectorStore: (agentId, embedding, dimensions) => {
+        if (!isSafeAgentId(agentId)) {
+          throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
+        }
+        return MemoryVectorStore.create(memoryVectorDbPath(agentId), dimensions, embedding)
+      },
+      resetVectorStore: async (agentId) => {
+        if (!isSafeAgentId(agentId)) {
+          throw new Error(`[Memory] refusing to reset vector store for unsafe agentId: ${agentId}`)
+        }
+        MemoryVectorStore.destroyFile(memoryVectorDbPath(agentId))
+      },
+      onMemoryChanged: (agentId, reason, context) =>
+        publishDeepchatEvent('memory.updated', {
+          agentId,
+          reason,
+          version: Date.now(),
+          ...(typeof context?.memoryId === 'string' ? { memoryId: context.memoryId } : {}),
+          ...(typeof context?.sessionId === 'string' ? { sessionId: context.sessionId } : {}),
+          ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
+        })
+    })
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setDeepChatAgentDeleteCleanup?: (cleanup: (agentId: string) => Promise<void>) => void
+      }
+    ).setDeepChatAgentDeleteCleanup?.(async (agentId) => {
+      await this.memoryPresenter.cleanupDeletedAgentResources(agentId)
+    })
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setDeepChatAgentMemoryMaintenanceConfigChanged?: (
+          callback: (agentId: string) => void
+        ) => void
+      }
+    ).setDeepChatAgentMemoryMaintenanceConfigChanged?.((agentId) =>
+      routeDeepChatAgentMemoryMaintenanceConfigChanged(this.memoryPresenter, agentId)
+    )
+
     // Initialize new agent architecture presenters
     const agentRuntimePresenter = new AgentRuntimePresenter(
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
@@ -580,6 +649,7 @@ export class Presenter implements IPresenter {
         providerCatalogPort,
         sessionPermissionPort,
         sessionUiPort,
+        memoryPort: this.memoryPresenter,
         cacheImage: (data) => this.devicePresenter.cacheImage(data),
         skillPresenter: this.skillPresenter
       }
@@ -599,7 +669,8 @@ export class Presenter implements IPresenter {
     )
     this.projectPresenter = new ProjectPresenter(
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
-      this.devicePresenter
+      this.devicePresenter,
+      this.configPresenter
     )
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
@@ -609,7 +680,8 @@ export class Presenter implements IPresenter {
       windowPresenter: this.windowPresenter,
       tabPresenter: this.tabPresenter
     })
-    this.#remoteControlBridge = this.#remoteControlPresenter
+    this.remoteControlPresenter = this.#remoteControlPresenter
+    this.cronJobs.setRemoteDeliveryPort(this.#remoteControlPresenter)
 
     // Update hooksNotifications with actual dependencies now that agentSessionPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
@@ -617,7 +689,7 @@ export class Presenter implements IPresenter {
       getMessage: this.agentSessionPresenter.getMessage.bind(this.agentSessionPresenter)
     })
 
-    this.setupEventBus() // 设置事件总线监听
+    this.setupEventBus()
   }
 
   getActiveConversationIdSync(webContentsId: number): string | null {
@@ -654,25 +726,18 @@ export class Presenter implements IPresenter {
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {
     if (!Presenter.instance) {
-      // 只能在类内部调用私有构造函数
       Presenter.instance = new Presenter(lifecycleManager)
     }
     return Presenter.instance
   }
 
-  // 设置事件总线监听和转发
   setupEventBus() {
-    // 设置 WindowPresenter 和 TabPresenter 到 EventBus
-    eventBus.setWindowPresenter(this.windowPresenter)
-    eventBus.setTabPresenter(this.tabPresenter)
+    setDeepchatEventWindowPresenter(this.windowPresenter)
 
-    // 设置特殊事件的处理逻辑
     this.setupSpecialEventHandlers()
   }
 
-  // 设置需要特殊处理的事件
   private setupSpecialEventHandlers() {
-    // CONFIG_EVENTS.PROVIDER_CHANGED 需要更新 providers（已在 configPresenter 中处理发送到渲染进程）
     eventBus.on(CONFIG_EVENTS.PROVIDER_CHANGED, () => {
       const providers = this.configPresenter.getProviders()
       this.llmproviderPresenter.setProviders(providers)
@@ -686,7 +751,6 @@ export class Presenter implements IPresenter {
     this.trayPresenter.init()
   }
 
-  // 应用初始化逻辑 (主窗口准备就绪后调用)
   init() {
     if (this.hasInitialized) {
       console.info('[Startup][Main] Presenter.init skipped because startup already ran')
@@ -695,11 +759,16 @@ export class Presenter implements IPresenter {
 
     this.hasInitialized = true
 
-    // 持久化 LLMProviderPresenter 的 Providers 数据
     const providers = this.configPresenter.getProviders()
     console.info(`[Startup][Main] Presenter.init begin providers=${providers.length}`)
     this.llmproviderPresenter.setProviders(providers)
-    const mainRunId = this.startupWorkloadCoordinator.createRun('main')
+    const context = this.lifecycleManager.getLifecycleContext()
+    context.startupWorkloadCoordinator = this.startupWorkloadCoordinator
+    const mainRunId =
+      typeof context.startupRunId === 'string'
+        ? context.startupRunId
+        : this.startupWorkloadCoordinator.createRun('main')
+    context.startupRunId = mainRunId
 
     void this.startupWorkloadCoordinator.scheduleTask({
       id: 'main:floating-button',
@@ -797,7 +866,6 @@ export class Presenter implements IPresenter {
       })
   }
 
-  // 初始化悬浮按钮
   private async initializeFloatingButton() {
     try {
       await this.floatingButtonPresenter.initialize()
@@ -906,37 +974,63 @@ export class Presenter implements IPresenter {
     )
   }
 
-  async callRemoteControl(
-    method: keyof IRemoteControlPresenter,
-    ...payloads: unknown[]
-  ): Promise<unknown> {
-    if (!Presenter.REMOTE_CONTROL_METHODS.has(method)) {
-      throw new Error(`Method "${String(method)}" is not allowed on "remoteControlPresenter"`)
-    }
-
-    const handler = this.#remoteControlBridge[method] as (...args: unknown[]) => unknown
-    return await Reflect.apply(handler, this.#remoteControlBridge, payloads)
-  }
-
   getStartupWorkloadCoordinator(): StartupWorkloadCoordinator {
     return this.startupWorkloadCoordinator
   }
 
-  // 在应用退出时进行清理，关闭数据库连接
   async destroy(): Promise<void> {
-    await this.destroyRemoteControl()
-    this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
+    try {
+      await this.runDestroyStep('cronJobs.stop', () => this.cronJobs.stop())
+    } catch (error) {
+      console.error('CronJobsService.stop failed during presenter destroy:', error)
+    }
+
+    try {
+      await this.runDestroyStep('pluginPresenter.shutdown', () => this.pluginPresenter.shutdown())
+    } catch (error) {
+      console.error('PluginPresenter.shutdown failed during presenter destroy:', error)
+    }
+
+    try {
+      await this.runDestroyStep('mcpPresenter.shutdown', () => this.mcpPresenter.shutdown())
+    } catch (error) {
+      console.error('McpPresenter.shutdown failed during presenter destroy:', error)
+    }
+
+    await this.runDestroyStep('destroyRemoteControl', () => this.destroyRemoteControl())
+    this.floatingButtonPresenter.destroy()
     this.tabPresenter.destroy()
-    this.sqlitePresenter.close() // 关闭数据库连接
-    this.shortcutPresenter.destroy() // 销毁快捷键监听
-    this.syncPresenter.destroy() // 销毁同步相关资源
-    this.notificationPresenter.clearAllNotifications() // 清除所有通知
-    this.knowledgePresenter.destroy() // 释放所有数据库连接
-    ;(this.workspacePresenter as WorkspacePresenter).destroy() // 销毁 Workspace watchers
-    ;(this.skillPresenter as SkillPresenter).destroy() // 销毁 Skills 相关资源
-    ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源
-    // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
-    // 此处不销毁 trayPresenter，其生命周期由 main/index.ts 管理
+    // Drain in-flight memory consolidation before the shared SQLite connection closes, so a pass
+    // that already fired cannot write to a closed database during teardown.
+    await this.runDestroyStep('memoryPresenter.dispose', () => this.memoryPresenter.dispose())
+    await this.runDestroyStep('sqlitePresenter.close', () => this.sqlitePresenter.close())
+    this.shortcutPresenter.destroy()
+    this.syncPresenter.destroy()
+    this.notificationPresenter.clearAllNotifications()
+    this.knowledgePresenter.destroy()
+    await this.runDestroyStep('workspacePresenter.destroy', () =>
+      (this.workspacePresenter as WorkspacePresenter).destroy()
+    )
+    await this.runDestroyStep('skillPresenter.destroy', () =>
+      (this.skillPresenter as SkillPresenter).destroy()
+    )
+    ;(this.skillSyncPresenter as SkillSyncPresenter).destroy()
+  }
+
+  private async runDestroyStep(stepName: string, step: () => void | Promise<void>): Promise<void> {
+    const startedAt = performance.now()
+    logger.info(`[Presenter] destroy.${stepName} begin`)
+    try {
+      await step()
+      logger.info(
+        `[Presenter] destroy.${stepName} done durationMs=${(performance.now() - startedAt).toFixed(1)}`
+      )
+    } catch (error) {
+      logger.warn(
+        `[Presenter] destroy.${stepName} failed durationMs=${(performance.now() - startedAt).toFixed(1)}`,
+        error
+      )
+    }
   }
 
   private async destroyRemoteControl() {
@@ -950,6 +1044,8 @@ export class Presenter implements IPresenter {
 
 // Export presenter instance - will be initialized with database during lifecycle
 export let presenter: Presenter
+// The route runtime is cached against the process-wide Presenter singleton.
+// If Presenter ever supports reinitialization, this cache must be reset with it.
 let cachedMainKernelRouteRuntime: ReturnType<typeof createMainKernelRouteRuntime> | undefined
 
 const buildMainKernelRouteRuntime = () =>
@@ -958,7 +1054,12 @@ const buildMainKernelRouteRuntime = () =>
     llmProviderPresenter: presenter.llmproviderPresenter,
     agentSessionPresenter: presenter.agentSessionPresenter,
     skillPresenter: presenter.skillPresenter,
+    skillSyncPresenter: presenter.skillSyncPresenter,
+    exporter: presenter.exporter,
+    oauthPresenter: presenter.oauthPresenter,
     mcpPresenter: presenter.mcpPresenter,
+    remoteControlPresenter: presenter.remoteControlPresenter,
+    shortcutPresenter: presenter.shortcutPresenter,
     syncPresenter: presenter.syncPresenter,
     upgradePresenter: presenter.upgradePresenter,
     dialogPresenter: presenter.dialogPresenter,
@@ -968,13 +1069,15 @@ const buildMainKernelRouteRuntime = () =>
     devicePresenter: presenter.devicePresenter,
     projectPresenter: presenter.projectPresenter,
     filePresenter: presenter.filePresenter,
+    knowledgePresenter: presenter.knowledgePresenter,
     workspacePresenter: presenter.workspacePresenter,
     yoBrowserPresenter: presenter.yoBrowserPresenter,
     tabPresenter: presenter.tabPresenter,
     startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
     pluginPresenter: presenter.pluginPresenter,
     databaseSecurityPresenter: presenter.databaseSecurityPresenter,
-    scheduledTasks: presenter.scheduledTasks
+    memoryPresenter: presenter.memoryPresenter,
+    cronJobs: presenter.cronJobs
   })
 
 export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelRouteRuntime> {
@@ -991,157 +1094,7 @@ export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelR
 export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   // only allow initialize once
   if (presenter == null) presenter = Presenter.getInstance(lifecycleManager)
-  setupLegacyTypedEventBridge({
-    configPresenter: presenter.configPresenter,
-    llmProviderPresenter: presenter.llmproviderPresenter
-  })
   return presenter
 }
 
 registerMainKernelRoutes(ipcMain, () => (presenter ? getMainKernelRouteRuntime() : undefined))
-
-// 检查对象属性是否为函数 (用于动态调用)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isFunction(obj: any, prop: string): obj is { [key: string]: (...args: any[]) => any } {
-  return typeof obj[prop] === 'function'
-}
-
-// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持 window/webContents 上下文)
-ipcMain.handle(
-  'presenter:call',
-  (event: IpcMainInvokeEvent, name: string, method: string, ...payloads: unknown[]) => {
-    const webContentsId = event.sender.id
-    try {
-      // 构建调用上下文
-      const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-
-      const context: IPCCallContext = {
-        windowId,
-        webContentsId,
-        presenterName: name,
-        methodName: method,
-        timestamp: Date.now()
-      }
-
-      // 记录调用日志
-      if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        logger.info(
-          `[IPC Call] WebContents:${context.webContentsId} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
-        )
-      }
-
-      if (!Presenter.DISPATCHABLE_PRESENTERS.has(name as keyof IPresenter)) {
-        console.warn(
-          `[IPC Warning] WebContents:${context.webContentsId} blocked presenter access: ${name}`
-        )
-        return { error: `Presenter "${name}" is not accessible via generic dispatcher` }
-      }
-
-      // 通过名称获取对应的 Presenter 实例
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let calledPresenter: any = presenter[name as keyof Presenter]
-      let resolvedMethod = method
-      let resolvedPayloads = payloads
-
-      if (!calledPresenter) {
-        console.warn(
-          `[IPC Warning] WebContents:${context.webContentsId} calling wrong presenter: ${name}`
-        )
-        return { error: `Presenter "${name}" not found` }
-      }
-
-      // 检查方法是否存在且为函数
-      if (isFunction(calledPresenter, resolvedMethod)) {
-        // 调用方法并返回结果
-        const result = calledPresenter[resolvedMethod](...resolvedPayloads)
-        return handlePresenterCallResult(result, {
-          webContentsId,
-          presenterName: name,
-          methodName: method
-        })
-      } else {
-        console.warn(
-          `[IPC Warning] WebContents:${context.webContentsId} called method is not a function or does not exist: ${name}.${method}`
-        )
-        return { error: `Method "${method}" not found or not a function on "${name}"` }
-      }
-    } catch (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      e: any
-    ) {
-      return handlePresenterCallError(e, {
-        webContentsId,
-        presenterName: name,
-        methodName: method
-      })
-    }
-  }
-)
-
-ipcMain.handle(
-  'remoteControlPresenter:call',
-  async (event: IpcMainInvokeEvent, method: string, ...payloads: unknown[]) => {
-    const webContentsId = event.sender.id
-    try {
-      const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-
-      if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        logger.info(
-          `[IPC Call] WebContents:${webContentsId} Window:${windowId || 'unknown'} -> remoteControlPresenter.${method}`
-        )
-      }
-
-      if (!Presenter.REMOTE_CONTROL_METHODS.has(method as keyof IRemoteControlPresenter)) {
-        console.warn(
-          `[IPC Warning] WebContents:${webContentsId} blocked remote control method: ${method}`
-        )
-        return { error: `Method "${method}" is not allowed on "remoteControlPresenter"` }
-      }
-
-      const isSettingsWindow =
-        windowId != null && presenter.windowPresenter.getSettingsWindowId() === windowId
-      const shouldTrackRemoteRuntime =
-        isSettingsWindow &&
-        (method === 'listRemoteChannels' ||
-          method.startsWith('getChannel') ||
-          method.startsWith('getTelegram') ||
-          method.startsWith('getFeishu') ||
-          method.startsWith('getQQBot') ||
-          method.startsWith('getDiscord') ||
-          method.startsWith('getWeixinIlink'))
-
-      const result = shouldTrackRemoteRuntime
-        ? presenter.startupWorkloadCoordinator.scheduleTask({
-            id: `settings.remote.runtime:${method}`,
-            target: 'settings',
-            phase: 'deferred',
-            resource: 'io',
-            labelKey: 'startup.settings.remote.runtime',
-            visibleId: 'settings.remote.runtime',
-            runId: presenter.startupWorkloadCoordinator.getRunId('settings'),
-            run: async () => {
-              return await presenter.callRemoteControl(
-                method as keyof IRemoteControlPresenter,
-                ...payloads
-              )
-            }
-          })
-        : presenter.callRemoteControl(method as keyof IRemoteControlPresenter, ...payloads)
-
-      return handlePresenterCallResult(result, {
-        webContentsId,
-        presenterName: 'remoteControlPresenter',
-        methodName: method
-      })
-    } catch (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      e: any
-    ) {
-      return handlePresenterCallError(e, {
-        webContentsId,
-        presenterName: 'remoteControlPresenter',
-        methodName: method
-      })
-    }
-  }
-)

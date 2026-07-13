@@ -77,15 +77,17 @@ describe('AI SDK runtime', () => {
     })
     mockGenerateText.mockResolvedValue({
       text: 'ok',
-      reasoningText: undefined,
-      totalUsage: {
+      usage: {
         inputTokens: 1,
         outputTokens: 1,
         totalTokens: 2
+      },
+      finalStep: {
+        reasoningText: undefined
       }
     })
     mockStreamText.mockReturnValue({
-      fullStream: (async function* () {})()
+      stream: (async function* () {})()
     })
     mockGenerateImage.mockResolvedValue({
       images: [
@@ -102,7 +104,7 @@ describe('AI SDK runtime', () => {
     vi.unstubAllGlobals()
   })
 
-  it('promotes leading system messages to the top-level system option for generateText', async () => {
+  it('promotes leading system messages to the top-level instructions option for generateText', async () => {
     await runAiSdkGenerateText(
       createTextRuntimeContext(),
       [
@@ -119,7 +121,7 @@ describe('AI SDK runtime', () => {
 
     const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
     expect(request).toMatchObject({
-      system: 'Be precise',
+      instructions: 'Be precise',
       allowSystemInMessages: false,
       messages: [
         {
@@ -153,7 +155,7 @@ describe('AI SDK runtime', () => {
 
     const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
     expect(request).toMatchObject({
-      system: 'First instruction\n\nSecond instruction',
+      instructions: 'First instruction\n\nSecond instruction',
       allowSystemInMessages: false,
       messages: [
         {
@@ -165,7 +167,7 @@ describe('AI SDK runtime', () => {
     expect(events).toEqual([])
   })
 
-  it('drops blank leading system messages without sending an empty system option', async () => {
+  it('drops blank leading system messages without sending an empty instructions option', async () => {
     await runAiSdkGenerateText(
       createTextRuntimeContext(),
       [
@@ -181,7 +183,7 @@ describe('AI SDK runtime', () => {
     )
 
     const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(request).not.toHaveProperty('system')
+    expect(request).not.toHaveProperty('instructions')
     expect(request).toMatchObject({
       allowSystemInMessages: false,
       messages: [
@@ -222,7 +224,42 @@ describe('AI SDK runtime', () => {
         }
       ]
     })
-    expect(request).not.toHaveProperty('system')
+    expect(request).not.toHaveProperty('instructions')
+  })
+
+  it('maps generateText reasoningText and usage onto the response without dropping them', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'final answer',
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8
+      },
+      finalStep: {
+        reasoningText: 'thinking'
+      }
+    })
+
+    const response = await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.7,
+      1024
+    )
+
+    expect(response).toMatchObject({
+      content: 'final answer',
+      reasoning_content: 'thinking',
+      totalUsage: {
+        prompt_tokens: 3,
+        completion_tokens: 5,
+        total_tokens: 8
+      }
+    })
   })
 
   it('builds image prompts from text-like content instead of object stringification', async () => {

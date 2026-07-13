@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
-import { EntityIdSchema, SessionStatusSchema, defineEventContract } from '../common'
+import {
+  EntityIdSchema,
+  SessionCompactionStateSchema,
+  SessionStatusSchema,
+  defineEventContract
+} from '../common'
 import { AcpConfigStateSchema } from '../domainSchemas'
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
@@ -14,6 +19,12 @@ const AcpSessionCommandSchema = z.object({
     })
     .nullable()
     .optional()
+})
+
+const AcpSessionModeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string()
 })
 
 export const sessionsUpdatedEvent = defineEventContract({
@@ -35,11 +46,31 @@ export const sessionsStatusChangedEvent = defineEventContract({
   })
 })
 
+export const sessionsCompactionChangedEvent = defineEventContract({
+  name: 'sessions.compaction.changed',
+  payload: SessionCompactionStateSchema.extend({
+    sessionId: EntityIdSchema,
+    version: z.number().int()
+  })
+})
+
 export const sessionsPendingInputsChangedEvent = defineEventContract({
   name: 'sessions.pendingInputs.changed',
   payload: z.object({
     sessionId: EntityIdSchema,
     items: z.array(PendingSessionInputRecordSchema).optional(),
+    version: z.number().int()
+  })
+})
+
+export const sessionsAcpModesReadyEvent = defineEventContract({
+  name: 'sessions.acp.modes.ready',
+  payload: z.object({
+    conversationId: EntityIdSchema.optional(),
+    agentId: EntityIdSchema,
+    workdir: z.string(),
+    current: z.string(),
+    available: z.array(AcpSessionModeSchema),
     version: z.number().int()
   })
 })

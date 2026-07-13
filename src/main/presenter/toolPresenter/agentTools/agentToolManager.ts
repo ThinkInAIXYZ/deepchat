@@ -1,6 +1,6 @@
 import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
@@ -39,7 +39,14 @@ import {
 import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
 import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
+import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
+import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  CRON_JOB_TOOL_SERVER_NAME,
+  CronJobToolHandler,
+  cronJobActionNeedsPermission
+} from './cronJobTool'
 import { isYoBrowserUnavailableError } from '../../browser/YoBrowserErrors'
 
 // Consider moving to a shared handlers location in future refactoring
@@ -97,6 +104,8 @@ interface AgentToolExecutionOptions {
   onProgress?: (update: AgentToolProgressUpdate) => void
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
+  activeSkillNames?: string[]
+  enabledSkillNames?: string[] | null
 }
 
 interface AgentToolPermissionCheckOptions {
@@ -137,6 +146,8 @@ export class AgentToolManager {
   private imageGenerationTool: AgentImageGenerationTool | null = null
   private planTool: AgentPlanTool | null = null
   private tapeToolHandler: AgentTapeToolHandler | null = null
+  private memoryToolHandler: AgentMemoryToolHandler | null = null
+  private cronJobToolHandler: CronJobToolHandler | null = null
   private readonly fffSearchService = new FffSearchService()
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
@@ -306,6 +317,8 @@ export class AgentToolManager {
     })
     this.planTool = new AgentPlanTool()
     this.tapeToolHandler = new AgentTapeToolHandler(this.runtimePort)
+    this.memoryToolHandler = new AgentMemoryToolHandler(this.runtimePort)
+    this.cronJobToolHandler = new CronJobToolHandler(this.runtimePort)
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -352,6 +365,7 @@ export class AgentToolManager {
     supportsVision: boolean
     agentWorkspacePath: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
@@ -382,6 +396,17 @@ export class AgentToolManager {
       }
     }
 
+    // 2.16. Long-term memory tools (only when the agent has memory enabled)
+    if (isAgentMode && this.memoryToolHandler) {
+      try {
+        if (await this.memoryToolHandler.canUse(context.conversationId)) {
+          defs.push(...this.memoryToolHandler.getToolDefinitions())
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve memory tool availability', { error })
+      }
+    }
+
     // 2.25. Image generation tool (deepchat agent sessions with an image model)
     if (isAgentMode && this.imageGenerationTool) {
       try {
@@ -393,6 +418,11 @@ export class AgentToolManager {
           error
         })
       }
+    }
+
+    // 2.3. Scheduled task tool (disabled by default in DeepChat agent settings)
+    if (isAgentMode && this.cronJobToolHandler?.canUse()) {
+      defs.push(this.cronJobToolHandler.getToolDefinition())
     }
 
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
@@ -414,7 +444,10 @@ export class AgentToolManager {
       const skillDefs = this.getSkillToolDefinitions()
       defs.push(...skillDefs)
 
-      if (context.conversationId && (await this.hasRunnableSkillScripts(context.conversationId))) {
+      if (
+        context.conversationId &&
+        (await this.hasRunnableSkillScripts(context.conversationId, context.activeSkillNames))
+      ) {
         defs.push(this.getSkillRunToolDefinition())
       }
     }
@@ -422,10 +455,13 @@ export class AgentToolManager {
     // 4. DeepChat settings tools (agent mode only, skill gated)
     if (isAgentMode && this.isSkillsEnabled() && context.conversationId) {
       try {
-        const activeSkills = await this.getSkillPresenter().getActiveSkills(context.conversationId)
+        const activeSkills =
+          context.activeSkillNames ??
+          (await this.getSkillPresenter().getActiveSkills(context.conversationId))
         if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
           const allowedTools = await this.getSkillPresenter().getActiveSkillsAllowedTools(
-            context.conversationId
+            context.conversationId,
+            activeSkills
           )
           const requiredSettingsTools = Object.values(CHAT_SETTINGS_TOOL_NAMES)
           const nonOpenSettingsTools = requiredSettingsTools.filter(
@@ -515,6 +551,14 @@ export class AgentToolManager {
       return await this.tapeToolHandler.call(toolName, args, conversationId)
     }
 
+    if (this.memoryToolHandler?.isMemoryTool(toolName)) {
+      return await this.memoryToolHandler.call(toolName, args, conversationId)
+    }
+
+    if (this.cronJobToolHandler?.isCronJobTool(toolName)) {
+      return await this.cronJobToolHandler.call(args)
+    }
+
     // Route to process tool
     if (this.isProcessTool(toolName)) {
       return await this.callProcessTool(toolName, args, conversationId)
@@ -530,11 +574,11 @@ export class AgentToolManager {
 
     // Route to Skill tools
     if (this.isSkillTool(toolName)) {
-      return await this.callSkillTool(toolName, args, conversationId)
+      return await this.callSkillTool(toolName, args, conversationId, options)
     }
 
     if (this.isSkillExecutionTool(toolName)) {
-      return await this.callSkillExecutionTool(toolName, args, conversationId)
+      return await this.callSkillExecutionTool(toolName, args, conversationId, options)
     }
 
     // Route to DeepChat settings tools
@@ -607,7 +651,7 @@ export class AgentToolManager {
           name: 'read',
           description:
             "Read the contents of a file. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). For image files, returns an English description of visible content instead of raw pixels. When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
-          parameters: zodToJsonSchema(schemas.read) as {
+          parameters: toDeepChatJsonSchema(schemas.read) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -625,7 +669,7 @@ export class AgentToolManager {
           name: 'write',
           description:
             "Write content to a file. For skill files, provide base_directory as the skill's root directory.",
-          parameters: zodToJsonSchema(schemas.write) as {
+          parameters: toDeepChatJsonSchema(schemas.write) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -643,7 +687,7 @@ export class AgentToolManager {
           name: 'edit',
           description:
             'Make precise text or line replacements in a file by matching exact text strings. Set replaceAll=false to replace only the first match.',
-          parameters: zodToJsonSchema(schemas.edit) as {
+          parameters: toDeepChatJsonSchema(schemas.edit) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -661,7 +705,7 @@ export class AgentToolManager {
           name: GLOB_TOOL_NAME,
           description:
             'Search file paths in the workspace. Use this before content search. Returns JSON Array<{path, score}>.',
-          parameters: zodToJsonSchema(schemas[GLOB_TOOL_NAME]) as {
+          parameters: toDeepChatJsonSchema(schemas[GLOB_TOOL_NAME]) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -679,7 +723,7 @@ export class AgentToolManager {
           name: GREP_TOOL_NAME,
           description:
             'Search file contents in the workspace. Prefer passing pathScope from glob. Use mode=regex for regular expressions. Returns JSON Array<{path, lineNumber, snippet, score}>.',
-          parameters: zodToJsonSchema(schemas[GREP_TOOL_NAME]) as {
+          parameters: toDeepChatJsonSchema(schemas[GREP_TOOL_NAME]) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -697,7 +741,7 @@ export class AgentToolManager {
           name: 'exec',
           description:
             'Execute a shell command in the current working directory or an explicit cwd. External cwd paths are allowed in Full Access mode; default mode asks for approval. Use background: true when you know the command should detach immediately. Otherwise foreground exec waits briefly, and long-running commands may auto-background and return a session ID for use with the process tool.',
-          parameters: zodToJsonSchema(schemas.exec) as {
+          parameters: toDeepChatJsonSchema(schemas.exec) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -715,7 +759,7 @@ export class AgentToolManager {
           name: 'process',
           description:
             'Manage background exec sessions created by explicit background exec calls or by long-running foreground exec calls that yielded a sessionId. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
-          parameters: zodToJsonSchema(schemas.process) as {
+          parameters: toDeepChatJsonSchema(schemas.process) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -739,7 +783,7 @@ export class AgentToolManager {
           name: QUESTION_TOOL_NAME,
           description:
             'Pause the agent loop and ask the user one structured clarification question when missing user preferences, implementation direction, output shape, or risk decisions would materially change the result. Do not use this for casual conversation or for facts you can discover from the repo, tools, or existing context. The loop resumes only after the user responds.',
-          parameters: zodToJsonSchema(questionToolSchema) as {
+          parameters: toDeepChatJsonSchema(questionToolSchema) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -874,6 +918,10 @@ export class AgentToolManager {
     }
   }
 
+  public clearPlanState(conversationId: string): void {
+    this.planTool?.clearState(conversationId)
+  }
+
   private async callFileSystemTool(
     toolName: string,
     args: Record<string, unknown>,
@@ -916,7 +964,8 @@ export class AgentToolManager {
     const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
       includeSkillRoots: toolName !== 'exec',
       includeRuntimeRoots: toolName !== 'exec',
-      requiredPermission: this.getRequiredFilePermission(toolName)
+      requiredPermission: this.getRequiredFilePermission(toolName),
+      activeSkillNames: options?.activeSkillNames
     })
 
     if (toolName === 'exec') {
@@ -1195,6 +1244,7 @@ export class AgentToolManager {
       includeSkillRoots?: boolean
       includeRuntimeRoots?: boolean
       requiredPermission?: FilePermissionLevel
+      activeSkillNames?: string[]
     } = {}
   ): Promise<string[]> {
     const includeSkillRoots = options.includeSkillRoots !== false
@@ -1214,7 +1264,10 @@ export class AgentToolManager {
     addPath(this.agentWorkspacePath)
 
     if (conversationId && includeSkillRoots) {
-      const activeSkillRoots = await this.resolveActiveSkillRoots(conversationId)
+      const activeSkillRoots = await this.resolveActiveSkillRoots(
+        conversationId,
+        options.activeSkillNames
+      )
       for (const skillRoot of activeSkillRoots) {
         addPath(skillRoot)
       }
@@ -1239,7 +1292,10 @@ export class AgentToolManager {
     return ordered
   }
 
-  private async resolveActiveSkillRoots(conversationId: string): Promise<string[]> {
+  private async resolveActiveSkillRoots(
+    conversationId: string,
+    activeSkillNamesOverride?: string[]
+  ): Promise<string[]> {
     const skillPresenter = this.getSkillPresenter()
     if (!skillPresenter?.getActiveSkills || !skillPresenter?.getMetadataList) {
       return []
@@ -1250,7 +1306,7 @@ export class AgentToolManager {
 
     try {
       ;[activeSkillNames, metadataList] = await Promise.all([
-        skillPresenter.getActiveSkills(conversationId),
+        activeSkillNamesOverride ?? skillPresenter.getActiveSkills(conversationId),
         skillPresenter.getMetadataList()
       ])
     } catch (error) {
@@ -1769,7 +1825,9 @@ export class AgentToolManager {
         windowRuntime: {
           createSettingsWindow: () => this.runtimePort.createSettingsWindow(),
           sendToWindow: (windowId, channel, ...args) =>
-            this.runtimePort.sendToWindow(windowId, channel, ...args)
+            this.runtimePort.sendToWindow(windowId, channel, ...args),
+          sendSettingsNavigation: (windowId, navigation) =>
+            this.runtimePort.sendSettingsNavigation(windowId, navigation)
         }
       })
     }
@@ -1799,7 +1857,7 @@ export class AgentToolManager {
           name: 'skill_list',
           description:
             'List all available skills and their activation status. Skills provide specialized expertise and behavioral guidance.',
-          parameters: zodToJsonSchema(schemas.skill_list) as {
+          parameters: toDeepChatJsonSchema(schemas.skill_list) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -1817,7 +1875,7 @@ export class AgentToolManager {
           name: 'skill_view',
           description:
             'Inspect a specific skill before relying on it. Returns the rendered SKILL.md body or a requested supporting file under the skill root.',
-          parameters: zodToJsonSchema(schemas.skill_view) as {
+          parameters: toDeepChatJsonSchema(schemas.skill_view) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -1835,7 +1893,7 @@ export class AgentToolManager {
           name: 'skill_manage',
           description:
             'Create or edit temporary draft skills in the conversation draft area. Use the returned draftId for follow-up draft operations. This cannot modify installed skills.',
-          parameters: zodToJsonSchema(schemas.skill_manage) as {
+          parameters: toDeepChatJsonSchema(schemas.skill_manage) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -1856,8 +1914,8 @@ export class AgentToolManager {
       function: {
         name: 'skill_run',
         description:
-          'Run a bundled script from a pinned skill. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
-        parameters: zodToJsonSchema(this.skillSchemas.skill_run) as {
+          'Run a bundled script from a skill active in the current message/tool loop. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
+        parameters: toDeepChatJsonSchema(this.skillSchemas.skill_run) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]
@@ -1879,9 +1937,13 @@ export class AgentToolManager {
     return toolName === 'skill_run'
   }
 
-  private async hasRunnableSkillScripts(conversationId: string): Promise<boolean> {
+  private async hasRunnableSkillScripts(
+    conversationId: string,
+    activeSkillNames?: string[]
+  ): Promise<boolean> {
     try {
-      const activeSkills = await this.getSkillPresenter().getActiveSkills(conversationId)
+      const activeSkills =
+        activeSkillNames ?? (await this.getSkillPresenter().getActiveSkills(conversationId))
       for (const skillName of activeSkills) {
         const scripts = await this.getSkillPresenter().listSkillScripts(skillName)
         if (scripts.some((script) => script.enabled)) {
@@ -1928,6 +1990,17 @@ export class AgentToolManager {
     const writeTools = ['write', 'edit']
     const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
     const allowExternalFileAccess = options.allowExternalFileAccess === true
+
+    if (toolName === CRON_JOB_AGENT_TOOL_NAME && cronJobActionNeedsPermission(args)) {
+      return {
+        needsPermission: true,
+        toolName,
+        serverName: CRON_JOB_TOOL_SERVER_NAME,
+        permissionType: 'write',
+        description: 'Scheduled task changes require approval.',
+        conversationId
+      }
+    }
 
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {
@@ -2058,10 +2131,35 @@ export class AgentToolManager {
     )
   }
 
+  private normalizeActiveSkillOption(activeSkillNames?: string[]): string[] | undefined {
+    if (!Array.isArray(activeSkillNames)) {
+      return undefined
+    }
+
+    return this.normalizeSkillNameList(activeSkillNames)
+  }
+
+  private normalizeNullableSkillOption(skillNames?: string[] | null): string[] | null | undefined {
+    if (skillNames === null || skillNames === undefined) {
+      return skillNames
+    }
+
+    return this.normalizeSkillNameList(skillNames)
+  }
+
+  private normalizeSkillNameList(skillNames: string[]): string[] {
+    return Array.from(
+      new Set(
+        skillNames.map((skillName) => skillName.trim()).filter((skillName) => skillName.length > 0)
+      )
+    )
+  }
+
   private async callSkillTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult> {
     if (!this.isSkillsEnabled()) {
       return {
@@ -2073,9 +2171,15 @@ export class AgentToolManager {
     }
 
     const skillTools = this.getSkillTools()
+    const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
+    const enabledSkillNames = this.normalizeNullableSkillOption(options?.enabledSkillNames)
 
     if (toolName === 'skill_list') {
-      const result = await skillTools.handleSkillList(conversationId)
+      const result = await skillTools.handleSkillList(
+        conversationId,
+        enabledSkillNames,
+        effectiveActiveSkills
+      )
       return { content: JSON.stringify(result) }
     }
 
@@ -2090,20 +2194,19 @@ export class AgentToolManager {
           ? validationResult.data.file_path.trim()
           : ''
       const isLinkedFileView = normalizedFilePath.length > 0
-      const previousActiveSkills =
-        conversationId && !isLinkedFileView
-          ? await this.getSkillPresenter().getActiveSkills(conversationId)
-          : []
-      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
-      const nextActiveSkills =
-        conversationId && !isLinkedFileView
-          ? await this.getSkillPresenter().getActiveSkills(conversationId)
-          : previousActiveSkills
+      const result = await skillTools.handleSkillView(
+        conversationId,
+        validationResult.data,
+        enabledSkillNames
+      )
+      const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
+      const activeSkillNamesForResult = effectiveActiveSkills ?? []
       const activationApplied =
         Boolean(conversationId) &&
+        result.success === true &&
         !isLinkedFileView &&
-        !previousActiveSkills.includes(validationResult.data.name) &&
-        nextActiveSkills.includes(validationResult.data.name)
+        Boolean(normalizedViewedSkill) &&
+        !activeSkillNamesForResult.includes(normalizedViewedSkill)
       const activationSource =
         !conversationId || result.success !== true
           ? 'none'
@@ -2112,7 +2215,17 @@ export class AgentToolManager {
             : isLinkedFileView
               ? 'file'
               : 'none'
-      const content = JSON.stringify(result)
+      const content = JSON.stringify({
+        ...result,
+        isPinned: result.isPinned === true,
+        activeForCurrentMessage:
+          result.isPinned === true ||
+          (!isLinkedFileView &&
+            Boolean(normalizedViewedSkill) &&
+            (activationApplied || activeSkillNamesForResult.includes(normalizedViewedSkill))),
+        activatedForMessage: activationApplied,
+        activationScope: activationApplied ? 'message' : 'none'
+      })
 
       return {
         content,
@@ -2121,7 +2234,7 @@ export class AgentToolManager {
           toolResult: {
             activationApplied,
             activationSource,
-            ...(activationApplied ? { activatedSkill: validationResult.data.name } : {})
+            ...(activationApplied ? { activatedSkill: normalizedViewedSkill } : {})
           }
         }
       }
@@ -2169,7 +2282,8 @@ export class AgentToolManager {
   private async callSkillExecutionTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult> {
     if (toolName !== 'skill_run') {
       throw new Error(`Unknown skill execution tool: ${toolName}`)
@@ -2185,7 +2299,8 @@ export class AgentToolManager {
     }
 
     const result = await this.getSkillExecutionService().execute(validationResult.data, {
-      conversationId
+      conversationId,
+      activeSkillNames: options?.activeSkillNames
     })
     const content =
       typeof result.output === 'string' ? result.output : JSON.stringify(result.output, null, 2)

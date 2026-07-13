@@ -1,11 +1,11 @@
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/presenter'
 
 const yoBrowserSchemas = {
   get_browser_status: z.object({}),
   load_url: z.object({
-    url: z.string().url().describe('URL to load in the session browser')
+    url: z.url().describe('URL to load in the session browser')
   }),
   cdp_send: z.object({
     method: z
@@ -32,7 +32,7 @@ const yoBrowserSchemas = {
 export const YO_BROWSER_TOOL_NAMES = ['load_url', 'get_browser_status', 'cdp_send'] as const
 
 function asParameters(schema: z.ZodTypeAny) {
-  return zodToJsonSchema(schema) as {
+  return toDeepChatJsonSchema(schema) as {
     type: string
     properties: Record<string, unknown>
     required?: string[]

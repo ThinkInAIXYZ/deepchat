@@ -4,6 +4,10 @@ import { createHash } from 'node:crypto'
 import { zipSync } from 'fflate'
 
 const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
+const CUA_DARWIN_HELPER_APP = 'DeepChat Computer Use.app'
+const CUA_DARWIN_HELPER_EXECUTABLE = 'deepchat-cua-driver'
+const CUA_DARWIN_HELPER_BUNDLE_ID = 'com.deepchat.computeruse.helper'
+const CUA_DARWIN_MANAGED_HELPER_DETECT = `app-helper:${CUA_DARWIN_HELPER_APP}/Contents/MacOS/${CUA_DARWIN_HELPER_EXECUTABLE}`
 
 function fail(message) {
   console.error(message)
@@ -17,7 +21,7 @@ function parseArgs(argv) {
     pluginDir: null,
     releaseVersionFromRoot: false,
     version: null,
-    targetPlatform: process.env.TARGET_PLATFORM ?? null,
+    targetPlatform: process.env.TARGET_PLATFORM ?? process.platform,
     targetArch: process.env.TARGET_ARCH ?? process.arch
   }
 
@@ -59,6 +63,8 @@ function parseArgs(argv) {
   if (!args.pluginDir) {
     throw new Error('Usage: node scripts/package-plugin.mjs [--validate] [--out <dir>] <pluginDir>')
   }
+  args.targetPlatform = String(args.targetPlatform).toLowerCase()
+  args.targetArch = String(args.targetArch).toLowerCase()
   return args
 }
 
@@ -92,6 +98,24 @@ function assertFile(pluginDir, relativePath, label) {
   return absolutePath
 }
 
+function fileExists(pluginDir, relativePath) {
+  const normalized = assertSafeRelativePath(relativePath, relativePath)
+  const absolutePath = path.resolve(pluginDir, ...normalized.split('/').filter(Boolean))
+  const relativeToRoot = path.relative(pluginDir, absolutePath)
+  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
+    throw new Error(`Path escapes plugin root: ${relativePath}`)
+  }
+  return fs.existsSync(absolutePath)
+}
+
+function readPlistString(plistContents, key) {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = plistContents.match(
+    new RegExp(`<key>${escapedKey}</key>\\s*<string>([^<]*)</string>`)
+  )
+  return match?.[1]
+}
+
 function readManifest(pluginDir) {
   const manifestPath = assertFile(pluginDir, 'plugin.json', 'manifest')
   return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
@@ -115,6 +139,12 @@ function validateManifest(pluginDir, manifest) {
   if (!Array.isArray(manifest.engines?.platforms) || manifest.engines.platforms.length === 0) {
     throw new Error('engines.platforms must declare at least one platform')
   }
+  if (
+    manifest.engines.targets !== undefined &&
+    (!Array.isArray(manifest.engines.targets) || manifest.engines.targets.length === 0)
+  ) {
+    throw new Error('engines.targets must be a non-empty array when declared')
+  }
 
   for (const skill of manifest.skills ?? []) {
     assertFile(pluginDir, skill.path, `skill ${skill.id}`)
@@ -132,8 +162,8 @@ function shouldSkipPackageEntry(relativePath, manifest, args) {
   }
 
   const parts = relativePath.split('/')
-  if (parts[0] === 'runtime' && parts[1] === 'darwin' && parts[2]) {
-    return parts[2] !== args.targetArch
+  if (parts[0] === 'runtime' && parts[1] && parts[2]) {
+    return parts[1] !== args.targetPlatform || parts[2] !== args.targetArch
   }
 
   return false
@@ -163,7 +193,11 @@ function collectFiles(pluginDir, currentDir = pluginDir, files = {}, manifest, a
       continue
     }
 
-    files[relativePath] = new Uint8Array(fs.readFileSync(absolutePath))
+    const stat = fs.statSync(absolutePath)
+    files[relativePath] = {
+      content: new Uint8Array(fs.readFileSync(absolutePath)),
+      mode: stat.mode
+    }
   }
   return files
 }
@@ -178,6 +212,10 @@ function artifactFileName(manifest, targetPlatform, targetArch) {
   const safeId = artifactBaseName(manifest).replace(/[^a-zA-Z0-9._-]/g, '-')
   const targetSuffix = targetPlatform && targetArch ? `-${targetPlatform}-${targetArch}` : ''
   return `${safeId}-${manifest.version}${targetSuffix}.dcplugin`
+}
+
+function targetKey(targetPlatform, targetArch) {
+  return `${targetPlatform}/${targetArch}`
 }
 
 function releaseTag(version) {
@@ -196,6 +234,12 @@ function createPackageManifest(manifest, args) {
         `https://github.com/ThinkInAIXYZ/deepchat/releases/download/${releaseTag(version)}`
       )
   )
+  if (
+    Array.isArray(next.engines?.targets) &&
+    isManifestTargetSupported(next, args.targetPlatform, args.targetArch)
+  ) {
+    next.engines.targets = [targetKey(args.targetPlatform, args.targetArch)]
+  }
   if (next.source?.type === OFFICIAL_PLUGIN_SOURCE) {
     const assetName = artifactFileName(next, args.targetPlatform, args.targetArch)
     next.source.url = `https://github.com/ThinkInAIXYZ/deepchat/releases/download/${releaseTag(version)}/${assetName}`
@@ -203,25 +247,76 @@ function createPackageManifest(manifest, args) {
   return next
 }
 
+function isManifestTargetSupported(manifest, targetPlatform, targetArch) {
+  const normalizedPlatform = String(targetPlatform).toLowerCase()
+  const normalizedArch = String(targetArch).toLowerCase()
+  const aliases =
+    normalizedPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [normalizedPlatform]
+  const targets = manifest.engines?.targets ?? []
+  if (targets.length > 0) {
+    const supportedTargets = targets.map((target) => String(target).toLowerCase())
+    return aliases.some((platform) => supportedTargets.includes(`${platform}/${normalizedArch}`))
+  }
+
+  const platforms = new Set(
+    (manifest.engines?.platforms ?? []).map((platform) => String(platform).toLowerCase())
+  )
+  return aliases.some((platform) => platforms.has(platform))
+}
+
 function validateCuaRuntime(pluginDir, manifest, args) {
   if (manifest.id !== 'com.deepchat.plugins.cua') {
     return
   }
-  const targetPlatform = args.targetPlatform ?? 'darwin'
-  if (targetPlatform !== 'darwin') {
-    throw new Error('CUA plugin packaging currently supports darwin runtime packages only')
+  const targetPlatform = args.targetPlatform ?? process.platform
+  const key = targetKey(targetPlatform, args.targetArch)
+  if (!isManifestTargetSupported(manifest, targetPlatform, args.targetArch)) {
+    throw new Error(`CUA plugin does not support ${key}`)
   }
-  assertFile(
-    pluginDir,
-    `runtime/darwin/${args.targetArch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver`,
-    `CUA runtime binary ${targetPlatform}/${args.targetArch}`
-  )
+
+  const requiredByTarget = {
+    [`darwin/${args.targetArch}`]: [
+      `runtime/darwin/${args.targetArch}/${CUA_DARWIN_HELPER_APP}/Contents/MacOS/${CUA_DARWIN_HELPER_EXECUTABLE}`
+    ],
+    [`win32/${args.targetArch}`]: [
+      `runtime/win32/${args.targetArch}/cua-driver.exe`,
+      `runtime/win32/${args.targetArch}/cua-driver-uia.exe`
+    ],
+    [`linux/${args.targetArch}`]: [`runtime/linux/${args.targetArch}/cua-driver`]
+  }
+  const requiredFiles = requiredByTarget[key]
+  if (!requiredFiles) {
+    throw new Error(`CUA plugin has no runtime validation rule for ${key}`)
+  }
+  for (const relativePath of requiredFiles) {
+    assertFile(pluginDir, relativePath, `CUA runtime binary ${key}`)
+  }
+  if (targetPlatform === 'darwin') {
+    validateCuaDarwinRuntime(pluginDir, args.targetArch)
+    if (manifest.runtime?.detect?.[0] !== CUA_DARWIN_MANAGED_HELPER_DETECT) {
+      throw new Error(`CUA macOS runtime detect path must prefer ${CUA_DARWIN_MANAGED_HELPER_DETECT}`)
+    }
+  }
+
   const expectedDetect = [
-    `plugin:runtime/darwin/${args.targetArch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver`,
+    CUA_DARWIN_MANAGED_HELPER_DETECT,
+    `plugin:runtime/darwin/${args.targetArch}/${CUA_DARWIN_HELPER_APP}/Contents/MacOS/${CUA_DARWIN_HELPER_EXECUTABLE}`,
+    `plugin:runtime/win32/${args.targetArch}/cua-driver.exe`,
+    `plugin:runtime/linux/${args.targetArch}/cua-driver`
+  ]
+  for (const detectPath of expectedDetect) {
+    if (!manifest.runtime?.detect?.includes(detectPath)) {
+      throw new Error(`CUA runtime detect paths must include ${detectPath}`)
+    }
+  }
+  const forbiddenDetect = [
+    `plugin:runtime/darwin/${args.targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`,
     '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
   ]
-  if (JSON.stringify(manifest.runtime?.detect ?? []) !== JSON.stringify(expectedDetect)) {
-    throw new Error('CUA runtime detect paths must point to the bundled helper app first')
+  for (const detectPath of forbiddenDetect) {
+    if (manifest.runtime?.detect?.includes(detectPath)) {
+      throw new Error(`CUA runtime detect paths must not include ${detectPath}`)
+    }
   }
 
   const cuaServer = (manifest.mcpServers ?? []).find((server) => server.id === 'cua-driver')
@@ -231,9 +326,14 @@ function validateCuaRuntime(pluginDir, manifest, args) {
   if (cuaServer.command !== '${runtime.cua-driver.command}') {
     throw new Error('CUA MCP server command must reference ${runtime.cua-driver.command}')
   }
+  const expectedArgs = ['mcp', '--no-daemon-relaunch']
+  if (JSON.stringify(cuaServer.args ?? []) !== JSON.stringify(expectedArgs)) {
+    throw new Error(`CUA MCP server args must be ${JSON.stringify(expectedArgs)}`)
+  }
   const env = cuaServer.env ?? {}
   const requiredEnv = {
     CUA_DRIVER_MCP_MODE: '1',
+    CUA_DRIVER_RS_MCP_NO_RELAUNCH: '1',
     DEEPCHAT_COMPUTER_USE_APP_PATH: '${runtime.cua-driver.helperAppPath}',
     DEEPCHAT_COMPUTER_USE_BINARY_PATH: '${runtime.cua-driver.command}'
   }
@@ -244,27 +344,69 @@ function validateCuaRuntime(pluginDir, manifest, args) {
   }
 }
 
+function validateCuaDarwinRuntime(pluginDir, targetArch) {
+  const helperRoot = `runtime/darwin/${targetArch}/${CUA_DARWIN_HELPER_APP}`
+  const legacyExecutablePath = `runtime/darwin/${targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`
+  const legacyCodeResourcesPath = `${helperRoot}/Contents/CodeResources`
+  if (fileExists(pluginDir, legacyExecutablePath)) {
+    throw new Error(`CUA macOS runtime must not stage legacy helper path ${legacyExecutablePath}`)
+  }
+  if (fileExists(pluginDir, legacyCodeResourcesPath)) {
+    throw new Error(`CUA macOS runtime must not stage legacy signature file ${legacyCodeResourcesPath}`)
+  }
+
+  const infoPlistPath = `${helperRoot}/Contents/Info.plist`
+  const infoPlistFile = assertFile(pluginDir, infoPlistPath, `CUA macOS helper Info.plist ${targetArch}`)
+  const infoPlist = fs.readFileSync(infoPlistFile, 'utf8')
+  const bundleIdentifier = readPlistString(infoPlist, 'CFBundleIdentifier')
+  if (bundleIdentifier !== CUA_DARWIN_HELPER_BUNDLE_ID) {
+    throw new Error(
+      `CUA macOS helper CFBundleIdentifier must be ${CUA_DARWIN_HELPER_BUNDLE_ID}`
+    )
+  }
+  const executable = readPlistString(infoPlist, 'CFBundleExecutable')
+  if (executable !== CUA_DARWIN_HELPER_EXECUTABLE) {
+    throw new Error(`CUA macOS helper CFBundleExecutable must be ${CUA_DARWIN_HELPER_EXECUTABLE}`)
+  }
+}
+
 function buildChecksums(files) {
   return Object.fromEntries(
     Object.entries(files)
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([filePath, content]) => [
         filePath,
-        createHash('sha256').update(Buffer.from(content)).digest('hex')
+        createHash('sha256').update(Buffer.from(content.content)).digest('hex')
       ])
+  )
+}
+
+function createZipInput(files) {
+  return Object.fromEntries(
+    Object.entries(files).map(([filePath, file]) => {
+      const mode = file.mode & 0o777
+      if ((mode & 0o111) !== 0) {
+        return [filePath, [file.content, { os: 3, attrs: mode << 16 }]]
+      }
+      return [filePath, file.content]
+    })
   )
 }
 
 function packagePlugin(pluginDir, outDir, manifest, args) {
   const files = collectFiles(pluginDir, pluginDir, {}, manifest, args)
-  files['plugin.json'] = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
-  files['checksums.json'] = new TextEncoder().encode(
-    `${JSON.stringify(buildChecksums(files), null, 2)}\n`
-  )
+  files['plugin.json'] = {
+    content: new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`),
+    mode: 0o644
+  }
+  files['checksums.json'] = {
+    content: new TextEncoder().encode(`${JSON.stringify(buildChecksums(files), null, 2)}\n`),
+    mode: 0o644
+  }
 
   fs.mkdirSync(outDir, { recursive: true })
   const outPath = path.join(outDir, artifactFileName(manifest, args.targetPlatform, args.targetArch))
-  fs.writeFileSync(outPath, Buffer.from(zipSync(files, { level: 6 })))
+  fs.writeFileSync(outPath, Buffer.from(zipSync(createZipInput(files), { level: 6 })))
   return outPath
 }
 
@@ -273,6 +415,9 @@ try {
   const sourceManifest = readManifest(args.pluginDir)
   const manifest = createPackageManifest(sourceManifest, args)
   validateManifest(args.pluginDir, manifest)
+  if (!isManifestTargetSupported(manifest, args.targetPlatform, args.targetArch)) {
+    throw new Error(`Plugin ${manifest.id} does not support ${targetKey(args.targetPlatform, args.targetArch)}`)
+  }
   validateCuaRuntime(args.pluginDir, manifest, args)
   if (args.validateOnly) {
     console.log(`Plugin ${manifest.id}@${manifest.version} is valid`)

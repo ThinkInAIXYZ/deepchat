@@ -1,5 +1,9 @@
-import type { MessageFile } from '@shared/types/agent-interface'
-import type { AgentPlanDisplayItem } from '@shared/types/agent-plan'
+import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
+import {
+  UPDATE_PLAN_TOOL_NAME,
+  type AgentPlanDisplayItem,
+  type AgentPlanTerminalReason
+} from '@shared/types/agent-plan'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
@@ -32,6 +36,25 @@ export type DisplayUserMessageMentionBlock = {
   category: string
 }
 
+export type DisplayUserMessageSkillBlock = {
+  type: 'skill'
+  skillName: string
+}
+
+export type DisplayUserMessageFileBlock = {
+  type: 'file'
+  fileName: string
+  filePath: string
+  mimeType?: string
+}
+
+export type DisplayUserMessageInlineBlock =
+  | DisplayUserMessageTextBlock
+  | DisplayUserMessageMentionBlock
+  | DisplayUserMessageCodeBlock
+  | DisplayUserMessageSkillBlock
+  | DisplayUserMessageFileBlock
+
 export type DisplayUserMessageContent = {
   continue?: boolean
   files: MessageFile[]
@@ -40,7 +63,9 @@ export type DisplayUserMessageContent = {
   links: string[]
   think: boolean
   search: boolean
+  activeSkills?: string[]
   text: string
+  inlineItems?: UserMessageInlineItem[]
   content?: (
     | DisplayUserMessageTextBlock
     | DisplayUserMessageMentionBlock
@@ -83,8 +108,10 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   plan_explanation?: string
   plan_revision?: number
   plan_updated_at?: string
+  plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
+  autoApproveReviewStatus?: 'reviewing'
 }
 
 export type DisplayAssistantMessageBlock = {
@@ -173,6 +200,7 @@ type DisplayMessageBase = {
   conversationId: string
   is_variant: number
   variants?: DisplayMessage[]
+  renderKey?: string
   orderSeq: number
   messageType?: 'normal' | 'compaction'
   compactionStatus?: 'compacting' | 'compacted'
@@ -192,6 +220,37 @@ export type DisplayAssistantMessage = DisplayMessageBase & {
 export type DisplayMessage = DisplayUserMessage | DisplayAssistantMessage
 
 export type MessageListItem = DisplayMessage
+
+export function isInternalAssistantToolCallBlock(block: DisplayAssistantMessageBlock): boolean {
+  return (
+    block.type === 'tool_call' &&
+    block.tool_call?.name === UPDATE_PLAN_TOOL_NAME &&
+    block.extra?.internalTool === true
+  )
+}
+
+export function isRenderableAssistantBlock(block: DisplayAssistantMessageBlock): boolean {
+  if (block.type === 'plan') {
+    return false
+  }
+
+  if (isInternalAssistantToolCallBlock(block)) {
+    return false
+  }
+
+  return true
+}
+
+export function filterRenderableAssistantBlocks(
+  blocks: DisplayAssistantMessageBlock[]
+): DisplayAssistantMessageBlock[] {
+  const filtered = blocks.filter(isRenderableAssistantBlock)
+  return filtered.length === blocks.length ? blocks : filtered
+}
+
+export function hasRenderableAssistantBlocks(blocks: DisplayAssistantMessageBlock[]): boolean {
+  return blocks.some(isRenderableAssistantBlock)
+}
 
 export function isCompactionMessageItem(item: MessageListItem): boolean {
   return item.messageType === 'compaction'

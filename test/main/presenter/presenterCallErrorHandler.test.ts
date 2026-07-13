@@ -1,22 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NOTIFICATION_EVENTS } from '../../../src/main/events'
+import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
 const mocks = vi.hoisted(() => ({
   sendToWebContents: vi.fn()
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    sendToWebContents: mocks.sendToWebContents
-  }
-}))
-
 const loadModule = async () => await import('../../../src/main/presenter/presenterCallErrorHandler')
+const loadEventPublisher = async () => await import('../../../src/main/routes/publishDeepchatEvent')
 
 describe('presenterCallErrorHandler', () => {
   beforeEach(async () => {
     vi.resetModules()
     mocks.sendToWebContents.mockReset()
+    mocks.sendToWebContents.mockResolvedValue(true)
+    const { setDeepchatEventWindowPresenter } = await loadEventPublisher()
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: vi.fn(),
+      sendToWebContents: mocks.sendToWebContents
+    })
     const { resetPresenterCallErrorStateForTests } = await loadModule()
     resetPresenterCallErrorStateForTests()
   })
@@ -37,10 +38,13 @@ describe('presenterCallErrorHandler', () => {
 
     expect(mocks.sendToWebContents).toHaveBeenCalledWith(
       7,
-      NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
+      DEEPCHAT_EVENT_CHANNEL,
       expect.objectContaining({
-        reason: 'missing-column',
-        dedupeKey: 'missing-column:reasoning_effort'
+        name: 'databaseSecurity.repairSuggested',
+        payload: expect.objectContaining({
+          reason: 'missing-column',
+          dedupeKey: 'missing-column:reasoning_effort'
+        })
       })
     )
   })

@@ -3,11 +3,14 @@ import type { SearchResult } from '@shared/types/core/search'
 import type {
   Agent,
   AgentTransferImpact,
+  AgentTapeContextResult,
   MessageTraceRecord,
   PendingSessionInputRecord,
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { HistorySearchHit } from '@shared/types/presenters/agent-session.presenter'
+import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
+import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import {
   SessionListItemSchema,
   SessionPageCursorSchema,
@@ -16,6 +19,7 @@ import {
   ChatMessagePageResultSchema,
   EntityIdSchema,
   MessageFileSchema,
+  UserMessageInlineItemSchema,
   PermissionModeSchema,
   SessionCompactionStateSchema,
   SessionGenerationSettingsSchema,
@@ -23,10 +27,14 @@ import {
   SessionWithStateSchema,
   defineRouteContract
 } from '../common'
-import { AcpConfigStateSchema } from '../domainSchemas'
+import type { RouteContract } from '../common'
+import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas'
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
+const AgentTapeContextResultSchema = z.custom<AgentTapeContextResult>()
+const DeepChatTapeViewManifestRecordSchema = z.custom<DeepChatTapeViewManifestRecord>()
+const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullable()
 const HistorySearchHitSchema = z.custom<HistorySearchHit>()
 const SearchResultSchema = z.custom<SearchResult>()
 const AgentSchema = z.custom<Agent>()
@@ -56,7 +64,8 @@ export const CreateSessionInputSchema = z.object({
   agentId: EntityIdSchema,
   message: z.string(),
   files: z.array(MessageFileSchema).optional(),
-  projectDir: z.string().optional(),
+  inlineItems: z.array(UserMessageInlineItemSchema).optional(),
+  projectDir: z.string().nullable().optional(),
   providerId: z.string().optional(),
   modelId: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),
@@ -217,8 +226,21 @@ export const sessionsMoveQueuedInputRoute = defineRouteContract({
   })
 })
 
+// Low-level, non-interrupting promote (queue -> steer lane) used by integration tests and external
+// agent callers. Interactive clients use sessions.steerPendingInput, which promotes *and* interrupts.
 export const sessionsConvertPendingInputToSteerRoute = defineRouteContract({
   name: 'sessions.convertPendingInputToSteer',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    itemId: EntityIdSchema
+  }),
+  output: z.object({
+    item: PendingSessionInputRecordSchema
+  })
+})
+
+export const sessionsSteerPendingInputRoute = defineRouteContract({
+  name: 'sessions.steerPendingInput',
   input: z.object({
     sessionId: EntityIdSchema,
     itemId: EntityIdSchema
@@ -236,16 +258,6 @@ export const sessionsDeletePendingInputRoute = defineRouteContract({
   }),
   output: z.object({
     deleted: z.literal(true)
-  })
-})
-
-export const sessionsResumePendingQueueRoute = defineRouteContract({
-  name: 'sessions.resumePendingQueue',
-  input: z.object({
-    sessionId: EntityIdSchema
-  }),
-  output: z.object({
-    resumed: z.literal(true)
   })
 })
 
@@ -321,13 +333,51 @@ export const sessionsGetSearchResultsRoute = defineRouteContract({
   })
 })
 
+export const sessionsGetTapeContextRoute = defineRouteContract({
+  name: 'sessions.getTapeContext',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    entryIds: z.array(z.number().int().positive()).min(1).max(100),
+    options: z
+      .object({
+        before: z.number().int().min(0).max(20).optional(),
+        after: z.number().int().min(0).max(20).optional(),
+        limit: z.number().int().positive().max(100).optional(),
+        maxBytesPerEntry: z.number().int().min(0).max(8192).optional(),
+        maxTotalBytes: z.number().int().min(0).max(65536).optional()
+      })
+      .optional()
+  }),
+  output: z.object({
+    context: AgentTapeContextResultSchema
+  })
+})
+
 export const sessionsListMessageTracesRoute = defineRouteContract({
   name: 'sessions.listMessageTraces',
   input: z.object({
     messageId: EntityIdSchema
   }),
   output: z.object({
-    traces: z.array(MessageTraceRecordSchema)
+    traces: z.array(MessageTraceRecordSchema),
+    manifests: z.array(DeepChatTapeViewManifestRecordSchema)
+  })
+}) satisfies RouteContract<'sessions.listMessageTraces'>
+
+export const sessionsExportMessageTapeReplaySliceRoute = defineRouteContract({
+  name: 'sessions.exportMessageTapeReplaySlice',
+  input: z.object({
+    messageId: EntityIdSchema,
+    options: z
+      .object({
+        requestSeq: z.number().int().positive().optional(),
+        includeTapePayloads: z.boolean().optional(),
+        includeTracePayload: z.boolean().optional()
+      })
+      .optional()
+  }),
+  output: z.object({
+    slice: DeepChatTapeReplaySliceSchema
   })
 })
 
@@ -348,6 +398,22 @@ export const sessionsGetAgentsRoute = defineRouteContract({
   input: z.object({}),
   output: z.object({
     agents: z.array(AgentSchema)
+  })
+})
+
+export const sessionsGetUsageDashboardRoute = defineRouteContract({
+  name: 'sessions.getUsageDashboard',
+  input: z.object({}).default({}),
+  output: z.object({
+    dashboard: UsageDashboardDataSchema
+  })
+})
+
+export const sessionsRetryRtkHealthCheckRoute = defineRouteContract({
+  name: 'sessions.retryRtkHealthCheck',
+  input: z.object({}).default({}),
+  output: z.object({
+    retried: z.boolean()
   })
 })
 

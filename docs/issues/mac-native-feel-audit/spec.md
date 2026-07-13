@@ -1,17 +1,25 @@
 # macOS Native Feel Audit
 
+Status: implemented in current code as of 2026-06-13; keep this spec as the native-feel regression
+contract.
+
 ## User Story
 
 As a DeepChat user on macOS, I want the app to respond like a regular Mac desktop app rather than a web page in a wrapper, so core windowing, shortcuts, scrolling, cursor behavior, and materials match platform expectations.
 
 ## Problem
 
-The current Electron shell already has some native-facing choices, including a separate Settings window, native context menus for webContents, macOS traffic lights, and window state persistence. Several details still reveal web-wrapper behavior:
+The current Electron shell has native-facing choices, including a separate Settings window, native
+context menus for webContents, macOS traffic lights, application-menu accelerators, and window state
+persistence. This spec records the desktop-feel contract that should remain true:
 
-- App-scoped commands such as New Conversation, Close Window, Settings, zoom, sidebar, and workspace are registered through `globalShortcut`, which reserves system accelerators instead of using the application menu.
-- Primary list rows and navigation items use `cursor-pointer`, making desktop lists feel like web links.
-- Global and targeted smooth scrolling creates web-like route/search movement where native apps usually jump or restore immediately.
-- macOS window options use native title bar/vibrancy hooks, but the material state should follow the window and avoid HUD-like chrome for normal app windows.
+- App-scoped commands such as New Conversation, Close Window, Settings, zoom, sidebar, and workspace
+  use application menu accelerators.
+- `globalShortcut` is reserved for true system-level show/hide window behavior.
+- Primary app chrome and list rows use desktop cursor behavior while content hyperlinks keep link
+  affordances.
+- App chrome and search/message jumps use immediate/default scroll behavior.
+- macOS window materials follow the window role and state.
 
 ## Scope
 

@@ -51,9 +51,27 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
         name: 'user/message',
         payload: { text: 'auth flow' },
         meta: {},
+        summary: 'user: auth flow',
+        refs: { messageId: 'm1' },
         createdAt: 10
       }
     ]),
+    getTapeContext: vi.fn().mockResolvedValue({
+      sessionId: 'conv-1',
+      requestedEntryIds: [2],
+      matchedEntryIds: [2],
+      entries: [
+        {
+          entryId: 2,
+          kind: 'message',
+          name: 'user/message',
+          summary: 'user: auth flow',
+          refs: { messageId: 'm1' },
+          evidence: { text: 'user: auth flow', truncated: false, bytes: 15 },
+          createdAt: 10
+        }
+      ]
+    }),
     listTapeAnchors: vi.fn().mockResolvedValue([
       {
         sessionId: 'conv-1',
@@ -138,6 +156,7 @@ describe('Agent tape tools', () => {
       expect.arrayContaining([
         TAPE_TOOL_NAMES.info,
         TAPE_TOOL_NAMES.search,
+        TAPE_TOOL_NAMES.context,
         TAPE_TOOL_NAMES.anchors,
         TAPE_TOOL_NAMES.handoff
       ])
@@ -149,6 +168,28 @@ describe('Agent tape tools', () => {
     expect(handoffParameters?.properties).toHaveProperty('summary')
     expect(handoffParameters?.properties).not.toHaveProperty('state')
     expect(handoffParameters?.additionalProperties).toBe(false)
+  })
+
+  it('keeps base tape tools available when compact context is unsupported', async () => {
+    const manager = buildManager(buildRuntimePort({ getTapeContext: undefined }))
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace',
+      conversationId: 'conv-1'
+    })
+    const names = defs.map((def) => def.function.name)
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        TAPE_TOOL_NAMES.info,
+        TAPE_TOOL_NAMES.search,
+        TAPE_TOOL_NAMES.anchors,
+        TAPE_TOOL_NAMES.handoff
+      ])
+    )
+    expect(names).not.toContain(TAPE_TOOL_NAMES.context)
   })
 
   it('does not expose tape tools outside DeepChat sessions', async () => {
@@ -197,12 +238,32 @@ describe('Agent tape tools', () => {
     )) as {
       content: string
     }
+    const context = (await manager.callTool(
+      TAPE_TOOL_NAMES.context,
+      { entryIds: [2], before: 1, after: 1, limit: 10 },
+      'conv-1'
+    )) as {
+      content: string
+    }
     const anchors = (await manager.callTool(TAPE_TOOL_NAMES.anchors, { limit: 5 }, 'conv-1')) as {
       content: string
     }
 
     expect(JSON.parse(info.content)).toMatchObject({ entries: 3, migrationState: 'ready' })
     expect(JSON.parse(search.content)).toHaveLength(1)
+    expect(JSON.parse(search.content)[0]).not.toHaveProperty('payload')
+    expect(JSON.parse(search.content)[0]).not.toHaveProperty('meta')
+    expect(JSON.parse(context.content)).toMatchObject({
+      sessionId: 'conv-1',
+      entries: [
+        {
+          entryId: 2,
+          summary: 'user: auth flow',
+          evidence: { text: 'user: auth flow', truncated: false }
+        }
+      ]
+    })
+    expect(JSON.parse(context.content).entries[0]).not.toHaveProperty('payload')
     expect(JSON.parse(handoff.content)).toEqual({
       name: 'handoff/manual',
       entryId: 4,
@@ -218,6 +279,13 @@ describe('Agent tape tools', () => {
       kinds: ['message'],
       start: '1970-01-01T00:00:00.000Z',
       end: '999'
+    })
+    expect(runtimePort.getTapeContext).toHaveBeenCalledWith('conv-1', [2], {
+      before: 1,
+      after: 1,
+      limit: 10,
+      maxBytesPerEntry: undefined,
+      maxTotalBytes: undefined
     })
     expect(runtimePort.listTapeAnchors).toHaveBeenCalledWith('conv-1', { limit: 5 })
     expect(runtimePort.handoffTape).toHaveBeenCalledWith('conv-1', 'manual', { summary: 'done' })

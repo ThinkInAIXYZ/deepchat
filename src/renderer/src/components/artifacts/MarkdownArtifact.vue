@@ -5,6 +5,9 @@
   >
     <MarkdownRenderer
       :content="props.block.content || ''"
+      :final="true"
+      :smooth-streaming="false"
+      :virtualize-nodes="false"
       :link-context="{ source: 'artifact' }"
       @copy="handleCopyClick"
     />

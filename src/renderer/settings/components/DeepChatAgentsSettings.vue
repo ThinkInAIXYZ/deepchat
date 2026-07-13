@@ -8,13 +8,16 @@
             {{ t('settings.deepchatAgents.description') }}
           </div>
         </div>
-        <Button size="sm" @click="startCreate">{{ t('common.add') }}</Button>
+        <Button data-testid="deepchat-agent-add-button" size="sm" @click="startCreate">
+          {{ t('common.add') }}
+        </Button>
       </div>
 
       <div class="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
         <button
           v-for="agent in sidebarAgents"
           :key="agent.id"
+          :data-testid="`deepchat-agent-row-${agent.id}`"
           class="w-full rounded-2xl border p-4 text-left transition-colors"
           :class="
             selectedAgentId === agent.id
@@ -91,16 +94,24 @@
             </Button>
             <Button
               v-if="form.id && !form.protected"
+              data-testid="deepchat-agent-delete-button"
               variant="destructive"
               :disabled="saving || deleting"
               @click="removeAgent"
             >
               {{ t('common.delete') }}
             </Button>
-            <Button :disabled="saving || !form.name.trim()" @click="saveAgent">
+            <Button
+              data-testid="deepchat-agent-save-button"
+              :disabled="saving || !form.name.trim()"
+              @click="saveAgent"
+            >
               {{ saving ? t('common.saving') : t('common.save') }}
             </Button>
           </div>
+        </div>
+        <div v-if="saveError" class="mx-auto w-full max-w-5xl px-6 pb-3">
+          <p class="text-xs text-destructive">{{ saveError }}</p>
         </div>
       </div>
 
@@ -109,6 +120,7 @@
           <label class="space-y-2">
             <div class="text-sm font-medium">{{ t('settings.deepchatAgents.name') }}</div>
             <Input
+              data-testid="deepchat-agent-name-input"
               v-model="form.name"
               :placeholder="t('settings.deepchatAgents.namePlaceholder')"
             />
@@ -129,6 +141,7 @@
               {{ t('settings.deepchatAgents.descriptionLabel') }}
             </div>
             <Textarea
+              data-testid="deepchat-agent-description-input"
               v-model="form.description"
               class="min-h-[84px]"
               :placeholder="t('settings.deepchatAgents.descriptionPlaceholder')"
@@ -579,6 +592,42 @@
             </label>
           </div>
         </section>
+
+        <section class="space-y-4 rounded-2xl border border-border p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold">
+                {{ t('settings.deepchatAgents.memoryTitle') }}
+              </div>
+              <p class="mt-1 text-xs text-muted-foreground">
+                {{ t('settings.deepchatAgents.memoryDescription') }}
+              </p>
+            </div>
+            <Switch
+              :model-value="form.memoryEnabled"
+              :aria-label="t('settings.deepchatAgents.memoryEnabled')"
+              @update:model-value="setMemoryEnabled"
+            />
+          </div>
+
+          <div
+            v-if="form.memoryEnabled && form.id && form.id !== DRAFT_AGENT_ID"
+            class="space-y-1.5"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 gap-1.5 rounded-lg text-xs"
+              @click="openMemorySettings"
+            >
+              <Icon icon="lucide:brain" class="h-3.5 w-3.5" />
+              {{ t('settings.deepchatAgents.memoryManageLink') }}
+            </Button>
+            <p class="text-[11px] text-muted-foreground">
+              {{ t('settings.deepchatAgents.memoryManageLinkHint') }}
+            </p>
+          </div>
+        </section>
       </div>
     </main>
 
@@ -648,22 +697,30 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import { useRouter } from 'vue-router'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
+import { createProjectClient } from '@api/ProjectClient'
 import { createSessionClient } from '@api/SessionClient'
+import { createToolClient } from '@api/ToolClient'
 import { useModelStore } from '@/stores/modelStore'
 import { ModelType } from '@shared/model'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   Agent,
   AgentAvatar as AgentAvatarValue,
   AgentTransferImpact,
+  CreateDeepChatAgentInput,
+  DeepChatAgentConfig,
+  DeepChatAgentModelSelection,
   DeepChatSubagentSlot,
   PermissionMode,
-  Project
+  Project,
+  UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import {
@@ -719,6 +776,7 @@ type FormState = {
   autoCompactionEnabled: boolean
   autoCompactionTriggerThreshold: EditableNumberValue
   autoCompactionRetainRecentPairs: EditableNumberValue
+  memoryEnabled: boolean
 }
 
 const LUCIDE_ICONS = ['bot', 'sparkles', 'brain', 'code', 'book-open', 'pen-tool', 'rocket']
@@ -730,6 +788,22 @@ const AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX = 95
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT = 2
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN = 1
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
+const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
+  'defaultModelPreset',
+  'assistantModel',
+  'visionModel',
+  'imageGenerationModel',
+  'defaultProjectPath',
+  'systemPrompt',
+  'permissionMode',
+  'subagentEnabled',
+  'subagents',
+  'disabledAgentTools',
+  'autoCompactionEnabled',
+  'autoCompactionTriggerThreshold',
+  'autoCompactionRetainRecentPairs',
+  'memoryEnabled'
+]
 const GROUP_ORDER = [
   'agent-filesystem',
   'agent-core',
@@ -739,9 +813,10 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const { t } = useI18n()
-const configPresenter = useLegacyPresenter('configPresenter')
-const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
-const toolPresenter = useLegacyPresenter('toolPresenter')
+const router = useRouter()
+const configClient = createConfigClient()
+const projectClient = createProjectClient()
+const toolClient = createToolClient()
 const modelStore = useModelStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
 
@@ -749,6 +824,7 @@ const allAgents = ref<Agent[]>([])
 const tools = ref<MCPToolDefinition[]>([])
 const recentProjects = ref<Project[]>([])
 const saving = ref(false)
+const saveError = ref<string | null>(null)
 const deleting = ref(false)
 const selectedAgentId = ref<string | null>(null)
 const chatOpen = ref(false)
@@ -764,6 +840,7 @@ const transferDialogBusy = ref(false)
 const transferDialogError = ref<string | null>(null)
 const transferImpact = ref<AgentTransferImpact | null>(null)
 const pendingDeleteAgent = ref<{ id: string; name: string } | null>(null)
+const originalForm = ref<FormState | null>(null)
 
 const form = reactive<FormState>({
   id: null,
@@ -786,10 +863,11 @@ const form = reactive<FormState>({
   permissionMode: 'full_access',
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [],
+  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
-  autoCompactionRetainRecentPairs: '2'
+  autoCompactionRetainRecentPairs: '2',
+  memoryEnabled: false
 })
 
 const avatarKindOptions = computed(() => [
@@ -943,6 +1021,10 @@ const deepchatAgents = computed(() =>
       a.id === 'deepchat' ? -1 : b.id === 'deepchat' ? 1 : a.name.localeCompare(b.name)
     )
 )
+// The builtin deepchat agent is the inheritance base, so an agent without its own override resolves
+// memoryEnabled from it. Used to display the inherited value without ossifying it on save.
+const inheritedMemoryEnabled = () =>
+  allAgents.value.find((agent) => agent.id === 'deepchat')?.config?.memoryEnabled ?? false
 const isAvailableSubagentTargetAgent = (agent: Agent) => {
   if (agent.type === 'deepchat') {
     return true
@@ -1038,17 +1120,33 @@ const emptyForm = (): FormState => ({
   permissionMode: 'full_access',
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [],
+  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
-  autoCompactionRetainRecentPairs: '2'
+  autoCompactionRetainRecentPairs: '2',
+  memoryEnabled: inheritedMemoryEnabled()
 })
 
-const assignForm = (next: FormState) => Object.assign(form, next)
+const memoryEnabledTouched = ref(false)
+const cloneForm = (state: FormState): FormState => JSON.parse(JSON.stringify(state)) as FormState
+const assignForm = (next: FormState) => {
+  Object.assign(form, next)
+  originalForm.value = cloneForm(next)
+  memoryEnabledTouched.value = false
+}
 const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
+const buildModelSelection = (
+  selection: EditableModel | null | undefined
+): DeepChatAgentModelSelection | null =>
+  selection
+    ? {
+        providerId: selection.providerId,
+        modelId: selection.modelId
+      }
+    : null
 const normalizeNumericInput = (
   value: EditableNumberValue | null | undefined,
   options: { fallback: number; min: number; max: number; integer?: boolean }
@@ -1078,6 +1176,66 @@ const normalizeAutoCompactionRetainRecentPairs = (value: EditableNumberValue | n
     max: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX,
     integer: true
   })
+const buildEditableConfig = (
+  state: FormState,
+  options: { includeMemoryEnabled: boolean }
+): DeepChatAgentConfig => {
+  const config: DeepChatAgentConfig = {
+    defaultModelPreset: buildModelSelection(state.chatModel),
+    assistantModel: buildModelSelection(state.assistantModel),
+    visionModel: buildModelSelection(state.visionModel),
+    imageGenerationModel: buildModelSelection(state.imageGenerationModel),
+    defaultProjectPath: normalizePath(state.defaultProjectPath),
+    systemPrompt: state.systemPrompt,
+    permissionMode: state.permissionMode,
+    subagentEnabled: state.subagentEnabled,
+    subagents: normalizeDeepChatSubagentSlots(state.subagents),
+    disabledAgentTools: [...state.disabledAgentTools],
+    autoCompactionEnabled: state.autoCompactionEnabled,
+    autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
+      state.autoCompactionTriggerThreshold
+    ),
+    autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
+      state.autoCompactionRetainRecentPairs
+    )
+  }
+
+  if (options.includeMemoryEnabled) {
+    config.memoryEnabled = state.memoryEnabled
+  }
+
+  return config
+}
+const hasOwn = (value: object, key: PropertyKey): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key)
+const isSameConfigValue = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
+const setConfigValue = <K extends keyof DeepChatAgentConfig>(
+  patch: DeepChatAgentConfig,
+  key: K,
+  value: DeepChatAgentConfig[K]
+) => {
+  patch[key] = value
+}
+const buildUpdateConfigPatch = (): DeepChatAgentConfig | undefined => {
+  const baselineForm = originalForm.value
+  if (!baselineForm) {
+    return buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+  }
+
+  const current = buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+  const baseline = buildEditableConfig(baselineForm, { includeMemoryEnabled: true })
+  const patch: DeepChatAgentConfig = {}
+
+  for (const key of CONFIG_DIFF_KEYS) {
+    if (!hasOwn(current, key)) continue
+    if (!isSameConfigValue(current[key], baseline[key])) {
+      setConfigValue(patch, key, current[key])
+    }
+  }
+
+  return Object.keys(patch).length > 0 ? patch : undefined
+}
 const createAgentSlotId = () =>
   `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 const numText = (value: unknown) =>
@@ -1142,14 +1300,16 @@ const fromAgent = (agent?: Agent | null): FormState => {
     subagents: normalizeDeepChatSubagentSlots(
       config.subagents ?? createDefaultDeepChatSubagentSlots()
     ),
-    disabledAgentTools: [...(config.disabledAgentTools ?? [])],
+    disabledAgentTools: [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)],
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold: numText(
       config.autoCompactionTriggerThreshold ?? AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT
     ),
     autoCompactionRetainRecentPairs: numText(
       config.autoCompactionRetainRecentPairs ?? AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
-    )
+    ),
+    memoryEnabled:
+      'memoryEnabled' in config ? Boolean(config.memoryEnabled) : inheritedMemoryEnabled()
   }
 }
 const modelText = (selection: EditableModel | undefined) => {
@@ -1219,6 +1379,14 @@ const removeSubagentSlot = (index: number) => {
 const clearModel = (key: ModelKey) => {
   form[key] = null
 }
+const setMemoryEnabled = (value: boolean) => {
+  form.memoryEnabled = value
+  memoryEnabledTouched.value = true
+}
+const openMemorySettings = () => {
+  if (!form.id || form.id === DRAFT_AGENT_ID) return
+  void router.push({ name: 'settings-memory', query: { agentId: form.id } })
+}
 const selectModel = (key: ModelKey, model: RENDERER_MODEL_META, providerId: string) => {
   form[key] = { providerId, modelId: model.id }
   if (key === 'chatModel') chatOpen.value = false
@@ -1229,7 +1397,7 @@ const selectModel = (key: ModelKey, model: RENDERER_MODEL_META, providerId: stri
 const loadSystemPromptTemplates = async () => {
   loadingSystemPrompts.value = true
   try {
-    const prompts = await configPresenter.getSystemPrompts()
+    const prompts = await configClient.getSystemPrompts()
     systemPromptTemplates.value = Array.isArray(prompts)
       ? [...prompts].sort(
           (a, b) =>
@@ -1253,7 +1421,7 @@ const applySystemPromptTemplate = (prompt: SystemPrompt) => {
 }
 const pickDefaultProjectPath = async () => {
   try {
-    const selectedPath = await projectPresenter.selectDirectory()
+    const selectedPath = await projectClient.selectDirectory()
     if (selectedPath) {
       form.defaultProjectPath = selectedPath
     }
@@ -1292,7 +1460,7 @@ const setGroupEnabled = (group: ToolGroup, enabled: boolean) => {
 }
 const loadRecentProjects = async () => {
   try {
-    const result = await projectPresenter.getRecentProjects(8)
+    const result = await projectClient.listRecent(8)
     recentProjects.value = Array.isArray(result) ? result : []
   } catch {
     recentProjects.value = []
@@ -1300,7 +1468,7 @@ const loadRecentProjects = async () => {
 }
 const loadTools = async () => {
   try {
-    const definitions = await toolPresenter.getAllToolDefinitions({ chatMode: 'agent' })
+    const definitions = await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
     tools.value = Array.isArray(definitions)
       ? definitions
           .filter((tool) => tool.source === 'agent')
@@ -1311,7 +1479,7 @@ const loadTools = async () => {
   }
 }
 const loadAgents = async (preferredId?: string | null) => {
-  const list = await configPresenter.listAgents()
+  const list = await configClient.listAgents()
   allAgents.value = list
   const nextId =
     preferredId && deepchatAgents.value.some((agent) => agent.id === preferredId)
@@ -1345,44 +1513,33 @@ const resetEditor = () => {
 const saveAgent = async () => {
   if (!form.name.trim()) return
   saving.value = true
+  saveError.value = null
   try {
-    const payload = {
+    const basePayload = {
       name: form.name.trim(),
       enabled: form.enabled,
       description: form.description.trim() || undefined,
-      avatar: buildAvatar(),
-      config: {
-        defaultModelPreset: form.chatModel
-          ? {
-              providerId: form.chatModel.providerId,
-              modelId: form.chatModel.modelId
-            }
-          : null,
-        assistantModel: form.assistantModel,
-        visionModel: form.visionModel,
-        imageGenerationModel: form.imageGenerationModel,
-        defaultProjectPath: normalizePath(form.defaultProjectPath),
-        systemPrompt: form.systemPrompt,
-        permissionMode: form.permissionMode,
-        subagentEnabled: form.subagentEnabled,
-        subagents: normalizeDeepChatSubagentSlots(form.subagents),
-        disabledAgentTools: [...form.disabledAgentTools],
-        autoCompactionEnabled: form.autoCompactionEnabled,
-        autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
-          form.autoCompactionTriggerThreshold
-        ),
-        autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
-          form.autoCompactionRetainRecentPairs
-        )
-      }
+      avatar: buildAvatar()
     }
     if (form.id) {
-      const updated = await configPresenter.updateDeepChatAgent(form.id, payload)
+      const configPatch = buildUpdateConfigPatch()
+      const payload: UpdateDeepChatAgentInput = {
+        ...basePayload,
+        ...(configPatch ? { config: configPatch } : {})
+      }
+      const updated = await configClient.updateDeepChatAgent(form.id, payload)
       await loadAgents(updated?.id ?? form.id)
     } else {
-      const created = await configPresenter.createDeepChatAgent(payload)
+      const payload: CreateDeepChatAgentInput = {
+        ...basePayload,
+        config: buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+      }
+      const created = await configClient.createDeepChatAgent(payload)
       await loadAgents(created.id)
     }
+  } catch (error) {
+    console.error('[DeepChatAgents] save failed:', error)
+    saveError.value = error instanceof Error ? error.message : String(error)
   } finally {
     saving.value = false
   }
@@ -1398,7 +1555,7 @@ const removeAgent = async () => {
     const sessionClient = createSessionClient()
     const [impact, list] = await Promise.all([
       sessionClient.getAgentTransferImpact(form.id),
-      configPresenter.listAgents()
+      configClient.listAgents()
     ])
     transferImpact.value = impact
     allAgents.value = list
@@ -1410,7 +1567,7 @@ const removeAgent = async () => {
 }
 
 const finishDeleteAgent = async (agentId: string) => {
-  const removed = await configPresenter.deleteDeepChatAgent(agentId)
+  const removed = await configClient.deleteDeepChatAgent(agentId)
   if (!removed) {
     throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
   }

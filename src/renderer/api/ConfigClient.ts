@@ -13,9 +13,12 @@ import {
 } from '@shared/contracts/events'
 import {
   configAddCustomPromptRoute,
+  configAddManualAcpAgentRoute,
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
+  configCreateDeepChatAgentRoute,
   configDeleteCustomPromptRoute,
+  configDeleteDeepChatAgentRoute,
   configDeleteSystemPromptRoute,
   configGetAcpRegistryIconMarkupRoute,
   configGetAcpSharedMcpSelectionsRoute,
@@ -27,20 +30,35 @@ import {
   configGetDefaultSystemPromptRoute,
   configGetFloatingButtonRoute,
   configGetGeminiSafetyRoute,
+  configGetHooksNotificationsRoute,
   configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
   configGetMcpServersRoute,
+  configGetProxySettingsRoute,
   configGetShortcutKeysRoute,
+  configGetSkillDraftSuggestionsRoute,
   configGetSyncSettingsRoute,
   configGetSystemPromptsRoute,
   configGetThemeRoute,
+  configGetUpdateChannelRoute,
   configGetVoiceAiConfigRoute,
+  configEnsureAcpAgentInstalledRoute,
   configListAgentsRoute,
+  configListAcpRegistryAgentsRoute,
   configListCustomPromptsRoute,
+  configListManualAcpAgentsRoute,
+  configOpenLoggingFolderRoute,
+  configRefreshAcpRegistryRoute,
+  configRefreshProviderDbRoute,
+  configRemoveManualAcpAgentRoute,
+  configRepairAcpAgentRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
   configResolveDeepChatAgentConfigRoute,
   configSetAcpSharedMcpSelectionsRoute,
+  configSetAcpAgentEnabledRoute,
+  configSetAcpAgentEnvOverrideRoute,
+  configSetAcpEnabledRoute,
   configSetAwsBedrockCredentialRoute,
   configSetAzureApiVersionRoute,
   configSetCustomPromptsRoute,
@@ -49,25 +67,43 @@ import {
   configSetDefaultSystemPromptRoute,
   configSetFloatingButtonRoute,
   configSetGeminiSafetyRoute,
+  configSetHooksNotificationsRoute,
   configSetKnowledgeConfigsRoute,
   configSetLanguageRoute,
+  configSetCustomProxyUrlRoute,
   configSetShortcutKeysRoute,
+  configSetProxyModeRoute,
   configSetSystemPromptsRoute,
+  configSetSkillDraftSuggestionsRoute,
   configSetThemeRoute,
+  configSetUpdateChannelRoute,
+  configTestHookCommandRoute,
+  configUninstallAcpRegistryAgentRoute,
   configUpdateCustomPromptRoute,
+  configUpdateDeepChatAgentRoute,
   configUpdateSyncSettingsRoute,
+  configUpdateManualAcpAgentRoute,
   configUpdateSystemPromptRoute,
   configUpdateVoiceAiConfigRoute,
   type ConfigEntryKey,
-  type ConfigEntryValues
+  type ConfigEntryValues,
+  type DeepchatRouteInput
 } from '@shared/contracts/routes'
 import type {
+  AcpAgentInstallState,
+  AcpManualAgent,
+  AcpRegistryAgent,
   BuiltinKnowledgeConfig,
   Prompt,
   ShortcutKeySetting,
   SystemPrompt
 } from '@shared/presenter'
-import type { Agent } from '@shared/types/agent-interface'
+import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
+import type {
+  Agent,
+  CreateDeepChatAgentInput,
+  UpdateDeepChatAgentInput
+} from '@shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 import { createSettingsClient } from './SettingsClient'
 
@@ -80,12 +116,27 @@ type VoiceAIConfig = {
   agentId: string
 }
 
+const cloneHooksNotificationsConfigForIpc = (
+  config: HooksNotificationsSettings
+): HooksNotificationsSettings => ({
+  hooks: config.hooks.map((hook) => ({
+    id: hook.id,
+    name: hook.name,
+    enabled: hook.enabled,
+    command: hook.command,
+    events: [...hook.events]
+  }))
+})
+
 type GeminiSafetyValue =
   | 'BLOCK_NONE'
   | 'BLOCK_ONLY_HIGH'
   | 'BLOCK_MEDIUM_AND_ABOVE'
   | 'BLOCK_LOW_AND_ABOVE'
   | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+
+type ProxyMode = 'system' | 'none' | 'custom'
+type UpdateChannel = 'stable' | 'beta'
 
 function toPlainKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): BuiltinKnowledgeConfig[] {
   return configs.map((config) => {
@@ -120,6 +171,27 @@ function toPlainKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): BuiltinKnow
 
     return plainConfig
   })
+}
+
+function toPlainIpcValue<T>(value: T): T {
+  if (value === null || typeof value !== 'object') {
+    return value
+  }
+
+  if (value instanceof Date) {
+    return new Date(value.getTime()) as T
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => toPlainIpcValue(item)) as T
+  }
+
+  const plain: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    plain[key] = toPlainIpcValue(nestedValue)
+  }
+
+  return plain as T
 }
 
 export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -199,6 +271,76 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     return await bridge.invoke(configUpdateSyncSettingsRoute.name, { folderPath })
   }
 
+  async function getProxySettings() {
+    return await bridge.invoke(configGetProxySettingsRoute.name, {})
+  }
+
+  async function getProxyMode(): Promise<ProxyMode> {
+    const result = await getProxySettings()
+    return result.mode
+  }
+
+  async function setProxyMode(mode: ProxyMode) {
+    return await bridge.invoke(configSetProxyModeRoute.name, { mode })
+  }
+
+  async function getCustomProxyUrl() {
+    const result = await getProxySettings()
+    return result.customProxyUrl
+  }
+
+  async function setCustomProxyUrl(url: string) {
+    return await bridge.invoke(configSetCustomProxyUrlRoute.name, { url })
+  }
+
+  async function openLoggingFolder() {
+    return await bridge.invoke(configOpenLoggingFolderRoute.name, {})
+  }
+
+  async function getUpdateChannel(): Promise<UpdateChannel> {
+    const result = await bridge.invoke(configGetUpdateChannelRoute.name, {})
+    return result.channel
+  }
+
+  async function setUpdateChannel(channel: UpdateChannel) {
+    const result = await bridge.invoke(configSetUpdateChannelRoute.name, { channel })
+    return result.channel
+  }
+
+  async function getSkillDraftSuggestionsEnabled() {
+    const result = await bridge.invoke(configGetSkillDraftSuggestionsRoute.name, {})
+    return result.enabled
+  }
+
+  async function setSkillDraftSuggestionsEnabled(enabled: boolean) {
+    const result = await bridge.invoke(configSetSkillDraftSuggestionsRoute.name, { enabled })
+    return result.enabled
+  }
+
+  async function refreshProviderDb(force = false) {
+    const result = await bridge.invoke(configRefreshProviderDbRoute.name, { force })
+    return result.result
+  }
+
+  async function getHooksNotificationsConfig(): Promise<HooksNotificationsSettings> {
+    const result = await bridge.invoke(configGetHooksNotificationsRoute.name, {})
+    return result.config
+  }
+
+  async function setHooksNotificationsConfig(
+    config: HooksNotificationsSettings
+  ): Promise<HooksNotificationsSettings> {
+    const result = await bridge.invoke(configSetHooksNotificationsRoute.name, {
+      config: cloneHooksNotificationsConfigForIpc(config)
+    })
+    return result.config
+  }
+
+  async function testHookCommand(hookId: string): Promise<HookTestResult> {
+    const result = await bridge.invoke(configTestHookCommandRoute.name, { hookId })
+    return result.result
+  }
+
   async function getDefaultProjectPath() {
     const result = await bridge.invoke(configGetDefaultProjectPathRoute.name, {})
     return result.path
@@ -214,7 +356,9 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   }
 
   async function setShortcutKey(shortcuts: ShortcutKeySetting) {
-    return await bridge.invoke(configSetShortcutKeysRoute.name, { shortcuts })
+    return await bridge.invoke(configSetShortcutKeysRoute.name, {
+      shortcuts: toPlainIpcValue(shortcuts)
+    })
   }
 
   async function resetShortcutKeys() {
@@ -228,20 +372,20 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function setCustomPrompts(prompts: Prompt[]) {
     return await bridge.invoke(configSetCustomPromptsRoute.name, {
-      prompts: prompts as any
+      prompts: toPlainIpcValue(prompts) as any
     })
   }
 
   async function addCustomPrompt(prompt: Prompt) {
     return await bridge.invoke(configAddCustomPromptRoute.name, {
-      prompt: prompt as any
+      prompt: toPlainIpcValue(prompt) as any
     })
   }
 
   async function updateCustomPrompt(promptId: string, updates: Partial<Prompt>) {
     return await bridge.invoke(configUpdateCustomPromptRoute.name, {
       promptId,
-      updates: updates as any
+      updates: toPlainIpcValue(updates) as any
     })
   }
 
@@ -278,20 +422,20 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function setSystemPrompts(prompts: SystemPrompt[]) {
     return await bridge.invoke(configSetSystemPromptsRoute.name, {
-      prompts: prompts as any
+      prompts: toPlainIpcValue(prompts) as any
     })
   }
 
   async function addSystemPrompt(prompt: SystemPrompt) {
     return await bridge.invoke(configAddSystemPromptRoute.name, {
-      prompt: prompt as any
+      prompt: toPlainIpcValue(prompt) as any
     })
   }
 
   async function updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>) {
     return await bridge.invoke(configUpdateSystemPromptRoute.name, {
       promptId,
-      updates: updates as any
+      updates: toPlainIpcValue(updates) as any
     })
   }
 
@@ -313,6 +457,68 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.agents
   }
 
+  async function setAcpEnabled(enabled: boolean) {
+    const result = await bridge.invoke(configSetAcpEnabledRoute.name, { enabled })
+    return result.enabled
+  }
+
+  async function listAcpRegistryAgents(): Promise<AcpRegistryAgent[]> {
+    const result = await bridge.invoke(configListAcpRegistryAgentsRoute.name, {})
+    return result.agents as unknown as AcpRegistryAgent[]
+  }
+
+  async function refreshAcpRegistry(force = true): Promise<AcpRegistryAgent[]> {
+    const result = await bridge.invoke(configRefreshAcpRegistryRoute.name, { force })
+    return result.agents as unknown as AcpRegistryAgent[]
+  }
+
+  async function setAcpAgentEnabled(agentId: string, enabled: boolean) {
+    return await bridge.invoke(configSetAcpAgentEnabledRoute.name, { agentId, enabled })
+  }
+
+  async function setAcpAgentEnvOverride(agentId: string, env: Record<string, string>) {
+    return await bridge.invoke(configSetAcpAgentEnvOverrideRoute.name, { agentId, env })
+  }
+
+  async function ensureAcpAgentInstalled(agentId: string): Promise<AcpAgentInstallState> {
+    const result = await bridge.invoke(configEnsureAcpAgentInstalledRoute.name, { agentId })
+    return result.installState as unknown as AcpAgentInstallState
+  }
+
+  async function repairAcpAgent(agentId: string): Promise<AcpAgentInstallState> {
+    const result = await bridge.invoke(configRepairAcpAgentRoute.name, { agentId })
+    return result.installState as unknown as AcpAgentInstallState
+  }
+
+  async function uninstallAcpRegistryAgent(agentId: string) {
+    return await bridge.invoke(configUninstallAcpRegistryAgentRoute.name, { agentId })
+  }
+
+  async function listManualAcpAgents(): Promise<AcpManualAgent[]> {
+    const result = await bridge.invoke(configListManualAcpAgentsRoute.name, {})
+    return result.agents as unknown as AcpManualAgent[]
+  }
+
+  async function addManualAcpAgent(
+    agent: Omit<AcpManualAgent, 'id' | 'source'> & { id?: string }
+  ): Promise<AcpManualAgent> {
+    const result = await bridge.invoke(configAddManualAcpAgentRoute.name, agent)
+    return result.agent as unknown as AcpManualAgent
+  }
+
+  async function updateManualAcpAgent(
+    agentId: string,
+    updates: Partial<Omit<AcpManualAgent, 'id' | 'source'>>
+  ): Promise<AcpManualAgent | null> {
+    const result = await bridge.invoke(configUpdateManualAcpAgentRoute.name, { agentId, updates })
+    return result.agent as unknown as AcpManualAgent | null
+  }
+
+  async function removeManualAcpAgent(agentId: string): Promise<boolean> {
+    const result = await bridge.invoke(configRemoveManualAcpAgentRoute.name, { agentId })
+    return result.removed
+  }
+
   type AcpAgents = Awaited<ReturnType<typeof getAcpAgents>>
 
   async function listAgents(input?: {
@@ -321,6 +527,30 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   }): Promise<Agent[]> {
     const result = await bridge.invoke(configListAgentsRoute.name, input ?? {})
     return result.agents
+  }
+
+  async function createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent> {
+    const result = await bridge.invoke(
+      configCreateDeepChatAgentRoute.name,
+      toPlainIpcValue(input) as DeepchatRouteInput<typeof configCreateDeepChatAgentRoute.name>
+    )
+    return result.agent
+  }
+
+  async function updateDeepChatAgent(
+    agentId: string,
+    updates: UpdateDeepChatAgentInput
+  ): Promise<Agent | null> {
+    const result = await bridge.invoke(configUpdateDeepChatAgentRoute.name, {
+      agentId,
+      updates: toPlainIpcValue(updates)
+    } as DeepchatRouteInput<typeof configUpdateDeepChatAgentRoute.name>)
+    return result.agent
+  }
+
+  async function deleteDeepChatAgent(agentId: string): Promise<boolean> {
+    const result = await bridge.invoke(configDeleteDeepChatAgentRoute.name, { agentId })
+    return result.removed
   }
 
   async function resolveDeepChatAgentConfig(agentId: string) {
@@ -516,6 +746,20 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     setSyncEnabled,
     getSyncFolderPath,
     setSyncFolderPath,
+    getProxySettings,
+    getProxyMode,
+    setProxyMode,
+    getCustomProxyUrl,
+    setCustomProxyUrl,
+    openLoggingFolder,
+    getUpdateChannel,
+    setUpdateChannel,
+    getSkillDraftSuggestionsEnabled,
+    setSkillDraftSuggestionsEnabled,
+    refreshProviderDb,
+    getHooksNotificationsConfig,
+    setHooksNotificationsConfig,
+    testHookCommand,
     getDefaultProjectPath,
     setDefaultProjectPath,
     getShortcutKey,
@@ -539,7 +783,22 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     setDefaultSystemPromptId,
     getAcpEnabled,
     getAcpAgents,
+    setAcpEnabled,
+    listAcpRegistryAgents,
+    refreshAcpRegistry,
+    setAcpAgentEnabled,
+    setAcpAgentEnvOverride,
+    ensureAcpAgentInstalled,
+    repairAcpAgent,
+    uninstallAcpRegistryAgent,
+    listManualAcpAgents,
+    addManualAcpAgent,
+    updateManualAcpAgent,
+    removeManualAcpAgent,
     listAgents,
+    createDeepChatAgent,
+    updateDeepChatAgent,
+    deleteDeepChatAgent,
     resolveDeepChatAgentConfig,
     getAgentMcpSelections,
     getAcpSharedMcpSelections,

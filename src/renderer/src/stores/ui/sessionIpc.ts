@@ -1,11 +1,11 @@
 import { createSessionClient } from '../../../api/SessionClient'
 
 interface BindSessionStoreIpcOptions {
-  webContentsId: number | null
+  webContentsId: () => number | null
   fetchSessions: () => void | Promise<void>
   refreshSessionsByIds: (sessionIds: string[]) => void | Promise<void>
   removeSessions: (sessionIds: string[]) => void
-  onActivated: (sessionId: string) => void
+  onActivated: (sessionId: string) => void | Promise<void>
   onDeactivated: () => void
   onStatusChanged: (sessionId: string, status: string) => void
 }
@@ -14,16 +14,17 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => 
   const sessionClient = createSessionClient()
   const cleanups = [
     sessionClient.onUpdated((payload) => {
+      const webContentsId = options.webContentsId()
       if (
         payload.reason === 'activated' &&
         payload.activeSessionId &&
-        payload.webContentsId === options.webContentsId
+        payload.webContentsId === webContentsId
       ) {
-        options.onActivated(payload.activeSessionId)
+        void options.onActivated(payload.activeSessionId)
         return
       }
 
-      if (payload.reason === 'deactivated' && payload.webContentsId === options.webContentsId) {
+      if (payload.reason === 'deactivated' && payload.webContentsId === webContentsId) {
         options.onDeactivated()
         return
       }

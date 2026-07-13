@@ -9,9 +9,14 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ProcessParams } from '@/presenter/agentRuntimePresenter/types'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
+
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: {}
 }))
 
 vi.mock('@/events', () => ({
@@ -37,7 +42,10 @@ vi.mock('@/presenter', () => ({
 }))
 
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
-import { eventBus } from '@/eventbus'
+
+function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
+  expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
+}
 
 const DEFAULT_INTERLEAVED_REASONING = {
   preserveReasoningContent: false,
@@ -53,7 +61,8 @@ function createMockMessageStore() {
     getMessage: vi.fn().mockReturnValue(null),
     updateAssistantContent: vi.fn(),
     finalizeAssistantMessage: vi.fn(),
-    setMessageError: vi.fn()
+    setMessageError: vi.fn(),
+    appendAssistantToolFactsSnapshot: vi.fn()
   } as any
 }
 
@@ -158,15 +167,11 @@ describe('processStream', () => {
     )
     expect(finalMetadata.provider).toBe('openai')
     expect(finalMetadata.model).toBe('gpt-4')
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:end',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1'
-      })
-    )
+    expectDeepchatEvent('chat.stream.completed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1'
+    })
   })
 
   it('flushes ACP provider permission blocks immediately and keeps live permission updates mutable', async () => {
@@ -301,15 +306,15 @@ describe('processStream', () => {
     })
     expect(messageStore.setMessageError).not.toHaveBeenCalled()
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-      'stream:error',
-      'all',
+    expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+      'chat.stream.failed',
       expect.anything()
     )
   })
 
   it('single tool call → loop once, finalize', async () => {
     let callCount = 0
+    let liveMessages: any[] | null = null
     const coreStream = vi.fn(function () {
       callCount++
       if (callCount === 1) {
@@ -338,7 +343,10 @@ describe('processStream', () => {
     const params = createParams({
       coreStream,
       toolPresenter,
-      tools: [makeTool('get_weather')]
+      tools: [makeTool('get_weather')],
+      onConversationMessagesChange: (messages) => {
+        liveMessages = messages
+      }
     })
 
     const promise = processStream(params)
@@ -352,8 +360,108 @@ describe('processStream', () => {
     // Second call should have tool result in messages
     const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
     const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
+    expect(liveMessages).toBe(secondCallMessages)
     expect(toolResultMsg).toBeDefined()
     expect(toolResultMsg.content).toBe('Sunny, 72F')
+  })
+
+  it('stops before exceeding max provider rounds', async () => {
+    const coreStream = vi.fn(function () {
+      return (async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'tc1',
+          tool_call_name: 'get_weather'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'tc1',
+          tool_call_arguments_complete: '{}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('get_weather')],
+      maxProviderRounds: 1
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result).toMatchObject({
+      status: 'error',
+      stopReason: 'max_turns',
+      errorMessage: 'Maximum agent turns exceeded (1).'
+    })
+    expect(coreStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('signals first provider round after flushing without blocking tool loop', async () => {
+    const order: string[] = []
+    let callCount = 0
+    const coreStream = vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        return (async function* () {
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc1',
+            tool_call_name: 'get_weather'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+
+      return (async function* () {
+        yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    messageStore.updateAssistantContent.mockImplementation(() => {
+      order.push('flush')
+    })
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
+    ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async (request) => {
+      order.push('tool')
+      return {
+        content: `result for ${request.function.name}`,
+        rawData: {
+          toolCallId: request.id,
+          content: `result for ${request.function.name}`,
+          isError: false
+        }
+      }
+    })
+    const onFirstProviderRoundReady = vi.fn(() => {
+      order.push('ready')
+      return new Promise(() => {})
+    }) as unknown as () => void
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('get_weather')],
+      onFirstProviderRoundReady
+    })
+
+    await processStream(params)
+
+    expect(onFirstProviderRoundReady).toHaveBeenCalledTimes(1)
+    expect(order.indexOf('flush')).toBeLessThan(order.indexOf('ready'))
+    expect(order.indexOf('ready')).toBeLessThan(order.indexOf('tool'))
+    expect(coreStream).toHaveBeenCalledTimes(2)
+    expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
   })
 
   it('yields after completed tool calls when a pending input should run next', async () => {
@@ -399,17 +507,19 @@ describe('processStream', () => {
     expect(finalizedBlocks[0].tool_call.response).toBe('Sunny, 72F')
   })
 
-  it('refreshes tools for the next loop iteration after skill_view activates a skill', async () => {
+  it('refreshes tools and system prompt for the next loop iteration after skill_view activates a skill', async () => {
     let callCount = 0
     const toolPresenter = {
       ...createMockToolPresenter(),
       callTool: vi
         .fn()
         .mockResolvedValueOnce({
-          content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+          content:
+            '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
           rawData: {
             toolCallId: 'tc1',
-            content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+            content:
+              '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
             isError: false,
             toolResult: {
               activationApplied: true,
@@ -427,12 +537,21 @@ describe('processStream', () => {
           }
         })
     } as unknown as IToolPresenter
+    const activeSkillNames: string[] = []
+    const activateSkill = vi.fn(async (skillName: string) => {
+      if (!activeSkillNames.includes(skillName)) {
+        activeSkillNames.push(skillName)
+      }
+      return [...activeSkillNames]
+    })
+    const getActiveSkillNames = vi.fn(() => [...activeSkillNames])
     const refreshTools = vi
       .fn()
       .mockResolvedValue([makeTool('skill_view'), makeTool('deepchat_settings_set_theme')])
+    const refreshSystemPrompt = vi.fn().mockResolvedValue('refreshed skill prompt')
 
     const coreStream = vi.fn(
-      function (_messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
+      function (messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
         callCount++
         if (callCount === 1) {
           expect(tools.map((tool) => tool.function.name)).toEqual(['skill_view'])
@@ -451,6 +570,7 @@ describe('processStream', () => {
           })()
         }
         if (callCount === 2) {
+          expect(messages[0]).toEqual({ role: 'system', content: 'refreshed skill prompt' })
           expect(tools.map((tool) => tool.function.name)).toEqual([
             'skill_view',
             'deepchat_settings_set_theme'
@@ -480,14 +600,32 @@ describe('processStream', () => {
       coreStream,
       toolPresenter,
       tools: [makeTool('skill_view')],
-      refreshTools
+      refreshTools,
+      refreshSystemPrompt,
+      hooks: {
+        activateSkill,
+        getActiveSkillNames
+      }
     })
 
     const promise = processStream(params)
     await vi.runAllTimersAsync()
     await promise
 
+    expect(activateSkill).toHaveBeenCalledWith('deepchat-settings')
+    expect(getActiveSkillNames).toHaveBeenCalled()
     expect(refreshTools).toHaveBeenCalledTimes(1)
+    expect(refreshTools).toHaveBeenCalledWith(['deepchat-settings'])
+    expect(refreshSystemPrompt).toHaveBeenCalledTimes(1)
+    expect(refreshSystemPrompt).toHaveBeenCalledWith(
+      ['deepchat-settings'],
+      [
+        expect.objectContaining({ function: expect.objectContaining({ name: 'skill_view' }) }),
+        expect.objectContaining({
+          function: expect.objectContaining({ name: 'deepchat_settings_set_theme' })
+        })
+      ]
+    )
     expect(coreStream).toHaveBeenCalledTimes(3)
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
   })
@@ -872,6 +1010,163 @@ describe('processStream', () => {
     expect((coreStream as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(129)
   })
 
+  it('completes a plan-only stream without writing an error or plan block', async () => {
+    const finalWrites: any[] = []
+    messageStore.finalizeAssistantMessage.mockImplementation((_messageId, blocks) => {
+      finalWrites.push(structuredClone(blocks))
+    })
+    const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'plan',
+        plan: [{ step: 'Inspect runtime state', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      } as LLMCoreStreamEvent
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(createParams({ coreStream }))
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      stopReason: 'complete'
+    })
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).toHaveBeenCalledWith('m1', [], expect.any(String))
+    expect(finalWrites.at(-1)?.some((block: { type: string }) => block.type === 'plan')).toBe(false)
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      revision: 1
+    })
+    expectDeepchatEvent('chat.stream.completed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1'
+    })
+  })
+
+  it('publishes a terminal plan event when the max tool calls limit stops the loop', async () => {
+    const finalWrites: any[] = []
+    messageStore.finalizeAssistantMessage.mockImplementation((_messageId, blocks) => {
+      finalWrites.push(structuredClone(blocks))
+    })
+    let callCount = 0
+    const toolPresenter = createMockToolPresenter({ action: 'done' })
+
+    const coreStream = vi.fn(function () {
+      callCount++
+      return (async function* () {
+        if (callCount === 1) {
+          yield {
+            type: 'plan',
+            plan: [{ step: 'Keep looping', status: 'in_progress' }],
+            revision: 1,
+            updatedAt: '2026-05-18T00:00:00.000Z'
+          } as LLMCoreStreamEvent
+        }
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: `tc${callCount}`,
+          tool_call_name: 'action'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: `tc${callCount}`,
+          tool_call_arguments_complete: '{}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('action')]
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(finalWrites.at(-1)?.some((block: { type: string }) => block.type === 'plan')).toBe(false)
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      terminalReason: 'max_steps'
+    })
+  })
+
+  it('publishes an aborted terminal marker when AbortError is thrown after a plan event', async () => {
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'plan',
+        plan: [{ step: 'Current work', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      } as LLMCoreStreamEvent
+      throw abortError
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(createParams({ coreStream }))
+
+    expect(result).toMatchObject({
+      status: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: 'common.error.userCanceledGeneration'
+    })
+    expect(messageStore.updateAssistantContent).not.toHaveBeenCalled()
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      terminalReason: 'aborted'
+    })
+  })
+
+  it('persists finalized narrative blocks when AbortError is thrown after text and plan events', async () => {
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    const coreStream = vi.fn(async function* () {
+      yield { type: 'text', content: 'Partial answer' } as LLMCoreStreamEvent
+      yield {
+        type: 'plan',
+        plan: [{ step: 'Current work', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      } as LLMCoreStreamEvent
+      throw abortError
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(createParams({ coreStream }))
+
+    expect(result).toMatchObject({
+      status: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: 'common.error.userCanceledGeneration'
+    })
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateAssistantContent).toHaveBeenLastCalledWith(
+      'm1',
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'content',
+          content: 'Partial answer',
+          status: 'success'
+        })
+      ])
+    )
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      terminalReason: 'aborted'
+    })
+  })
+
   it('abort during stream', async () => {
     const abortController = new AbortController()
 
@@ -908,16 +1203,12 @@ describe('processStream', () => {
     )
     expect(abortMetadata.provider).toBe('openai')
     expect(abortMetadata.model).toBe('gpt-4')
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:error',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1',
-        error: 'common.error.userCanceledGeneration'
-      })
-    )
+    expectDeepchatEvent('chat.stream.failed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1',
+      error: 'common.error.userCanceledGeneration'
+    })
   })
 
   it('does not finalize user-cancel twice when the message is already cancelled', async () => {
@@ -966,13 +1257,11 @@ describe('processStream', () => {
 
     expect(result.status).toBe('aborted')
     expect(messageStore.setMessageError).not.toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-      'stream:error',
-      'all',
+    expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+      'chat.stream.failed',
       expect.objectContaining({
-        conversationId: 's1',
+        sessionId: 's1',
         messageId: 'm1',
-        eventId: 'm1',
         error: 'common.error.userCanceledGeneration'
       })
     )
@@ -1125,15 +1414,11 @@ describe('processStream', () => {
     await promise
 
     expect(messageStore.setMessageError).toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:error',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1',
-        error: 'Connection lost'
-      })
-    )
+    expectDeepchatEvent('chat.stream.failed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1',
+      error: 'Connection lost'
+    })
   })
 })

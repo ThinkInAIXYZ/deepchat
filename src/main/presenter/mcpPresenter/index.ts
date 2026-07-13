@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { performance } from 'node:perf_hooks'
 import {
   IMCPPresenter,
   IConfigPresenter,
@@ -12,38 +13,122 @@ import {
   Resource,
   PromptListEntry,
   McpSamplingRequestPayload,
-  McpSamplingDecision
+  McpSamplingDecision,
+  McpServerAuthStatus
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
+import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
-import { eventBus, SendTarget } from '@/eventbus'
-import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
+import { McpOAuthManager } from './mcpOAuthManager'
+import { eventBus } from '@/eventbus'
+import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
+type McpToolAccessContext = {
+  enabledTools?: string[]
+  enabledServerIds?: string[]
+  agentId?: string
+  conversationId?: string
+}
+
+const MCP_SHUTDOWN_SERVER_TIMEOUT_MS = 10_000
+const MCP_SHUTDOWN_CONCURRENCY = 4
+
+const normalizeStringList = (items?: string[]): string[] | undefined => {
+  if (!Array.isArray(items)) {
+    return undefined
+  }
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)))
+}
+
+const normalizeToolAccessContext = (
+  input?: string[] | McpToolAccessContext
+): McpToolAccessContext => {
+  if (Array.isArray(input)) {
+    return { enabledTools: normalizeStringList(input) }
+  }
+  return {
+    enabledTools: normalizeStringList(input?.enabledTools),
+    enabledServerIds: normalizeStringList(input?.enabledServerIds),
+    agentId: input?.agentId?.trim() || undefined,
+    conversationId: input?.conversationId?.trim() || undefined
+  }
+}
+
 // Complete McpPresenter implementation
 export class McpPresenter implements IMCPPresenter {
   private serverManager: ServerManager
   private toolManager: ToolManager
+  private mcpOAuthManager: McpOAuthManager
   private configPresenter: IConfigPresenter
   private isInitialized: boolean = false
   // McpRouter
   private mcprouter?: McpRouterManager
   private cacheImage?: (data: string) => Promise<string>
+  private shutdownPromise: Promise<void> | null = null
   private pendingSamplingRequests = new Map<
     string,
     { resolve: (decision: McpSamplingDecision) => void; reject: (error: Error) => void }
   >()
+
+  private emitServerStarted(serverName: string): void {
+    eventBus.sendToMain(MCP_EVENTS.SERVER_STARTED, serverName)
+    publishDeepchatEvent('mcp.server.started', {
+      serverName,
+      version: Date.now()
+    })
+  }
+
+  private emitServerStopped(serverName: string): void {
+    eventBus.sendToMain(MCP_EVENTS.SERVER_STOPPED, serverName)
+    publishDeepchatEvent('mcp.server.stopped', {
+      serverName,
+      version: Date.now()
+    })
+  }
+
+  private emitInitialized(): void {
+    eventBus.sendToMain(MCP_EVENTS.INITIALIZED)
+  }
+
+  private startServerInBackground(
+    serverName: string,
+    successMessage: string,
+    failureMessage: string
+  ): void {
+    void this.serverManager
+      .startServer(serverName, {
+        onBackgroundConnected: () => {
+          logger.info(successMessage)
+          this.emitServerStarted(serverName)
+        }
+      })
+      .then((connectResult) => {
+        if (connectResult === 'connected') {
+          logger.info(successMessage)
+          this.emitServerStarted(serverName)
+        } else if (connectResult === 'soft-timeout-released') {
+          logger.info(`[MCP] Server ${serverName} startup released after soft timeout`)
+        }
+      })
+      .catch((error) => {
+        console.error(failureMessage, error)
+      })
+  }
 
   constructor(configPresenter?: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
     logger.info('Initializing MCP Presenter')
 
     this.configPresenter = configPresenter || presenter.configPresenter
     this.cacheImage = cacheImage
-    this.serverManager = new ServerManager(this.configPresenter)
+    this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
+      this.restartServerAfterAuthentication(serverName)
+    )
+    this.serverManager = new ServerManager(this.configPresenter, this.mcpOAuthManager)
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
     // init mcprouter manager
     try {
@@ -66,6 +151,18 @@ export class McpPresenter implements IMCPPresenter {
     return this.isPluginOwnedServerConfig(servers[serverName])
   }
 
+  private isServerAllowedByContext(
+    serverName: string,
+    serverConfig: MCPServerConfig | undefined,
+    context: McpToolAccessContext
+  ): boolean {
+    if (this.isPluginOwnedServerConfig(serverConfig)) {
+      return true
+    }
+
+    return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
+  }
+
   async initialize() {
     if (this.isInitialized) {
       return
@@ -75,7 +172,10 @@ export class McpPresenter implements IMCPPresenter {
       // If no configPresenter is provided, get it from presenter
       if (!this.configPresenter.getLanguage) {
         // Recreate managers
-        this.serverManager = new ServerManager(this.configPresenter)
+        this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
+          this.restartServerAfterAuthentication(serverName)
+        )
+        this.serverManager = new ServerManager(this.configPresenter, this.mcpOAuthManager)
         this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
       }
 
@@ -101,38 +201,32 @@ export class McpPresenter implements IMCPPresenter {
 
       // Check and start deepchat-inmemory/custom-prompts-server
       const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
+      const startingServers = new Set<string>()
       if (mcpEnabled && servers[customPromptsServerName]) {
         logger.info(`[MCP] Attempting to start custom prompts server: ${customPromptsServerName}`)
-
-        try {
-          await this.serverManager.startServer(customPromptsServerName)
-          logger.info(`[MCP] Custom prompts server ${customPromptsServerName} started successfully`)
-
-          // Notify renderer process that server has started
-          eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, customPromptsServerName)
-        } catch (error) {
-          console.error(
-            `[MCP] Failed to start custom prompts server ${customPromptsServerName}:`,
-            error
-          )
-        }
+        startingServers.add(customPromptsServerName)
+        this.startServerInBackground(
+          customPromptsServerName,
+          `[MCP] Custom prompts server ${customPromptsServerName} started successfully`,
+          `[MCP] Failed to start custom prompts server ${customPromptsServerName}:`
+        )
       }
 
       if (enabledServers.length > 0) {
         for (const serverName of enabledServers) {
           const serverConfig = servers[serverName]
-          if (serverConfig && (mcpEnabled || this.isPluginOwnedServerConfig(serverConfig))) {
+          if (
+            serverConfig &&
+            !startingServers.has(serverName) &&
+            (mcpEnabled || this.isPluginOwnedServerConfig(serverConfig))
+          ) {
             logger.info(`[MCP] Attempting to start enabled server: ${serverName}`)
-
-            try {
-              await this.serverManager.startServer(serverName)
-              logger.info(`[MCP] Enabled server ${serverName} started successfully`)
-
-              // Notify renderer process that server has started
-              eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, serverName)
-            } catch (error) {
-              console.error(`[MCP] Failed to start enabled server ${serverName}:`, error)
-            }
+            startingServers.add(serverName)
+            this.startServerInBackground(
+              serverName,
+              `[MCP] Enabled server ${serverName} started successfully`,
+              `[MCP] Failed to start enabled server ${serverName}:`
+            )
           }
         }
       }
@@ -140,14 +234,115 @@ export class McpPresenter implements IMCPPresenter {
       // Mark initialization complete and emit event
       this.isInitialized = true
       logger.info('[MCP] Initialization completed')
-      eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
+      this.emitInitialized()
 
       this.scheduleBackgroundRegistryUpdate()
     } catch (error) {
       console.error('[MCP] Initialization failed:', error)
       // Mark as complete even if initialization fails to avoid system stuck in uninitialized state
       this.isInitialized = true
-      eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
+      this.emitInitialized()
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.shutdownPromise) {
+      return this.shutdownPromise
+    }
+
+    this.shutdownPromise = this.shutdownRunningClients()
+    try {
+      await this.shutdownPromise
+    } finally {
+      this.shutdownPromise = null
+    }
+  }
+
+  private async shutdownRunningClients(): Promise<void> {
+    const activeClients = await this.serverManager.getActiveClients()
+    let nextIndex = 0
+
+    const stopNext = async (): Promise<void> => {
+      while (nextIndex < activeClients.length) {
+        const client = activeClients[nextIndex++]
+        await this.stopServerDuringShutdown(client)
+      }
+    }
+
+    const workers = Array.from(
+      { length: Math.min(MCP_SHUTDOWN_CONCURRENCY, activeClients.length) },
+      () => stopNext()
+    )
+    await Promise.all(workers)
+  }
+
+  async stopServerDuringShutdownByName(serverName: string): Promise<void> {
+    const client = this.serverManager.getClient(serverName)
+    if (!client) {
+      return
+    }
+
+    await this.stopServerDuringShutdown(client)
+  }
+
+  private async stopServerDuringShutdown(client: RuntimeMcpClient): Promise<void> {
+    const startedAt = performance.now()
+    let timeoutId: NodeJS.Timeout | null = null
+    let timedOut = false
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true
+        reject(new Error(`MCP server ${client.serverName} stop timed out`))
+      }, MCP_SHUTDOWN_SERVER_TIMEOUT_MS)
+    })
+
+    try {
+      await Promise.race([this.stopServer(client.serverName), timeoutPromise])
+      console.info(
+        `[MCP] Stopped server ${client.serverName} during shutdown durationMs=${(performance.now() - startedAt).toFixed(1)}`
+      )
+    } catch (error) {
+      if (timedOut) {
+        const forceTerminated = await client.forceTerminateStdioProcessTree(
+          `shutdown stop timed out after ${MCP_SHUTDOWN_SERVER_TIMEOUT_MS}ms`
+        )
+        console.warn('[MCP] Server stop timed out during shutdown; continuing shutdown:', {
+          serverName: client.serverName,
+          timeoutMs: MCP_SHUTDOWN_SERVER_TIMEOUT_MS,
+          durationMs: Number((performance.now() - startedAt).toFixed(1)),
+          forceTerminatedStdioProcess: forceTerminated,
+          note: forceTerminated
+            ? 'stdio process tree force termination was attempted; the underlying stop promise may still finish later'
+            : 'no stdio process tree was available to force terminate; underlying stop may still be pending'
+        })
+        return
+      }
+
+      console.error(`[MCP] Failed to stop server ${client.serverName} during shutdown:`, error)
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }
+
+  private async restartServerAfterAuthentication(serverName: string): Promise<void> {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (!serverConfig?.enabled) {
+      return
+    }
+
+    try {
+      const connectResult = await this.serverManager.startServer(serverName, {
+        onBackgroundConnected: () => this.emitServerStarted(serverName)
+      })
+      if (connectResult === 'connected') {
+        this.emitServerStarted(serverName)
+      }
+    } catch (error) {
+      console.error(`[MCP] Failed to restart authenticated server ${serverName}:`, error)
     }
   }
 
@@ -371,7 +566,7 @@ export class McpPresenter implements IMCPPresenter {
       // Get current language and send notification
       const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
-      eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+      publishDeepchatEvent('notification.error', {
         title: errorMessages.addMcpServerErrorTitle || 'Failed to add server',
         message:
           errorMessages.addMcpServerDuplicateMessage?.replace('{serverName}', serverName) ||
@@ -400,7 +595,7 @@ export class McpPresenter implements IMCPPresenter {
       } catch (error) {
         console.error(`[MCP] Failed to restart server ${serverName}:`, error)
         // Even if restart fails, ensure correct state by marking as not running
-        eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
+        this.emitServerStopped(serverName)
       }
     }
   }
@@ -411,6 +606,8 @@ export class McpPresenter implements IMCPPresenter {
     if (await this.isServerRunning(serverName)) {
       await this.stopServer(serverName)
     }
+    const servers = await this.configPresenter.getMcpServers()
+    this.mcpOAuthManager.logout(serverName, servers[serverName])
     await this.configPresenter.removeMcpServer(serverName)
   }
 
@@ -418,30 +615,73 @@ export class McpPresenter implements IMCPPresenter {
     return Promise.resolve(this.serverManager.isServerRunning(serverName))
   }
 
+  async isServerActive(serverName: string): Promise<boolean> {
+    return Promise.resolve(this.serverManager.isServerActive(serverName))
+  }
+
   async startServer(serverName: string): Promise<void> {
-    await this.serverManager.startServer(serverName)
-    // Notify renderer process that server has started
-    eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, serverName)
+    const connectResult = await this.serverManager.startServer(serverName, {
+      onBackgroundConnected: () => this.emitServerStarted(serverName)
+    })
+    if (connectResult === 'connected') {
+      this.emitServerStarted(serverName)
+    }
   }
 
   async stopServer(serverName: string): Promise<void> {
     await this.serverManager.stopServer(serverName)
-    // Notify renderer process that server has stopped
-    eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
+    this.emitServerStopped(serverName)
   }
 
   getServerLastError(serverName: string): string | undefined {
     return this.serverManager.getServerLastError(serverName)
   }
 
-  async getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]> {
-    const enabled = await this.configPresenter.getMcpEnabled()
-    const tools = await this.toolManager.getAllToolDefinitions(enabledMcpTools)
-    if (enabled) {
-      return tools
-    }
+  async getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus> {
     const servers = await this.configPresenter.getMcpServers()
-    return tools.filter((tool) => this.isPluginOwnedServerConfig(servers[tool.server.name]))
+    return this.mcpOAuthManager.getStatus(serverName, servers[serverName])
+  }
+
+  async startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (!serverConfig) {
+      throw new Error(`MCP server ${serverName} not found`)
+    }
+    return this.mcpOAuthManager.startAuth(serverName, serverConfig)
+  }
+
+  async completeMcpServerAuthFromCallbackUrl(
+    serverName: string,
+    callbackUrl: string
+  ): Promise<McpServerAuthStatus> {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (!serverConfig) {
+      throw new Error(`MCP server ${serverName} not found`)
+    }
+    return this.mcpOAuthManager.completeAuthFromCallbackUrl(serverName, serverConfig, callbackUrl)
+  }
+
+  async logoutMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
+    const servers = await this.configPresenter.getMcpServers()
+    return this.mcpOAuthManager.logout(serverName, servers[serverName])
+  }
+
+  async getAllToolDefinitions(
+    enabledMcpTools?: string[] | McpToolAccessContext
+  ): Promise<MCPToolDefinition[]> {
+    const context = normalizeToolAccessContext(enabledMcpTools)
+    const enabled = await this.configPresenter.getMcpEnabled()
+    const tools = await this.toolManager.getAllToolDefinitions(context)
+    const servers = await this.configPresenter.getMcpServers()
+    return tools.filter((tool) => {
+      const serverConfig = servers[tool.server.name]
+      if (!enabled && !this.isPluginOwnedServerConfig(serverConfig)) {
+        return false
+      }
+      return this.isServerAllowedByContext(tool.server.name, serverConfig, context)
+    })
   }
 
   /**
@@ -525,8 +765,11 @@ export class McpPresenter implements IMCPPresenter {
     return resourcesList
   }
 
-  async callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }> {
-    const toolCallResult = await this.toolManager.callTool(request)
+  async callTool(
+    request: MCPToolCall,
+    options?: { agentId?: string; enabledServerIds?: string[] }
+  ): Promise<{ content: string; rawData: MCPToolResponse }> {
+    const toolCallResult = await this.toolManager.callTool(request, options)
     const imagePreviews = await extractToolCallImagePreviews({
       toolName: request.function.name,
       toolArgs: request.function.arguments,
@@ -587,7 +830,10 @@ export class McpPresenter implements IMCPPresenter {
    * Pre-check tool permissions without executing the tool
    * Delegates to ToolManager for the actual permission check
    */
-  async preCheckToolPermission(request: MCPToolCall): Promise<{
+  async preCheckToolPermission(
+    request: MCPToolCall,
+    options?: { agentId?: string; enabledServerIds?: string[] }
+  ): Promise<{
     needsPermission: true
     toolName: string
     serverName: string
@@ -603,7 +849,7 @@ export class McpPresenter implements IMCPPresenter {
       baseCommand?: string
     }
   } | null> {
-    return await this.toolManager.preCheckToolPermission(request)
+    return await this.toolManager.preCheckToolPermission(request, options)
   }
 
   async handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision> {
@@ -614,7 +860,6 @@ export class McpPresenter implements IMCPPresenter {
     return new Promise<McpSamplingDecision>((resolve, reject) => {
       try {
         this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
-        eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_WINDOW, request)
         publishDeepchatEvent('mcp.sampling.request', {
           request,
           version: Date.now()
@@ -642,7 +887,6 @@ export class McpPresenter implements IMCPPresenter {
     this.pendingSamplingRequests.delete(decision.requestId)
     pending.resolve(decision)
 
-    eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_DECISION, SendTarget.ALL_WINDOWS, decision)
     publishDeepchatEvent('mcp.sampling.decision', {
       decision,
       version: Date.now()
@@ -662,10 +906,6 @@ export class McpPresenter implements IMCPPresenter {
     this.pendingSamplingRequests.delete(requestId)
     pending.reject(new Error(reason ?? 'Sampling request cancelled'))
 
-    eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_CANCELLED, SendTarget.ALL_WINDOWS, {
-      requestId,
-      reason: reason ?? 'cancelled'
-    })
     publishDeepchatEvent('mcp.sampling.cancelled', {
       requestId,
       reason: reason ?? 'cancelled',
@@ -698,9 +938,9 @@ export class McpPresenter implements IMCPPresenter {
       return
     }
 
-    const runningClients = await this.serverManager.getRunningClients()
+    const activeClients = await this.serverManager.getActiveClients()
     const servers = await this.configPresenter.getMcpServers()
-    for (const client of runningClients) {
+    for (const client of activeClients) {
       if (this.isPluginOwnedServerConfig(servers[client.serverName])) {
         continue
       }

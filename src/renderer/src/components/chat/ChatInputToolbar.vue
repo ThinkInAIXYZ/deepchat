@@ -105,12 +105,13 @@
         <TooltipTrigger as-child>
           <Button
             data-testid="chat-steer-button"
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            variant="outline"
+            size="sm"
+            class="h-7 gap-1.5 rounded-lg px-2.5 text-foreground"
             @click="emit('steer')"
           >
             <Icon icon="lucide:compass" class="w-4 h-4" />
+            <span class="text-xs font-medium">{{ t('chat.input.steer') }}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>

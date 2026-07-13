@@ -85,5 +85,10 @@
       "subagent": "Subagen"
     },
     "deepChatTargetOnly": "Hanya agen DeepChat yang dapat dipilih sebagai tujuan pemindahan. Percakapan ACP dapat dipindahkan ke DeepChat, tetapi tidak ke ACP."
+  },
+  "deleteMessage": {
+    "title": "Hapus pesan ini?",
+    "description": "Ini akan menghapus pesan ini dan konteks yang dibuat ulang setelahnya. Tindakan ini tidak dapat dibatalkan.",
+    "confirm": "Hapus pesan"
   }
 }

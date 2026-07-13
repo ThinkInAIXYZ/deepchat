@@ -1,11 +1,30 @@
 <template>
-  <div class="prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all">
+  <div
+    class="markdown-renderer-root prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all"
+  >
     <NodeRenderer
       :content="debouncedContent"
       :custom-id="customRendererId"
       :isDark="themeStore.isDark"
-      :smooth-streaming="smoothStreaming"
+      :mode="props.mode"
+      :final="resolvedFinal"
+      :smooth-streaming="resolvedSmoothStreaming"
+      :typewriter="isStreaming"
+      :code-block-stream="isStreaming"
       :fade="false"
+      :batch-rendering="true"
+      :initial-render-batch-size="initialRenderBatchSize"
+      :render-batch-size="renderBatchSize"
+      :render-batch-delay="renderBatchDelay"
+      :render-batch-budget-ms="renderBatchBudgetMs"
+      :render-batch-idle-timeout-ms="renderBatchIdleTimeoutMs"
+      :parse-coalesce-ms="parseCoalesceMs"
+      html-policy="safe"
+      :defer-nodes-until-visible="shouldDeferNodesUntilVisible"
+      :viewport-priority="shouldVirtualizeNodes"
+      :node-virtual="resolvedNodeVirtual"
+      :max-live-nodes="maxLiveNodes"
+      :live-node-buffer="liveNodeBuffer"
       :codeBlockDarkTheme="codeBlockDarkTheme"
       :codeBlockLightTheme="codeBlockLightTheme"
       :codeBlockMonacoOptions="codeBlockMonacoOption"
@@ -20,7 +39,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
-import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NodeRenderer, {
   CodeBlockNode,
   ReferenceNode,
@@ -33,6 +52,7 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import LinkNode from './LinkNode.vue'
 import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
 import type { MarkdownLinkContext } from './linkTypes'
+import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
 
 const props = withDefaults(
   defineProps<{
@@ -42,9 +62,17 @@ const props = withDefaults(
     threadId?: string
     linkContext?: MarkdownLinkContext
     smoothStreaming?: boolean
+    streaming?: boolean
+    final?: boolean
+    virtualizeNodes?: boolean
+    mode?: 'docs' | 'chat' | 'minimal'
   }>(),
   {
-    smoothStreaming: true
+    smoothStreaming: true,
+    streaming: false,
+    final: undefined,
+    virtualizeNodes: true,
+    mode: 'docs'
   }
 )
 const themeStore = useThemeStore()
@@ -86,8 +114,60 @@ const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
 const codeBlockDarkTheme = codeBlockThemes[0]
 const codeBlockLightTheme = codeBlockThemes[1]
 const codeBlockMonacoOption = computed(() => ({
-  fontFamily: uiSettingsStore.formattedCodeFontFamily
+  fontFamily: uiSettingsStore.formattedCodeFontFamily,
+  wordWrap: 'on' as const
 }))
+const isStreaming = computed(
+  () => props.final === false || (props.streaming && props.final !== true)
+)
+const resolvedFinal = computed(() => props.final ?? !isStreaming.value)
+const resolvedSmoothStreaming = computed(() => {
+  if (!props.smoothStreaming || resolvedFinal.value) {
+    return false
+  }
+
+  return 'auto' as const
+})
+const STREAM_INITIAL_RENDER_BATCH_SIZE = 10
+const STREAM_RENDER_BATCH_SIZE = 14
+const STREAM_RENDER_BATCH_DELAY_MS = 8
+const STREAM_RENDER_BATCH_BUDGET_MS = 3
+const STREAM_RENDER_BATCH_IDLE_TIMEOUT_MS = 24
+const STREAM_PARSE_COALESCE_MS = 12
+const STATIC_INITIAL_RENDER_BATCH_SIZE = 96
+const STATIC_RENDER_BATCH_SIZE = 80
+const STATIC_RENDER_BATCH_DELAY_MS = 0
+const STATIC_RENDER_BATCH_BUDGET_MS = 8
+const STATIC_RENDER_BATCH_IDLE_TIMEOUT_MS = 16
+const STATIC_PARSE_COALESCE_MS = 0
+const STATIC_MAX_LIVE_NODES = 260
+const STATIC_LIVE_NODE_BUFFER = 80
+
+const shouldVirtualizeNodes = computed(() => props.virtualizeNodes && !isStreaming.value)
+const shouldDeferNodesUntilVisible = computed(() => shouldVirtualizeNodes.value)
+const resolvedNodeVirtual = computed(() =>
+  shouldVirtualizeNodes.value ? ('auto' as const) : false
+)
+const maxLiveNodes = computed(() => (shouldVirtualizeNodes.value ? STATIC_MAX_LIVE_NODES : 0))
+const liveNodeBuffer = computed(() => (shouldVirtualizeNodes.value ? STATIC_LIVE_NODE_BUFFER : 0))
+const initialRenderBatchSize = computed(() =>
+  isStreaming.value ? STREAM_INITIAL_RENDER_BATCH_SIZE : STATIC_INITIAL_RENDER_BATCH_SIZE
+)
+const renderBatchSize = computed(() =>
+  isStreaming.value ? STREAM_RENDER_BATCH_SIZE : STATIC_RENDER_BATCH_SIZE
+)
+const renderBatchDelay = computed(() =>
+  isStreaming.value ? STREAM_RENDER_BATCH_DELAY_MS : STATIC_RENDER_BATCH_DELAY_MS
+)
+const renderBatchBudgetMs = computed(() =>
+  isStreaming.value ? STREAM_RENDER_BATCH_BUDGET_MS : STATIC_RENDER_BATCH_BUDGET_MS
+)
+const renderBatchIdleTimeoutMs = computed(() =>
+  isStreaming.value ? STREAM_RENDER_BATCH_IDLE_TIMEOUT_MS : STATIC_RENDER_BATCH_IDLE_TIMEOUT_MS
+)
+const parseCoalesceMs = computed(() =>
+  isStreaming.value ? STREAM_PARSE_COALESCE_MS : STATIC_PARSE_COALESCE_MS
+)
 const { navigateLink } = useMarkdownLinkNavigation({
   linkContext: effectiveLinkContext
 })
@@ -123,6 +203,11 @@ const updateContentSlow = useDebounceFn(
 
 const updateContent = (value: string) => {
   const revision = ++contentRevision
+
+  if (isStreaming.value && debouncedContent.value.length === 0 && value.length > 0) {
+    debouncedContent.value = value
+    return
+  }
 
   if (props.smoothStreaming && value.length > 12_000) {
     updateContentSlow(revision, value)
@@ -230,6 +315,12 @@ watch(
   }
 )
 
+onMounted(() => {
+  ensureMarkdownWorkers().catch((error) => {
+    console.error('Failed to initialize markdown workers:', error)
+  })
+})
+
 onBeforeUnmount(() => {
   removeCustomComponents(customRendererId.value)
 })
@@ -302,6 +393,14 @@ defineEmits(['copy'])
   .table-node-wrapper {
     @apply border border-border rounded-lg py-0 my-0 overflow-hidden shadow-sm;
     contain: layout style paint;
+  }
+
+  .markstream-vue [data-markstream-code-block='1'],
+  .markstream-vue [data-markstream-code-block='1'] .code-editor-container,
+  .markstream-vue [data-markstream-code-block='1'] .code-pre-fallback,
+  .markstream-vue pre[class^='language-'],
+  .markstream-vue pre[class*=' language-'] {
+    scrollbar-gutter: stable;
   }
 
   table {

@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Chỉ đạo",
     "queueCount": "Đang chờ gửi {count}/{max}",
-    "resumeQueue": "Tiếp tục gửi",
-    "toSteer": "Chỉ đạo",
+    "toSteer": "Ngắt & gửi",
     "locked": "Đã khóa",
     "reorder": "Sắp xếp lại",
     "files": "Các tập tin {count}",
     "attachmentsOnly": "Tệp đính kèm {count}",
     "empty": "Tin nhắn trống",
-    "limitReached": "Làn chờ đã đầy (tối đa {max})."
+    "limitReached": "Làn chờ đã đầy (tối đa {max}).",
+    "remove": "Xóa",
+    "steerUnavailable": "Hiện không thể ngắt",
+    "steerFailed": "Không thể ngắt lượt này"
   },
   "features": {
     "webSearch": "Tìm kiếm trên web",
@@ -243,9 +245,9 @@
         "pending": "Đang chờ xử lý",
         "in_progress": "Đang tiến hành",
         "completed": "Đã hoàn thành",
-        "failed": "thất bại",
-        "skipped": "Đã bỏ qua"
-      }
+        "interrupted": "Đã gián đoạn"
+      },
+      "completedCount": "{completed}/{total} đã hoàn thành"
     },
     "files": {
       "section": "Tập tin",
@@ -260,6 +262,10 @@
         "openFile": "Mở tập tin",
         "revealInFolder": "Hiển thị trong trình quản lý tập tin",
         "insertPath": "Chèn vào đầu vào"
+      },
+      "watchStatus": {
+        "degraded": "Đang theo dõi ở chế độ dự phòng. Thay đổi có thể được làm mới chậm hơn.",
+        "failed": "Tính năng theo dõi tệp không khả dụng. Hãy làm mới hoặc chọn lại không gian làm việc."
       }
     },
     "git": {
@@ -321,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Quyền mặc định",
-    "fullAccess": "Toàn quyền truy cập"
+    "fullAccess": "Toàn quyền truy cập",
+    "autoApprove": "Phê duyệt thay tôi"
   },
   "sidebar": {
     "allAgents": "Tất cả Agents",
@@ -343,12 +350,21 @@
     "groupByDate": "Nhóm theo ngày",
     "groupByProject": "Nhóm theo dự án",
     "pinned": "Đã ghim",
+    "chats": "Trò chuyện",
     "emptyTitle": "Chưa có cuộc trò chuyện nào",
     "emptyDescription": "Bắt đầu một cuộc trò chuyện mới để bắt đầu",
     "searchPlaceholder": "Tìm kiếm cuộc trò chuyện",
     "searchAriaLabel": "Tìm kiếm cuộc trò chuyện",
     "searchEmptyTitle": "Không có cuộc trò chuyện phù hợp",
-    "searchEmptyDescription": "Hãy thử một từ khóa tiêu đề khác"
+    "searchEmptyDescription": "Hãy thử một từ khóa tiêu đề khác",
+    "projectGroupActions": "Thao tác nhóm dự án",
+    "moveProjectGroupTop": "Di chuyển lên đầu",
+    "moveProjectGroupUp": "Di chuyển lên",
+    "moveProjectGroupDown": "Di chuyển xuống",
+    "moveProjectGroupBottom": "Di chuyển xuống cuối",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Tìm kiếm cuộc trò chuyện, đại lý, cài đặt, hành động…",
@@ -416,6 +432,58 @@
       "hour": "g ",
       "minute": "p ",
       "second": "gi"
+    }
+  },
+  "memory": {
+    "toolbar": "Bộ nhớ đã dùng",
+    "status": {
+      "archived": "Đã quên"
+    },
+    "actions": {
+      "undo": "Hoàn tác",
+      "forget": "Quên",
+      "edit": "Sửa"
+    },
+    "chip": {
+      "title": "Đã cập nhật bộ nhớ {count}",
+      "heading": "Đã cập nhật bộ nhớ",
+      "description": "Lượt này đã thêm các bộ nhớ sau."
+    },
+    "selection": {
+      "remember": "Ghi nhớ nội dung này"
+    },
+    "turn": {
+      "title": "Bộ nhớ dùng trong lượt này",
+      "empty": "Không có bộ nhớ nào được chèn trong lượt này",
+      "selected": "Đã chọn",
+      "dropped": "Đã bỏ",
+      "tokens": "Token",
+      "budget": "Ngân sách",
+      "countOnly": "Bản ghi này chỉ có tóm tắt số lượng.",
+      "unavailable": "Bộ nhớ này không còn khả dụng.",
+      "noSelectedDetails": "Không có chi tiết bộ nhớ để hiển thị cho lượt này.",
+      "refreshFailed": "Không thể làm mới. Đang hiển thị các bộ nhớ đã tải gần nhất.",
+      "error": "Không thể tải ký ức cho lượt này."
+    },
+    "toast": {
+      "undoSuccess": "Đã hoàn tác bộ nhớ",
+      "undoFailed": "Không thể hoàn tác bộ nhớ",
+      "forgetSuccess": "Đã quên bộ nhớ",
+      "forgetFailed": "Không thể quên bộ nhớ",
+      "amendFailed": "Không thể cập nhật bộ nhớ",
+      "rememberFailed": "Không thể lưu bộ nhớ",
+      "add": {
+        "created": "Đã lưu thành bộ nhớ mới",
+        "updated": "Đã cập nhật bộ nhớ hiện có",
+        "superseded": "Đã hợp nhất vào bộ nhớ đã cập nhật",
+        "challenged": "Đã ghi nhận là bộ nhớ cần xem lại",
+        "noop": "Không thêm bộ nhớ mới"
+      }
+    },
+    "errors": {
+      "actionFailed": "Thao tác thất bại. Vui lòng thử lại.",
+      "amendRetryable": "Chỉnh sửa thất bại. Ký ức ban đầu đã được khôi phục, hãy thử lại.",
+      "amendRestoreFailed": "Chỉnh sửa thất bại và không thể khôi phục ký ức ban đầu."
     }
   }
 }

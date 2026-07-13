@@ -11,6 +11,7 @@ import type { ModelConfig } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
 import type { ToolOutputGuard } from './toolOutputGuard'
+import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
@@ -48,6 +49,8 @@ export interface StreamState {
   completedToolCalls: ToolCallResult[]
   pendingInteractions?: PendingToolInteraction[]
   stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens'
+  latestAgentPlanSnapshot?: AgentPlanSnapshot
+  planTerminalReason?: AgentPlanTerminalReason
   dirty: boolean
 }
 
@@ -55,6 +58,8 @@ export interface IoParams {
   sessionId: string
   requestId: string
   messageId: string
+  providerId: string
+  modelId: string
   messageStore: DeepChatMessageStore
   abortSignal: AbortSignal
 }
@@ -91,6 +96,9 @@ export interface ProcessHooks {
   autoGrantPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>
   ) => Promise<void>
+  reviewToolPermission?: (
+    request: ToolPermissionReviewRequest
+  ) => Promise<ToolPermissionReviewResult>
   onStreamingProviderPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>,
     tool: {
@@ -100,6 +108,9 @@ export interface ProcessHooks {
     },
     commitDecision: (granted: boolean) => void
   ) => void
+  getActiveSkillNames?: () => string[]
+  getEnabledSkillNames?: () => string[] | null | undefined
+  activateSkill?: (skillName: string) => Promise<string[]>
   normalizeToolResult?: (tool: {
     sessionId: string
     toolCallId: string
@@ -109,6 +120,26 @@ export interface ProcessHooks {
     isError: boolean
   }) => Promise<MCPToolResponse['content']>
   cacheImage?: (data: string) => Promise<string>
+}
+
+export interface ToolPermissionReviewRequest {
+  sessionId: string
+  messageId: string
+  toolCallId: string
+  toolName: string
+  toolArgs: string
+  toolSource?: 'agent' | 'mcp'
+  serverName?: string
+  permission?: NonNullable<PendingToolInteraction['permission']>
+  reason: 'tool_call' | 'precheck' | 'requires_permission'
+}
+
+export interface ToolPermissionReviewResult {
+  decision: 'auto_allow' | 'ask_user' | 'block'
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical'
+  userAuthorization?: 'unknown' | 'low' | 'medium' | 'high'
+  rationale?: string
+  actionHash?: string
 }
 
 export interface PendingToolInteraction {
@@ -160,7 +191,11 @@ export interface ProcessResult {
 export interface ProcessParams {
   messages: ChatMessage[]
   tools: MCPToolDefinition[]
-  refreshTools?: () => Promise<MCPToolDefinition[]>
+  refreshTools?: (activeSkillNames?: string[]) => Promise<MCPToolDefinition[]>
+  refreshSystemPrompt?: (
+    activeSkillNames: string[] | undefined,
+    toolDefinitions: MCPToolDefinition[]
+  ) => Promise<string>
   toolPresenter: IToolPresenter | null
   coreStream: (
     messages: ChatMessage[],
@@ -179,7 +214,10 @@ export interface ProcessParams {
   permissionMode: PermissionMode
   toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
+  onFirstProviderRoundReady?: () => void
+  onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean
+  maxProviderRounds?: number
   hooks?: ProcessHooks
   io: IoParams
 }

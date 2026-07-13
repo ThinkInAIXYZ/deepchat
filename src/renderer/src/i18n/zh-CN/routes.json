@@ -1,5 +1,6 @@
 {
   "chat": "聊天",
+  "plugins": "插件",
   "welcome": "欢迎",
   "settings": "设置",
   "settings-common": "通用设置",
@@ -21,5 +22,6 @@
   "settings-environments": "目录环境",
   "settings-remote": "远程",
   "settings-plugins": "插件",
-  "settings-overview": "设置概览"
+  "settings-overview": "设置概览",
+  "settings-memory": "记忆"
 }

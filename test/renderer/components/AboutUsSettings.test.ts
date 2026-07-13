@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { DEV_EVENTS } from '@/events'
 
 const buttonStub = defineComponent({
   name: 'Button',
   emits: ['click'],
-  template: '<button @click="$emit(\'click\')"><slot /></button>'
+  template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
 })
 
 const passthroughStub = (name: string) =>
@@ -19,19 +18,28 @@ const route = {
   name: 'settings-about'
 }
 
-const presenterMocks = {
-  devicePresenter: {
-    getAppVersion: vi.fn().mockResolvedValue('1.0.0-beta.3')
-  },
-  configPresenter: {
-    getUpdateChannel: vi.fn().mockResolvedValue('stable'),
-    setUpdateChannel: vi.fn().mockResolvedValue(undefined)
-  },
-  windowPresenter: {
-    sendToAllWindows: vi.fn().mockResolvedValue(undefined),
-    focusMainWindow: vi.fn().mockResolvedValue(true)
-  }
-}
+const configClientMock = vi.hoisted(() => ({
+  getUpdateChannel: vi.fn(),
+  setUpdateChannel: vi.fn()
+}))
+const deviceClientMock = vi.hoisted(() => ({
+  getAppVersion: vi.fn()
+}))
+const browserClientMock = vi.hoisted(() => ({
+  openExternal: vi.fn()
+}))
+const debugClientMock = vi.hoisted(() => ({
+  createMockChatSession: vi.fn()
+}))
+const toastMock = vi.hoisted(() => vi.fn())
+const windowClientMock = vi.hoisted(() => ({
+  startGuidedOnboarding: vi.fn(),
+  onSettingsCheckForUpdates: vi.fn().mockImplementation((listener: () => void) => {
+    const wrapped = () => listener()
+    window.electron?.ipcRenderer?.on('settings:check-for-updates', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:check-for-updates', wrapped)
+  })
+}))
 
 const upgradeStoreMock = {
   shouldShowUpdateNotes: true,
@@ -55,8 +63,20 @@ const upgradeStoreMock = {
   handleUpdate: vi.fn().mockResolvedValue(undefined)
 }
 
-vi.mock('@api/legacy/presenters', () => ({
-  useLegacyPresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
+vi.mock('@api/ConfigClient', () => ({
+  createConfigClient: () => configClientMock
+}))
+vi.mock('@api/DeviceClient', () => ({
+  createDeviceClient: () => deviceClientMock
+}))
+vi.mock('@api/BrowserClient', () => ({
+  createBrowserClient: () => browserClientMock
+}))
+vi.mock('@api/DebugClient', () => ({
+  createDebugClient: () => debugClientMock
+}))
+vi.mock('@api/WindowClient', () => ({
+  createWindowClient: () => windowClientMock
 }))
 
 vi.mock('@/stores/upgrade', () => ({
@@ -77,13 +97,13 @@ vi.mock('@/stores/theme', () => ({
 
 vi.mock('@/components/use-toast', () => ({
   useToast: () => ({
-    toast: vi.fn()
+    toast: toastMock
   })
 }))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: { version?: string }) => {
+    t: (key: string, params?: { version?: string; title?: string; count?: number }) => {
       const messages: Record<string, string> = {
         'about.title': 'DeepChat',
         'about.description': 'DeepChat description',
@@ -98,6 +118,12 @@ vi.mock('vue-i18n', () => ({
         'about.mockUpdateButton': '模拟已下载更新',
         'about.clearMockUpdateButton': '清除模拟更新',
         'about.mockOnboardingButton': '模拟首次进入引导',
+        'about.mockChatButton': '创建长会话Mock数据',
+        'about.mockChatCreating': '创建中...',
+        'about.mockChatCreated': 'Mock会话已创建',
+        'about.mockChatCreatedDesc': `已创建${params?.title ?? ''}，共${params?.count ?? ''}条消息`,
+        'about.mockChatCreateFailed': '创建Mock会话失败',
+        'about.mockChatCreateUnavailable': 'Mock会话只在开发模式可用',
         'update.versionAvailable': `${params?.version ?? ''} 可用`,
         'update.autoUpdateFailed': '自动更新可能不稳定，请手动下载更新',
         'update.githubDownload': 'GitHub 下载',
@@ -122,6 +148,17 @@ vi.mock('vue-router', () => ({
 describe('AboutUsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    configClientMock.getUpdateChannel.mockResolvedValue('stable')
+    configClientMock.setUpdateChannel.mockResolvedValue('stable')
+    deviceClientMock.getAppVersion.mockResolvedValue('1.0.0-beta.3')
+    browserClientMock.openExternal.mockResolvedValue(undefined)
+    debugClientMock.createMockChatSession.mockResolvedValue({
+      created: true,
+      sessionId: 'debug-long-chat-test',
+      title: 'Debug long chat test',
+      messageCount: 200
+    })
+    windowClientMock.startGuidedOnboarding.mockResolvedValue({ started: true, focused: true })
     Object.assign(upgradeStoreMock, {
       shouldShowUpdateNotes: true,
       updateInfo: {
@@ -184,6 +221,7 @@ describe('AboutUsSettings', () => {
       '免责声明',
       '模拟已下载更新',
       '模拟首次进入引导',
+      '创建长会话Mock数据',
       'GitHub 下载',
       '官网下载',
       '关闭'
@@ -200,7 +238,7 @@ describe('AboutUsSettings', () => {
 
   it('subscribes to tray update checks before initial presenter calls resolve', async () => {
     let resolveAppVersion: ((value: string) => void) | null = null
-    presenterMocks.devicePresenter.getAppVersion.mockReturnValueOnce(
+    deviceClientMock.getAppVersion.mockReturnValueOnce(
       new Promise<string>((resolve) => {
         resolveAppVersion = resolve
       })
@@ -230,14 +268,12 @@ describe('AboutUsSettings', () => {
       }
     })
 
-    const registration = vi
-      .mocked(window.electron.ipcRenderer.on)
-      .mock.calls.find(([event]) => event === 'settings:check-for-updates')
+    const handler = windowClientMock.onSettingsCheckForUpdates.mock.calls.at(-1)?.[0] as
+      | (() => Promise<void>)
+      | undefined
+    expect(handler).toBeTypeOf('function')
 
-    expect(registration).toBeTruthy()
-
-    const handler = registration?.[1] as () => Promise<void>
-    await handler()
+    await handler?.()
 
     expect(upgradeStoreMock.checkUpdate).toHaveBeenCalledWith(false)
 
@@ -278,14 +314,12 @@ describe('AboutUsSettings', () => {
 
     await flushPromises()
 
-    const registration = vi
-      .mocked(window.electron.ipcRenderer.on)
-      .mock.calls.find(([event]) => event === 'settings:check-for-updates')
+    const handler = windowClientMock.onSettingsCheckForUpdates.mock.calls.at(-1)?.[0] as
+      | (() => Promise<void>)
+      | undefined
+    expect(handler).toBeTypeOf('function')
 
-    expect(registration).toBeTruthy()
-
-    const handler = registration?.[1] as () => Promise<void>
-    await handler()
+    await handler?.()
 
     expect(upgradeStoreMock.handleUpdate).not.toHaveBeenCalled()
     expect(upgradeStoreMock.checkUpdate).not.toHaveBeenCalled()
@@ -369,9 +403,75 @@ describe('AboutUsSettings', () => {
 
     await onboardingButton!.trigger('click')
 
-    expect(presenterMocks.windowPresenter.sendToAllWindows).toHaveBeenCalledWith(
-      DEV_EVENTS.START_GUIDED_ONBOARDING
+    expect(windowClientMock.startGuidedOnboarding).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates mock long chat data from the about page', async () => {
+    let resolveCreateMockChat!: (value: {
+      created: boolean
+      sessionId: string
+      title: string
+      messageCount: number
+    }) => void
+    debugClientMock.createMockChatSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCreateMockChat = resolve
+      })
     )
-    expect(presenterMocks.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
+
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: passthroughStub('Select'),
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const mockChatButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '创建长会话Mock数据')
+
+    expect(mockChatButton).toBeTruthy()
+
+    await mockChatButton!.trigger('click')
+    await nextTick()
+
+    expect(debugClientMock.createMockChatSession).toHaveBeenCalledTimes(1)
+    const pendingButton = wrapper.findAll('button').find((button) => button.text() === '创建中...')
+    expect(pendingButton?.attributes('disabled')).toBeDefined()
+
+    resolveCreateMockChat({
+      created: true,
+      sessionId: 'debug-long-chat-test',
+      title: 'Debug long chat test',
+      messageCount: 200
+    })
+    await flushPromises()
+
+    expect(toastMock).toHaveBeenCalledWith({
+      title: 'Mock会话已创建',
+      description: '已创建Debug long chat test，共200条消息'
+    })
+    expect(wrapper.findAll('button').some((button) => button.text() === '创建长会话Mock数据')).toBe(
+      true
+    )
   })
 })

@@ -95,3 +95,11 @@ export const browserReloadRoute = defineRouteContract({
     status: YoBrowserStatusSchema
   })
 })
+
+export const browserClearSandboxDataRoute = defineRouteContract({
+  name: 'browser.clearSandboxData',
+  input: z.object({}).default({}),
+  output: z.object({
+    cleared: z.boolean()
+  })
+})

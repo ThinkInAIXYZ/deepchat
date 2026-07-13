@@ -14,7 +14,7 @@
     "voiceRecognitionErrorTitle": "音频转写失败",
     "voiceRecognitionErrorDescription": "未能完成音频转写，请稍后重试。",
     "send": "发送",
-    "steer": "引导",
+    "steer": "打断",
     "queue": "加入队列",
     "stop": "停止",
     "fileSelect": "选择文件",
@@ -90,16 +90,18 @@
     }
   },
   "pendingInput": {
-    "steer": "引导",
+    "steer": "打断",
     "queueCount": "待发 {count}/{max}",
-    "resumeQueue": "继续发送",
-    "toSteer": "转为引导",
+    "toSteer": "打断并发送",
     "locked": "已锁定",
     "reorder": "调整顺序",
     "files": "{count} 个文件",
     "attachmentsOnly": "{count} 个附件",
     "empty": "空消息",
-    "limitReached": "等待区已满（最多 {max} 条）。"
+    "limitReached": "等待区已满（最多 {max} 条）。",
+    "remove": "删除",
+    "steerUnavailable": "当前无法打断",
+    "steerFailed": "打断失败"
   },
   "features": {
     "webSearch": "联网搜索",
@@ -262,9 +264,9 @@
         "pending": "待处理",
         "in_progress": "进行中",
         "completed": "已完成",
-        "failed": "失败",
-        "skipped": "已跳过"
-      }
+        "interrupted": "已中断"
+      },
+      "completedCount": "{completed}/{total} 已完成"
     },
     "files": {
       "section": "文件",
@@ -279,6 +281,10 @@
         "openFile": "打开文件",
         "revealInFolder": "在文件管理器中打开",
         "insertPath": "插入到输入框"
+      },
+      "watchStatus": {
+        "degraded": "正在使用降级监听模式，文件变化刷新会变慢。",
+        "failed": "文件监听暂不可用，请重新选择工作区或刷新。"
       }
     },
     "git": {
@@ -340,6 +346,7 @@
   },
   "permissionMode": {
     "default": "默认权限",
+    "autoApprove": "助手代审",
     "fullAccess": "完全访问"
   },
   "sidebar": {
@@ -350,6 +357,9 @@
     "themeLight": "浅色",
     "themeDark": "深色",
     "themeSystem": "跟随系统",
+    "searchCommand": "搜索",
+    "chatSection": "Chat",
+    "workspace": "工作区",
     "remoteControlDisabled": "未启用",
     "remoteControlStatus": {
       "disabled": "远程控制已禁用",
@@ -361,7 +371,13 @@
     },
     "groupByDate": "按时间分组",
     "groupByProject": "按项目分组",
+    "projectGroupActions": "项目分组操作",
+    "moveProjectGroupTop": "移到顶部",
+    "moveProjectGroupUp": "上移",
+    "moveProjectGroupDown": "下移",
+    "moveProjectGroupBottom": "移到底部",
     "pinned": "置顶会话",
+    "chats": "聊天",
     "emptyTitle": "还没有会话",
     "emptyDescription": "开始一个新会话吧",
     "searchPlaceholder": "搜索会话标题",
@@ -416,6 +432,58 @@
       "hour": "小时",
       "minute": "分钟",
       "second": "秒"
+    }
+  },
+  "memory": {
+    "toolbar": "本轮用到的记忆",
+    "status": {
+      "archived": "已忘掉"
+    },
+    "actions": {
+      "undo": "撤销",
+      "forget": "忘掉",
+      "edit": "修改"
+    },
+    "chip": {
+      "title": "已更新记忆 {count}",
+      "heading": "已更新记忆",
+      "description": "这轮对话新增了以下记忆。"
+    },
+    "selection": {
+      "remember": "记住这个"
+    },
+    "turn": {
+      "title": "本轮用到的记忆",
+      "empty": "本轮未注入记忆",
+      "selected": "选中",
+      "dropped": "丢弃",
+      "tokens": "Token",
+      "budget": "预算",
+      "countOnly": "这条记录只包含计数摘要。",
+      "unavailable": "这条记忆已不可用。",
+      "noSelectedDetails": "本轮没有可展示的记忆明细。",
+      "refreshFailed": "刷新失败，正在显示上次加载的记忆。",
+      "error": "无法加载本轮使用的记忆。"
+    },
+    "toast": {
+      "undoSuccess": "已撤销这条记忆",
+      "undoFailed": "撤销记忆失败",
+      "forgetSuccess": "已忘掉这条记忆",
+      "forgetFailed": "忘掉记忆失败",
+      "amendFailed": "修改记忆失败",
+      "rememberFailed": "保存记忆失败",
+      "add": {
+        "created": "已保存为新记忆",
+        "updated": "已更新已有记忆",
+        "superseded": "已合并为更新后的记忆",
+        "challenged": "已记录为待确认记忆",
+        "noop": "没有新增记忆"
+      }
+    },
+    "errors": {
+      "actionFailed": "操作失败，请稍后重试。",
+      "amendRetryable": "修改失败，原记忆已恢复。请保留输入后重试。",
+      "amendRestoreFailed": "修改失败，且原记忆未能恢复。请手动重新记住这段内容。"
     }
   }
 }

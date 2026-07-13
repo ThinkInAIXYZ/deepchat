@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
+const CUA_MANAGED_HELPER_APP = 'DeepChat Computer Use.app'
+const CUA_MANAGED_HELPER_EXECUTABLE = 'deepchat-cua-driver'
 
 function parseArgs(argv) {
   const args = {
@@ -38,6 +40,8 @@ function parseArgs(argv) {
     console.error('Missing required --plugin-root <path> argument for verify')
     process.exit(1)
   }
+  args.platform = String(args.platform).toLowerCase()
+  args.arch = String(args.arch).toLowerCase()
   return args
 }
 
@@ -71,7 +75,8 @@ function discoverOfficialPlugins() {
         return {
           name: entry.name,
           manifest,
-          platforms: manifest.engines?.platforms ?? []
+          platforms: manifest.engines?.platforms ?? [],
+          targets: manifest.engines?.targets ?? []
         }
       } catch {
         return null
@@ -81,9 +86,16 @@ function discoverOfficialPlugins() {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function isPluginSupported(plugin, targetPlatform) {
+function isPluginSupported(plugin, targetPlatform, targetArch) {
+  const normalizedPlatform = String(targetPlatform).toLowerCase()
+  const normalizedArch = String(targetArch).toLowerCase()
   const platforms = new Set(plugin.platforms.map((platform) => String(platform).toLowerCase()))
-  const aliases = targetPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [targetPlatform]
+  const aliases =
+    normalizedPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [normalizedPlatform]
+  const targets = plugin.targets.map((target) => String(target).toLowerCase())
+  if (targets.length > 0) {
+    return aliases.some((platform) => targets.includes(`${platform}/${normalizedArch}`))
+  }
   return aliases.some((platform) => platforms.has(platform))
 }
 
@@ -109,7 +121,9 @@ function verifyArtifacts(options) {
     throw new Error(`Official plugin not found: ${options.name}`)
   }
 
-  const expected = selected.filter((plugin) => isPluginSupported(plugin, options.platform))
+  const expected = selected.filter((plugin) =>
+    isPluginSupported(plugin, options.platform, options.arch)
+  )
   if (expected.length === 0) {
     throw new Error(`No official plugins are expected for ${options.platform}/${options.arch}`)
   }
@@ -124,6 +138,25 @@ function verifyArtifacts(options) {
   }
 }
 
+function stageCuaManagedHelper(pluginDir, targetPlatform, targetArch) {
+  if (targetPlatform !== 'darwin') {
+    return
+  }
+
+  const source = path.join(pluginDir, 'runtime', 'darwin', targetArch, CUA_MANAGED_HELPER_APP)
+  const executable = path.join(source, 'Contents', 'MacOS', CUA_MANAGED_HELPER_EXECUTABLE)
+  if (!existsSync(executable) || !statSync(executable).isFile()) {
+    throw new Error(`Missing CUA managed helper executable: ${executable}`)
+  }
+
+  const outRoot = path.resolve('build', 'managed-helpers')
+  const target = path.join(outRoot, CUA_MANAGED_HELPER_APP)
+  rmSync(target, { recursive: true, force: true })
+  mkdirSync(outRoot, { recursive: true })
+  cpSync(source, target, { recursive: true })
+  console.log(`Staged CUA managed helper: ${path.relative(process.cwd(), target)}`)
+}
+
 try {
   if (args.action === 'verify') {
     verifyArtifacts(args)
@@ -136,8 +169,13 @@ try {
   const nativeBuildScript = path.resolve(`scripts/build-${args.name}-plugin-runtime.mjs`)
   if (args.action === 'bundle' && existsSync(nativeBuildScript)) {
     const buildArgs = [nativeBuildScript]
+    if (args.platform) buildArgs.push('--platform', args.platform)
     if (args.arch) buildArgs.push('--arch', args.arch)
     execFileSync('node', buildArgs, { stdio: 'inherit' })
+  }
+
+  if (args.action === 'bundle' && args.name === 'cua') {
+    stageCuaManagedHelper(pluginDir, args.platform, args.arch)
   }
 
   // Delegate to package-plugin.mjs

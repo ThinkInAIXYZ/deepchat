@@ -3,10 +3,25 @@ import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { WORKSPACE_EVENTS } from '@/events'
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
 const passthrough = (name: string) =>
   defineComponent({
     name,
     template: '<div><slot /></div>'
+  })
+
+const clickStub = (name: string) =>
+  defineComponent({
+    name,
+    emits: ['click'],
+    template: '<button type="button" @click="$emit(\'click\', $event)"><slot /></button>'
   })
 
 const buildAssistantMessage = (content: unknown) => ({
@@ -30,6 +45,7 @@ const buildAssistantMessage = (content: unknown) => ({
 
 type SetupOptions = {
   messages?: Array<Record<string, unknown>>
+  sessions?: Array<Record<string, unknown>>
   isStreaming?: boolean
   streamingBlocks?: unknown[]
   currentStreamMessageId?: string | null
@@ -43,6 +59,7 @@ type SetupOptions = {
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
+  const activeStatus = String(options.activeSessionPatch?.status ?? 'idle')
   const sessionStore = reactive({
     activeSession: {
       id: 's1',
@@ -50,10 +67,21 @@ const setup = async (options: SetupOptions = {}) => {
       projectDir: 'C:/repo',
       providerId: 'acp',
       modelId: 'dimcode-acp',
-      status: 'idle',
+      status: activeStatus,
       sessionKind: options.sessionKind ?? 'regular',
       ...options.activeSessionPatch
     },
+    activeSessionId: 's1',
+    sessions: options.sessions ?? [
+      {
+        id: 's1',
+        title: 'Session',
+        agentId: 'default',
+        status: activeStatus,
+        projectDir: 'C:/repo',
+        sessionKind: options.sessionKind ?? 'regular'
+      }
+    ],
     sendMessage: vi.fn().mockResolvedValue(undefined),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn().mockResolvedValue(undefined)
@@ -110,7 +138,8 @@ const setup = async (options: SetupOptions = {}) => {
     loadOlderMessages: vi.fn().mockResolvedValue(0),
     clear: vi.fn(),
     clearStreamingState: vi.fn(),
-    addOptimisticUserMessage: vi.fn()
+    addOptimisticUserMessage: vi.fn().mockReturnValue('__optimistic_user_1'),
+    removeOptimisticMessage: vi.fn()
   })
 
   const pendingInputStore = reactive({
@@ -122,17 +151,26 @@ const setup = async (options: SetupOptions = {}) => {
     queueInput: vi.fn().mockResolvedValue(undefined),
     updateQueueInput: vi.fn().mockResolvedValue(undefined),
     moveQueueInput: vi.fn().mockResolvedValue(undefined),
-    convertToSteer: vi.fn().mockResolvedValue(undefined),
+    steerPendingInput: vi.fn().mockResolvedValue(undefined),
     deleteInput: vi.fn().mockResolvedValue(undefined),
-    resumeQueue: vi.fn().mockResolvedValue(undefined),
     clear: vi.fn(),
     ...options.pendingInputStorePatch
   })
 
+  const agentPlanSnapshots = reactive<Record<string, any>>({})
   const agentPlanStore = reactive({
-    snapshots: {},
-    applySnapshot: vi.fn(),
-    clear: vi.fn(),
+    snapshots: agentPlanSnapshots,
+    applySnapshot: vi.fn((snapshot: any) => {
+      agentPlanSnapshots[snapshot.sessionId] = snapshot
+    }),
+    clearSnapshot: vi.fn((sessionId: string) => {
+      delete agentPlanSnapshots[sessionId]
+    }),
+    beginTurn: vi.fn(),
+    freezeActive: vi.fn(),
+    dismiss: vi.fn(),
+    purge: vi.fn(),
+    isVisible: vi.fn((sessionId: string) => Boolean(agentPlanSnapshots[sessionId]?.plan?.length)),
     isCollapsed: vi.fn().mockReturnValue(false),
     toggleCollapsed: vi.fn()
   })
@@ -145,16 +183,12 @@ const setup = async (options: SetupOptions = {}) => {
       }
     }))
   })
+  const uiSettingsStore = reactive({
+    autoScrollEnabled: true
+  })
 
-  const agentSessionPresenter = {
-    respondToolInteraction: vi.fn().mockResolvedValue(undefined),
-    cancelGeneration: vi.fn().mockResolvedValue(undefined),
-    retryMessage: vi.fn().mockResolvedValue(undefined),
-    deleteMessage: vi.fn().mockResolvedValue(undefined),
-    editUserMessage: vi.fn().mockResolvedValue(undefined),
-    forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
-  }
   const chatRespondToolInteraction = vi.fn().mockResolvedValue({ accepted: true })
+  let planUpdatedListener: ((payload: any) => void) | null = null
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({
       accepted: true,
@@ -166,7 +200,12 @@ const setup = async (options: SetupOptions = {}) => {
     }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
     respondToolInteraction: chatRespondToolInteraction,
-    onPlanUpdated: vi.fn().mockReturnValue(() => {})
+    onPlanUpdated: vi.fn((listener: (payload: any) => void) => {
+      planUpdatedListener = listener
+      return () => {
+        planUpdatedListener = null
+      }
+    })
   }
   const sessionClient = {
     retryMessage: vi.fn().mockResolvedValue(undefined),
@@ -185,6 +224,8 @@ const setup = async (options: SetupOptions = {}) => {
   const toast = vi.fn()
   const chatInputInsertWorkspaceReference = vi.fn().mockReturnValue(true)
   const chatInputTriggerAttach = vi.fn()
+  const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
+  const chatInputClearPendingSkills = vi.fn()
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -209,8 +250,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: () => agentSessionPresenter
+  vi.doMock('@/stores/uiSettingsStore', () => ({
+    useUiSettingsStore: () => uiSettingsStore
   }))
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
     createChatClient: vi.fn(() => chatClient)
@@ -242,6 +283,26 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
+  }))
+  vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
+    AlertDialog: defineComponent({
+      name: 'AlertDialog',
+      props: {
+        open: {
+          type: Boolean,
+          default: false
+        }
+      },
+      emits: ['update:open'],
+      template: '<div v-if="open" class="alert-dialog-stub"><slot /></div>'
+    }),
+    AlertDialogAction: clickStub('AlertDialogAction'),
+    AlertDialogCancel: clickStub('AlertDialogCancel'),
+    AlertDialogContent: passthrough('AlertDialogContent'),
+    AlertDialogDescription: passthrough('AlertDialogDescription'),
+    AlertDialogFooter: passthrough('AlertDialogFooter'),
+    AlertDialogHeader: passthrough('AlertDialogHeader'),
+    AlertDialogTitle: passthrough('AlertDialogTitle')
   }))
   vi.doMock('@/components/chat/ChatTopBar.vue', () => ({
     default: defineComponent({
@@ -286,10 +347,26 @@ const setup = async (options: SetupOptions = {}) => {
         isReadOnly: {
           type: Boolean,
           default: false
+        },
+        allMessagesForCapture: {
+          type: Array,
+          default: () => []
+        },
+        beforeSpacerHeight: {
+          type: Number,
+          default: 0
+        },
+        afterSpacerHeight: {
+          type: Number,
+          default: 0
+        },
+        disableMarkdownVirtualization: {
+          type: Boolean,
+          default: false
         }
       },
       template:
-        '<div class="message-list-stub" :data-read-only="String(isReadOnly)" :data-has-rate-limit="String(Boolean(ephemeralRateLimitBlock))"><div v-for="message in messages" :key="message.id" class="message-item-stub" :data-message-id="message.id" /></div>'
+        '<div class="message-list-stub" :data-read-only="String(isReadOnly)" :data-has-rate-limit="String(Boolean(ephemeralRateLimitBlock))" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)"><div v-for="message in messages" :key="message.renderKey ?? message.id" class="message-item-stub" :data-message-id="message.id" :data-render-key="message.renderKey ?? message.id" /></div>'
     })
   }))
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
@@ -321,7 +398,9 @@ const setup = async (options: SetupOptions = {}) => {
       setup(_, { expose }) {
         expose({
           triggerAttach: chatInputTriggerAttach,
-          insertWorkspaceReference: chatInputInsertWorkspaceReference
+          insertWorkspaceReference: chatInputInsertWorkspaceReference,
+          getPendingSkillsSnapshot: chatInputGetPendingSkillsSnapshot,
+          clearPendingSkills: chatInputClearPendingSkills
         })
       },
       template: '<div class="chat-input-box-stub"><slot name="toolbar" /></div>'
@@ -356,24 +435,54 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
     default: defineComponent({
       name: 'AgentProgressFloat',
+      props: {
+        snapshot: {
+          type: Object,
+          default: null
+        }
+      },
       emits: ['toggle-collapse'],
-      template: '<button class="agent-progress-float-stub" @click="$emit(\'toggle-collapse\')" />'
+      template:
+        '<button class="agent-progress-float-stub" :data-session-id="snapshot?.sessionId ?? \'\'" :data-message-id="snapshot?.messageId ?? \'\'" @click="$emit(\'toggle-collapse\')" />'
     })
   }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
     default: defineComponent({
       name: 'PendingInputLane',
       props: {
-        showResumeQueue: {
-          type: Boolean,
-          default: false
+        queueItems: {
+          type: Array,
+          default: () => []
         }
       },
-      template: '<div class="pending-input-lane-stub" />'
+      emits: ['steer-queue'],
+      template:
+        '<button class="pending-input-lane-stub" data-testid="pending-lane-steer" @click="$emit(\'steer-queue\', queueItems[0]?.id ?? \'queue-1\')" />'
     })
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
-    default: passthrough('ChatStatusBar')
+    default: defineComponent({
+      name: 'ChatStatusBar',
+      template: '<div class="chat-status-bar-stub" />'
+    })
+  }))
+  vi.doMock('@/components/chat/MemoryUpdateChip.vue', () => ({
+    default: defineComponent({
+      name: 'MemoryUpdateChip',
+      props: {
+        visible: {
+          type: Boolean,
+          default: true
+        }
+      },
+      template: '<div class="memory-update-chip-stub" :data-visible="String(visible)" />'
+    })
+  }))
+  vi.doMock('@/components/chat/MemoryTurnDialog.vue', () => ({
+    default: defineComponent({
+      name: 'MemoryTurnDialog',
+      template: '<div class="memory-turn-dialog-stub" />'
+    })
   }))
   vi.doMock('@/components/chat/ChatToolInteractionOverlay.vue', () => ({
     default: defineComponent({
@@ -426,7 +535,6 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
-    agentSessionPresenter,
     chatClient,
     chatRespondToolInteraction,
     sessionClient,
@@ -438,6 +546,11 @@ const setup = async (options: SetupOptions = {}) => {
     spotlightStore,
     chatInputInsertWorkspaceReference,
     chatInputTriggerAttach,
+    chatInputGetPendingSkillsSnapshot,
+    chatInputClearPendingSkills,
+    emitPlanUpdated: (payload: any) => {
+      planUpdatedListener?.(payload)
+    },
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -456,7 +569,8 @@ async function expectSessionRestoreSettleStopsAfter(
   triggerIntent: (context: {
     wrapper: ChatPageSetupResult['wrapper']
     chatPage: HTMLDivElement
-  }) => Promise<void> | void
+  }) => Promise<void> | void,
+  scrollTopAfterIntent = 420
 ) {
   let nextFrameId = 1
   const rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -504,12 +618,12 @@ async function expectSessionRestoreSettleStopsAfter(
     await flushRaf()
     expect(scrollTop).toBe(700)
 
-    scrollTop = 420
+    scrollTop = scrollTopAfterIntent
     await triggerIntent({ wrapper, chatPage })
     scrollHeight = 1350
     await flushRaf()
 
-    expect(scrollTop).toBe(420)
+    expect(scrollTop).toBe(scrollTopAfterIntent)
 
     wrapper.unmount()
   } finally {
@@ -519,8 +633,33 @@ async function expectSessionRestoreSettleStopsAfter(
 }
 
 describe('ChatPage', () => {
+  it('bounds mounted message rows for long loaded histories', async () => {
+    const messages = Array.from({ length: 300 }, (_, index) => ({
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: `message ${index}`,
+          status: 'success',
+          timestamp: index
+        }
+      ]),
+      id: `m${index}`,
+      orderSeq: index + 1,
+      createdAt: index + 1,
+      updatedAt: index + 1
+    }))
+    const { wrapper } = await setup({ messages })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    expect((messageList.props('messages') as unknown[]).length).toBeLessThanOrEqual(90)
+    expect((messageList.props('allMessagesForCapture') as unknown[]).length).toBe(300)
+    expect(messageList.props('beforeSpacerHeight')).toBeGreaterThan(0)
+  })
+
   it('renders the agent plan inside an absolute overlay layer above the composer', async () => {
-    const { wrapper, agentPlanStore } = await setup()
+    const { wrapper, agentPlanStore } = await setup({
+      activeSessionPatch: { status: 'working' }
+    })
 
     agentPlanStore.snapshots.s1 = {
       sessionId: 's1',
@@ -541,6 +680,185 @@ describe('ChatPage', () => {
     expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
   })
 
+  it('constrains the combined plan and interaction panel to a scrollable viewport area', async () => {
+    const { wrapper, agentPlanStore } = await setup({
+      activeSessionPatch: { status: 'working' },
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            tool_call: {
+              id: 'tool-1',
+              name: 'question',
+              params: '{}'
+            }
+          }
+        ])
+      ]
+    })
+
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: Array.from({ length: 12 }, (_, index) => ({
+        step: `Plan step ${index}`,
+        status: index === 0 ? 'in_progress' : 'pending'
+      })),
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+
+    await flushPromises()
+
+    const panel = wrapper.find('.agent-question-panel')
+
+    expect(panel.exists()).toBe(true)
+    expect(panel.classes()).toContain('max-h-[min(70vh,calc(100vh-12rem))]')
+    expect(panel.classes()).toContain('overflow-x-hidden')
+    expect(panel.classes()).toContain('overflow-y-auto')
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+  })
+
+  it('keeps live plan snapshots for multiple sessions and renders only the active session', async () => {
+    const { wrapper, agentPlanStore, emitPlanUpdated, sessionStore } = await setup({
+      activeSessionPatch: { status: 'working' },
+      sessions: [
+        { id: 's1', title: 'A', agentId: 'default', status: 'working', projectDir: 'C:/a' },
+        { id: 's2', title: 'B', agentId: 'default', status: 'working', projectDir: 'C:/b' },
+        { id: 's3', title: 'C', agentId: 'default', status: 'working', projectDir: 'C:/c' }
+      ]
+    })
+
+    emitPlanUpdated({
+      sessionId: 's1',
+      messageId: 'm-a',
+      plan: [{ step: 'A plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    })
+    emitPlanUpdated({
+      sessionId: 's2',
+      messageId: 'm-b',
+      plan: [{ step: 'B plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:01.000Z'
+    })
+    emitPlanUpdated({
+      sessionId: 's3',
+      messageId: 'm-c',
+      plan: [{ step: 'C plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:02.000Z'
+    })
+    await flushPromises()
+
+    expect(Object.keys(agentPlanStore.snapshots).sort()).toEqual(['s1', 's2', 's3'])
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
+    expect(wrapper.findAll('.agent-progress-float-stub')).toHaveLength(1)
+
+    sessionStore.activeSession = {
+      ...sessionStore.activeSession,
+      id: 's2',
+      status: 'working'
+    }
+    sessionStore.activeSessionId = 's2'
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s2')
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('A plan')
+
+    sessionStore.activeSession = {
+      ...sessionStore.activeSession,
+      id: 's1',
+      status: 'working'
+    }
+    sessionStore.activeSessionId = 's1'
+    await wrapper.setProps({ sessionId: 's1' })
+    await flushPromises()
+
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
+    expect(agentPlanStore.snapshots.s2?.plan[0]?.step).toBe('B plan')
+  })
+
+  it('keeps an in-progress plan when the plan event arrives before working status', async () => {
+    const { wrapper, agentPlanStore, emitPlanUpdated, sessionStore } = await setup({
+      activeSessionPatch: { status: 'none' },
+      sessions: [{ id: 's1', title: 'A', agentId: 'default', status: 'none', projectDir: 'C:/a' }]
+    })
+
+    emitPlanUpdated({
+      sessionId: 's1',
+      messageId: 'm-a',
+      plan: [{ step: 'Early plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    })
+    await flushPromises()
+
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Early plan')
+    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
+
+    sessionStore.activeSession = {
+      ...sessionStore.activeSession,
+      status: 'working'
+    }
+    sessionStore.sessions = [
+      {
+        ...sessionStore.sessions[0],
+        status: 'working'
+      }
+    ]
+    await flushPromises()
+
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
+  })
+
+  it('clears a terminal plan without clearing another running session plan', async () => {
+    vi.useFakeTimers()
+    try {
+      const { agentPlanStore, emitPlanUpdated } = await setup({
+        activeSessionPatch: { status: 'idle' },
+        sessions: [
+          { id: 's1', title: 'A', agentId: 'default', status: 'idle', projectDir: 'C:/a' },
+          { id: 's2', title: 'B', agentId: 'default', status: 'working', projectDir: 'C:/b' }
+        ]
+      })
+
+      emitPlanUpdated({
+        sessionId: 's1',
+        messageId: 'm-a',
+        plan: [{ step: 'A plan', status: 'completed' }],
+        terminalReason: 'aborted',
+        revision: 2,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      })
+      emitPlanUpdated({
+        sessionId: 's2',
+        messageId: 'm-b',
+        plan: [{ step: 'B plan', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:01.000Z'
+      })
+      await flushPromises()
+
+      expect(agentPlanStore.snapshots.s1).toBeDefined()
+      expect(agentPlanStore.snapshots.s2).toBeDefined()
+
+      await vi.advanceTimersByTimeAsync(1_200)
+      await flushPromises()
+
+      expect(agentPlanStore.snapshots.s1).toBeUndefined()
+      expect(agentPlanStore.snapshots.s2?.plan[0]?.step).toBe('B plan')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('defers session restore until startup deferred tasks are released', async () => {
     const { messageStore, pendingInputStore, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true
@@ -553,8 +871,194 @@ describe('ChatPage', () => {
 
     await flushStartupDeferredTasks()
 
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
     expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
+  })
+
+  it('does not compensate history scroll after switching sessions', async () => {
+    const deferredHistoryLoad = createDeferred<number>()
+    const deferredSessionLoad = createDeferred<unknown>()
+    const { wrapper, messageStore } = await setup({ deferStartupTasks: true })
+    const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+
+    let scrollHeight = 1000
+    let scrollTop = 40
+    Object.defineProperty(chatPage, 'clientHeight', {
+      configurable: true,
+      get: () => 500
+    })
+    Object.defineProperty(chatPage, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight
+    })
+    Object.defineProperty(chatPage, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value
+      }
+    })
+
+    messageStore.hasMoreHistory = true
+    messageStore.loadOlderMessages.mockReturnValueOnce(deferredHistoryLoad.promise)
+    await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+    expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
+
+    messageStore.loadMessages.mockReturnValueOnce(deferredSessionLoad.promise)
+    await wrapper.setProps({ sessionId: 's2' })
+    scrollHeight = 1500
+
+    deferredHistoryLoad.resolve(20)
+    await flushPromises()
+
+    expect(scrollTop).toBe(40)
+
+    deferredSessionLoad.resolve(undefined)
+    wrapper.unmount()
+  })
+
+  it('does not rehydrate persisted plan blocks when switching sessions', async () => {
+    const { wrapper, messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true,
+      messages: []
+    })
+    const messagesBySession = {
+      s1: [
+        buildAssistantMessage([
+          {
+            type: 'plan',
+            content: '',
+            status: 'success',
+            extra: {
+              plan_entries: [{ step: 'Old plan', status: 'completed' }],
+              plan_revision: 1,
+              plan_updated_at: '2026-05-18T00:00:00.000Z'
+            }
+          }
+        ]),
+        {
+          ...buildAssistantMessage([
+            {
+              type: 'plan',
+              content: '',
+              status: 'success',
+              extra: {
+                plan_entries: [{ step: 'Latest A plan', status: 'in_progress' }],
+                plan_revision: 2,
+                plan_updated_at: '2026-05-18T00:01:00.000Z'
+              }
+            }
+          ]),
+          id: 'm2'
+        }
+      ],
+      s2: [
+        {
+          ...buildAssistantMessage([
+            {
+              type: 'plan',
+              content: '',
+              status: 'success',
+              extra: {
+                plan_entries: [{ step: 'B plan', status: 'in_progress' }],
+                plan_revision: 1,
+                plan_updated_at: '2026-05-18T00:02:00.000Z'
+              }
+            }
+          ]),
+          id: 'm3',
+          sessionId: 's2'
+        }
+      ]
+    }
+    messageStore.loadMessages.mockImplementation(async (sessionId: 's1' | 's2') => {
+      messageStore.messages = messagesBySession[sessionId]
+    })
+
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
+    expect(agentPlanStore.snapshots.s1).toBeUndefined()
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
+    expect(agentPlanStore.snapshots.s2).toBeUndefined()
+
+    await wrapper.setProps({ sessionId: 's1' })
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
+    expect(agentPlanStore.snapshots.s1).toBeUndefined()
+  })
+
+  it('keeps the active live plan snapshot while restoring messages', async () => {
+    const { messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true,
+      activeSessionPatch: { status: 'working' },
+      messages: []
+    })
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: [{ step: 'Live plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+    messageStore.loadMessages.mockImplementation(async () => {
+      messageStore.messages = [
+        buildAssistantMessage([
+          {
+            type: 'content',
+            content: 'No plan here',
+            status: 'success'
+          }
+        ])
+      ]
+    })
+
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Live plan')
+  })
+
+  it('does not render legacy plan-only assistant messages as empty rows', async () => {
+    const planOnlyMessage = buildAssistantMessage([
+      {
+        type: 'plan',
+        content: '',
+        status: 'success',
+        timestamp: 1,
+        extra: {
+          plan_entries: [{ step: 'Old plan', status: 'completed' }],
+          plan_revision: 1,
+          plan_updated_at: '2026-05-18T00:00:00.000Z'
+        }
+      }
+    ])
+    const contentMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'Real response',
+          status: 'success',
+          timestamp: 2
+        }
+      ]),
+      id: 'm2',
+      orderSeq: 2
+    }
+
+    const { wrapper } = await setup({
+      messages: [planOnlyMessage, contentMessage]
+    })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+
+    expect(messages.map((message) => message.id)).toEqual(['m2'])
+    expect(wrapper.findAll('.message-item-stub')).toHaveLength(1)
   })
 
   it('runs manual compaction instead of sending exact /compact in DeepChat sessions', async () => {
@@ -579,8 +1083,12 @@ describe('ChatPage', () => {
     await flushPromises()
 
     expect(sessionClient.compactSession).toHaveBeenCalledWith('s1')
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
     expect(input.props('files')).toEqual([
       {
         name: 'notes.md',
@@ -591,7 +1099,7 @@ describe('ChatPage', () => {
   })
 
   it('shows a no-op notice when manual compaction has no eligible history', async () => {
-    const { wrapper, sessionClient, toast } = await setup({
+    const { wrapper, sessionClient, toast, messageStore } = await setup({
       activeSessionPatch: {
         providerId: 'openai',
         modelId: 'gpt-4'
@@ -614,6 +1122,10 @@ describe('ChatPage', () => {
       title: 'chat.compaction.noopTitle',
       description: 'chat.compaction.noopDescription'
     })
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
   })
 
   it('does not queue or compact exact /compact while generating', async () => {
@@ -635,8 +1147,30 @@ describe('ChatPage', () => {
     expect(pendingInputStore.queueInput).not.toHaveBeenCalled()
   })
 
+  it('queues command submit while generating without creating a pending assistant row', async () => {
+    const { wrapper, chatClient, pendingInputStore, messageStore } = await setup({
+      isStreaming: true
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('command-submit', '/diagnose')
+    await flushPromises()
+
+    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: []
+    })
+    expect(chatClient.sendMessage).not.toHaveBeenCalled()
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+  })
+
   it('keeps ACP /compact submissions on the normal command path', async () => {
-    const { wrapper, chatClient, sessionClient } = await setup()
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, sessionClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
 
     input.vm.$emit('command-submit', '/compact')
@@ -647,12 +1181,324 @@ describe('ChatPage', () => {
       text: '/compact',
       files: []
     })
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: '/compact',
+      files: []
+    })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('sends composer skills with the message and clears the composer chip', async () => {
+    const { wrapper, chatClient, chatInputGetPendingSkillsSnapshot, chatInputClearPendingSkills } =
+      await setup()
+    chatInputGetPendingSkillsSnapshot.mockReturnValue(['algorithmic-art', 'algorithmic-art'])
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'what can this skill do?')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
+      text: 'what can this skill do?',
+      files: [],
+      activeSkills: ['algorithmic-art']
+    })
+    expect(chatInputClearPendingSkills).toHaveBeenCalled()
+  })
+
+  it('shows a pending assistant row immediately after submitting before stream starts', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'slow first token')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: 'slow first token',
+      files: []
+    })
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+
+    messageStore.isStreaming = true
+    await flushPromises()
+
+    const streamingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
+    const pendingAssistant = streamingMessages.find((message) =>
+      message.id.startsWith('__pending_assistant_')
+    )
+    expect(pendingAssistant).toBeDefined()
+
+    const firstChunkMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'first chunk',
+          status: 'loading',
+          timestamp: 2
+        }
+      ]),
+      id: 'assistant-stream-1',
+      orderSeq: 2,
+      status: 'pending' as const
+    }
+    messageStore.currentStreamMessageId = firstChunkMessage.id
+    messageStore.streamingBlocks = JSON.parse(firstChunkMessage.content)
+    messageStore.messages.push(firstChunkMessage)
+    messageStore.messageIds.push(firstChunkMessage.id)
+    messageStore.messageCache.set(firstChunkMessage.id, firstChunkMessage)
+    await flushPromises()
+
+    const firstChunkMessages = messageList.props('messages') as Array<{
+      id: string
+      renderKey?: string
+    }>
+    const firstChunkAssistant = firstChunkMessages.find(
+      (message) => message.id === firstChunkMessage.id
+    )
+    expect(
+      firstChunkMessages.some((message) => message.id.startsWith('__pending_assistant_'))
+    ).toBe(false)
+    expect(firstChunkAssistant?.renderKey).toBe(pendingAssistant?.id)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('hides the pending assistant row when a real assistant message materializes before streaming starts', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'assistant arrives first')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const pendingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(pendingMessages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(
+      true
+    )
+
+    const realAssistantMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'hello',
+          status: 'pending',
+          timestamp: 2
+        }
+      ]),
+      id: 'm2',
+      orderSeq: 2
+    }
+    messageStore.messages.push(realAssistantMessage)
+    messageStore.messageIds.push(realAssistantMessage.id)
+    messageStore.messageCache.set(realAssistantMessage.id, realAssistantMessage)
+    await flushPromises()
+
+    const materializedMessages = messageList.props('messages') as Array<{
+      id: string
+      role: string
+    }>
+    expect(
+      materializedMessages.some((message) => message.id.startsWith('__pending_assistant_'))
+    ).toBe(false)
+    expect(materializedMessages.some((message) => message.id === 'm2')).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('keeps the pending assistant row when older assistant history is loaded', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'wait for first token')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const pendingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(pendingMessages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(
+      true
+    )
+
+    const olderAssistantMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'older',
+          status: 'success',
+          timestamp: 1
+        }
+      ]),
+      id: 'older-assistant',
+      orderSeq: 0,
+      createdAt: 0,
+      updatedAt: 0
+    }
+    messageStore.messages.unshift(olderAssistantMessage)
+    messageStore.messageIds.unshift(olderAssistantMessage.id)
+    messageStore.messageCache.set(olderAssistantMessage.id, olderAssistantMessage)
+    await flushPromises()
+
+    const messagesAfterHistory = messageList.props('messages') as Array<{
+      id: string
+      role: string
+    }>
+    expect(
+      messagesAfterHistory.some((message) => message.id.startsWith('__pending_assistant_'))
+    ).toBe(true)
+    expect(messagesAfterHistory.some((message) => message.id === 'older-assistant')).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('shows a pending assistant row immediately after command submit before stream starts', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('command-submit', '/diagnose')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: []
+    })
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: []
+    })
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('clears command submit attachments and skills before send resolves', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const {
+      wrapper,
+      chatClient,
+      messageStore,
+      chatInputGetPendingSkillsSnapshot,
+      chatInputClearPendingSkills
+    } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    chatInputGetPendingSkillsSnapshot.mockReturnValue(['algorithmic-art'])
+    const file = { name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:files', [file])
+    await flushPromises()
+    expect(input.props('files')).toEqual([file])
+
+    input.vm.$emit('command-submit', '/diagnose')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: [file],
+      activeSkills: ['algorithmic-art']
+    })
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+    expect(input.props('files')).toEqual([])
+    expect(chatInputClearPendingSkills).toHaveBeenCalled()
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('clears the pending assistant row when sending fails before streaming starts', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const { wrapper, chatClient, messageStore } = await setup()
+      chatClient.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+      const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+      input.vm.$emit('update:modelValue', 'will fail')
+      await flushPromises()
+      input.vm.$emit('submit')
+      await flushPromises()
+
+      const messageList = wrapper.findComponent({ name: 'MessageList' })
+      const messages = messageList.props('messages') as Array<{ id: string }>
+      expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1')
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('clears the pending assistant row when command submit fails before streaming starts', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const { wrapper, chatClient, messageStore } = await setup()
+      chatClient.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+      const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+      input.vm.$emit('command-submit', '/diagnose')
+      await flushPromises()
+
+      const messageList = wrapper.findComponent({ name: 'MessageList' })
+      const messages = messageList.props('messages') as Array<{ id: string }>
+      expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1')
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('clears the pending assistant row when switching sessions', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'switch away')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
   })
 
   it('maps reasoning metadata into message usage for think duration fallback', async () => {
     const { wrapper, messageStore } = await setup()
 
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
 
     const messageList = wrapper.findComponent({ name: 'MessageList' })
     const messages = messageList.props('messages') as Array<{
@@ -686,7 +1532,7 @@ describe('ChatPage', () => {
     expect(before[0].content[0]?.content).toBe('first')
     expect(before[0].usage.total_tokens).toBe(0)
 
-    messageStore.messages[0] = {
+    const updatedMessage = {
       ...messageStore.messages[0],
       content: JSON.stringify([
         {
@@ -703,6 +1549,11 @@ describe('ChatPage', () => {
       }),
       updatedAt: initialMessage.updatedAt
     }
+    // Production updates go through messageCache (+ persisted revision on load/persist).
+    // displayMessages stable path intentionally does not scan streamRevision.
+    messageStore.messages[0] = updatedMessage
+    messageStore.messageCache.set(String(updatedMessage.id), updatedMessage)
+    messageStore.lastPersistedRevision += 1
 
     await flushPromises()
 
@@ -778,7 +1629,14 @@ describe('ChatPage', () => {
     const html = wrapper.html()
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
-    expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="chat-input-memory-host"]').exists()).toBe(true)
+    expect(wrapper.find('.memory-update-chip-stub').exists()).toBe(true)
+    expect(wrapper.find('.memory-update-chip-stub').attributes('data-visible')).toBe('false')
+    // Input/status stay mounted (v-show) so TipTap draft and StatusBar watchers
+    // are not destroyed during permission/question; they are inert+hidden.
+    expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
+    expect(wrapper.find('.chat-status-bar-stub').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('submitDisabled')).toBe(true)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-tool-interaction-overlay-stub')
     )
@@ -812,7 +1670,7 @@ describe('ChatPage', () => {
     await flushPromises()
 
     expect(chatRespondToolInteraction).toHaveBeenCalledTimes(1)
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
   })
 
@@ -845,7 +1703,7 @@ describe('ChatPage', () => {
   })
 
   it('routes tool interaction responses through ChatClient and refreshes messages', async () => {
-    const { wrapper, chatClient, agentSessionPresenter, messageStore } = await setup({
+    const { wrapper, chatClient, messageStore } = await setup({
       messages: [
         buildAssistantMessage([
           {
@@ -878,8 +1736,124 @@ describe('ChatPage', () => {
         granted: true
       }
     })
-    expect(agentSessionPresenter.respondToolInteraction).not.toHaveBeenCalled()
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
+  })
+
+  it('confirms before deleting a message', async () => {
+    const { wrapper, sessionClient, messageStore } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+    expect(wrapper.text()).toContain('dialog.deleteMessage.title')
+
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(messageStore.clearStreamingState).toHaveBeenCalled()
+    expect(sessionClient.deleteMessage).toHaveBeenCalledWith('s1', 'm1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
+  })
+
+  it('clears the live plan snapshot when deleting the associated assistant message', async () => {
+    const { wrapper, agentPlanStore } = await setup()
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: [{ step: 'Associated plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(agentPlanStore.clearSnapshot).toHaveBeenCalledWith('s1')
+    expect(agentPlanStore.snapshots.s1).toBeUndefined()
+  })
+
+  it('keeps the live plan snapshot when deleting an unrelated message', async () => {
+    const { wrapper, agentPlanStore } = await setup()
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm2',
+      plan: [{ step: 'Unrelated plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Unrelated plan')
+  })
+
+  it('does not delete when the message delete dialog closes without confirmation', async () => {
+    const { wrapper, sessionClient } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+
+    wrapper.findComponent({ name: 'AlertDialog' }).vm.$emit('update:open', false)
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
+  })
+
+  it('does not open delete confirmation in read-only sessions', async () => {
+    const { wrapper, sessionClient } = await setup({ sessionKind: 'subagent' })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
+  })
+
+  it('does not delete when the session becomes read-only while confirmation is open', async () => {
+    const { wrapper, sessionClient, sessionStore } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    sessionStore.activeSession.sessionKind = 'subagent'
+    await flushPromises()
+
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+  })
+
+  it('closes pending delete confirmation when switching sessions', async () => {
+    const { wrapper, sessionClient } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
   })
 
   it('renders pending lane above the input box when no tool interaction is active', async () => {
@@ -905,32 +1879,15 @@ describe('ChatPage', () => {
     const html = wrapper.html()
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(true)
+    expect(wrapper.find('.chat-status-bar-stub').exists()).toBe(true)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-input-box-stub')
     )
   })
 
-  it('hides resume queue while waiting for a tool follow-up answer', async () => {
-    const { wrapper } = await setup({
-      messages: [
-        buildAssistantMessage([
-          {
-            type: 'action',
-            action_type: 'question_request',
-            status: 'success',
-            tool_call: {
-              id: 'tool-1',
-              name: 'question',
-              params: '{}'
-            },
-            extra: {
-              needsUserAction: false,
-              questionResolution: 'replied'
-            }
-          }
-        ])
-      ],
+  it('rebaselines the active plan after queued steer succeeds', async () => {
+    const { wrapper, pendingInputStore, agentPlanStore } = await setup({
+      isStreaming: true,
       pendingInputStorePatch: {
         items: [
           {
@@ -949,7 +1906,46 @@ describe('ChatPage', () => {
       }
     })
 
-    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(false)
+    agentPlanStore.beginTurn.mockClear()
+    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
+    await flushPromises()
+
+    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
+    expect(agentPlanStore.beginTurn).toHaveBeenCalledWith('s1')
+  })
+
+  it('keeps the active plan when queued steer fails', async () => {
+    const { wrapper, pendingInputStore, agentPlanStore, toast } = await setup({
+      isStreaming: true,
+      pendingInputStorePatch: {
+        items: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        steerPendingInput: vi.fn().mockRejectedValue(new Error('boom'))
+      }
+    })
+
+    agentPlanStore.beginTurn.mockClear()
+    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
+    await flushPromises()
+
+    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
+    expect(agentPlanStore.beginTurn).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.pendingInput.steerFailed',
+      variant: 'destructive'
+    })
   })
 
   it('allows sending attachment-only drafts', async () => {
@@ -1042,7 +2038,7 @@ describe('ChatPage', () => {
   })
 
   it('queues active draft on submit while generating', async () => {
-    const { wrapper, pendingInputStore, chatClient } = await setup({
+    const { wrapper, pendingInputStore, chatClient, messageStore } = await setup({
       isStreaming: true
     })
 
@@ -1060,6 +2056,10 @@ describe('ChatPage', () => {
       text: 'tighten the answer',
       files: []
     })
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
     expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
   })
@@ -1229,9 +2229,39 @@ describe('ChatPage', () => {
     })
   })
 
-  it('stops session restore bottom settling after manual scroll events', async () => {
+  it('stops session restore bottom settling after scroll-only user intent', async () => {
     await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
       await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+    })
+  })
+
+  it('keeps scroll-only restore intent anchored during message measurement', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+      wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
+        messageId: 'm1',
+        height: 420
+      })
+      await flushPromises()
+    })
+  })
+
+  it('keeps slow upward wheel intent anchored inside bottom threshold', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      const chatPage = wrapper.get('[data-testid="chat-page"]')
+      await chatPage.trigger('wheel', { deltaY: -4 })
+      await chatPage.trigger('scroll')
+      wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
+        messageId: 'm1',
+        height: 420
+      })
+      await flushPromises()
+    }, 650)
+  })
+
+  it('stops session restore bottom settling after pointer scroll intent', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('pointerdown')
     })
   })
 
@@ -1248,10 +2278,16 @@ describe('ChatPage', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true }))
     await flushPromises()
     expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(true)
+    expect(
+      wrapper.find('.message-list-stub').attributes('data-disable-markdown-virtualization')
+    ).toBe('true')
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
     expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(false)
+    expect(
+      wrapper.find('.message-list-stub').attributes('data-disable-markdown-virtualization')
+    ).toBe('false')
   })
 
   it('renders subagent sessions as read-only display mode', async () => {

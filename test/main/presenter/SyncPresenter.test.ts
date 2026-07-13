@@ -293,6 +293,10 @@ vi.mock('../../../src/main/presenter/index', () => ({
   presenter: mainPresenterMocks
 }))
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
+}))
+
 const realFs = await vi.importActual<typeof import('fs')>('fs')
 Object.assign(fsMock, realFs)
 ;(fsMock as any).promises = realFs.promises
@@ -302,6 +306,7 @@ const path = await vi.importActual<typeof import('path')>('path')
 const { app } = await import('electron')
 const { SyncPresenter } = await import('../../../src/main/presenter/syncPresenter')
 const { ImportMode } = await import('../../../src/main/presenter/sqlitePresenter')
+const { publishDeepchatEvent } = await import('@/routes/publishDeepchatEvent')
 
 const ZIP_PATHS = {
   agentDb: 'database/agent.db',
@@ -311,6 +316,13 @@ const ZIP_PATHS = {
   systemPrompts: 'configs/system_prompts.json',
   mcpSettings: 'configs/mcp-settings.json',
   manifest: 'manifest.json'
+}
+
+function getPublishedEventPayloads(eventName: string) {
+  return vi
+    .mocked(publishDeepchatEvent)
+    .mock.calls.filter(([name]) => name === eventName)
+    .map(([, payload]) => payload)
 }
 
 describe('SyncPresenter backup import', () => {
@@ -332,6 +344,7 @@ describe('SyncPresenter backup import', () => {
     cloudStorageMocks.listRemoteBackups.mockReset()
     cloudStorageMocks.downloadLatest.mockReset()
     mainPresenterMocks.broadcastConversationThreadListUpdate.mockReset()
+    vi.mocked(publishDeepchatEvent).mockClear()
 
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-user-'))
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-temp-'))
@@ -418,6 +431,19 @@ describe('SyncPresenter backup import', () => {
 
     const backup = await presenter.startBackup()
     expect(backup).not.toBeNull()
+    expect(getPublishedEventPayloads('sync.backup.started')).toHaveLength(1)
+    expect(getPublishedEventPayloads('sync.backup.completed')).toContainEqual(
+      expect.objectContaining({
+        timestamp: backup!.createdAt,
+        version: expect.any(Number)
+      })
+    )
+    expect(getPublishedEventPayloads('sync.backup.status.changed')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: 'preparing', previousStatus: 'idle' }),
+        expect.objectContaining({ status: 'idle', lastSuccessfulBackupTime: backup!.createdAt })
+      ])
+    )
 
     const archivePath = path.join(syncDir, backup!.fileName)
     const files = unzipSync(new Uint8Array(fs.readFileSync(archivePath)))
@@ -495,6 +521,8 @@ describe('SyncPresenter backup import', () => {
     const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
 
     expect(result.success).toBe(true)
+    expect(getPublishedEventPayloads('sync.import.started')).toHaveLength(1)
+    expect(getPublishedEventPayloads('sync.import.completed')).toHaveLength(1)
     expect(result.count).toBe(1)
     expect(result.sourceDbType).toBe('agent')
     expect(result.importedSessions).toBe(1)
@@ -714,6 +742,12 @@ describe('SyncPresenter backup import', () => {
 
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.importFailed')
+    expect(getPublishedEventPayloads('sync.import.error')).toContainEqual(
+      expect.objectContaining({
+        error: expect.any(String),
+        version: expect.any(Number)
+      })
+    )
     expect(fs.readFileSync(appSettingsPath, 'utf-8')).toBe('{not-json')
 
     const db = new Database(path.join(userDataDir, 'app_db', 'agent.db'))

@@ -85,5 +85,10 @@
       "subagent": "子會話"
     },
     "deepChatTargetOnly": "只能選擇 DeepChat Agent 作為遷移目標。ACP 會話可以遷移到 DeepChat，但不能遷移到 ACP。"
+  },
+  "deleteMessage": {
+    "title": "刪除這條訊息？",
+    "description": "將刪除這條訊息以及後續重新生成的上下文，此操作無法復原。",
+    "confirm": "刪除訊息"
   }
 }

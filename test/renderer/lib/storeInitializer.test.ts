@@ -41,16 +41,10 @@ describe('initAppStores', () => {
     vi.doMock('vue-router', () => ({
       useRouter: () => ({})
     }))
-    vi.doMock('@/lib/ipcSubscription', () => ({
-      createIpcSubscriptionScope: () => ({
-        on: vi.fn(),
-        cleanup: vi.fn()
+    vi.doMock('@api/AppRuntimeClient', () => ({
+      createAppRuntimeClient: () => ({
+        onMcpInstallRequested: vi.fn(() => vi.fn())
       })
-    }))
-    vi.doMock('@/events', () => ({
-      DEEPLINK_EVENTS: {
-        MCP_INSTALL: 'mcp-install'
-      }
     }))
 
     const { initAppStores } = await import('@/lib/storeInitializer')

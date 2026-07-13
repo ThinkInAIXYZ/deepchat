@@ -128,7 +128,7 @@ export const ModelSchema = z.object({
   knowledge: z.string().optional(),
   release_date: z.string().optional(),
   last_updated: z.string().optional(),
-  cost: z.record(z.union([z.string(), z.number()])).optional(),
+  cost: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   type: z
     .enum(['chat', 'embedding', 'rerank', 'imageGeneration', 'videoGeneration', 'tts'])
     .optional()
@@ -149,7 +149,7 @@ export const ProviderSchema = z.object({
 export type ProviderEntry = z.infer<typeof ProviderSchema>
 
 export const ProviderAggregateSchema = z.object({
-  providers: z.record(ProviderSchema)
+  providers: z.record(z.string(), ProviderSchema)
 })
 
 export type ProviderAggregate = z.infer<typeof ProviderAggregateSchema>

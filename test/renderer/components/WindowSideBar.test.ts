@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { createPinia } from 'pinia'
+import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 type SetupOptions = {
   groupMode?: 'time' | 'project'
@@ -8,12 +11,25 @@ type SetupOptions = {
   enabledAgents?: Array<{ id: string; name: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   activeSession?: { id: string; agentId: string } | null
   hasActiveSession?: boolean
+  hasLoadedInitialPage?: boolean
+  sessions?: Array<{ id: string }>
+  hasMore?: boolean
+  loading?: boolean
+  loadingMore?: boolean
+  nextPages?: Array<{ items: Array<{ id: string }>; hasMore: boolean }>
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   groups?: Array<{
     id: string
     label: string
     labelKey?: string
-    sessions: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
+    sessions: Array<{
+      id: string
+      title: string
+      status: string
+      isPinned?: boolean
+      projectDir?: string
+      updatedAt?: number
+    }>
   }>
   remoteStatus?: {
     enabled: boolean
@@ -21,6 +37,10 @@ type SetupOptions = {
   }
   collapsed?: boolean
   platform?: 'darwin' | 'win32' | 'linux'
+  projectEnvironments?: Array<{ path: string }>
+  archivedProjectEnvironments?: Array<{ path: string }>
+  defaultChatWorkspacePath?: string | null
+  currentRouteName?: string
 }
 
 const TEST_TIMEOUT_MS = 20000
@@ -67,6 +87,29 @@ const dispatchWindowKeyup = (
       ...modifiers
     })
   )
+
+const flushSidebarFillFrame = async () => {
+  vi.advanceTimersByTime(16)
+  await flushPromises()
+}
+
+const setSidebarListSize = (
+  wrapper: { get: (selector: string) => { element: Element } },
+  sizes: {
+    scrollHeight: number
+    clientHeight: number
+  }
+) => {
+  const listElement = wrapper.get('.session-list').element
+  Object.defineProperty(listElement, 'scrollHeight', {
+    configurable: true,
+    value: sizes.scrollHeight
+  })
+  Object.defineProperty(listElement, 'clientHeight', {
+    configurable: true,
+    value: sizes.clientHeight
+  })
+}
 
 const mountedWrappers: Array<{ unmount: () => void }> = []
 
@@ -124,6 +167,20 @@ const setup = async (options: SetupOptions = {}) => {
     activeSessionId: (options.activeSession?.id ?? 'session-1') as string | null,
     activeSession: options.activeSession ?? null,
     hasActiveSession: options.hasActiveSession ?? true,
+    hasLoadedInitialPage: options.hasLoadedInitialPage ?? true,
+    sessions: (options.sessions ?? []) as Array<{ id: string }>,
+    hasMore: options.hasMore ?? false,
+    loading: options.loading ?? false,
+    loadingMore: options.loadingMore ?? false,
+    loadNextPage: vi.fn(async () => {
+      const nextPage = (options.nextPages ?? []).shift()
+      if (!nextPage) {
+        sessionStore.hasMore = false
+        return
+      }
+      sessionStore.sessions = [...sessionStore.sessions, ...nextPage.items]
+      sessionStore.hasMore = nextPage.hasMore
+    }),
     startNewConversation: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn(async (id: string) => {
       operations.push(`select:${id}`)
@@ -166,12 +223,44 @@ const setup = async (options: SetupOptions = {}) => {
   const pageRouterStore = reactive({
     goToNewThread: vi.fn()
   })
+  const projectStore = reactive({
+    environments: options.projectEnvironments ?? [],
+    archivedEnvironments: options.archivedProjectEnvironments ?? [],
+    defaultChatWorkspacePath: options.defaultChatWorkspacePath ?? null,
+    fetchEnvironments: vi.fn().mockResolvedValue(undefined),
+    reorderEnvironments: vi.fn().mockResolvedValue(undefined),
+    selectProject: vi.fn((path: string | null, source?: string) => {
+      operations.push(`project:${path ?? 'none'}:${source ?? 'default'}`)
+    })
+  })
   const spotlightStore = reactive({
     open: false,
     toggleSpotlight: vi.fn(() => {
       spotlightStore.open = !spotlightStore.open
     })
   })
+  const router = {
+    currentRoute: ref({
+      name: options.currentRouteName ?? 'chat',
+      query: {},
+      params: {}
+    }),
+    hasRoute: vi.fn((name: string) => ['chat', 'plugins', 'plugins-detail'].includes(String(name))),
+    push: vi.fn(async (location: { name?: string }) => {
+      router.currentRoute.value = {
+        name: location.name ?? router.currentRoute.value.name,
+        query: {},
+        params: {}
+      }
+    }),
+    replace: vi.fn(async (location: { name?: string }) => {
+      router.currentRoute.value = {
+        name: location.name ?? router.currentRoute.value.name,
+        query: {},
+        params: {}
+      }
+    })
+  }
   const settingsClient = {
     openSettings: vi.fn().mockResolvedValue({ windowId: 99 })
   }
@@ -182,13 +271,38 @@ const setup = async (options: SetupOptions = {}) => {
       osVersionMetadata: []
     })
   }
-  const remoteControlRuntime = {
+  const remoteControlClient = {
     listRemoteChannels: vi.fn(async () => [
-      { id: 'telegram', implemented: true },
-      { id: 'feishu', implemented: true },
-      { id: 'qqbot', implemented: true },
-      { id: 'discord', implemented: true },
-      { id: 'weixin-ilink', implemented: true }
+      {
+        id: 'telegram' as const,
+        titleKey: 'settings.remote.telegram.title',
+        descriptionKey: 'settings.remote.telegram.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'feishu' as const,
+        titleKey: 'settings.remote.feishu.title',
+        descriptionKey: 'settings.remote.feishu.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'qqbot' as const,
+        titleKey: 'settings.remote.qqbot.title',
+        descriptionKey: 'settings.remote.qqbot.description',
+        supportsCronDelivery: false
+      },
+      {
+        id: 'discord' as const,
+        titleKey: 'settings.remote.discord.title',
+        descriptionKey: 'settings.remote.discord.description',
+        supportsCronDelivery: true
+      },
+      {
+        id: 'weixin-ilink' as const,
+        titleKey: 'settings.remote.weixinIlink.title',
+        descriptionKey: 'settings.remote.weixinIlink.description',
+        supportsCronDelivery: true
+      }
     ]),
     getChannelStatus: vi.fn(
       async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') =>
@@ -270,6 +384,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouterStore
   }))
+  vi.doMock('@/stores/ui/project', () => ({
+    useProjectStore: () => projectStore
+  }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
   }))
@@ -279,13 +396,16 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/DeviceClient', () => ({
     createDeviceClient: vi.fn(() => deviceClient)
   }))
-  vi.doMock('@api/RemoteControlRuntime', () => ({
-    createRemoteControlRuntime: vi.fn(() => remoteControlRuntime)
+  vi.doMock('@api/RemoteControlClient', () => ({
+    createRemoteControlClient: vi.fn(() => remoteControlClient)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string) => key
     })
+  }))
+  vi.doMock('vue-router', () => ({
+    useRouter: () => router
   }))
 
   const passthrough = defineComponent({
@@ -324,10 +444,50 @@ const setup = async (options: SetupOptions = {}) => {
     template: '<button type="button" @click="$emit(\'select\')"><slot /></button>'
   })
 
+  const draggableStub = defineComponent({
+    name: 'draggable',
+    props: {
+      modelValue: {
+        type: Array,
+        default: () => []
+      },
+      disabled: {
+        type: Boolean,
+        default: false
+      }
+    },
+    emits: ['start', 'end', 'update:modelValue'],
+    template:
+      '<div data-testid="project-group-draggable" :data-disabled="String(disabled)"><slot v-for="item in modelValue" name="item" :element="item" /></div>'
+  })
+
+  const dropdownMenuItemStub = defineComponent({
+    props: {
+      disabled: {
+        type: Boolean,
+        default: false
+      }
+    },
+    emits: ['select'],
+    template:
+      '<button type="button" :disabled="disabled" @click="$emit(\'select\')"><slot /></button>'
+  })
+
+  vi.doMock('vuedraggable', () => ({
+    default: draggableStub
+  }))
+  vi.doMock('@shadcn/components/ui/dropdown-menu', () => ({
+    DropdownMenu: passthrough,
+    DropdownMenuTrigger: passthrough,
+    DropdownMenuContent: passthrough,
+    DropdownMenuItem: dropdownMenuItemStub
+  }))
+
   const WindowSideBar = (await import('@/components/WindowSideBar.vue')).default
   const wrapper = trackMountedWrapper(
     mount(WindowSideBar, {
       global: {
+        plugins: [createPinia()],
         stubs: {
           TooltipProvider: passthrough,
           Tooltip: passthrough,
@@ -338,6 +498,7 @@ const setup = async (options: SetupOptions = {}) => {
           ContextMenuContent: passthrough,
           ContextMenuSeparator: passthrough,
           ContextMenuItem: contextMenuItemStub,
+          draggable: draggableStub,
           Dialog: dialogStub,
           DialogContent: passthrough,
           DialogDescription: passthrough,
@@ -363,10 +524,12 @@ const setup = async (options: SetupOptions = {}) => {
     sessionStore,
     settingsClient,
     deviceClient,
-    remoteControlRuntime,
+    remoteControlClient,
     spotlightStore,
+    router,
     pageRouterStore,
-    sidebarStore
+    sidebarStore,
+    projectStore
   }
 }
 
@@ -415,11 +578,14 @@ describe('WindowSideBar agent switch', () => {
     TEST_TIMEOUT_MS
   )
 
-  it('delegates sidebar new chat clicks to the unified session action', async () => {
-    const { wrapper, sessionStore } = await setup()
+  it('routes to chat before delegating sidebar new chat clicks to the unified session action', async () => {
+    const { wrapper, sessionStore, router } = await setup({
+      currentRouteName: 'plugins'
+    })
 
     await (wrapper.vm as any).handleNewChat()
 
+    expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
     expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
 
@@ -467,7 +633,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'normal-1',
                 title: 'Normal Session',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -516,6 +683,123 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
+    'collapses and expands chat sessions from the chat header',
+    async () => {
+      const { wrapper, router, sessionStore, projectStore } = await setup({
+        currentRouteName: 'plugins',
+        defaultChatWorkspacePath: '/Users/test/Documents/DeepChat',
+        groupMode: 'project',
+        groups: [
+          {
+            id: '/Users/test/Documents/DeepChat',
+            label: 'DeepChat',
+            sessions: [
+              {
+                id: 'chat-1',
+                title: 'Chat Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('chat.sidebar.chatSection')
+      expect(wrapper.find('[data-testid="window-sidebar-chat-icon"]').exists()).toBe(false)
+      expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
+
+      await wrapper.get('[data-testid="window-sidebar-chat-new-button"]').trigger('click')
+      await flushPromises()
+
+      expect(projectStore.selectProject).toHaveBeenCalledWith(
+        '/Users/test/Documents/DeepChat',
+        'manual'
+      )
+      expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
+      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
+
+      await wrapper.find('[data-group-id="__chat__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('false')
+      expect(
+        (
+          wrapper.get('[data-group-id="__chat__"]').element.parentElement
+            ?.nextElementSibling as HTMLElement
+        ).style.display
+      ).toBe('none')
+
+      await wrapper.find('[data-group-id="__chat__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
+      expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'starts new conversations from project folder headers only in project grouping',
+    async () => {
+      const { wrapper, projectStore, router, sessionStore } = await setup({
+        currentRouteName: 'plugins',
+        groupMode: 'project',
+        groups: [
+          {
+            id: '/work/design',
+            label: 'design',
+            sessions: [
+              {
+                id: 'project-design',
+                title: 'Design Session',
+                status: 'none',
+                projectDir: '/work/design'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      await wrapper.get('[data-testid="window-sidebar-project-new-button"]').trigger('click')
+      await flushPromises()
+
+      expect(projectStore.selectProject).toHaveBeenCalledWith('/work/design', 'manual')
+      expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
+      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+
+      const { wrapper: timeWrapper } = await setup({
+        groupMode: 'time',
+        groups: [
+          {
+            id: 'today',
+            label: 'Today',
+            sessions: [
+              {
+                id: 'time-project',
+                title: 'Time Project Session',
+                status: 'none',
+                projectDir: '/work/design'
+              }
+            ]
+          }
+        ]
+      })
+
+      await timeWrapper.vm.$nextTick()
+
+      expect(timeWrapper.find('[data-testid="window-sidebar-project-new-button"]').exists()).toBe(
+        false
+      )
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
     'toggles pinned state from a session item action',
     async () => {
       const session = {
@@ -545,37 +829,14 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
-    'filters pinned and grouped sessions by the sidebar search input',
+    'toggles spotlight from the expanded sidebar search command',
     async () => {
-      const { wrapper } = await setup({
-        pinnedSessions: [
-          {
-            id: 'pinned-1',
-            title: 'Alpha Session',
-            status: 'none'
-          }
-        ],
-        groups: [
-          {
-            id: 'common.time.today',
-            label: 'common.time.today',
-            labelKey: 'common.time.today',
-            sessions: [
-              {
-                id: 'group-1',
-                title: 'Beta Session',
-                status: 'none'
-              }
-            ]
-          }
-        ]
-      })
+      const { wrapper, spotlightStore } = await setup()
 
-      await wrapper.find('input').setValue('alpha')
+      await wrapper.get('[data-testid="app-search-command-button"]').trigger('click')
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Alpha Session')
-      expect(wrapper.text()).not.toContain('Beta Session')
+      expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
     },
     TEST_TIMEOUT_MS
   )
@@ -666,7 +927,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'group-1',
                 title: 'Group Session 1',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -701,7 +963,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'group-1',
                 title: 'Group Session 1',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -825,9 +1088,8 @@ describe('WindowSideBar agent switch', () => {
         cancelable: true
       })
 
-      Object.defineProperty(event, 'target', {
-        value: wrapper.find('input').element
-      })
+      const input = document.createElement('input')
+      Object.defineProperty(event, 'target', { value: input })
 
       ;(wrapper.vm as any).handleWindowShortcutKeydown(event)
       await flushPromises()
@@ -984,16 +1246,15 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
-    'keeps the sidebar search region interactive outside the drag area',
+    'keeps the expanded sidebar command region interactive outside the drag area',
     async () => {
       const { wrapper } = await setup()
 
       expect(wrapper.get('[data-testid="window-sidebar-session-column"]').classes()).toContain(
         'window-no-drag-region'
       )
-      expect(wrapper.get('[data-testid="window-sidebar-search"]').classes()).toContain(
-        'window-no-drag-region'
-      )
+      expect(wrapper.get('[data-testid="app-search-command-button"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="app-plugins-button"]').exists()).toBe(true)
     },
     TEST_TIMEOUT_MS
   )
@@ -1046,7 +1307,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'time-1',
                 title: 'Today Session',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -1171,6 +1433,375 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
+    'reorders project groups while preserving hidden environment positions',
+    async () => {
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Beta Session',
+            status: 'none'
+          }
+        ]
+      }
+      const unassignedGroup = {
+        id: '__no_project__',
+        label: 'No Project',
+        labelKey: 'chat.sidebar.noProject',
+        sessions: [
+          {
+            id: 'project-none',
+            title: 'No Project Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [
+          { path: '/work/alpha' },
+          { path: '/work/hidden' },
+          { path: '/work/beta' }
+        ],
+        groups: [alphaGroup, betaGroup, unassignedGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+      const draggable = wrapper.getComponent({ name: 'draggable' })
+      expect(draggable.attributes('data-disabled')).toBe('false')
+
+      draggable.vm.$emit('update:modelValue', [betaGroup, alphaGroup, unassignedGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).toHaveBeenCalledWith([
+        '/work/beta',
+        '/work/hidden',
+        '/work/alpha'
+      ])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'labels the built-in chat workspace separately from reorderable project groups',
+    async () => {
+      const chatGroup = {
+        id: '/Users/test/Documents/DeepChat',
+        label: 'DeepChat',
+        sessions: [
+          {
+            id: 'chat-default',
+            title: 'Default Chat Session',
+            status: 'none'
+          }
+        ]
+      }
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Beta Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        pinnedSessions: [
+          {
+            id: 'pinned-chat',
+            title: 'Pinned Session',
+            status: 'none',
+            isPinned: true
+          }
+        ],
+        defaultChatWorkspacePath: '/Users/test/Documents/DeepChat',
+        projectEnvironments: [
+          { path: '/Users/test/Documents/DeepChat' },
+          { path: '/work/alpha' },
+          { path: '/work/beta' }
+        ],
+        groups: [chatGroup, alphaGroup, betaGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('chat.sidebar.chatSection')
+      expect(wrapper.text()).toContain('chat.sidebar.workspace')
+      expect(wrapper.text()).toContain('Default Chat Session')
+      expect(
+        wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
+      ).toEqual(['__pinned__', '__chat__', '/work/alpha', '/work/beta'])
+      expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
+
+      wrapper
+        .getComponent({ name: 'draggable' })
+        .vm.$emit('update:modelValue', [betaGroup, alphaGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).toHaveBeenCalledWith([
+        '/Users/test/Documents/DeepChat',
+        '/work/beta',
+        '/work/alpha'
+      ])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'labels explicitly no-project sessions as chats outside project group reordering',
+    async () => {
+      const noProjectGroup = {
+        id: '__no_project__',
+        label: 'No Project',
+        labelKey: 'common.project.none',
+        sessions: [
+          {
+            id: 'chat-no-project',
+            title: 'No Project Chat',
+            status: 'none'
+          }
+        ]
+      }
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Beta Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/alpha' }, { path: '/work/beta' }],
+        groups: [noProjectGroup, alphaGroup, betaGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('chat.sidebar.chatSection')
+      expect(wrapper.text()).toContain('chat.sidebar.workspace')
+      expect(wrapper.text()).not.toContain('common.project.none')
+      expect(wrapper.find('[data-group-id="__no_project__"]').exists()).toBe(false)
+      expect(wrapper.find('[data-group-id="__chat__"]').exists()).toBe(true)
+      expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
+
+      wrapper
+        .getComponent({ name: 'draggable' })
+        .vm.$emit('update:modelValue', [betaGroup, alphaGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).toHaveBeenCalledWith(['/work/beta', '/work/alpha'])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'keeps date grouping scoped to workspace sessions',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'time',
+        groups: [
+          {
+            id: 'common.time.lastWeek',
+            label: 'common.time.lastWeek',
+            labelKey: 'common.time.lastWeek',
+            sessions: [
+              {
+                id: 'chat-1',
+                title: 'Chat Session',
+                status: 'none',
+                projectDir: '',
+                updatedAt: 200
+              },
+              {
+                id: 'workspace-1',
+                title: 'Workspace Session',
+                status: 'none',
+                projectDir: '/work/alpha',
+                updatedAt: 100
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
+      ).toEqual(['__chat__', 'common.time.lastWeek'])
+      expect(
+        wrapper
+          .findAll('[data-testid="sidebar-session-item"]')
+          .map((item) => item.attributes('data-session-id'))
+      ).toEqual(['chat-1', 'workspace-1'])
+
+      const html = wrapper.html()
+      expect(html.indexOf('data-group-id="__chat__"')).toBeLessThan(
+        html.indexOf('data-session-id="chat-1"')
+      )
+      expect(html.indexOf('chat.sidebar.workspace')).toBeLessThan(
+        html.indexOf('data-group-id="common.time.lastWeek"')
+      )
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it('does not render the chats group when it has no sessions', async () => {
+    const { wrapper } = await setup({
+      groupMode: 'project',
+      groups: [
+        {
+          id: '__no_project__',
+          label: 'No Project',
+          labelKey: 'common.project.none',
+          sessions: []
+        }
+      ]
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-group-id="__no_project__"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('chat.sidebar.chatSection')
+  })
+
+  it(
+    'disables project group reordering while the sidebar search is active',
+    async () => {
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Shared Session Alpha',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Shared Session Beta',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/alpha' }, { path: '/work/beta' }],
+        groups: [alphaGroup, betaGroup]
+      })
+
+      ;(wrapper.vm as any).sessionSearchQuery = 'shared'
+      await flushPromises()
+
+      const draggable = wrapper.getComponent({ name: 'draggable' })
+      expect(draggable.attributes('data-disabled')).toBe('true')
+      expect(wrapper.find('[aria-label="chat.sidebar.projectGroupActions"]').exists()).toBe(false)
+
+      draggable.vm.$emit('update:modelValue', [betaGroup, alphaGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'keeps archived project groups visible but outside active reordering',
+    async () => {
+      const activeGroup = {
+        id: '/work/active',
+        label: 'active',
+        sessions: [
+          {
+            id: 'project-active',
+            title: 'Active Session',
+            status: 'none'
+          }
+        ]
+      }
+      const archivedGroup = {
+        id: '/work/archived',
+        label: 'archived',
+        sessions: [
+          {
+            id: 'project-archived',
+            title: 'Archived Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/active' }],
+        archivedProjectEnvironments: [{ path: '/work/archived' }],
+        groups: [archivedGroup, activeGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('Active Session')
+      expect(wrapper.text()).toContain('Archived Session')
+      expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(0)
+
+      wrapper
+        .getComponent({ name: 'draggable' })
+        .vm.$emit('update:modelValue', [archivedGroup, activeGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
     'opens the delete dialog and dispatches delete actions',
     async () => {
       const session = {
@@ -1233,8 +1864,43 @@ describe('WindowSideBar agent switch', () => {
     disabledSetup.wrapper.unmount()
   })
 
-  it('opens settings and navigates to remote settings when remote button is clicked', async () => {
-    const { wrapper, settingsClient } = await setup({
+  it('keeps the previous remote display when a refresh fails', async () => {
+    const { wrapper, remoteControlClient, router } = await setup({
+      remoteStatus: {
+        enabled: true,
+        state: 'running'
+      }
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    remoteControlClient.listRemoteChannels.mockResolvedValueOnce([
+      {
+        id: 'qqbot',
+        titleKey: 'settings.remote.qqbot.title',
+        descriptionKey: 'settings.remote.qqbot.description',
+        supportsCronDelivery: false
+      }
+    ])
+    remoteControlClient.getChannelStatus.mockRejectedValueOnce(new Error('IPC unavailable'))
+
+    await expect((wrapper.vm as any).refreshRemoteControlStatus()).resolves.toBe(false)
+    await wrapper.find('[data-testid="remote-control-button"]').trigger('click')
+
+    expect(router.push).toHaveBeenLastCalledWith({
+      name: 'plugins-detail',
+      params: { pluginId: 'remote:telegram' }
+    })
+    expect(warn).toHaveBeenCalledWith(
+      '[WindowSideBar] Failed to refresh remote control status:',
+      expect.any(Error)
+    )
+
+    warn.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('routes to the first enabled remote plugin when remote button is clicked', async () => {
+    const { wrapper, settingsClient, router } = await setup({
       remoteStatus: {
         enabled: true,
         state: 'running'
@@ -1243,11 +1909,99 @@ describe('WindowSideBar agent switch', () => {
 
     await wrapper.find('[data-testid=\"remote-control-button\"]').trigger('click')
     await flushPromises()
-    expect(settingsClient.openSettings).toHaveBeenCalledTimes(1)
-    expect(settingsClient.openSettings).toHaveBeenCalledWith({
-      routeName: 'settings-remote'
+    expect(router.push).toHaveBeenCalledWith({
+      name: 'plugins-detail',
+      params: { pluginId: 'remote:telegram' }
     })
+    expect(settingsClient.openSettings).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
+})
+
+describe('WindowSideBar viewport auto-fill', () => {
+  it(
+    'keeps loading pages until the session list viewport is filled',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        sessions: [{ id: 'session-1' }],
+        hasMore: true,
+        nextPages: [
+          { items: [{ id: 'session-2' }], hasMore: true },
+          { items: [{ id: 'session-3' }], hasMore: false }
+        ]
+      })
+
+      await flushSidebarFillFrame()
+
+      // jsdom 下 scrollHeight/clientHeight 均为 0（未填满视口），
+      // 自动填充应持续翻页直到 hasMore 收敛为 false。
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(2)
+      expect(sessionStore.hasMore).toBe(false)
+      expect(sessionStore.sessions.map((session) => session.id)).toEqual([
+        'session-1',
+        'session-2',
+        'session-3'
+      ])
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'does not auto-load additional pages when there is nothing more to fetch',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        sessions: [{ id: 'session-1' }],
+        hasMore: false
+      })
+
+      await flushSidebarFillFrame()
+
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'rechecks pagination after a group collapse makes the visible list too short',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        hasMore: true,
+        sessions: [{ id: 'session-1' }, { id: 'session-2' }],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              { id: 'session-1', title: 'Alpha', status: 'none', projectDir: '/work/today' },
+              { id: 'session-2', title: 'Bravo', status: 'none', projectDir: '/work/today' }
+            ]
+          }
+        ],
+        nextPages: [{ items: [{ id: 'session-3' }], hasMore: false }]
+      })
+      setSidebarListSize(wrapper, { scrollHeight: 240, clientHeight: 120 })
+      await flushSidebarFillFrame()
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      await wrapper.get('[data-group-id="common.time.today"]').trigger('click')
+      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
+      await flushSidebarFillFrame()
+
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
+      expect(sessionStore.sessions.map((session) => session.id)).toEqual([
+        'session-1',
+        'session-2',
+        'session-3'
+      ])
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
 })

@@ -12,12 +12,11 @@ import {
 } from '@shared/presenter'
 import { DevicePresenter } from '../devicePresenter'
 import { jsonrepair } from 'jsonrepair'
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
+import { emitModelsChanged } from '../configPresenter/eventPublishers'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
 
@@ -247,25 +246,10 @@ export abstract class BaseLLMProvider {
    */
   public async fetchModels(options?: { suppressErrors?: boolean }): Promise<MODEL_META[]> {
     const suppressErrors = options?.suppressErrors ?? true
+    let models: MODEL_META[]
+
     try {
-      return this.fetchProviderModels().then((models) => {
-        logger.info(
-          `[Provider] fetchModels: fetched ${models?.length || 0} models for provider "${this.provider.id}"`
-        )
-        // Validate that all models have correct providerId
-        const validatedModels = models.map((model) => {
-          if (model.providerId !== this.provider.id) {
-            logger.warn(
-              `[Provider] fetchModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}". Fixing it.`
-            )
-            model.providerId = this.provider.id
-          }
-          return model
-        })
-        this.models = validatedModels
-        this.configPresenter.setProviderModels(this.provider.id, validatedModels)
-        return validatedModels
-      })
+      models = await this.fetchProviderModels()
     } catch (e) {
       logger.error(
         `[Provider] fetchModels: Failed to fetch models for provider "${this.provider.id}":`,
@@ -279,6 +263,23 @@ export abstract class BaseLLMProvider {
       }
       return []
     }
+
+    logger.info(
+      `[Provider] fetchModels: fetched ${models?.length || 0} models for provider "${this.provider.id}"`
+    )
+    // Validate that all models have correct providerId
+    const validatedModels = models.map((model) => {
+      if (model.providerId !== this.provider.id) {
+        logger.warn(
+          `[Provider] fetchModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}". Fixing it.`
+        )
+        model.providerId = this.provider.id
+      }
+      return model
+    })
+    this.models = validatedModels
+    this.configPresenter.setProviderModels(this.provider.id, validatedModels)
+    return validatedModels
   }
 
   /**
@@ -295,7 +296,7 @@ export abstract class BaseLLMProvider {
     logger.info(
       `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
     )
-    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
+    emitModelsChanged(this.provider.id)
   }
 
   /**

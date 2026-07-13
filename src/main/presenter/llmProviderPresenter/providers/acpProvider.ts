@@ -25,9 +25,8 @@ import {
   type PermissionRequestOption
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
-import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { emitModelsChanged } from '@/presenter/configPresenter/eventPublishers'
 import {
   AcpProcessManager,
   AcpSessionManager,
@@ -96,7 +95,10 @@ type PendingPermissionState = {
   context: PermissionRequestContext
   resolve: (response: schema.RequestPermissionResponse) => void
   reject: (error: Error) => void
+  timeoutId: ReturnType<typeof setTimeout>
 }
+
+const ACP_PERMISSION_TIMEOUT_MS = 60_000
 
 type AcpConnectionWithModelSelection = {
   unstable_setSessionModel?: (
@@ -253,7 +255,7 @@ export class AcpProvider extends BaseLLMProvider {
       await this.autoEnableModelsIfNeeded()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
       logger.info(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
-      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
+      emitModelsChanged(this.provider.id)
       console.info('Provider initialized successfully:', this.provider.name)
     } catch (error) {
       console.warn('Provider initialization failed:', this.provider.name, error)
@@ -273,7 +275,7 @@ export class AcpProvider extends BaseLLMProvider {
       logger.info(
         `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
       )
-      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
+      emitModelsChanged(this.provider.id)
     }
   }
 
@@ -457,6 +459,7 @@ export class AcpProvider extends BaseLLMProvider {
         } catch (error) {
           console.warn('[ACP] cancel failed:', error)
         }
+        this.contentMapper.clearSession(session.sessionId)
         this.clearPendingPermissionsForSession(session.sessionId)
       }
     }
@@ -636,10 +639,11 @@ export class AcpProvider extends BaseLLMProvider {
       }
       events.push(record)
       if (request.webContentsId) {
-        eventBus.sendToRenderer(ACP_DEBUG_EVENTS.EVENT, SendTarget.ALL_WINDOWS, {
+        publishDeepchatEvent('providers.acp.debug.event', {
           webContentsId: request.webContentsId,
           agentId: agent.id,
-          event: record
+          event: record,
+          version: Date.now()
         })
       }
     }
@@ -1456,12 +1460,13 @@ export class AcpProvider extends BaseLLMProvider {
     currentModeId?: string,
     availableModes?: Array<{ id: string; name: string; description: string }>
   ): void {
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('sessions.acp.modes.ready', {
       conversationId,
       agentId,
       workdir,
       current: currentModeId ?? 'default',
-      available: availableModes ?? []
+      available: availableModes ?? [],
+      version: Date.now()
     })
   }
 
@@ -1474,11 +1479,6 @@ export class AcpProvider extends BaseLLMProvider {
       input?: { hint: string } | null
     }>
   ): void {
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY, SendTarget.ALL_WINDOWS, {
-      conversationId,
-      agentId,
-      commands
-    })
     publishDeepchatEvent('sessions.acp.commands.ready', {
       conversationId,
       agentId,
@@ -1493,16 +1493,6 @@ export class AcpProvider extends BaseLLMProvider {
     workdir: string,
     configState?: AcpConfigState | null
   ): void {
-    eventBus.sendToRenderer(
-      ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId,
-        agentId,
-        workdir,
-        configState: configState ?? normalizeAcpConfigState({})
-      }
-    )
     publishDeepchatEvent('sessions.acp.configOptions.ready', {
       conversationId,
       agentId,
@@ -1539,13 +1529,23 @@ export class AcpProvider extends BaseLLMProvider {
     const requestId = nanoid()
 
     const promise = new Promise<schema.RequestPermissionResponse>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        const state = this.removePendingPermission(requestId)
+        if (!state) {
+          return
+        }
+        console.warn(`[ACP] Permission request timed out: ${requestId}`)
+        state.resolve({ outcome: { outcome: 'cancelled' } })
+      }, ACP_PERMISSION_TIMEOUT_MS)
+
       this.pendingPermissions.set(requestId, {
         requestId,
         sessionId: params.sessionId,
         params,
         context,
         resolve,
-        reject
+        reject,
+        timeoutId
       })
     })
 
@@ -1652,12 +1652,10 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   public async resolvePermissionRequest(requestId: string, granted: boolean): Promise<void> {
-    const state = this.pendingPermissions.get(requestId)
+    const state = this.removePendingPermission(requestId)
     if (!state) {
       throw new Error(`Unknown ACP permission request: ${requestId}`)
     }
-
-    this.pendingPermissions.delete(requestId)
 
     const option = this.pickPermissionOption(state.params.options, granted ? 'allow' : 'deny')
     if (option) {
@@ -1670,11 +1668,20 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
+  private removePendingPermission(requestId: string): PendingPermissionState | undefined {
+    const state = this.pendingPermissions.get(requestId)
+    if (!state) {
+      return undefined
+    }
+    this.pendingPermissions.delete(requestId)
+    clearTimeout(state.timeoutId)
+    return state
+  }
+
   private clearPendingPermissionsForSession(sessionId: string): void {
     for (const [requestId, state] of this.pendingPermissions.entries()) {
       if (state.sessionId === sessionId) {
-        this.pendingPermissions.delete(requestId)
-        state.resolve({ outcome: { outcome: 'cancelled' } })
+        this.removePendingPermission(requestId)?.resolve({ outcome: { outcome: 'cancelled' } })
       }
     }
   }
@@ -1829,13 +1836,13 @@ export class AcpProvider extends BaseLLMProvider {
         session.workdir,
         session.configState
       )
-      eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, SendTarget.ALL_WINDOWS, {
+      this.emitSessionModesReady(
         conversationId,
-        agentId: session.agentId,
-        workdir: session.workdir,
-        current: modeId,
-        available: session.availableModes ?? []
-      })
+        session.agentId,
+        session.workdir,
+        modeId,
+        session.availableModes
+      )
       console.info(
         `[ACP] Session mode successfully changed to "${modeId}" for conversation ${conversationId}`
       )
@@ -2021,9 +2028,8 @@ export class AcpProvider extends BaseLLMProvider {
       console.warn('[ACP] Cleanup: failed to shutdown process manager:', error)
     }
 
-    for (const [requestId, state] of this.pendingPermissions.entries()) {
-      state.resolve({ outcome: { outcome: 'cancelled' } })
-      this.pendingPermissions.delete(requestId)
+    for (const [requestId] of this.pendingPermissions.entries()) {
+      this.removePendingPermission(requestId)?.resolve({ outcome: { outcome: 'cancelled' } })
     }
   }
 }

@@ -209,7 +209,7 @@ describe('CompactionService', () => {
     vi.clearAllMocks()
   })
 
-  it('preserves file bodies and image metadata in user summary blocks', async () => {
+  it('preserves attachment metadata without replaying file bodies in user summary blocks', async () => {
     const { service, messageStore } = createService()
 
     messageStore.getMessages.mockReturnValue([
@@ -247,7 +247,10 @@ describe('CompactionService', () => {
     })
 
     expect(intent).not.toBeNull()
-    expect(intent?.summaryBlocks[0]).toContain('Detailed file body')
+    expect(intent?.summaryBlocks[0]).toContain('[Attached File 1]')
+    expect(intent?.summaryBlocks[0]).toContain('path: /tmp/spec.md')
+    expect(intent?.summaryBlocks[0]).toContain('content: [omitted; use read if needed]')
+    expect(intent?.summaryBlocks[0]).not.toContain('Detailed file body')
     expect(intent?.summaryBlocks[0]).toContain('[Attached Image 1]')
     expect(intent?.summaryBlocks[0]).not.toContain('data:image/png')
   })
@@ -595,6 +598,32 @@ describe('CompactionService', () => {
     const buildHistoryTurns = vi.mocked(contextBuilderModule.buildHistoryTurns)
     const records = buildHistoryTurns.mock.calls.at(-1)?.[0] ?? []
     expect(records.map((record) => record.id)).toContain('assistant-2')
+  })
+
+  it('marks forced context-pressure recovery as auto handoff context overflow', async () => {
+    const { service, messageStore } = createService()
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'first turn '.repeat(20)),
+      makeAssistantRecord(2, 'first reply '.repeat(20)),
+      makeUserRecord(3, 'second turn '.repeat(20)),
+      makeAssistantRecord(4, 'second reply '.repeat(20)),
+      makeUserRecord(5, 'third turn '.repeat(20)),
+      makeAssistantRecord(6, 'third reply '.repeat(20))
+    ])
+
+    const intent = await service.prepareForContextPressureRecovery({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 700,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      projectedMessages: []
+    })
+
+    expect(intent?.anchorName).toBe('auto_handoff/context_overflow')
   })
 
   it('retains the configured recent pairs plus the resume target turn', async () => {

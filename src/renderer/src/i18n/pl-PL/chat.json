@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Steruj",
     "queueCount": "W kolejce {count}/{max}",
-    "resumeQueue": "Wznów wysyłanie",
-    "toSteer": "Steruj",
+    "toSteer": "Przerwij i wyślij",
     "locked": "Zablokowane",
     "reorder": "Zmień kolejność",
     "files": "Pliki {count}",
     "attachmentsOnly": "Załączniki {count}",
     "empty": "Pusta wiadomość",
-    "limitReached": "Pas oczekujących jest pełny (maks. {max})."
+    "limitReached": "Pas oczekujących jest pełny (maks. {max}).",
+    "remove": "Usuń",
+    "steerUnavailable": "Nie można teraz przerwać",
+    "steerFailed": "Nie udało się przerwać tej tury"
   },
   "features": {
     "webSearch": "Wyszukiwanie w Internecie",
@@ -243,9 +245,9 @@
         "pending": "Oczekujące",
         "in_progress": "W toku",
         "completed": "Ukończono",
-        "failed": "Nie udało się",
-        "skipped": "Pominięte"
-      }
+        "interrupted": "Przerwano"
+      },
+      "completedCount": "{completed}/{total} ukończono"
     },
     "files": {
       "section": "Pliki",
@@ -260,6 +262,10 @@
         "openFile": "Otwórz plik",
         "revealInFolder": "Pokaż w menedżerze plików",
         "insertPath": "Wstaw do wejścia"
+      },
+      "watchStatus": {
+        "degraded": "Obserwowanie działa w trybie awaryjnym. Zmiany mogą odświeżać się wolniej.",
+        "failed": "Obserwowanie plików jest niedostępne. Odśwież lub wybierz obszar roboczy ponownie."
       }
     },
     "git": {
@@ -321,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Domyślne uprawnienia",
-    "fullAccess": "Pełny dostęp"
+    "fullAccess": "Pełny dostęp",
+    "autoApprove": "Zatwierdź za mnie"
   },
   "sidebar": {
     "allAgents": "Wszystkie Agents",
@@ -343,12 +350,21 @@
     "groupByDate": "Grupuj według daty",
     "groupByProject": "Grupuj według projektu",
     "pinned": "Przypięty",
+    "chats": "Czaty",
     "emptyTitle": "Nie ma jeszcze żadnych rozmów",
     "emptyDescription": "Aby rozpocząć, rozpocznij nowy czat",
     "searchPlaceholder": "Wyszukaj czaty",
     "searchAriaLabel": "Wyszukaj czaty",
     "searchEmptyTitle": "Brak pasujących rozmów",
-    "searchEmptyDescription": "Wypróbuj inne słowo kluczowe w tytule"
+    "searchEmptyDescription": "Wypróbuj inne słowo kluczowe w tytule",
+    "projectGroupActions": "Akcje grupy projektu",
+    "moveProjectGroupTop": "Przenieś na górę",
+    "moveProjectGroupUp": "Przenieś wyżej",
+    "moveProjectGroupDown": "Przenieś niżej",
+    "moveProjectGroupBottom": "Przenieś na dół",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Przeszukuj czaty, agentów, ustawienia, działania…",
@@ -416,6 +432,58 @@
       "hour": "godz. ",
       "minute": "min ",
       "second": "s"
+    }
+  },
+  "memory": {
+    "toolbar": "Użyte pamięci",
+    "status": {
+      "archived": "Zapomniana"
+    },
+    "actions": {
+      "undo": "Cofnij",
+      "forget": "Zapomnij",
+      "edit": "Edytuj"
+    },
+    "chip": {
+      "title": "Pamięć zaktualizowana {count}",
+      "heading": "Pamięć zaktualizowana",
+      "description": "Ta tura dodała następujące pamięci."
+    },
+    "selection": {
+      "remember": "Zapamiętaj to"
+    },
+    "turn": {
+      "title": "Pamięci użyte w tej turze",
+      "empty": "W tej turze nie wstrzyknięto żadnych pamięci",
+      "selected": "Wybrane",
+      "dropped": "Pominięte",
+      "tokens": "Tokeny",
+      "budget": "Budżet",
+      "countOnly": "Ten rekord zawiera tylko podsumowanie liczby.",
+      "unavailable": "Ta pamięć nie jest już dostępna.",
+      "noSelectedDetails": "Brak szczegółów pamięci do pokazania w tej turze.",
+      "refreshFailed": "Nie udało się odświeżyć. Wyświetlane są ostatnio wczytane pamięci.",
+      "error": "Nie udało się wczytać pamięci użytych w tej turze."
+    },
+    "toast": {
+      "undoSuccess": "Pamięć została cofnięta",
+      "undoFailed": "Nie udało się cofnąć pamięci",
+      "forgetSuccess": "Pamięć została zapomniana",
+      "forgetFailed": "Nie udało się zapomnieć pamięci",
+      "amendFailed": "Nie udało się zaktualizować pamięci",
+      "rememberFailed": "Nie udało się zapisać pamięci",
+      "add": {
+        "created": "Zapisano jako nową pamięć",
+        "updated": "Zaktualizowano istniejącą pamięć",
+        "superseded": "Scalono ze zaktualizowaną pamięcią",
+        "challenged": "Zapisano jako pamięć do przeglądu",
+        "noop": "Nie dodano nowej pamięci"
+      }
+    },
+    "errors": {
+      "actionFailed": "Akcja nie powiodła się. Spróbuj ponownie.",
+      "amendRetryable": "Edycja się nie powiodła. Oryginalna pamięć została przywrócona, spróbuj ponownie.",
+      "amendRestoreFailed": "Edycja się nie powiodła i nie udało się przywrócić oryginalnej pamięci."
     }
   }
 }

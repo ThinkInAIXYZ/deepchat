@@ -74,7 +74,7 @@ export interface AdaptAiSdkStreamOptions {
 }
 
 export async function* adaptAiSdkStream(
-  fullStream: AsyncIterable<TextStreamPart<ToolSet>>,
+  stream: AsyncIterable<TextStreamPart<ToolSet>>,
   options: AdaptAiSdkStreamOptions
 ): AsyncGenerator<LLMCoreStreamEvent> {
   const toolArgumentBuffers = new Map<string, string>()
@@ -144,7 +144,7 @@ export async function* adaptAiSdkStream(
     }
   }
 
-  for await (const part of fullStream) {
+  for await (const part of stream) {
     switch (part.type) {
       case 'text-delta': {
         if (options.supportsNativeTools) {

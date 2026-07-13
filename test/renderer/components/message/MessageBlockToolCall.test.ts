@@ -102,6 +102,41 @@ afterEach(() => {
 })
 
 describe('MessageBlockToolCall', () => {
+  it('renders reviewing status for auto approve review marker', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'pending',
+          extra: {
+            autoApproveReviewStatus: 'reviewing'
+          },
+          tool_call: { name: 'read', params: '{"path":"/tmp/file"}' }
+        })
+      }
+    })
+
+    const indicator = wrapper.get('[data-testid="tool-call-running-indicator"]')
+    expect(indicator.attributes('data-status-variant')).toBe('reviewing')
+    expect(indicator.classes()).toContain('tool-call-status-ring-reviewing')
+  })
+
+  it('keeps terminal error status ahead of a stale auto approve review marker', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'error',
+          extra: {
+            autoApproveReviewStatus: 'reviewing'
+          },
+          tool_call: { name: 'read', response: 'blocked' }
+        })
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-running-indicator"]').exists()).toBe(false)
+    expect(wrapper.find('.text-destructive').exists()).toBe(true)
+  })
+
   it('renders diff response with CodeBlockNode', async () => {
     const response = JSON.stringify({
       success: true,

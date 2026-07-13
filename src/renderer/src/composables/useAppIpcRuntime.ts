@@ -1,14 +1,8 @@
-import {
-  APP_RUNTIME_EVENTS,
-  DEEPLINK_EVENTS,
-  DEV_EVENTS,
-  NOTIFICATION_EVENTS,
-  SHORTCUT_EVENTS
-} from '@/events'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
+import { createAppRuntimeClient } from '@api/AppRuntimeClient'
+import { createWindowClient } from '@api/WindowClient'
 
 interface UseAppIpcRuntimeOptions {
-  handleStartDeeplink: (event: unknown, payload?: unknown) => void
+  handleStartDeeplink: (payload?: unknown) => void
   handleStartGuidedOnboardingDev: () => void | Promise<void>
   handleWindowFocused: () => void | Promise<void>
   showErrorToast: (error: { id: string; title: string; message: string; type: string }) => void
@@ -30,40 +24,66 @@ export function useAppIpcRuntime(options: UseAppIpcRuntimeOptions) {
 
   const setup = () => {
     cleanupListeners?.()
-    const scope = createIpcSubscriptionScope()
-
-    scope.on(DEEPLINK_EVENTS.START, options.handleStartDeeplink)
-    scope.on(DEV_EVENTS.START_GUIDED_ONBOARDING, () => {
-      void options.handleStartGuidedOnboardingDev()
+    const appRuntimeClient = createAppRuntimeClient()
+    const windowClient = createWindowClient()
+    const cleanupNotificationError = windowClient.onNotificationError((error) => {
+      options.showErrorToast(error)
     })
-    scope.on(APP_RUNTIME_EVENTS.WINDOW_FOCUSED, () => {
-      void options.handleWindowFocused()
-    })
-    scope.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
-      options.showErrorToast(error as { id: string; title: string; message: string; type: string })
-    })
-    scope.on(NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED, (_event, payload) => {
+    const cleanupDatabaseRepairSuggested = windowClient.onDatabaseRepairSuggested((payload) => {
       options.handleDatabaseRepairSuggested(payload)
     })
-    scope.on(SHORTCUT_EVENTS.ZOOM_IN, options.handleZoomIn)
-    scope.on(SHORTCUT_EVENTS.ZOOM_OUT, options.handleZoomOut)
-    scope.on(SHORTCUT_EVENTS.ZOOM_RESUME, options.handleZoomResume)
-    scope.on(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, () => {
-      if (options.getCurrentRouteName() !== 'chat') {
-        return
+
+    const cleanups: Array<() => void> = [
+      cleanupNotificationError,
+      cleanupDatabaseRepairSuggested,
+      appRuntimeClient.onStartDeeplink((payload) => {
+        options.handleStartDeeplink(payload)
+      }),
+      appRuntimeClient.onGuidedOnboardingStartRequested(() => {
+        void options.handleStartGuidedOnboardingDev()
+      }),
+      appRuntimeClient.onWindowFocused(() => {
+        void options.handleWindowFocused()
+      }),
+      appRuntimeClient.onShortcutRequested((payload) => {
+        switch (payload.action) {
+          case 'zoomIn':
+            options.handleZoomIn()
+            break
+          case 'zoomOut':
+            options.handleZoomOut()
+            break
+          case 'zoomResume':
+            options.handleZoomResume()
+            break
+          case 'createNewConversation':
+            if (options.getCurrentRouteName() !== 'chat') {
+              return
+            }
+            void options.handleCreateNewConversation()
+            break
+          case 'toggleSidebar':
+            options.handleToggleSidebar()
+            break
+          case 'toggleWorkspace':
+            options.handleToggleWorkspace()
+            break
+          case 'toggleSpotlight':
+            options.openSpotlight()
+            break
+        }
+      }),
+      appRuntimeClient.onDataResetCompleteDev(options.handleDataResetComplete),
+      appRuntimeClient.onSystemNotificationClicked((payload) => {
+        options.handleSystemNotificationClick(payload.payload)
+      })
+    ]
+
+    cleanupListeners = () => {
+      for (const cleanup of cleanups.splice(0)) {
+        cleanup()
       }
-
-      void options.handleCreateNewConversation()
-    })
-    scope.on(SHORTCUT_EVENTS.TOGGLE_SIDEBAR, options.handleToggleSidebar)
-    scope.on(SHORTCUT_EVENTS.TOGGLE_WORKSPACE, options.handleToggleWorkspace)
-    scope.on(SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT, options.openSpotlight)
-    scope.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, options.handleDataResetComplete)
-    scope.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_event, payload) => {
-      options.handleSystemNotificationClick(payload)
-    })
-
-    cleanupListeners = scope.cleanup
+    }
   }
 
   const cleanup = () => {

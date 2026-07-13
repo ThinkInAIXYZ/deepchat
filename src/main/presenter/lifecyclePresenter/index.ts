@@ -4,7 +4,7 @@ import logger from '@shared/logger'
  */
 
 import { app } from 'electron'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { LIFECYCLE_EVENTS, WINDOW_EVENTS, UPDATE_EVENTS } from '@/events'
 import { SplashWindowManager } from './SplashWindowManager'
 import {
@@ -546,9 +546,6 @@ export class LifecycleManager implements ILifecycleManager {
 
   private notifyMessage(event: string, data: BaseLifecycleEvent) {
     eventBus.sendToMain(event, data)
-    if (this.lifecycleContext.presenter) {
-      eventBus.sendToRenderer(event, SendTarget.ALL_WINDOWS, data)
-    }
   }
 
   private forceShutdown(): void {

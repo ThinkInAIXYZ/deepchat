@@ -4,10 +4,25 @@ import type {
   DeepChatTapeEntryRow,
   DeepChatTapeSearchInput
 } from '../sqlitePresenter/tables/deepchatTapeEntries'
+import {
+  parseNestedTapeJsonObject,
+  readTapeMessageRetractionId,
+  readTapeToolIdentity,
+  tapeEntryToMessageRecord,
+  tapeMessageRank,
+  tapeToolRank
+} from '../sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
+
+export interface EffectiveMessageEntry {
+  entryId: number
+  record: ChatMessageRecord
+}
 
 export interface EffectiveTapeView {
   rows: DeepChatTapeEntryRow[]
   messageRecords: ChatMessageRecord[]
+  /** Effective messages paired with their tape entry_id, ordered by orderSeq (for lineage). */
+  messageEntries: EffectiveMessageEntry[]
 }
 
 interface EffectiveTapeViewOptions {
@@ -20,29 +35,8 @@ type EffectiveMessageCandidate = {
   record: ChatMessageRecord
 }
 
-type ToolIdentity = {
-  key: string
-  messageId: string
-}
-
-function parseJsonObject(raw: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
-  } catch {}
-  return {}
-}
-
-function parseNestedJsonObject(value: unknown): Record<string, unknown> {
-  if (typeof value === 'string') {
-    return parseJsonObject(value)
-  }
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  return {}
+function compareSqliteBinaryText(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
 }
 
 function toNonNegativeInteger(value: unknown): number | null {
@@ -67,54 +61,6 @@ function readTokenUsage(metadata: Record<string, unknown>): number | null {
   return null
 }
 
-function isMessageStatus(value: unknown): value is ChatMessageRecord['status'] {
-  return value === 'pending' || value === 'sent' || value === 'error'
-}
-
-function tapeEntryToMessageRecord(row: DeepChatTapeEntryRow): ChatMessageRecord | null {
-  if (row.kind !== 'message') {
-    return null
-  }
-
-  const payload = parseJsonObject(row.payload_json)
-  const record = payload.record
-  if (!record || typeof record !== 'object' || Array.isArray(record)) {
-    return null
-  }
-
-  const candidate = record as Partial<ChatMessageRecord>
-  if (
-    typeof candidate.id !== 'string' ||
-    typeof candidate.sessionId !== 'string' ||
-    typeof candidate.orderSeq !== 'number' ||
-    (candidate.role !== 'user' && candidate.role !== 'assistant') ||
-    typeof candidate.content !== 'string'
-  ) {
-    return null
-  }
-
-  return {
-    id: candidate.id,
-    sessionId: candidate.sessionId,
-    orderSeq: candidate.orderSeq,
-    role: candidate.role,
-    content: candidate.content,
-    status: isMessageStatus(candidate.status) ? candidate.status : 'sent',
-    isContextEdge: typeof candidate.isContextEdge === 'number' ? candidate.isContextEdge : 0,
-    metadata: typeof candidate.metadata === 'string' ? candidate.metadata : '{}',
-    traceCount: typeof candidate.traceCount === 'number' ? candidate.traceCount : 0,
-    createdAt: typeof candidate.createdAt === 'number' ? candidate.createdAt : row.created_at,
-    updatedAt: typeof candidate.updatedAt === 'number' ? candidate.updatedAt : row.created_at
-  }
-}
-
-function messageRank(record: ChatMessageRecord, includePending: boolean): number {
-  if (record.status === 'sent' || record.status === 'error') {
-    return 2
-  }
-  return includePending && record.status === 'pending' ? 1 : 0
-}
-
 function shouldReplaceMessage(
   current: EffectiveMessageCandidate | undefined,
   next: EffectiveMessageCandidate,
@@ -124,8 +70,8 @@ function shouldReplaceMessage(
     return true
   }
 
-  const currentRank = messageRank(current.record, includePending)
-  const nextRank = messageRank(next.record, includePending)
+  const currentRank = tapeMessageRank(current.record, includePending)
+  const nextRank = tapeMessageRank(next.record, includePending)
   if (nextRank > currentRank) {
     return true
   }
@@ -135,63 +81,12 @@ function shouldReplaceMessage(
   return next.row.entry_id > current.row.entry_id
 }
 
-function readMessageRetractionId(row: DeepChatTapeEntryRow): string | null {
-  if (row.kind !== 'event' || row.name !== 'message/retracted') {
-    return null
-  }
-
-  const payload = parseJsonObject(row.payload_json)
-  const data = parseNestedJsonObject(payload.data)
-  return typeof data.messageId === 'string' ? data.messageId : null
-}
-
 function isAuditEvent(row: DeepChatTapeEntryRow): boolean {
   return (
     row.name === 'message/retracted' ||
     row.name === 'message/compaction_indicator' ||
     row.name === 'migration/backfill'
   )
-}
-
-function readToolStatus(row: DeepChatTapeEntryRow): string | null {
-  const meta = parseJsonObject(row.meta_json)
-  return typeof meta.status === 'string' ? meta.status : null
-}
-
-function toolRank(row: DeepChatTapeEntryRow, includePending: boolean): number {
-  const status = readToolStatus(row)
-  if (status === 'pending') {
-    return includePending ? 1 : 0
-  }
-  return 2
-}
-
-function readToolIdentity(row: DeepChatTapeEntryRow): ToolIdentity | null {
-  if (row.kind !== 'tool_call' && row.kind !== 'tool_result') {
-    return null
-  }
-
-  const payload = parseJsonObject(row.payload_json)
-  const messageId = payload.messageId
-  if (typeof messageId !== 'string' || messageId.length === 0) {
-    return null
-  }
-
-  let toolCallId: unknown
-  if (row.kind === 'tool_call') {
-    toolCallId = parseNestedJsonObject(payload.toolCall).id
-  } else {
-    toolCallId = payload.toolCallId
-  }
-
-  if (typeof toolCallId !== 'string' || toolCallId.length === 0) {
-    return null
-  }
-
-  return {
-    key: `${row.kind}:${messageId}:${toolCallId}`,
-    messageId
-  }
 }
 
 function shouldReplaceToolRow(
@@ -203,8 +98,8 @@ function shouldReplaceToolRow(
     return true
   }
 
-  const currentRank = toolRank(current, includePending)
-  const nextRank = toolRank(next, includePending)
+  const currentRank = tapeToolRank(current, includePending)
+  const nextRank = tapeToolRank(next, includePending)
   if (nextRank > currentRank) {
     return true
   }
@@ -258,7 +153,7 @@ export function buildEffectiveTapeView(
     }
 
     if (row.kind === 'event') {
-      const retractedMessageId = readMessageRetractionId(row)
+      const retractedMessageId = readTapeMessageRetractionId(row)
       if (retractedMessageId) {
         messageCandidates.delete(retractedMessageId)
         retractedMessageIds.add(retractedMessageId)
@@ -274,7 +169,7 @@ export function buildEffectiveTapeView(
       if (!record) {
         continue
       }
-      const rank = messageRank(record, includePending)
+      const rank = tapeMessageRank(record, includePending)
       if (rank === 0) {
         continue
       }
@@ -286,8 +181,8 @@ export function buildEffectiveTapeView(
       continue
     }
 
-    const identity = readToolIdentity(row)
-    if (!identity || toolRank(row, includePending) === 0) {
+    const identity = readTapeToolIdentity(row)
+    if (!identity || tapeToolRank(row, includePending) === 0) {
       continue
     }
     const current = toolRows.get(identity.key)?.row
@@ -298,7 +193,11 @@ export function buildEffectiveTapeView(
 
   const messageRows = [...messageCandidates.values()]
     .filter((candidate) => !retractedMessageIds.has(candidate.record.id))
-    .sort((left, right) => left.record.orderSeq - right.record.orderSeq)
+    .sort(
+      (left, right) =>
+        left.record.orderSeq - right.record.orderSeq ||
+        compareSqliteBinaryText(left.record.id, right.record.id)
+    )
   const effectiveMessageIds = new Set(messageRows.map((candidate) => candidate.record.id))
   const effectiveToolRows = [...toolRows.values()]
     .filter((candidate) => effectiveMessageIds.has(candidate.messageId))
@@ -312,7 +211,11 @@ export function buildEffectiveTapeView(
 
   return {
     rows: effectiveRows,
-    messageRecords: messageRows.map((candidate) => candidate.record)
+    messageRecords: messageRows.map((candidate) => candidate.record),
+    messageEntries: messageRows.map((candidate) => ({
+      entryId: candidate.row.entry_id,
+      record: candidate.record
+    }))
   }
 }
 
@@ -343,7 +246,7 @@ export function getLastEffectiveTokenUsage(rows: DeepChatTapeEntryRow[]): number
     if (!record || record.role !== 'assistant') {
       continue
     }
-    const usage = readTokenUsage(parseNestedJsonObject(record.metadata))
+    const usage = readTokenUsage(parseNestedTapeJsonObject(record.metadata))
     if (usage !== null) {
       return usage
     }

@@ -1,9 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/acpProvider'
 import { LEGACY_MODE_CONFIG_ID } from '../../../src/main/presenter/llmProviderPresenter/acp'
-import { ACP_WORKSPACE_EVENTS } from '../../../src/main/events'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
 vi.mock('electron', () => ({
   app: {
@@ -15,12 +16,8 @@ vi.mock('electron', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
-    sendToRenderer: vi.fn(),
     emit: vi.fn(),
     send: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
   }
 }))
 
@@ -39,7 +36,15 @@ vi.mock('@/presenter/proxyConfig', () => ({
   }
 }))
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
+
 describe('AcpProvider runDebugAction error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   const agent = { id: 'agent1', name: 'Agent 1' }
   const createConfigState = (modelValue = 'gpt-5'): AcpConfigState => ({
     source: 'configOptions',
@@ -152,6 +157,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const result = await provider.runDebugAction({
       agentId: 'agent1',
       action: 'newSession',
+      webContentsId: 42,
       payload: {
         cwd: undefined,
         mcpServers: []
@@ -163,6 +169,24 @@ describe('AcpProvider runDebugAction error handling', () => {
       cwd: '/tmp/debug-workdir',
       mcpServers: []
     })
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+      'providers.acp.debug.event',
+      expect.objectContaining({
+        webContentsId: 42,
+        agentId: 'agent1',
+        event: expect.objectContaining({
+          kind: 'request',
+          action: 'newSession',
+          agentId: 'agent1',
+          payload: expect.objectContaining({
+            cwd: '/tmp/debug-workdir',
+            mcpServers: []
+          })
+        }),
+        version: expect.any(Number)
+      })
+    )
+    expect(eventBus.send).not.toHaveBeenCalled()
   })
 
   it('reports debug initialize state without sending a second initialize request', async () => {
@@ -535,6 +559,78 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(payload.description).toBe('components.messageBlockPermissionRequest.description.command')
   })
 
+  it('cancels pending permission requests when they time out', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const provider = Object.create(AcpProvider.prototype) as any
+      provider.pendingPermissions = new Map()
+
+      const { requestId, promise } = provider.registerPendingPermission(
+        {
+          sessionId: 'session-1',
+          toolCall: {
+            toolCallId: 'tc-terminal',
+            title: 'Terminal',
+            kind: 'execute',
+            rawInput: { command: 'dir' }
+          },
+          options: []
+        },
+        {
+          conversationId: 'conv-1',
+          agent: { id: 'agent1', name: 'Claude Agent', command: 'claude' }
+        }
+      )
+
+      expect(provider.pendingPermissions.has(requestId)).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      await expect(promise).resolves.toEqual({ outcome: { outcome: 'cancelled' } })
+      expect(provider.pendingPermissions.has(requestId)).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears pending permission timeout when resolving a request', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const provider = Object.create(AcpProvider.prototype) as any
+      provider.pendingPermissions = new Map()
+
+      const { requestId, promise } = provider.registerPendingPermission(
+        {
+          sessionId: 'session-1',
+          toolCall: {
+            toolCallId: 'tc-terminal',
+            title: 'Terminal',
+            kind: 'execute',
+            rawInput: { command: 'dir' }
+          },
+          options: [{ optionId: 'allow-1', kind: 'allow_once', name: 'Allow' }]
+        },
+        {
+          conversationId: 'conv-1',
+          agent: { id: 'agent1', name: 'Claude Agent', command: 'claude' }
+        }
+      )
+
+      await provider.resolvePermissionRequest(requestId, true)
+
+      await expect(promise).resolves.toEqual({
+        outcome: { outcome: 'selected', optionId: 'allow-1' }
+      })
+      expect(provider.pendingPermissions.has(requestId)).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('prepares ACP session without prompt and emits ready events', async () => {
     const configState = createConfigState()
     const provider = Object.create(AcpProvider.prototype) as any
@@ -570,36 +666,27 @@ describe('AcpProvider runDebugAction error handling', () => {
       }),
       '/tmp/workspace'
     )
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId: 'conv-2',
-        agentId: 'agent1',
-        workdir: '/tmp/workspace',
-        current: 'default',
-        available: [{ id: 'default', name: 'Default', description: '' }]
-      }
-    )
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId: 'conv-2',
-        agentId: 'agent1',
-        workdir: '/tmp/workspace',
-        configState
-      }
-    )
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId: 'conv-2',
-        agentId: 'agent1',
-        commands: [{ name: 'review', description: 'run review', input: null }]
-      }
-    )
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.modes.ready', {
+      conversationId: 'conv-2',
+      agentId: 'agent1',
+      workdir: '/tmp/workspace',
+      current: 'default',
+      available: [{ id: 'default', name: 'Default', description: '' }],
+      version: expect.any(Number)
+    })
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.configOptions.ready', {
+      conversationId: 'conv-2',
+      agentId: 'agent1',
+      workdir: '/tmp/workspace',
+      configState,
+      version: expect.any(Number)
+    })
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.commands.ready', {
+      conversationId: 'conv-2',
+      agentId: 'agent1',
+      commands: [{ name: 'review', description: 'run review', input: null }],
+      version: expect.any(Number)
+    })
   })
 
   it('falls back when prepareSession receives an unavailable workdir', async () => {
@@ -672,17 +759,14 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     await provider.setSessionMode('conv-b', 'default')
 
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId: 'conv-b',
-        agentId: 'agent1',
-        workdir: '/tmp/workspace',
-        current: 'default',
-        available: [{ id: 'default', name: 'Default', description: '' }]
-      }
-    )
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.modes.ready', {
+      conversationId: 'conv-b',
+      agentId: 'agent1',
+      workdir: '/tmp/workspace',
+      current: 'default',
+      available: [{ id: 'default', name: 'Default', description: '' }],
+      version: expect.any(Number)
+    })
   })
 
   it('returns cached process config options from the warm process handle', () => {
@@ -789,16 +873,13 @@ describe('AcpProvider runDebugAction error handling', () => {
       'conv-1',
       nextState
     )
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId: 'conv-1',
-        agentId: 'agent1',
-        workdir: '/tmp/workspace',
-        configState: nextState
-      }
-    )
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.configOptions.ready', {
+      conversationId: 'conv-1',
+      agentId: 'agent1',
+      workdir: '/tmp/workspace',
+      configState: nextState,
+      version: expect.any(Number)
+    })
   })
 
   it('preserves legacy mode options when setSessionConfigOption only returns config options', async () => {

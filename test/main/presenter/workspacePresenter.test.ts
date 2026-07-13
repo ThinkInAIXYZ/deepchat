@@ -5,45 +5,10 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
-const { chokidarState, sendToRendererMock, execFileMock } = vi.hoisted(() => {
-  const watchers: Array<{
-    paths: unknown
-    options: unknown
-    on: ReturnType<typeof vi.fn>
-    close: ReturnType<typeof vi.fn>
-    emit: (eventName: string, ...args: unknown[]) => Promise<void>
-  }> = []
-
-  return {
-    chokidarState: {
-      watchers,
-      reset() {
-        watchers.length = 0
-      },
-      createWatcher(paths: unknown, options: unknown) {
-        const handlers = new Map<string, Array<(...args: unknown[]) => unknown>>()
-        const watcher = {
-          paths,
-          options,
-          on: vi.fn((eventName: string, handler: (...args: unknown[]) => unknown) => {
-            handlers.set(eventName, [...(handlers.get(eventName) ?? []), handler])
-            return watcher
-          }),
-          close: vi.fn().mockResolvedValue(undefined),
-          async emit(eventName: string, ...args: unknown[]) {
-            for (const handler of handlers.get(eventName) ?? []) {
-              await handler(...args)
-            }
-          }
-        }
-        watchers.push(watcher)
-        return watcher
-      }
-    },
-    sendToRendererMock: vi.fn(),
-    execFileMock: vi.fn()
-  }
-})
+const { sendToAllWindowsMock, execFileMock } = vi.hoisted(() => ({
+  sendToAllWindowsMock: vi.fn(),
+  execFileMock: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   shell: {
@@ -73,33 +38,21 @@ vi.mock('path', async () => {
   }
 })
 
-vi.mock('chokidar', () => ({
-  FSWatcher: class {},
-  watch: vi.fn((paths: unknown, options: unknown) => chokidarState.createWatcher(paths, options))
-}))
-
 vi.mock('child_process', () => ({
   execFile: execFileMock
 }))
 
-vi.mock('../../../src/main/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: sendToRendererMock
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all_windows'
-  }
-}))
-
-vi.mock('../../../src/main/events', () => ({
-  WORKSPACE_EVENTS: {
-    INVALIDATED: 'workspace:files-changed',
-    FILES_CHANGED: 'workspace:files-changed'
-  }
-}))
-
+import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 import { WorkspacePresenter } from '../../../src/main/presenter/workspacePresenter'
-import { WORKSPACE_EVENTS } from '../../../src/main/events'
+import type {
+  IFileWatcherService,
+  WatchBatchListener,
+  WatcherEvent,
+  WatchMode,
+  WatchRequest,
+  WatcherStatus,
+  WatchStatusListener
+} from '../../../src/main/lib/fileWatcher'
 import {
   createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
@@ -120,6 +73,59 @@ function normalizeForAccess(value: string): string {
   }
 }
 
+type FakeWatcher = {
+  request: WatchRequest
+  close: ReturnType<typeof vi.fn>
+  emit(events: WatcherEvent[], mode?: WatchMode): void
+  emitStatus(status: Partial<WatcherStatus>): void
+}
+
+function createFakeWatcherService() {
+  const watchers: FakeWatcher[] = []
+  const service: IFileWatcherService = {
+    watch: vi.fn(async (request, onBatch: WatchBatchListener, onStatus?: WatchStatusListener) => {
+      const watcher: FakeWatcher = {
+        request,
+        close: vi.fn().mockResolvedValue(undefined),
+        emit(events, mode = 'native') {
+          onBatch({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            mode,
+            events,
+            version: Date.now()
+          })
+        },
+        emitStatus(status) {
+          onStatus?.({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            health: status.health ?? 'healthy',
+            mode: status.mode ?? 'native',
+            reason: status.reason ?? 'ready',
+            message: status.message,
+            version: status.version ?? Date.now()
+          })
+        }
+      }
+      watchers.push(watcher)
+      return {
+        close: watcher.close
+      }
+    }),
+    destroy: vi.fn().mockResolvedValue(undefined)
+  }
+
+  return {
+    service,
+    watchers
+  }
+}
+
 beforeEach(() => {
   resetWorkspacePreviewProtocolState()
 })
@@ -131,12 +137,17 @@ afterEach(() => {
 describe('WorkspacePresenter watchers', () => {
   let workspacePath: string
   let presenter: WorkspacePresenter
+  let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
 
   beforeEach(() => {
     vi.useFakeTimers()
-    chokidarState.reset()
-    sendToRendererMock.mockReset()
+    fakeWatcherService = createFakeWatcherService()
+    sendToAllWindowsMock.mockReset()
     execFileMock.mockReset()
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: sendToAllWindowsMock,
+      sendToWebContents: vi.fn()
+    })
 
     workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workspace-'))
     fs.mkdirSync(path.join(workspacePath, '.git', 'refs'), { recursive: true })
@@ -163,13 +174,17 @@ describe('WorkspacePresenter watchers', () => {
       }
     )
 
-    presenter = new WorkspacePresenter({
-      prepareFileCompletely: vi.fn()
-    } as any)
+    presenter = new WorkspacePresenter(
+      {
+        prepareFileCompletely: vi.fn()
+      } as any,
+      fakeWatcherService.service
+    )
   })
 
   afterEach(async () => {
-    presenter?.destroy()
+    await presenter?.destroy()
+    setDeepchatEventWindowPresenter(null)
     await vi.runAllTimersAsync()
     vi.useRealTimers()
     fs.rmSync(workspacePath, { recursive: true, force: true })
@@ -181,9 +196,9 @@ describe('WorkspacePresenter watchers', () => {
     await presenter.watchWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    expect(chokidarState.watchers).toHaveLength(2)
+    expect(fakeWatcherService.watchers).toHaveLength(2)
 
-    const [contentWatcher, gitWatcher] = chokidarState.watchers
+    const [contentWatcher, gitWatcher] = fakeWatcherService.watchers
 
     await presenter.unwatchWorkspace(workspacePath)
     expect(contentWatcher.close).not.toHaveBeenCalled()
@@ -198,36 +213,24 @@ describe('WorkspacePresenter watchers', () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    const [contentWatcher] = chokidarState.watchers
+    const [contentWatcher] = fakeWatcherService.watchers
 
-    await contentWatcher.emit('all', 'add', path.join(workspacePath, 'a.ts'))
-    await contentWatcher.emit('all', 'change', path.join(workspacePath, 'b.ts'))
+    contentWatcher.emit([
+      { type: 'create', path: path.join(workspacePath, 'a.ts') },
+      { type: 'update', path: path.join(workspacePath, 'b.ts') }
+    ])
 
-    expect(sendToRendererMock).not.toHaveBeenCalled()
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(120)
 
-    const legacyCalls = sendToRendererMock.mock.calls.filter(
-      ([channel]) => channel === WORKSPACE_EVENTS.INVALIDATED
-    )
-    const typedCalls = sendToRendererMock.mock.calls.filter(
+    const typedCalls = sendToAllWindowsMock.mock.calls.filter(
       ([channel]) => channel === DEEPCHAT_EVENT_CHANNEL
     )
 
-    expect(legacyCalls).toHaveLength(1)
-    expect(legacyCalls[0]).toEqual([
-      WORKSPACE_EVENTS.INVALIDATED,
-      'all_windows',
-      {
-        workspacePath,
-        kind: 'fs',
-        source: 'watcher'
-      }
-    ])
     expect(typedCalls).toHaveLength(1)
     expect(typedCalls[0]).toEqual([
       DEEPCHAT_EVENT_CHANNEL,
-      'all_windows',
       {
         name: 'workspace.invalidated',
         payload: {
@@ -244,16 +247,12 @@ describe('WorkspacePresenter watchers', () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    const [, gitWatcher] = chokidarState.watchers
-    await gitWatcher.emit('all', 'change', path.join(workspacePath, '.git', 'index'))
+    const [, gitWatcher] = fakeWatcherService.watchers
+    gitWatcher.emit([{ type: 'update', path: path.join(workspacePath, '.git', 'index') }])
     await vi.advanceTimersByTimeAsync(120)
 
-    expect(sendToRendererMock).toHaveBeenCalledWith(WORKSPACE_EVENTS.INVALIDATED, 'all_windows', {
-      workspacePath,
-      kind: 'git',
-      source: 'watcher'
-    })
-    expect(sendToRendererMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, 'all_windows', {
+    expect(sendToAllWindowsMock).toHaveBeenCalledTimes(1)
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, {
       name: 'workspace.invalidated',
       payload: {
         workspacePath,
@@ -264,14 +263,51 @@ describe('WorkspacePresenter watchers', () => {
     })
   })
 
+  it('emits watcher status updates for the active workspace', async () => {
+    await presenter.registerWorkspace(workspacePath)
+    await presenter.watchWorkspace(workspacePath)
+
+    const [contentWatcher] = fakeWatcherService.watchers
+    contentWatcher.emitStatus({
+      health: 'degraded',
+      mode: 'snapshot-polling',
+      reason: 'fallback-started',
+      message: 'native watcher unavailable',
+      version: 123
+    })
+
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, {
+      name: 'workspace.watch.status.changed',
+      payload: {
+        workspacePath,
+        health: 'degraded',
+        mode: 'snapshot-polling',
+        reason: 'fallback-started',
+        message: 'native watcher unavailable',
+        version: 123
+      }
+    })
+  })
+
+  it('removes failed watcher startup state so later calls can retry', async () => {
+    await presenter.registerWorkspace(workspacePath)
+    vi.mocked(fakeWatcherService.service.watch).mockRejectedValueOnce(new Error('watch failed'))
+
+    await expect(presenter.watchWorkspace(workspacePath)).rejects.toThrow('watch failed')
+    expect(fakeWatcherService.watchers).toHaveLength(0)
+
+    await presenter.watchWorkspace(workspacePath)
+
+    expect(fakeWatcherService.watchers).toHaveLength(2)
+  })
+
   it('closes remaining watchers during destroy', async () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    const [contentWatcher, gitWatcher] = chokidarState.watchers
+    const [contentWatcher, gitWatcher] = fakeWatcherService.watchers
 
-    presenter.destroy()
-    await Promise.resolve()
+    await presenter.destroy()
 
     expect(contentWatcher.close).toHaveBeenCalledTimes(1)
     expect(gitWatcher.close).toHaveBeenCalledTimes(1)

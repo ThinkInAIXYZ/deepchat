@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import {
   IConfigPresenter,
   LLM_PROVIDER,
@@ -27,6 +27,7 @@ import type {
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
   ModelType,
   isNewApiEndpointType,
@@ -46,13 +47,7 @@ import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
-import {
-  CONFIG_EVENTS,
-  SYSTEM_EVENTS,
-  FLOATING_BUTTON_EVENTS,
-  SESSION_EVENTS,
-  MCP_EVENTS
-} from '@/events'
+import { CONFIG_EVENTS, MCP_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
@@ -83,6 +78,21 @@ import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import {
+  emitAcpAgentsChanged,
+  emitCustomPromptsChanged,
+  emitDefaultProjectPathChanged,
+  emitDefaultSystemPromptChanged,
+  emitFloatingButtonChanged,
+  emitLanguageChanged,
+  emitModelConfigChanged,
+  emitModelConfigReset,
+  emitModelConfigsImported,
+  emitModelsChanged,
+  emitSyncSettingsChanged,
+  emitSystemThemeChanged,
+  emitThemeChanged
+} from './eventPublishers'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,
@@ -96,11 +106,6 @@ import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
 } from '../hooksNotifications/config'
-import { normalizeScheduledTasksConfig } from '../scheduledTasks/normalize'
-import {
-  createDefaultScheduledTasksSettings,
-  type ScheduledTasksSettings
-} from '@shared/scheduledTasks'
 import {
   AcpDbStore,
   AppSettingsDbBackedStore,
@@ -143,7 +148,6 @@ interface IAppSettings {
   enableSkills?: boolean // Skills system global toggle
   skillDraftSuggestionsEnabled?: boolean // Whether agent may propose skill drafts after tasks
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
-  scheduledTasks?: ScheduledTasksSettings // User-defined scheduled tasks
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
   defaultProjectPath?: string | null
@@ -168,7 +172,7 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 }))
 
 const PROVIDERS_STORE_KEY = 'providers'
-const UNIFIED_AGENTS_MIGRATION_VERSION = 1
+const UNIFIED_AGENTS_MIGRATION_VERSION = 2
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
 type ModelSelection = { providerId: string; modelId: string }
@@ -190,6 +194,40 @@ const DEPRECATED_PROVIDER_MODEL_SETTING_KEYS: ProviderModelSettingKey[] = [
   'defaultVisionModel',
   'preferredModel'
 ]
+const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
+  'memoryEnabled',
+  'memoryEmbedding',
+  'memoryExtractionModel',
+  'personaEvolutionEnabled',
+  'assistantModel',
+  'defaultModelPreset'
+]
+
+const hasMemoryMaintenanceTriggerConfigUpdate = (
+  updates: Partial<DeepChatAgentConfig> | null | undefined
+): boolean => {
+  if (!updates) return false
+  return MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS.some((key) =>
+    Object.prototype.hasOwnProperty.call(updates, key)
+  )
+}
+
+const withDeepChatAgentDefaults = (config: DeepChatAgentConfig): DeepChatAgentConfig => ({
+  ...config,
+  disabledAgentTools: Array.isArray(config.disabledAgentTools)
+    ? [...config.disabledAgentTools]
+    : [...DEFAULT_DISABLED_AGENT_TOOLS]
+})
+
+const mergeDefaultDisabledAgentTools = (
+  disabledAgentTools: DeepChatAgentConfig['disabledAgentTools']
+): string[] =>
+  Array.from(
+    new Set([
+      ...(Array.isArray(disabledAgentTools) ? disabledAgentTools : []),
+      ...DEFAULT_DISABLED_AGENT_TOOLS
+    ])
+  )
 
 const hasLegacyAnthropicOAuthState = (provider: AnthropicLegacyProvider): boolean =>
   Object.prototype.hasOwnProperty.call(provider, 'authMode') || provider.oauthToken !== undefined
@@ -409,6 +447,10 @@ export class ConfigPresenter implements IConfigPresenter {
   private systemPromptHelper: SystemPromptHelper
   private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
+  private pendingAcpAgentsChanged = false
+  private isAttachingAgentRepository = false
+  private deepChatAgentDeleteCleanup: ((agentId: string) => Promise<void>) | null = null
+  private deepChatAgentMemoryMaintenanceConfigChanged: ((agentId: string) => void) | null = null
   private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
@@ -447,8 +489,7 @@ export class ConfigPresenter implements IConfigPresenter {
         skillDraftSuggestionsEnabled: false,
         // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
         appVersion: this.currentAppVersion,
-        hooksNotifications: createDefaultHooksNotificationsConfig(),
-        scheduledTasks: createDefaultScheduledTasksSettings()
+        hooksNotifications: createDefaultHooksNotificationsConfig()
       }
     })
 
@@ -580,9 +621,22 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setAgentRepository(agentRepository: AgentRepository): void {
     this.agentRepository = agentRepository
-    this.initializeUnifiedAgents()
-    this.reconcileLegacyBuiltinAgentSelections()
-    this.cleanupDeprecatedBuiltinAgentSelections()
+    this.isAttachingAgentRepository = true
+    try {
+      this.initializeUnifiedAgents()
+      // The memory-maintenance callback is wired later by Presenter, so these migration writes may
+      // intentionally no-op for maintenance arming during construction.
+      this.reconcileLegacyBuiltinAgentSelections()
+      this.cleanupDeprecatedBuiltinAgentSelections()
+    } finally {
+      this.isAttachingAgentRepository = false
+      if (this.pendingAcpAgentsChanged) {
+        this.pendingAcpAgentsChanged = false
+        queueMicrotask(() => {
+          this.notifyAcpAgentsChanged()
+        })
+      }
+    }
   }
 
   setSQLitePresenter(sqlitePresenter: SQLitePresenter): void {
@@ -593,6 +647,24 @@ export class ConfigPresenter implements IConfigPresenter {
     } catch (error) {
       console.error('[Config] Failed to attach sqlite-backed config storage:', error)
       throw error
+    }
+  }
+
+  setDeepChatAgentDeleteCleanup(cleanup: (agentId: string) => Promise<void>): void {
+    this.deepChatAgentDeleteCleanup = cleanup
+  }
+
+  setDeepChatAgentMemoryMaintenanceConfigChanged(callback: (agentId: string) => void): void {
+    this.deepChatAgentMemoryMaintenanceConfigChanged = callback
+  }
+
+  private notifyDeepChatAgentMemoryMaintenanceConfigChanged(agentId: string): void {
+    try {
+      this.deepChatAgentMemoryMaintenanceConfigChanged?.(agentId)
+    } catch (error) {
+      logger.warn(
+        `[Config] DeepChat agent memory maintenance config callback failed: ${String(error)}`
+      )
     }
   }
 
@@ -816,8 +888,9 @@ export class ConfigPresenter implements IConfigPresenter {
       config: this.buildLegacyBuiltinDeepChatConfig()
     })
 
-    const migratedVersion = this.getSetting<number>('unifiedAgentsMigrationVersion') ?? 0
-    if (migratedVersion < UNIFIED_AGENTS_MIGRATION_VERSION) {
+    let migratedVersion = this.getSetting<number>('unifiedAgentsMigrationVersion') ?? 0
+    let registryAgentsSynced = false
+    if (migratedVersion < 1) {
       this.acpConfHelper.getManualAgents().forEach((agent) => {
         repository.createManualAcpAgent(agent)
       })
@@ -826,11 +899,34 @@ export class ConfigPresenter implements IConfigPresenter {
         this.acpConfHelper.getRegistryStates(),
         this.acpConfHelper.getInstallStates()
       )
-      this.store.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
-      return
+      registryAgentsSynced = true
+      migratedVersion = 1
     }
 
-    this.syncRegistryAgentsToRepository()
+    if (migratedVersion < 2) {
+      for (const agent of repository.listAgents({ agentType: 'deepchat' })) {
+        const config = repository.getDeepChatAgentConfig(agent.id) ?? {}
+        if (agent.id !== BUILTIN_DEEPCHAT_AGENT_ID && !Array.isArray(config.disabledAgentTools)) {
+          continue
+        }
+
+        const disabledAgentTools = mergeDefaultDisabledAgentTools(config.disabledAgentTools)
+        if (
+          !Array.isArray(config.disabledAgentTools) ||
+          disabledAgentTools.length !== config.disabledAgentTools.length ||
+          disabledAgentTools.some((tool) => !config.disabledAgentTools?.includes(tool))
+        ) {
+          repository.updateDeepChatAgent(agent.id, {
+            config: { disabledAgentTools }
+          })
+        }
+      }
+      this.store.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
+    }
+
+    if (!registryAgentsSynced) {
+      this.syncRegistryAgentsToRepository()
+    }
   }
 
   private reconcileLegacyBuiltinAgentSelections(): void {
@@ -899,7 +995,7 @@ export class ConfigPresenter implements IConfigPresenter {
           : null,
       systemPrompt: (this.store.get('default_system_prompt') as string | undefined) ?? '',
       permissionMode: 'full_access',
-      disabledAgentTools: [],
+      disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
       autoCompactionEnabled:
         typeof autoCompactionEnabled === 'boolean' ? autoCompactionEnabled : true,
       autoCompactionTriggerThreshold:
@@ -929,7 +1025,9 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private getBuiltinDeepChatConfig(): DeepChatAgentConfig {
-    return this.agentRepository?.resolveDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    return withDeepChatAgentDefaults(
+      this.agentRepository?.resolveDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    )
   }
 
   private updateBuiltinDeepChatConfig(updates: Partial<DeepChatAgentConfig>): void {
@@ -937,9 +1035,12 @@ export class ConfigPresenter implements IConfigPresenter {
       return
     }
 
-    this.agentRepository.updateDeepChatAgent(BUILTIN_DEEPCHAT_AGENT_ID, {
+    const updated = this.agentRepository.updateDeepChatAgent(BUILTIN_DEEPCHAT_AGENT_ID, {
       config: updates
     })
+    if (updated && hasMemoryMaintenanceTriggerConfigUpdate(updates)) {
+      this.notifyDeepChatAgentMemoryMaintenanceConfigChanged(BUILTIN_DEEPCHAT_AGENT_ID)
+    }
     this.notifyAcpAgentsChanged()
   }
 
@@ -1462,11 +1563,6 @@ export class ConfigPresenter implements IConfigPresenter {
       // Trigger setting change event (main process internal use only)
       eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
 
-      // Special handling: font size settings need to notify all tabs
-      if (key === 'fontSizeLevel') {
-        eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
-      }
-
       const trackedChange = toTrackedSettingsChangePayload(key, value)
       if (trackedChange) {
         publishDeepchatEvent('settings.changed', {
@@ -1750,8 +1846,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set application language
   setLanguage(language: string): void {
     this.setSetting('language', language)
-    // Trigger language change event (need to notify all tabs)
-    eventBus.send(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
+    emitLanguageChanged(this, language)
 
     try {
       presenter.floatingButtonPresenter.refreshLanguage()
@@ -1855,7 +1950,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setSyncEnabled(enabled: boolean): void {
     logger.info('setSyncEnabled', enabled)
     this.setSetting('syncEnabled', enabled)
-    eventBus.send(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, SendTarget.ALL_WINDOWS, { enabled })
+    emitSyncSettingsChanged(this, { enabled })
   }
 
   // Get sync folder path
@@ -1868,7 +1963,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set sync folder path
   setSyncFolderPath(folderPath: string): void {
     this.setSetting('syncFolderPath', folderPath)
-    eventBus.send(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, SendTarget.ALL_WINDOWS, { folderPath })
+    emitSyncSettingsChanged(this, { folderPath })
   }
 
   // Get last sync time
@@ -2073,8 +2168,7 @@ export class ConfigPresenter implements IConfigPresenter {
   async setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void> {
     try {
       this.store.set('customSearchEngines', JSON.stringify(engines))
-      // Send event to notify search engine update (need to notify all tabs)
-      eventBus.send(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, SendTarget.ALL_WINDOWS, engines)
+      eventBus.sendToMain(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, engines)
     } catch (error) {
       console.error('Failed to set custom search engines:', error)
       throw error
@@ -2255,7 +2349,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set floating button switch status
   setFloatingButtonEnabled(enabled: boolean): void {
     this.setSetting('floatingButtonEnabled', enabled)
-    eventBus.send(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    emitFloatingButtonChanged(enabled)
 
     try {
       presenter.floatingButtonPresenter.setEnabled(enabled)
@@ -2643,12 +2737,15 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null> {
-    return this.getAgentRepositoryOrThrow().getDeepChatAgentConfig(agentId)
+    const config = this.getAgentRepositoryOrThrow().getDeepChatAgentConfig(agentId)
+    return config ? withDeepChatAgentDefaults(config) : null
   }
 
   async resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig> {
-    return this.getAgentRepositoryOrThrow().resolveDeepChatAgentConfig(
-      agentId || BUILTIN_DEEPCHAT_AGENT_ID
+    return withDeepChatAgentDefaults(
+      this.getAgentRepositoryOrThrow().resolveDeepChatAgentConfig(
+        agentId || BUILTIN_DEEPCHAT_AGENT_ID
+      )
     )
   }
 
@@ -2676,13 +2773,22 @@ export class ConfigPresenter implements IConfigPresenter {
   ): Promise<Agent | null> {
     const updated = this.getAgentRepositoryOrThrow().updateDeepChatAgent(agentId, updates)
     if (updated) {
+      if (hasMemoryMaintenanceTriggerConfigUpdate(updates.config)) {
+        this.notifyDeepChatAgentMemoryMaintenanceConfigChanged(agentId)
+      }
       this.notifyAcpAgentsChanged()
     }
     return updated
   }
 
   async deleteDeepChatAgent(agentId: string): Promise<boolean> {
-    const removed = this.getAgentRepositoryOrThrow().deleteDeepChatAgent(agentId)
+    const repository = this.getAgentRepositoryOrThrow()
+    const removed = repository.deleteDeepChatAgent(agentId)
+    if (removed) {
+      await this.deepChatAgentDeleteCleanup?.(agentId).catch((error) => {
+        logger.warn(`[Config] DeepChat agent memory cleanup failed: ${String(error)}`)
+      })
+    }
     if (removed) {
       this.notifyAcpAgentsChanged()
     }
@@ -2774,10 +2880,21 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private notifyAcpAgentsChanged(agentIds?: string[]) {
+    if (!this.agentRepository || this.isAttachingAgentRepository) {
+      this.pendingAcpAgentsChanged = true
+      logger.info(
+        '[ACP] notifyAcpAgentsChanged: deferred until unified agent repository is attached'
+      )
+      return
+    }
+
     logger.info('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
-    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
-    eventBus.send(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS, { agentIds })
-    eventBus.sendToRendererIfAvailable(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    emitModelsChanged('acp')
+    emitAcpAgentsChanged(this, agentIds)
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [],
+      reason: 'list-refreshed'
+    })
   }
 
   // Provide getMcpConfHelper method to get MCP configuration helper
@@ -2809,14 +2926,7 @@ export class ConfigPresenter implements IConfigPresenter {
   ): void {
     const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
-    // Trigger model configuration change event (need to notify all tabs)
-    eventBus.send(
-      CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
-      SendTarget.ALL_WINDOWS,
-      providerId,
-      modelId,
-      storedConfig
-    )
+    emitModelConfigChanged(providerId, modelId, storedConfig as unknown as Record<string, unknown>)
   }
 
   /**
@@ -2827,8 +2937,7 @@ export class ConfigPresenter implements IConfigPresenter {
   resetModelConfig(modelId: string, providerId: string): void {
     this.modelConfigHelper.resetModelConfig(modelId, providerId)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
-    // 触发模型配置重置事件（需要通知所有标签页）
-    eventBus.send(CONFIG_EVENTS.MODEL_CONFIG_RESET, SendTarget.ALL_WINDOWS, providerId, modelId)
+    emitModelConfigReset(providerId, modelId)
   }
 
   /**
@@ -2870,8 +2979,7 @@ export class ConfigPresenter implements IConfigPresenter {
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     this.modelConfigHelper.importConfigs(configs, overwrite)
     this.providerModelHelper.invalidateAllProviderModelsCache()
-    // 触发批量导入事件（需要通知所有标签页）
-    eventBus.send(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
+    emitModelConfigsImported(overwrite)
   }
 
   getNotificationsEnabled(): boolean {
@@ -2891,7 +2999,7 @@ export class ConfigPresenter implements IConfigPresenter {
     nativeTheme.on('updated', () => {
       // 只有当主题设置为 system 时，才需要通知渲染进程系统主题变化
       if (nativeTheme.themeSource === 'system') {
-        eventBus.sendToMain(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, nativeTheme.shouldUseDarkColors)
+        emitSystemThemeChanged(nativeTheme.shouldUseDarkColors)
 
         try {
           void presenter.floatingButtonPresenter.refreshTheme()
@@ -2905,8 +3013,7 @@ export class ConfigPresenter implements IConfigPresenter {
   async setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean> {
     nativeTheme.themeSource = theme
     this.setSetting('appTheme', theme)
-    // 通知所有窗口主题已更改
-    eventBus.send(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
+    emitThemeChanged(this, theme)
 
     try {
       void presenter.floatingButtonPresenter.refreshTheme()
@@ -2960,10 +3067,7 @@ export class ConfigPresenter implements IConfigPresenter {
     }
     this.clearCustomPromptsCache()
     logger.info(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
-    // Notify all windows about custom prompts change
-    eventBus.send(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
-      count: prompts.length
-    })
+    await emitCustomPromptsChanged(this)
   }
 
   // 添加单个 prompt (optimized with cache)
@@ -3111,7 +3215,7 @@ export class ConfigPresenter implements IConfigPresenter {
       if (promptId === 'empty') {
         await this.setSystemPrompts(updatedPrompts)
         await this.clearSystemPrompt()
-        eventBus.send(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+        emitDefaultSystemPromptChanged({
           promptId: 'empty',
           content: ''
         })
@@ -3124,7 +3228,7 @@ export class ConfigPresenter implements IConfigPresenter {
         updatedPrompts[targetIndex].isDefault = true
         await this.setSystemPrompts(updatedPrompts)
         await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
-        eventBus.send(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+        emitDefaultSystemPromptChanged({
           promptId,
           content: updatedPrompts[targetIndex].content
         })
@@ -3201,11 +3305,20 @@ export class ConfigPresenter implements IConfigPresenter {
   // 设置快捷键
   setShortcutKey(customShortcutKey: ShortcutKeySetting) {
     this.setSetting('shortcutKey', customShortcutKey)
+    this.publishShortcutKeysChanged()
   }
 
   // 重置快捷键
   resetShortcutKeys() {
     this.setSetting('shortcutKey', { ...defaultShortcutKey })
+    this.publishShortcutKeysChanged()
+  }
+
+  private publishShortcutKeysChanged(): void {
+    publishDeepchatEvent('config.shortcutKeys.changed', {
+      shortcuts: this.getShortcutKey(),
+      version: Date.now()
+    })
   }
 
   // 获取知识库配置
@@ -3235,9 +3348,14 @@ export class ConfigPresenter implements IConfigPresenter {
     }
     void Promise.all([this.getMcpServers(), this.getMcpEnabled()])
       .then(([mcpServers, mcpEnabled]) => {
-        eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+        eventBus.sendToMain(MCP_EVENTS.CONFIG_CHANGED, {
           mcpServers,
           mcpEnabled
+        })
+        publishDeepchatEvent('mcp.config.changed', {
+          mcpServers,
+          mcpEnabled,
+          version: Date.now()
         })
       })
       .catch((error) => {
@@ -3348,11 +3466,6 @@ export class ConfigPresenter implements IConfigPresenter {
   }): Promise<void> {
     try {
       this.getSettingsStoreForKey('nowledgeMemConfig').set('nowledgeMemConfig', config)
-      eventBus.sendToRenderer(
-        CONFIG_EVENTS.NOWLEDGE_MEM_CONFIG_UPDATED,
-        SendTarget.ALL_WINDOWS,
-        config
-      )
     } catch (error) {
       console.error('[Config] Failed to set nowledge-mem config:', error)
       throw error
@@ -3372,21 +3485,6 @@ export class ConfigPresenter implements IConfigPresenter {
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
     this.getSettingsStoreForKey('hooksNotifications').set('hooksNotifications', normalized)
-    return normalized
-  }
-
-  getScheduledTasksConfig(): ScheduledTasksSettings {
-    const raw = this.store.get('scheduledTasks')
-    const normalized = normalizeScheduledTasksConfig(raw)
-    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
-      this.store.set('scheduledTasks', normalized)
-    }
-    return normalized
-  }
-
-  setScheduledTasksConfig(config: ScheduledTasksSettings): ScheduledTasksSettings {
-    const normalized = normalizeScheduledTasksConfig(config)
-    this.store.set('scheduledTasks', normalized)
     return normalized
   }
 
@@ -3426,9 +3524,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setDefaultProjectPath(projectPath: string | null): void {
     const normalized = projectPath?.trim() ? projectPath.trim() : null
     this.setSetting('defaultProjectPath', normalized)
-    eventBus.send(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
-      path: normalized
-    })
+    emitDefaultProjectPathChanged(normalized)
   }
 }
 

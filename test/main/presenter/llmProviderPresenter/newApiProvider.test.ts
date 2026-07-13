@@ -42,13 +42,9 @@ vi.mock('@/presenter', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
-    sendToRenderer: vi.fn(),
     sendToMain: vi.fn(),
     emit: vi.fn(),
     send: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
   }
 }))
 
@@ -482,6 +478,368 @@ describe('NewApiProvider capability routing', () => {
       'qwen3.7-max',
       expect.arrayContaining(['openai', 'alibaba-cn'])
     )
+  })
+
+  it('exposes all chat endpoints for openai-only chat models while keeping completions as default', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-5.5',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai'],
+              type: 'chat'
+            }
+          ]
+        })
+      })
+    )
+
+    const configPresenter = createConfigPresenter()
+    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-5.5',
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+      endpointType: 'openai'
+    })
+    expect(configPresenter.setModelConfig).toHaveBeenCalledWith(
+      'gpt-5.5',
+      'new-api',
+      expect.objectContaining({
+        endpointType: 'openai',
+        apiEndpoint: ApiEndpointType.Chat
+      }),
+      { source: 'provider' }
+    )
+
+    const runtimeProvider = new AiSdkProvider(
+      createProvider(),
+      createConfigPresenter(
+        {},
+        {
+          'new-api': models
+        }
+      )
+    )
+    const routeDecision = (runtimeProvider as any).resolveRouteDecision('gpt-5.5')
+    const selectedProvider = (runtimeProvider as any).getRuntimeProvider(
+      routeDecision
+    ) as LLM_PROVIDER
+
+    expect(routeDecision.endpointType).toBe('openai')
+    expect(selectedProvider.apiType).toBe('openai-completions')
+  })
+
+  it('uses responses when an openai-only NewAPI model is manually configured for responses', () => {
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createConfigPresenter(
+        {
+          'gpt-5.5': {
+            endpointType: 'openai-response'
+          }
+        },
+        {
+          'new-api': [
+            {
+              id: 'gpt-5.5',
+              name: 'GPT-5.5',
+              group: 'openai',
+              providerId: 'new-api',
+              isCustom: false,
+              supportedEndpointTypes: ['openai'],
+              selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+              endpointType: 'openai',
+              ownedBy: 'openai',
+              type: ModelType.Chat
+            }
+          ]
+        }
+      )
+    )
+    const routeDecision = (provider as any).resolveRouteDecision('gpt-5.5')
+    const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
+
+    expect(routeDecision.endpointType).toBe('openai-response')
+    expect(runtimeProvider.apiType).toBe('openai-responses')
+  })
+
+  it('keeps explicit chat models on chat selectable endpoints when media endpoints are also advertised', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-4.1',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai', 'image-generation'],
+              type: 'chat'
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-4.1',
+      type: ModelType.Chat,
+      supportedEndpointTypes: ['openai', 'image-generation'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+      endpointType: 'openai'
+    })
+
+    const runtimeProvider = new AiSdkProvider(
+      createProvider(),
+      createConfigPresenter(
+        {},
+        {
+          'new-api': models
+        }
+      )
+    )
+    const routeDecision = (runtimeProvider as any).resolveRouteDecision('gpt-4.1')
+
+    expect(routeDecision.endpointType).toBe('openai')
+  })
+
+  it('limits explicit media models to their matching selectable endpoint', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-image-2',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai', 'image-generation'],
+              type: 'image'
+            },
+            {
+              id: 'sora-3',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai', 'video-generation'],
+              type: 'video'
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
+      selectableEndpointTypes: ['image-generation'],
+      endpointType: 'image-generation'
+    })
+    expect(models[1]).toMatchObject({
+      id: 'sora-3',
+      type: ModelType.VideoGeneration,
+      selectableEndpointTypes: ['video-generation'],
+      endpointType: 'video-generation'
+    })
+  })
+
+  it('keeps openai-compatible selectable endpoint for openai-only non-chat models', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'text-embedding-3-large',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai'],
+              type: 'embedding'
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'text-embedding-3-large',
+      type: ModelType.Embedding,
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai'],
+      endpointType: 'openai'
+    })
+  })
+
+  it('exposes all chat endpoints for openai-only GPT models without an explicit chat type', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-5.5',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai']
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-5.5',
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+      endpointType: 'openai'
+    })
+  })
+
+  it('does not expose responses for openai-only audio models', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'tts-1',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai'],
+              type: 'chat'
+            },
+            {
+              id: 'whisper-1',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai']
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models).toHaveLength(2)
+    for (const model of models) {
+      expect(model.supportedEndpointTypes).toEqual(['openai'])
+      expect(model.endpointType).toBe('openai')
+      expect(model.selectableEndpointTypes).toEqual(['openai'])
+    }
+  })
+
+  it('exposes media selectable endpoint for sparse known image model ids', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-image-2',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai']
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['image-generation'],
+      endpointType: 'openai'
+    })
+  })
+
+  it('exposes all chat endpoints for non-OpenAI relay chat models', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'qwen3.7-max',
+              object: 'model',
+              owned_by: 'alibaba',
+              supported_endpoint_types: ['openai'],
+              type: 'chat'
+            },
+            {
+              id: 'deepseek-chat',
+              object: 'model',
+              owned_by: 'deepseek',
+              supported_endpoint_types: ['openai'],
+              type: 'chat'
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models).toHaveLength(2)
+    for (const model of models) {
+      expect(model.supportedEndpointTypes).toEqual(['openai'])
+      expect(model.endpointType).toBe('openai')
+      expect(model.selectableEndpointTypes).toEqual([
+        'openai',
+        'openai-response',
+        'anthropic',
+        'gemini'
+      ])
+    }
   })
 
   it('does not overwrite user-owned model configs during provider refresh', async () => {

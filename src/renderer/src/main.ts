@@ -8,16 +8,7 @@ import { createI18n } from 'vue-i18n'
 import locales, { pluralRules } from './i18n'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import 'katex/dist/katex.min.css'
-import { ensureMarkdownWorkers } from './lib/markdownWorkerLifecycle'
 import { preloadIcons } from './lib/iconLoader'
-
-// Single owner of the KaTeX/Mermaid workers. ensureMarkdownWorkers is idempotent
-// and registers its own beforeunload cleanup, so the renderer never creates or
-// tears down these workers directly. markstream-vue degrades to raw text until
-// the workers finish loading, so awaiting here is unnecessary.
-ensureMarkdownWorkers().catch((error) => {
-  console.error('Failed to initialize markdown workers:', error)
-})
 
 const i18n = createI18n({
   locale: 'zh-CN',

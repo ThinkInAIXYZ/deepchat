@@ -141,21 +141,14 @@ export class DeepChatMessagesTable extends BaseTable {
 
   getBySession(sessionId: string): DeepChatMessageRow[] {
     return this.db
-      .prepare(
-        `SELECT
-           m.*,
-           COALESCE(t.trace_count, 0) AS trace_count
-         FROM deepchat_messages m
-         LEFT JOIN (
-           SELECT message_id, COUNT(*) AS trace_count
-           FROM deepchat_message_traces
-           GROUP BY message_id
-         ) t
-           ON t.message_id = m.id
-         WHERE m.session_id = ?
-         ORDER BY m.order_seq`
-      )
+      .prepare('SELECT * FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq')
       .all(sessionId) as DeepChatMessageRow[]
+  }
+
+  hasBySession(sessionId: string): boolean {
+    return Boolean(
+      this.db.prepare('SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1').get(sessionId)
+    )
   }
 
   listPageBySession(
@@ -234,19 +227,8 @@ export class DeepChatMessagesTable extends BaseTable {
   }
 
   get(messageId: string): DeepChatMessageRow | undefined {
-    return this.db
-      .prepare(
-        `SELECT
-           m.*,
-           COALESCE((
-             SELECT COUNT(*)
-             FROM deepchat_message_traces t
-             WHERE t.message_id = m.id
-           ), 0) AS trace_count
-         FROM deepchat_messages m
-         WHERE m.id = ?`
-      )
-      .get(messageId) as DeepChatMessageRow | undefined
+    const row = this.db.prepare('SELECT * FROM deepchat_messages WHERE id = ?').get(messageId)
+    return row as DeepChatMessageRow | undefined
   }
 
   getMaxOrderSeq(sessionId: string): number {
@@ -256,9 +238,9 @@ export class DeepChatMessagesTable extends BaseTable {
     return row.max_seq ?? 0
   }
 
-  listAssistantUsageCandidates(): DeepChatMessageUsageCandidateRow[] {
+  iterAssistantUsageCandidates(): IterableIterator<DeepChatMessageUsageCandidateRow> {
     return this.db
-      .prepare(
+      .prepare<[], DeepChatMessageUsageCandidateRow>(
         `SELECT
           m.id,
           m.session_id,
@@ -273,7 +255,48 @@ export class DeepChatMessagesTable extends BaseTable {
         WHERE m.role = 'assistant'
         ORDER BY m.created_at ASC`
       )
-      .all() as DeepChatMessageUsageCandidateRow[]
+      .iterate()
+  }
+
+  listAssistantUsageCandidatesPage(
+    cursor: { createdAt: number; id: string } | null,
+    limit: number
+  ): DeepChatMessageUsageCandidateRow[] {
+    const baseQuery = `SELECT
+        m.id,
+        m.session_id,
+        m.metadata,
+        m.created_at,
+        m.updated_at,
+        s.provider_id,
+        s.model_id
+      FROM deepchat_messages m
+      LEFT JOIN deepchat_sessions s
+        ON s.id = m.session_id
+      WHERE m.role = 'assistant'`
+
+    if (!cursor) {
+      return this.db
+        .prepare<[number], DeepChatMessageUsageCandidateRow>(
+          `${baseQuery}
+           ORDER BY m.created_at ASC, m.id ASC
+           LIMIT ?`
+        )
+        .all(limit)
+    }
+
+    return this.db
+      .prepare<[number, number, string, number], DeepChatMessageUsageCandidateRow>(
+        `${baseQuery}
+         AND (m.created_at > ? OR (m.created_at = ? AND m.id > ?))
+         ORDER BY m.created_at ASC, m.id ASC
+         LIMIT ?`
+      )
+      .all(cursor.createdAt, cursor.createdAt, cursor.id, limit)
+  }
+
+  listAssistantUsageCandidates(): DeepChatMessageUsageCandidateRow[] {
+    return Array.from(this.iterAssistantUsageCandidates())
   }
 
   getLastUserMessageBeforeOrAtOrderSeq(

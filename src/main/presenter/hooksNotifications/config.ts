@@ -9,21 +9,17 @@ import {
   HooksNotificationsSettings
 } from '@shared/hooksNotifications'
 
-const HookCommandItemSchema = z
-  .object({
-    id: z.unknown().optional(),
-    name: z.unknown().optional(),
-    enabled: z.unknown().optional(),
-    command: z.unknown().optional(),
-    events: z.array(z.string()).optional()
-  })
-  .strip()
+const HookCommandItemSchema = z.object({
+  id: z.unknown().optional(),
+  name: z.unknown().optional(),
+  enabled: z.unknown().optional(),
+  command: z.unknown().optional(),
+  events: z.array(z.string()).optional()
+})
 
-const HooksNotificationsSchema = z
-  .object({
-    hooks: z.array(z.unknown()).optional()
-  })
-  .strip()
+const HooksNotificationsSchema = z.object({
+  hooks: z.array(z.unknown()).optional()
+})
 
 type LooseHookCommandItem = z.infer<typeof HookCommandItemSchema>
 

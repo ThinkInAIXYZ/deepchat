@@ -40,7 +40,7 @@ export class FloatingButtonWindow {
     }
 
     try {
-      const isDev = is.dev
+      const rendererUrl = process.env['ELECTRON_RENDERER_URL']
       const initialBounds = this.resolveInitialBounds()
       this.dockSide = inferDockSide(
         initialBounds,
@@ -71,7 +71,7 @@ export class FloatingButtonWindow {
           contextIsolation: true,
           preload: path.join(__dirname, '../preload/floating.mjs'),
           webSecurity: false,
-          devTools: isDev,
+          devTools: is.dev,
           sandbox: false
         }
       })
@@ -81,8 +81,8 @@ export class FloatingButtonWindow {
       this.window.setOpacity(1)
       this.setBounds(initialBounds)
 
-      if (isDev) {
-        await this.window.loadURL('http://localhost:5173/floating/')
+      if (is.dev && rendererUrl) {
+        await this.window.loadURL(`${rendererUrl}/floating/`)
       } else {
         await this.window.loadFile(path.join(__dirname, '../renderer/floating/index.html'))
       }

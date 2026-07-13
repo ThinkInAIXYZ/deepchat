@@ -7,11 +7,7 @@ vi.mock('@/eventbus', () => ({
     on: vi.fn(),
     send: vi.fn(),
     sendToMain: vi.fn(),
-    sendToRenderer: vi.fn(),
     emit: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
   }
 }))
 
@@ -38,6 +34,8 @@ import {
   getDeprecatedProviderModelSelectionKeysToClear,
   removeDeprecatedBuiltinProviders
 } from '../../../../src/main/presenter/configPresenter'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '../../../../src/main/presenter/agentRepository'
+import { CRON_JOB_AGENT_TOOL_NAME } from '../../../../src/shared/agentTools'
 import { eventBus } from '@/eventbus'
 
 const createProvider = (id: string): LLM_PROVIDER => ({
@@ -226,6 +224,50 @@ describe('cleanupDeprecatedBuiltinAgentSelections', () => {
     ).cleanupDeprecatedBuiltinAgentSelections()
 
     expect(updateBuiltinDeepChatConfig).not.toHaveBeenCalled()
+  })
+})
+
+describe('initializeUnifiedAgents', () => {
+  it('seeds default disabled tools into existing explicit agent configs once', () => {
+    const repository = {
+      ensureBuiltinDeepChatAgent: vi.fn(),
+      listAgents: vi.fn(() => [
+        { id: BUILTIN_DEEPCHAT_AGENT_ID },
+        { id: 'deepchat-custom' },
+        { id: 'deepchat-inherit' }
+      ]),
+      getDeepChatAgentConfig: vi.fn((agentId: string) =>
+        agentId === BUILTIN_DEEPCHAT_AGENT_ID
+          ? { disabledAgentTools: ['tool-a'] }
+          : agentId === 'deepchat-custom'
+            ? { disabledAgentTools: [] }
+            : {}
+      ),
+      updateDeepChatAgent: vi.fn()
+    }
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      buildLegacyBuiltinDeepChatConfig: vi.fn(() => ({})),
+      getSetting: vi.fn(() => 1),
+      store: { set: vi.fn() },
+      syncRegistryAgentsToRepository: vi.fn()
+    })
+
+    ;(
+      presenter as ConfigPresenter & {
+        initializeUnifiedAgents(): void
+      }
+    ).initializeUnifiedAgents()
+
+    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(1, BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: { disabledAgentTools: ['tool-a', CRON_JOB_AGENT_TOOL_NAME] }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(2, 'deepchat-custom', {
+      config: { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledTimes(2)
+    expect(presenter.store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 2)
+    expect(presenter.syncRegistryAgentsToRepository).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -432,5 +474,227 @@ describe('setAgentRepository', () => {
       'reconcileLegacyBuiltinAgentSelections',
       'cleanupDeprecatedBuiltinAgentSelections'
     ])
+  })
+})
+
+describe('deleteDeepChatAgent cleanup', () => {
+  it('runs cleanup after deleting a removable DeepChat agent', async () => {
+    const calls: string[] = []
+    const repository = {
+      deleteDeepChatAgent: vi.fn(() => {
+        calls.push('delete')
+        return true
+      })
+    }
+    const cleanup = vi.fn(async () => {
+      calls.push('cleanup')
+    })
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      deepChatAgentDeleteCleanup: cleanup,
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+
+    const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('writer')
+
+    expect(removed).toBe(true)
+    expect(cleanup).toHaveBeenCalledWith('writer')
+    expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
+    expect(calls).toEqual(['delete', 'cleanup'])
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not cleanup memory when deletion is blocked', async () => {
+    const repository = {
+      deleteDeepChatAgent: vi.fn(() => false)
+    }
+    const cleanup = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      deepChatAgentDeleteCleanup: cleanup,
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+
+    const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('deepchat')
+
+    expect(removed).toBe(false)
+    expect(cleanup).not.toHaveBeenCalled()
+    expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('deepchat')
+    expect(presenter.notifyAcpAgentsChanged).not.toHaveBeenCalled()
+  })
+})
+
+describe('DeepChat agent memory maintenance config changed callback', () => {
+  it.each([
+    ['memoryEnabled', { memoryEnabled: true }],
+    [
+      'memoryEmbedding',
+      { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
+    ],
+    ['memoryExtractionModel', { memoryExtractionModel: createModelSelection('openai', 'gpt-4o') }],
+    ['personaEvolutionEnabled', { personaEvolutionEnabled: true }],
+    ['assistantModel', { assistantModel: createModelSelection('openai', 'gpt-4o-mini') }],
+    ['defaultModelPreset', { defaultModelPreset: createModelSelection('anthropic', 'claude') }]
+  ])('runs after a custom DeepChat agent %s config update succeeds', async (_name, config) => {
+    const updated = { id: 'writer' }
+    const repository = {
+      updateDeepChatAgent: vi.fn(() => updated)
+    }
+    const callback = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+
+    const result = await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      config
+    })
+
+    expect(result).toBe(updated)
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith('writer', {
+      config
+    })
+    expect(callback).toHaveBeenCalledWith('writer')
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not notify for custom updates without maintenance-relevant config fields', async () => {
+    const updated = { id: 'writer' }
+    const repository = {
+      updateDeepChatAgent: vi.fn(() => updated)
+    }
+    const callback = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+
+    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      name: 'Writer'
+    })
+    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      config: { systemPrompt: 'You are concise.' }
+    })
+    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      config: { memoryRetrieval: { topK: 20 } }
+    })
+    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      config: { memoryInjectionTokenBudget: 4096 }
+    })
+
+    expect(callback).not.toHaveBeenCalled()
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(4)
+  })
+
+  it('does not notify when a maintenance-relevant custom update finds no agent', async () => {
+    const repository = {
+      updateDeepChatAgent: vi.fn(() => null)
+    }
+    const callback = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+
+    const result = await (presenter as ConfigPresenter).updateDeepChatAgent('missing', {
+      config: { memoryEnabled: true }
+    })
+
+    expect(result).toBeNull()
+    expect(callback).not.toHaveBeenCalled()
+    expect(presenter.notifyAcpAgentsChanged).not.toHaveBeenCalled()
+  })
+
+  it('does not fail config updates when the memory maintenance callback throws', async () => {
+    const updated = { id: 'writer' }
+    const repository = {
+      updateDeepChatAgent: vi.fn(() => updated)
+    }
+    const callback = vi.fn(() => {
+      throw new Error('arm failed')
+    })
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+
+    await expect(
+      (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+        config: { memoryEnabled: true }
+      })
+    ).resolves.toBe(updated)
+
+    expect(callback).toHaveBeenCalledWith('writer')
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['memoryEnabled', { memoryEnabled: true }],
+    [
+      'memoryEmbedding',
+      { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
+    ],
+    ['memoryExtractionModel', { memoryExtractionModel: createModelSelection('openai', 'gpt-4o') }],
+    ['personaEvolutionEnabled', { personaEvolutionEnabled: true }],
+    ['assistantModel', { assistantModel: createModelSelection('openai', 'gpt-4o-mini') }],
+    ['defaultModelPreset', { defaultModelPreset: createModelSelection('anthropic', 'claude') }]
+  ])('runs after builtin DeepChat %s config updates succeed', (_name, updates) => {
+    const updated = { id: BUILTIN_DEEPCHAT_AGENT_ID }
+    const repository = {
+      updateDeepChatAgent: vi.fn(() => updated)
+    }
+    const callback = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      agentRepository: repository,
+      notifyAcpAgentsChanged: vi.fn()
+    })
+    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+
+    ;(
+      presenter as ConfigPresenter & {
+        updateBuiltinDeepChatConfig(updates: Record<string, unknown>): void
+      }
+    ).updateBuiltinDeepChatConfig(updates)
+
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: updates
+    })
+    expect(callback).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID)
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['systemPrompt', { systemPrompt: 'You are concise.' }],
+    ['autoCompactionEnabled', { autoCompactionEnabled: false }],
+    ['disabledAgentTools', { disabledAgentTools: ['builtin/web-search'] }],
+    ['memoryRetrieval', { memoryRetrieval: { topK: 20 } }],
+    ['memoryInjectionTokenBudget', { memoryInjectionTokenBudget: 4096 }]
+  ])('does not notify after builtin DeepChat %s config updates', (_name, updates) => {
+    const updated = { id: BUILTIN_DEEPCHAT_AGENT_ID }
+    const repository = {
+      updateDeepChatAgent: vi.fn(() => updated)
+    }
+    const callback = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      agentRepository: repository,
+      notifyAcpAgentsChanged: vi.fn()
+    })
+    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+
+    ;(
+      presenter as ConfigPresenter & {
+        updateBuiltinDeepChatConfig(updates: Record<string, unknown>): void
+      }
+    ).updateBuiltinDeepChatConfig(updates)
+
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: updates
+    })
+    expect(callback).not.toHaveBeenCalled()
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
   })
 })

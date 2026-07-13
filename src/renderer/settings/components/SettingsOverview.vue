@@ -42,18 +42,6 @@
         @select="openRoute('settings-provider')"
       />
       <StatusMetricCard
-        :label="t('settings.controlCenter.overview.mcp')"
-        :value="t('settings.controlCenter.overview.runningCount', { count: runningMcpCount })"
-        icon="lucide:server"
-        :description="
-          mcpEnabled
-            ? t('settings.controlCenter.overview.mcpOn')
-            : t('settings.controlCenter.overview.mcpOff')
-        "
-        interactive
-        @select="openRoute('settings-mcp')"
-      />
-      <StatusMetricCard
         :label="t('settings.controlCenter.overview.deepchatAgents')"
         :value="
           t('settings.controlCenter.overview.enabledAgentCount', {
@@ -176,13 +164,13 @@ import {
 import type { SettingsNavigationItem } from '@shared/settingsNavigation'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
-import { useMcpStore } from '@/stores/mcp'
 import { useSyncStore } from '@/stores/sync'
 import { useAgentStore } from '@/stores/ui/agent'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
 import StatusMetricCard from './control-center/StatusMetricCard.vue'
 import DashboardSettings from './DashboardSettings.vue'
+import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -190,14 +178,15 @@ const route = useRoute()
 const settingsClient = createSettingsClient()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
-const mcpStore = useMcpStore()
 const syncStore = useSyncStore()
 const agentStore = useAgentStore()
 
 const activities = ref<SettingsActivityRecord[]>([])
 const searchQuery = ref('')
 const usageDashboardRef = ref<HTMLElement | null>(null)
-const settingsItems = getSettingsNavigationItems(window.electron?.process?.platform)
+const runtimePlatform = getRuntimePlatform()
+const runtimeArch = getRuntimeArch()
+const settingsItems = getSettingsNavigationItems(runtimePlatform, runtimeArch)
 type SettingsRouteName = SettingsNavigationItem['routeName']
 
 const enabledProvidersCount = computed(
@@ -209,10 +198,6 @@ const enabledModelsCount = computed(() =>
   modelStore.enabledModels.reduce((count, group) => count + group.models.length, 0)
 )
 
-const mcpEnabled = computed(() => mcpStore.mcpEnabled)
-const runningMcpCount = computed(
-  () => mcpStore.serverList.filter((server) => server.isRunning).length
-)
 const enabledDeepChatAgentsCount = computed(
   () =>
     agentStore.enabledAgents.filter((agent) => (agent.agentType ?? agent.type) === 'deepchat')
@@ -246,14 +231,6 @@ const quickTasks = computed<
     done: enabledModelsCount.value > 0
   },
   {
-    key: 'start-mcp',
-    labelKey: 'settings.controlCenter.quickStart.startMcp',
-    descriptionKey: 'settings.controlCenter.quickStart.startMcpDesc',
-    routeName: 'settings-mcp',
-    icon: 'lucide:server',
-    done: runningMcpCount.value > 0
-  },
-  {
     key: 'backup',
     labelKey: 'settings.controlCenter.quickStart.backupNow',
     descriptionKey: 'settings.controlCenter.quickStart.backupNowDesc',
@@ -281,7 +258,9 @@ const searchResults = computed(() => {
 })
 
 const openRoute = (routeName: SettingsRouteName) => {
-  void router.push(resolveSettingsNavigationPath(routeName))
+  void router.push(
+    resolveSettingsNavigationPath(routeName, undefined, runtimePlatform, runtimeArch)
+  )
 }
 
 const openActivity = (activity: SettingsActivityRecord) => {
@@ -330,7 +309,6 @@ onMounted(async () => {
   await Promise.allSettled([
     providerStore.ensureInitialized?.(),
     modelStore.initialize?.(),
-    mcpStore.loadConfig?.(),
     syncStore.initialize?.(),
     agentStore.fetchAgents()
   ])

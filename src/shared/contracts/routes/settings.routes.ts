@@ -172,9 +172,9 @@ export const SettingsActivityRecordSchema = z.object({
   targetId: z.string().nullable(),
   targetLabel: z.string(),
   routeName: z.string().nullable(),
-  routeParams: z.record(z.string()),
+  routeParams: z.record(z.string(), z.string()),
   summaryKey: z.string(),
-  summaryParams: z.record(z.union([z.string(), z.number(), z.boolean()])),
+  summaryParams: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
   createdAt: TimestampMsSchema
 })
 

@@ -18,7 +18,7 @@
       key="open-workspace"
       variant="outline"
       size="icon"
-      class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-30"
+      class="dc-blur-panel w-8 h-8 shrink-0 opacity-100 bg-card z-[var(--dc-z-sidepanel)]"
       :title="t('chat.workspace.title')"
       @click="$emit('open-workspace')"
     >
@@ -30,7 +30,7 @@
       key="new-chat"
       variant="outline"
       size="icon"
-      class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
+      class="dc-blur-panel w-8 h-8 shrink-0 opacity-100 bg-card z-[var(--dc-z-float)]"
       @click="$emit('clean')"
     >
       <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-foreground" />
@@ -41,7 +41,7 @@
       key="scroll-bottom"
       variant="outline"
       size="icon"
-      class="w-8 h-8 shrink-0 relative z-10 backdrop-blur-lg"
+      class="dc-blur-panel w-8 h-8 shrink-0 relative z-[var(--dc-z-sticky)]"
       @click="$emit('scroll-to-bottom')"
     >
       <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />

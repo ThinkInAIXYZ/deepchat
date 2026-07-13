@@ -102,7 +102,8 @@ const setup = async (options: SetupOptions = {}) => {
                     name: agentStore.selectedAgentId
                   }
                 ],
-          defaultProjectPath: 'C:/repo'
+          defaultProjectPath: 'C:/repo',
+          defaultChatWorkspacePath: null
         }
       })
     })
@@ -221,7 +222,7 @@ describe('ChatTabView startup and routing', () => {
       })
 
     expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
-    expect(projectStore.applyBootstrapDefaultProjectPath).toHaveBeenCalledWith('C:/repo')
+    expect(projectStore.applyBootstrapDefaultProjectPath).toHaveBeenCalledWith('C:/repo', null)
     expect(pageRouter.initialize).toHaveBeenCalledWith({
       activeSessionId: 'session-42'
     })

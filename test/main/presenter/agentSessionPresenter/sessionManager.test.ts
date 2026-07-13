@@ -23,6 +23,11 @@ function createMockSqlitePresenter() {
       upsert: vi.fn(),
       refreshSessionTitle: vi.fn(),
       deleteBySession: vi.fn()
+    },
+    deepchatSessionMetadataTable: {
+      upsert: vi.fn(),
+      get: vi.fn().mockReturnValue(null),
+      delete: vi.fn()
     }
   } as any
 }
@@ -65,6 +70,27 @@ describe('NewSessionManager', () => {
       })
       expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/workspace')
     })
+
+    it('stores session metadata when provided', () => {
+      manager.create('deepchat', 'Scheduled run', '/tmp/workspace', {
+        metadata: {
+          source: 'cron_job',
+          cronJobId: 'job-1',
+          cronJobRunId: 'run-1',
+          scheduledAt: 123
+        }
+      })
+
+      expect(sqlitePresenter.deepchatSessionMetadataTable.upsert).toHaveBeenCalledWith(
+        'mock-id-123',
+        {
+          source: 'cron_job',
+          cronJobId: 'job-1',
+          cronJobRunId: 'run-1',
+          scheduledAt: 123
+        }
+      )
+    })
   })
 
   describe('get', () => {
@@ -96,6 +122,36 @@ describe('NewSessionManager', () => {
         createdAt: 1000,
         updatedAt: 2000
       })
+    })
+
+    it('returns stored metadata when present', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Scheduled',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      sqlitePresenter.deepchatSessionMetadataTable.get.mockReturnValue({
+        source: 'cron_job',
+        cronJobId: 'job-1',
+        cronJobRunId: 'run-1',
+        scheduledAt: 123
+      })
+
+      expect(manager.get('s1')).toEqual(
+        expect.objectContaining({
+          metadata: {
+            source: 'cron_job',
+            cronJobId: 'job-1',
+            cronJobRunId: 'run-1',
+            scheduledAt: 123
+          }
+        })
+      )
     })
 
     it('returns null when not found', () => {
@@ -193,6 +249,7 @@ describe('NewSessionManager', () => {
       expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession).toHaveBeenCalledWith(
         's1'
       )
+      expect(sqlitePresenter.deepchatSessionMetadataTable.delete).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/to-delete')
     })

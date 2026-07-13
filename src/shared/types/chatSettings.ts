@@ -81,6 +81,7 @@ export type OpenChatSettingsSection =
   | 'prompt'
   | 'acp'
   | 'skills'
+  | 'memory'
   | 'knowledge-base'
   | 'database'
   | 'shortcut'

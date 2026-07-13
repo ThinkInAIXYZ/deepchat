@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea data-testid="settings-remote-page" class="h-full w-full">
+  <component :is="rootComponent" data-testid="settings-remote-page" class="h-full w-full">
     <div class="flex h-full w-full flex-col gap-4 p-4">
       <div v-if="isLoading" class="space-y-4 animate-pulse">
         <div class="h-6 w-48 rounded bg-muted/50"></div>
@@ -25,25 +25,32 @@
         {{ t('common.error.requestFailed') }}
       </div>
       <template v-else>
-        <div class="space-y-1">
+        <div v-if="!props.hideHeader" class="space-y-1">
           <div class="flex items-center gap-2">
-            <div class="text-base font-medium">{{ t('settings.remote.title') }}</div>
+            <div class="text-base font-medium">
+              {{ singleChannelMode ? channelTitle(activeChannel) : t('settings.remote.title') }}
+            </div>
             <span v-if="isAnySaving" class="text-xs text-muted-foreground">
               {{ t('common.saving') }}
             </span>
           </div>
           <div class="text-sm text-muted-foreground">
-            {{ t('settings.remote.description') }}
+            {{
+              singleChannelMode
+                ? channelDescription(activeChannel)
+                : t('settings.remote.description')
+            }}
           </div>
         </div>
 
         <Tabs v-model="activeChannel" class="space-y-4">
           <TabsList
+            v-if="!singleChannelMode"
             class="grid w-full"
-            :style="{ gridTemplateColumns: `repeat(${implementedChannelCount}, minmax(0, 1fr))` }"
+            :style="{ gridTemplateColumns: `repeat(${remoteChannelCount}, minmax(0, 1fr))` }"
           >
             <TabsTrigger
-              v-for="channel in implementedChannels"
+              v-for="channel in remoteChannelIds"
               :key="`remote-tab-${channel}`"
               :value="channel"
               :data-testid="`remote-tab-${channel}`"
@@ -84,7 +91,10 @@
                     {{ telegramStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     telegramSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -300,7 +310,10 @@
                     {{ feishuStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     feishuSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -394,6 +407,174 @@
                     />
                   </div>
                 </div>
+
+                <div class="rounded-lg border bg-muted/20 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.feishu.installTitle') }}</div>
+                  <p class="mt-1 text-muted-foreground">
+                    {{ t('settings.remote.feishu.installDescription') }}
+                  </p>
+                  <div v-if="feishuInstallUserCode" class="mt-2 text-xs text-muted-foreground">
+                    {{
+                      t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode })
+                    }}
+                  </div>
+                  <div v-if="feishuInstallMessage" class="mt-2 text-xs text-muted-foreground">
+                    {{ feishuInstallMessage }}
+                  </div>
+                  <div v-if="feishuInstallError" class="mt-2 break-all text-xs text-destructive">
+                    {{ feishuInstallError }}
+                  </div>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      data-testid="feishu-install-open-web-button"
+                      variant="default"
+                      size="sm"
+                      :disabled="feishuInstallBusy || saving.feishu"
+                      @click="startFeishuInstall('web')"
+                    >
+                      <Icon
+                        :icon="
+                          feishuInstallBusy && feishuInstallMode === 'web'
+                            ? 'lucide:loader-2'
+                            : 'lucide:external-link'
+                        "
+                        :class="[
+                          'h-4 w-4',
+                          { 'animate-spin': feishuInstallBusy && feishuInstallMode === 'web' }
+                        ]"
+                      />
+                      {{
+                        feishuInstallBusy && feishuInstallMode === 'web'
+                          ? t('settings.remote.feishu.installWaiting')
+                          : t('settings.remote.feishu.openInstallWeb')
+                      }}
+                    </Button>
+                    <Button
+                      data-testid="feishu-install-show-qr-button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="feishuInstallBusy || saving.feishu"
+                      @click="startFeishuInstall('qr')"
+                    >
+                      <Icon
+                        :icon="
+                          feishuInstallBusy && feishuInstallMode === 'qr'
+                            ? 'lucide:loader-2'
+                            : 'lucide:qr-code'
+                        "
+                        :class="[
+                          'h-4 w-4',
+                          { 'animate-spin': feishuInstallBusy && feishuInstallMode === 'qr' }
+                        ]"
+                      />
+                      {{
+                        feishuInstallBusy && feishuInstallMode === 'qr'
+                          ? t('settings.remote.feishu.installWaiting')
+                          : t('settings.remote.feishu.showInstallQr')
+                      }}
+                    </Button>
+                    <Button
+                      v-if="feishuInstallBusy"
+                      variant="outline"
+                      size="sm"
+                      @click="cancelFeishuInstall()"
+                    >
+                      {{ t('common.cancel') }}
+                    </Button>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.feishu.manualSetupTitle') }}</div>
+                  <p class="mt-1 text-muted-foreground">
+                    {{ t('settings.remote.feishu.manualSetupDescription') }}
+                  </p>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    <li>{{ t('settings.remote.feishu.setupStepCreateApp') }}</li>
+                    <li>{{ t('settings.remote.feishu.setupStepPermissions') }}</li>
+                    <li>{{ t('settings.remote.feishu.setupStepEvents') }}</li>
+                    <li>{{ t('settings.remote.feishu.setupStepPublish') }}</li>
+                  </ul>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" @click="openFeishuSetupGuide">
+                      {{ t('settings.remote.feishu.openSetupGuide') }}
+                    </Button>
+                    <Button variant="outline" size="sm" @click="openFeishuDeveloperConsole">
+                      {{ t('settings.remote.feishu.openDeveloperConsole') }}
+                    </Button>
+                    <Button variant="outline" size="sm" @click="openFeishuBotChat">
+                      {{ t('settings.remote.feishu.openBotChat') }}
+                    </Button>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border bg-muted/20 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.feishu.userAuthTitle') }}</div>
+                  <p class="mt-1 text-muted-foreground">
+                    {{ t('settings.remote.feishu.userAuthDescription') }}
+                  </p>
+                  <div class="mt-3 grid gap-3 md:grid-cols-2">
+                    <div class="rounded-md border border-dashed bg-background/60 p-3">
+                      <div class="text-xs font-medium text-foreground">
+                        {{ t('settings.remote.feishu.pairAuthTitle') }}
+                      </div>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {{ t('settings.remote.feishu.pairAuthDescription') }}
+                      </p>
+                    </div>
+                    <div class="rounded-md border border-dashed bg-background/60 p-3">
+                      <div class="text-xs font-medium text-foreground">
+                        {{ t('settings.remote.feishu.scanAuthTitle') }}
+                      </div>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {{ t('settings.remote.feishu.scanAuthDescription') }}
+                      </p>
+                    </div>
+                  </div>
+                  <div v-if="feishuAuthMessage" class="mt-2 text-xs text-muted-foreground">
+                    {{ feishuAuthMessage }}
+                  </div>
+                  <div v-if="feishuAuthError" class="mt-2 break-all text-xs text-destructive">
+                    {{ feishuAuthError }}
+                  </div>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      data-testid="feishu-pair-button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="!feishuSettings.remoteEnabled || saving.feishu"
+                      @click="generatePairCodeAndOpenDialog('feishu')"
+                    >
+                      <Icon icon="lucide:key-round" class="h-4 w-4" />
+                      {{ t('settings.remote.remoteControl.openPairDialog') }}
+                    </Button>
+                    <Button
+                      data-testid="feishu-scan-auth-button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="feishuAuthBusy || saving.feishu"
+                      @click="startFeishuScanAuth"
+                    >
+                      <Icon
+                        :icon="feishuAuthBusy ? 'lucide:loader-2' : 'lucide:scan-line'"
+                        :class="['h-4 w-4', { 'animate-spin': feishuAuthBusy }]"
+                      />
+                      {{
+                        feishuAuthBusy
+                          ? t('settings.remote.feishu.scanAuthWaiting')
+                          : t('settings.remote.feishu.startScanAuth')
+                      }}
+                    </Button>
+                    <Button
+                      v-if="feishuAuthBusy"
+                      variant="outline"
+                      size="sm"
+                      @click="cancelFeishuScanAuth()"
+                    >
+                      {{ t('common.cancel') }}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -414,6 +595,31 @@
                   <div>{{ t('settings.remote.feishu.accessRule1') }}</div>
                   <div class="mt-1">{{ t('settings.remote.feishu.accessRule2') }}</div>
                 </div>
+
+                <label
+                  class="flex items-start justify-between gap-4 rounded-lg border bg-muted/20 p-3 text-sm"
+                >
+                  <div class="space-y-1">
+                    <div class="font-medium">{{ t('settings.remote.feishu.streamingCards') }}</div>
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.feishu.streamingCardsDescription') }}
+                    </p>
+                  </div>
+                  <Switch
+                    data-testid="feishu-streaming-cards-toggle"
+                    :model-value="feishuSettings.enableStreamingCards"
+                    :disabled="saving.feishu"
+                    @update:model-value="
+                      (value) => {
+                        if (!feishuSettings) {
+                          return
+                        }
+                        feishuSettings.enableStreamingCards = value === true
+                        queueFeishuSettingsPersist()
+                      }
+                    "
+                  />
+                </label>
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div class="space-y-2">
@@ -520,15 +726,6 @@
 
                 <div class="flex flex-wrap items-center gap-2">
                   <Button
-                    data-testid="feishu-pair-button"
-                    variant="outline"
-                    size="sm"
-                    :disabled="!feishuSettings.remoteEnabled || saving.feishu"
-                    @click="generatePairCodeAndOpenDialog('feishu')"
-                  >
-                    {{ t('settings.remote.remoteControl.openPairDialog') }}
-                  </Button>
-                  <Button
                     data-testid="feishu-bindings-button"
                     variant="outline"
                     size="sm"
@@ -567,7 +764,10 @@
                     {{ qqbotStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     qqbotSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -777,7 +977,10 @@
                     {{ discordStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     discordSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -997,7 +1200,10 @@
                     {{ weixinIlinkStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     weixinIlinkSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -1274,7 +1480,7 @@
         </Tabs>
       </template>
     </div>
-  </ScrollArea>
+  </component>
 
   <Dialog v-model:open="pairDialogVisible">
     <DialogContent class="sm:max-w-md">
@@ -1334,6 +1540,55 @@
         <div class="flex justify-end">
           <Button variant="outline" @click="cancelPairDialog">
             {{ t('common.cancel') }}
+          </Button>
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog v-model:open="feishuInstallQrDialogVisible">
+    <DialogContent class="sm:max-w-md">
+      <div data-testid="feishu-install-qr-dialog" class="space-y-6">
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.remote.feishu.installQrTitle') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.remote.feishu.installQrDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-4">
+          <div
+            class="rounded-lg border bg-muted/20 p-4 text-center"
+            data-testid="feishu-install-qr-code"
+            :data-qr-value="feishuInstallQrUrl"
+          >
+            <img
+              v-if="feishuInstallQrDataUrl"
+              :src="feishuInstallQrDataUrl"
+              :alt="t('settings.remote.feishu.installQrAlt')"
+              class="mx-auto h-56 w-56 rounded bg-white p-2"
+            />
+            <div v-else class="py-16 text-sm text-muted-foreground">
+              {{ t('common.loading') }}
+            </div>
+          </div>
+          <div v-if="feishuInstallUserCode" class="text-xs text-muted-foreground">
+            {{ t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode }) }}
+          </div>
+          <div v-if="feishuInstallMessage" class="text-xs text-muted-foreground">
+            {{ feishuInstallMessage }}
+          </div>
+          <div v-if="feishuInstallError" class="break-all text-xs text-destructive">
+            {{ feishuInstallError }}
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <Button variant="outline" :disabled="!feishuInstallQrUrl" @click="openFeishuInstallQrUrl">
+            {{ t('settings.remote.feishu.openInstallWeb') }}
+          </Button>
+          <Button variant="outline" @click="closeFeishuInstallQrDialog">
+            {{ feishuInstallBusy ? t('common.cancel') : t('common.close') }}
           </Button>
         </div>
       </div>
@@ -1515,8 +1770,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import * as QRCode from 'qrcode'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -1545,7 +1801,10 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
-import { useLegacyPresenter, useLegacyRemoteControlPresenter } from '@api/legacy/presenters'
+import { createProjectClient } from '@api/ProjectClient'
+import { createRemoteControlClient } from '@api/RemoteControlClient'
+import { createSessionClient } from '@api/SessionClient'
+import { openRuntimeExternal } from '@api/runtime'
 import { useToast } from '@/components/use-toast'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { isAcpDefaultWorkdirRequiredError } from '@shared/contracts/remoteControlErrors'
@@ -1554,6 +1813,10 @@ import type {
   DiscordPairingSnapshot,
   DiscordRemoteSettings,
   DiscordRemoteStatus,
+  FeishuAuthResult,
+  FeishuAuthSession,
+  FeishuInstallResult,
+  FeishuInstallSession,
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
@@ -1577,59 +1840,18 @@ import type {
   WeixinIlinkRemoteStatus
 } from '@shared/presenter'
 
-const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
-  {
-    id: 'telegram',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.telegram.title',
-    descriptionKey: 'settings.remote.telegram.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'feishu',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.feishu.title',
-    descriptionKey: 'settings.remote.feishu.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'qqbot',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.qqbot.title',
-    descriptionKey: 'settings.remote.qqbot.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'discord',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.discord.title',
-    descriptionKey: 'settings.remote.discord.description',
-    supportsPairing: true,
-    supportsNotifications: false
-  },
-  {
-    id: 'weixin-ilink',
-    type: 'builtin',
-    implemented: true,
-    titleKey: 'settings.remote.weixinIlink.title',
-    descriptionKey: 'settings.remote.weixinIlink.description',
-    supportsPairing: false,
-    supportsNotifications: false
-  }
-]
-
-const remoteControlPresenter = useLegacyRemoteControlPresenter({ safeCall: false })
-const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
-const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
+const remoteControlClient = createRemoteControlClient()
+const projectClient = createProjectClient()
+const sessionClient = createSessionClient()
 const { t } = useI18n()
 const { toast } = useToast()
+const props = defineProps<{
+  channel?: RemoteChannel
+  embedded?: boolean
+  hideHeader?: boolean
+  hideChannelToggle?: boolean
+  singleChannel?: boolean
+}>()
 
 const channelI18nKeyMap: Record<RemoteChannel, string> = {
   telegram: 'telegram',
@@ -1646,6 +1868,13 @@ function channelTitle(channel: RemoteChannel | null | undefined): string {
   return t(`settings.remote.${channelI18nKeyMap[channel]}.title`)
 }
 
+function channelDescription(channel: RemoteChannel | null | undefined): string {
+  if (!channel) {
+    return ''
+  }
+  return t(`settings.remote.${channelI18nKeyMap[channel]}.description`)
+}
+
 const telegramSettings = ref<TelegramRemoteSettings | null>(null)
 const feishuSettings = ref<FeishuRemoteSettings | null>(null)
 const qqbotSettings = ref<QQBotRemoteSettings | null>(null)
@@ -1656,7 +1885,7 @@ const feishuStatus = ref<FeishuRemoteStatus | null>(null)
 const qqbotStatus = ref<QQBotRemoteStatus | null>(null)
 const discordStatus = ref<DiscordRemoteStatus | null>(null)
 const weixinIlinkStatus = ref<WeixinIlinkRemoteStatus | null>(null)
-const channelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackChannelDescriptors)
+const channelDescriptors = ref<RemoteChannelDescriptor[]>([])
 const isLoading = ref(false)
 const showBotToken = ref(false)
 const showDiscordBotToken = ref(false)
@@ -1677,6 +1906,21 @@ const bindingRemovingKey = ref<string | null>(null)
 const principalRemovingId = ref<string | null>(null)
 const bindings = ref<RemoteBindingSummary[]>([])
 const authorizedPrincipals = ref<string[]>([])
+const feishuAuthMessage = ref('')
+const feishuAuthError = ref<string | null>(null)
+const feishuAuthStarting = ref(false)
+const feishuAuthWaiting = ref(false)
+const feishuAuthSessionKey = ref<string | null>(null)
+const feishuInstallMessage = ref('')
+const feishuInstallError = ref<string | null>(null)
+const feishuInstallStarting = ref(false)
+const feishuInstallWaiting = ref(false)
+const feishuInstallSessionKey = ref<string | null>(null)
+const feishuInstallUserCode = ref('')
+const feishuInstallQrDialogOpen = ref(false)
+const feishuInstallQrUrl = ref('')
+const feishuInstallQrDataUrl = ref('')
+const feishuInstallMode = ref<'web' | 'qr' | null>(null)
 const weixinIlinkLoginMessage = ref('')
 const weixinIlinkLoginError = ref<string | null>(null)
 const weixinIlinkLoginStarting = ref(false)
@@ -1705,8 +1949,11 @@ const saveTasks: Record<RemoteChannel, Promise<void> | null> = {
   'weixin-ilink': null
 }
 
-let statusRefreshTimer: ReturnType<typeof setInterval> | null = null
+let statusRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let pairDialogRefreshTimer: ReturnType<typeof setInterval> | null = null
+let statusRefreshErrors = 0
+const REMOTE_STATUS_ACTIVE_POLL_MS = 2_000
+const REMOTE_STATUS_IDLE_POLL_MS = 30_000
 
 const defaultTelegramSettings = (): TelegramRemoteSettings => ({
   botToken: '',
@@ -1722,6 +1969,7 @@ const defaultFeishuSettings = (): FeishuRemoteSettings => ({
   verificationToken: '',
   encryptKey: '',
   remoteEnabled: false,
+  enableStreamingCards: false,
   defaultAgentId: 'deepchat',
   defaultWorkdir: '',
   pairedUserOpenIds: []
@@ -1749,55 +1997,6 @@ const defaultWeixinIlinkSettings = (): WeixinIlinkRemoteSettings => ({
   defaultAgentId: 'deepchat',
   defaultWorkdir: '',
   accounts: []
-})
-
-const defaultFeishuStatus = (): FeishuRemoteStatus => ({
-  channel: 'feishu',
-  enabled: false,
-  state: 'disabled',
-  bindingCount: 0,
-  pairedUserCount: 0,
-  lastError: null,
-  botUser: null
-})
-
-const defaultQQBotStatus = (): QQBotRemoteStatus => ({
-  channel: 'qqbot',
-  enabled: false,
-  state: 'disabled',
-  bindingCount: 0,
-  pairedUserCount: 0,
-  lastError: null,
-  botUser: null
-})
-
-const defaultDiscordStatus = (): DiscordRemoteStatus => ({
-  channel: 'discord',
-  enabled: false,
-  state: 'disabled',
-  bindingCount: 0,
-  pairedChannelCount: 0,
-  lastError: null,
-  botUser: null
-})
-
-const defaultFeishuPairingSnapshot = (): FeishuPairingSnapshot => ({
-  pairCode: null,
-  pairCodeExpiresAt: null,
-  pairedUserOpenIds: []
-})
-
-const defaultQQBotPairingSnapshot = (): QQBotPairingSnapshot => ({
-  pairCode: null,
-  pairCodeExpiresAt: null,
-  pairedUserIds: [],
-  pairedGroupIds: []
-})
-
-const defaultDiscordPairingSnapshot = (): DiscordPairingSnapshot => ({
-  pairCode: null,
-  pairCodeExpiresAt: null,
-  pairedChannelIds: []
 })
 
 const normalizeTelegramPairingSnapshot = (
@@ -1833,67 +2032,13 @@ const normalizeDiscordPairingSnapshot = (
   pairedChannelIds: [...(snapshot?.pairedChannelIds ?? [])]
 })
 
-const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
-  listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
-  getChannelSettings?: (channel: RemoteChannel) => Promise<RemoteChannelSettings>
-  saveChannelSettings?: (
-    channel: RemoteChannel,
-    input: RemoteChannelSettings
-  ) => Promise<RemoteChannelSettings>
-  getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
-  getChannelBindings?: (channel: RemoteChannel) => Promise<RemoteBindingSummary[]>
-  removeChannelBinding?: (channel: RemoteChannel, endpointKey: string) => Promise<void>
-  removeChannelPrincipal?: (channel: PairableRemoteChannel, principalId: string) => Promise<void>
-  getChannelPairingSnapshot?: (channel: PairableRemoteChannel) => Promise<RemotePairingSnapshot>
-  createChannelPairCode?: (channel: PairableRemoteChannel) => Promise<{
-    code: string
-    expiresAt: number
-  }>
-  clearChannelPairCode?: (channel: PairableRemoteChannel) => Promise<void>
-  startWeixinIlinkLogin?: (input?: { force?: boolean }) => Promise<WeixinIlinkLoginSession>
-  waitForWeixinIlinkLogin?: (input: {
-    sessionKey: string
-    timeoutMs?: number
-  }) => Promise<WeixinIlinkLoginResult>
-  removeWeixinIlinkAccount?: (accountId: string) => Promise<void>
-  restartWeixinIlinkAccount?: (accountId: string) => Promise<void>
-}
-
-const listRemoteChannelsCompat = async (): Promise<RemoteChannelDescriptor[]> => {
-  if (presenterCompat.listRemoteChannels) {
-    return await presenterCompat.listRemoteChannels()
-  }
-
-  return fallbackChannelDescriptors
-}
-
 function getChannelSettingsCompat(channel: 'telegram'): Promise<TelegramRemoteSettings>
 function getChannelSettingsCompat(channel: 'feishu'): Promise<FeishuRemoteSettings>
 function getChannelSettingsCompat(channel: 'qqbot'): Promise<QQBotRemoteSettings>
 function getChannelSettingsCompat(channel: 'discord'): Promise<DiscordRemoteSettings>
 function getChannelSettingsCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
 async function getChannelSettingsCompat(channel: RemoteChannel): Promise<RemoteChannelSettings> {
-  if (presenterCompat.getChannelSettings) {
-    return await presenterCompat.getChannelSettings(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.getTelegramSettings()
-  }
-
-  if (channel === 'qqbot') {
-    return defaultQQBotSettings()
-  }
-
-  if (channel === 'discord') {
-    return defaultDiscordSettings()
-  }
-
-  if (channel === 'weixin-ilink') {
-    return await remoteControlPresenter.getWeixinIlinkSettings()
-  }
-
-  return defaultFeishuSettings()
+  return await remoteControlClient.getChannelSettings(channel)
 }
 
 function saveChannelSettingsCompat(
@@ -1920,27 +2065,7 @@ async function saveChannelSettingsCompat(
   channel: RemoteChannel,
   input: RemoteChannelSettings
 ): Promise<RemoteChannelSettings> {
-  if (presenterCompat.saveChannelSettings) {
-    return await presenterCompat.saveChannelSettings(channel, input)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.saveTelegramSettings(input as TelegramRemoteSettings)
-  }
-
-  if (channel === 'qqbot') {
-    return input as QQBotRemoteSettings
-  }
-
-  if (channel === 'discord') {
-    return input as DiscordRemoteSettings
-  }
-
-  if (channel === 'weixin-ilink') {
-    return await remoteControlPresenter.saveWeixinIlinkSettings(input as WeixinIlinkRemoteSettings)
-  }
-
-  return input as FeishuRemoteSettings
+  return await remoteControlClient.saveChannelSettings(channel, input)
 }
 
 function getChannelStatusCompat(channel: 'telegram'): Promise<TelegramRemoteStatus>
@@ -1949,98 +2074,33 @@ function getChannelStatusCompat(channel: 'qqbot'): Promise<QQBotRemoteStatus>
 function getChannelStatusCompat(channel: 'discord'): Promise<DiscordRemoteStatus>
 function getChannelStatusCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteStatus>
 async function getChannelStatusCompat(channel: RemoteChannel): Promise<RemoteChannelStatus> {
-  if (presenterCompat.getChannelStatus) {
-    return await presenterCompat.getChannelStatus(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.getTelegramStatus()
-  }
-
-  if (channel === 'qqbot') {
-    return defaultQQBotStatus()
-  }
-
-  if (channel === 'discord') {
-    return defaultDiscordStatus()
-  }
-
-  if (channel === 'weixin-ilink') {
-    return await remoteControlPresenter.getWeixinIlinkStatus()
-  }
-
-  return defaultFeishuStatus()
+  return await remoteControlClient.getChannelStatus(channel)
 }
 
 const getChannelBindingsCompat = async (
   channel: RemoteChannel
 ): Promise<RemoteBindingSummary[]> => {
-  if (presenterCompat.getChannelBindings) {
-    return await presenterCompat.getChannelBindings(channel)
-  }
-
-  if (channel === 'telegram') {
-    const bindings = await remoteControlPresenter.getTelegramBindings()
-    return bindings.map((binding) => ({
-      channel: 'telegram',
-      endpointKey: binding.endpointKey,
-      sessionId: binding.sessionId,
-      chatId: String(binding.chatId),
-      threadId: binding.messageThreadId ? String(binding.messageThreadId) : null,
-      kind: binding.messageThreadId ? 'topic' : 'dm',
-      updatedAt: binding.updatedAt
-    }))
-  }
-
-  return []
+  return await remoteControlClient.getChannelBindings(channel)
 }
 
 const removeChannelBindingCompat = async (
   channel: RemoteChannel,
   endpointKey: string
 ): Promise<void> => {
-  if (presenterCompat.removeChannelBinding) {
-    await presenterCompat.removeChannelBinding(channel, endpointKey)
-    return
-  }
-
-  if (channel === 'telegram') {
-    await remoteControlPresenter.removeTelegramBinding(endpointKey)
-  }
+  await remoteControlClient.removeChannelBinding(channel, endpointKey)
 }
 
 const removeChannelPrincipalCompat = async (
   channel: PairableRemoteChannel,
   principalId: string
 ): Promise<void> => {
-  if (presenterCompat.removeChannelPrincipal) {
-    await presenterCompat.removeChannelPrincipal(channel, principalId)
-    return
-  }
-
-  throw new Error('removeChannelPrincipal is not available.')
+  await remoteControlClient.removeChannelPrincipal(channel, principalId)
 }
 
 const getChannelPairingSnapshotCompat = async (
   channel: PairableRemoteChannel
 ): Promise<RemotePairingSnapshot> => {
-  if (presenterCompat.getChannelPairingSnapshot) {
-    return await presenterCompat.getChannelPairingSnapshot(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.getTelegramPairingSnapshot()
-  }
-
-  if (channel === 'qqbot') {
-    return defaultQQBotPairingSnapshot()
-  }
-
-  if (channel === 'discord') {
-    return defaultDiscordPairingSnapshot()
-  }
-
-  return defaultFeishuPairingSnapshot()
+  return await remoteControlClient.getChannelPairingSnapshot(channel)
 }
 
 const createChannelPairCodeCompat = async (
@@ -2049,74 +2109,78 @@ const createChannelPairCodeCompat = async (
   code: string
   expiresAt: number
 }> => {
-  if (presenterCompat.createChannelPairCode) {
-    return await presenterCompat.createChannelPairCode(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.createTelegramPairCode()
-  }
-
-  return {
-    code: '',
-    expiresAt: Date.now()
-  }
+  return await remoteControlClient.createChannelPairCode(channel)
 }
 
 const clearChannelPairCodeCompat = async (channel: PairableRemoteChannel): Promise<void> => {
-  if (presenterCompat.clearChannelPairCode) {
-    await presenterCompat.clearChannelPairCode(channel)
-    return
-  }
+  await remoteControlClient.clearChannelPairCode(channel)
+}
 
-  if (channel === 'telegram') {
-    await remoteControlPresenter.clearTelegramPairCode()
-  }
+const startFeishuAuthCompat = async (input?: {
+  brand?: 'feishu' | 'lark'
+  appId?: string
+  appSecret?: string
+  redirectUri?: string
+}): Promise<FeishuAuthSession> => {
+  return await remoteControlClient.startFeishuAuth(input)
+}
+
+const waitForFeishuAuthCompat = async (input: {
+  sessionKey: string
+  timeoutMs?: number
+}): Promise<FeishuAuthResult> => {
+  return await remoteControlClient.waitForFeishuAuth(input)
+}
+
+const cancelFeishuAuthCompat = async (sessionKey: string): Promise<void> => {
+  await remoteControlClient.cancelFeishuAuth(sessionKey)
+}
+
+const startFeishuInstallCompat = async (input?: {
+  brand?: 'feishu' | 'lark'
+}): Promise<FeishuInstallSession> => {
+  return await remoteControlClient.startFeishuInstall(input)
+}
+
+const waitForFeishuInstallCompat = async (input: {
+  sessionKey: string
+  timeoutMs?: number
+}): Promise<FeishuInstallResult> => {
+  return await remoteControlClient.waitForFeishuInstall(input)
+}
+
+const cancelFeishuInstallCompat = async (sessionKey: string): Promise<void> => {
+  await remoteControlClient.cancelFeishuInstall(sessionKey)
 }
 
 const startWeixinIlinkLoginCompat = async (input?: {
   force?: boolean
 }): Promise<WeixinIlinkLoginSession> => {
-  if (presenterCompat.startWeixinIlinkLogin) {
-    return await presenterCompat.startWeixinIlinkLogin(input)
-  }
-
-  return await remoteControlPresenter.startWeixinIlinkLogin(input)
+  return await remoteControlClient.startWeixinIlinkLogin(input)
 }
 
 const waitForWeixinIlinkLoginCompat = async (input: {
   sessionKey: string
   timeoutMs?: number
 }): Promise<WeixinIlinkLoginResult> => {
-  if (presenterCompat.waitForWeixinIlinkLogin) {
-    return await presenterCompat.waitForWeixinIlinkLogin(input)
-  }
-
-  return await remoteControlPresenter.waitForWeixinIlinkLogin(input)
+  return await remoteControlClient.waitForWeixinIlinkLogin(input)
 }
 
 const removeWeixinIlinkAccountCompat = async (accountId: string): Promise<void> => {
-  if (presenterCompat.removeWeixinIlinkAccount) {
-    await presenterCompat.removeWeixinIlinkAccount(accountId)
-    return
-  }
-
-  await remoteControlPresenter.removeWeixinIlinkAccount(accountId)
+  await remoteControlClient.removeWeixinIlinkAccount(accountId)
 }
 
 const restartWeixinIlinkAccountCompat = async (accountId: string): Promise<void> => {
-  if (presenterCompat.restartWeixinIlinkAccount) {
-    await presenterCompat.restartWeixinIlinkAccount(accountId)
-    return
-  }
-
-  await remoteControlPresenter.restartWeixinIlinkAccount(accountId)
+  await remoteControlClient.restartWeixinIlinkAccount(accountId)
 }
 
-const resolveWeixinIlinkLoginMessage = (input: {
-  message?: string | null
-  messageKey?: string | null
-}): string => {
+const resolveRemoteMessage = (
+  input: {
+    message?: string | null
+    messageKey?: string | null
+  },
+  fallbackKey: string
+): string => {
   if (input.messageKey?.trim()) {
     return t(input.messageKey.trim())
   }
@@ -2125,18 +2189,52 @@ const resolveWeixinIlinkLoginMessage = (input: {
     return input.message.trim()
   }
 
-  return t('settings.remote.weixinIlink.loginFailed')
+  return t(fallbackKey)
 }
 
-const implementedChannels = computed(() =>
-  channelDescriptors.value
-    .filter((descriptor) => descriptor.implemented)
-    .map((descriptor) => descriptor.id)
-)
-const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
+const resolveFeishuAuthMessage = (input: {
+  message?: string | null
+  messageKey?: string | null
+}): string => resolveRemoteMessage(input, 'settings.remote.feishu.authFailed')
+
+const resolveFeishuInstallMessage = (input: {
+  message?: string | null
+  messageKey?: string | null
+}): string => resolveRemoteMessage(input, 'settings.remote.feishu.installFailed')
+
+const resolveWeixinIlinkLoginMessage = (input: {
+  message?: string | null
+  messageKey?: string | null
+}): string => resolveRemoteMessage(input, 'settings.remote.weixinIlink.loginFailed')
+
+const remoteChannelIds = computed(() => channelDescriptors.value.map((descriptor) => descriptor.id))
+const remoteChannelCount = computed(() => Math.max(1, remoteChannelIds.value.length))
+const rootComponent = computed(() => (props.embedded ? 'div' : ScrollArea))
+const singleChannelMode = computed(() => Boolean(props.singleChannel || props.channel))
+const isRemoteChannel = (value: unknown): value is RemoteChannel =>
+  typeof value === 'string' &&
+  channelDescriptors.value.some((descriptor) => descriptor.id === value)
+const syncActiveChannelFromProps = () => {
+  if (props.channel && isRemoteChannel(props.channel)) {
+    activeChannel.value = props.channel
+  }
+}
 const isAnySaving = computed(
   () => saving.telegram || saving.feishu || saving.qqbot || saving.discord || saving['weixin-ilink']
 )
+const feishuAuthBusy = computed(() => feishuAuthStarting.value || feishuAuthWaiting.value)
+const feishuInstallBusy = computed(() => feishuInstallStarting.value || feishuInstallWaiting.value)
+const feishuInstallQrDialogVisible = computed({
+  get: () => feishuInstallQrDialogOpen.value,
+  set: (open: boolean) => {
+    if (open) {
+      feishuInstallQrDialogOpen.value = true
+      return
+    }
+
+    closeFeishuInstallQrDialog()
+  }
+})
 const isPairableChannel = (
   channel: RemoteChannel | null | undefined
 ): channel is PairableRemoteChannel =>
@@ -2250,7 +2348,7 @@ const defaultWorkdirTitle = (channel: RemoteChannel) =>
 
 const pickDefaultWorkdir = async (channel: RemoteChannel) => {
   try {
-    const selectedPath = await projectPresenter.selectDirectory()
+    const selectedPath = await projectClient.selectDirectory()
     if (selectedPath) {
       setChannelDefaultWorkdir(channel, selectedPath)
       void loadRecentProjects()
@@ -2383,7 +2481,53 @@ const getSnapshotPrincipalIds = (
         : normalizeDiscordPairingSnapshot(snapshot as Partial<DiscordPairingSnapshot>)
             .pairedChannelIds
 
-const refreshStatus = async () => {
+const hasEnabledRemoteSettings = () =>
+  Boolean(
+    telegramSettings.value?.remoteEnabled ||
+    feishuSettings.value?.remoteEnabled ||
+    qqbotSettings.value?.remoteEnabled ||
+    discordSettings.value?.remoteEnabled ||
+    weixinIlinkSettings.value?.remoteEnabled ||
+    weixinIlinkSettings.value?.accounts?.some((account) => account.enabled)
+  )
+
+const clearStatusRefreshTimer = () => {
+  if (!statusRefreshTimer) return
+  clearTimeout(statusRefreshTimer)
+  statusRefreshTimer = null
+}
+
+const runStatusRefresh = async () => {
+  const refreshed = await refreshStatus()
+  statusRefreshErrors = refreshed ? 0 : statusRefreshErrors + 1
+
+  if (remoteSettingsUnmounted || document.visibilityState === 'hidden') return
+  const backoffMs = Math.min(30_000, 2_000 * 2 ** statusRefreshErrors)
+  scheduleStatusRefresh(
+    hasEnabledRemoteSettings()
+      ? refreshed
+        ? REMOTE_STATUS_ACTIVE_POLL_MS
+        : backoffMs
+      : REMOTE_STATUS_IDLE_POLL_MS
+  )
+}
+
+const scheduleStatusRefresh = (delayMs = 0) => {
+  clearStatusRefreshTimer()
+  if (remoteSettingsUnmounted || document.visibilityState === 'hidden') return
+
+  if (delayMs <= 0) {
+    void runStatusRefresh()
+    return
+  }
+
+  statusRefreshTimer = setTimeout(() => {
+    statusRefreshTimer = null
+    void runStatusRefresh()
+  }, delayMs)
+}
+
+const refreshStatus = async (): Promise<boolean> => {
   try {
     const [
       nextTelegramStatus,
@@ -2403,8 +2547,10 @@ const refreshStatus = async () => {
     qqbotStatus.value = nextQQBotStatus
     discordStatus.value = nextDiscordStatus
     weixinIlinkStatus.value = nextWeixinIlinkStatus
+    return true
   } catch (error) {
     console.warn('Failed to refresh remote channel status:', error)
+    return false
   }
 }
 
@@ -2420,12 +2566,12 @@ const refreshPairingSnapshot = async (
 }
 
 const loadAvailableAgents = async () => {
-  availableAgents.value = await agentSessionPresenter.getAgents()
+  availableAgents.value = await sessionClient.getAgents()
 }
 
 const loadRecentProjects = async () => {
   try {
-    const result = await projectPresenter.getRecentProjects(8)
+    const result = await projectClient.listRecent(8)
     recentProjects.value = Array.isArray(result) ? result : []
   } catch {
     recentProjects.value = []
@@ -2448,7 +2594,7 @@ const loadState = async () => {
       loadedDiscordStatus,
       loadedWeixinIlinkStatus
     ] = await Promise.all([
-      listRemoteChannelsCompat(),
+      remoteControlClient.listRemoteChannels(),
       getChannelSettingsCompat('telegram'),
       getChannelSettingsCompat('feishu'),
       getChannelSettingsCompat('qqbot'),
@@ -2463,8 +2609,7 @@ const loadState = async () => {
       loadRecentProjects()
     ])
 
-    channelDescriptors.value =
-      loadedChannelDescriptors.length > 0 ? loadedChannelDescriptors : fallbackChannelDescriptors
+    channelDescriptors.value = loadedChannelDescriptors
     syncTelegramFields(loadedTelegramSettings)
     syncFeishuFields(loadedFeishuSettings)
     syncQQBotFields(loadedQQBotSettings)
@@ -2476,9 +2621,13 @@ const loadState = async () => {
     discordStatus.value = loadedDiscordStatus
     weixinIlinkStatus.value = loadedWeixinIlinkStatus
 
-    if (!implementedChannels.value.includes(activeChannel.value)) {
-      activeChannel.value = implementedChannels.value[0] ?? 'telegram'
+    syncActiveChannelFromProps()
+    if (!remoteChannelIds.value.includes(activeChannel.value)) {
+      activeChannel.value = remoteChannelIds.value[0] ?? 'telegram'
     }
+    scheduleStatusRefresh(
+      hasEnabledRemoteSettings() ? REMOTE_STATUS_ACTIVE_POLL_MS : REMOTE_STATUS_IDLE_POLL_MS
+    )
   } catch (error) {
     console.error('Failed to load remote settings:', error)
     toast({
@@ -2496,8 +2645,12 @@ const buildTelegramDraftSettings = (): TelegramRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(telegramSettings.value)
   return {
-    ...telegramSettings.value
+    botToken: settings.botToken,
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir
   }
 }
 
@@ -2506,8 +2659,18 @@ const buildFeishuDraftSettings = (): FeishuRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(feishuSettings.value)
   return {
-    ...feishuSettings.value
+    brand: settings.brand,
+    appId: settings.appId,
+    appSecret: settings.appSecret,
+    verificationToken: settings.verificationToken,
+    encryptKey: settings.encryptKey,
+    remoteEnabled: settings.remoteEnabled,
+    enableStreamingCards: settings.enableStreamingCards,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    pairedUserOpenIds: [...(settings.pairedUserOpenIds ?? [])]
   }
 }
 
@@ -2516,8 +2679,14 @@ const buildQQBotDraftSettings = (): QQBotRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(qqbotSettings.value)
   return {
-    ...qqbotSettings.value
+    appId: settings.appId,
+    clientSecret: settings.clientSecret,
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    pairedUserIds: [...(settings.pairedUserIds ?? [])]
   }
 }
 
@@ -2526,8 +2695,13 @@ const buildDiscordDraftSettings = (): DiscordRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(discordSettings.value)
   return {
-    ...discordSettings.value
+    botToken: settings.botToken,
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    pairedChannelIds: [...(settings.pairedChannelIds ?? [])]
   }
 }
 
@@ -2536,9 +2710,12 @@ const buildWeixinIlinkDraftSettings = (): WeixinIlinkRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(weixinIlinkSettings.value)
   return {
-    ...weixinIlinkSettings.value,
-    accounts: weixinIlinkSettings.value.accounts.map((account) => ({
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    accounts: (settings.accounts ?? []).map((account) => ({
       accountId: String(account.accountId ?? '').trim(),
       ownerUserId: String(account.ownerUserId ?? '').trim(),
       baseUrl: String(account.baseUrl ?? '').trim(),
@@ -2762,7 +2939,309 @@ const updateWeixinIlinkDefaultAgentId = (value: string) => {
   queueWeixinIlinkSettingsPersist()
 }
 
+let feishuAuthRequestId = 0
+let feishuInstallRequestId = 0
 let weixinIlinkLoginRequestId = 0
+let remoteSettingsUnmounted = false
+
+const generateFeishuInstallQrDataUrl = async (installUrl: string): Promise<string> => {
+  return await QRCode.toDataURL(installUrl, {
+    errorCorrectionLevel: 'M',
+    margin: 2,
+    width: 256,
+    color: {
+      dark: '#000000ff',
+      light: '#ffffffff'
+    }
+  })
+}
+
+const waitForFeishuInstallResult = async (requestId: number, sessionKey: string) => {
+  if (requestId !== feishuInstallRequestId) {
+    return
+  }
+
+  feishuInstallWaiting.value = true
+
+  try {
+    const result = await waitForFeishuInstallCompat({
+      sessionKey,
+      timeoutMs: 5 * 60_000
+    })
+    if (requestId !== feishuInstallRequestId) {
+      return
+    }
+
+    feishuInstallMessage.value = resolveFeishuInstallMessage(result)
+    feishuInstallError.value = result.installed ? null : feishuInstallMessage.value
+
+    if (result.installed) {
+      const [settings, status] = await Promise.all([
+        getChannelSettingsCompat('feishu'),
+        getChannelStatusCompat('feishu')
+      ])
+      if (requestId !== feishuInstallRequestId) {
+        return
+      }
+
+      syncFeishuFields(settings)
+      feishuStatus.value = status
+
+      toast({
+        title: t('settings.remote.feishu.installSuccessTitle'),
+        description: result.appId
+          ? t('settings.remote.feishu.installSuccessDescription', { appId: result.appId })
+          : feishuInstallMessage.value
+      })
+      feishuInstallQrDialogOpen.value = false
+      feishuInstallMode.value = null
+    }
+  } catch (error) {
+    if (requestId !== feishuInstallRequestId) {
+      return
+    }
+
+    feishuInstallError.value = error instanceof Error ? error.message : String(error)
+    feishuInstallMessage.value = t('settings.remote.feishu.installFailed')
+  } finally {
+    if (requestId === feishuInstallRequestId) {
+      feishuInstallWaiting.value = false
+      feishuInstallSessionKey.value = null
+      if (!feishuInstallQrDialogOpen.value) {
+        feishuInstallMode.value = null
+      }
+    }
+  }
+}
+
+const startFeishuInstall = async (mode: 'web' | 'qr') => {
+  if (feishuInstallBusy.value || !feishuSettings.value) {
+    return
+  }
+
+  const requestId = ++feishuInstallRequestId
+  feishuInstallMode.value = mode
+  feishuInstallMessage.value = t('common.loading')
+  feishuInstallError.value = null
+  feishuInstallUserCode.value = ''
+  feishuInstallQrUrl.value = ''
+  feishuInstallQrDataUrl.value = ''
+  feishuInstallQrDialogOpen.value = mode === 'qr'
+  feishuInstallStarting.value = true
+  feishuInstallWaiting.value = false
+
+  let sessionKeyToCancel: string | null = null
+
+  try {
+    const session = await startFeishuInstallCompat({
+      brand: feishuSettings.value.brand
+    })
+    sessionKeyToCancel = session.sessionKey
+    if (requestId !== feishuInstallRequestId) {
+      await cancelFeishuInstallCompat(session.sessionKey).catch(() => undefined)
+      return
+    }
+
+    feishuInstallSessionKey.value = session.sessionKey
+    feishuInstallUserCode.value = session.userCode
+    feishuInstallMessage.value = resolveFeishuInstallMessage(session)
+
+    if (mode === 'qr') {
+      feishuInstallQrUrl.value = session.installUrl
+      const qrDataUrl = await generateFeishuInstallQrDataUrl(session.installUrl)
+      if (requestId !== feishuInstallRequestId) {
+        await cancelFeishuInstallCompat(session.sessionKey).catch(() => undefined)
+        return
+      }
+      feishuInstallQrDataUrl.value = qrDataUrl
+    } else {
+      await openExternalUrl(session.installUrl)
+    }
+
+    void waitForFeishuInstallResult(requestId, session.sessionKey)
+  } catch (error) {
+    if (requestId !== feishuInstallRequestId) {
+      return
+    }
+
+    if (sessionKeyToCancel) {
+      await cancelFeishuInstallCompat(sessionKeyToCancel).catch(() => undefined)
+      feishuInstallSessionKey.value = null
+    }
+    if (remoteSettingsUnmounted) {
+      return
+    }
+    feishuInstallError.value = error instanceof Error ? error.message : String(error)
+    feishuInstallMessage.value = t('settings.remote.feishu.installFailed')
+  } finally {
+    if (requestId === feishuInstallRequestId) {
+      feishuInstallStarting.value = false
+    }
+  }
+}
+
+const cancelFeishuInstall = async (resetUi = true) => {
+  feishuInstallRequestId += 1
+  const sessionKey = feishuInstallSessionKey.value
+  feishuInstallSessionKey.value = null
+  feishuInstallStarting.value = false
+  feishuInstallWaiting.value = false
+  if (resetUi) {
+    feishuInstallUserCode.value = ''
+    feishuInstallMessage.value = ''
+    feishuInstallError.value = null
+    feishuInstallQrUrl.value = ''
+    feishuInstallQrDataUrl.value = ''
+    feishuInstallQrDialogOpen.value = false
+    feishuInstallMode.value = null
+  }
+  if (sessionKey) {
+    await cancelFeishuInstallCompat(sessionKey).catch(() => undefined)
+  }
+}
+
+const closeFeishuInstallQrDialog = () => {
+  if (feishuInstallBusy.value) {
+    void cancelFeishuInstall()
+    return
+  }
+
+  feishuInstallQrDialogOpen.value = false
+}
+
+const openFeishuInstallQrUrl = async () => {
+  if (!feishuInstallQrUrl.value) {
+    return
+  }
+
+  await openExternalUrl(feishuInstallQrUrl.value)
+}
+
+const waitForFeishuAuthResult = async (requestId: number, sessionKey: string) => {
+  if (requestId !== feishuAuthRequestId) {
+    return
+  }
+
+  feishuAuthWaiting.value = true
+
+  try {
+    const result = await waitForFeishuAuthCompat({
+      sessionKey,
+      timeoutMs: 5 * 60_000
+    })
+    if (requestId !== feishuAuthRequestId) {
+      return
+    }
+
+    feishuAuthMessage.value = resolveFeishuAuthMessage(result)
+    feishuAuthError.value = result.authorized ? null : feishuAuthMessage.value
+
+    if (result.authorized) {
+      const [settings, status] = await Promise.all([
+        getChannelSettingsCompat('feishu'),
+        getChannelStatusCompat('feishu')
+      ])
+      if (requestId !== feishuAuthRequestId) {
+        return
+      }
+
+      syncFeishuFields(settings)
+      feishuStatus.value = status
+
+      toast({
+        title: t('settings.remote.feishu.authSuccessTitle'),
+        description: result.openId
+          ? t('settings.remote.feishu.authSuccessDescription', { openId: result.openId })
+          : feishuAuthMessage.value
+      })
+    }
+  } catch (error) {
+    if (requestId !== feishuAuthRequestId) {
+      return
+    }
+
+    feishuAuthError.value = error instanceof Error ? error.message : String(error)
+    feishuAuthMessage.value = t('settings.remote.feishu.authFailed')
+  } finally {
+    if (requestId === feishuAuthRequestId) {
+      feishuAuthWaiting.value = false
+      feishuAuthSessionKey.value = null
+    }
+  }
+}
+
+const startFeishuScanAuth = async () => {
+  if (feishuAuthBusy.value || !feishuSettings.value) {
+    return
+  }
+
+  if (!(await persistChannelDraftOrAbort('feishu'))) {
+    return
+  }
+  if (remoteSettingsUnmounted) {
+    return
+  }
+
+  const requestId = ++feishuAuthRequestId
+  feishuAuthMessage.value = t('common.loading')
+  feishuAuthError.value = null
+  feishuAuthStarting.value = true
+  feishuAuthWaiting.value = false
+
+  let sessionKeyToCancel: string | null = null
+
+  try {
+    const settings = feishuSettings.value
+    const session = await startFeishuAuthCompat({
+      brand: settings.brand,
+      appId: settings.appId,
+      appSecret: settings.appSecret
+    })
+    sessionKeyToCancel = session.sessionKey
+    if (requestId !== feishuAuthRequestId) {
+      await cancelFeishuAuthCompat(session.sessionKey).catch(() => undefined)
+      return
+    }
+
+    feishuAuthSessionKey.value = session.sessionKey
+    feishuAuthMessage.value = resolveFeishuAuthMessage(session)
+    void waitForFeishuAuthResult(requestId, session.sessionKey)
+  } catch (error) {
+    if (requestId !== feishuAuthRequestId) {
+      return
+    }
+
+    if (sessionKeyToCancel) {
+      await cancelFeishuAuthCompat(sessionKeyToCancel).catch(() => undefined)
+      feishuAuthSessionKey.value = null
+    }
+    if (remoteSettingsUnmounted) {
+      return
+    }
+
+    feishuAuthError.value = error instanceof Error ? error.message : String(error)
+    feishuAuthMessage.value = t('settings.remote.feishu.authFailed')
+  } finally {
+    if (requestId === feishuAuthRequestId) {
+      feishuAuthStarting.value = false
+    }
+  }
+}
+
+const cancelFeishuScanAuth = async (resetUi = true) => {
+  feishuAuthRequestId += 1
+  const sessionKey = feishuAuthSessionKey.value
+  feishuAuthSessionKey.value = null
+  feishuAuthStarting.value = false
+  feishuAuthWaiting.value = false
+  if (resetUi) {
+    feishuAuthMessage.value = ''
+    feishuAuthError.value = null
+  }
+  if (sessionKey) {
+    await cancelFeishuAuthCompat(sessionKey).catch(() => undefined)
+  }
+}
 
 const closeWeixinIlinkLoginDialog = () => {
   weixinIlinkLoginRequestId += 1
@@ -3124,6 +3603,45 @@ const statusDotClass = (state: RemoteRuntimeState, dotOnly = false) => {
   return dotOnly ? 'bg-muted-foreground/50' : 'bg-muted text-muted-foreground'
 }
 
+const selectedFeishuSetupUrls = computed(() => {
+  const brand = feishuSettings.value?.brand === 'lark' ? 'lark' : 'feishu'
+  const baseUrl = brand === 'lark' ? 'https://open.larksuite.com' : 'https://open.feishu.cn'
+  const appId = feishuSettings.value?.appId?.trim() ?? ''
+  return {
+    tutorial: `${baseUrl}/document/develop-an-echo-bot/introduction`,
+    developerConsole: `${baseUrl}/app`,
+    botChat:
+      brand === 'lark'
+        ? `https://applink.larksuite.com/client/bot/open?appId=${encodeURIComponent(appId)}`
+        : `https://applink.feishu.cn/client/bot/open?appId=${encodeURIComponent(appId)}`
+  }
+})
+
+const openExternalUrl = async (url: string) => {
+  await openRuntimeExternal(url)
+}
+
+const openFeishuSetupGuide = async () => {
+  await openExternalUrl(selectedFeishuSetupUrls.value.tutorial)
+}
+
+const openFeishuDeveloperConsole = async () => {
+  await openExternalUrl(selectedFeishuSetupUrls.value.developerConsole)
+}
+
+const openFeishuBotChat = async () => {
+  if (!feishuSettings.value?.appId?.trim()) {
+    toast({
+      title: t('settings.remote.feishu.openBotChatMissingAppIdTitle'),
+      description: t('settings.remote.feishu.openBotChatMissingAppIdDescription'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  await openExternalUrl(selectedFeishuSetupUrls.value.botChat)
+}
+
 const bindingKindClass = (kind: RemoteBindingSummary['kind']) => {
   if (kind === 'dm') {
     return 'bg-emerald-500/10 text-emerald-700'
@@ -3191,19 +3709,32 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   })
 }
 
+watch(() => props.channel, syncActiveChannelFromProps)
+
+const handleRemoteSettingsVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') {
+    clearStatusRefreshTimer()
+    return
+  }
+
+  scheduleStatusRefresh()
+}
+
 onMounted(() => {
+  remoteSettingsUnmounted = false
+  syncActiveChannelFromProps()
   void loadState()
-  statusRefreshTimer = setInterval(() => {
-    void refreshStatus()
-  }, 2_000)
+  document.addEventListener('visibilitychange', handleRemoteSettingsVisibilityChange)
+  scheduleStatusRefresh()
 })
 
 onUnmounted(() => {
-  if (statusRefreshTimer) {
-    clearInterval(statusRefreshTimer)
-    statusRefreshTimer = null
-  }
+  remoteSettingsUnmounted = true
+  document.removeEventListener('visibilitychange', handleRemoteSettingsVisibilityChange)
+  clearStatusRefreshTimer()
   stopPairDialogPolling()
+  void cancelFeishuInstall(false)
+  void cancelFeishuScanAuth(false)
   closeWeixinIlinkLoginDialog()
 })
 </script>

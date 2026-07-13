@@ -22,6 +22,26 @@
       >
         {{ block.content }}
       </code>
+
+      <!-- Skill chip -->
+      <span
+        v-else-if="block.type === 'skill'"
+        class="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-xs text-primary align-middle"
+        data-testid="user-message-inline-skill"
+      >
+        <Icon icon="lucide:sparkles" class="h-3 w-3 shrink-0" />
+        <span class="truncate max-w-[160px]">{{ block.skillName }}</span>
+      </span>
+
+      <!-- File chip -->
+      <span
+        v-else-if="block.type === 'file'"
+        class="inline-flex items-center gap-1 rounded-md border border-muted-foreground/25 bg-muted/25 px-1.5 py-0.5 text-xs text-muted-foreground align-middle"
+        data-testid="user-message-inline-file"
+      >
+        <Icon :icon="getFileIcon(block)" class="h-3 w-3 shrink-0" />
+        <span class="truncate max-w-[120px]">{{ block.fileName }}</span>
+      </span>
     </template>
   </div>
 </template>
@@ -31,10 +51,13 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type {
   DisplayUserMessageCodeBlock,
+  DisplayUserMessageFileBlock,
   DisplayUserMessageMentionBlock,
+  DisplayUserMessageSkillBlock,
   DisplayUserMessageTextBlock
 } from '@/components/chat/messageListItems'
 import { useLanguageStore } from '@/stores/language'
+import { getMimeTypeIcon } from '@/lib/utils'
 
 const MENTION_ICON_MAP: Record<string, string> = {
   context: 'lucide:quote',
@@ -54,6 +77,8 @@ type ContentBlock =
   | DisplayUserMessageTextBlock
   | DisplayUserMessageMentionBlock
   | DisplayUserMessageCodeBlock
+  | DisplayUserMessageSkillBlock
+  | DisplayUserMessageFileBlock
 
 const props = defineProps<{
   content: ContentBlock[]
@@ -93,5 +118,9 @@ const getMentionTitle = (block: DisplayUserMessageMentionBlock) => {
     return block.id || ''
   }
   return block.content
+}
+
+const getFileIcon = (block: DisplayUserMessageFileBlock) => {
+  return getMimeTypeIcon(block.mimeType || 'application/octet-stream')
 }
 </script>

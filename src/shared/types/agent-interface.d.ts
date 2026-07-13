@@ -2,7 +2,9 @@ import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { ToolCallImagePreview } from './core/mcp'
-import type { AgentPlanDisplayItem } from './agent-plan'
+import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './agent-plan'
+import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
+import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
 
 /**
  * Agent Interface Protocol
@@ -12,7 +14,7 @@ import type { AgentPlanDisplayItem } from './agent-plan'
  */
 
 export type SessionStatus = 'idle' | 'generating' | 'error'
-export type PermissionMode = 'default' | 'full_access'
+export type PermissionMode = 'default' | 'auto_approve' | 'full_access'
 export type SessionCompactionStatus = 'idle' | 'compacting' | 'compacted'
 
 export interface SessionCompactionState {
@@ -61,9 +63,10 @@ export interface AgentTapeSearchResult {
   entryId: number
   kind: string
   name: string | null
-  payload: Record<string, unknown>
-  meta: Record<string, unknown>
   createdAt: number
+  summary?: string
+  refs?: Record<string, unknown>
+  score?: number
 }
 
 export interface AgentTapeAnchorResult {
@@ -78,6 +81,35 @@ export interface AgentTapeAnchorResult {
 
 export interface AgentTapeAnchorsOptions {
   limit?: number
+}
+
+export interface AgentTapeContextOptions {
+  before?: number
+  after?: number
+  limit?: number
+  maxBytesPerEntry?: number
+  maxTotalBytes?: number
+}
+
+export interface AgentTapeContextEntry {
+  entryId: number
+  kind: string
+  name: string | null
+  summary: string
+  refs: Record<string, unknown>
+  evidence: {
+    text: string
+    truncated: boolean
+    bytes: number
+  }
+  createdAt: number
+}
+
+export interface AgentTapeContextResult {
+  sessionId: string
+  requestedEntryIds: number[]
+  matchedEntryIds: number[]
+  entries: AgentTapeContextEntry[]
 }
 
 export interface DeepChatSessionState {
@@ -123,6 +155,9 @@ export interface IAgentImplementation {
   /** Get lightweight runtime state for session list hydration */
   getSessionListState?(sessionId: string): Promise<DeepChatSessionState | null>
 
+  /** Wait until the first provider round has been persisted for title generation */
+  waitForFirstTurnReady?(sessionId: string, options?: { timeoutMs?: number }): Promise<boolean>
+
   /** Process a user message: persist, call LLM, stream response */
   processMessage(
     sessionId: string,
@@ -132,6 +167,7 @@ export interface IAgentImplementation {
       emitRefreshBeforeStream?: boolean
       pendingQueueItemId?: string
       pendingQueueItemSource?: PendingInputEnqueueSource
+      maxProviderRounds?: number
     }
   ): Promise<MessageStartResult>
 
@@ -156,14 +192,18 @@ export interface IAgentImplementation {
     toIndex: number
   ): Promise<PendingSessionInputRecord[]>
   convertPendingInputToSteer?(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  /** Promote a queued input to steer and interrupt the active turn so it runs next */
+  steerPendingInput?(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
   deletePendingInput?(sessionId: string, itemId: string): Promise<void>
-  resumePendingQueue?(sessionId: string): Promise<void>
 
   /** Cancel an in-progress generation */
   cancelGeneration(sessionId: string): Promise<void>
 
   /** Get all messages for a session, ordered by order_seq */
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
+
+  /** Check whether a session has any messages */
+  hasMessages(sessionId: string): Promise<boolean>
 
   /** Get a page of messages for a session, ordered by order_seq ASC */
   listMessagesPage?(
@@ -196,6 +236,12 @@ export interface IAgentImplementation {
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
 
+  getTapeContext?(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult>
+
   /** List recent anchors for this session tape */
   listTapeAnchors?(
     sessionId: string,
@@ -208,6 +254,19 @@ export interface IAgentImplementation {
     name: string,
     state?: Record<string, unknown>
   ): Promise<AgentTapeAnchorResult>
+
+  /** List prompt view manifests associated with a message */
+  listMessageViewManifests?(
+    sessionId: string,
+    messageId: string
+  ): Promise<DeepChatTapeViewManifestRecord[]>
+
+  /** Export a deterministic tape replay slice for a message request */
+  exportMessageTapeReplaySlice?(
+    sessionId: string,
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null>
 
   /** Record a completed child session as a merged tape fork */
   mergeSubagentTape?(
@@ -274,12 +333,28 @@ export interface IAgentImplementation {
 
 // ---- Message Types ----
 
+export type UserMessageInlineItem =
+  | {
+      type: 'skill'
+      offset: number
+      skillName: string
+    }
+  | {
+      type: 'file'
+      offset: number
+      fileName: string
+      filePath: string
+      mimeType?: string
+    }
+
 export interface UserMessageContent {
   text: string
   files: MessageFile[]
   links: string[]
   search: boolean
   think: boolean
+  activeSkills?: string[]
+  inlineItems?: UserMessageInlineItem[]
 }
 
 export interface LegacyImportStatus {
@@ -316,6 +391,8 @@ export interface MessageFile {
 export interface SendMessageInput {
   text: string
   files?: MessageFile[]
+  activeSkills?: string[]
+  inlineItems?: UserMessageInlineItem[]
 }
 
 export type PendingSessionInputMode = 'queue' | 'steer'
@@ -393,8 +470,10 @@ export interface AssistantMessageExtra {
   plan_explanation?: string
   plan_revision?: number
   plan_updated_at?: string
+  plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
+  autoApproveReviewStatus?: 'reviewing'
   [key: string]: string | number | boolean | object[] | undefined
 }
 
@@ -473,6 +552,8 @@ export interface UsageStatsBackfillStatus {
   finishedAt: number | null
   error: string | null
   updatedAt: number
+  processedCount?: number
+  durationMs?: number
 }
 
 export interface UsageDashboardSummary {
@@ -626,6 +707,22 @@ export interface DeepChatSubagentMeta {
   targetAgentId?: string | null
 }
 
+export interface DeepChatAgentMemoryEmbedding {
+  providerId: string
+  modelId: string
+}
+
+export interface DeepChatAgentMemoryRetrieval {
+  topK?: number
+  rrfK?: number
+  similarityThreshold?: number
+  weights?: {
+    similarity: number
+    recency: number
+    importance: number
+  }
+}
+
 export interface DeepChatAgentConfig {
   defaultModelPreset?: DeepChatAgentModelPreset | null
   assistantModel?: DeepChatAgentModelSelection | null
@@ -635,11 +732,22 @@ export interface DeepChatAgentConfig {
   systemPrompt?: string
   permissionMode?: PermissionMode
   disabledAgentTools?: string[]
+  enabledSkillNames?: string[] | null
+  enabledMcpServerIds?: string[] | null
   subagentEnabled?: boolean
   subagents?: DeepChatSubagentSlot[]
   autoCompactionEnabled?: boolean
   autoCompactionTriggerThreshold?: number
   autoCompactionRetainRecentPairs?: number
+  memoryEnabled?: boolean
+  memoryEmbedding?: DeepChatAgentMemoryEmbedding | null
+  memoryExtractionModel?: DeepChatAgentModelSelection | null
+  memoryRetrieval?: DeepChatAgentMemoryRetrieval | null
+  // Approximate token ceiling for the assembled memory injection (persona + working + recalled).
+  memoryInjectionTokenBudget?: number | null
+  // Opt-in, experimental guarded persona evolution. Independent of memoryEnabled and default false:
+  // when off, reflection still runs but no persona draft is ever produced or injected.
+  personaEvolutionEnabled?: boolean
 }
 
 export interface CreateDeepChatAgentInput {
@@ -709,6 +817,7 @@ export interface SessionRecord {
   subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
+  metadata?: SessionMetadata | null
 }
 
 export interface SessionListItem extends SessionRecord {
@@ -792,7 +901,8 @@ export interface CreateSessionInput {
   agentId: string
   message: string
   files?: MessageFile[]
-  projectDir?: string
+  inlineItems?: UserMessageInlineItem[]
+  projectDir?: string | null
   providerId?: string
   modelId?: string
   permissionMode?: PermissionMode
@@ -813,15 +923,26 @@ export interface CreateDetachedSessionInput {
   disabledAgentTools?: string[]
   subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
+  metadata?: SessionMetadata | null
+}
+
+export type SessionMetadata = {
+  source: 'cron_job'
+  cronJobId: string
+  cronJobRunId: string
+  scheduledAt: number
 }
 
 // ---- Project Types ----
+
+export type EnvironmentStatus = 'active' | 'archived' | 'removed'
 
 export interface Project {
   path: string
   name: string
   icon: string | null
   lastAccessedAt: number
+  exists: boolean
 }
 
 export interface EnvironmentSummary {
@@ -831,4 +952,8 @@ export interface EnvironmentSummary {
   lastUsedAt: number
   isTemp: boolean
   exists: boolean
+  status: EnvironmentStatus
+  sortOrder: number
+  archivedAt: number | null
+  removedAt: number | null
 }

@@ -30,6 +30,7 @@
       data-testid="activity-group-body-shell"
     >
       <div
+        v-if="shouldRenderBody"
         class="min-h-0 flex flex-col w-full gap-1.5 overflow-hidden"
         data-testid="activity-group-body"
       >
@@ -56,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import type {
@@ -83,6 +84,27 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const isExpanded = ref(false)
+const shouldRenderBody = ref(false)
+// Slightly past --dc-motion-default (220ms) so the collapse transition finishes first.
+const BODY_UNMOUNT_DELAY_MS = 240
+let bodyUnmountTimer: number | null = null
+
+const cancelBodyUnmount = () => {
+  if (bodyUnmountTimer !== null) {
+    window.clearTimeout(bodyUnmountTimer)
+    bodyUnmountTimer = null
+  }
+}
+
+const scheduleBodyUnmount = () => {
+  cancelBodyUnmount()
+  bodyUnmountTimer = window.setTimeout(() => {
+    bodyUnmountTimer = null
+    if (!isExpanded.value) {
+      shouldRenderBody.value = false
+    }
+  }, BODY_UNMOUNT_DELAY_MS)
+}
 
 const durationLabels = computed(() => ({
   day: t('chat.activityCollapse.duration.day'),
@@ -117,7 +139,16 @@ const toggleLabel = computed(() =>
 )
 
 const toggleExpanded = () => {
-  isExpanded.value = !isExpanded.value
+  if (!isExpanded.value) {
+    cancelBodyUnmount()
+    shouldRenderBody.value = true
+    isExpanded.value = true
+    emit('toggle-collapse', false)
+    return
+  }
+
+  isExpanded.value = false
+  scheduleBodyUnmount()
   emit('toggle-collapse', !isExpanded.value)
 }
 
@@ -125,6 +156,12 @@ const handleChildCollapseToggle = (isCollapsed: boolean) => {
   emit('toggle-collapse', isCollapsed)
 }
 
-const buildActivityBlockKey = (block: DisplayAssistantMessageBlock, index: number): string =>
-  block.id ?? block.tool_call?.id ?? `${block.type}:${block.timestamp}:${index}`
+const buildActivityBlockKey = (block: DisplayAssistantMessageBlock, index: number): string => {
+  const stableId = block.id ?? block.tool_call?.id
+  return stableId ? `${stableId}:${index}` : `${block.type}:${block.timestamp}:${index}`
+}
+
+onBeforeUnmount(() => {
+  cancelBodyUnmount()
+})
 </script>

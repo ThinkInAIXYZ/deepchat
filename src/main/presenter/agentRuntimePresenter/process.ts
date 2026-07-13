@@ -11,18 +11,18 @@ import type {
 import { createState } from './types'
 import { accumulate, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
-import { executeTools, finalize, finalizeError, finalizePaused } from './dispatch'
+import {
+  executeTools,
+  finalize,
+  finalizeError,
+  finalizePaused,
+  publishPlanUpdated,
+  persistAbortExceptionPlanState
+} from './dispatch'
+import { isContextWindowErrorLike } from './contextWindowError'
 
 const MAX_TOOL_CALLS = 128
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
-const CONTEXT_WINDOW_ERROR_PATTERNS = [
-  'context length',
-  'context window',
-  'too many tokens',
-  'prompt too long',
-  'maximum context length',
-  'reduce the length'
-]
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
@@ -30,11 +30,6 @@ type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['comman
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
-}
-
-function isContextWindowErrorMessage(message: string): boolean {
-  const normalized = message.toLowerCase()
-  return CONTEXT_WINDOW_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))
 }
 
 function getLatestErrorMessage(state: StreamState): string | null {
@@ -270,6 +265,22 @@ function appendStreamingProviderPermissionBlock(
   }
 }
 
+function replaceLeadingSystemMessage(
+  messages: ProcessParams['messages'],
+  systemPrompt: string
+): void {
+  if (!systemPrompt) {
+    return
+  }
+
+  if (messages[0]?.role === 'system') {
+    messages[0] = { ...messages[0], content: systemPrompt }
+    return
+  }
+
+  messages.unshift({ role: 'system', content: systemPrompt })
+}
+
 function markStreamingProviderPermissionResolved(
   block: AssistantMessageBlock,
   granted: boolean,
@@ -316,14 +327,35 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
   const echo = startEcho(state, io)
   const conversationMessages = [...messages]
+  params.onConversationMessagesChange?.(conversationMessages)
   let currentTools = [...tools]
   let toolCallCount = 0
+  let providerRoundCount = 0
+  const maxProviderRounds =
+    Number.isInteger(params.maxProviderRounds) && params.maxProviderRounds! > 0
+      ? params.maxProviderRounds!
+      : Number.POSITIVE_INFINITY
+  let firstProviderRoundReady = false
 
   logger.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
   let eventCount = 0
 
   try {
     while (true) {
+      providerRoundCount += 1
+      if (providerRoundCount > maxProviderRounds) {
+        const errorMessage = `Maximum agent turns exceeded (${maxProviderRounds}).`
+        logger.info(`[ProcessStream] ${errorMessage}`)
+        finalizeError(state, io, errorMessage)
+        return {
+          status: 'error' as const,
+          terminalError: errorMessage,
+          stopReason: 'max_turns',
+          errorMessage,
+          usage: buildUsageSnapshot(state)
+        }
+      }
+
       const prevBlockCount = state.blocks.length
 
       const stream = coreStream(
@@ -369,6 +401,14 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
 
         accumulate(state, event)
+        if (event.type === 'plan' && state.latestAgentPlanSnapshot) {
+          state.latestAgentPlanSnapshot = {
+            ...state.latestAgentPlanSnapshot,
+            sessionId: io.sessionId,
+            messageId: io.messageId
+          }
+          publishPlanUpdated(io, state.latestAgentPlanSnapshot)
+        }
         echo.schedule()
       }
 
@@ -376,7 +416,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         `[ProcessStream] stream iteration done reason=${state.stopReason} events=${eventCount} blocks=${state.blocks.length}`
       )
 
-      // Break conditions: not tool_use, abort, no completed tool calls
       if (io.abortSignal.aborted) {
         finalizeUserCanceledErrorIfNeeded(state, io)
         return {
@@ -386,6 +425,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           usage: buildUsageSnapshot(state)
         }
       }
+      if (!firstProviderRoundReady && state.blocks.length > 0) {
+        firstProviderRoundReady = true
+        echo.flush()
+        try {
+          params.onFirstProviderRoundReady?.()
+        } catch (error) {
+          console.warn('[ProcessStream] first provider round readiness callback failed:', error)
+        }
+      }
+
+      // Break conditions: not tool_use, abort, no completed tool calls
       if (state.stopReason !== 'tool_use') break
       if (state.completedToolCalls.length === 0) break
 
@@ -394,6 +444,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         logger.info(
           `[ProcessStream] max tool calls reached (${toolCallCount + state.completedToolCalls.length} > ${MAX_TOOL_CALLS}), stopping`
         )
+        state.planTerminalReason = 'max_steps'
         break
       }
 
@@ -423,6 +474,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       )
       toolCallCount += executed.executed
       echo.flush()
+      io.messageStore.appendAssistantToolFactsSnapshot(io.messageId, 'tool_loop')
 
       if (executed.terminalError) {
         finalizeError(state, io, executed.terminalError)
@@ -466,11 +518,28 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
       }
 
-      if (executed.toolsChanged && params.refreshTools) {
-        try {
-          currentTools = await params.refreshTools()
-        } catch (error) {
-          console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
+      if (executed.toolsChanged) {
+        const activeSkillNames = hooks?.getActiveSkillNames?.()
+        if (params.refreshTools) {
+          try {
+            currentTools = await params.refreshTools(activeSkillNames)
+          } catch (error) {
+            console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
+          }
+        }
+        if (params.refreshSystemPrompt) {
+          try {
+            const refreshedSystemPrompt = await params.refreshSystemPrompt(
+              activeSkillNames,
+              currentTools
+            )
+            replaceLeadingSystemMessage(conversationMessages, refreshedSystemPrompt)
+          } catch (error) {
+            console.warn(
+              '[ProcessStream] failed to refresh system prompt after skill activation:',
+              error
+            )
+          }
         }
       }
     }
@@ -487,7 +556,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     }
     if (state.stopReason === 'error') {
       const streamErrorMessage = getLatestErrorMessage(state)
-      if (streamErrorMessage && isContextWindowErrorMessage(streamErrorMessage)) {
+      if (streamErrorMessage && isContextWindowErrorLike(streamErrorMessage)) {
         stripTrailingErrorBlock(state, streamErrorMessage)
         finalizeError(state, io, streamErrorMessage)
         return {
@@ -496,7 +565,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
       }
     }
-    if (state.blocks.length === 0) {
+    if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
       finalizeError(state, io, NO_MODEL_RESPONSE_ERROR)
       return {
         status: 'error' as const,
@@ -515,6 +584,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   } catch (err) {
     if (io.abortSignal.aborted || isAbortError(err)) {
       logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
+      persistAbortExceptionPlanState(state, io)
       return {
         status: 'aborted' as const,
         stopReason: 'user_stop',

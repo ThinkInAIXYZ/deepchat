@@ -28,6 +28,7 @@ Relevant current files:
 - `src/renderer/src/pages/ChatPage.vue`
 - `src/renderer/src/components/chat/MessageList.vue`
 - `src/renderer/src/components/chat/MessageListRow.vue`
+- `src/renderer/src/composables/message/useMessageWindow.ts`
 - `src/renderer/src/components/message/MessageItemAssistant.vue`
 - `src/renderer/src/components/message/MessageBlockContent.vue`
 - `src/renderer/src/components/markdown/MarkdownRenderer.vue`

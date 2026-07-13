@@ -638,7 +638,7 @@ const runScan = async () => {
   applyError.value = ''
   selectedProviderApiTypes.value = {}
   try {
-    const result = await providerClient.scanProviderImports()
+    const result = (await providerClient.scanProviderImports()) as ProviderImportScanResult
     scanResult.value = result
     selectedSources.value = new Set(
       result.sources

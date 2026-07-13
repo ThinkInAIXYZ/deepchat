@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Yönlendir",
     "queueCount": "Sıraya alındı ​​{count}/{max}",
-    "resumeQueue": "Göndermeye devam et",
-    "toSteer": "Yönlendir",
+    "toSteer": "Kes ve gönder",
     "locked": "Kilitli",
     "reorder": "Yeniden sırala",
     "files": "{count} dosyaları",
     "attachmentsOnly": "{count} ekler",
     "empty": "Boş mesaj",
-    "limitReached": "Bekleme şeridi dolu (maks. {max})."
+    "limitReached": "Bekleme şeridi dolu (maks. {max}).",
+    "remove": "Kaldır",
+    "steerUnavailable": "Şu anda kesilemiyor",
+    "steerFailed": "Bu tur kesilemedi"
   },
   "features": {
     "webSearch": "Web Araması",
@@ -243,9 +245,9 @@
         "pending": "Askıda olması",
         "in_progress": "Devam etmekte",
         "completed": "Tamamlanmış",
-        "failed": "Arızalı",
-        "skipped": "Atlandı"
-      }
+        "interrupted": "Kesintiye uğradı"
+      },
+      "completedCount": "{completed}/{total} tamamlandı"
     },
     "files": {
       "section": "Dosyalar",
@@ -260,6 +262,10 @@
         "openFile": "Dosyayı aç",
         "revealInFolder": "Dosya yöneticisinde göster",
         "insertPath": "Girişe ekle"
+      },
+      "watchStatus": {
+        "degraded": "İzleme yedek modda çalışıyor. Değişiklikler daha yavaş yenilenebilir.",
+        "failed": "Dosya izleme kullanılamıyor. Yenileyin veya çalışma alanını yeniden seçin."
       }
     },
     "git": {
@@ -321,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Varsayılan izinler",
-    "fullAccess": "Tam erişim"
+    "fullAccess": "Tam erişim",
+    "autoApprove": "Benim için onayla"
   },
   "sidebar": {
     "allAgents": "Hepsi Agent",
@@ -343,12 +350,21 @@
     "groupByDate": "Tarihe göre gruplandır",
     "groupByProject": "Projeye göre gruplandır",
     "pinned": "Sabitlendi",
+    "chats": "Sohbetler",
     "emptyTitle": "Henüz görüşme yok",
     "emptyDescription": "Başlamak için yeni bir sohbet başlatın",
     "searchPlaceholder": "Sohbetlerde ara",
     "searchAriaLabel": "Sohbetlerde ara",
     "searchEmptyTitle": "Eşleşen görüşme yok",
-    "searchEmptyDescription": "Farklı bir başlık anahtar kelimesini deneyin"
+    "searchEmptyDescription": "Farklı bir başlık anahtar kelimesini deneyin",
+    "projectGroupActions": "Proje grubu eylemleri",
+    "moveProjectGroupTop": "En üste taşı",
+    "moveProjectGroupUp": "Yukarı taşı",
+    "moveProjectGroupDown": "Aşağı taşı",
+    "moveProjectGroupBottom": "En alta taşı",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Sohbetlerde, agents, ayarlarda, işlemlerde arama yapın…",
@@ -416,6 +432,58 @@
       "hour": "sa ",
       "minute": "dk ",
       "second": "sn"
+    }
+  },
+  "memory": {
+    "toolbar": "Kullanılan anılar",
+    "status": {
+      "archived": "Unutuldu"
+    },
+    "actions": {
+      "undo": "Geri al",
+      "forget": "Unut",
+      "edit": "Düzenle"
+    },
+    "chip": {
+      "title": "Anı güncellendi {count}",
+      "heading": "Anı güncellendi",
+      "description": "Bu tur aşağıdaki anıları ekledi."
+    },
+    "selection": {
+      "remember": "Bunu hatırla"
+    },
+    "turn": {
+      "title": "Bu turda kullanılan anılar",
+      "empty": "Bu turda bağlama anı eklenmedi",
+      "selected": "Seçilen",
+      "dropped": "Atılan",
+      "tokens": "Token",
+      "budget": "Bütçe",
+      "countOnly": "Bu kayıt yalnızca sayı özeti içeriyor.",
+      "unavailable": "Bu anı artık kullanılamıyor.",
+      "noSelectedDetails": "Bu tur için gösterilecek anı ayrıntısı yok.",
+      "refreshFailed": "Yenileme başarısız oldu. Son yüklenen anılar gösteriliyor.",
+      "error": "Bu tur için kullanılan anılar yüklenemedi."
+    },
+    "toast": {
+      "undoSuccess": "Anı geri alındı",
+      "undoFailed": "Anı geri alınamadı",
+      "forgetSuccess": "Anı unutuldu",
+      "forgetFailed": "Anı unutulamadı",
+      "amendFailed": "Anı güncellenemedi",
+      "rememberFailed": "Anı kaydedilemedi",
+      "add": {
+        "created": "Yeni anı olarak kaydedildi",
+        "updated": "Mevcut anı güncellendi",
+        "superseded": "Güncellenmiş bir anıyla birleştirildi",
+        "challenged": "İncelenecek anı olarak kaydedildi",
+        "noop": "Yeni anı eklenmedi"
+      }
+    },
+    "errors": {
+      "actionFailed": "İşlem başarısız. Lütfen tekrar deneyin.",
+      "amendRetryable": "Düzenleme başarısız oldu. Özgün bellek geri yüklendi; tekrar deneyin.",
+      "amendRestoreFailed": "Düzenleme başarısız oldu ve özgün bellek geri yüklenemedi."
     }
   }
 }

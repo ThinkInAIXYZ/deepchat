@@ -142,6 +142,38 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'tokenlab',
+    name: 'TokenLab',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.tokenlab.sh/v1',
+    enable: false,
+    websites: {
+      official: 'https://tokenlab.sh/',
+      apiKey: 'https://tokenlab.sh/dashboard',
+      docs: 'https://docs.tokenlab.sh/',
+      models: 'https://api.tokenlab.sh/v1/models',
+      defaultBaseUrl: 'https://api.tokenlab.sh/v1'
+    }
+  },
+
+  {
+    id: 'daoxe',
+    name: 'DaoXE',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://daoxe.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://daoxe.com/',
+      apiKey: 'https://daoxe.com/token',
+      docs: 'https://github.com/seven7763/DaoXE-AI',
+      models: 'https://daoxe.com/pricing',
+      defaultBaseUrl: 'https://daoxe.com/v1'
+    }
+  },
+
+  {
     id: 'burncloud',
     name: 'BurnCloud',
     apiType: 'openai-completions',
@@ -170,6 +202,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       docs: 'https://platform.openai.com/docs/api-reference/responses',
       models: 'https://platform.openai.com/docs/models',
       defaultBaseUrl: 'https://api.openai.com/v1'
+    }
+  },
+  {
+    id: 'openai-codex',
+    name: 'OpenAI Codex',
+    apiType: 'openai-codex',
+    apiKey: '',
+    baseUrl: 'https://chatgpt.com/backend-api/codex',
+    enable: false,
+    websites: {
+      official: 'https://developers.openai.com/codex',
+      apiKey: 'https://chatgpt.com/codex',
+      docs: 'https://developers.openai.com/codex/auth',
+      models: 'https://developers.openai.com/codex/models',
+      defaultBaseUrl: 'https://chatgpt.com/backend-api/codex'
     }
   },
   {
@@ -308,6 +355,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    enable: false,
+    websites: {
+      official: 'https://opencode.ai/auth',
+      apiKey: 'https://opencode.ai/auth',
+      docs: 'https://opencode.ai/docs/zh-cn/go/',
+      models: 'https://opencode.ai/zen/go/v1/models',
+      defaultBaseUrl: 'https://opencode.ai/zen/go/v1'
+    }
+  },
+  {
     id: 'poe',
     name: 'Poe',
     apiType: 'poe',
@@ -330,11 +392,41 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     baseUrl: 'https://api.302.ai/v1',
     enable: false,
     websites: {
-      official: 'https://302.ai',
+      official: 'https://302ai.cn/',
       apiKey: 'https://dash.302.ai/apis/list',
       docs: 'https://302ai.apifox.cn/doc-3704971',
-      models: 'https://302.ai/pricing/',
+      models: 'https://302ai.cn/pricing/',
       defaultBaseUrl: 'https://api.302.ai/v1'
+    }
+  },
+  {
+    id: 'nvidia',
+    name: 'NVIDIA',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://integrate.api.nvidia.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://build.nvidia.com/',
+      apiKey: 'https://build.nvidia.com/settings/api-keys',
+      docs: 'https://docs.api.nvidia.com/nim/',
+      models: 'https://build.nvidia.com/explore/discover',
+      defaultBaseUrl: 'https://integrate.api.nvidia.com/v1'
+    }
+  },
+  {
+    id: 'huggingface',
+    name: 'Hugging Face',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://router.huggingface.co/v1',
+    enable: false,
+    websites: {
+      official: 'https://huggingface.co/',
+      apiKey: 'https://huggingface.co/settings/tokens',
+      docs: 'https://huggingface.co/docs/inference-providers',
+      models: 'https://huggingface.co/inference/models',
+      defaultBaseUrl: 'https://router.huggingface.co/v1'
     }
   },
   {
@@ -459,6 +551,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'minimax-global',
+    name: 'MiniMax Global',
+    apiType: 'anthropic',
+    apiKey: '',
+    baseUrl: 'https://api.minimax.io/anthropic/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.minimax.io/',
+      apiKey: 'https://platform.minimax.io/user-center/basic-information/interface-key',
+      docs: 'https://platform.minimax.io/docs/api-reference/text-anthropic-api',
+      models: 'https://platform.minimax.io/docs/api-reference/models/anthropic/list-models',
+      defaultBaseUrl: 'https://api.minimax.io/anthropic/v1'
+    }
+  },
+  {
     id: 'fireworks',
     name: 'Fireworks',
     apiType: 'fireworks',
@@ -503,6 +610,36 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://api.moonshot.cn/v1'
     }
   },
+  {
+    id: 'moonshot-ai',
+    name: 'Moonshot AI',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.moonshot.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.moonshot.ai/',
+      apiKey: 'https://platform.kimi.ai/console/api-keys',
+      docs: 'https://platform.moonshot.ai/docs/api/chat',
+      models: 'https://platform.moonshot.ai/docs/models',
+      defaultBaseUrl: 'https://api.moonshot.ai/v1'
+    }
+  },
+  {
+    id: 'kimi-for-coding',
+    name: 'Kimi For Coding',
+    apiType: 'anthropic',
+    apiKey: '',
+    baseUrl: 'https://api.kimi.com/coding/',
+    enable: false,
+    websites: {
+      official: 'https://www.kimi.com/code',
+      apiKey: 'https://www.kimi.com/code/console',
+      docs: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
+      models: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
+      defaultBaseUrl: 'https://api.kimi.com/coding/'
+    }
+  },
   // {
   //   id: 'baichuan',
   //   name: 'Baichuan',
@@ -534,6 +671,36 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'alibaba-token-plan',
+    name: 'Alibaba Token Plan',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.alibabacloud.com/product/modelstudio',
+      apiKey: 'https://modelstudio.console.alibabacloud.com/',
+      docs: 'https://www.alibabacloud.com/help/en/model-studio/token-plan-overview',
+      models: 'https://www.alibabacloud.com/help/en/model-studio/token-plan-overview',
+      defaultBaseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1'
+    }
+  },
+  {
+    id: 'alibaba-token-plan-cn',
+    name: 'Alibaba Token Plan (China)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.aliyun.com/product/bailian',
+      apiKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+      docs: 'https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview',
+      models: 'https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview',
+      defaultBaseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'
+    }
+  },
+  {
     id: 'lmstudio',
     name: 'LM Studio',
     apiType: 'lmstudio',
@@ -548,21 +715,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'http://127.0.0.1:1234/v1'
     }
   },
-  // {
-  //   id: 'stepfun',
-  //   name: 'StepFun',
-  //   apiType: 'stepfun',
-  //   apiKey: '',
-  //   baseUrl: 'https://api.stepfun.com',
-  //   enable: false,
-  //   websites: {
-  //     official: 'https://platform.stepfun.com/',
-  //     apiKey: 'https://platform.stepfun.com/interface-key',
-  //     docs: 'https://platform.stepfun.com/docs/overview/concept',
-  //     models: 'https://platform.stepfun.com/docs/llm/text',
-  //     defaultBaseUrl: 'https://api.stepfun.com'
-  //   }
-  // }
+  {
+    id: 'stepfun',
+    name: 'StepFun',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.stepfun.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.stepfun.com/',
+      apiKey: 'https://platform.stepfun.com/interface-key',
+      docs: 'https://platform.stepfun.com/docs/zh/overview/concept',
+      models: 'https://platform.stepfun.com/docs/zh/llm/text',
+      defaultBaseUrl: 'https://api.stepfun.com/v1'
+    }
+  },
 
   {
     id: 'groq',
@@ -609,6 +776,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       docs: 'https://docs.x.ai/',
       models: 'https://docs.x.ai/docs#getting-started',
       defaultBaseUrl: 'https://api.x.ai/v1'
+    }
+  },
+  {
+    id: 'upstage',
+    name: 'Upstage',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.upstage.ai/v1/solar',
+    enable: false,
+    websites: {
+      official: 'https://www.upstage.ai/',
+      apiKey: 'https://console.upstage.ai/api-keys?api=chat',
+      docs: 'https://developers.upstage.ai/docs/apis/chat',
+      models: 'https://developers.upstage.ai/docs/getting-started/models',
+      defaultBaseUrl: 'https://api.upstage.ai/v1/solar'
     }
   },
   // {
@@ -701,21 +883,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://api.hunyuan.cloud.tencent.com/v1'
     }
   },
-  // {
-  //   id: 'nvidia',
-  //   name: 'NVIDIA',
-  //   apiType: 'nvidia',
-  //   apiKey: '',
-  //   baseUrl: 'https://integrate.api.nvidia.com',
-  //   enable: false,
-  //   websites: {
-  //     official: 'https://build.nvidia.com/explore/discover',
-  //     apiKey: 'https://build.nvidia.com/meta/llama-3_1-405b-instruct',
-  //     docs: 'https://docs.api.nvidia.com/nim/reference/llm-apis',
-  //     models: 'https://build.nvidia.com/nim',
-  //     defaultBaseUrl: 'https://integrate.api.nvidia.com'
-  //   }
-  // },
   {
     id: 'azure-openai',
     name: 'Azure OpenAI',

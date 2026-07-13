@@ -6,7 +6,11 @@
       v-if="part.type === 'text'"
       :content="part.content"
       :loading="part.loading"
+      mode="chat"
       :smooth-streaming="shouldSmoothStream"
+      :streaming="isStreamingPart(part)"
+      :final="!isStreamingPart(part)"
+      :virtualize-nodes="shouldVirtualizeNodes"
       :message-id="messageId"
       :thread-id="threadId"
       :link-context="{
@@ -51,12 +55,20 @@ const props = defineProps<{
   messageId: string
   threadId: string
   isSearchResult?: boolean
+  disableMarkdownVirtualization?: boolean
 }>()
 
 const { processedContent } = useBlockContent(props)
 const lastArtifactSnapshot = ref<string>('')
 const shouldSmoothStream = computed(
   () => props.block.status === 'pending' || props.block.status === 'loading'
+)
+const isStreamingPart = (part: ProcessedPart) => shouldSmoothStream.value || Boolean(part.loading)
+const hasStreamingContent = computed(() =>
+  processedContent.value.some((part) => part.type === 'text' && isStreamingPart(part))
+)
+const shouldVirtualizeNodes = computed(
+  () => !props.disableMarkdownVirtualization && !props.isSearchResult && !hasStreamingContent.value
 )
 
 const artifactSnapshot = computed(() =>

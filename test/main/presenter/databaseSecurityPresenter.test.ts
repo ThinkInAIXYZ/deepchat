@@ -68,6 +68,25 @@ const enabledMetadata = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 })
 
+async function listMigratableTableNames(
+  rows: Array<{ type: string; name: string; sql: string }>
+): Promise<string[]> {
+  const { DatabaseSecurityPresenter } =
+    await import('../../../src/main/presenter/databaseSecurityPresenter')
+  const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+  const db = {
+    prepare: vi.fn(() => ({
+      all: vi.fn(() => rows)
+    }))
+  }
+  const tables = (
+    presenter as unknown as {
+      listMigratableTables: (database: typeof db) => Array<{ name: string }>
+    }
+  ).listMigratableTables(db)
+  return tables.map((table) => table.name)
+}
+
 describe('DatabaseSecurityPresenter', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -199,5 +218,71 @@ describe('DatabaseSecurityPresenter', () => {
         }
       ).qualifyCreateTableSql('CREATE TABLE IF NOT EXISTS providers (id TEXT PRIMARY KEY)')
     ).toBe('CREATE TABLE IF NOT EXISTS migration_target.providers (id TEXT PRIMARY KEY)')
+  })
+
+  it('excludes FTS virtual and shadow tables from database migration copies', async () => {
+    const names = await listMigratableTableNames([
+      {
+        type: 'table',
+        name: 'deepchat_tape_search_projection',
+        sql: 'CREATE TABLE deepchat_tape_search_projection (id TEXT)'
+      },
+      {
+        type: 'table',
+        name: 'deepchat_tape_search_projection_meta',
+        sql: 'CREATE TABLE deepchat_tape_search_projection_meta (id TEXT)'
+      },
+      {
+        type: 'table',
+        name: 'deepchat_tape_search_fts',
+        sql: 'CREATE VIRTUAL TABLE deepchat_tape_search_fts USING fts5(search_text)'
+      },
+      {
+        type: 'table',
+        name: 'deepchat_tape_search_fts_data',
+        sql: 'CREATE TABLE deepchat_tape_search_fts_data (id INTEGER)'
+      },
+      {
+        type: 'table',
+        name: 'messages',
+        sql: 'CREATE TABLE messages (id TEXT)'
+      }
+    ])
+
+    expect(names).toContain('messages')
+    expect(names).toContain('deepchat_tape_search_projection')
+    expect(names).toContain('deepchat_tape_search_projection_meta')
+    expect(names).not.toContain('deepchat_tape_search_fts')
+    expect(names).not.toContain('deepchat_tape_search_fts_data')
+  })
+
+  it('excludes tape FTS freshness metadata even when no FTS virtual table exists', async () => {
+    const names = await listMigratableTableNames([
+      {
+        type: 'table',
+        name: 'deepchat_tape_search_projection',
+        sql: 'CREATE TABLE deepchat_tape_search_projection (id TEXT)'
+      },
+      {
+        type: 'table',
+        name: 'deepchat_tape_search_projection_meta',
+        sql: 'CREATE TABLE deepchat_tape_search_projection_meta (id TEXT)'
+      },
+      {
+        type: 'table',
+        name: 'deepchat_tape_search_fts_meta',
+        sql: 'CREATE TABLE deepchat_tape_search_fts_meta (id TEXT)'
+      },
+      {
+        type: 'table',
+        name: 'messages',
+        sql: 'CREATE TABLE messages (id TEXT)'
+      }
+    ])
+
+    expect(names).toContain('messages')
+    expect(names).toContain('deepchat_tape_search_projection')
+    expect(names).toContain('deepchat_tape_search_projection_meta')
+    expect(names).not.toContain('deepchat_tape_search_fts_meta')
   })
 })

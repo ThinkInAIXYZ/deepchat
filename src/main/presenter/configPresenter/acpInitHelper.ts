@@ -14,6 +14,8 @@ import {
   mergeCommandEnvironment,
   setPathEntriesOnEnv
 } from '@/lib/agentRuntime/shellEnvHelper'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope } from '@/routes/publishDeepchatEvent'
 
 const execAsync = promisify(exec)
 
@@ -229,10 +231,14 @@ class AcpInitHelper {
         missingCount: missingDeps.length
       })
       if (webContents && !webContents.isDestroyed()) {
-        webContents.send('external-deps-required', {
-          agentId,
-          missingDeps
-        })
+        webContents.send(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('acpTerminal.externalDependenciesRequired', {
+            agentId,
+            missingDeps,
+            version: Date.now()
+          })
+        )
       }
       // Stop initialization - user must install dependencies first
       return null
@@ -425,7 +431,14 @@ class AcpInitHelper {
 
       // Send output to renderer (PTY output is treated as stdout)
       if (!webContents.isDestroyed()) {
-        webContents.send('acp-init:output', { type: 'stdout', data })
+        webContents.send(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('acpTerminal.output', {
+            type: 'stdout',
+            data,
+            version: Date.now()
+          })
+        )
       }
 
       // Inject command once shell is ready
@@ -460,7 +473,14 @@ class AcpInitHelper {
         commandInjected
       })
       if (!webContents.isDestroyed()) {
-        webContents.send('acp-init:exit', { code: exitCode, signal: signal || null })
+        webContents.send(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('acpTerminal.exited', {
+            code: exitCode,
+            signal: signal || null,
+            version: Date.now()
+          })
+        )
       }
       if (this.activeShell === pty) {
         this.activeShell = null
@@ -473,7 +493,13 @@ class AcpInitHelper {
     setTimeout(() => {
       if (!webContents.isDestroyed()) {
         logger.info('[ACP Init] Sending start event (delayed to ensure listeners ready)')
-        webContents.send('acp-init:start', { command: shell })
+        webContents.send(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('acpTerminal.started', {
+            command: shell,
+            version: Date.now()
+          })
+        )
       }
 
       // Fallback: inject command if shell hasn't become ready yet

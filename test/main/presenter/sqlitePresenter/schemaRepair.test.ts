@@ -56,6 +56,7 @@ describe('SchemaInspector table snapshot quoting', () => {
       {
         name: tableName,
         createSql: '',
+        createdOnFreshInstall: true,
         columns: [
           {
             name: 'id',
@@ -118,6 +119,7 @@ describe('SchemaInspector table snapshot quoting', () => {
       {
         name: tableName,
         createSql: '',
+        createdOnFreshInstall: true,
         columns: [
           {
             name: 'id',

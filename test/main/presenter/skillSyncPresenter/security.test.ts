@@ -335,6 +335,7 @@ describe('Security Module', () => {
 
   describe('isValidToolId', () => {
     it('should return true for known tool IDs', () => {
+      expect(isValidToolId('agents')).toBe(true)
       expect(isValidToolId('claude-code')).toBe(true)
       expect(isValidToolId('cursor')).toBe(true)
       expect(isValidToolId('windsurf')).toBe(true)

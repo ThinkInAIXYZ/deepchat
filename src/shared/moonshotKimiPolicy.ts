@@ -2,6 +2,9 @@ const THINKING_SUFFIX = ':thinking'
 const FIXED_TEMPERATURE_MODELS = new Set([
   'kimi-k2.5',
   'kimi-k2.6',
+  'kimi-for-coding',
+  'kimi-k2.7-code',
+  'kimi-k2.7-code-highspeed',
   'moonshotai/kimi-k2.5',
   'moonshotai/kimi-k2.6'
 ])

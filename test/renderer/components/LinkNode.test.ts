@@ -33,10 +33,6 @@ describe('LinkNode', () => {
       useSessionStore: () => sessionStore
     }))
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: () => ({})
-    }))
-
     const LinkNode = (await import('@/components/markdown/LinkNode.vue')).default
     const wrapper = mount(LinkNode, {
       props: {
@@ -109,10 +105,6 @@ describe('LinkNode', () => {
         activeSessionId: null,
         activeSession: undefined
       })
-    }))
-
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: () => ({})
     }))
 
     const LinkNode = (await import('@/components/markdown/LinkNode.vue')).default

@@ -34,16 +34,43 @@ describe('settings navigation helpers', () => {
     expect(resolveSettingsNavigationPath('settings-provider')).toBe('/provider')
   })
 
-  it('hides plugin settings navigation on unsupported platforms', () => {
+  it('keeps plugin settings route available but hidden from settings sidebar', () => {
     expect(
-      getSettingsNavigationItems('darwin').some((item) => item.routeName === 'settings-plugins')
+      getSettingsRouteItems('darwin', 'arm64').some((item) => item.routeName === 'settings-plugins')
     ).toBe(true)
     expect(
-      getSettingsNavigationItems('win32').some((item) => item.routeName === 'settings-plugins')
+      getSettingsNavigationItems('darwin', 'arm64').some(
+        (item) => item.routeName === 'settings-plugins'
+      )
     ).toBe(false)
     expect(
-      getSettingsNavigationItems('linux').some((item) => item.routeName === 'settings-plugins')
+      getSettingsNavigationItems('win32', 'x64').some(
+        (item) => item.routeName === 'settings-plugins'
+      )
     ).toBe(false)
-    expect(resolveSettingsNavigationPath('settings-plugins', undefined, 'win32')).toBe('/overview')
+    expect(
+      getSettingsNavigationItems('win32', 'arm64').some(
+        (item) => item.routeName === 'settings-plugins'
+      )
+    ).toBe(false)
+    expect(
+      getSettingsNavigationItems('linux', 'x64').some(
+        (item) => item.routeName === 'settings-plugins'
+      )
+    ).toBe(false)
+    expect(resolveSettingsNavigationPath('settings-plugins', undefined, 'darwin', 'arm64')).toBe(
+      '/plugins'
+    )
+  })
+
+  it('hides plugin settings navigation on CUA-unsupported targets', () => {
+    expect(
+      getSettingsNavigationItems('linux', 'arm64').some(
+        (item) => item.routeName === 'settings-plugins'
+      )
+    ).toBe(false)
+    expect(resolveSettingsNavigationPath('settings-plugins', undefined, 'linux', 'arm64')).toBe(
+      '/overview'
+    )
   })
 })

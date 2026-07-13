@@ -134,12 +134,55 @@ describe('SkillTools', () => {
         })
       )
     })
+
+    it('filters listed and pinned skills by the agent allowlist', async () => {
+      ;(mockSkillPresenter.getActiveSkills as Mock).mockResolvedValue(['code-review', 'git-commit'])
+
+      const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
+
+      expect(result.totalCount).toBe(1)
+      expect(result.pinnedCount).toBe(1)
+      expect(result.activeCount).toBe(1)
+      expect(result.skills).toEqual([
+        expect.objectContaining({
+          name: 'git-commit',
+          isPinned: true,
+          active: true
+        })
+      ])
+    })
+
+    it('does not treat current-message active skills as the agent allowlist', async () => {
+      ;(mockSkillPresenter.getActiveSkills as Mock).mockResolvedValue([])
+
+      const result = await skillTools.handleSkillList('conv-123', undefined, [])
+
+      expect(result.totalCount).toBe(2)
+      expect(result.activeCount).toBe(0)
+      expect(result.skills.map((skill) => skill.name)).toEqual(['code-review', 'git-commit'])
+    })
+
+    it('keeps plugin-owned skills available through the skill policy', async () => {
+      ;(mockSkillPresenter.getMetadataList as Mock).mockResolvedValue([
+        {
+          name: 'plugin-skill',
+          description: 'Plugin skill',
+          path: '/plugins/fixture/SKILL.md',
+          skillRoot: '/plugins/fixture',
+          ownerPluginId: 'com.deepchat.plugins.fixture'
+        }
+      ])
+
+      const result = await skillTools.handleSkillList('conv-123', ['plugin-skill'])
+
+      expect(result.skills.map((skill) => skill.name)).toEqual(['plugin-skill'])
+    })
   })
 
   describe('handleSkillView', () => {
-    it('passes file_path and conversationId through to the presenter', async () => {
+    it('passes file_path and conversationId through to the presenter by default', async () => {
       const result = await skillTools.handleSkillView('conv-123', {
-        name: 'code-review',
+        name: ' code-review ',
         file_path: 'references/checklist.md'
       })
 
@@ -153,6 +196,23 @@ describe('SkillTools', () => {
           name: 'code-review'
         })
       )
+    })
+
+    it('rejects viewing skills outside the agent allowlist', async () => {
+      const result = await skillTools.handleSkillView(
+        'conv-123',
+        {
+          name: 'code-review'
+        },
+        ['git-commit']
+      )
+
+      expect(mockSkillPresenter.viewSkill).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        success: false,
+        name: 'code-review',
+        error: "Skill 'code-review' is not enabled for this agent"
+      })
     })
   })
 

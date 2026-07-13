@@ -1,5 +1,9 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { workspaceInvalidatedEvent } from '@shared/contracts/events'
+import {
+  workspaceInvalidatedEvent,
+  workspaceWatchStatusChangedEvent
+} from '@shared/contracts/events'
+import type { WorkspaceWatchStatusEvent } from '@shared/presenter'
 import {
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,
@@ -106,6 +110,10 @@ export function createWorkspaceClient(bridge: DeepchatBridge = getDeepchatBridge
     return bridge.on(workspaceInvalidatedEvent.name, listener)
   }
 
+  function onWatchStatusChanged(listener: (payload: WorkspaceWatchStatusEvent) => void) {
+    return bridge.on(workspaceWatchStatusChangedEvent.name, listener)
+  }
+
   return {
     registerWorkspace,
     unregisterWorkspace,
@@ -120,7 +128,8 @@ export function createWorkspaceClient(bridge: DeepchatBridge = getDeepchatBridge
     getGitStatus,
     getGitDiff,
     searchFiles,
-    onInvalidated
+    onInvalidated,
+    onWatchStatusChanged
   }
 }
 

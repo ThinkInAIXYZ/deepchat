@@ -2,6 +2,10 @@ const HIGHLIGHT_SELECTOR = '[data-chat-search-match]'
 const ACTIVE_HIGHLIGHT_SELECTOR = '[data-chat-search-active]'
 
 export type ChatSearchMatch = HTMLElement
+export type ChatSearchResult = {
+  messageId: string
+  matchIndex: number
+}
 
 const isIgnoredElement = (element: HTMLElement | null): boolean =>
   Boolean(
@@ -107,6 +111,31 @@ const buildHighlightedFragment = (value: string, query: string): DocumentFragmen
   return fragment
 }
 
+const getSearchRootElement = (root: ParentNode | null | undefined): Element | null => {
+  if (!root) return null
+  if (root instanceof Element) return root
+  if (root instanceof Document) return root.documentElement
+  if (root instanceof DocumentFragment) {
+    return root.querySelector('[data-chat-search-root]') ?? null
+  }
+  return null
+}
+
+const setAppliedSearchQuery = (root: ParentNode, query: string | null): void => {
+  const element = getSearchRootElement(root)
+  if (!element) return
+  if (query === null || query === '') {
+    element.removeAttribute('data-chat-search-query')
+    return
+  }
+  element.setAttribute('data-chat-search-query', query)
+}
+
+const getAppliedSearchQuery = (root: ParentNode): string | null => {
+  const element = getSearchRootElement(root)
+  return element?.getAttribute('data-chat-search-query') ?? null
+}
+
 export const clearChatSearchHighlights = (root: ParentNode | null | undefined): void => {
   if (!root) {
     return
@@ -125,7 +154,10 @@ export const clearChatSearchHighlights = (root: ParentNode | null | undefined): 
 
   root.querySelectorAll<HTMLElement>(ACTIVE_HIGHLIGHT_SELECTOR).forEach((highlight) => {
     highlight.removeAttribute('data-chat-search-active')
+    highlight.classList.remove('chat-search-highlight--active')
   })
+
+  setAppliedSearchQuery(root, null)
 }
 
 export const applyChatSearchHighlights = (
@@ -136,11 +168,17 @@ export const applyChatSearchHighlights = (
     return []
   }
 
-  clearChatSearchHighlights(root)
-
   const normalizedQuery = query.trim()
   if (!normalizedQuery) {
+    clearChatSearchHighlights(root)
     return []
+  }
+
+  // Same query: keep existing marks and only highlight newly mounted text nodes.
+  // Full clear+rebuild on every virtual-window change is the main flicker source.
+  const appliedQuery = getAppliedSearchQuery(root)
+  if (appliedQuery !== null && appliedQuery !== normalizedQuery) {
+    clearChatSearchHighlights(root)
   }
 
   const searchableNodes = collectSearchableTextNodes(root)
@@ -154,7 +192,112 @@ export const applyChatSearchHighlights = (
     node.parentNode.replaceChild(fragment, node)
   })
 
+  setAppliedSearchQuery(root, normalizedQuery)
   return Array.from(root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR))
+}
+
+const countOccurrences = (value: string, query: string): number => {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return 0
+
+  const normalizedValue = value.toLowerCase()
+  let count = 0
+  let index = normalizedValue.indexOf(normalizedQuery)
+  while (index !== -1) {
+    count += 1
+    index = normalizedValue.indexOf(normalizedQuery, index + normalizedQuery.length)
+  }
+  return count
+}
+
+const collectUnknownText = (value: unknown, output: string[]): void => {
+  if (typeof value === 'string') {
+    output.push(value)
+    return
+  }
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectUnknownText(item, output))
+    return
+  }
+
+  const record = value as Record<string, unknown>
+  for (const key of [
+    'text',
+    'content',
+    'name',
+    'params',
+    'response',
+    'server_name',
+    'server_description',
+    'tool_call'
+  ]) {
+    collectUnknownText(record[key], output)
+  }
+}
+
+export const collectChatSearchResults = (
+  messages: Array<{ id: string; content: unknown }>,
+  query: string
+): ChatSearchResult[] => {
+  const normalizedQuery = query.trim()
+  if (!normalizedQuery) return []
+
+  const results: ChatSearchResult[] = []
+  for (const message of messages) {
+    const chunks: string[] = []
+    collectUnknownText(message.content, chunks)
+    let matchIndex = 0
+    for (const chunk of chunks) {
+      const count = countOccurrences(chunk, normalizedQuery)
+      for (let index = 0; index < count; index += 1) {
+        results.push({ messageId: message.id, matchIndex })
+        matchIndex += 1
+      }
+    }
+  }
+  return results
+}
+
+export const setActiveChatSearchResult = (
+  root: ParentNode | null | undefined,
+  target: ChatSearchResult | null,
+  options: { scroll?: boolean; behavior?: ScrollBehavior } = {}
+): ChatSearchMatch | null => {
+  if (!root || !target) return null
+
+  const matches = Array.from(root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR))
+  const seenByMessageId = new Map<string, number>()
+  let activeMatch: ChatSearchMatch | null = null
+
+  for (const match of matches) {
+    const row = match.closest<HTMLElement>('[data-message-id]')
+    const messageId = row?.dataset.messageId
+    const indexInMessage = messageId ? (seenByMessageId.get(messageId) ?? 0) : -1
+    if (messageId) {
+      seenByMessageId.set(messageId, indexInMessage + 1)
+    }
+
+    const isActive = messageId === target.messageId && indexInMessage === target.matchIndex
+    if (isActive) {
+      match.dataset.chatSearchActive = 'true'
+      match.classList.add('chat-search-highlight--active')
+      activeMatch = match
+    } else {
+      match.removeAttribute('data-chat-search-active')
+      match.classList.remove('chat-search-highlight--active')
+    }
+  }
+
+  if (activeMatch && options.scroll !== false) {
+    activeMatch.scrollIntoView({
+      block: 'center',
+      inline: 'nearest',
+      behavior: options.behavior ?? 'auto'
+    })
+  }
+
+  return activeMatch
 }
 
 export const setActiveChatSearchMatch = (

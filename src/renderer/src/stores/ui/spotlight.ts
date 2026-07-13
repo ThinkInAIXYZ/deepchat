@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { useRouter } from 'vue-router'
 import { useDebounceFn } from '@vueuse/core'
 import { createSettingsClient } from '@api/SettingsClient'
 import { createSessionClient } from '@api/SessionClient'
@@ -106,7 +107,6 @@ const actionItems: Array<{
   {
     id: 'open-mcp',
     titleKey: 'routes.settings-mcp',
-    routeName: 'settings-mcp',
     icon: 'lucide:server',
     keywords: ['mcp', 'tools', 'server', '工具']
   },
@@ -120,13 +120,13 @@ const actionItems: Array<{
   {
     id: 'open-remote',
     titleKey: 'routes.settings-remote',
-    routeName: 'settings-remote',
     icon: 'lucide:smartphone',
     keywords: ['remote', 'telegram', 'feishu', '远程']
   }
 ]
 
 export const useSpotlightStore = defineStore('spotlight', () => {
+  const router = useRouter()
   const sessionClient = createSessionClient()
   const settingsClient = createSettingsClient()
   const providerStore = useProviderStore()
@@ -251,7 +251,9 @@ export const useSpotlightStore = defineStore('spotlight', () => {
       .filter((item) => item.score > 0)
 
   const buildSettingMatches = (normalizedQuery: string): SpotlightItem[] =>
-    SETTINGS_NAVIGATION_ITEMS.filter((item) => item.routeName !== 'settings-provider')
+    SETTINGS_NAVIGATION_ITEMS.filter(
+      (item) => item.routeName !== 'settings-provider' && !item.hiddenInSidebar
+    )
       .map((item) => ({
         id: `setting:${item.routeName}`,
         kind: 'setting' as const,
@@ -459,10 +461,14 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         return
       case 'open-providers':
       case 'open-agents':
-      case 'open-mcp':
       case 'open-shortcuts':
-      case 'open-remote':
         await navigateToSettings(item.routeName)
+        return
+      case 'open-mcp':
+        await router.push({ name: 'plugins-mcp' })
+        return
+      case 'open-remote':
+        await router.push({ name: 'plugins' })
         return
       default:
         return

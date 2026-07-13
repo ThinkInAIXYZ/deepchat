@@ -1,15 +1,35 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import type {
   DisplayAssistantMessage,
   DisplayAssistantMessageBlock
 } from '@/components/chat/messageListItems'
 
+const memoryActivity = vi.hoisted(() => ({
+  enabled: false,
+  openTurnMemories: vi.fn(),
+  rememberSelection: vi.fn()
+}))
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key
+  })
+}))
+
+vi.mock('@/stores/ui/memoryActivity', () => ({
+  useMemoryActivityStore: () => memoryActivity
+}))
+
+vi.mock('@/components/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() })
+}))
+
+vi.mock('@api/DeviceClient', () => ({
+  createDeviceClient: () => ({
+    copyText: vi.fn()
   })
 }))
 
@@ -95,7 +115,8 @@ const componentStub = (name: string) =>
 
 const createMessage = (
   status: 'sent' | 'pending' | 'error',
-  content: DisplayAssistantMessage['content']
+  content: DisplayAssistantMessage['content'],
+  overrides: Partial<DisplayAssistantMessage> = {}
 ): DisplayAssistantMessage => ({
   id: 'm1',
   role: 'assistant',
@@ -122,7 +143,8 @@ const createMessage = (
   conversationId: 's1',
   is_variant: 0,
   orderSeq: 1,
-  content
+  content,
+  ...overrides
 })
 
 const createVideoLikeImageBlock = (
@@ -162,11 +184,27 @@ const createToolCallBlock = (
 })
 
 describe('MessageItemAssistant', () => {
+  beforeEach(() => {
+    memoryActivity.enabled = false
+    memoryActivity.openTurnMemories.mockClear()
+    memoryActivity.rememberSelection.mockClear()
+  })
+
   const global = {
     stubs: {
       ModelIcon: componentStub('ModelIcon'),
       MessageInfo: componentStub('MessageInfo'),
-      MessageBlockContent: componentStub('MessageBlockContent'),
+      MessageBlockContent: defineComponent({
+        name: 'MessageBlockContent',
+        props: {
+          disableMarkdownVirtualization: {
+            type: Boolean,
+            default: false
+          }
+        },
+        template:
+          '<div data-testid="message-block-content" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)"><slot /></div>'
+      }),
       MessageBlockThink: componentStub('MessageBlockThink'),
       MessageBlockToolCall: componentStub('MessageBlockToolCall'),
       MessageBlockError: componentStub('MessageBlockError'),
@@ -185,7 +223,6 @@ describe('MessageItemAssistant', () => {
         template: '<div data-testid="video-block" />'
       }),
       MessageBlockAudio: componentStub('MessageBlockAudio'),
-      MessageBlockPlan: componentStub('MessageBlockPlan'),
       MessageBlockActivityGroup: defineComponent({
         name: 'MessageBlockActivityGroup',
         props: {
@@ -222,6 +259,56 @@ describe('MessageItemAssistant', () => {
     })
 
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
+    expect(wrapper.find('[data-message-content="true"]').exists()).toBe(true)
+  })
+
+  it('keeps the message content wrapper stable when the first pending content arrives', async () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', []),
+        isCapturingImage: false
+      },
+      global
+    })
+    const contentWrapper = wrapper.find('[data-message-content="true"]').element
+
+    await wrapper.setProps({
+      message: createMessage('pending', [
+        {
+          type: 'content',
+          content: 'first chunk',
+          status: 'loading',
+          timestamp: 2
+        }
+      ])
+    })
+
+    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-message-content="true"]').element).toBe(contentWrapper)
+  })
+
+  it('passes markdown virtualization disable state to message content blocks', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [
+          {
+            type: 'content',
+            content: 'visible content',
+            status: 'loading',
+            timestamp: 2
+          }
+        ]),
+        isCapturingImage: false,
+        disableMarkdownVirtualization: true
+      },
+      global
+    })
+
+    expect(
+      wrapper
+        .get('[data-testid="message-block-content"]')
+        .attributes('data-disable-markdown-virtualization')
+    ).toBe('true')
   })
 
   it('renders video blocks from legacy content urls', () => {
@@ -258,6 +345,49 @@ describe('MessageItemAssistant', () => {
     })
 
     expect(wrapper.find('[data-testid="video-block"]').exists()).toBe(false)
+  })
+
+  it('does not render persisted plan blocks in assistant message content', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          {
+            type: 'plan',
+            content: '',
+            status: 'success',
+            timestamp: 2,
+            extra: {
+              plan_entries: [{ step: 'Old plan', status: 'in_progress' }],
+              plan_revision: 1,
+              plan_updated_at: '2026-05-18T00:00:00.000Z'
+            }
+          }
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(wrapper.text()).not.toContain('Old plan')
+  })
+
+  it('renders non-internal tool calls even when they are named update_plan', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [
+          createToolCallBlock({
+            tool_call: {
+              id: 'external-plan-tool',
+              name: 'update_plan'
+            }
+          })
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
   })
 
   it('groups completed assistant activity blocks after the turn is settled', () => {
@@ -345,5 +475,67 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
+  })
+
+  it('opens turn memories with the primary assistant message id when a variant is selected', async () => {
+    memoryActivity.enabled = true
+    const variant = createMessage('sent', [createThinkingBlock({ content: 'variant thinking' })], {
+      id: 'assistant-variant',
+      is_variant: 1
+    })
+    const message = createMessage('sent', [createThinkingBlock({ content: 'primary thinking' })], {
+      id: 'assistant-primary',
+      variants: [variant]
+    })
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message,
+        isCapturingImage: false
+      },
+      global: {
+        ...global,
+        stubs: {
+          ...global.stubs,
+          MessageToolbar: defineComponent({
+            name: 'MessageToolbar',
+            emits: ['next', 'memory'],
+            template:
+              '<div><button data-testid="next" @click="$emit(\'next\')" /><button data-testid="memory" @click="$emit(\'memory\')" /></div>'
+          })
+        }
+      }
+    })
+
+    await wrapper.find('[data-testid="next"]').trigger('click')
+    await wrapper.find('[data-testid="memory"]').trigger('click')
+
+    expect(memoryActivity.openTurnMemories).toHaveBeenCalledWith('assistant-primary')
+    expect(memoryActivity.openTurnMemories).not.toHaveBeenCalledWith('assistant-variant')
+  })
+
+  it('does not open turn memories when read-only mode emits a memory action defensively', async () => {
+    memoryActivity.enabled = true
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock()], { id: 'assistant-primary' }),
+        isCapturingImage: false,
+        isReadOnly: true
+      },
+      global: {
+        ...global,
+        stubs: {
+          ...global.stubs,
+          MessageToolbar: defineComponent({
+            name: 'MessageToolbar',
+            emits: ['memory'],
+            template: '<button data-testid="memory" @click="$emit(\'memory\')" />'
+          })
+        }
+      }
+    })
+
+    await wrapper.find('[data-testid="memory"]').trigger('click')
+
+    expect(memoryActivity.openTurnMemories).not.toHaveBeenCalled()
   })
 })

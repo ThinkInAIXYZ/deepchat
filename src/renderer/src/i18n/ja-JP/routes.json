@@ -15,11 +15,13 @@
   "settings-acp": "ACPエージェント",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "フック",
-  "settings-scheduled-tasks": "スケジュールタスク",
+  "settings-scheduled-tasks": "スケジュール済みタスク",
   "settings-dashboard": "Dashboard",
   "settings-environments": "環境",
   "settings-remote": "リモート",
   "settings-deepchat-agents": "DeepChatエージェント",
   "settings-plugins": "プラグイン",
-  "settings-overview": "設定の概要"
+  "settings-overview": "設定の概要",
+  "settings-memory": "メモリ",
+  "plugins": "Plugins"
 }

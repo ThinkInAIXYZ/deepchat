@@ -56,8 +56,10 @@ flowchart TD
 - `sessions.compact` 触发手动上下文压缩；自动压缩设置保存在 agent/session 配置中。
 - message trace 独立落库，renderer 通过 `sessions.listMessageTraces` 查询。
 - 失败消息会保留恢复上下文，tool output guard 会限制过大的工具输出进入后续上下文。
-- `agent-core/update_plan` 工具只更新 plan state 和 `chat.plan.updated` event，不把内部 tool call
-  暴露成普通消息块。
+- `agent-core/update_plan` 工具只更新实时 plan snapshot 和 `chat.plan.updated` event；plan 是
+  生成中的临时浮窗 UI，不写入 assistant 正文 block。renderer 按 session 保存当前 app
+  运行内的 live plan snapshot；切换会话时只显示当前 session 的 plan，且不从历史消息
+  rehydrate。reload 后不恢复旧 plan float。内部 tool call 仍隐藏，不暴露成普通消息块。
 
 ## 3. 工具调用、权限和 Subagents
 
@@ -187,24 +189,24 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant UI as Settings Scheduled Tasks
-    participant Client as ScheduledTasksClient
-    participant Service as ScheduledTasksService
-    participant Notify as NotificationPresenter
-    participant Session as Session creator
+    participant UI as Settings Scheduled
+    participant Client as CronJobsClient
+    participant Service as CronJobsService
+    participant Utility as Scheduler utility
+    participant Agent as AgentSessionPresenter
+    participant Remote as RemoteControlPresenter
 
-    UI->>Client: list/upsert/toggle/delete/fireNow
-    Client->>Service: scheduledTasks.* route
-    Service->>Service: compute next fire time
-    alt notify action
-        Service->>Notify: showNotification
-    else prompt action
-        Service->>Session: create session, optional autoSend
-    end
+    UI->>Client: list/upsert/toggle/runNow
+    Client->>Service: cronJobs.* route
+    Service->>Utility: reconcile enabled jobs
+    Utility->>Service: RUN_DUE
+    Service->>Agent: create detached session and send task prompt
+    Agent-->>Service: run status and output updates
+    Service->>Remote: optional notification-only delivery
 ```
 
-Triggers 支持 once、daily、weekly；actions 支持 notification 和 prompt。Prompt action 可指定
-agent、provider、model、system prompt，并通过 route runtime 创建会话。
+Triggers 使用 cron 表达式。每次触发创建独立 detached session；Remote 投递只发送通知，不进入普通
+Remote 会话上下文。
 
 ## 9. Remote Control
 

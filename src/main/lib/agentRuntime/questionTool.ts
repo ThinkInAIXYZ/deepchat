@@ -22,7 +22,7 @@ const questionOptionSchema = z.object({
 })
 
 export const questionToolSchema = z
-  .object({
+  .strictObject({
     header: z
       .string()
       .trim()
@@ -59,7 +59,6 @@ export const questionToolSchema = z
         'Whether free-form input is allowed for this question. The field name is `custom`, not `allowOther`.'
       )
   })
-  .strict()
   .describe(
     'Ask exactly one blocking clarification question. For multiple clarifications, use multiple deepchat_question tool calls instead of sending a `questions` array.'
   )

@@ -55,8 +55,8 @@ type ImageGenerationRequestOptions = {
   providerOptions?: Record<string, ImageGenerationProviderPayload>
 }
 
-type AiSdkSystemPromptSplit = {
-  system?: string
+type AiSdkPromptSplit = {
+  instructions?: string
   messages: ModelMessage[]
 }
 
@@ -1168,7 +1168,7 @@ async function buildPromptRuntime(
 
   return {
     providerContext,
-    system: promptSplit.system,
+    instructions: promptSplit.instructions,
     messages: promptSplit.messages,
     providerOptions: providerOptionResult.providerOptions,
     tools: toolsMap,
@@ -1176,7 +1176,7 @@ async function buildPromptRuntime(
   }
 }
 
-function splitLeadingSystemMessagesForAiSdk(messages: ModelMessage[]): AiSdkSystemPromptSplit {
+function splitLeadingSystemMessagesForAiSdk(messages: ModelMessage[]): AiSdkPromptSplit {
   const systemContent: string[] = []
   let firstConversationIndex = 0
 
@@ -1194,7 +1194,7 @@ function splitLeadingSystemMessagesForAiSdk(messages: ModelMessage[]): AiSdkSyst
   }
 
   return {
-    ...(systemContent.length > 0 ? { system: systemContent.join('\n\n') } : {}),
+    ...(systemContent.length > 0 ? { instructions: systemContent.join('\n\n') } : {}),
     messages: messages.slice(firstConversationIndex)
   }
 }
@@ -1254,7 +1254,7 @@ export async function runAiSdkGenerateText(
 
   const result = await generateText({
     model: runtime.providerContext.model,
-    ...(runtime.system ? { system: runtime.system } : {}),
+    ...(runtime.instructions ? { instructions: runtime.instructions } : {}),
     messages: runtime.messages,
     allowSystemInMessages: false,
     providerOptions: runtime.providerOptions as any,
@@ -1268,8 +1268,8 @@ export async function runAiSdkGenerateText(
 
   return {
     content: result.text,
-    reasoning_content: result.reasoningText,
-    totalUsage: usageToLlmResponse(result.totalUsage)
+    reasoning_content: result.finalStep.reasoningText,
+    totalUsage: usageToLlmResponse(result.usage)
   }
 }
 
@@ -1461,7 +1461,7 @@ export async function* runAiSdkCoreStream(
 
   const result = streamText({
     model: runtime.providerContext.model,
-    ...(runtime.system ? { system: runtime.system } : {}),
+    ...(runtime.instructions ? { instructions: runtime.instructions } : {}),
     messages: runtime.messages,
     allowSystemInMessages: false,
     tools: runtime.tools,
@@ -1474,7 +1474,7 @@ export async function* runAiSdkCoreStream(
     maxOutputTokens: maxTokens
   })
 
-  yield* adaptAiSdkStream(result.fullStream, {
+  yield* adaptAiSdkStream(result.stream, {
     supportsNativeTools: runtime.supportsNativeTools,
     cacheImage: (data) => presenter.devicePresenter.cacheImage(data)
   })

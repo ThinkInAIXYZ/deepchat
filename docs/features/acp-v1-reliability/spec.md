@@ -68,7 +68,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 | Client Permission | Client baseline method `session/request_permission` 用于工具权限确认 | 主进程已有 resolver 分发底座；需要 UI/超时/debug/test 闭环 | 复用现有 DeepChat permission overlay；补 timeout/cancel 默认 outcome；debug log 记录 permission request/result |
 | File System | `fs/read_text_file`、`fs/write_text_file` 只在 client capability 声明后可用；路径绝对；line 为 1-based | 已有 handler，包含 workspace guard、二进制/大小控制 | 保持安全边界；补 1-based、越界、二进制、跨 workspace 写入测试；声明能力与真实 handler 绑定 |
 | Terminals | `terminal/create` 用 `command` + `args` + `env` + `cwd`；`outputByteLimit` 超限时从开头截断，保留最新输出且字符边界有效 | 已有 terminal manager；当前把 command/args 拼进 shell，输出超限时保留开头 | 改为直接 spawn command + args；仅显式 shell 场景使用 shell；输出 buffer 保留尾部；release 后仍允许已渲染内容留在 tool call |
-| Agent Plan | `plan` update 每次发送完整 entries，client 应替换当前 plan | 已映射为 plan block | 保持替换语义，补测试；plan update 不追加成重复计划 |
+| Agent Plan | `plan` update 每次发送完整 entries，client 应替换当前 plan | 已映射为 live plan event / float，不写正文 plan block | 保持替换语义，补测试；plan update 不追加成重复计划 |
 | Session Modes | Session 返回 modes；client 可调 `session/set_mode`；agent 可发 `current_mode_update`；官方建议逐步转向 config options | 已支持 mode 初始状态、set mode、mode update | 保持兼容；当 config options 提供 mode 等价项时，UI 优先统一展示 config options，legacy mode 继续可用 |
 | Session Config Options | Session 返回 `configOptions`；client 可设置配置；agent 可发 `config_option_update` | 已有 normalize 和 state update | 补初始化/new/load/resume 全路径同步；debug action 覆盖设置失败和状态回滚 |
 | Slash Commands | Agent 用 `available_commands_update` 发布命令；用户执行时作为普通 prompt 文本如 `/web query` | 已解析 available commands；早期通知可能丢 | 通过 update buffer 保证 commands 到达；UI 输入框命令候选来自 session state；执行仍走普通 prompt |

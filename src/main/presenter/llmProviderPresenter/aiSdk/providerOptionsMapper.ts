@@ -12,6 +12,44 @@ import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 
 type ProviderOptionsRecord = Record<string, Record<string, unknown>>
+const OPENAI_CODEX_DEFAULT_INSTRUCTIONS =
+  'You are DeepChat, an AI assistant. Follow the user instructions.'
+
+function normalizeInstructionValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item.trim()
+        }
+
+        if (item && typeof item === 'object' && 'text' in item && typeof item.text === 'string') {
+          return item.text.trim()
+        }
+
+        return ''
+      })
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  return ''
+}
+
+function extractSystemInstructions(messages: ModelMessage[]): string | undefined {
+  const instructions = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => normalizeInstructionValue(message.content))
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+
+  return instructions || undefined
+}
 
 function cloneMessage(message: ModelMessage): ModelMessage {
   return {
@@ -118,6 +156,23 @@ function supportsGrokReasoningEffort(modelId: string): boolean {
   )
 }
 
+function normalizeMiniMaxModelId(modelId: string): string {
+  const normalized = modelId.trim().toLowerCase()
+  return normalized.includes('/') ? normalized.slice(normalized.lastIndexOf('/') + 1) : normalized
+}
+
+function supportsMiniMaxAdaptiveThinking(
+  providerId: string,
+  capabilityProviderId: string,
+  modelId: string
+): boolean {
+  const providerIds = [providerId, capabilityProviderId].map((id) => id.trim().toLowerCase())
+  return (
+    providerIds.some((id) => id === 'minimax' || id === 'minimax-cn') &&
+    normalizeMiniMaxModelId(modelId) === 'minimax-m3'
+  )
+}
+
 export function buildProviderOptions(
   params: BuildProviderOptionsParams
 ): ProviderOptionsMappingResult {
@@ -177,6 +232,11 @@ export function buildProviderOptions(
         config.thinking = {
           type: fixedTemperatureKimi.thinkingType
         }
+      }
+      if (params.providerId === 'openai-codex' && params.apiType === 'openai_responses') {
+        config.store = false
+        config.instructions =
+          extractSystemInstructions(params.messages) ?? OPENAI_CODEX_DEFAULT_INSTRUCTIONS
       }
       if (supportsDoubaoThinking(params.providerId, params.modelId) && reasoningEnabled) {
         config.thinking = {
@@ -263,6 +323,17 @@ export function buildProviderOptions(
         config.thinking = {
           type: 'adaptive',
           display: resolvedVisibility
+        }
+      } else if (
+        supportsMiniMaxAdaptiveThinking(
+          params.providerId,
+          params.capabilityProviderId,
+          params.modelId
+        ) &&
+        reasoningEnabled
+      ) {
+        config.thinking = {
+          type: 'adaptive'
         }
       } else if (reasoningEnabled && params.modelConfig.thinkingBudget !== undefined) {
         config.thinking = {

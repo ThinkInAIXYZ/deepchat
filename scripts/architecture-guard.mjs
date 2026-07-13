@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
+import { analyzeMemoryArchitecture } from './lib/memory-architecture-guard.mjs'
 
 const ROOT = process.cwd()
 const SOURCE_EXTENSIONS = new Set([
@@ -22,17 +25,20 @@ const MAIN_GUARD_PATHS = [
 ]
 
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
+const RENDERER_SETTINGS_ROOT = path.join(ROOT, 'src/renderer/settings')
+const RENDERER_BUSINESS_ROOTS = [RENDERER_SOURCE_ROOT, RENDERER_SETTINGS_ROOT]
 const RENDERER_TYPED_BOUNDARY_ROOT = path.join(ROOT, 'src/renderer/api')
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
-const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
+const RENDERER_QUARANTINE_ROOTS = []
 const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
-  path.join(ROOT, 'src/renderer/src/composables/usePresenter.ts')
+  path.join(ROOT, 'src/renderer/src/composables/usePresenter.ts'),
+  RENDERER_QUARANTINE_ROOT
 ]
-const RENDERER_QUARANTINE_MAX_SOURCE_FILES = 3
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
+const SHARED_SOURCE_ROOT = path.join(ROOT, 'src/shared')
 const PHASE_ORDER = new Map([
   ['P0', 0],
   ['P1', 1],
@@ -63,6 +69,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
+  path.join(ROOT, 'src/renderer/settings'),
   path.join(ROOT, 'src/main/presenter/windowPresenter'),
   path.join(ROOT, 'src/main/presenter/configPresenter'),
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
@@ -77,10 +84,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/main/routes')
 ]
 
-const MIGRATED_RAW_CHANNEL_BASELINE = new Map([
-  ['src/main/presenter/windowPresenter/index.ts', 4],
-  ['src/renderer/src/App.vue', 1]
-])
+const MIGRATED_RAW_CHANNEL_BASELINE = new Map()
 
 const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/presenter/index.ts'),
@@ -99,10 +103,20 @@ const LEGACY_PRESENTER_HELPER_CALL_PATTERN =
   /(?<!function\s)\b(?:usePresenter|useLegacyPresenter|useLegacy[A-Z][A-Za-z]*Presenter)\s*\(/g
 const LEGACY_PRESENTER_IMPORT_PATTERN =
   /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]|\bimport\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]/g
+const LEGACY_RUNTIME_IMPORT_PATTERN =
+  /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*legacy\/runtime['"]|\bimport\s*['"][^'"]*legacy\/runtime['"]/g
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
   /window\.electron(?:\?\.|\.)ipcRenderer(?:\?\.|\.)(?:on|once|addListener)\s*\(/g
+const LEGACY_MEMORY_PRESENTER_LIST_PATTERN = /\.listMemories\s*\(/g
+const LEGACY_MEMORY_PRESENTER_LIST_ALLOWLIST = new Map([
+  [path.join(ROOT, 'src/main/routes/index.ts'), 1],
+  [path.join(ROOT, 'src/main/presenter/memoryPresenter/index.ts'), 1]
+])
+const LEGACY_MEMORY_BRIDGE_ALLOWLIST = new Map([
+  [path.join(ROOT, 'src/renderer/api/MemoryClient.ts'), 1]
+])
 const INLINE_IPC_CHANNEL_PATTERN =
   /(?:window\.electron(?:\?\.|\.)ipcRenderer|ipcRenderer|ipcMain)(?:\?\.|\.)(?:invoke|send|on|once|handle|handleOnce|removeListener|removeAllListeners|addListener)\s*\(\s*['"`][^'"`]+['"`]/g
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
@@ -175,7 +189,106 @@ function countMatches(source, pattern) {
   return count
 }
 
-async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) {
+function scriptSourceForAst(source, filePath) {
+  if (path.extname(filePath) !== '.vue') return source
+  return [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((match) => match[1])
+    .join('\n')
+}
+
+function countDeprecatedMemoryClientCalls(source, filePath) {
+  const astSource = scriptSourceForAst(source, filePath)
+  if (!astSource.trim()) return 0
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    astSource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  )
+  const factoryNames = new Set(['createMemoryClient'])
+  const routeNames = new Set(['memoryListRoute'])
+  const clientNames = new Set()
+  const destructuredListNames = new Set()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue
+    const bindings = statement.importClause.namedBindings
+    if (!bindings || !ts.isNamedImports(bindings)) continue
+    for (const element of bindings.elements) {
+      const importedName = element.propertyName?.text ?? element.name.text
+      if (importedName === 'createMemoryClient') factoryNames.add(element.name.text)
+      if (importedName === 'memoryListRoute') routeNames.add(element.name.text)
+    }
+  }
+
+  const isFactoryCall = (node) =>
+    ts.isCallExpression(node) && ts.isIdentifier(node.expression) && factoryNames.has(node.expression.text)
+  const isClientExpression = (node) =>
+    (ts.isIdentifier(node) && clientNames.has(node.text)) || isFactoryCall(node)
+
+  let changed = true
+  while (changed) {
+    changed = false
+    const discover = (node) => {
+      if (ts.isVariableDeclaration(node) && node.initializer) {
+        if (ts.isIdentifier(node.name) && isClientExpression(node.initializer)) {
+          if (!clientNames.has(node.name.text)) {
+            clientNames.add(node.name.text)
+            changed = true
+          }
+        } else if (ts.isObjectBindingPattern(node.name) && isClientExpression(node.initializer)) {
+          for (const element of node.name.elements) {
+            const propertyName = element.propertyName
+            const boundName = element.name
+            if (
+              ts.isIdentifier(boundName) &&
+              ((propertyName && ts.isIdentifier(propertyName) && propertyName.text === 'list') ||
+                (!propertyName && boundName.text === 'list'))
+            ) {
+              destructuredListNames.add(boundName.text)
+            }
+          }
+        }
+      }
+      ts.forEachChild(node, discover)
+    }
+    discover(sourceFile)
+  }
+
+  let count = 0
+  const inspect = (node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression
+      if (
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'list' &&
+        isClientExpression(callee.expression)
+      ) {
+        count += 1
+      } else if (ts.isIdentifier(callee) && destructuredListNames.has(callee.text)) {
+        count += 1
+      } else if (
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'invoke' &&
+        node.arguments.some(
+          (argument) =>
+            ts.isPropertyAccessExpression(argument) &&
+            argument.name.text === 'name' &&
+            ts.isIdentifier(argument.expression) &&
+            routeNames.has(argument.expression.text)
+        )
+      ) {
+        count += 1
+      }
+    }
+    ts.forEachChild(node, inspect)
+  }
+  inspect(sourceFile)
+  return count
+}
+
+async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT, virtualFiles = new Map()) {
   const tryFile = async (basePath) => {
     const candidates = [
       basePath,
@@ -194,6 +307,7 @@ async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) 
     ]
 
     for (const candidate of candidates) {
+      if (virtualFiles.has(path.resolve(candidate))) return candidate
       try {
         const stat = await fs.stat(candidate)
         if (stat.isFile()) {
@@ -207,6 +321,14 @@ async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) 
 
   if (specifier.startsWith('@/')) {
     return await tryFile(path.join(aliasRoot, specifier.slice(2)))
+  }
+
+  if (specifier === '@shared') {
+    return await tryFile(SHARED_SOURCE_ROOT)
+  }
+
+  if (specifier.startsWith('@shared/')) {
+    return await tryFile(path.join(SHARED_SOURCE_ROOT, specifier.slice('@shared/'.length)))
   }
 
   if (specifier.startsWith('.')) {
@@ -328,7 +450,10 @@ function extractModuleSpecifiers(source) {
   return [...specifiers]
 }
 
-async function main() {
+export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCompiler = {} } = {}) {
+  const normalizedVirtualFiles = new Map(
+    [...virtualFiles].map(([filePath, source]) => [path.resolve(filePath), source])
+  )
   const scanRoots = [path.join(ROOT, 'src'), path.join(ROOT, 'docs')]
   const fileSet = new Set()
 
@@ -338,25 +463,27 @@ async function main() {
     }
   }
 
+  for (const filePath of normalizedVirtualFiles.keys()) fileSet.add(filePath)
+
+  const readSource = async (filePath) =>
+    normalizedVirtualFiles.get(path.resolve(filePath)) ?? fs.readFile(filePath, 'utf8')
   const violations = []
+  violations.push(
+    ...(await analyzeMemoryArchitecture({
+      root: ROOT,
+      fileSet,
+      readSource,
+      resolveImport: (specifier, importer) =>
+        resolveImport(specifier, importer, MAIN_SOURCE_ROOT, normalizedVirtualFiles),
+      virtualFiles: normalizedVirtualFiles,
+      compiler: memoryCompiler
+    }))
+  )
 
   try {
     await loadBridgeRegister()
   } catch (error) {
     violations.push(`[bridge-register-invalid] ${error instanceof Error ? error.message : String(error)}`)
-  }
-
-  if (!(await pathExists(RENDERER_QUARANTINE_ROOT))) {
-    violations.push(
-      `[renderer-quarantine-missing] ${relativePath(RENDERER_QUARANTINE_ROOT)} must exist as the only allowed renderer legacy quarantine directory`
-    )
-  }
-
-  const quarantineFiles = await collectFiles(RENDERER_QUARANTINE_ROOT)
-  if (quarantineFiles.length > RENDERER_QUARANTINE_MAX_SOURCE_FILES) {
-    violations.push(
-      `[renderer-quarantine-growth] ${relativePath(RENDERER_QUARANTINE_ROOT)} expected <= ${RENDERER_QUARANTINE_MAX_SOURCE_FILES} source files, found ${quarantineFiles.length}`
-    )
   }
 
   for (const retiredEntryPath of RETIRED_RENDERER_LEGACY_ENTRY_PATHS) {
@@ -368,23 +495,43 @@ async function main() {
   }
 
   for (const filePath of [...fileSet].sort()) {
-    const source = await fs.readFile(filePath, 'utf8')
+    const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
 
-    if (isUnder(filePath, RENDERER_SOURCE_ROOT)) {
+    if (isUnder(filePath, MAIN_SOURCE_ROOT)) {
+      const legacyListCalls = countMatches(source, LEGACY_MEMORY_PRESENTER_LIST_PATTERN)
+      const allowedCalls = LEGACY_MEMORY_PRESENTER_LIST_ALLOWLIST.get(path.resolve(filePath)) ?? 0
+      if (legacyListCalls > allowedCalls) {
+        violations.push(
+          `[memory-legacy-list-caller] ${relativePath(filePath)} expected <= ${allowedCalls}, found ${legacyListCalls}; use memory.page or an owner-scoped lookup`
+        )
+      }
+    }
+
+    if (RENDERER_BUSINESS_ROOTS.some((root) => isUnder(filePath, root))) {
       const file = relativePath(filePath)
       const legacyPresenterHelperCount = countMatches(
         source,
         LEGACY_PRESENTER_HELPER_CALL_PATTERN
       )
       const legacyPresenterImportCount = countMatches(source, LEGACY_PRESENTER_IMPORT_PATTERN)
+      const legacyRuntimeImportCount = countMatches(source, LEGACY_RUNTIME_IMPORT_PATTERN)
       const windowElectronCount = countMatches(source, WINDOW_ELECTRON_PATTERN)
       const windowApiCount = countMatches(source, WINDOW_API_PATTERN)
       const actualListenerCount = countMatches(source, IPC_RENDERER_LISTENER_PATTERN)
+      const legacyMemoryListCount = countDeprecatedMemoryClientCalls(source, filePath)
+      const allowedMemoryListCount =
+        LEGACY_MEMORY_BRIDGE_ALLOWLIST.get(path.resolve(filePath)) ?? 0
 
       if (legacyPresenterImportCount > 0) {
         violations.push(
           `[renderer-business-direct-use-presenter-import] ${file} must not import renderer legacy presenter helpers`
+        )
+      }
+
+      if (legacyRuntimeImportCount > 0) {
+        violations.push(
+          `[renderer-business-direct-legacy-runtime-import] ${file} must not import renderer legacy runtime helpers`
         )
       }
 
@@ -409,6 +556,12 @@ async function main() {
       if (actualListenerCount > 0) {
         violations.push(
           `[renderer-business-direct-ipc-listener] ${file} expected 0, found ${actualListenerCount}`
+        )
+      }
+
+      if (legacyMemoryListCount > allowedMemoryListCount) {
+        violations.push(
+          `[memory-legacy-list-caller] ${file} expected <= ${allowedMemoryListCount}, found ${legacyMemoryListCount}; use memoryClient.page`
         )
       }
     }
@@ -487,18 +640,25 @@ async function main() {
     )
   }
 
-  if (violations.length > 0) {
-    console.error('Architecture guard failed.')
-    for (const violation of violations) {
-      console.error(`- ${violation}`)
-    }
-    process.exit(1)
-  }
-
-  console.log('Architecture guard passed.')
+  return violations
 }
 
-main().catch((error) => {
-  console.error('Architecture guard failed to run:', error)
-  process.exit(1)
-})
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
+
+if (isDirectRun) {
+  runArchitectureGuard()
+    .then((violations) => {
+      if (violations.length > 0) {
+        console.error('Architecture guard failed.')
+        for (const violation of violations) console.error(`- ${violation}`)
+        process.exitCode = 1
+        return
+      }
+      console.log('Architecture guard passed.')
+    })
+    .catch((error) => {
+      console.error('Architecture guard failed to run:', error)
+      process.exitCode = 1
+    })
+}

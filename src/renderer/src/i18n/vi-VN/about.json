@@ -17,6 +17,12 @@
   "mockUpdateButton": "Cập nhật đã tải xuống mô phỏng",
   "clearMockUpdateButton": "Xóa bản cập nhật giả",
   "mockOnboardingButton": "Hướng dẫn mô phỏng lần chạy đầu tiên",
+  "mockChatButton": "Tạo cuộc trò chuyện mô phỏng dài",
+  "mockChatCreating": "Đang tạo...",
+  "mockChatCreated": "Đã tạo trò chuyện mô phỏng",
+  "mockChatCreatedDesc": "Đã tạo \"{title}\" với {count} tin nhắn.",
+  "mockChatCreateFailed": "Không thể tạo trò chuyện mô phỏng.",
+  "mockChatCreateUnavailable": "Dữ liệu trò chuyện mô phỏng chỉ khả dụng trong bản dựng phát triển.",
   "updateChannel": "Cập nhật kênh",
   "stableChannel": "Ổn định",
   "betaChannel": "bản thử nghiệm"

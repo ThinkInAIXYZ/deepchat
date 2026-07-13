@@ -4,42 +4,102 @@
 
 Specification-Driven Development (SDD) eliminates the gap between requirements and implementation by making specifications the primary artifact. Specifications don't serve code—code serves specifications. When implementing features in DeepChat, start with clear specifications that define WHAT users need and WHY, before deciding HOW to implement.
 
-In practice, SDD works best when the spec is concrete enough to drive design decisions, tests, and PR review. Prefer small, reviewable increments that keep spec → plan → code traceability.
+In practice, SDD works best when the spec is concrete enough to drive design decisions, tests, and
+PR review. Use it for substantial work that needs shared context or a durable decision record, not
+for every small edit. Prefer small, reviewable increments that keep spec → plan → code traceability.
 
 ## Required Artifacts
 
-Keep every active change in a lightweight SDD folder so reviewers can find the intent without hunting through code. Use one kebab-case folder per goal:
+Keep substantial active changes in a lightweight SDD folder so reviewers can find the intent without
+hunting through code. Use one kebab-case folder per goal when SDD is needed:
 
-- `docs/features/<goal>/` - new features, user-visible capabilities, integrations, and tools
-- `docs/issues/<goal>/` - bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems
+- `docs/features/<goal>/` - new features, user-visible capabilities, integrations, and tools large
+  enough to need a shared plan
+- `docs/issues/<goal>/` - complex bug fixes, regressions, failing tests, CI failures, reliability
+  issues, and prompt/runtime problems
 - `docs/architecture/<goal>/` - refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design
+
+Skip SDD unless a developer explicitly asks for it when the change is trivial or tightly localized:
+
+- visual/style fixes, copy changes, and small UI layout adjustments
+- simple localized logic changes with a clear owner module
+- routine docs edits that do not change project direction
 
 Pure release metadata work is exempt from SDD. Version bumps, `CHANGELOG.md` updates, release branch
 management, tags, and release PR preparation should follow `docs/release-flow.md` without creating a
 release-specific SDD folder.
 
-Each active goal folder contains:
+Feature and architecture goals use the full SDD set:
 
 - `spec.md` - user stories, acceptance criteria, non-goals, constraints, open questions
 - `plan.md` - architecture decisions, event flow, data model, compatibility, test strategy
 - `tasks.md` - small, ordered tasks that map to commits/PRs
 
-If a change is tiny, keep all three files short.
+Complex bug goals use one file:
+
+- `spec.md` - issue description, impact, root cause or suspected location, fix plan, task checklist,
+  validation, and linked GitHub issue if one exists
+
+A bug is SDD-worthy only when the root cause, blast radius, or fix path is complex enough that
+future developers benefit from the written record. For simple style defects or obvious local logic
+fixes, skip `docs/issues/*` and implement directly.
+
+If a bug fix introduces a new user-visible capability, data migration, public contract, or
+cross-module redesign, classify the work as feature or architecture instead.
+
+If a change is tiny, prefer skipping SDD over creating a token artifact.
+
+## GitHub Issue Sync
+
+Do not sync GitHub issues by default. Issue sync is a follow-up record, not a gate for local SDD or
+implementation.
+
+Only create or link a GitHub issue when the developer explicitly asks, or after asking and getting
+approval once the SDD artifacts are written or the implementation is complete.
+
+Eligible work:
+
+- Complex bugs only; simple style defects and obvious local logic fixes should not get issues.
+- Whole new features or major feature rewrites only; single actions, small behavior tweaks, and
+  ordinary adjustments should not get issues.
+
+If eligibility is unclear, ask the developer after the work is understood. Never self-authorize issue
+creation just because local `gh` is installed and authenticated.
+
+When approved:
+
+- Feature work uses the `[feature]` label.
+- Bug work uses the `[bug]` label.
+- If the label is missing and `gh` has permission, create it.
+- Record the issue URL or number in the SDD artifact.
+- If `gh` is unavailable or unauthorized, continue local-only and note that no GitHub issue was
+  created only when sync was requested or approved.
+
+When opening a PR for linked work, include `Closes #NNN` in the PR body so GitHub closes the issue
+after merge.
 
 ## Workflow
 
-1. **Feature Specification** - Define user stories, acceptance criteria, business value, non-goals
-2. **Implementation Plan** - Architecture decisions, event flow, IPC surface, test strategy
-3. **Task Breakdown** - Small tasks that can be reviewed independently
-4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality gates
+1. **Classification** - Decide whether SDD is needed, then choose feature, complex bug, or
+   architecture.
+2. **Specification** - Write the required artifact set for that classification when SDD is needed.
+3. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality
+   gates.
+4. **GitHub Sync** - Ask whether to sync an eligible GitHub issue only after the docs or
+   implementation clarify the scope, unless the developer already requested issue sync.
 
-Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Keep SDD folders active only while they are driving current work. When a goal is implemented, fold durable maintenance facts into the current project docs and delete the old goal folder. Delete stale goal folders that only describe removed code, abandoned implementation ideas, old branch plans, or one-off bug fixes with no reusable decision record.
+Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. For architecture work that changes or replaces a historical feature, update that feature's retained `spec.md` if it is still a maintained contract.
 
-Retention policy:
+Cleanup policy:
 
-- Feature and architecture SDD folders stay only while the work is active.
-- Completed feature/architecture SDD content should become current documentation in `README.md`, `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`.
-- Bug-fix issue SDD folders older than two weeks should be removed unless they still describe an active regression.
+- Do not perform broad SDD cleanup during ordinary feature, bug, or architecture work.
+- Use the `deepchat-sdd-cleanup` skill only when a developer explicitly asks to clean, prune, or
+  organize SDD docs.
+- Completed feature/architecture SDD content should become current documentation in `README.md`,
+  `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`; keep a spec-only folder
+  when the acceptance criteria still define a useful maintained contract.
+- Completed issue folders may be deleted when a linked GitHub issue is closed or the local code and
+  tests prove the bug no longer exists.
 - Long-term history should be recovered from git history, not accumulated under `docs/archives/`.
 
 ## Six Core Principles
@@ -52,7 +112,8 @@ Write clear requirements with measurable acceptance criteria before writing code
 
 Follow DeepChat's existing architectural patterns:
 - **Presenter Pattern**: Add behavior in the appropriate module under `src/main/presenter/`
-- **Event-Driven Communication**: Use `EventBus` + event constants for main ↔ renderer flows
+- **Typed Event Communication**: Use `shared/contracts/events.ts` + `publishDeepchatEvent()` for
+  main → renderer state notifications; keep `EventBus` for main-internal and raw transport flows
 - **Secure IPC**: Prefer typed IPC via `src/preload/` (contextIsolation on); avoid ad-hoc channels
 - **Type Definitions**: Shared types live in `src/shared/`
 
@@ -100,6 +161,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 - [ ] Key UX states covered (loading/empty/error)
 - [ ] No `[NEEDS CLARIFICATION]` markers remain
 - [ ] Business value articulated
+- [ ] GitHub issue linked or sync decision recorded for eligible feature and complex bug work
 
 ### Planning Phase
 - [ ] Identify all involved Presenters
@@ -114,7 +176,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 - [ ] Implement Presenter method(s)
 - [ ] Implement UI component (if needed)
 - [ ] Add i18n keys (if user-facing)
-- [ ] Run: `pnpm run format && pnpm run lint && pnpm run typecheck`
+- [ ] Run: `pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck`
 
 ## Common Patterns
 
@@ -122,8 +184,8 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 // 1. Typed Route / Client Method Signature
 async methodName(params: InputType): Promise<OutputType>
 
-// 2. EventBus Communication (Main Process)
-eventBus.sendToRenderer(CONFIG_EVENTS.SETTING_CHANGED, SendTarget.ALL_WINDOWS, payload)
+// 2. Typed Event Publication (Main Process)
+publishDeepchatEvent('settings.changed', payload)
 
 // 3. Renderer-main Integration
 const settingsClient = new SettingsClient()
@@ -141,9 +203,10 @@ const settingsClient = new SettingsClient()
 Compatibility note:
 
 - 新 renderer-main 能力优先定义 `shared/contracts/*` 和 `renderer/api/*Client`
-- `useLegacyPresenter()` 不再是推荐模式
-- 如果必须临时保留 legacy transport，应先收口到 `src/renderer/api/legacy/**`，而不是直接进入业务模块
-- 不允许再创建第二个 quarantine 目录来承接 renderer-main legacy transport
+- `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
+  `src/renderer/api/legacy/**` 已退休
+- copy、file、openExternal 等低层能力通过 dedicated preload API 和 renderer client 封装
+- `src/renderer/api/legacy/**` 保持删除，architecture guard 会阻止它回流
 
 ## Quick Reference
 
@@ -151,16 +214,18 @@ Compatibility note:
 - **Renderer clients**: `src/renderer/api/**`
 - **Tests**: `test/main/**/*`, `test/renderer/**/*`
 - **EventBus**: `src/main/eventbus.ts`
-- **Events**: `src/main/events.ts` (main) and `src/renderer/src/events.ts` (renderer)
+- **Typed events**: `src/shared/contracts/events.ts`
+- **Raw/internal events**: `src/main/events.ts` and `src/renderer/src/events.ts`
 - **IPC bridge**: `src/preload/`
 - **i18n**: `src/renderer/src/i18n/`
 - **Shared types**: `src/shared/presenter.d.ts`
 
 ## Definition of Done (DoD)
 
-A feature is “done” when:
+A change is “done” when:
 
 - The acceptance criteria are met (and ideally covered by tests)
 - Lint/typecheck/tests pass locally
 - User-facing strings use i18n keys
 - Any migrations or breaking changes are documented
+- Linked GitHub issues, when any, are referenced from the PR with `Closes #NNN`

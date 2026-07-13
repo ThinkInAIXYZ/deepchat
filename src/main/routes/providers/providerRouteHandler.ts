@@ -2,6 +2,8 @@ import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
+  providersGetEmbeddingDimensionsRoute,
+  providersGetKeyStatusRoute,
   providersGetRateLimitStatusRoute,
   providersImportApplyRoute,
   providersImportScanRoute,
@@ -14,8 +16,11 @@ import {
   providersRefreshModelsRoute,
   providersRemoveRoute,
   providersReorderRoute,
+  providersRunAcpDebugActionRoute,
   providersSetByIdRoute,
+  providersSyncModelScopeMcpServersRoute,
   providersUpdateRoute,
+  providersUpdateRateLimitRoute,
   providersWarmupAcpProcessRoute
 } from '@shared/contracts/routes'
 import type { ProviderImportService } from './providerImportService'
@@ -27,7 +32,10 @@ export async function dispatchProviderRoute(
     providerImportService: ProviderImportService
   },
   routeName: string,
-  rawInput: unknown
+  rawInput: unknown,
+  context?: {
+    webContentsId: number
+  }
 ): Promise<unknown> {
   const { configPresenter, llmProviderPresenter, providerImportService } = deps
   const toProviderSummary = (provider: ReturnType<typeof configPresenter.getProviders>[number]) => {
@@ -108,6 +116,48 @@ export async function dispatchProviderRoute(
       const input = providersGetRateLimitStatusRoute.input.parse(rawInput)
       return providersGetRateLimitStatusRoute.output.parse({
         status: llmProviderPresenter.getProviderRateLimitStatus(input.providerId)
+      })
+    }
+
+    case providersGetKeyStatusRoute.name: {
+      const input = providersGetKeyStatusRoute.input.parse(rawInput)
+      return providersGetKeyStatusRoute.output.parse({
+        status: await llmProviderPresenter.getKeyStatus(input.providerId)
+      })
+    }
+
+    case providersUpdateRateLimitRoute.name: {
+      const input = providersUpdateRateLimitRoute.input.parse(rawInput)
+      llmProviderPresenter.updateProviderRateLimit(input.providerId, input.enabled, input.qpsLimit)
+      return providersUpdateRateLimitRoute.output.parse({
+        config: llmProviderPresenter.getProviderRateLimitStatus(input.providerId).config
+      })
+    }
+
+    case providersGetEmbeddingDimensionsRoute.name: {
+      const input = providersGetEmbeddingDimensionsRoute.input.parse(rawInput)
+      return providersGetEmbeddingDimensionsRoute.output.parse({
+        result: await llmProviderPresenter.getDimensions(input.providerId, input.modelId)
+      })
+    }
+
+    case providersSyncModelScopeMcpServersRoute.name: {
+      const input = providersSyncModelScopeMcpServersRoute.input.parse(rawInput)
+      return providersSyncModelScopeMcpServersRoute.output.parse({
+        result: await llmProviderPresenter.syncModelScopeMcpServers(
+          input.providerId,
+          input.syncOptions
+        )
+      })
+    }
+
+    case providersRunAcpDebugActionRoute.name: {
+      const input = providersRunAcpDebugActionRoute.input.parse(rawInput)
+      return providersRunAcpDebugActionRoute.output.parse({
+        result: await llmProviderPresenter.runAcpDebugAction({
+          ...input,
+          webContentsId: context?.webContentsId
+        })
       })
     }
 

@@ -81,13 +81,6 @@ const setupStore = async (overrides?: {
     createModelClient: vi.fn(() => modelClient)
   }))
 
-  vi.doMock('@api/legacy/runtime', () => ({
-    createLegacyIpcSubscriptionScope: () => ({
-      on: vi.fn(),
-      cleanup: vi.fn()
-    })
-  }))
-
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))

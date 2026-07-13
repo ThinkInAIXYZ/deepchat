@@ -3,8 +3,7 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
-import { DEEPLINK_EVENTS } from '@/events'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
+import { createAppRuntimeClient } from '@api/AppRuntimeClient'
 
 export const initAppStores = async () => {
   const uiSettingsStore = useUiSettingsStore()
@@ -34,8 +33,21 @@ export const useMcpInstallDeeplinkHandler = () => {
     await router.isReady()
 
     const currentRoute = router.currentRoute.value
+    const hasPluginsMcpRoute = router.hasRoute('plugins-mcp')
     const hasSettingsMcpRoute = router.hasRoute('settings-mcp')
     const hasSettingsRootRoute = router.hasRoute('settings')
+
+    if (hasPluginsMcpRoute) {
+      if (currentRoute.name !== 'plugins-mcp') {
+        await router.push({ name: 'plugins-mcp' })
+      } else {
+        await router.replace({
+          name: 'plugins-mcp',
+          query: { ...currentRoute.query }
+        })
+      }
+      return
+    }
 
     if (hasSettingsMcpRoute) {
       if (currentRoute.name !== 'settings-mcp') {
@@ -67,7 +79,7 @@ export const useMcpInstallDeeplinkHandler = () => {
     }
   }
 
-  const handleMcpInstall = async (_: unknown, data: Record<string, any>) => {
+  const handleMcpInstall = async (data: { mcpConfig?: string }) => {
     const { mcpConfig } = data ?? {}
     if (!mcpConfig) return
 
@@ -82,9 +94,10 @@ export const useMcpInstallDeeplinkHandler = () => {
 
   const setup = () => {
     cleanupIpcListeners?.()
-    const scope = createIpcSubscriptionScope()
-    scope.on(DEEPLINK_EVENTS.MCP_INSTALL, handleMcpInstall)
-    cleanupIpcListeners = scope.cleanup
+    const appRuntimeClient = createAppRuntimeClient()
+    cleanupIpcListeners = appRuntimeClient.onMcpInstallRequested((payload) => {
+      void handleMcpInstall(payload)
+    })
   }
 
   const cleanup = () => {

@@ -313,6 +313,57 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
   })
 
+  it('maps MiniMax-M3 reasoning to Anthropic-compatible adaptive thinking', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: true
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'minimax',
+      capabilityProviderId: 'minimax',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'MiniMax-M3',
+      modelConfig: {
+        reasoning: true
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toEqual({
+      toolStreaming: false,
+      thinking: {
+        type: 'adaptive'
+      }
+    })
+  })
+
+  it('does not send MiniMax-M3 adaptive thinking when reasoning is disabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: true
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'minimax',
+      capabilityProviderId: 'minimax',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'MiniMax-M3',
+      modelConfig: {
+        reasoning: false
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toEqual({
+      toolStreaming: false
+    })
+  })
+
   it('keeps aws bedrock anthropic routes on the compatible reasoning dialect', () => {
     const result = buildProviderOptions({
       providerId: 'aws-bedrock',
@@ -458,6 +509,60 @@ describe('AI SDK provider options', () => {
       openai: {
         reasoningEffort: 'none'
       }
+    })
+  })
+
+  it('maps OpenAI Codex system prompts to Responses instructions', () => {
+    const result = buildProviderOptions({
+      providerId: 'openai-codex',
+      capabilityProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_responses',
+      modelId: 'gpt-5.5',
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'high'
+      } as any,
+      tools: [],
+      messages: [
+        {
+          role: 'system',
+          content: 'Follow DeepChat instructions.'
+        },
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ] as any
+    })
+
+    expect(result.providerOptions?.openai).toMatchObject({
+      instructions: 'Follow DeepChat instructions.',
+      reasoningEffort: 'high',
+      store: false
+    })
+  })
+
+  it('adds fallback instructions for OpenAI Codex requests without system prompts', () => {
+    const result = buildProviderOptions({
+      providerId: 'openai-codex',
+      capabilityProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_responses',
+      modelId: 'gpt-5.5',
+      modelConfig: {},
+      tools: [],
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ] as any
+    })
+
+    expect(result.providerOptions?.openai).toMatchObject({
+      instructions: 'You are DeepChat, an AI assistant. Follow the user instructions.',
+      store: false
     })
   })
 

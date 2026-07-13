@@ -44,7 +44,9 @@ jobs:
         run: pnpm run installRuntime:win:arm64
 
       - name: Verify DuckDB and VSS on Windows arm64
-        run: pnpm run smoke:duckdb:vss
+        run: |
+          pnpm run installRuntime:duckdb:vss:win:arm64
+          pnpm run smoke:duckdb:vss -- --platform win32 --arch arm64
 
       - name: Build Windows arm64 package
         run: |
@@ -56,7 +58,6 @@ jobs:
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
       - name: Verify bundled plugins
         shell: bash

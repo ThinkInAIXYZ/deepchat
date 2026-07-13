@@ -6,3 +6,18 @@ supportedArchitectures:
 
 publicHoistPattern:
   - '@img/sharp-*'
+
+allowBuilds:
+  '@parcel/watcher': false
+  '@tailwindcss/oxide': true
+  better-sqlite3-multiple-ciphers: false
+  classic-level: true
+  electron: true
+  electron-winstaller: true
+  esbuild: false
+  lzo: true
+  maplibre-gl: false
+  node-pty: false
+  protobufjs: false
+  sharp: false
+  vue-demi: false

@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ipcMain } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BrowserWindow } from 'electron'
 import { SETTINGS_EVENTS } from '@/events'
+
+const activateAppOnMacMock = vi.hoisted(() => vi.fn())
+const originalBrowserWindowFromId = (BrowserWindow as any).fromId
+
+vi.mock('@/lib/activateApp', () => ({
+  activateAppOnMac: activateAppOnMacMock
+}))
 
 vi.mock('electron-window-state', () => ({
   default: vi.fn(() => ({
@@ -24,9 +31,13 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-describe('WindowPresenter settings navigation queue', () => {
+describe('WindowPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    ;(BrowserWindow as any).fromId = originalBrowserWindowFromId
   })
 
   it('queues settings events until the settings renderer reports ready', async () => {
@@ -51,22 +62,22 @@ describe('WindowPresenter settings navigation queue', () => {
         routeName: 'settings-deepchat-agents'
       })
     ).toBe(true)
-    expect(presenter.sendToWindow(9, SETTINGS_EVENTS.CHECK_FOR_UPDATES)).toBe(true)
+    expect(
+      presenter.sendToWindow(9, SETTINGS_EVENTS.NAVIGATE, {
+        routeName: 'settings-about'
+      })
+    ).toBe(true)
     expect(send).not.toHaveBeenCalled()
     expect((presenter as any).pendingSettingsMessages).toHaveLength(2)
 
-    const readyHandler = vi
-      .mocked(ipcMain.on)
-      .mock.calls.find(([eventName]) => eventName === SETTINGS_EVENTS.READY)?.[1]
-
-    expect(readyHandler).toBeTypeOf('function')
-
-    readyHandler?.({ sender: { id: 99 } } as any)
+    presenter.notifySettingsReady(99)
 
     expect(send).toHaveBeenNthCalledWith(1, SETTINGS_EVENTS.NAVIGATE, {
       routeName: 'settings-deepchat-agents'
     })
-    expect(send).toHaveBeenNthCalledWith(2, SETTINGS_EVENTS.CHECK_FOR_UPDATES)
+    expect(send).toHaveBeenNthCalledWith(2, SETTINGS_EVENTS.NAVIGATE, {
+      routeName: 'settings-about'
+    })
     expect((presenter as any).pendingSettingsMessages).toHaveLength(0)
   })
 
@@ -148,5 +159,86 @@ describe('WindowPresenter settings navigation queue', () => {
 
     ;(presenter as any).handleSettingsWindowNavigationStart(9, true, false)
     expect((presenter as any).settingsWindowReady).toBe(false)
+  })
+
+  it('restores the main window only after close-to-hide', async () => {
+    const windowHandlers = new Map<string, (...args: any[]) => void>()
+    const appWindow = {
+      id: 7,
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      on: vi.fn((eventName: string, handler: (...args: any[]) => void) => {
+        windowHandlers.set(eventName, handler)
+      }),
+      once: vi.fn(),
+      removeListener: vi.fn(),
+      webContents: {
+        id: 70,
+        send: vi.fn(),
+        on: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+        setBackgroundThrottling: vi.fn(),
+        setFrameRate: vi.fn(),
+        openDevTools: vi.fn(),
+        isDestroyed: vi.fn(() => false)
+      },
+      isDestroyed: vi.fn(() => false),
+      isFullScreen: vi.fn(() => false),
+      isMinimized: vi.fn(() => false),
+      setFullScreen: vi.fn(),
+      setContentProtection: vi.fn(),
+      setBackgroundColor: vi.fn(),
+      setHiddenInMissionControl: vi.fn(),
+      setSkipTaskbar: vi.fn(),
+      close: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn(),
+      restore: vi.fn()
+    }
+    vi.mocked(BrowserWindow).mockImplementationOnce(() => appWindow as any)
+    ;(BrowserWindow as any).fromId = vi.fn(() => appWindow)
+
+    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const presenter = new WindowPresenter({
+      getContentProtectionEnabled: vi.fn(() => false),
+      getCloseToQuit: vi.fn(() => false)
+    } as any)
+
+    await presenter.createAppWindow({ x: 0, y: 0 })
+
+    expect(presenter.restoreMainWindowHiddenByClose()).toBe(false)
+
+    const preventDefault = vi.fn()
+    windowHandlers.get('close')?.({ preventDefault })
+    windowHandlers.get('show')?.()
+
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(appWindow.hide).toHaveBeenCalledOnce()
+    expect(presenter.restoreMainWindowHiddenByClose()).toBe(false)
+
+    windowHandlers.get('close')?.({ preventDefault })
+
+    expect(presenter.restoreMainWindowHiddenByClose()).toBe(true)
+    expect(appWindow.show).toHaveBeenCalledOnce()
+    expect(appWindow.focus).toHaveBeenCalledOnce()
+    expect(activateAppOnMacMock).toHaveBeenCalledOnce()
+    expect(presenter.restoreMainWindowHiddenByClose()).toBe(false)
+  })
+
+  it('sets a minimum size for the settings window', async () => {
+    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const presenter = new WindowPresenter({
+      getContentProtectionEnabled: vi.fn(() => false)
+    } as any)
+
+    await presenter.createSettingsWindow()
+
+    expect(BrowserWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        minWidth: 900,
+        minHeight: 640
+      })
+    )
   })
 })

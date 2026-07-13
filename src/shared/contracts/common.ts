@@ -42,7 +42,7 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.boolean(),
     z.null(),
     z.array(JsonValueSchema),
-    z.record(JsonValueSchema)
+    z.record(z.string(), JsonValueSchema)
   ])
 )
 
@@ -105,10 +105,10 @@ export const AppErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
   retriable: z.boolean().default(false),
-  details: z.record(JsonValueSchema).optional()
+  details: z.record(z.string(), JsonValueSchema).optional()
 })
 
-export const PermissionModeSchema = z.enum(['default', 'full_access'])
+export const PermissionModeSchema = z.enum(['default', 'auto_approve', 'full_access'])
 export const SessionStatusSchema = z.enum(['idle', 'generating', 'error'])
 export const SessionKindSchema = z.enum(['regular', 'subagent'])
 export const AgentTypeSchema = z.enum(['deepchat', 'acp'])
@@ -154,12 +154,29 @@ export const MessageFileSchema = z.object({
   mimeType: z.string().optional(),
   token: z.number().optional(),
   thumbnail: z.string().optional(),
-  metadata: z.record(FileMetadataValueSchema).optional()
+  metadata: z.record(z.string(), FileMetadataValueSchema).optional()
 })
+
+export const UserMessageInlineItemSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('skill'),
+    offset: z.number().int().nonnegative(),
+    skillName: z.string()
+  }),
+  z.object({
+    type: z.literal('file'),
+    offset: z.number().int().nonnegative(),
+    fileName: z.string(),
+    filePath: z.string(),
+    mimeType: z.string().optional()
+  })
+])
 
 export const SendMessageInputSchema = z.object({
   text: z.string(),
-  files: z.array(MessageFileSchema).optional()
+  files: z.array(MessageFileSchema).optional(),
+  activeSkills: z.array(z.string()).optional(),
+  inlineItems: z.array(UserMessageInlineItemSchema).optional()
 })
 
 export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [
@@ -197,11 +214,12 @@ export const ProviderModelSummarySchema = z.object({
   functionCall: z.boolean().optional(),
   reasoning: z.boolean().optional(),
   enableSearch: z.boolean().optional(),
-  type: z.nativeEnum(ModelType).optional(),
+  type: z.enum(ModelType).optional(),
   contextLength: z.number().int().optional(),
   maxTokens: z.number().int().optional(),
   description: z.string().optional(),
   supportedEndpointTypes: z.array(z.enum(NEW_API_ENDPOINT_TYPES)).optional(),
+  selectableEndpointTypes: z.array(z.enum(NEW_API_ENDPOINT_TYPES)).optional(),
   endpointType: z.enum(NEW_API_ENDPOINT_TYPES).optional(),
   ownedBy: z.string().optional()
 })
@@ -219,6 +237,15 @@ export const SessionWithStateSchema = z.object({
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
+  metadata: z
+    .object({
+      source: z.literal('cron_job'),
+      cronJobId: EntityIdSchema,
+      cronJobRunId: EntityIdSchema,
+      scheduledAt: TimestampMsSchema
+    })
+    .nullable()
+    .optional(),
   status: SessionStatusSchema,
   providerId: z.string(),
   modelId: z.string()
@@ -259,7 +286,8 @@ export const StartupBootstrapShellSchema = z.object({
   activeSessionId: EntityIdSchema.nullable(),
   activeSession: SessionListItemSchema.nullable().optional(),
   agents: z.array(AgentBootstrapItemSchema),
-  defaultProjectPath: z.string().nullable()
+  defaultProjectPath: z.string().nullable(),
+  defaultChatWorkspacePath: z.string().nullable().optional()
 })
 
 export const StartupWorkloadTargetSchema = z.enum(['main', 'settings'])
@@ -365,7 +393,7 @@ export const AssistantMessageBlockSchema = z.object({
       server_description: z.string().optional()
     })
     .optional(),
-  extra: z.record(JsonValueSchema).optional(),
+  extra: z.record(z.string(), JsonValueSchema).optional(),
   action_type: z.enum(['tool_call_permission', 'question_request', 'rate_limit']).optional()
 })
 

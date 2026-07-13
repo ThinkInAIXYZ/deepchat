@@ -80,8 +80,7 @@ import { useI18n } from 'vue-i18n'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
-import { useLegacyPresenter } from '@api/legacy/presenters'
-import { RATE_LIMIT_EVENTS } from '@/events'
+import { createProviderClient } from '@api/ProviderClient'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useToast } from '@/components/use-toast'
 import {
@@ -104,7 +103,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const llmPresenter = useLegacyPresenter('llmproviderPresenter')
+const providerClient = createProviderClient()
 const { toast } = useToast()
 
 const rateLimitEnabled = ref(props.provider.rateLimit?.enabled ?? false)
@@ -162,8 +161,15 @@ const cancelDisableRateLimit = () => {
 
 const updateRateLimitConfig = async () => {
   try {
-    const qpsValue = convertIntervalToQps(intervalValue.value)
-    await llmPresenter.updateProviderRateLimit(props.provider.id, rateLimitEnabled.value, qpsValue)
+    const effectiveInterval = rateLimitEnabled.value
+      ? intervalValue.value
+      : previousValidValue.value
+    const qpsValue = convertIntervalToQps(effectiveInterval)
+    await providerClient.updateProviderRateLimit(
+      props.provider.id,
+      rateLimitEnabled.value,
+      qpsValue
+    )
     emit('configChanged')
     await loadStatus()
   } catch (error) {
@@ -174,7 +180,7 @@ const updateRateLimitConfig = async () => {
 // 加载状态
 const loadStatus = async () => {
   try {
-    const rateLimitStatus = await llmPresenter.getProviderRateLimitStatus(props.provider.id)
+    const rateLimitStatus = await providerClient.getProviderRateLimitStatus(props.provider.id)
     status.value = {
       currentQps: rateLimitStatus.currentQps,
       queueLength: rateLimitStatus.queueLength,
@@ -216,13 +222,14 @@ const formatNextAllowedTime = () => {
   return `${waitTime}${t('settings.rateLimit.secondsLater')}`
 }
 
-const handleRateLimitEvent = (data: any) => {
+const handleRateLimitEvent = (data: { providerId: string }) => {
   if (data.providerId === props.provider.id) {
-    loadStatus()
+    void loadStatus()
   }
 }
 
 let statusInterval: ReturnType<typeof setInterval> | null = null
+let stopRateLimitEvents: (() => void) | null = null
 
 const startStatusPolling = () => {
   if (statusInterval) {
@@ -241,21 +248,17 @@ const stopStatusPolling = () => {
 }
 
 onMounted(() => {
-  loadStatus()
-
-  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
-  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
-  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
+  void loadStatus()
+  stopRateLimitEvents = providerClient.onRateLimitEvent(handleRateLimitEvent)
 
   // 只有在速率限制启用时才开始轮询
   startStatusPolling()
+})
 
-  onUnmounted(() => {
-    stopStatusPolling()
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
-  })
+onUnmounted(() => {
+  stopStatusPolling()
+  stopRateLimitEvents?.()
+  stopRateLimitEvents = null
 })
 
 // 监听 intervalValue 变化，保存有效值

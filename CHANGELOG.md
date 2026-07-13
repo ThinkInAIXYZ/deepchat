@@ -1,5 +1,139 @@
 # Changelog
 
+## v1.0.9 (2026-07-10)
+- Fixed Agent Memory correctness edge cases and strengthened record-level privacy controls
+- Fixed chat scroll position jumping to the bottom during streaming output
+- Fixed chat history restoration race conditions that could cause message loss
+- 修复 Agent Memory 正确性边界问题，并强化记录级隐私控制
+- 修复流式输出时聊天滚动位置跳到底部的问题
+- 修复聊天历史恢复竞态条件可能导致消息丢失的问题
+
+## v1.0.8 (2026-07-10)
+- Added the main-window Plugins Hub, Feishu/Lark install authentication, and streaming card delivery for remote control
+- Added MCP OAuth authentication, agent-scoped plugin controls for skills, MCP servers, and tools, plus improved skill sync workflows
+- Expanded Agent Memory with task-aware recall, redesigned settings, health and lifecycle diagnostics, in-chat visibility, and reliability improvements
+- Reworked scheduled tasks into Cron Jobs with a dedicated scheduler runtime, delivery routing, settings UI, and agent tool support
+- Added TokenLab, OpenCode Go, and GPT-5.6/Codex 5.6 support with configurable effort levels
+- Upgraded the provider and runtime stack to AI SDK v7, Zod v4, Electron 40.10.5, and DuckDB 1.5.4, while improving startup, chat rendering, scrolling, and responsive interaction performance
+- Fixed New API response handling, endpoint debug selection, memory first-turn stalls, context-overflow auto-handoff, ACP permission requests, assistant loading state, attachment replay, draft cleanup, and macOS window restoration and hide behavior
+- 新增主窗口插件中心、飞书/Lark 安装认证，以及远程控制流式卡片推送
+- 新增 MCP OAuth 认证、Agent 级 skills、MCP servers 与 tools 控制，并改进 skill sync 工作流
+- 扩展 Agent Memory，支持任务感知召回、重做设置页、健康与生命周期诊断、聊天内可见性，并提升可靠性
+- 将 scheduled tasks 重构为 Cron Jobs，支持独立 scheduler runtime、delivery routing、设置 UI 和 Agent tool
+- 新增 TokenLab、OpenCode Go 和 GPT-5.6/Codex 5.6 支持，并提供可配置的 effort levels
+- 将 provider 与 runtime 栈升级至 AI SDK v7、Zod v4、Electron 40.10.5 和 DuckDB 1.5.4，同时提升启动、聊天渲染、滚动与响应式交互性能
+- 修复 New API 响应处理、endpoint debug 选择、memory 首轮卡顿、context overflow 自动 handoff、ACP 权限请求、Assistant loading state、附件内容回放、草稿清理，以及 macOS 窗口恢复与隐藏行为
+
+## v1.0.8-beta.4 (2026-07-09)
+- Added TokenLab and OpenCode Go provider support
+- Redesigned Agent Memory settings with inline configuration, inbox, diagnostics, persona, and list views
+- Improved Agent Memory reliability for retrieval, pruning, write coordination, vector storage, and audit handling
+- Optimized chat markdown rendering to reduce send-time jitter and improve message layout stability
+- Updated Computer Use driver/runtime metadata and renamed the bundled CUA skill to `computer-use`
+- 新增 TokenLab 和 OpenCode Go provider 支持
+- 重做 Agent Memory 设置页，加入 inline configuration、inbox、diagnostics、persona 和 list views
+- 改进 Agent Memory retrieval、pruning、write coordination、vector storage 与 audit handling 的可靠性
+- 优化聊天 Markdown 渲染，减少发送时抖动并提升消息布局稳定性
+- 更新 Computer Use driver/runtime 元数据，并将内置 CUA skill 重命名为 `computer-use`
+
+## v1.0.8-beta.3 (2026-07-06)
+- Added MCP OAuth authentication, assistant approval review mode, delete confirmations, and in-chat Agent Memory visibility
+- Reworked scheduled tasks into Cron Jobs with scheduler runtime, delivery routing, settings UI, and agent tool support
+- Improved Agent Memory lifecycle management, skill sync UX, startup performance, and packaged Linux OpenDAL native libraries
+- Fixed ACP permission requests, assistant loading state, attachment replay behavior, MCP session tools, skill adoption, and multiple chat/settings regressions
+- 新增 MCP OAuth 认证、Assistant approval review mode、删除确认，以及聊天内 Agent Memory 可见性
+- 将 scheduled tasks 重构为 Cron Jobs，支持 scheduler runtime、delivery routing、设置页 UI 和 Agent tool
+- 改进 Agent Memory 生命周期管理、skill sync 体验、启动性能，并补齐 Linux OpenDAL native libraries 打包
+- 修复 ACP permission requests、Assistant loading state、附件内容重复回放、MCP session tools、skill adopt 和多项聊天/设置回归问题
+
+## v1.0.8-beta.2 (2026-06-30)
+- Added agent-scoped plugin extension controls for skills, MCP servers, and tools
+- Added Agent Memory health snapshots and audit details in settings
+- Fixed settings window sizing, sidebar chat actions, manual memory category handling, skill conflict popup layout, and provider 302 domain
+- Migrated commit hooks to commitlint and refreshed electron-builder plus provider and ACP registry data
+- 新增 Agent 级插件扩展控制，可按 Agent 限制 skills、MCP servers 和 tools
+- 新增 Agent Memory health snapshot 与设置页审计详情
+- 修复设置窗口尺寸、侧边栏会话操作、手动添加 memory category、技能冲突弹窗布局和 provider 302 domain
+- 迁移 commit hooks 到 commitlint，并刷新 electron-builder、Provider 与 ACP registry 数据
+
+## v1.0.8-beta.1 (2026-06-29)
+- Added the main-window Plugins Hub plus Feishu/Lark install authentication and streaming card delivery for remote control
+- Upgraded the provider/runtime stack with AI SDK v7, Zod v4 schemas, Electron 40.10.5, DuckDB 1.5.4, and refreshed toolchains
+- Fixed New API responses handling and endpoint debug selection, memory first-turn stalls, context-overflow auto-handoff, message-scoped skill activation, and request preview editor layout
+- 新增主窗口插件中心，并支持飞书/Lark 安装认证与远程控制流式卡片推送
+- 升级 provider/runtime 栈到 AI SDK v7、Zod v4 schema、Electron 40.10.5、DuckDB 1.5.4，并刷新工具链
+- 修复 New API responses 处理与 endpoint debug 选择、memory 首轮卡顿、context overflow 自动 handoff、按消息激活 skill，以及请求预览编辑器布局
+
+## v1.0.7 (2026-06-25)
+- Added the default chat workspace, task-aware Agent Memory, and persistent agent plan blocks in chat history
+- Improved Computer Use helper runtime isolation, packaging, shutdown cleanup, and refreshed bundled dependencies and resources
+- Fixed fresh SQLite schema bootstrap, stale Tape FTS search hits, New API responses endpoint configuration, sidebar history pagination, and locked skill reinstall handling
+- 新增默认聊天工作区、任务感知 Agent Memory，并支持在聊天历史中持久化 Agent plan blocks
+- 优化 Computer Use helper runtime 的隔离、打包和退出清理，并刷新内置依赖与资源
+- 修复首次 SQLite schema 初始化、陈旧 Tape FTS 搜索命中、New API responses endpoint 配置、侧边栏历史分页和技能重装锁定目录处理
+
+## v1.0.7-beta.2 (2026-06-25)
+- Fixed fresh SQLite schema bootstrap so new installations initialize reliably
+- Fixed New API responses endpoint configuration so it stays separate from other endpoint options
+- 修复首次 SQLite schema 初始化，提升新安装启动可靠性
+- 修复 New API responses endpoint 配置，避免与其他 endpoint 选项混用
+
+## v1.0.7-beta.1 (2026-06-24)
+- Added the default chat workspace so new chats start with prepared workspace context
+- Added task-aware Agent Memory with improved maintenance scheduling and management controls
+- Improved Computer Use helper runtime isolation, packaging, and shutdown cleanup
+- Fixed sidebar history pagination, locked skill reinstall handling, and refreshed Markstream Vue
+- 新增默认聊天工作区，让新聊天具备预设工作区上下文
+- 新增任务感知 Agent Memory，并改进维护调度与管理控制
+- 优化 Computer Use helper runtime 的隔离、打包和退出清理
+- 修复侧边栏历史分页、技能重装锁定目录处理，并刷新 Markstream Vue
+
+## v1.0.6 (2026-06-22)
+- Added S3-compatible cloud backup sync, OpenDAL-based backup storage, and workspace environment management
+- Added Agent Memory, Tape view manifests, replay lineage details, and focused workspace file inspection
+- Added OpenAI Codex runtime support, built-in API key providers, AWS Bedrock profile authentication, MiniMax M3 handling, and drag-and-drop skill installation
+- Added cross-platform Computer Use runtime packaging and improved agent runtime discovery, watcher reliability, and provider/ACP registry freshness
+- Fixed packaged cloud sync startup, Codex login behavior, memory followups, MCP server cleanup, steer abort queue handling, sidebar pagination, markdown scrollbar jitter, and settings save payloads
+- 新增 S3 兼容云备份同步、基于 OpenDAL 的备份存储，以及工作区环境管理
+- 新增 Agent Memory、Tape view manifests、replay lineage 详情，以及聚焦式工作区文件检查
+- 新增 OpenAI Codex runtime、内置 API key providers、AWS Bedrock profile 认证、MiniMax M3 处理和技能拖放安装
+- 新增跨平台 Computer Use runtime 打包，并改进 Agent runtime 发现、工作区监听可靠性和 Provider/ACP registry 更新
+- 修复打包版云同步启动、Codex 登录行为、memory followups、MCP server 清理、steer abort queue 处理、侧边栏分页、Markdown 滚动条抖动和设置保存 payload 问题
+
+## v1.0.6-beta.8 (2026-06-20)
+- Added OpenAI Codex runtime support with OAuth authentication and provider-specific request handling
+- Added built-in API key providers and provider registry metadata for easier model setup
+- Added environment management for workspace sessions and improved directory state persistence
+- Fixed steer abort queue handling so pending chat input pauses and resumes more reliably
+- Updated Markstream Vue and refreshed bundled provider/model and ACP registry data
+- 新增 OpenAI Codex runtime 支持，包含 OAuth 认证与 Provider 专属请求处理
+- 新增内置 API key providers 和 Provider registry metadata，简化模型配置
+- 新增工作区会话的环境管理，并改进目录状态持久化
+- 修复 steer abort queue 处理，让待处理聊天输入的暂停和恢复更可靠
+- 更新 Markstream Vue，并刷新内置 Provider/模型与 ACP registry 数据
+
+## v1.0.6-beta.7 (2026-06-17)
+- Added Tape manifest integrity and lineage details so replay traces can be audited more reliably
+- Added a workspace single item viewer for focused file inspection from the workspace panel
+- Added cross-platform CUA runtime packaging and plugin runtime build improvements
+- Fixed deterministic Tape view hashing and trace sequence handling
+- 新增 Tape manifest 完整性与 lineage 详情，让 replay trace 审计更可靠
+- 新增工作区单项查看器，方便从工作区面板聚焦检查文件
+- 支持了 Windows 和 Linux 平台的 Computer Use 能力
+- 修复 Tape view hash 与 trace sequence 的确定性处理
+
+## v1.0.6-beta.6 (2026-06-16)
+- Added Agent Memory so agents can extract, manage, and reuse persistent memory in agent workflows
+- Added DeepChat Tape view manifests and richer trace inspection for replay and context provenance
+- Added drag-and-drop skill installation, MiniMax M3 handling, and refreshed provider/model and ACP registry data
+- Improved workspace watching with a Parcel watcher utility host for large workspace reliability
+- Fixed markdown code block scrollbar jitter, sidebar history pagination stalls, and cloned settings save payloads
+- 新增 Agent Memory，让 Agent 工作流可以提取、管理并复用持久记忆
+- 新增 DeepChat Tape view manifest 与更完整的 trace 检查，支持 replay 和上下文来源追踪
+- 新增技能拖放安装、MiniMax M3 处理，并刷新 Provider/模型与 ACP registry 数据
+- 使用 Parcel watcher utility host 改进工作区监听，提升大型工作区可靠性
+- 修复 Markdown 代码块滚动条抖动、侧边栏历史分页卡住，以及设置保存 payload clone 问题
+
 ## v1.0.6-beta.5 (2026-06-11)
 - Fixed packaged app startup by bundling the OpenDAL native binding needed by cloud sync
 - 修复打包应用启动问题，补齐云同步所需的 OpenDAL native binding

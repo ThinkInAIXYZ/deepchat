@@ -95,7 +95,7 @@
                   <Icon icon="lucide:copy" class="w-3 h-3" />
                   <span
                     v-if="showCopyTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-50"
+                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
                   >
                     {{ t('common.copySuccess') }}
                   </span>
@@ -119,13 +119,13 @@
                   <Icon v-else icon="lucide:images" class="w-3 h-3" />
                   <span
                     v-if="showCopyImageTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-50"
+                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
                   >
                     {{ t('common.copyImageSuccess') }}
                   </span>
                   <span
                     v-if="showCopyFromTopTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-50"
+                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
                   >
                     {{ t('thread.toolbar.copyFromTopSuccess') }}
                   </span>
@@ -164,6 +164,19 @@
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.trace') }}</TooltipContent>
+            </Tooltip>
+            <Tooltip v-if="isAssistant && allowMemory && !isReadOnly">
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+                  @click="emit('memory')"
+                >
+                  <Icon icon="lucide:brain" class="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.memory.toolbar') }}</TooltipContent>
             </Tooltip>
             <Tooltip v-if="isAssistant && !loading && !isInGeneratingThread && !isReadOnly">
               <TooltipTrigger as-child>
@@ -305,6 +318,7 @@ const props = defineProps<{
   isInGeneratingThread?: boolean
   isCapturingImage: boolean
   showTrace?: boolean
+  showMemory?: boolean
   isReadOnly?: boolean
 }>()
 const emit = defineEmits<{
@@ -320,11 +334,13 @@ const emit = defineEmits<{
   (e: 'fork'): void
   (e: 'copyImageFromTop'): void
   (e: 'trace'): void
+  (e: 'memory'): void
 }>()
 
 const hasTokensPerSecond = computed(() => props.usage.tokens_per_second > 0)
 const hasVariants = computed(() => (props.totalVariants || 0) > 1)
 const allowTrace = computed(() => props.showTrace ?? false)
+const allowMemory = computed(() => props.showMemory ?? false)
 const isReadOnly = computed(() => props.isReadOnly === true)
 </script>
 

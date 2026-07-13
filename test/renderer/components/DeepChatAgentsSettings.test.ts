@@ -68,6 +68,51 @@ const DropdownMenuItemStub = defineComponent({
     '<button v-bind="$attrs" type="button" @click="$emit(\'select\', $event)"><slot /></button>'
 })
 
+const clientMocks = vi.hoisted(() => ({
+  projectClient: {
+    listRecent: vi.fn(),
+    selectDirectory: vi.fn()
+  },
+  toolClient: {
+    getAllToolDefinitions: vi.fn()
+  }
+}))
+
+type ProjectClientMockSource = {
+  getRecentProjects: (limit?: number) => Promise<unknown>
+  selectDirectory: () => Promise<unknown>
+}
+type ToolClientMockSource = {
+  getAllToolDefinitions: (context: unknown) => Promise<unknown>
+}
+
+const bindClientMocks = (
+  projectPresenter: ProjectClientMockSource,
+  toolPresenter: ToolClientMockSource
+) => {
+  clientMocks.projectClient.listRecent.mockImplementation((limit?: number) =>
+    projectPresenter.getRecentProjects(limit)
+  )
+  clientMocks.projectClient.selectDirectory.mockImplementation(() =>
+    projectPresenter.selectDirectory()
+  )
+  clientMocks.toolClient.getAllToolDefinitions.mockImplementation((context: unknown) =>
+    toolPresenter.getAllToolDefinitions(context)
+  )
+}
+
+vi.mock('@api/ProjectClient', () => ({
+  createProjectClient: () => clientMocks.projectClient
+}))
+vi.mock('@api/ToolClient', () => ({
+  createToolClient: () => clientMocks.toolClient
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRoute: () => ({ query: {} })
+}))
+
 vi.mock('@/components/ModelSelect.vue', () => ({
   default: defineComponent({
     name: 'ModelSelect',
@@ -75,6 +120,7 @@ vi.mock('@/components/ModelSelect.vue', () => ({
       type: { type: Array, default: undefined },
       visionOnly: { type: Boolean, default: false }
     },
+    emits: ['update:model'],
     template: '<div data-testid="model-select-stub"></div>'
   })
 }))
@@ -82,98 +128,55 @@ vi.mock('@/components/ModelSelect.vue', () => ({
 describe('DeepChatAgentsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clientMocks.projectClient.listRecent.mockReset()
+    clientMocks.projectClient.selectDirectory.mockReset()
+    clientMocks.toolClient.getAllToolDefinitions.mockReset()
   })
 
-  it('mounts and saves DeepChat agents without advanced model overrides', async () => {
+  const mountSettings = async (options: {
+    agents: unknown[]
+    modelStore?: unknown
+    toolDefinitions?: unknown[]
+    projectPresenter?: {
+      getRecentProjects: ReturnType<typeof vi.fn>
+      selectDirectory: ReturnType<typeof vi.fn>
+    }
+    configPresenter?: Partial<{
+      listAgents: ReturnType<typeof vi.fn>
+      getSystemPrompts: ReturnType<typeof vi.fn>
+      updateDeepChatAgent: ReturnType<typeof vi.fn>
+      createDeepChatAgent: ReturnType<typeof vi.fn>
+      deleteDeepChatAgent: ReturnType<typeof vi.fn>
+    }>
+  }) => {
     vi.resetModules()
 
-    const existingAgent = {
-      id: 'deepchat',
-      type: 'deepchat',
-      name: 'DeepChat',
-      enabled: true,
-      protected: true,
-      description: 'Writer agent',
-      avatar: null,
-      config: {
-        defaultModelPreset: {
-          providerId: 'openai',
-          modelId: 'gpt-4.1',
-          temperature: 1.2,
-          contextLength: 64000,
-          maxTokens: 8192,
-          thinkingBudget: 2048,
-          reasoningEffort: 'high',
-          verbosity: 'high',
-          forceInterleavedThinkingCompat: true
-        },
-        assistantModel: null,
-        visionModel: null,
-        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
-        systemPrompt: 'system prompt',
-        permissionMode: 'default',
-        disabledAgentTools: ['tool_beta'],
-        autoCompactionEnabled: false,
-        autoCompactionTriggerThreshold: 72,
-        autoCompactionRetainRecentPairs: 4
-      }
-    }
-
     const configPresenter = {
-      listAgents: vi.fn().mockResolvedValue([existingAgent]),
+      listAgents: vi.fn().mockResolvedValue(options.agents),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
-      updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(options.agents[0]),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined),
+      ...options.configPresenter
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([
-        {
-          source: 'agent',
-          function: { name: 'tool_alpha', description: 'Alpha tool' },
-          server: { name: 'alpha-server' }
-        },
-        {
-          source: 'agent',
-          function: { name: 'tool_beta', description: 'Beta tool' },
-          server: { name: 'beta-server' }
-        }
-      ])
+      getAllToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
     }
-    const projectPresenter = {
+    const projectPresenter = options.projectPresenter ?? {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    const modelStore = {
-      allProviderModels: [
-        {
-          providerId: 'openai',
-          models: [
-            { id: 'gpt-4.1', name: 'GPT-4.1' },
-            { id: 'gpt-image-1', name: 'GPT Image 1', type: ModelType.ImageGeneration }
-          ]
-        }
-      ],
-      findModelByIdOrName: vi.fn((modelId: string) =>
-        modelId === 'gpt-image-1'
-          ? {
-              providerId: 'openai',
-              model: { id: 'gpt-image-1', name: 'GPT Image 1', type: ModelType.ImageGeneration }
-            }
-          : {
-              providerId: 'openai',
-              model: { id: 'gpt-4.1', name: 'GPT-4.1' }
-            }
-      )
-    }
+    const modelStore =
+      options.modelStore ??
+      ({
+        allProviderModels: [],
+        findModelByIdOrName: vi.fn(() => null)
+      } as const)
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    bindClientMocks(projectPresenter, toolPresenter)
+
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -219,7 +222,160 @@ describe('DeepChatAgentsSettings', () => {
           SelectItem: passthrough('SelectItem'),
           SelectTrigger: passthrough('SelectTrigger'),
           SelectValue: passthrough('SelectValue'),
-          ModelSelect: passthrough('ModelSelect'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          AgentTransferDialog: passthrough('AgentTransferDialog'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    return {
+      wrapper,
+      configPresenter,
+      toolPresenter,
+      projectPresenter
+    }
+  }
+
+  it('mounts and saves DeepChat agents with cloneable model selections', async () => {
+    vi.resetModules()
+
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: {
+          providerId: 'openai',
+          modelId: 'gpt-4.1',
+          temperature: 1.2,
+          contextLength: 64000,
+          maxTokens: 8192,
+          thinkingBudget: 2048,
+          reasoningEffort: 'high',
+          verbosity: 'high',
+          forceInterleavedThinkingCompat: true
+        },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        visionModel: { providerId: 'openai', modelId: 'gpt-4.1-vision' },
+        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
+        systemPrompt: 'system prompt',
+        permissionMode: 'default',
+        disabledAgentTools: ['tool_beta'],
+        autoCompactionEnabled: false,
+        autoCompactionTriggerThreshold: 72,
+        autoCompactionRetainRecentPairs: 4
+      }
+    }
+
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue([existingAgent]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+    }
+    const toolPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([
+        {
+          source: 'agent',
+          function: { name: 'tool_alpha', description: 'Alpha tool' },
+          server: { name: 'alpha-server' }
+        },
+        {
+          source: 'agent',
+          function: { name: 'tool_beta', description: 'Beta tool' },
+          server: { name: 'beta-server' }
+        }
+      ])
+    }
+    const projectPresenter = {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+    bindClientMocks(projectPresenter, toolPresenter)
+    const modelStore = {
+      allProviderModels: [
+        {
+          providerId: 'openai',
+          models: [
+            { id: 'gpt-4.1', name: 'GPT-4.1' },
+            { id: 'gpt-4.1-vision', name: 'GPT-4.1 Vision' },
+            { id: 'gpt-image-1', name: 'GPT Image 1', type: ModelType.ImageGeneration }
+          ]
+        },
+        {
+          providerId: 'anthropic',
+          models: [{ id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }]
+        }
+      ],
+      findModelByIdOrName: vi.fn((modelId: string) =>
+        modelId === 'gpt-image-1'
+          ? {
+              providerId: 'openai',
+              model: { id: 'gpt-image-1', name: 'GPT Image 1', type: ModelType.ImageGeneration }
+            }
+          : {
+              providerId: 'openai',
+              model: { id: 'gpt-4.1', name: 'GPT-4.1' }
+            }
+      )
+    }
+
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
+    }))
+    vi.doMock('@/stores/modelStore', () => ({
+      useModelStore: () => modelStore
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+    vi.doMock('@iconify/vue', () => ({
+      Icon: {
+        name: 'Icon',
+        template: '<span />'
+      }
+    }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
           AgentAvatar: passthrough('AgentAvatar'),
           ModelIcon: passthrough('ModelIcon'),
           Icon: true
@@ -240,6 +396,20 @@ describe('DeepChatAgentsSettings', () => {
       wrapper.text().indexOf('settings.deepchatAgents.imageGenerationModel')
     )
 
+    const modelSelects = wrapper.findAllComponents({ name: 'ModelSelect' })
+    expect(modelSelects).toHaveLength(4)
+    modelSelects[0].vm.$emit(
+      'update:model',
+      {
+        id: 'gpt-4.1-mini',
+        name: 'GPT-4.1 Mini',
+        temperature: 0.2,
+        contextLength: 128000
+      },
+      'openai'
+    )
+    await flushPromises()
+
     const saveButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('common.save'))
@@ -255,32 +425,133 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload).toMatchObject({
       name: 'DeepChat',
       enabled: true,
-      description: 'Writer agent',
-      config: {
-        defaultModelPreset: {
-          providerId: 'openai',
-          modelId: 'gpt-4.1'
-        },
-        assistantModel: null,
-        visionModel: null,
-        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
-        defaultProjectPath: null,
-        systemPrompt: 'system prompt',
-        permissionMode: 'default',
-        disabledAgentTools: ['tool_beta'],
-        autoCompactionEnabled: false,
-        autoCompactionTriggerThreshold: 72,
-        autoCompactionRetainRecentPairs: 4
+      description: 'Writer agent'
+    })
+    expect(payload.config).toEqual({
+      defaultModelPreset: {
+        providerId: 'openai',
+        modelId: 'gpt-4.1-mini'
       }
     })
-    expect(payload.config.defaultModelPreset).toEqual({
+    expect(payload.config.defaultModelPreset).toStrictEqual({
       providerId: 'openai',
-      modelId: 'gpt-4.1'
+      modelId: 'gpt-4.1-mini'
     })
-    expect(payload.config.imageGenerationModel).toEqual({
-      providerId: 'openai',
-      modelId: 'gpt-image-1'
-    })
+    expect(payload.config.defaultModelPreset).not.toHaveProperty('temperature')
+    expect(payload.config.defaultModelPreset).not.toHaveProperty('contextLength')
+    expect(() => structuredClone(payload)).not.toThrow()
+  })
+
+  it('saves only systemPrompt when that builtin config field changes', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        systemPrompt: 'old system prompt',
+        permissionMode: 'default',
+        disabledAgentTools: []
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+
+    const systemPromptTextarea = wrapper
+      .findAll('textarea')
+      .find((textarea) =>
+        textarea
+          .attributes('placeholder')
+          ?.includes('settings.deepchatAgents.systemPromptPlaceholder')
+      )
+    expect(systemPromptTextarea).toBeDefined()
+
+    await systemPromptTextarea!.setValue('new system prompt')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({ systemPrompt: 'new system prompt' })
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
+  })
+
+  it('omits config when only the builtin agent name changes', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        systemPrompt: 'system prompt'
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('DeepChat Renamed')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.name).toBe('DeepChat Renamed')
+    expect(payload).not.toHaveProperty('config')
+  })
+
+  it('sends null when an existing chat model override is cleared', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        systemPrompt: 'system prompt'
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+
+    const clearButtons = wrapper
+      .findAll('button')
+      .filter((button) => button.text().includes('common.clear'))
+    expect(clearButtons.length).toBeGreaterThan(0)
+
+    await clearButtons[0].trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({ defaultModelPreset: null })
   })
 
   it('filters the image generation model selector to image models', async () => {
@@ -318,14 +589,10 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => ({
@@ -417,18 +684,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -530,18 +793,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -618,6 +877,208 @@ describe('DeepChatAgentsSettings', () => {
     const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.autoCompactionTriggerThreshold).toBe(91)
     expect(payload.config.autoCompactionRetainRecentPairs).toBe(6)
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
+  })
+
+  it('saves only changed disabled tools without carrying model keys', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        disabledAgentTools: []
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({
+      agents: [existingAgent],
+      toolDefinitions: [
+        {
+          source: 'agent',
+          function: { name: 'tool_alpha', description: 'Alpha tool' },
+          server: { name: 'agent-core' }
+        }
+      ]
+    })
+
+    const toolButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('tool_alpha'))
+    expect(toolButton).toBeDefined()
+
+    await toolButton!.trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({ disabledAgentTools: ['tool_alpha'] })
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
+  })
+
+  it('keeps an inherited memoryEnabled out of the payload when the switch is not toggled', async () => {
+    vi.resetModules()
+
+    const builtin = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: { memoryEnabled: true }
+    }
+    const child = {
+      id: 'child',
+      type: 'deepchat',
+      name: 'Child',
+      enabled: true,
+      protected: false,
+      avatar: null,
+      config: {}
+    }
+
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue([builtin, child]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(child),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+    }
+    const toolPresenter = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
+    const projectPresenter = {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+    bindClientMocks(projectPresenter, toolPresenter)
+    const modelStore = { allProviderModels: [], findModelByIdOrName: vi.fn(() => null) }
+
+    vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configPresenter }))
+    vi.doMock('@/stores/modelStore', () => ({ useModelStore: () => modelStore }))
+    vi.doMock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+    vi.doMock('@iconify/vue', () => ({ Icon: { name: 'Icon', template: '<span />' } }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
+          ModelSelect: passthrough('ModelSelect'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    // Select the child agent, which inherits memoryEnabled=true from the builtin deepchat.
+    await wrapper.find('[data-testid="deepchat-agent-row-child"]').trigger('click')
+    await flushPromises()
+
+    const memorySwitch = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [agentId, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(agentId).toBe('child')
+    // The inherited value must not be ossified into an explicit override.
+    expect(payload.config?.memoryEnabled).toBeUndefined()
+  })
+
+  it('sends memoryEnabled when an inherited memory switch is explicitly toggled', async () => {
+    const builtin = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: { memoryEnabled: true }
+    }
+    const child = {
+      id: 'child',
+      type: 'deepchat',
+      name: 'Child',
+      enabled: true,
+      protected: false,
+      avatar: null,
+      config: {}
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({
+      agents: [builtin, child],
+      configPresenter: {
+        updateDeepChatAgent: vi.fn().mockResolvedValue(child)
+      }
+    })
+
+    await wrapper.find('[data-testid="deepchat-agent-row-child"]').trigger('click')
+    await flushPromises()
+
+    const memorySwitch = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+
+    await memorySwitch!.trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [agentId, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(agentId).toBe('child')
+    expect(payload.config).toEqual({ memoryEnabled: false })
+    expect(payload.config).not.toHaveProperty('assistantModel')
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
   })
 
   it('falls back to default auto compaction values when inputs are blank or invalid', async () => {
@@ -658,18 +1119,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -746,6 +1203,8 @@ describe('DeepChatAgentsSettings', () => {
     const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.autoCompactionTriggerThreshold).toBe(80)
     expect(payload.config.autoCompactionRetainRecentPairs).toBe(2)
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
   it('fills the system prompt field from a prompt template dialog', async () => {
@@ -776,18 +1235,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -918,18 +1373,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1057,18 +1508,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue('/workspaces/selected')
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1159,6 +1606,9 @@ describe('DeepChatAgentsSettings', () => {
         })
       })
     )
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
   it('uses a flat target agent select for subagent slots', async () => {
@@ -1231,18 +1681,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1334,5 +1780,7 @@ describe('DeepChatAgentsSettings', () => {
         description: ''
       }
     ])
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
   })
 })

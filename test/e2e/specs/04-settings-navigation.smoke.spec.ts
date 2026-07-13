@@ -1,4 +1,8 @@
 import type { Page, TestInfo } from '@playwright/test'
+import {
+  getSettingsRouteItems,
+  type SettingsNavigationItem
+} from '../../../src/shared/settingsNavigation'
 import { test, expect } from '../fixtures/electronApp'
 import { openSettings, openSettingsTab } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
@@ -6,94 +10,119 @@ import { waitForAppReady } from '../helpers/wait'
 const desktopViewport = { width: 1280, height: 900 }
 const minimumViewport = { width: 760, height: 720 }
 
+type SettingsPageSmokeItem = {
+  name: string
+  routeName: SettingsNavigationItem['routeName']
+  tabTestId: string
+  pageTestId: string
+  optional?: boolean
+}
+
 const settingsPages = [
   {
     name: 'overview',
+    routeName: 'settings-overview',
     tabTestId: 'settings-tab-overview',
     pageTestId: 'settings-overview-page'
   },
   {
     name: 'general',
+    routeName: 'settings-common',
     tabTestId: 'settings-tab-general',
     pageTestId: 'settings-general-page'
   },
   {
     name: 'appearance',
+    routeName: 'settings-display',
     tabTestId: 'settings-tab-appearance',
     pageTestId: 'settings-appearance-page'
   },
   {
     name: 'environments',
+    routeName: 'settings-environments',
     tabTestId: 'settings-tab-environments',
     pageTestId: 'settings-environments-page'
   },
   {
     name: 'shortcuts',
+    routeName: 'settings-shortcut',
     tabTestId: 'settings-tab-shortcut',
     pageTestId: 'settings-shortcut-page'
   },
   {
     name: 'provider-center',
+    routeName: 'settings-provider',
     tabTestId: 'settings-tab-model-providers',
     pageTestId: 'settings-provider-page'
   },
   {
     name: 'mcp-center',
+    routeName: 'settings-mcp',
     tabTestId: 'settings-tab-mcp',
     pageTestId: 'settings-mcp-page'
   },
   {
     name: 'deepchat-agents',
+    routeName: 'settings-deepchat-agents',
     tabTestId: 'settings-tab-deepchat-agents',
     pageTestId: 'settings-deepchat-agents-page'
   },
   {
     name: 'acp',
+    routeName: 'settings-acp',
     tabTestId: 'settings-tab-acp-agents',
     pageTestId: 'settings-acp-page'
   },
   {
     name: 'remote',
+    routeName: 'settings-remote',
     tabTestId: 'settings-tab-remote',
     pageTestId: 'settings-remote-page'
   },
   {
     name: 'notifications-hooks',
+    routeName: 'settings-notifications-hooks',
     tabTestId: 'settings-tab-notifications-hooks',
     pageTestId: 'settings-notifications-hooks-page'
   },
   {
     name: 'plugins',
+    routeName: 'settings-plugins',
     tabTestId: 'settings-tab-plugins',
     pageTestId: 'settings-plugins-page',
     optional: true
   },
   {
     name: 'skills',
+    routeName: 'settings-skills',
     tabTestId: 'settings-tab-skills',
     pageTestId: 'settings-skills-page'
   },
   {
     name: 'prompts',
+    routeName: 'settings-prompt',
     tabTestId: 'settings-tab-prompt',
     pageTestId: 'settings-prompt-page'
   },
   {
     name: 'knowledge-base',
+    routeName: 'settings-knowledge-base',
     tabTestId: 'settings-tab-knowledge-base',
     pageTestId: 'settings-knowledge-base-page'
   },
   {
     name: 'data-privacy',
+    routeName: 'settings-database',
     tabTestId: 'settings-tab-database',
     pageTestId: 'settings-data-page'
   },
   {
     name: 'about',
+    routeName: 'settings-about',
     tabTestId: 'settings-tab-about',
     pageTestId: 'settings-about-page'
   }
-] as const
+] as const satisfies ReadonlyArray<SettingsPageSmokeItem>
 
 const variantPages = settingsPages.filter((page) =>
   ['overview', 'provider-center', 'mcp-center', 'data-privacy'].includes(page.name)
@@ -129,12 +158,19 @@ async function openAndCaptureSettingsPage(
   suffix: string,
   visualState: { dark?: boolean; rtl?: boolean }
 ): Promise<boolean> {
+  const routeItem = getSettingsRouteItems(process.platform, process.arch).find(
+    (navigationItem) => navigationItem.routeName === item.routeName
+  )
   const tab = page.getByTestId(item.tabTestId)
-  if (item.optional && (await tab.count()) === 0) {
+  const isOptional = 'optional' in item && item.optional
+  if (
+    !routeItem ||
+    (routeItem.hiddenInSidebar !== true && isOptional && (await tab.count()) === 0)
+  ) {
     return false
   }
 
-  await openSettingsTab(page, item.tabTestId)
+  await openSettingsTab(page, item.tabTestId, item.routeName)
   await expect(page.getByTestId(item.pageTestId)).toBeVisible({ timeout: 30_000 })
   await applyVisualState(page, visualState)
   await captureSettingsPage(page, testInfo, `settings-${item.name}-${suffix}`)

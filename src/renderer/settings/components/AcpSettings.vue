@@ -564,9 +564,8 @@ import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
 import type { AgentTransferImpact } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
 import { createSessionClient } from '@api/SessionClient'
-import { CONFIG_EVENTS } from '@/events'
 import { Icon } from '@iconify/vue'
 import {
   Card,
@@ -598,7 +597,7 @@ import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = useLegacyPresenter('configPresenter')
+const configClient = createConfigClient()
 
 type RegistryDialogFilter = 'all' | 'installed' | 'not_installed'
 type PendingDeleteAgent = {
@@ -786,13 +785,13 @@ const syncEnvDrafts = (agents: AcpRegistryAgent[]) => {
 }
 
 const loadSharedMcpCount = async () => {
-  sharedMcpCount.value = (await configPresenter.getAcpSharedMcpSelections()).length
+  sharedMcpCount.value = (await configClient.getAcpSharedMcpSelections()).length
 }
 
 const loadAcpData = async () => {
   loading.value = true
   try {
-    acpEnabled.value = await configPresenter.getAcpEnabled()
+    acpEnabled.value = await configClient.getAcpEnabled()
     if (!acpEnabled.value) {
       registryAgents.value = []
       manualAgents.value = []
@@ -801,8 +800,8 @@ const loadAcpData = async () => {
     }
 
     const [registryList, manualList] = await Promise.all([
-      configPresenter.listAcpRegistryAgents(),
-      configPresenter.listManualAcpAgents()
+      configClient.listAcpRegistryAgents(),
+      configClient.listManualAcpAgents()
     ])
 
     registryAgents.value = registryList
@@ -820,7 +819,7 @@ const handleToggle = async (enabled: boolean) => {
   if (toggling.value) return
   toggling.value = true
   try {
-    await configPresenter.setAcpEnabled(enabled)
+    await configClient.setAcpEnabled(enabled)
     acpEnabled.value = enabled
     if (enabled) {
       await loadAcpData()
@@ -835,7 +834,7 @@ const handleToggle = async (enabled: boolean) => {
 const refreshRegistry = async () => {
   refreshing.value = true
   try {
-    registryAgents.value = await configPresenter.refreshAcpRegistry(true)
+    registryAgents.value = await configClient.refreshAcpRegistry(true)
     syncEnvDrafts(registryAgents.value)
   } catch (error) {
     handleError(error)
@@ -851,7 +850,7 @@ const handleSharedMcpUpdated = (selections: string[]) => {
 const toggleRegistryAgent = async (agent: AcpRegistryAgent, enabled: boolean) => {
   setAgentPending(agent.id, true)
   try {
-    await configPresenter.setAcpAgentEnabled(agent.id, enabled)
+    await configClient.setAcpAgentEnabled(agent.id, enabled)
     await loadAcpData()
   } catch (error) {
     handleError(error)
@@ -863,7 +862,7 @@ const toggleRegistryAgent = async (agent: AcpRegistryAgent, enabled: boolean) =>
 const saveEnvOverride = async (agent: AcpRegistryAgent) => {
   setAgentPending(agent.id, true)
   try {
-    await configPresenter.setAcpAgentEnvOverride(agent.id, parseEnvBlock(envDrafts[agent.id] ?? ''))
+    await configClient.setAcpAgentEnvOverride(agent.id, parseEnvBlock(envDrafts[agent.id] ?? ''))
     await loadAcpData()
     toast({ title: t('settings.acp.saveSuccess') })
   } catch (error) {
@@ -882,9 +881,9 @@ const installRegistryAgent = async (agent: AcpRegistryAgent) => {
   setAgentPending(agent.id, true)
   try {
     if (agent.installState?.status === 'error') {
-      await configPresenter.repairAcpAgent(agent.id)
+      await configClient.repairAcpAgent(agent.id)
     } else {
-      await configPresenter.ensureAcpAgentInstalled(agent.id)
+      await configClient.ensureAcpAgentInstalled(agent.id)
     }
     await loadAcpData()
   } catch (error) {
@@ -897,7 +896,7 @@ const installRegistryAgent = async (agent: AcpRegistryAgent) => {
 const repairRegistryAgent = async (agent: AcpRegistryAgent) => {
   setAgentPending(agent.id, true)
   try {
-    await configPresenter.repairAcpAgent(agent.id)
+    await configClient.repairAcpAgent(agent.id)
     await loadAcpData()
   } catch (error) {
     handleError(error)
@@ -943,9 +942,9 @@ const saveManualAgent = async () => {
     }
 
     if (manualDialog.agentId) {
-      await configPresenter.updateManualAcpAgent(manualDialog.agentId, payload)
+      await configClient.updateManualAcpAgent(manualDialog.agentId, payload)
     } else {
-      await configPresenter.addManualAcpAgent(payload)
+      await configClient.addManualAcpAgent(payload)
     }
 
     manualDialog.open = false
@@ -961,7 +960,7 @@ const saveManualAgent = async () => {
 const toggleManualAgent = async (agent: AcpManualAgent, enabled: boolean) => {
   setAgentPending(agent.id, true)
   try {
-    await configPresenter.updateManualAcpAgent(agent.id, { enabled })
+    await configClient.updateManualAcpAgent(agent.id, { enabled })
     await loadAcpData()
   } catch (error) {
     handleError(error)
@@ -980,7 +979,7 @@ const openAgentTransferDialog = async (agent: PendingDeleteAgent) => {
     const sessionClient = createSessionClient()
     const [impact, agents] = await Promise.all([
       sessionClient.getAgentTransferImpact(agent.id),
-      configPresenter.listAgents()
+      configClient.listAgents()
     ])
     transferImpact.value = impact
     transferAgents.value = agents
@@ -1016,10 +1015,10 @@ const confirmRegistryAgentUninstall = async (agent: AcpRegistryAgent) => {
 
 const finishDeleteAgent = async (agent: PendingDeleteAgent) => {
   if (agent.source === 'registry') {
-    await configPresenter.uninstallAcpRegistryAgent(agent.id)
+    await configClient.uninstallAcpRegistryAgent(agent.id)
     toast({ title: t('settings.acp.deleteSuccess') })
   } else {
-    const removed = await configPresenter.removeManualAcpAgent(agent.id)
+    const removed = await configClient.removeManualAcpAgent(agent.id)
     if (!removed) {
       throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
     }
@@ -1112,6 +1111,7 @@ const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
+let cleanupAgentsChanged: (() => void) | null = null
 
 const scheduleAcpDataReload = () => {
   if (refreshTimer) {
@@ -1125,7 +1125,7 @@ const scheduleAcpDataReload = () => {
 
 onMounted(() => {
   void loadAcpData()
-  window.electron?.ipcRenderer?.on(CONFIG_EVENTS.AGENTS_CHANGED, scheduleAcpDataReload)
+  cleanupAgentsChanged = configClient.onAgentsChanged(scheduleAcpDataReload)
 })
 
 onBeforeUnmount(() => {
@@ -1133,6 +1133,7 @@ onBeforeUnmount(() => {
     clearTimeout(refreshTimer)
     refreshTimer = null
   }
-  window.electron?.ipcRenderer?.removeListener(CONFIG_EVENTS.AGENTS_CHANGED, scheduleAcpDataReload)
+  cleanupAgentsChanged?.()
+  cleanupAgentsChanged = null
 })
 </script>

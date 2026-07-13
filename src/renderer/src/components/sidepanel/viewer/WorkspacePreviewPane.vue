@@ -5,12 +5,15 @@
   >
     <div
       v-if="props.previewKind === 'markdown'"
-      class="min-h-0 w-full flex-1 overflow-auto"
+      class="dc-overscroll-contain min-h-0 w-full flex-1 overflow-auto"
       data-testid="workspace-preview-markdown"
     >
       <div class="min-h-full px-4 py-4">
         <MarkdownRenderer
           :content="resolvedContent"
+          :final="true"
+          :smooth-streaming="false"
+          :virtualize-nodes="false"
           :message-id="previewSourceId"
           :thread-id="props.sessionId"
           :link-context="markdownLinkContext"
@@ -20,7 +23,7 @@
 
     <div
       v-else-if="props.previewKind === 'image'"
-      class="min-h-0 w-full flex-1 overflow-auto bg-muted/20"
+      class="dc-overscroll-contain min-h-0 w-full flex-1 overflow-auto bg-muted/20"
       data-testid="workspace-preview-image"
     >
       <div class="flex min-h-full items-center justify-center p-4">
@@ -84,7 +87,7 @@
 
     <div
       v-else
-      class="min-h-0 w-full flex-1 overflow-auto px-4 py-3"
+      class="dc-overscroll-contain min-h-0 w-full flex-1 overflow-auto px-4 py-3"
       data-testid="workspace-preview-raw"
     >
       <pre class="whitespace-pre-wrap break-words text-sm leading-6">{{ resolvedContent }}</pre>

@@ -162,7 +162,9 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createFileClient } from '@api/FileClient'
+import type { SkillInstallResult } from '@shared/types/skill'
 
 const props = defineProps<{
   open: boolean
@@ -176,7 +178,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
-const devicePresenter = useLegacyPresenter('devicePresenter')
+const deviceClient = createDeviceClient()
+const fileClient = createFileClient()
 
 const isOpen = computed({
   get: () => props.open,
@@ -209,7 +212,7 @@ watch(isOpen, (open) => {
 const selectFolder = async () => {
   if (installing.value) return
   try {
-    const result = await devicePresenter.selectDirectory()
+    const result = await deviceClient.selectDirectory()
     if (!result.canceled && result.filePaths.length > 0) {
       await tryInstallFromFolder(result.filePaths[0])
     }
@@ -232,7 +235,7 @@ const tryInstallFromFolder = async (folderPath: string, overwrite = false) => {
 const selectZip = async () => {
   if (installing.value) return
   try {
-    const result = await devicePresenter.selectFiles({
+    const result = await deviceClient.selectFiles({
       filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
     })
     if (!result.canceled && result.filePaths.length > 0) {
@@ -284,7 +287,7 @@ const handleDrop = async (event: DragEvent) => {
     return
   }
 
-  const path = window.api.getPathForFile(file)
+  const path = fileClient.getPathForFile(file)
   if (!path) {
     showDropError()
     return
@@ -347,7 +350,7 @@ const tryInstallFromUrl = async (url: string, overwrite = false) => {
 
 // Common result handling
 const handleInstallResult = (
-  result: { success: boolean; error?: string; skillName?: string },
+  result: SkillInstallResult,
   retryWithOverwrite: () => Promise<void>
 ) => {
   if (result.success) {
@@ -357,8 +360,8 @@ const handleInstallResult = (
     })
     emit('installed')
     isOpen.value = false
-  } else if (result.error?.includes('already exists')) {
-    const skillName = result.error.match(/"([^"]+)"/)?.[1] || ''
+  } else if (result.errorCode === 'conflict') {
+    const skillName = result.existingSkillName || result.error?.match(/"([^"]+)"/)?.[1] || ''
     conflictSkillName.value = skillName
     pendingInstallAction.value = retryWithOverwrite
     conflictDialogOpen.value = true

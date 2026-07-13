@@ -1,6 +1,5 @@
-import { eventBus } from '@/eventbus'
-import { NOTIFICATION_EVENTS } from '@/events'
 import { buildDatabaseRepairSuggestedPayload } from './sqlitePresenter/schemaErrorClassifier'
+import { publishDeepchatEventToWebContents } from '@/routes/publishDeepchatEvent'
 
 interface PresenterCallErrorContext {
   webContentsId: number
@@ -52,9 +51,9 @@ const reportPresenterCallError = (
 
   if (repairSuggestion && suggestionKeys && !suggestionKeys.has(repairSuggestion.dedupeKey)) {
     suggestionKeys.add(repairSuggestion.dedupeKey)
-    eventBus.sendToWebContents(
+    publishDeepchatEventToWebContents(
       webContentsId,
-      NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
+      'databaseSecurity.repairSuggested',
       repairSuggestion
     )
   }

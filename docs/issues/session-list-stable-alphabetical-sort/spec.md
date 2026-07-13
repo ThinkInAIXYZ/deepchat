@@ -1,5 +1,8 @@
 # 会话列表固定字母排序
 
+Status: implemented as of 2026-06-13. Project grouping has a deliberate recency-sort exception
+documented in `docs/issues/project-group-session-update-sort/spec.md`.
+
 ## 背景
 
 当前 renderer 的会话列表使用 `updatedAt` 倒序排列，且在切换置顶状态时会把本地 `updatedAt` 改成当前时间。
@@ -29,3 +32,4 @@
 - 对任意会话执行 pin / unpin 后，列表不会因为本地更新时间变化而跳到顶部。
 - pinned 列表与普通分组内的会话都按标题字母顺序稳定排序；当标题相同时按 `id` 升序兜底。
 - 为排序与 pin / unpin 回归场景补齐 renderer store 单测。
+- 项目分组模式下，每个 project group 内按 `updatedAt` 降序排列，再用 title/id 做稳定兜底。

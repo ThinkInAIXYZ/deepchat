@@ -80,14 +80,16 @@
   "pendingInput": {
     "steer": "Styring",
     "queueCount": "Afventer {count}/{max}",
-    "resumeQueue": "Fortsæt afsendelse",
-    "toSteer": "Brug til styring",
+    "toSteer": "Afbryd og send",
     "locked": "Låst",
     "reorder": "Omarranger",
     "files": "{count} filer",
     "attachmentsOnly": "{count} vedhæftede filer",
     "empty": "Tom besked",
-    "limitReached": "Venteområdet er fuldt (maks. {max})."
+    "limitReached": "Venteområdet er fuldt (maks. {max}).",
+    "remove": "Fjern",
+    "steerUnavailable": "Kan ikke afbryde lige nu",
+    "steerFailed": "Kunne ikke afbryde denne tur"
   },
   "messages": {
     "rateLimitEstimated": "Forventet ventetid",
@@ -210,6 +212,10 @@
         "title": "Ingen arbejdsområde",
         "description": "Vælg eller træk en mappe for at definere arbejdsområdet",
         "button": "Vælg mappe"
+      },
+      "watchStatus": {
+        "degraded": "Overvågning kører i fallback-tilstand. Ændringer kan blive opdateret langsommere.",
+        "failed": "Filovervågning er ikke tilgængelig. Opdater eller vælg arbejdsområdet igen."
       }
     },
     "git": {
@@ -228,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Afsluttet",
-        "failed": "Mislykket",
         "in_progress": "i gang",
         "pending": "Indtil",
-        "skipped": "sprunget over"
-      }
+        "interrupted": "Afbrudt"
+      },
+      "completedCount": "{completed}/{total} fuldført"
     },
     "terminal": {
       "empty": "Ingen output endnu",
@@ -305,7 +311,8 @@
   },
   "permissionMode": {
     "default": "Standardtilladelser",
-    "fullAccess": "Fuld adgang"
+    "fullAccess": "Fuld adgang",
+    "autoApprove": "Godkend for mig"
   },
   "sidebar": {
     "allAgents": "Alle agenter",
@@ -326,13 +333,22 @@
     "groupByDate": "Gruppér efter dato",
     "groupByProject": "Gruppér efter projekt",
     "pinned": "Fastgjorte",
+    "chats": "Chats",
     "emptyTitle": "Ingen samtaler endnu",
     "emptyDescription": "Start en ny samtale for at komme i gang",
     "remoteControlDisabled": "Deaktiveret",
     "searchPlaceholder": "Søg i chats",
     "searchAriaLabel": "Søg i chats",
     "searchEmptyTitle": "Ingen matchende samtaler",
-    "searchEmptyDescription": "Prøv et andet nøgleord i titlen"
+    "searchEmptyDescription": "Prøv et andet nøgleord i titlen",
+    "projectGroupActions": "Projektgruppehandlinger",
+    "moveProjectGroupTop": "Flyt til toppen",
+    "moveProjectGroupUp": "Flyt op",
+    "moveProjectGroupDown": "Flyt ned",
+    "moveProjectGroupBottom": "Flyt til bunden",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "Opgaveoversigt",
@@ -416,6 +432,58 @@
       "hour": "t ",
       "minute": "min ",
       "second": "s"
+    }
+  },
+  "memory": {
+    "toolbar": "Brugte minder",
+    "status": {
+      "archived": "Glemt"
+    },
+    "actions": {
+      "undo": "Fortryd",
+      "forget": "Glem",
+      "edit": "Rediger"
+    },
+    "chip": {
+      "title": "Hukommelse opdateret {count}",
+      "heading": "Hukommelse opdateret",
+      "description": "Denne tur tilføjede følgende minder."
+    },
+    "selection": {
+      "remember": "Husk dette"
+    },
+    "turn": {
+      "title": "Minder brugt i denne tur",
+      "empty": "Der blev ikke indsat minder i denne tur",
+      "selected": "Valgt",
+      "dropped": "Fravalgt",
+      "tokens": "Tokens",
+      "budget": "Budget",
+      "countOnly": "Denne post indeholder kun en optællingsoversigt.",
+      "unavailable": "Dette minde er ikke længere tilgængeligt.",
+      "noSelectedDetails": "Der er ingen hukommelsesdetaljer at vise for denne tur.",
+      "refreshFailed": "Opdatering mislykkedes. Viser de senest indlæste minder.",
+      "error": "Kunne ikke hente hukommelsen for denne tur."
+    },
+    "toast": {
+      "undoSuccess": "Mindet blev fortrudt",
+      "undoFailed": "Kunne ikke fortryde mindet",
+      "forgetSuccess": "Mindet blev glemt",
+      "forgetFailed": "Kunne ikke glemme mindet",
+      "amendFailed": "Kunne ikke opdatere mindet",
+      "rememberFailed": "Kunne ikke gemme mindet",
+      "add": {
+        "created": "Gemt som nyt minde",
+        "updated": "Eksisterende minde opdateret",
+        "superseded": "Flettet ind i et opdateret minde",
+        "challenged": "Registreret som et minde til gennemgang",
+        "noop": "Der blev ikke tilføjet et nyt minde"
+      }
+    },
+    "errors": {
+      "actionFailed": "Handlingen mislykkedes. Prøv igen.",
+      "amendRetryable": "Ændringen mislykkedes. Den oprindelige hukommelse er gendannet, så prøv igen.",
+      "amendRestoreFailed": "Ændringen mislykkedes, og den oprindelige hukommelse kunne ikke gendannes."
     }
   }
 }

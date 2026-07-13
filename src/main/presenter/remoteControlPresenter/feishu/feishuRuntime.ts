@@ -27,13 +27,19 @@ const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+const safeErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
+
 const FEISHU_INTERNAL_ERROR_REPLY = 'An internal error occurred while processing your request.'
+const FEISHU_STREAMING_CARD_FALLBACK_NOTICE =
+  'Feishu CardKit streaming failed. Falling back to normal message updates. Check that the app has im:message and cardkit:card:write permissions.'
 
 type FeishuRuntimeDeps = {
   client: FeishuClient
   parser: FeishuParser
   router: FeishuCommandRouter
   bindingStore: RemoteBindingStore
+  enableStreamingCards?: boolean
   logger?: {
     error: (...params: unknown[]) => void
   }
@@ -54,6 +60,14 @@ type FeishuRemoteDeliveryState = {
     messageIds: Array<string | null>
     lastText: string
   }>
+}
+
+type FeishuStreamingCardDeliveryState = {
+  cardId: string
+  elementId: string
+  sequence: number
+  lastText: string
+  closed: boolean
 }
 
 export class FeishuRuntime {
@@ -403,6 +417,19 @@ export class FeishuRuntime {
     const startedAt = Date.now()
     const endpointKey = buildFeishuEndpointKey(target.chatId, target.threadId)
 
+    if (this.deps.enableStreamingCards) {
+      const streamed = await this.deliverConversationWithStreamingCard(
+        target,
+        execution,
+        runId,
+        endpointKey,
+        startedAt
+      )
+      if (streamed) {
+        return
+      }
+    }
+
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
       if (!this.isCurrentRun(runId)) {
@@ -500,6 +527,244 @@ export class FeishuRuntime {
       }
 
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    }
+  }
+
+  private async deliverConversationWithStreamingCard(
+    target: FeishuTransportTarget,
+    execution: RemoteConversationExecution,
+    runId: number,
+    endpointKey: string,
+    startedAt: number
+  ): Promise<boolean> {
+    let cardState: FeishuStreamingCardDeliveryState | null = null
+    const closeAndFinish = async (): Promise<boolean> => {
+      try {
+        cardState = await this.closeStreamingCardIfNeeded(cardState)
+      } catch (error) {
+        console.warn('[FeishuRuntime] Failed to close streaming card before exit:', {
+          cardId: cardState?.cardId,
+          error: safeErrorMessage(error)
+        })
+      }
+      return true
+    }
+
+    try {
+      while (this.isCurrentRun(runId)) {
+        const snapshot = await execution.getSnapshot()
+        if (!this.isCurrentRun(runId)) {
+          return await closeAndFinish()
+        }
+
+        const sourceMessageId = snapshot.messageId ?? execution.eventId ?? null
+        let deliverySegments = this.getSnapshotDeliverySegments(snapshot, sourceMessageId)
+
+        if (snapshot.completed) {
+          if (snapshot.pendingInteraction) {
+            const pendingText = this.buildStreamingCardText(deliverySegments)
+            if (pendingText) {
+              cardState = await this.syncStreamingCardText(target, cardState, pendingText)
+            }
+            cardState = await this.closeStreamingCardIfNeeded(cardState)
+            await this.dispatchOutboundActions(
+              target,
+              [
+                {
+                  type: 'sendCard',
+                  card: buildFeishuPendingInteractionCard(snapshot.pendingInteraction),
+                  fallbackText: buildFeishuPendingInteractionText(snapshot.pendingInteraction)
+                }
+              ],
+              runId
+            )
+            this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+            return true
+          }
+
+          const finalText = this.getFinalDeliveryText(snapshot)
+          deliverySegments = this.appendTerminalDeliverySegment(
+            deliverySegments,
+            sourceMessageId,
+            finalText
+          )
+          const completedText = this.buildStreamingCardText(deliverySegments) || finalText.trim()
+          if (completedText) {
+            cardState = await this.syncStreamingCardText(target, cardState, completedText)
+          }
+          cardState = await this.closeStreamingCardIfNeeded(cardState)
+          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+          await this.sendGeneratedImages(target, snapshot)
+          return true
+        }
+
+        if (Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS) {
+          if (!this.isCurrentRun(runId)) {
+            return await closeAndFinish()
+          }
+          const timeoutText =
+            'The current conversation timed out before finishing. Please try again.'
+          const timeoutSegments = this.appendTerminalDeliverySegment(
+            deliverySegments,
+            sourceMessageId,
+            timeoutText
+          )
+          cardState = await this.syncStreamingCardText(
+            target,
+            cardState,
+            this.buildStreamingCardText(timeoutSegments) || timeoutText
+          )
+          cardState = await this.closeStreamingCardIfNeeded(cardState)
+          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+          return true
+        }
+
+        const streamingText = this.buildStreamingCardText(deliverySegments, snapshot.statusText)
+        if (streamingText) {
+          cardState = await this.syncStreamingCardText(target, cardState, streamingText)
+        }
+
+        await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+      }
+
+      return await closeAndFinish()
+    } catch (error) {
+      console.warn('[FeishuRuntime] Streaming card delivery failed, falling back to markdown:', {
+        chatId: target.chatId,
+        threadId: target.threadId,
+        replyToMessageId: target.replyToMessageId,
+        error: safeErrorMessage(error)
+      })
+      if (this.isCurrentRun(runId)) {
+        try {
+          await this.deps.client.sendText(target, FEISHU_STREAMING_CARD_FALLBACK_NOTICE)
+        } catch (noticeError) {
+          console.warn('[FeishuRuntime] Failed to send streaming card fallback notice:', {
+            chatId: target.chatId,
+            threadId: target.threadId,
+            replyToMessageId: target.replyToMessageId,
+            error: safeErrorMessage(noticeError)
+          })
+        }
+      }
+      return false
+    }
+  }
+
+  private buildStreamingCardText(segments: RemoteDeliverySegment[], statusText?: string): string {
+    const status = statusText?.trim() ?? ''
+    const processText = segments
+      .filter((segment) => segment.kind === 'process')
+      .map((segment) => segment.text.trim())
+      .filter(Boolean)
+      .join('\n\n')
+    const answerText = segments
+      .filter((segment) => segment.kind !== 'process')
+      .map((segment) => segment.text.trim())
+      .filter(Boolean)
+      .join('\n\n')
+
+    return [
+      status ? `**Status**\n${status}` : '',
+      processText ? `**Process**\n${processText}` : '',
+      answerText ? `**Answer**\n${answerText}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+      .trim()
+  }
+
+  private async syncStreamingCardText(
+    target: FeishuTransportTarget,
+    state: FeishuStreamingCardDeliveryState | null,
+    text: string
+  ): Promise<FeishuStreamingCardDeliveryState> {
+    const normalized = optimizeMarkdownForFeishu(text.trim())
+    if (!normalized) {
+      if (state) {
+        return state
+      }
+      throw new Error('Feishu streaming card content is empty.')
+    }
+
+    const nextState = state ?? (await this.createStreamingCardState(target))
+    if (nextState.lastText === normalized) {
+      return nextState
+    }
+
+    const sequence = nextState.sequence + 1
+    try {
+      await this.deps.client.updateStreamingCardContent({
+        cardId: nextState.cardId,
+        elementId: nextState.elementId,
+        content: normalized,
+        sequence
+      })
+    } catch (error) {
+      await this.closeStreamingCardAfterFailure(nextState, sequence + 1)
+      throw error
+    }
+
+    return {
+      ...nextState,
+      sequence,
+      lastText: normalized
+    }
+  }
+
+  private async createStreamingCardState(
+    target: FeishuTransportTarget
+  ): Promise<FeishuStreamingCardDeliveryState> {
+    const card = await this.deps.client.createStreamingCard('')
+    const state: FeishuStreamingCardDeliveryState = {
+      cardId: card.cardId,
+      elementId: card.elementId,
+      sequence: 0,
+      lastText: '',
+      closed: false
+    }
+
+    try {
+      await this.deps.client.sendCardEntity(target, card.cardId)
+    } catch (error) {
+      await this.closeStreamingCardAfterFailure(state, state.sequence + 1)
+      throw error
+    }
+
+    return state
+  }
+
+  private async closeStreamingCardIfNeeded(
+    state: FeishuStreamingCardDeliveryState | null
+  ): Promise<FeishuStreamingCardDeliveryState | null> {
+    if (!state || state.closed) {
+      return state
+    }
+
+    const sequence = state.sequence + 1
+    await this.deps.client.closeStreamingCard(state.cardId, sequence)
+    return {
+      ...state,
+      sequence,
+      closed: true
+    }
+  }
+
+  private async closeStreamingCardAfterFailure(
+    state: FeishuStreamingCardDeliveryState,
+    sequence: number
+  ): Promise<void> {
+    if (state.closed) {
+      return
+    }
+
+    try {
+      await this.deps.client.closeStreamingCard(state.cardId, sequence)
+    } catch (error) {
+      console.warn('[FeishuRuntime] Failed to close streaming card after failure:', {
+        cardId: state.cardId,
+        error: safeErrorMessage(error)
+      })
     }
   }
 
@@ -811,7 +1076,7 @@ export class FeishuRuntime {
       } catch (error) {
         console.warn(
           '[FeishuRuntime] Failed to send interactive card, falling back to text:',
-          error
+          safeErrorMessage(error)
         )
         await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(action.fallbackText))
       }

@@ -16,8 +16,27 @@ import { nanoid } from 'nanoid'
 import { RecursiveCharacterTextSplitter } from '@/lib/textsplitters'
 import { sanitizeText } from '@/utils/strings'
 import { getMetric, normalizeDistance } from '@/utils/vector'
-import { eventBus, SendTarget } from '@/eventbus'
-import { RAG_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+
+function publishKnowledgeFileUpdated(fileMessage: KnowledgeFileMessage): void {
+  publishDeepchatEvent('knowledge.file.updated', {
+    ...fileMessage,
+    version: Date.now()
+  })
+}
+
+function publishKnowledgeFileProgress(
+  fileId: string,
+  progress: { completed: number; error: number; total: number }
+): void {
+  publishDeepchatEvent('knowledge.file.progress', {
+    fileId,
+    completed: progress.completed,
+    error: progress.error,
+    total: progress.total,
+    version: Date.now()
+  })
+}
 
 export class KnowledgeStorePresenter {
   private readonly vectorP: IVectorDatabasePresenter
@@ -126,7 +145,7 @@ export class KnowledgeStorePresenter {
         fileMessage.metadata.errorReason =
           '无法读取文件或文件内容为空，请检查文件是否损坏或格式是否受支持'
         await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
-        eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
+        publishKnowledgeFileUpdated(fileMessage)
         return
       }
 
@@ -143,7 +162,7 @@ export class KnowledgeStorePresenter {
       await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
 
       // 5. 发送文件更新事件
-      eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
+      publishKnowledgeFileUpdated(fileMessage)
 
       // 6. 创建chunk记录
       const chunkMessages = chunks.map((content, index) => ({
@@ -239,12 +258,7 @@ export class KnowledgeStorePresenter {
     progress.completed++
 
     // 更新文件进度
-    eventBus.sendToRenderer(RAG_EVENTS.FILE_PROGRESS, SendTarget.ALL_WINDOWS, {
-      fileId,
-      completed: progress.completed,
-      error: progress.error,
-      total: progress.total
-    })
+    publishKnowledgeFileProgress(fileId, progress)
 
     // 检查是否所有分片都完成了
     if (progress.completed + progress.error === progress.total) {
@@ -271,12 +285,7 @@ export class KnowledgeStorePresenter {
     progress.error++
 
     // 更新文件进度
-    eventBus.sendToRenderer(RAG_EVENTS.FILE_PROGRESS, SendTarget.ALL_WINDOWS, {
-      fileId,
-      completed: progress.completed,
-      error: progress.error,
-      total: progress.total
-    })
+    publishKnowledgeFileProgress(fileId, progress)
 
     // 检查是否所有分片都完成了
     if (progress.completed + progress.error === progress.total) {
@@ -294,7 +303,7 @@ export class KnowledgeStorePresenter {
       if (fileMessage) {
         fileMessage.status = 'completed'
         await this.enqueueFileTask(fileId, async () => this.vectorP.updateFile(fileMessage))
-        eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
+        publishKnowledgeFileUpdated(fileMessage)
         logger.info(`[RAG] File processing completed for ${fileId}`)
       }
     } catch (error) {
@@ -312,7 +321,7 @@ export class KnowledgeStorePresenter {
           fileMessage.metadata.errorReason = errorMessage
         }
         await this.enqueueFileTask(fileId, async () => this.vectorP.updateFile(fileMessage))
-        eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
+        publishKnowledgeFileUpdated(fileMessage)
       }
     } catch (error) {
       console.error(`[RAG] Error handling file processing error for ${fileId}:`, error)

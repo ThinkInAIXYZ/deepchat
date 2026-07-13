@@ -9,6 +9,8 @@ import type {
   DeepChatSubagentSlot,
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -18,7 +20,19 @@ import type {
   SessionKind
 } from '@shared/types/agent-interface'
 import type { ISkillPresenter } from '@shared/types/skill'
+import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { DeepChatInternalSessionUpdate } from '../agentRuntimePresenter/internalSessionEvents'
+import type { MemoryWriteOutcome } from '../memoryPresenter/types'
+import type {
+  CronJob,
+  CronJobRun,
+  CronJobsSchedulerStatus,
+  CronSchedulePreview
+} from '@shared/cronJobs'
+import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
+import type { z } from 'zod'
+
+export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
 export interface ConversationSessionInfo {
   sessionId: string
@@ -63,6 +77,11 @@ export interface AgentToolRuntimePort {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
+  getTapeContext?(
+    conversationId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult>
   listTapeAnchors?(
     conversationId: string,
     options?: AgentTapeAnchorsOptions
@@ -72,6 +91,37 @@ export interface AgentToolRuntimePort {
     name: string,
     state?: Record<string, unknown>
   ): Promise<AgentTapeAnchorResult>
+  /** Returns whether long-term memory is enabled for the active agent. */
+  isMemoryEnabled?(agentId: string): boolean
+  /** Writes a long-term memory through the shared semantic coordinator. */
+  rememberMemory?(
+    agentId: string,
+    input: {
+      content: string
+      kind: 'semantic' | 'episodic'
+      category?: AgentMemoryCategory | null
+      importance?: number
+    },
+    sourceSession?: string | null,
+    model?: { providerId: string; modelId: string } | null
+  ): Promise<MemoryWriteOutcome>
+  /** Recalls long-term memories related to the query. */
+  recallMemory?(
+    agentId: string,
+    query: string
+  ): Promise<Array<{ id: string; kind: string; content: string }>>
+  forgetMemory?(agentId: string, memoryId: string): Promise<boolean>
+  listCronJobs?(): Promise<{ jobs: CronJob[]; schedulerStatus: CronJobsSchedulerStatus }>
+  upsertCronJob?(input: AgentToolCronJobUpsertInput): Promise<CronJob>
+  deleteCronJob?(id: string): Promise<void>
+  toggleCronJob?(id: string, enabled: boolean): Promise<CronJob>
+  runCronJobNow?(id: string): Promise<CronJobRun>
+  listCronJobRuns?(jobId: string, limit?: number): Promise<CronJobRun[]>
+  previewCronSchedule?(input: {
+    cronExpr: string
+    timezone: string
+    count?: number
+  }): Promise<CronSchedulePreview>
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
   mergeSubagentTape?(
     parentSessionId: string,
@@ -102,6 +152,10 @@ export interface AgentToolRuntimePort {
     channel: string,
     ...args: unknown[]
   ): ReturnType<IWindowPresenter['sendToWindow']>
+  sendSettingsNavigation(
+    windowId: number,
+    navigation: Parameters<IWindowPresenter['sendSettingsNavigation']>[1]
+  ): ReturnType<IWindowPresenter['sendSettingsNavigation']>
   getApprovedFilePaths(
     conversationId: string,
     requiredPermission?: 'read' | 'write' | 'all'

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, shallowRef, toRaw } from 'vue'
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type {
   CreateSessionInput,
   PermissionMode,
@@ -45,7 +46,7 @@ export const useDraftStore = defineStore('draft', () => {
     undefined
   )
   const permissionMode = ref<PermissionMode>('full_access')
-  const disabledAgentTools = ref<string[]>([])
+  const disabledAgentTools = ref<string[]>([...DEFAULT_DISABLED_AGENT_TOOLS])
   const subagentEnabled = ref(false)
   const pendingStartDeeplink = ref<StartDeeplinkPayload | null>(null)
   let nextStartToken = 0
@@ -172,7 +173,7 @@ export const useDraftStore = defineStore('draft', () => {
     projectDir.value = undefined
     agentId.value = 'deepchat'
     permissionMode.value = 'full_access'
-    disabledAgentTools.value = []
+    disabledAgentTools.value = [...DEFAULT_DISABLED_AGENT_TOOLS]
     subagentEnabled.value = false
     resetGenerationSettings()
   }

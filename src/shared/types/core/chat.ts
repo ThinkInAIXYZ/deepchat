@@ -1,7 +1,7 @@
 // Core chat types (strong-typed UI blocks)
 
 import type { ToolCallImagePreview } from './mcp'
-import type { AgentPlanDisplayItem } from '../agent-plan'
+import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '../agent-plan'
 import type { QuestionOption } from './question'
 
 export type Message = {
@@ -23,6 +23,19 @@ export type UserMessageMentionBlock = {
   id: string
   category: string
 }
+export type UserMessageInlineItem =
+  | {
+      type: 'skill'
+      offset: number
+      skillName: string
+    }
+  | {
+      type: 'file'
+      offset: number
+      fileName: string
+      filePath: string
+      mimeType?: string
+    }
 
 export type UserMessageContent = {
   continue?: boolean
@@ -36,7 +49,9 @@ export type UserMessageContent = {
   links: string[]
   think: boolean
   search: boolean
+  activeSkills?: string[]
   text: string
+  inlineItems?: UserMessageInlineItem[]
   content?: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
 }
 
@@ -138,6 +153,7 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   plan_explanation?: string
   plan_revision?: number
   plan_updated_at?: string
+  plan_terminal_reason?: AgentPlanTerminalReason
 }
 
 export type {

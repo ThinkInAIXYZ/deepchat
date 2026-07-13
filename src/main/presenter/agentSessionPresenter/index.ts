@@ -3,6 +3,8 @@ import type {
   Agent,
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -39,6 +41,11 @@ import type {
 } from '@shared/types/agent-interface'
 import type { Message } from '@shared/chat'
 import type { SearchResult } from '@shared/types/core/search'
+import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
+import type {
+  DeepChatTapeReplayExportOptions,
+  DeepChatTapeReplaySlice
+} from '@shared/types/tape-replay'
 import type {
   AcpConfigState,
   IConfigPresenter,
@@ -51,13 +58,15 @@ import type {
   CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
-import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
+import type { StartupWorkloadTaskContext } from '../startupWorkloadCoordinator'
+import type {
+  DeepChatMessageRow,
+  DeepChatMessageUsageCandidateRow
+} from '../sqlitePresenter/tables/deepchatMessages'
 import { AgentRegistry } from './agentRegistry'
 import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
 import { LegacyChatImportService } from './legacyImportService'
-import { eventBus, SendTarget } from '@/eventbus'
-import { SESSION_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildConversationExportContent,
@@ -111,6 +120,10 @@ type AgentTransferTargetContext = {
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
+
+function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
+  return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+}
 
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'ls'])
 const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
@@ -295,17 +308,6 @@ export class AgentSessionPresenter {
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       agentRuntimeAgent
     )
-
-    eventBus.on(
-      SESSION_EVENTS.STATUS_CHANGED,
-      (payload: { sessionId?: string; status?: SessionWithState['status'] }) => {
-        if (!payload?.sessionId || !payload?.status) {
-          return
-        }
-
-        this.sessionStatusSnapshots.set(payload.sessionId, payload.status)
-      }
-    )
   }
 
   // ---- IPC-facing methods ----
@@ -319,11 +321,10 @@ export class AgentSessionPresenter {
     const agentType = await this.getAgentType(agentId)
     const deepChatAgentConfig =
       agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
-    const projectDir =
-      input.projectDir?.trim() ||
-      deepChatAgentConfig?.defaultProjectPath?.trim() ||
-      this.getDefaultProjectPathCompat() ||
-      null
+    const projectDir = this.resolveCreateSessionProjectDir(
+      input.projectDir,
+      deepChatAgentConfig?.defaultProjectPath
+    )
     const disabledAgentTools =
       agentType === 'deepchat'
         ? this.normalizeDisabledAgentTools(
@@ -350,14 +351,10 @@ export class AgentSessionPresenter {
       deepChatAgentConfig?.defaultModelPreset?.modelId ??
       defaultModel?.modelId ??
       ''
-    const permissionMode: PermissionMode =
+    const permissionMode =
       input.permissionMode !== undefined
-        ? input.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
-        : deepChatAgentConfig?.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
+        ? normalizePermissionMode(input.permissionMode)
+        : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
     const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
       deepChatAgentConfig,
       input.generationSettings
@@ -406,20 +403,12 @@ export class AgentSessionPresenter {
 
     // Bind to window and emit activated
     this.sessionManager.bindWindow(webContentsId, sessionId)
-    eventBus.sendToRenderer(SESSION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-      webContentsId,
-      sessionId
-    })
     this.emitSessionListUpdated({
       sessionIds: [sessionId],
       reason: 'created',
       activeSessionId: sessionId,
       webContentsId
     })
-
-    if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
-      await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
-    }
 
     // Return enriched session first
     const state = await agent.getSessionState(sessionId)
@@ -442,24 +431,38 @@ export class AgentSessionPresenter {
     }
 
     // Start the first message (non-blocking) after returning session ID.
-    if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
+    const hasInitialTurn =
+      normalizedInput.text.trim().length > 0 || (normalizedInput.files?.length ?? 0) > 0
+    if (hasInitialTurn) {
       logger.info(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
         agent
-          .queuePendingInput(sessionId, normalizedInput, {
-            source: 'send',
-            projectDir
-          })
+          .queuePendingInput(
+            sessionId,
+            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
+            {
+              source: 'send',
+              projectDir
+            }
+          )
           .catch((err) => {
             console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
           })
       } else {
-        agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
-          console.error('[AgentSessionPresenter] processMessage failed:', err)
-        })
+        agent
+          .processMessage(
+            sessionId,
+            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
+            {
+              projectDir
+            }
+          )
+          .catch((err) => {
+            console.error('[AgentSessionPresenter] processMessage failed:', err)
+          })
       }
+      void this.generateSessionTitle(sessionId, title, providerId, modelId)
     }
-    void this.generateSessionTitle(sessionId, title, providerId, modelId)
 
     return sessionResult
   }
@@ -499,14 +502,10 @@ export class AgentSessionPresenter {
       deepChatAgentConfig?.defaultModelPreset?.modelId ??
       defaultModel?.modelId ??
       ''
-    const permissionMode: PermissionMode =
+    const permissionMode =
       input.permissionMode !== undefined
-        ? input.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
-        : deepChatAgentConfig?.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
+        ? normalizePermissionMode(input.permissionMode)
+        : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
     const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
       deepChatAgentConfig,
       input.generationSettings
@@ -520,7 +519,8 @@ export class AgentSessionPresenter {
     const sessionId = this.sessionManager.create(agentId, title, projectDir, {
       isDraft: false,
       disabledAgentTools,
-      subagentEnabled
+      subagentEnabled,
+      metadata: input.metadata ?? null
     })
 
     try {
@@ -560,6 +560,7 @@ export class AgentSessionPresenter {
       subagentMeta: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      ...(input.metadata ? { metadata: input.metadata } : {}),
       status: state?.status ?? 'idle',
       providerId: state?.providerId ?? providerId,
       modelId: state?.modelId ?? modelId
@@ -680,8 +681,7 @@ export class AgentSessionPresenter {
 
     await this.assertAcpAgent(agentId)
     const agent = await this.resolveAgentImplementation(agentId)
-    const permissionMode: PermissionMode =
-      input.permissionMode === 'default' ? 'default' : 'full_access'
+    const permissionMode = normalizePermissionMode(input.permissionMode)
 
     let record = await this.findReusableDraftSession(agentId, projectDir, agent)
     let createdDraftSession = false
@@ -735,7 +735,8 @@ export class AgentSessionPresenter {
 
   async sendMessage(
     sessionId: string,
-    content: string | SendMessageInput
+    content: string | SendMessageInput,
+    options?: { maxProviderRounds?: number }
   ): Promise<MessageStartResult> {
     let session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
@@ -755,7 +756,7 @@ export class AgentSessionPresenter {
 
     const agent = await this.resolveAgentImplementation(session.agentId)
     const state = await agent.getSessionState(sessionId)
-    const hadMessages = (await agent.getMessages(sessionId)).length > 0
+    const hadMessages = await agent.hasMessages(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId) {
       if ((await this.getAgentType(session.agentId)) === 'acp') {
@@ -784,7 +785,8 @@ export class AgentSessionPresenter {
     }
 
     const result = await agent.processMessage(sessionId, normalizedInput, {
-      projectDir: session.projectDir ?? null
+      projectDir: session.projectDir ?? null,
+      maxProviderRounds: options?.maxProviderRounds
     })
     if (!hadMessages && !wasDraft) {
       void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
@@ -917,6 +919,18 @@ export class AgentSessionPresenter {
     return await agent.convertPendingInputToSteer(sessionId, itemId)
   }
 
+  async steerPendingInput(sessionId: string, itemId: string) {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.steerPendingInput) {
+      throw new Error(`Agent ${session.agentId} does not support steering queued inputs.`)
+    }
+    return await agent.steerPendingInput(sessionId, itemId)
+  }
+
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) {
@@ -927,18 +941,6 @@ export class AgentSessionPresenter {
       throw new Error(`Agent ${session.agentId} does not support pending input deletion.`)
     }
     await agent.deletePendingInput(sessionId, itemId)
-  }
-
-  async resumePendingQueue(sessionId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    if (!agent.resumePendingQueue) {
-      throw new Error(`Agent ${session.agentId} does not support pending queue resume.`)
-    }
-    await agent.resumePendingQueue(sessionId)
   }
 
   async retryMessage(sessionId: string, messageId: string): Promise<void> {
@@ -1409,6 +1411,24 @@ export class AgentSessionPresenter {
     return await agent.searchTape(sessionId, query, options)
   }
 
+  async getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.getTapeContext) {
+      throw new Error(`Agent ${session.agentId} does not support tape context.`)
+    }
+
+    return await agent.getTapeContext(sessionId, entryIds, options)
+  }
+
   async listTapeAnchors(
     sessionId: string,
     options?: AgentTapeAnchorsOptions
@@ -1442,6 +1462,61 @@ export class AgentSessionPresenter {
     }
 
     return await agent.handoffTape(sessionId, name, state)
+  }
+
+  async listMessageViewManifests(messageId: string): Promise<DeepChatTapeViewManifestRecord[]> {
+    const normalizedMessageId = messageId?.trim()
+    if (!normalizedMessageId) return []
+
+    const message = this.sqlitePresenter.deepchatMessagesTable.get(normalizedMessageId)
+    if (!message) return []
+
+    const session = this.sessionManager.get(message.session_id)
+    if (!session) return []
+
+    try {
+      const agent = await this.resolveAgentImplementation(session.agentId)
+      if (!agent.listMessageViewManifests) return []
+
+      return await agent.listMessageViewManifests(message.session_id, normalizedMessageId)
+    } catch (error) {
+      logger.warn('[AgentSessionPresenter] Failed to list message view manifests', {
+        messageId: normalizedMessageId,
+        error
+      })
+      return []
+    }
+  }
+
+  async exportMessageTapeReplaySlice(
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null> {
+    const normalizedMessageId = messageId?.trim()
+    if (!normalizedMessageId) return null
+
+    const message = this.sqlitePresenter.deepchatMessagesTable.get(normalizedMessageId)
+    if (!message) return null
+
+    const session = this.sessionManager.get(message.session_id)
+    if (!session) return null
+
+    try {
+      const agent = await this.resolveAgentImplementation(session.agentId)
+      if (!agent.exportMessageTapeReplaySlice) return null
+
+      return await agent.exportMessageTapeReplaySlice(
+        message.session_id,
+        normalizedMessageId,
+        options
+      )
+    } catch (error) {
+      logger.warn('[AgentSessionPresenter] Failed to export tape replay slice', {
+        messageId: normalizedMessageId,
+        error
+      })
+      return null
+    }
   }
 
   async mergeSubagentTape(
@@ -1543,7 +1618,15 @@ export class AgentSessionPresenter {
     this.legacyImportService.startInBackground(false)
   }
 
+  async startLegacyImportTask(): Promise<void> {
+    await this.legacyImportService.start(false)
+  }
+
   async startUsageStatsBackfill(): Promise<void> {
+    return await this.startUsageStatsBackfillTask()
+  }
+
+  async startUsageStatsBackfillTask(taskContext?: StartupWorkloadTaskContext): Promise<void> {
     const currentStatus = this.getUsageStatsBackfillStatus()
     if (currentStatus.status === 'completed') {
       return
@@ -1557,7 +1640,7 @@ export class AgentSessionPresenter {
       return await this.usageStatsBackfillPromise
     }
 
-    this.usageStatsBackfillPromise = this.runUsageStatsBackfill().finally(() => {
+    this.usageStatsBackfillPromise = this.runUsageStatsBackfill(taskContext).finally(() => {
       this.usageStatsBackfillPromise = null
     })
 
@@ -1565,6 +1648,12 @@ export class AgentSessionPresenter {
   }
 
   async startMainlineNormalizationBackfill(): Promise<void> {
+    return await this.startMainlineNormalizationBackfillTask()
+  }
+
+  async startMainlineNormalizationBackfillTask(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const current =
       this.sqlitePresenter.configTables.getAgentSetting<{
         status?: 'running' | 'completed' | 'failed'
@@ -1579,14 +1668,22 @@ export class AgentSessionPresenter {
       return await this.mainlineNormalizationPromise
     }
 
-    this.mainlineNormalizationPromise = this.runMainlineNormalizationBackfill().finally(() => {
-      this.mainlineNormalizationPromise = null
-    })
+    this.mainlineNormalizationPromise = this.runMainlineNormalizationBackfill(taskContext).finally(
+      () => {
+        this.mainlineNormalizationPromise = null
+      }
+    )
 
     return await this.mainlineNormalizationPromise
   }
 
   async startDisabledSearchToolCleanupBackfill(): Promise<void> {
+    return await this.startDisabledSearchToolCleanupBackfillTask()
+  }
+
+  async startDisabledSearchToolCleanupBackfillTask(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const current =
       this.sqlitePresenter.configTables.getAgentSetting<{
         status?: 'running' | 'completed' | 'failed'
@@ -1601,17 +1698,24 @@ export class AgentSessionPresenter {
       return await this.disabledSearchToolCleanupPromise
     }
 
-    this.disabledSearchToolCleanupPromise = this.runDisabledSearchToolCleanupBackfill().finally(
-      () => {
-        this.disabledSearchToolCleanupPromise = null
-      }
-    )
+    this.disabledSearchToolCleanupPromise = this.runDisabledSearchToolCleanupBackfill(
+      taskContext
+    ).finally(() => {
+      this.disabledSearchToolCleanupPromise = null
+    })
 
     return await this.disabledSearchToolCleanupPromise
   }
 
-  async startRtkHealthCheck(): Promise<void> {
+  async startRtkHealthCheck(taskContext?: StartupWorkloadTaskContext): Promise<void> {
+    await this.startRtkHealthCheckTask(taskContext)
+  }
+
+  async startRtkHealthCheckTask(taskContext?: StartupWorkloadTaskContext): Promise<void> {
+    taskContext?.reportProgress(0)
+    await taskContext?.yield()
     await rtkRuntimeService.startHealthCheck()
+    taskContext?.reportProgress(1)
   }
 
   async retryRtkHealthCheck(): Promise<void> {
@@ -1764,10 +1868,6 @@ export class AgentSessionPresenter {
 
   async activateSession(webContentsId: number, sessionId: string): Promise<void> {
     this.sessionManager.bindWindow(webContentsId, sessionId)
-    eventBus.sendToRenderer(SESSION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-      webContentsId,
-      sessionId
-    })
     publishDeepchatEvent('sessions.updated', {
       sessionIds: [sessionId],
       reason: 'activated',
@@ -1778,9 +1878,6 @@ export class AgentSessionPresenter {
 
   async deactivateSession(webContentsId: number): Promise<void> {
     this.sessionManager.unbindWindow(webContentsId)
-    eventBus.sendToRenderer(SESSION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-      webContentsId
-    })
     publishDeepchatEvent('sessions.updated', {
       sessionIds: [],
       reason: 'deactivated',
@@ -2386,17 +2483,12 @@ export class AgentSessionPresenter {
     fallbackModelId: string
   ): Promise<void> {
     try {
-      const settled = await this.waitForSessionIdle(sessionId)
-      if (!settled) return
+      const titleMessages = await this.waitForSessionTitleMessages(sessionId)
+      if (!titleMessages) return
 
       const currentSession = this.sessionManager.get(sessionId)
       if (!currentSession) return
       if (currentSession.title !== initialTitle) return
-
-      const agent = await this.resolveAgentImplementation(currentSession.agentId)
-      const records = await agent.getMessages(sessionId)
-      const titleMessages = this.buildTitleMessages(records)
-      if (titleMessages.length === 0) return
 
       const assistantSelection = await this.resolveAssistantModelSelection(
         currentSession.agentId,
@@ -2457,7 +2549,6 @@ export class AgentSessionPresenter {
     )
     const reason = options.reason ?? (sessionIds.length > 0 ? 'updated' : 'list-refreshed')
 
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
     publishDeepchatEvent('sessions.updated', {
       sessionIds,
       reason,
@@ -2467,26 +2558,52 @@ export class AgentSessionPresenter {
     this.sessionUiPort?.refreshSessionUi()
   }
 
-  private async waitForSessionIdle(sessionId: string): Promise<boolean> {
+  private async waitForSessionTitleMessages(
+    sessionId: string
+  ): Promise<Array<{ role: 'system' | 'user' | 'assistant'; content: string }> | null> {
     const MAX_WAIT_MS = 30000
     const POLL_MS = 250
     const startedAt = Date.now()
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    const readTitleMessages = async (agent: IAgentImplementation) => {
+      const titleMessages = this.buildTitleMessages(await agent.getMessages(sessionId))
+      return titleMessages.length > 0 ? titleMessages : null
+    }
 
     while (Date.now() - startedAt < MAX_WAIT_MS) {
       const session = this.sessionManager.get(sessionId)
-      if (!session) return false
+      if (!session) return null
 
       const agent = await this.resolveAgentImplementation(session.agentId)
       const state = await agent.getSessionState(sessionId)
-      if (!state) return false
-      if (state.status === 'idle') return true
-      if (state.status === 'error') return false
+      if (!state) return null
+      if (state.status === 'error') return null
+      if (state.status === 'idle') {
+        const titleMessages = await readTitleMessages(agent)
+        if (titleMessages) {
+          return titleMessages
+        }
+      }
+
+      if (agent.waitForFirstTurnReady) {
+        const remainingMs = MAX_WAIT_MS - (Date.now() - startedAt)
+        const ready = await agent.waitForFirstTurnReady(sessionId, {
+          timeoutMs: Math.min(POLL_MS, Math.max(0, remainingMs))
+        })
+        if (!ready) {
+          continue
+        }
+
+        const titleMessages = await readTitleMessages(agent)
+        if (titleMessages) {
+          return titleMessages
+        }
+      }
 
       await sleep(POLL_MS)
     }
 
-    return false
+    return null
   }
 
   private async buildSessionWithState(
@@ -2623,6 +2740,22 @@ export class AgentSessionPresenter {
     }
 
     return this.configPresenter.getDefaultProjectPath() ?? null
+  }
+
+  private resolveCreateSessionProjectDir(
+    inputProjectDir: string | null | undefined,
+    agentDefaultProjectDir: string | null | undefined
+  ): string | null {
+    if (inputProjectDir === null) {
+      return null
+    }
+
+    return (
+      inputProjectDir?.trim() ||
+      agentDefaultProjectDir?.trim() ||
+      this.getDefaultProjectPathCompat() ||
+      null
+    )
   }
 
   private async resolveAssistantModelSelection(
@@ -2889,7 +3022,7 @@ export class AgentSessionPresenter {
         config?.defaultProjectPath?.trim() ||
         this.getDefaultProjectPathCompat() ||
         null,
-      permissionMode: config?.permissionMode === 'default' ? 'default' : 'full_access',
+      permissionMode: normalizePermissionMode(config?.permissionMode),
       generationSettings: this.mergeDeepChatDefaultGenerationSettings(config),
       disabledAgentTools: this.normalizeDisabledAgentTools(config?.disabledAgentTools),
       subagentEnabled: this.resolveSessionSubagentEnabled(
@@ -2970,11 +3103,10 @@ export class AgentSessionPresenter {
     sessionId: string
   ): Promise<boolean> {
     try {
-      const ids = await agent.getMessageIds(sessionId)
-      return ids.length > 0
+      return await agent.hasMessages(sessionId)
     } catch (error) {
       console.warn(
-        `[AgentSessionPresenter] Failed to inspect message ids for session=${sessionId}:`,
+        `[AgentSessionPresenter] Failed to inspect messages for session=${sessionId}:`,
         error
       )
       return true
@@ -3315,91 +3447,162 @@ export class AgentSessionPresenter {
     }
   }
 
-  private async runMainlineNormalizationBackfill(): Promise<void> {
+  private async runMainlineNormalizationBackfill(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const startedAt = Date.now()
+    const batchSize = 50
     this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
       status: 'running',
       startedAt,
       finishedAt: null,
-      updatedAt: startedAt
+      updatedAt: startedAt,
+      processedCount: 0
     })
 
     try {
       const db = this.sqlitePresenter.getDatabase()
-      const sessionRows = db
-        .prepare('SELECT * FROM new_sessions ORDER BY updated_at ASC')
-        .all() as Array<{
-        id: string
-        title: string
-        updated_at: number
-      }>
-
       let processedCount = 0
-      for (const sessionRow of sessionRows) {
-        const activeSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionRow.id)
-        const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
-          sessionRow.id
-        )
-        this.sqlitePresenter.newSessionActiveSkillsTable.replaceForSession(
-          sessionRow.id,
-          activeSkills
-        )
-        this.sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(
-          sessionRow.id,
-          disabledAgentTools
-        )
-        this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
-          documentKey: `session:${sessionRow.id}`,
-          sessionId: sessionRow.id,
-          documentKind: 'session',
-          title: sessionRow.title,
-          content: '',
-          updatedAt: sessionRow.updated_at
+      let batchCount = 0
+      const yieldForBatch = async (): Promise<void> => {
+        this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+          status: 'running',
+          startedAt,
+          finishedAt: null,
+          updatedAt: Date.now(),
+          processedCount
         })
-
-        processedCount += 1
-        if (processedCount % 200 === 0) {
-          await this.yieldToEventLoop()
-        }
+        await (taskContext?.yield() ?? this.yieldToEventLoop())
       }
 
-      const messageRows = db
-        .prepare('SELECT * FROM deepchat_messages ORDER BY created_at ASC')
-        .all() as DeepChatMessageRow[]
+      let sessionCursor: { updatedAt: number; id: string } | null = null
+      while (true) {
+        const sessionRows = sessionCursor
+          ? db
+              .prepare<
+                [number, number, string, number],
+                { id: string; title: string; updated_at: number }
+              >(
+                `SELECT id, title, updated_at
+                 FROM new_sessions
+                 WHERE updated_at > ? OR (updated_at = ? AND id > ?)
+                 ORDER BY updated_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(sessionCursor.updatedAt, sessionCursor.updatedAt, sessionCursor.id, batchSize)
+          : db
+              .prepare<[number], { id: string; title: string; updated_at: number }>(
+                `SELECT id, title, updated_at
+                 FROM new_sessions
+                 ORDER BY updated_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(batchSize)
 
-      for (const row of messageRows) {
-        this.backfillNormalizedMessageRow(row)
-        processedCount += 1
-        if (processedCount % 200 === 0) {
-          this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
-            status: 'running',
-            startedAt,
-            finishedAt: null,
-            updatedAt: Date.now()
+        if (sessionRows.length === 0) {
+          break
+        }
+
+        for (const sessionRow of sessionRows) {
+          const activeSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionRow.id)
+          const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
+            sessionRow.id
+          )
+          this.sqlitePresenter.newSessionActiveSkillsTable.replaceForSession(
+            sessionRow.id,
+            activeSkills
+          )
+          this.sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(
+            sessionRow.id,
+            disabledAgentTools
+          )
+          this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
+            documentKey: `session:${sessionRow.id}`,
+            sessionId: sessionRow.id,
+            documentKind: 'session',
+            title: sessionRow.title,
+            content: '',
+            updatedAt: sessionRow.updated_at
           })
-          await this.yieldToEventLoop()
+
+          sessionCursor = { updatedAt: sessionRow.updated_at, id: sessionRow.id }
+          processedCount += 1
+          batchCount += 1
+          if (batchCount >= batchSize) {
+            batchCount = 0
+            await yieldForBatch()
+          }
         }
       }
 
+      let messageCursor: { createdAt: number; id: string } | null = null
+      while (true) {
+        const messageRows = messageCursor
+          ? db
+              .prepare<[number, number, string, number], DeepChatMessageRow>(
+                `SELECT id, session_id, role, status, content, updated_at, created_at
+                 FROM deepchat_messages
+                 WHERE created_at > ? OR (created_at = ? AND id > ?)
+                 ORDER BY created_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(messageCursor.createdAt, messageCursor.createdAt, messageCursor.id, batchSize)
+          : db
+              .prepare<[number], DeepChatMessageRow>(
+                `SELECT id, session_id, role, status, content, updated_at, created_at
+                 FROM deepchat_messages
+                 ORDER BY created_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(batchSize)
+
+        if (messageRows.length === 0) {
+          break
+        }
+
+        for (const row of messageRows) {
+          this.backfillNormalizedMessageRow(row)
+          messageCursor = { createdAt: row.created_at, id: row.id }
+          processedCount += 1
+          batchCount += 1
+          if (batchCount >= batchSize) {
+            batchCount = 0
+            await yieldForBatch()
+          }
+        }
+      }
+
+      const finishedAt = Date.now()
+      const durationMs = finishedAt - startedAt
       this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
         status: 'completed',
         startedAt,
-        finishedAt: Date.now(),
-        updatedAt: Date.now()
+        finishedAt,
+        updatedAt: finishedAt,
+        processedCount,
+        durationMs
+      })
+      logger.info('[SQLiteMainlineNormalization] Backfill completed', {
+        processedCount,
+        durationMs
       })
     } catch (error) {
+      const finishedAt = Date.now()
       this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
         status: 'failed',
         startedAt,
-        finishedAt: Date.now(),
-        updatedAt: Date.now(),
-        error: error instanceof Error ? error.message : String(error)
+        finishedAt,
+        updatedAt: finishedAt,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: finishedAt - startedAt
       })
       throw error
     }
   }
 
-  private async runDisabledSearchToolCleanupBackfill(): Promise<void> {
+  private async runDisabledSearchToolCleanupBackfill(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const startedAt = Date.now()
     this.sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
       status: 'running',
@@ -3410,15 +3613,15 @@ export class AgentSessionPresenter {
 
     try {
       const db = this.sqlitePresenter.getDatabase()
-      const sessionRows = db.prepare('SELECT id FROM new_sessions ORDER BY updated_at ASC').all() as
-        | Array<{
-            id: string
-          }>
-        | undefined
+      const sessionRowsStatement = db.prepare<[], { id: string }>(
+        'SELECT id FROM new_sessions ORDER BY updated_at ASC'
+      )
+      const sessionRows = sessionRowsStatement.all()
 
       let processedCount = 0
       let updatedCount = 0
-      for (const sessionRow of sessionRows ?? []) {
+      const batchSize = 50
+      for (const sessionRow of sessionRows) {
         const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
           sessionRow.id
         )
@@ -3432,8 +3635,8 @@ export class AgentSessionPresenter {
         }
 
         processedCount += 1
-        if (processedCount % 200 === 0) {
-          await this.yieldToEventLoop()
+        if (processedCount % batchSize === 0) {
+          await (taskContext?.yield() ?? this.yieldToEventLoop())
         }
       }
 
@@ -3556,7 +3759,8 @@ export class AgentSessionPresenter {
           ? parsed.links.filter((item): item is string => typeof item === 'string')
           : [],
         search: parsed.search === true,
-        think: parsed.think === true
+        think: parsed.think === true,
+        activeSkills: this.normalizeActiveSkills(parsed.activeSkills)
       }
     } catch {
       return null
@@ -3572,84 +3776,141 @@ export class AgentSessionPresenter {
     }
   }
 
-  private async runUsageStatsBackfill(): Promise<void> {
+  private async runUsageStatsBackfill(taskContext?: StartupWorkloadTaskContext): Promise<void> {
     const startedAt = Date.now()
+    const batchSize = 50
     this.setUsageStatsBackfillStatus({
       status: 'running',
       startedAt,
       finishedAt: null,
       error: null,
-      updatedAt: startedAt
+      updatedAt: startedAt,
+      processedCount: 0
     })
 
     try {
       const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
-      const candidates = this.sqlitePresenter.deepchatMessagesTable.listAssistantUsageCandidates()
 
       let processedCount = 0
-      for (const row of candidates) {
-        const metadata = parseUsageMetadata(row.metadata)
-        if (metadata.messageType === 'compaction') {
-          continue
-        }
-
-        const providerId = resolveUsageProviderId(metadata, row.provider_id)
-        const modelId = resolveUsageModelId(metadata, row.model_id)
-        if (!providerId || !modelId) {
-          continue
-        }
-
-        const usageRecord = buildUsageStatsRecord({
-          messageId: row.id,
-          sessionId: row.session_id,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          providerId,
-          modelId,
-          metadata: {
-            ...metadata,
-            cachedInputTokens: metadata.cachedInputTokens ?? 0,
-            cacheWriteInputTokens: metadata.cacheWriteInputTokens ?? 0
-          },
-          source: 'backfill'
+      let scannedSinceYield = 0
+      const yieldUsageStatsBackfillProgress = async (): Promise<void> => {
+        this.setUsageStatsBackfillStatus({
+          status: 'running',
+          startedAt,
+          finishedAt: null,
+          error: null,
+          updatedAt: Date.now(),
+          processedCount
         })
+        await (taskContext?.yield() ?? this.yieldToEventLoop())
+      }
 
-        if (!usageRecord) {
-          continue
+      let candidateCursor: { createdAt: number; id: string } | null = null
+      while (true) {
+        const candidates = this.listAssistantUsageCandidatePage(candidateCursor, batchSize)
+        if (candidates.length === 0) {
+          break
         }
 
-        usageStatsTable.upsert(usageRecord)
-        processedCount += 1
+        for (const row of candidates) {
+          candidateCursor = { createdAt: row.created_at, id: row.id }
+          scannedSinceYield += 1
 
-        if (processedCount % 200 === 0) {
-          this.setUsageStatsBackfillStatus({
-            status: 'running',
-            startedAt,
-            finishedAt: null,
-            error: null,
-            updatedAt: Date.now()
+          const metadata = parseUsageMetadata(row.metadata)
+          if (metadata.messageType === 'compaction') {
+            continue
+          }
+
+          const providerId = resolveUsageProviderId(metadata, row.provider_id)
+          const modelId = resolveUsageModelId(metadata, row.model_id)
+          if (!providerId || !modelId) {
+            continue
+          }
+
+          const usageRecord = buildUsageStatsRecord({
+            messageId: row.id,
+            sessionId: row.session_id,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            providerId,
+            modelId,
+            metadata: {
+              ...metadata,
+              cachedInputTokens: metadata.cachedInputTokens ?? 0,
+              cacheWriteInputTokens: metadata.cacheWriteInputTokens ?? 0
+            },
+            source: 'backfill'
           })
-          await this.yieldToEventLoop()
+
+          if (!usageRecord) {
+            continue
+          }
+
+          usageStatsTable.upsert(usageRecord)
+          processedCount += 1
+        }
+
+        if (scannedSinceYield >= batchSize) {
+          scannedSinceYield = 0
+          await yieldUsageStatsBackfillProgress()
         }
       }
 
+      const finishedAt = Date.now()
+      const durationMs = finishedAt - startedAt
       this.setUsageStatsBackfillStatus({
         status: 'completed',
         startedAt,
-        finishedAt: Date.now(),
+        finishedAt,
         error: null,
-        updatedAt: Date.now()
+        updatedAt: finishedAt,
+        processedCount,
+        durationMs
       })
+      logger.info('[UsageStatsBackfill] Backfill completed', { processedCount, durationMs })
     } catch (error) {
+      const finishedAt = Date.now()
       this.setUsageStatsBackfillStatus({
         status: 'failed',
         startedAt,
-        finishedAt: Date.now(),
+        finishedAt,
         error: error instanceof Error ? error.message : String(error),
-        updatedAt: Date.now()
+        updatedAt: finishedAt,
+        durationMs: finishedAt - startedAt
       })
       throw error
     }
+  }
+
+  private listAssistantUsageCandidatePage(
+    cursor: { createdAt: number; id: string } | null,
+    limit: number
+  ): DeepChatMessageUsageCandidateRow[] {
+    const table = this.sqlitePresenter.deepchatMessagesTable as {
+      listAssistantUsageCandidatesPage?: (
+        cursor: { createdAt: number; id: string } | null,
+        limit: number
+      ) => DeepChatMessageUsageCandidateRow[]
+      listAssistantUsageCandidates: () => DeepChatMessageUsageCandidateRow[]
+    }
+
+    if (table.listAssistantUsageCandidatesPage) {
+      return table.listAssistantUsageCandidatesPage(cursor, limit)
+    }
+
+    const candidates = [...table.listAssistantUsageCandidates()].sort(
+      (left, right) => left.created_at - right.created_at || left.id.localeCompare(right.id)
+    )
+    if (!cursor) {
+      return candidates.slice(0, limit)
+    }
+    return candidates
+      .filter(
+        (row) =>
+          row.created_at > cursor.createdAt ||
+          (row.created_at === cursor.createdAt && row.id > cursor.id)
+      )
+      .slice(0, limit)
   }
 
   private getUsageStatsBackfillStatus(): UsageStatsBackfillStatus {
@@ -3863,7 +4124,14 @@ export class AgentSessionPresenter {
     const files = Array.isArray(content.files)
       ? content.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    return { text, files }
+    const activeSkills = this.normalizeActiveSkills(content.activeSkills)
+    const inlineItems = Array.isArray(content.inlineItems) ? content.inlineItems : []
+    return {
+      text,
+      files,
+      ...(activeSkills.length > 0 ? { activeSkills } : {}),
+      ...(inlineItems.length > 0 ? { inlineItems } : {})
+    }
   }
 
   private normalizeCreateSessionInput(input: CreateSessionInput): SendMessageInput {
@@ -3871,7 +4139,26 @@ export class AgentSessionPresenter {
     const files = Array.isArray(input.files)
       ? input.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    return { text, files }
+    const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
+    return this.withInitialMessageActiveSkills(
+      {
+        text,
+        files,
+        ...(inlineItems.length > 0 ? { inlineItems } : {})
+      },
+      input.activeSkills
+    )
+  }
+
+  private withInitialMessageActiveSkills(
+    input: SendMessageInput,
+    activeSkills?: string[]
+  ): SendMessageInput {
+    const normalizedActiveSkills = this.normalizeActiveSkills(activeSkills ?? input.activeSkills)
+    return {
+      ...input,
+      ...(normalizedActiveSkills.length > 0 ? { activeSkills: normalizedActiveSkills } : {})
+    }
   }
 
   private normalizeDisabledAgentTools(

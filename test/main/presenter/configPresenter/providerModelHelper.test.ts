@@ -18,8 +18,10 @@ const storeStates = vi.hoisted(
 const eventBusMocks = vi.hoisted(() => ({
   on: vi.fn(),
   send: vi.fn(),
-  sendToRenderer: vi.fn()
+  sendToMain: vi.fn()
 }))
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
 vi.mock('electron-store', () => ({
   default: class MockElectronStore {
@@ -72,11 +74,12 @@ vi.mock('@/eventbus', () => ({
   eventBus: {
     on: eventBusMocks.on,
     send: eventBusMocks.send,
-    sendToRenderer: eventBusMocks.sendToRenderer
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: eventBusMocks.sendToMain
   }
+}))
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 vi.mock('electron', () => ({
@@ -128,7 +131,6 @@ describe('ProviderModelHelper cache', () => {
     storeStates.clear()
     eventBusMocks.on.mockReset()
     eventBusMocks.send.mockReset()
-    eventBusMocks.sendToRenderer.mockReset()
   })
 
   afterEach(() => {
@@ -217,6 +219,301 @@ describe('ProviderModelHelper cache', () => {
     expect(storeState.get).toHaveBeenCalledTimes(1)
   })
 
+  it('enriches cached NewAPI openai-only chat models with chat selectable endpoints', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'gpt-5.5',
+        name: 'GPT-5.5',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        endpointType: 'openai',
+        ownedBy: 'openai'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-5.5',
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+      endpointType: 'openai'
+    })
+  })
+
+  it('enriches cached NewAPI relay chat models with chat selectable endpoints', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'proxy-chat',
+        name: 'Proxy Chat',
+        group: 'default',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        endpointType: 'openai',
+        ownedBy: 'openai-compatible'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'proxy-chat',
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+      endpointType: 'openai',
+      type: ModelType.Chat
+    })
+  })
+
+  it('recomputes stale cached NewAPI selectable endpoint types', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'gpt-5.5',
+        name: 'GPT-5.5',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        selectableEndpointTypes: ['openai', 'openai-response'],
+        endpointType: 'openai',
+        type: ModelType.Chat
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-5.5',
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini']
+    })
+  })
+
+  it('computes NewAPI selectable endpoint types from the resolved model type', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: (modelId: string) =>
+        createModelConfig({
+          type: modelId === 'gpt-image-2' ? ModelType.ImageGeneration : ModelType.Embedding
+        }),
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'gpt-image-2',
+        name: 'GPT Image 2',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai', 'image-generation'],
+        endpointType: 'openai'
+      },
+      {
+        id: 'text-embedding-3-large',
+        name: 'Text Embedding 3 Large',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai', 'anthropic'],
+        endpointType: 'openai'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
+      selectableEndpointTypes: ['image-generation']
+    })
+    expect(models[1]).toMatchObject({
+      id: 'text-embedding-3-large',
+      type: ModelType.Embedding,
+      selectableEndpointTypes: ['openai']
+    })
+  })
+
+  it('derives NewAPI media type from cached endpoint metadata before default chat config', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () =>
+        createModelConfig({
+          isUserDefined: false
+        }),
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'gpt-image-2',
+        name: 'GPT Image 2',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['image-generation'],
+        endpointType: 'image-generation'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
+      selectableEndpointTypes: ['image-generation']
+    })
+  })
+
+  it('derives NewAPI media type from sparse cached media model ids', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () =>
+        createModelConfig({
+          isUserDefined: false
+        }),
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'gpt-image-2',
+        name: 'GPT Image 2',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        endpointType: 'openai'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['image-generation'],
+      endpointType: 'openai'
+    })
+  })
+
+  it('derives NewAPI media type when legacy user config has no explicit type', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () =>
+        createModelConfig({
+          type: undefined,
+          isUserDefined: true
+        }),
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'sora-3',
+        name: 'Sora 3',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['video-generation'],
+        endpointType: 'video-generation'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'sora-3',
+      type: ModelType.VideoGeneration,
+      selectableEndpointTypes: ['video-generation']
+    })
+  })
+
+  it('keeps explicit user NewAPI chat type ahead of provider media metadata', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () =>
+        createModelConfig({
+          type: ModelType.Chat,
+          isUserDefined: true
+        }),
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'media-debug-model',
+        name: 'Media Debug Model',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['image-generation'],
+        endpointType: 'image-generation'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'media-debug-model',
+      type: ModelType.Chat,
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini']
+    })
+  })
+
   it('clears persisted provider models and custom models for a removed provider', async () => {
     const { ProviderModelHelper } =
       await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
@@ -266,7 +563,6 @@ describe('ConfigPresenter provider model cache invalidation', () => {
     storeStates.clear()
     eventBusMocks.on.mockReset()
     eventBusMocks.send.mockReset()
-    eventBusMocks.sendToRenderer.mockReset()
   })
 
   afterEach(() => {
@@ -408,7 +704,6 @@ describe('ConfigPresenter provider DB model mapping', () => {
     storeStates.clear()
     eventBusMocks.on.mockReset()
     eventBusMocks.send.mockReset()
-    eventBusMocks.sendToRenderer.mockReset()
   })
 
   it('preserves embedding and rerank types from provider DB models', async () => {

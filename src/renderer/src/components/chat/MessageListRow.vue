@@ -38,6 +38,7 @@
       :show-trace="showTrace"
       :is-capturing-image="isCapturing"
       :is-read-only="isReadOnly"
+      :disable-markdown-virtualization="disableMarkdownVirtualization"
       @retry="onRetry"
       @delete="onDelete"
       @fork="onFork"
@@ -67,12 +68,14 @@ const props = withDefaults(
     showTrace?: boolean
     isCapturing?: boolean
     isReadOnly?: boolean
+    disableMarkdownVirtualization?: boolean
   }>(),
   {
     isGenerating: false,
     showTrace: false,
     isCapturing: false,
-    isReadOnly: false
+    isReadOnly: false,
+    disableMarkdownVirtualization: false
   }
 )
 
@@ -95,25 +98,34 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const rowRef = ref<HTMLElement | null>(null)
 let resizeObserver: ResizeObserver | null = null
-let intersectionObserver: IntersectionObserver | null = null
 let measureFrame: number | null = null
+let measureRetryTimer: number | null = null
 let lastMeasuredHeight = 0
-// Rows use `content-visibility: auto`, so an off-screen row reports the
-// `contain-intrinsic-size` placeholder (~300px) instead of its real height.
-// Gate measurement on the row having actually entered (or neared) the viewport
-// so we never commit a placeholder height that would skew jump/anchor restore.
-let hasBeenVisible = typeof IntersectionObserver === 'undefined'
+
+const isParentListScrolling = () => Boolean(rowRef.value?.closest('.dc-list-scrolling'))
+
+const scheduleMeasureRetry = () => {
+  if (measureRetryTimer !== null) return
+  measureRetryTimer = window.setTimeout(() => {
+    measureRetryTimer = null
+    emitMeasuredHeight()
+  }, 160)
+}
 
 const emitMeasuredHeight = () => {
-  if (!hasBeenVisible) return
   if (measureFrame !== null) return
 
   measureFrame = window.requestAnimationFrame(() => {
     measureFrame = null
-    const messageId = props.item?.id
+    if (isParentListScrolling()) {
+      scheduleMeasureRetry()
+      return
+    }
+    const messageId = props.item?.renderKey ?? props.item?.id
     if (!messageId) return
     const height = rowRef.value?.offsetHeight ?? 0
-    if (height <= 0 || Math.abs(height - lastMeasuredHeight) < 1) return
+    // Match useMessageWindow MEASURE_DELTA_EPSILON_PX: skip sub-threshold noise.
+    if (height <= 0 || Math.abs(height - lastMeasuredHeight) < 4) return
     lastMeasuredHeight = height
     emit('measure', { messageId, height })
   })
@@ -122,25 +134,7 @@ const emitMeasuredHeight = () => {
 onMounted(() => {
   if (!rowRef.value) return
 
-  if (typeof IntersectionObserver !== 'undefined') {
-    // `rootMargin` lets near-viewport rows measure slightly early for smoother
-    // anchor restoration, while still excluding far-off-screen placeholder rows.
-    intersectionObserver = new IntersectionObserver(
-      (intersectionEntries) => {
-        if (!intersectionEntries.some((entry) => entry.isIntersecting)) return
-        hasBeenVisible = true
-        emitMeasuredHeight()
-        // Visibility only needs to be detected once; the ResizeObserver tracks
-        // every subsequent height change.
-        intersectionObserver?.disconnect()
-        intersectionObserver = null
-      },
-      { rootMargin: '200px 0px' }
-    )
-    intersectionObserver.observe(rowRef.value)
-  } else {
-    emitMeasuredHeight()
-  }
+  emitMeasuredHeight()
 
   if (typeof ResizeObserver === 'undefined') return
   resizeObserver = new ResizeObserver(emitMeasuredHeight)
@@ -148,7 +142,7 @@ onMounted(() => {
 })
 
 watch(
-  () => props.item?.id,
+  () => props.item?.renderKey ?? props.item?.id,
   () => {
     lastMeasuredHeight = 0
     emitMeasuredHeight()
@@ -159,11 +153,13 @@ watch(
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
-  intersectionObserver?.disconnect()
-  intersectionObserver = null
   if (measureFrame !== null) {
     window.cancelAnimationFrame(measureFrame)
     measureFrame = null
+  }
+  if (measureRetryTimer !== null) {
+    window.clearTimeout(measureRetryTimer)
+    measureRetryTimer = null
   }
 })
 
@@ -186,11 +182,6 @@ const onCopyImage = (
 </script>
 
 <style scoped>
-.message-list-row {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 300px;
-}
-
 .compaction-divider {
   display: flex;
   align-items: center;

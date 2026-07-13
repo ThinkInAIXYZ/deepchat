@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Direcionamento",
     "queueCount": "Pendentes {count}/{max}",
-    "resumeQueue": "Retomar envio",
-    "toSteer": "Direcionar",
+    "toSteer": "Interromper e enviar",
     "locked": "Bloqueado",
     "reorder": "Reordenar",
     "files": "{count} arquivos",
     "attachmentsOnly": "{count} anexos",
     "empty": "Mensagem vazia",
-    "limitReached": "A área de espera está cheia (máx. {max})."
+    "limitReached": "A área de espera está cheia (máx. {max}).",
+    "remove": "Remover",
+    "steerUnavailable": "Não é possível interromper agora",
+    "steerFailed": "Não foi possível interromper este turno"
   },
   "features": {
     "webSearch": "Busca na Web",
@@ -210,6 +212,10 @@
         "title": "Sem espaço de trabalho",
         "description": "Selecione ou arraste uma pasta para definir o espaço de trabalho",
         "button": "Selecionar pasta"
+      },
+      "watchStatus": {
+        "degraded": "O monitoramento está em modo de fallback. As alterações podem ser atualizadas mais lentamente.",
+        "failed": "O monitoramento de arquivos está indisponível. Atualize ou selecione novamente o espaço de trabalho."
       }
     },
     "git": {
@@ -228,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Concluído",
-        "failed": "falhar",
         "in_progress": "em andamento",
         "pending": "Pendente",
-        "skipped": "ignorado"
-      }
+        "interrupted": "Interrompido"
+      },
+      "completedCount": "{completed}/{total} concluídos"
     },
     "terminal": {
       "empty": "Nenhuma saída ainda",
@@ -305,7 +311,8 @@
   },
   "permissionMode": {
     "default": "Permissões padrão",
-    "fullAccess": "Acesso total"
+    "fullAccess": "Acesso total",
+    "autoApprove": "Aprovar por mim"
   },
   "sidebar": {
     "allAgents": "Todos os agentes",
@@ -326,13 +333,22 @@
     "groupByDate": "Agrupar por data",
     "groupByProject": "Agrupar por projeto",
     "pinned": "Fixados",
+    "chats": "Chats",
     "emptyTitle": "Ainda não há conversas",
     "emptyDescription": "Inicie um novo chat para começar",
     "remoteControlDisabled": "Desativado",
     "searchPlaceholder": "Pesquisar conversas",
     "searchAriaLabel": "Pesquisar conversas",
     "searchEmptyTitle": "Nenhuma conversa encontrada",
-    "searchEmptyDescription": "Tente outra palavra-chave do título"
+    "searchEmptyDescription": "Tente outra palavra-chave do título",
+    "projectGroupActions": "Ações do grupo de projetos",
+    "moveProjectGroupTop": "Mover para o topo",
+    "moveProjectGroupUp": "Mover para cima",
+    "moveProjectGroupDown": "Mover para baixo",
+    "moveProjectGroupBottom": "Mover para o fim",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "Visão geral das tarefas",
@@ -416,6 +432,58 @@
       "hour": "h ",
       "minute": "min ",
       "second": "s"
+    }
+  },
+  "memory": {
+    "toolbar": "Memórias usadas",
+    "status": {
+      "archived": "Esquecida"
+    },
+    "actions": {
+      "undo": "Desfazer",
+      "forget": "Esquecer",
+      "edit": "Editar"
+    },
+    "chip": {
+      "title": "Memória atualizada {count}",
+      "heading": "Memória atualizada",
+      "description": "Este turno adicionou as seguintes memórias."
+    },
+    "selection": {
+      "remember": "Lembrar isto"
+    },
+    "turn": {
+      "title": "Memórias usadas neste turno",
+      "empty": "Nenhuma memória foi injetada neste turno",
+      "selected": "Selecionadas",
+      "dropped": "Descartadas",
+      "tokens": "Tokens",
+      "budget": "Orçamento",
+      "countOnly": "Este registro contém apenas um resumo de contagem.",
+      "unavailable": "Esta memória não está mais disponível.",
+      "noSelectedDetails": "Não há detalhes de memória para mostrar neste turno.",
+      "refreshFailed": "Não foi possível atualizar. Mostrando as memórias carregadas por último.",
+      "error": "Não foi possível carregar as memórias deste turno."
+    },
+    "toast": {
+      "undoSuccess": "A memória foi desfeita",
+      "undoFailed": "Não foi possível desfazer a memória",
+      "forgetSuccess": "A memória foi esquecida",
+      "forgetFailed": "Não foi possível esquecer a memória",
+      "amendFailed": "Não foi possível atualizar a memória",
+      "rememberFailed": "Não foi possível salvar a memória",
+      "add": {
+        "created": "Salva como nova memória",
+        "updated": "Memória existente atualizada",
+        "superseded": "Mesclada em uma memória atualizada",
+        "challenged": "Registrada como memória para revisão",
+        "noop": "Nenhuma nova memória adicionada"
+      }
+    },
+    "errors": {
+      "actionFailed": "A ação falhou. Tente novamente.",
+      "amendRetryable": "A edição falhou. A memória original foi restaurada; tente novamente.",
+      "amendRestoreFailed": "A edição falhou e a memória original não pôde ser restaurada."
     }
   }
 }

@@ -1,3 +1,5 @@
+import fs from 'fs/promises'
+import os from 'os'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchFiles } from '@/presenter/workspacePresenter/fileSearcher'
@@ -87,5 +89,62 @@ describe('workspace fileSearcher', () => {
 
     expect(fffMock.globFiles).toHaveBeenCalledTimes(1)
     expect(result.files[0]).toBe(path.normalize('/workspace-page-tail/src/file-200.ts'))
+  })
+
+  it('falls back to filesystem search when FFF is unavailable', async () => {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    fffMock.globFiles.mockRejectedValue(new Error('FFF initial scan timed out after 2500ms'))
+
+    try {
+      await fs.mkdir(path.join(workspacePath, 'src'), { recursive: true })
+      await fs.mkdir(path.join(workspacePath, 'node_modules', 'pkg'), { recursive: true })
+      await fs.mkdir(path.join(workspacePath, 'dist'), { recursive: true })
+      await fs.writeFile(path.join(workspacePath, 'src', 'needle.ts'), '')
+      await fs.writeFile(path.join(workspacePath, 'node_modules', 'pkg', 'needle.ts'), '')
+      await fs.writeFile(path.join(workspacePath, 'dist', 'needle.js'), '')
+
+      const result = await searchFiles(workspacePath, '*needle*', {
+        maxResults: 10,
+        sortBy: 'name'
+      })
+
+      expect(result.files).toEqual([path.join(workspacePath, 'src', 'needle.ts')])
+      expect(result.hasMore).toBe(false)
+      expect(warnSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[WorkspaceSearch] FFF unavailable, using filesystem fallback:',
+        'FFF initial scan timed out after 2500ms'
+      )
+    } finally {
+      warnSpy.mockRestore()
+      await fs.rm(workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  it('deduplicates repeated FFF fallback warnings for one workspace', async () => {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-warn-'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    fffMock.globFiles.mockRejectedValue(new Error('FFF initial scan timed out after 2500ms'))
+
+    try {
+      await fs.writeFile(path.join(workspacePath, 'needle.ts'), '')
+      await fs.writeFile(path.join(workspacePath, 'other.ts'), '')
+
+      await searchFiles(workspacePath, '*needle*', {
+        maxResults: 10,
+        sortBy: 'name'
+      })
+      await searchFiles(workspacePath, '*other*', {
+        maxResults: 10,
+        sortBy: 'name'
+      })
+
+      expect(fffMock.globFiles).toHaveBeenCalledTimes(2)
+      expect(warnSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      warnSpy.mockRestore()
+      await fs.rm(workspacePath, { recursive: true, force: true })
+    }
   })
 })

@@ -5,8 +5,14 @@ import type { YoBrowserActivityPayload } from '@shared/types/browser'
 
 const browserOverlayApi = Object.freeze({
   onActivityChanged: (callback: (payload: YoBrowserActivityPayload) => void) => {
-    const listener = (_event: IpcRendererEvent, payload: YoBrowserActivityPayload) => {
-      callback(payload)
+    const listener = (_event: IpcRendererEvent, payload: unknown) => {
+      const result = browserActivityChangedEvent.payload.safeParse(payload)
+      if (!result.success) {
+        console.warn('YoBrowserOverlayPreload: Ignoring invalid browser activity payload')
+        return
+      }
+
+      callback(result.data)
     }
 
     ipcRenderer.on(browserActivityChangedEvent.name, listener)

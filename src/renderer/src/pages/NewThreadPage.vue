@@ -26,7 +26,12 @@
               data-testid="new-thread-project-trigger"
               class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"
             >
-              <Icon icon="lucide:folder" class="w-3.5 h-3.5" />
+              <Icon
+                :icon="selectedProjectIcon"
+                :data-icon="selectedProjectIcon"
+                data-testid="new-thread-project-trigger-icon"
+                class="w-3.5 h-3.5"
+              />
               <span>{{ selectedProjectName }}</span>
               <Icon
                 v-if="selectedProjectDirectoryInvalid"
@@ -38,7 +43,10 @@
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" class="min-w-[200px]">
+          <DropdownMenuContent
+            align="center"
+            class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
+          >
             <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
             <DropdownMenuItem
               data-testid="new-thread-clear-project"
@@ -46,19 +54,27 @@
               :disabled="!canClearProjectSelection"
               @click="clearSelectedProject"
             >
-              <Icon icon="lucide:folder-x" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{{ t('common.project.none') }}</span>
+              <Icon
+                :icon="chatProjectIcon"
+                :data-icon="chatProjectIcon"
+                data-testid="new-thread-clear-project-icon"
+                class="w-3.5 h-3.5 text-muted-foreground"
+              />
+              <span>{{ t('chat.sidebar.chats') }}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              v-for="project in projectStore.projects"
+              v-for="project in selectableProjects"
               :key="project.path"
               class="gap-2 text-xs py-1.5 px-2"
               @click="projectStore.selectProject(project.path)"
             >
-              <Icon icon="lucide:folder" class="w-3.5 h-3.5 text-muted-foreground" />
+              <Icon
+                :icon="getProjectMenuIcon(project.path)"
+                class="w-3.5 h-3.5 text-muted-foreground"
+              />
               <div class="flex flex-col min-w-0 flex-1">
-                <span class="truncate">{{ project.name }}</span>
+                <span class="truncate">{{ getProjectDisplayName(project) }}</span>
                 <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
               </div>
               <Icon
@@ -170,9 +186,11 @@ import { createSessionClient } from '@api/SessionClient'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type {
   DeepChatAgentConfig,
   MessageFile,
+  UserMessageInlineItem,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
@@ -216,7 +234,9 @@ const isVoiceInputEnabled = ref(false)
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
+  getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
+  clearPendingSkills?: () => void
   focusInput?: () => void
 } | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
@@ -322,16 +342,65 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
+const normalizeComparableProjectPath = (value: string | null | undefined) =>
+  normalizeProjectPath(value)?.replace(/[\\/]+$/, '') ?? null
+const isDefaultChatWorkspaceProject = (path: string | null | undefined) => {
+  const chatWorkspacePath = normalizeComparableProjectPath(projectStore.defaultChatWorkspacePath)
+  return Boolean(chatWorkspacePath) && normalizeComparableProjectPath(path) === chatWorkspacePath
+}
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
+const archivedProjectPaths = computed(
+  () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
+)
+const removedProjectPaths = computed(
+  () => new Set(projectStore.removedEnvironments.map((environment) => environment.path))
+)
+const missingProjectPaths = computed(
+  () =>
+    new Set(
+      projectStore.environments
+        .filter((environment) => !environment.exists)
+        .map((environment) => environment.path)
+    )
+)
+const selectableProjects = computed(() =>
+  projectStore.projects.filter(
+    (project) =>
+      project.exists &&
+      !archivedProjectPaths.value.has(project.path) &&
+      !removedProjectPaths.value.has(project.path) &&
+      !missingProjectPaths.value.has(project.path) &&
+      !isSelectedInvalidProjectPath(project.path)
+  )
+)
 const hasExplicitNoProjectSelection = computed(
   () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )
+const selectedSessionProjectDir = computed<string | null | undefined>(() =>
+  hasExplicitNoProjectSelection.value ? null : projectStore.selectedProject?.path
+)
+const isSelectedChatProject = computed(
+  () =>
+    hasExplicitNoProjectSelection.value ||
+    isDefaultChatWorkspaceProject(projectStore.selectedProject?.path)
+)
+const chatProjectIcon = 'lucide:message-square'
 const selectedProjectName = computed(() => {
+  if (isDefaultChatWorkspaceProject(projectStore.selectedProject?.path)) {
+    return t('chat.sidebar.chats')
+  }
   if (projectStore.selectedProject?.name) {
     return projectStore.selectedProject.name
   }
-  return hasExplicitNoProjectSelection.value ? t('common.project.none') : t('common.project.select')
+  return hasExplicitNoProjectSelection.value ? t('chat.sidebar.chats') : t('common.project.select')
 })
+const selectedProjectIcon = computed(() =>
+  isSelectedChatProject.value ? chatProjectIcon : 'lucide:folder'
+)
+const getProjectDisplayName = (project: { path: string; name: string }) =>
+  isDefaultChatWorkspaceProject(project.path) ? t('chat.sidebar.chats') : project.name
+const getProjectMenuIcon = (projectPath: string) =>
+  isDefaultChatWorkspaceProject(projectPath) ? chatProjectIcon : 'lucide:folder'
 const canClearProjectSelection = computed(() => Boolean(projectStore.selectedProject?.path?.trim()))
 type ProjectDirectoryStatus = 'none' | 'checking' | 'valid' | 'invalid'
 const selectedProjectDirectoryStatus = ref<ProjectDirectoryStatus>('none')
@@ -772,12 +841,21 @@ async function submitText(text: string, files: MessageFile[]) {
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
+    const pendingSkillsSnapshot =
+      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
+    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
+    const inlineItems = chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
+    const messagePayload = {
+      text,
+      files,
+      ...(dedupedPendingSkills.length > 0 ? { activeSkills: dedupedPendingSkills } : {}),
+      ...(inlineItems.length > 0 ? { inlineItems } : {})
+    }
+
     if (isAcp && acpDraftSessionId.value) {
       await sessionStore.selectSession(acpDraftSessionId.value)
-      await sessionStore.sendMessage(acpDraftSessionId.value, {
-        text,
-        files
-      })
+      await sessionStore.sendMessage(acpDraftSessionId.value, messagePayload)
+      chatInputRef.value?.clearPendingSkills?.()
       return
     }
 
@@ -800,14 +878,11 @@ async function submitText(text: string, files: MessageFile[]) {
       modelId = resolved.modelId
     }
 
-    const pendingSkillsSnapshot =
-      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
-    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
-
     await sessionStore.createSession({
-      message: text,
-      files,
-      projectDir: projectStore.selectedProject?.path,
+      message: messagePayload.text,
+      files: messagePayload.files,
+      inlineItems: messagePayload.inlineItems,
+      projectDir: selectedSessionProjectDir.value,
       agentId,
       providerId,
       modelId,
@@ -815,8 +890,9 @@ async function submitText(text: string, files: MessageFile[]) {
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
       subagentEnabled: isAcp ? false : draftSubagentEnabled,
       generationSettings: draftGenerationSettings,
-      activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
+      activeSkills: messagePayload.activeSkills
     })
+    chatInputRef.value?.clearPendingSkills?.()
   } catch (error) {
     if (preparedHeroFlight) {
       cancelChatInputHeroFlight()
@@ -845,7 +921,7 @@ const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgen
     defaultModelPreset: undefined,
     systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : '',
     permissionMode: 'full_access',
-    disabledAgentTools: []
+    disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS]
   })
 }
 
@@ -857,7 +933,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
-  draftStore.disabledAgentTools = []
+  draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
   draftStore.subagentEnabled = false
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
@@ -903,7 +979,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.providerId = config.defaultModelPreset?.providerId
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
-  draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? [])]
+  draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)]
   draftStore.subagentEnabled = config.subagentEnabled === true
   Object.assign(draftStore, buildDraftGenerationSettings(config))
 }

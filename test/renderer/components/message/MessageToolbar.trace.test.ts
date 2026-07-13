@@ -129,4 +129,45 @@ describe('MessageToolbar trace button visibility', () => {
     expect(wrapper.find('[data-icon="lucide:trash-2"]').exists()).toBe(false)
     expect(wrapper.find('[data-icon="lucide:copy"]').exists()).toBe(true)
   })
+
+  it('shows memory button only for assistant messages that allow memory details', async () => {
+    const wrapper = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        showMemory: true
+      }
+    })
+
+    const memoryIcon = wrapper.find('[data-icon="lucide:brain"]')
+    expect(memoryIcon.exists()).toBe(true)
+
+    await memoryIcon.trigger('click')
+    expect(wrapper.emitted().memory).toBeTruthy()
+
+    const hiddenForDisabled = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        showMemory: false
+      }
+    })
+    expect(hiddenForDisabled.find('[data-icon="lucide:brain"]').exists()).toBe(false)
+
+    const hiddenForUser = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        isAssistant: false,
+        showMemory: true
+      }
+    })
+    expect(hiddenForUser.find('[data-icon="lucide:brain"]').exists()).toBe(false)
+
+    const hiddenForReadOnly = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        isReadOnly: true,
+        showMemory: true
+      }
+    })
+    expect(hiddenForReadOnly.find('[data-icon="lucide:brain"]').exists()).toBe(false)
+  })
 })

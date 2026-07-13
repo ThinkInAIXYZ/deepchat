@@ -1,5 +1,3 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { STREAM_EVENTS } from '@/events'
 import type {
   MCPToolCall,
   MCPContentItem,
@@ -12,7 +10,7 @@ import type { SearchResult } from '@shared/types/core/search'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
-import type { AgentPlanSnapshot } from '@shared/types/agent-plan'
+import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../../lib/agentRuntime/questionTool'
 import { UPDATE_PLAN_TOOL_NAME } from '../toolPresenter/agentTools/agentPlanTool'
 import type {
@@ -34,6 +32,7 @@ import {
   prepareToolImagePreviewPresentation
 } from './imageGenerationBlocks'
 import {
+  buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
   emitDeepChatInternalSessionUpdate,
@@ -125,6 +124,7 @@ type PermissionRequestLike = {
 type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 
 const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
+const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -347,6 +347,27 @@ function updateToolCallBlock(
   }
 }
 
+function setToolCallAutoApproveReviewing(
+  blocks: AssistantMessageBlock[],
+  toolCallId: string,
+  reviewing: boolean
+): boolean {
+  const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
+  if (!block?.tool_call) return false
+  const extra = { ...block.extra }
+  if (reviewing) {
+    extra.autoApproveReviewStatus = 'reviewing'
+  } else {
+    delete extra.autoApproveReviewStatus
+  }
+  if (Object.keys(extra).length > 0) {
+    block.extra = extra
+  } else {
+    delete block.extra
+  }
+  return true
+}
+
 function updateSubagentToolCallBlock(
   blocks: AssistantMessageBlock[],
   toolCallId: string,
@@ -384,7 +405,7 @@ function markInternalPlanToolCallBlock(blocks: AssistantMessageBlock[], toolCall
   }
 }
 
-function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
+export function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
   publishDeepchatEvent('chat.plan.updated', {
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -392,8 +413,39 @@ function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
     plan: snapshot.plan,
     ...(snapshot.explanation ? { explanation: snapshot.explanation } : {}),
     revision: snapshot.revision,
-    updatedAt: snapshot.updatedAt
+    updatedAt: snapshot.updatedAt,
+    ...(snapshot.terminalReason ? { terminalReason: snapshot.terminalReason } : {})
   })
+}
+
+function stampPlanTerminalIfOpen(
+  state: StreamState,
+  io: IoParams,
+  reason: AgentPlanTerminalReason | undefined
+): boolean {
+  if (!reason) {
+    return false
+  }
+
+  const current = state.latestAgentPlanSnapshot
+  if (
+    !current ||
+    current.terminalReason ||
+    !current.plan.some((entry) => entry.status === 'in_progress')
+  ) {
+    return false
+  }
+
+  const snapshot: AgentPlanSnapshot = {
+    ...current,
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    terminalReason: reason,
+    updatedAt: new Date().toISOString()
+  }
+  state.latestAgentPlanSnapshot = snapshot
+  publishPlanUpdated(io, snapshot)
+  return true
 }
 
 function extractSubagentToolState(rawData: MCPToolResponse): {
@@ -435,9 +487,9 @@ function extractSkillDraftPromptPayload(
   return { draftId, skillName }
 }
 
-function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse): boolean {
+function extractActivatedSkillAfterCall(toolName: string, rawData: MCPToolResponse): string | null {
   if (toolName !== 'skill_view') {
-    return false
+    return null
   }
 
   const toolResult =
@@ -445,7 +497,13 @@ function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse)
       ? (rawData.toolResult as Record<string, unknown>)
       : null
 
-  return toolResult?.activationApplied === true
+  if (toolResult?.activationApplied !== true) {
+    return null
+  }
+
+  const activatedSkill =
+    typeof toolResult.activatedSkill === 'string' ? toolResult.activatedSkill.trim() : ''
+  return activatedSkill || null
 }
 
 function isParallelReadOnlyToolCall(
@@ -721,6 +779,186 @@ async function autoGrantPermission(
   }
 }
 
+function getToolCapabilityPermissionMode(permissionMode: PermissionMode): PermissionMode {
+  return permissionMode === 'auto_approve' ? 'full_access' : permissionMode
+}
+
+function collectStringValues(value: unknown, keys: Set<string>, results: string[]): void {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string' && item.trim()) results.push(item)
+      else collectStringValues(item, keys, results)
+    }
+    return
+  }
+
+  for (const [key, entry] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase()
+    if (typeof entry === 'string' && keys.has(normalizedKey) && entry.trim()) {
+      results.push(entry)
+      continue
+    }
+    if (Array.isArray(entry) && keys.has(normalizedKey)) {
+      for (const item of entry) {
+        if (typeof item === 'string' && item.trim()) results.push(item)
+      }
+      continue
+    }
+    collectStringValues(entry, keys, results)
+  }
+}
+
+function parseToolArgs(toolArgs: string): Record<string, unknown> | null {
+  if (!toolArgs.trim()) return null
+  try {
+    const parsed = JSON.parse(toolArgs) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function extractToolArgPaths(toolArgs: string): string[] {
+  const parsed = parseToolArgs(toolArgs)
+  if (!parsed) return []
+  const paths: string[] = []
+  collectStringValues(
+    parsed,
+    new Set(['path', 'paths', 'file', 'files', 'filepath', 'filepaths', 'dir', 'cwd']),
+    paths
+  )
+  return Array.from(new Set(paths))
+}
+
+function extractToolArgCommand(toolArgs: string): string | undefined {
+  const parsed = parseToolArgs(toolArgs)
+  if (!parsed) return undefined
+  for (const key of ['command', 'cmd', 'script']) {
+    const value = parsed[key]
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return undefined
+}
+
+function isReviewableFullAccessToolCall(execution: ToolExecutionContext): boolean {
+  if (execution.toolDef?.source !== 'agent') return false
+  if (extractToolArgCommand(execution.toolContext.args)) return true
+  const name = execution.toolContext.name.toLowerCase()
+  if (
+    [
+      'read',
+      'write',
+      'edit',
+      'delete',
+      'remove',
+      'exec',
+      'bash',
+      'shell',
+      'terminal',
+      'command',
+      'process',
+      'file',
+      'search',
+      'settings',
+      'memory',
+      'skill'
+    ].some((part) => name.includes(part))
+  ) {
+    return true
+  }
+  return extractToolArgPaths(execution.toolContext.args).length > 0
+}
+
+function buildSyntheticPermissionForReview(
+  execution: ToolExecutionContext
+): NonNullable<PendingToolInteraction['permission']> {
+  const name = execution.toolContext.name
+  const lowerName = name.toLowerCase()
+  const paths = extractToolArgPaths(execution.toolContext.args)
+  const command = extractToolArgCommand(execution.toolContext.args)
+  if (
+    command ||
+    ['bash', 'shell', 'terminal', 'command'].some((part) => lowerName.includes(part))
+  ) {
+    return {
+      permissionType: 'command',
+      description: `Auto-review requested approval for command tool ${name}.`,
+      toolName: name,
+      serverName: execution.toolContext.serverName,
+      command,
+      rememberable: false
+    }
+  }
+
+  const permissionType: 'read' | 'write' | 'all' = ['read', 'search', 'list', 'find'].some((part) =>
+    lowerName.includes(part)
+  )
+    ? 'read'
+    : 'write'
+  return {
+    permissionType,
+    description: `Auto-review requested approval for tool ${name}.`,
+    toolName: name,
+    serverName: paths.length > 0 ? 'agent-filesystem' : execution.toolContext.serverName,
+    paths: paths.length > 0 ? paths : undefined,
+    rememberable: false
+  }
+}
+
+async function reviewAutoApproveAction(params: {
+  hooks: ProcessHooks | undefined
+  io: IoParams
+  state: StreamState
+  rendererFlushHandle: RendererFlushHandle
+  execution: ToolExecutionContext
+  permission: NonNullable<PendingToolInteraction['permission']>
+  reason: 'tool_call' | 'precheck' | 'requires_permission'
+}): Promise<'auto_allow' | 'ask_user'> {
+  const { hooks, io, state, rendererFlushHandle, execution, permission, reason } = params
+  const reviewToolPermission = hooks?.reviewToolPermission
+  if (!reviewToolPermission) {
+    return 'ask_user'
+  }
+
+  if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, true)) {
+    state.dirty = true
+    rendererFlushHandle.flush()
+  }
+  try {
+    const result = await reviewToolPermission({
+      sessionId: io.sessionId,
+      messageId: io.messageId,
+      toolCallId: execution.completedToolCall.id,
+      toolName: execution.toolContext.name,
+      toolArgs: execution.toolContext.args,
+      toolSource: execution.toolDef?.source ?? 'mcp',
+      serverName: permission.serverName || execution.toolContext.serverName,
+      permission,
+      reason
+    })
+
+    if (!result || result.decision === 'ask_user') {
+      return 'ask_user'
+    }
+    if (result.decision === 'block') {
+      const rationale = result.rationale?.trim() || 'Auto-review blocked this action.'
+      throw new Error(rationale)
+    }
+    if (result.decision === 'auto_allow') {
+      return 'auto_allow'
+    }
+    return 'ask_user'
+  } finally {
+    if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, false)) {
+      state.dirty = true
+      rendererFlushHandle.flush()
+    }
+  }
+}
+
 function appendPermissionActionBlock(
   state: StreamState,
   io: IoParams,
@@ -870,17 +1108,13 @@ function appendSkillDraftQuestionActionBlock(
 
 function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
   const renderedBlocks = cloneBlocksForRenderer(blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId,
-    blocks: renderedBlocks
-  })
   publishDeepchatEvent('chat.stream.updated', {
     kind: 'snapshot',
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
+    providerId: io.providerId,
+    modelId: io.modelId,
     updatedAt: Date.now(),
     blocks: renderedBlocks
   })
@@ -892,6 +1126,7 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     messageId: io.messageId,
     previewMarkdown: buildAssistantPreviewMarkdown(blocks),
     responseMarkdown: buildAssistantResponseMarkdown(blocks),
+    deliverySegments: buildAssistantDeliverySegments(io.messageId, blocks),
     waitingInteraction: extractWaitingInteraction(blocks, io.messageId)
   })
 }
@@ -900,6 +1135,7 @@ async function runToolCall(params: {
   execution: ToolExecutionContext
   toolPresenter: IToolPresenter
   permissionMode: PermissionMode
+  toolPermissionMode: PermissionMode
   hooks?: ProcessHooks
   io: IoParams
   state: StreamState
@@ -911,6 +1147,7 @@ async function runToolCall(params: {
     execution,
     toolPresenter,
     permissionMode,
+    toolPermissionMode,
     hooks,
     io,
     state,
@@ -928,7 +1165,14 @@ async function runToolCall(params: {
         allowProgressUpdates
       ) {
         markInternalPlanToolCallBlock(state.blocks, completedToolCall.id)
-        publishPlanUpdated(io, update.snapshot)
+        const snapshot: AgentPlanSnapshot = {
+          ...update.snapshot,
+          sessionId: io.sessionId,
+          messageId: io.messageId,
+          toolCallId: update.snapshot.toolCallId ?? completedToolCall.id
+        }
+        state.latestAgentPlanSnapshot = snapshot
+        publishPlanUpdated(io, snapshot)
         state.dirty = true
         scheduleRendererFlush(state, rendererFlushHandle)
         return
@@ -956,7 +1200,9 @@ async function runToolCall(params: {
       await toolPresenter.callTool(toolCall, {
         onProgress: applyProgressUpdate,
         signal: io.abortSignal,
-        permissionMode
+        permissionMode: toolPermissionMode,
+        activeSkillNames: hooks?.getActiveSkillNames?.(),
+        enabledSkillNames: hooks?.getEnabledSkillNames?.()
       })
 
     let toolCallResult = await callTool()
@@ -977,6 +1223,27 @@ async function runToolCall(params: {
           await autoGrantPermission(hooks, io.sessionId, pendingPermission)
           toolCallResult = await callTool()
           toolRawData = toolCallResult.rawData
+        } else if (permissionMode === 'auto_approve') {
+          const review = await reviewAutoApproveAction({
+            hooks,
+            io,
+            state,
+            rendererFlushHandle,
+            execution,
+            permission: pendingPermission,
+            reason: 'requires_permission'
+          })
+          if (review === 'auto_allow') {
+            await autoGrantPermission(hooks, io.sessionId, pendingPermission)
+            toolCallResult = await callTool()
+            toolRawData = toolCallResult.rawData
+          } else {
+            return {
+              kind: 'permission',
+              permission: pendingPermission,
+              toolContext
+            }
+          }
         } else {
           return {
             kind: 'permission',
@@ -1040,6 +1307,11 @@ async function runToolCall(params: {
       preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
     const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
 
+    const activatedSkill = extractActivatedSkillAfterCall(completedToolCall.name, toolRawData)
+    if (activatedSkill) {
+      await hooks?.activateSkill?.(activatedSkill)
+    }
+
     return {
       kind: 'staged',
       stagedResult: {
@@ -1059,7 +1331,7 @@ async function runToolCall(params: {
         skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
         postHookKind: stagedIsError ? 'failure' : 'success'
       },
-      toolsChanged: shouldRefreshToolsAfterCall(completedToolCall.name, toolRawData)
+      toolsChanged: Boolean(activatedSkill)
     }
   } catch (err) {
     return buildToolErrorOutcome(execution, err)
@@ -1090,6 +1362,7 @@ export async function executeTools(
 }> {
   finalizePendingNarrativeBeforeToolExecution(state)
   persistToolExecutionState(io, state, rendererFlushHandle)
+  const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
 
   if (state.pendingInteractions?.length) {
     state.pendingInteractions = []
@@ -1170,7 +1443,7 @@ export async function executeTools(
         try {
           if (toolPresenter.preCheckToolPermission) {
             const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall, {
-              permissionMode
+              permissionMode: toolPermissionMode
             })
             if (preChecked?.needsPermission) {
               const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
@@ -1194,6 +1467,7 @@ export async function executeTools(
             execution,
             toolPresenter,
             permissionMode,
+            toolPermissionMode,
             hooks,
             io,
             state,
@@ -1314,7 +1588,7 @@ export async function executeTools(
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
       if (toolPresenter.preCheckToolPermission) {
         const preChecked = await toolPresenter.preCheckToolPermission(toolCall, {
-          permissionMode
+          permissionMode: toolPermissionMode
         })
         if (preChecked?.needsPermission) {
           preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
@@ -1328,6 +1602,35 @@ export async function executeTools(
       if (preCheckedPermission) {
         if (permissionMode === 'full_access') {
           await autoGrantPermission(hooks, io.sessionId, preCheckedPermission)
+        } else if (permissionMode === 'auto_approve') {
+          const review = await reviewAutoApproveAction({
+            hooks,
+            io,
+            state,
+            rendererFlushHandle,
+            execution,
+            permission: preCheckedPermission,
+            reason: 'precheck'
+          })
+          if (review === 'auto_allow') {
+            await autoGrantPermission(hooks, io.sessionId, preCheckedPermission)
+          } else {
+            hooks?.onPermissionRequest?.(preCheckedPermission, {
+              callId: tc.id,
+              name: tc.name,
+              params: tc.arguments
+            })
+            const interaction = appendPermissionActionBlock(
+              state,
+              io,
+              toolContext,
+              preCheckedPermission
+            )
+            pendingInteractions.push(interaction)
+            updateToolCallBlock(state.blocks, tc.id, '', false)
+            rescheduleRendererFlush(state, rendererFlushHandle)
+            continue
+          }
         } else {
           hooks?.onPermissionRequest?.(preCheckedPermission, {
             callId: tc.id,
@@ -1347,6 +1650,35 @@ export async function executeTools(
         }
       }
 
+      if (
+        permissionMode === 'auto_approve' &&
+        !preCheckedPermission &&
+        isReviewableFullAccessToolCall(execution)
+      ) {
+        const reviewPermission = buildSyntheticPermissionForReview(execution)
+        const review = await reviewAutoApproveAction({
+          hooks,
+          io,
+          state,
+          rendererFlushHandle,
+          execution,
+          permission: reviewPermission,
+          reason: 'tool_call'
+        })
+        if (review !== 'auto_allow') {
+          hooks?.onPermissionRequest?.(reviewPermission, {
+            callId: tc.id,
+            name: tc.name,
+            params: tc.arguments
+          })
+          const interaction = appendPermissionActionBlock(state, io, toolContext, reviewPermission)
+          pendingInteractions.push(interaction)
+          updateToolCallBlock(state.blocks, tc.id, '', false)
+          rescheduleRendererFlush(state, rendererFlushHandle)
+          continue
+        }
+      }
+
       hooks?.onPreToolUse?.({
         callId: tc.id,
         name: tc.name,
@@ -1357,6 +1689,7 @@ export async function executeTools(
         execution,
         toolPresenter,
         permissionMode,
+        toolPermissionMode,
         hooks,
         io,
         state,
@@ -1456,10 +1789,11 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
 
   io.messageStore.updateAssistantContent(io.messageId, state.blocks)
   flushBlocksToRenderer(io, state.blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId
+  publishDeepchatEvent('chat.stream.completed', {
+    requestId: io.requestId,
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    completedAt: Date.now()
   })
 }
 
@@ -1467,6 +1801,7 @@ export function finalize(state: StreamState, io: IoParams): void {
   for (const block of state.blocks) {
     if (block.status === 'pending') block.status = 'success'
   }
+  stampPlanTerminalIfOpen(state, io, state.planTerminalReason)
 
   const endTime = Date.now()
   state.metadata.generationTime = endTime - state.startTime
@@ -1485,11 +1820,6 @@ export function finalize(state: StreamState, io: IoParams): void {
     JSON.stringify(state.metadata)
   )
   flushBlocksToRenderer(io, state.blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId
-  })
   publishDeepchatEvent('chat.stream.completed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -1501,6 +1831,11 @@ export function finalize(state: StreamState, io: IoParams): void {
 export function finalizeError(state: StreamState, io: IoParams, error: unknown): void {
   const errorMessage = error instanceof Error ? error.message : String(error)
   state.blocks = buildTerminalErrorBlocks(state.blocks, errorMessage)
+  stampPlanTerminalIfOpen(
+    state,
+    io,
+    errorMessage === USER_CANCELED_GENERATION_ERROR ? 'aborted' : 'error'
+  )
 
   const endTime = Date.now()
   state.metadata.generationTime = endTime - state.startTime
@@ -1515,12 +1850,6 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
 
   io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId,
-    error: errorMessage
-  })
   publishDeepchatEvent('chat.stream.failed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -1528,4 +1857,16 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
     failedAt: Date.now(),
     error: errorMessage
   })
+}
+
+export function persistAbortExceptionPlanState(state: StreamState, io: IoParams): void {
+  const hadPlanSnapshot = Boolean(state.latestAgentPlanSnapshot)
+  stampPlanTerminalIfOpen(state, io, 'aborted')
+
+  if (!hadPlanSnapshot || state.blocks.length === 0) {
+    return
+  }
+
+  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+  flushBlocksToRenderer(io, state.blocks)
 }

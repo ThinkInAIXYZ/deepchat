@@ -2,7 +2,6 @@
 
 /**
  * Update pnpm-workspace.yaml supportedArchitectures for different platforms
- * 根据不同平台动态修改 pnpm-workspace.yaml 的 supportedArchitectures 配置
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
@@ -27,11 +26,13 @@ const platformConfigs = {
   },
   'linux-x64': {
     os: ['current', 'linux'],
-    cpu: ['current', 'wasm32'], // Include wasm32 for Sharp WebAssembly
+    cpu: ['current', 'x64', 'wasm32'], // Include wasm32 for Sharp WebAssembly
+    libc: ['glibc'],
   },
   'linux-arm64': {
-    os: ['current','linux'],
-    cpu: ['current', 'wasm32'],
+    os: ['current', 'linux'],
+    cpu: ['current', 'arm64', 'wasm32'],
+    libc: ['glibc'],
   },
   'darwin-x64': {
     os: ['current', 'darwin'],
@@ -74,6 +75,9 @@ try {
     os: config.os,
     cpu: config.cpu
   };
+  if (config.libc) {
+    workspaceConfig.supportedArchitectures.libc = config.libc;
+  }
 
   // Convert back to YAML with proper formatting
   const finalContent = YAML.stringify(workspaceConfig, {
@@ -87,6 +91,9 @@ try {
   console.log(`📋 Configuration:`);
   console.log(`   OS: ${config.os.join(', ')}`);
   console.log(`   CPU: ${config.cpu.join(', ')}`);
+  if (config.libc) {
+    console.log(`   Libc: ${config.libc.join(', ')}`);
+  }
 } catch (error) {
   console.error(`❌ Failed to update pnpm-workspace.yaml: ${error.message}`);
   process.exit(1);

@@ -100,6 +100,7 @@ import {
 import { Button } from '@shadcn/components/ui/button'
 import { Label } from '@shadcn/components/ui/label'
 import { Icon } from '@iconify/vue'
+import { createDeviceClient } from '@api/DeviceClient'
 
 interface ExternalDependency {
   name: string
@@ -127,6 +128,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
+const deviceClient = createDeviceClient()
 
 const hasInstallCommands = (commands: ExternalDependency['installCommands']): boolean => {
   if (!commands) return false
@@ -135,20 +137,22 @@ const hasInstallCommands = (commands: ExternalDependency['installCommands']): bo
 
 const copyToClipboard = async (text: string) => {
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(text)
+    try {
+      deviceClient.copyText(text)
       toast({
         title: t('settings.acp.dependency.copied'),
         duration: 2000
       })
-    } else if (navigator.clipboard) {
+    } catch {
+      if (!navigator.clipboard) {
+        console.warn('[AcpDependencyDialog] Clipboard API not available')
+        return
+      }
       await navigator.clipboard.writeText(text)
       toast({
         title: t('settings.acp.dependency.copied'),
         duration: 2000
       })
-    } else {
-      console.warn('[AcpDependencyDialog] Clipboard API not available')
     }
   } catch (error) {
     console.error('[AcpDependencyDialog] Failed to copy to clipboard:', error)

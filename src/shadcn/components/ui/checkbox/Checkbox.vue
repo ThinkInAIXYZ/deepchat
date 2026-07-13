@@ -2,7 +2,7 @@
 import type { CheckboxRootEmits, CheckboxRootProps } from "reka-ui"
 import type { HTMLAttributes } from "vue"
 import { computed } from "vue"
-import { Check } from "lucide-vue-next"
+import { Check } from "@lucide/vue"
 import { CheckboxIndicator, CheckboxRoot } from "reka-ui"
 import { cn } from '@shadcn/lib/utils'
 

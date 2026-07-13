@@ -264,13 +264,14 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSkillSyncClient } from '@api/SkillSyncClient'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { storeToRefs } from 'pinia'
 import type { ExternalToolConfig, ExportPreview, KiroInclusionMode } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
 import ConflictResolver, { type ConflictItem } from './ConflictResolver.vue'
+import { getSkillToolIcon as getToolIcon, getSkillToolIconBg as getToolIconBg } from '../toolIcon'
 
 const props = defineProps<{
   currentStep: number
@@ -284,7 +285,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
+const skillSyncClient = createSkillSyncClient()
 const skillsStore = useSkillsStore()
 const { skills: localSkills, loading: loadingSkills } = storeToRefs(skillsStore)
 
@@ -377,30 +378,6 @@ const getStepClass = (step: number) => {
   return 'bg-muted text-muted-foreground'
 }
 
-const getToolIcon = (toolId: string): string => {
-  const icons: Record<string, string> = {
-    'claude-code': 'simple-icons:anthropic',
-    cursor: 'simple-icons:cursor',
-    windsurf: 'lucide:wind',
-    copilot: 'simple-icons:github',
-    kiro: 'lucide:sparkles',
-    antigravity: 'lucide:rocket'
-  }
-  return icons[toolId] || 'lucide:box'
-}
-
-const getToolIconBg = (toolId: string): string => {
-  const bgs: Record<string, string> = {
-    'claude-code': 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-    cursor: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-    windsurf: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',
-    copilot: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-    kiro: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
-    antigravity: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-  }
-  return bgs[toolId] || 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
-}
-
 const updateSkillChecked = (skillName: string, checked: boolean) => {
   skillCheckedState.value[skillName] = checked
   // Directly update selectedSkills for immediate reactivity
@@ -450,7 +427,7 @@ const handleNext = async () => {
 const loadTools = async () => {
   scanningTools.value = true
   try {
-    availableTools.value = await skillSyncPresenter.getRegisteredTools()
+    availableTools.value = await skillSyncClient.getRegisteredTools()
   } catch (error) {
     console.error('Load tools error:', error)
     toast({
@@ -468,7 +445,7 @@ const previewExport = async () => {
 
   loading.value = true
   try {
-    const previews = await skillSyncPresenter.previewExport(
+    const previews = await skillSyncClient.previewExport(
       selectedSkills.value,
       selectedToolId.value,
       exportOptions.value
@@ -500,7 +477,7 @@ const executeExport = async () => {
   exportProgress.value = { current: 0, total: exportPreviews.value.length, currentSkill: '' }
 
   try {
-    const result = await skillSyncPresenter.executeExport(
+    const result = await skillSyncClient.executeExport(
       exportPreviews.value,
       conflictStrategies.value
     )

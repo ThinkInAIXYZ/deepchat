@@ -15,6 +15,7 @@ export interface SchemaIndexSpec {
 export interface SchemaTableSpec {
   name: string
   createSql: string
+  createdOnFreshInstall: boolean
   columns: SchemaColumnSpec[]
   indexes: SchemaIndexSpec[]
   afterRepair?: (db: Database.Database) => void

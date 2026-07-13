@@ -609,10 +609,6 @@ export class SplashWindowManager implements ISplashWindowManager {
   }
 
   private buildInlineFallbackSplashUrl(): string {
-    const progressChannel = JSON.stringify(DATABASE_UNLOCK_PROGRESS_CHANNEL)
-    const requestChannel = JSON.stringify(DATABASE_UNLOCK_REQUEST_CHANNEL)
-    const submitChannel = JSON.stringify(DATABASE_UNLOCK_SUBMIT_CHANNEL)
-    const cancelChannel = JSON.stringify(DATABASE_UNLOCK_CANCEL_CHANNEL)
     const html = `<!doctype html>
 <html>
   <head>
@@ -654,7 +650,7 @@ export class SplashWindowManager implements ISplashWindowManager {
       </form>
     </div>
     <script>
-      const ipc = window.electron && window.electron.ipcRenderer
+      const splash = window.deepchatSplash
       let requestId = ''
       const panel = document.getElementById('panel')
       const subtitle = document.getElementById('subtitle')
@@ -687,18 +683,18 @@ export class SplashWindowManager implements ISplashWindowManager {
       })
       panel.addEventListener('submit', (event) => {
         event.preventDefault()
-        if (!ipc || !requestId || !password.value) return
-        ipc.send(${submitChannel}, { requestId, password: password.value })
+        if (!splash || !requestId || !password.value) return
+        splash.submitUnlock({ requestId, password: password.value })
         password.value = ''
         submit.disabled = true
         submit.textContent = 'Opening...'
       })
       quit.addEventListener('click', () => {
-        if (!ipc || !requestId) return
-        ipc.send(${cancelChannel}, { requestId })
+        if (!splash || !requestId) return
+        splash.cancelUnlock({ requestId })
       })
-      ipc && ipc.on(${requestChannel}, (_event, payload) => setUnlock(payload))
-      ipc && ipc.on(${progressChannel}, (_event, payload) => {
+      splash && splash.onUnlockRequest((payload) => setUnlock(payload))
+      splash && splash.onUnlockProgress((payload) => {
         if (payload && payload.active && !requestId) {
           subtitle.textContent = 'Unlocking local database'
           hint.textContent = 'DeepChat is reading the saved password from the system credential store.'

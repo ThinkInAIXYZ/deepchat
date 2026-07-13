@@ -133,7 +133,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { Button } from '@shadcn/components/ui/button'
 import dayjs from 'dayjs'
-import { RAG_EVENTS } from '@/events'
+import { createKnowledgeClient } from '@api/KnowledgeClient'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -197,22 +197,23 @@ const progressPercent = computed(() => {
   return ((progress.value.completed + progress.value.error) / progress.value.total) * 100
 })
 
+const knowledgeClient = createKnowledgeClient()
+let stopFileProgress: (() => void) | null = null
+
 onMounted(async () => {
-  window.electron.ipcRenderer.on(
-    RAG_EVENTS.FILE_PROGRESS,
-    (_, data: { fileId: string; completed: number; error: number; total: number }) => {
-      if (props.file.id === data.fileId) {
-        progress.value = {
-          completed: data.completed,
-          error: data.error,
-          total: data.total
-        }
+  stopFileProgress = knowledgeClient.onFileProgress((data) => {
+    if (props.file.id === data.fileId) {
+      progress.value = {
+        completed: data.completed,
+        error: data.error,
+        total: data.total
       }
     }
-  )
+  })
 })
 
 onBeforeUnmount(() => {
-  window.electron.ipcRenderer.removeAllListeners(RAG_EVENTS.FILE_PROGRESS)
+  stopFileProgress?.()
+  stopFileProgress = null
 })
 </script>

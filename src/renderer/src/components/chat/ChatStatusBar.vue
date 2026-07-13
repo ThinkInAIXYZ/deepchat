@@ -4,7 +4,7 @@
       <div class="flex min-w-0 items-center gap-1">
         <template v-if="isAcpAgent">
           <div
-            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground backdrop-blur-lg"
+            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground dc-blur-panel"
           >
             <ModelIcon
               :model-id="acpAgentIconId"
@@ -31,7 +31,7 @@
                 size="sm"
                 :title="getAcpOptionDisplayValue(option)"
                 :data-option-id="option.id"
-                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
                 :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
               >
                 <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
@@ -51,7 +51,7 @@
 
               <div
                 v-if="(option.options?.length ?? 0) > 0"
-                class="max-h-60 overflow-y-auto px-2 py-2"
+                class="dc-overscroll-contain max-h-60 overflow-y-auto px-2 py-2"
               >
                 <button
                   v-for="entry in option.options ?? []"
@@ -92,7 +92,7 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg',
+                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel',
                 !isModelOptionsReady ? 'opacity-70' : ''
               ]"
               :aria-busy="!isModelOptionsReady"
@@ -135,7 +135,7 @@
                   />
                 </div>
 
-                <div class="max-h-[24rem] overflow-y-auto px-2 py-2">
+                <div class="dc-overscroll-contain max-h-[24rem] overflow-y-auto px-2 py-2">
                   <div
                     v-if="showModelOptionsLoading"
                     data-model-picker-state="loading"
@@ -254,7 +254,7 @@
                   </div>
                 </div>
 
-                <div class="max-h-[24rem] overflow-y-auto px-3 py-3">
+                <div class="dc-overscroll-contain max-h-[24rem] overflow-y-auto px-3 py-3">
                   <div
                     v-if="!isModelSettingsReady"
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
@@ -357,7 +357,7 @@
                             <TooltipContent
                               side="top"
                               align="start"
-                              class="z-[1000] max-w-80 text-xs"
+                              class="z-[var(--dc-z-popover)] max-w-80 text-xs"
                             >
                               {{ t('chat.advancedSettings.topPDescription') }}
                             </TooltipContent>
@@ -847,7 +847,7 @@
           v-else
           variant="ghost"
           size="sm"
-          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
           :disabled="true"
         >
           <ModelIcon
@@ -865,7 +865,7 @@
             <Button
               variant="ghost"
               size="sm"
-              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
               :title="t('chat.advancedSettings.button')"
               :aria-label="t('chat.advancedSettings.button')"
             >
@@ -878,7 +878,7 @@
               <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
             </div>
 
-            <div class="max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
+            <div class="dc-overscroll-contain max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
               <div
                 v-for="option in acpOverflowOptions"
                 :key="option.id"
@@ -946,10 +946,12 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 px-2 gap-1.5 text-xs backdrop-blur-lg',
+                'h-6 px-2 gap-1.5 text-xs dc-blur-panel',
                 permissionMode === 'full_access'
                   ? 'text-orange-500 hover:text-orange-600'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : permissionMode === 'auto_approve'
+                    ? 'text-emerald-500 hover:text-emerald-600'
+                    : 'text-muted-foreground hover:text-foreground'
               ]"
             >
               <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
@@ -1161,6 +1163,7 @@ const capabilityProviderId = ref('')
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
 let generationSyncToken = 0
+let generationSyncQueued = false
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
@@ -1474,14 +1477,25 @@ watch(
   { immediate: true }
 )
 
-const permissionModeLabel = computed(() =>
-  permissionMode.value === 'default'
-    ? t('chat.permissionMode.default')
-    : t('chat.permissionMode.fullAccess')
-)
+const normalizePermissionMode = (mode?: PermissionMode | null): PermissionMode =>
+  mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+
+const permissionModeLabel = computed(() => {
+  if (permissionMode.value === 'default') {
+    return t('chat.permissionMode.default')
+  }
+  if (permissionMode.value === 'auto_approve') {
+    return t('chat.permissionMode.autoApprove')
+  }
+  return t('chat.permissionMode.fullAccess')
+})
 
 const permissionIcon = computed(() =>
-  permissionMode.value === 'full_access' ? 'lucide:shield-alert' : 'lucide:shield'
+  permissionMode.value === 'full_access'
+    ? 'lucide:shield-alert'
+    : permissionMode.value === 'auto_approve'
+      ? 'lucide:shield-check'
+      : 'lucide:shield'
 )
 
 const permissionOptions = computed(() => [
@@ -1490,6 +1504,12 @@ const permissionOptions = computed(() => [
     label: t('chat.permissionMode.default'),
     icon: 'lucide:shield',
     iconClass: 'text-muted-foreground'
+  },
+  {
+    value: 'auto_approve' as const,
+    label: t('chat.permissionMode.autoApprove'),
+    icon: 'lucide:shield-check',
+    iconClass: 'text-emerald-500'
   },
   {
     value: 'full_access' as const,
@@ -2195,7 +2215,7 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   scheduleGenerationPersist(normalizedPatch)
 }
 
-const syncGenerationSettings = async () => {
+const runSyncGenerationSettings = async () => {
   const token = ++generationSyncToken
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
@@ -2266,6 +2286,19 @@ const syncGenerationSettings = async () => {
   loadedSettingsSelection.value = { ...selection }
 }
 
+const syncGenerationSettings = () => {
+  if (generationSyncQueued) {
+    return
+  }
+
+  generationSyncQueued = true
+  void nextTick(() => {
+    generationSyncQueued = false
+    void runSyncGenerationSettings().catch((error) => {
+      console.warn('[ChatStatusBar] Failed to sync generation settings:', error)
+    })
+  })
+}
 const reloadSystemPrompts = async () => {
   try {
     systemPromptList.value = await configClient.getSystemPrompts()
@@ -2281,13 +2314,13 @@ watch(
     isAcpAgent,
     () => agentStore.selectedAgentId,
     () => modelStore.initialized,
-    () => modelStore.chatSelectableModelGroups
+    () => modelStore.chatSelectableModelGroupsRevision
   ],
   () => {
     if (hasActiveSession.value) return
     void syncDraftModelSelection()
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 )
 
 watch(
@@ -2300,14 +2333,14 @@ watch(
     }
 
     if (!sessionId) {
-      permissionMode.value = draftPermissionMode === 'default' ? 'default' : 'full_access'
+      permissionMode.value = normalizePermissionMode(draftPermissionMode)
       return
     }
 
     try {
       const mode = await sessionClient.getPermissionMode(sessionId)
       if (token !== permissionSyncToken) return
-      permissionMode.value = mode === 'default' ? 'default' : 'full_access'
+      permissionMode.value = normalizePermissionMode(mode)
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load permission mode:', error)
       if (token !== permissionSyncToken) return
@@ -2340,6 +2373,8 @@ watch(
   { immediate: true }
 )
 
+// Prefer revision/fingerprint deps (no deep watch). Generation settings already
+// self-coalesce via generationSyncQueued; ACP config uses deferred task cancel.
 watch(
   [
     () => sessionStore.activeSessionId,
@@ -2350,7 +2385,7 @@ watch(
     () => isAcpAgent.value
   ],
   () => {
-    void syncGenerationSettings()
+    syncGenerationSettings()
   },
   { immediate: true }
 )

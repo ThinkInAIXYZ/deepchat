@@ -37,10 +37,48 @@ type TokenizedTurn = {
   tokens: number
 }
 
+type UserMessageContentBuildOptions = {
+  includeFileContent?: boolean
+  includeImageData?: boolean
+  includeAudioData?: boolean
+}
+
 export type HistoryTurn = {
   records: ChatMessageRecord[]
   messages: ChatMessage[]
   tokens: number
+}
+
+export type ContextIncludedReason = 'selected_history' | 'resume_target'
+export type ContextExcludedReason = 'empty_after_formatting' | 'out_of_budget'
+
+export type ContextIncludedRecord = {
+  record: ChatMessageRecord
+  reason: ContextIncludedReason
+}
+
+export type ContextExcludedRecord = {
+  record: ChatMessageRecord
+  reason: ContextExcludedReason
+}
+
+export type ContextSummaryCursorMetadata = {
+  summaryCursorOrderSeq: number
+  preCursorOrderSeqMin: number | null
+  preCursorOrderSeqMax: number | null
+  preCursorCount: number
+}
+
+export type ContextBuildMetadata = {
+  includedRecords: ContextIncludedRecord[]
+  excludedRecords: ContextExcludedRecord[]
+  summaryCursor: ContextSummaryCursorMetadata
+  includesSystemPrompt: boolean
+}
+
+export type ContextBuildResult = {
+  messages: ChatMessage[]
+  metadata: ContextBuildMetadata
 }
 
 function parseProviderOptionsJson(
@@ -130,11 +168,23 @@ export function normalizeUserInput(input: string | SendMessageInput): SendMessag
   if (!input || typeof input !== 'object') {
     return { text: '', files: [] }
   }
+  const activeSkills = Array.isArray(input.activeSkills)
+    ? Array.from(
+        new Set(
+          input.activeSkills
+            .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
+            .filter((skillName) => skillName.length > 0)
+        )
+      )
+    : []
+  const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
   return {
     text: typeof input.text === 'string' ? input.text : '',
     files: Array.isArray(input.files)
       ? (input.files.filter((file): file is MessageFile => Boolean(file)) as MessageFile[])
-      : []
+      : [],
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
   }
 }
 
@@ -147,7 +197,7 @@ function parseUserRecordContent(content: string): SendMessageInput {
   }
 }
 
-function isCompactionRecord(record: ChatMessageRecord): boolean {
+export function isCompactionRecord(record: ChatMessageRecord): boolean {
   try {
     const metadata = JSON.parse(record.metadata) as MessageMetadata
     return metadata.messageType === 'compaction'
@@ -166,28 +216,44 @@ export function isContextHistoryRecord(record: ChatMessageRecord): boolean {
   return record.role === 'assistant' && record.status === 'error'
 }
 
-function buildNonImageFileContext(files: MessageFile[], excludeAudio: boolean = false): string {
+function buildNonImageFileContext(
+  files: MessageFile[],
+  options: {
+    excludeAudio?: boolean
+    includeFileContent?: boolean
+  } = {}
+): string {
   const nonImageFiles = files.filter(
-    (file) => !isImageFile(file) && (!excludeAudio || !isAudioFile(file))
+    (file) => !isImageFile(file) && (!options.excludeAudio || !isAudioFile(file))
   )
   if (nonImageFiles.length === 0) {
     return ''
   }
 
   const blocks = nonImageFiles.map((file, index) => {
+    const isAudio = isAudioFile(file)
     const fileName = typeof file.name === 'string' ? file.name : `file-${index + 1}`
     const filePath = typeof file.path === 'string' ? file.path : ''
     const mimeType = resolveFileMimeType(file)
     const fileContent = typeof file.content === 'string' ? file.content : ''
+    const shouldIncludeContent =
+      options.includeFileContent === true ||
+      (isAudio && !fileContent.trim().toLowerCase().startsWith('data:audio/'))
+    const byteSize = resolveFileByteSize(file)
     const metadataLines = [
       `name: ${fileName}`,
       filePath ? `path: ${filePath}` : '',
-      mimeType ? `mime: ${mimeType}` : ''
+      mimeType ? `mime: ${mimeType}` : '',
+      byteSize ? `size: ${byteSize}` : ''
     ]
       .filter(Boolean)
       .join('\n')
     if (!fileContent.trim()) {
-      return `[Attached File ${index + 1}]\n${metadataLines}\ncontent: [empty]`
+      const placeholder = filePath ? '[omitted; use read if needed]' : '[empty]'
+      return `[Attached File ${index + 1}]\n${metadataLines}\ncontent: ${placeholder}`
+    }
+    if (!shouldIncludeContent) {
+      return `[Attached File ${index + 1}]\n${metadataLines}\ncontent: [omitted; use read if needed]`
     }
     return `[Attached File ${index + 1}]\n${metadataLines}\ncontent:\n${fileContent}`
   })
@@ -338,13 +404,48 @@ function buildImageMetadataContext(files: MessageFile[]): string {
     .join('\n\n')
 }
 
+function buildInlineDisplayText(input: SendMessageInput): string {
+  const text = input.text ?? ''
+  const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
+  if (inlineItems.length === 0) {
+    return text
+  }
+
+  const validItems = inlineItems
+    .map((item, index) => ({ item, index }))
+    .filter(
+      ({ item }) => Number.isInteger(item.offset) && item.offset >= 0 && item.offset <= text.length
+    )
+    .sort((left, right) => left.item.offset - right.item.offset || left.index - right.index)
+  if (validItems.length === 0) {
+    return text
+  }
+
+  const parts: string[] = []
+  let cursor = 0
+  for (const { item } of validItems) {
+    if (item.offset > cursor) {
+      parts.push(text.slice(cursor, item.offset))
+    }
+    parts.push(item.type === 'skill' ? `[Skill: ${item.skillName}]` : `[File: ${item.fileName}]`)
+    cursor = item.offset
+  }
+  if (cursor < text.length) {
+    parts.push(text.slice(cursor))
+  }
+  return parts.join('')
+}
+
 export function buildUserMessageContent(
   input: SendMessageInput,
   supportsVision: boolean,
-  supportsAudioInput: boolean = false
+  supportsAudioInput: boolean = false,
+  options: UserMessageContentBuildOptions = {}
 ): ChatMessage['content'] {
-  const text = input.text ?? ''
+  const text = buildInlineDisplayText(input)
   const files = Array.isArray(input.files) ? input.files : []
+  const includeImageData = options.includeImageData !== false
+  const includeAudioData = options.includeAudioData !== false
 
   const imageFiles = files.filter((file) => isImageFile(file))
   const audioFiles = files.filter((file) => isAudioFile(file))
@@ -356,37 +457,44 @@ export function buildUserMessageContent(
       filename?: string
       estimated_tokens?: number
     }
-  }> = supportsAudioInput
-    ? audioFiles.flatMap((file) => {
-        const payload = resolveAudioAttachmentPayload(file)
-        if (!payload) {
-          return []
-        }
-
-        return [
-          {
-            type: 'input_audio' as const,
-            input_audio: {
-              data: payload.data,
-              media_type: payload.mediaType,
-              ...(typeof file.name === 'string' && file.name.trim() ? { filename: file.name } : {}),
-              estimated_tokens: estimateAudioInputTokens(file, payload.byteLength)
-            }
+  }> =
+    supportsAudioInput && includeAudioData
+      ? audioFiles.flatMap((file) => {
+          const payload = resolveAudioAttachmentPayload(file)
+          if (!payload) {
+            return []
           }
-        ]
-      })
-    : []
+
+          return [
+            {
+              type: 'input_audio' as const,
+              input_audio: {
+                data: payload.data,
+                media_type: payload.mediaType,
+                ...(typeof file.name === 'string' && file.name.trim()
+                  ? { filename: file.name }
+                  : {}),
+                estimated_tokens: estimateAudioInputTokens(file, payload.byteLength)
+              }
+            }
+          ]
+        })
+      : []
 
   const excludeAudioFromFallback = supportsAudioInput && audioParts.length > 0
-  const nonImageContext = buildNonImageFileContext(files, excludeAudioFromFallback)
+  const nonImageContext = buildNonImageFileContext(files, {
+    excludeAudio: excludeAudioFromFallback,
+    includeFileContent: options.includeFileContent === true
+  })
   const audioMetadata = excludeAudioFromFallback ? buildAudioMetadataContext(audioFiles) : ''
-  const baseText = [text, nonImageContext, audioMetadata]
+  const shouldBuildImageParts = supportsVision && includeImageData && imageFiles.length > 0
+  const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imageFiles)
+  const baseText = [text, nonImageContext, audioMetadata, imageMetadata]
     .filter((value) => value.trim())
     .join('\n\n')
 
   if ((!supportsVision || imageFiles.length === 0) && audioParts.length === 0) {
-    const imageMetadata = buildImageMetadataContext(imageFiles)
-    return [baseText, imageMetadata].filter((value) => value.trim()).join('\n\n')
+    return baseText
   }
 
   const parts: Array<
@@ -408,7 +516,7 @@ export function buildUserMessageContent(
     image_url: { url: string; detail?: 'auto' | 'low' | 'high' }
   }> = []
 
-  if (supportsVision) {
+  if (supportsVision && includeImageData) {
     for (const file of imageFiles) {
       const primaryData = typeof file.content === 'string' ? file.content : ''
       const fallbackData = typeof file.thumbnail === 'string' ? file.thumbnail : ''
@@ -424,12 +532,18 @@ export function buildUserMessageContent(
   }
 
   const hasStructuredParts = imageParts.length > 0 || audioParts.length > 0
+  const structuredText = [
+    baseText,
+    shouldBuildImageParts && imageParts.length === 0 ? buildImageMetadataContext(imageFiles) : ''
+  ]
+    .filter((value) => value.trim())
+    .join('\n\n')
   if (!hasStructuredParts) {
-    const imageMetadata = buildImageMetadataContext(imageFiles)
-    return [baseText, imageMetadata].filter((value) => value.trim()).join('\n\n')
+    return structuredText
   }
 
-  const textPart = baseText || buildStructuredAttachmentText(imageParts.length, audioParts.length)
+  const textPart =
+    structuredText || buildStructuredAttachmentText(imageParts.length, audioParts.length)
   parts.push({ type: 'text', text: textPart })
   parts.push(...imageParts, ...audioParts)
 
@@ -444,7 +558,11 @@ export function createUserChatMessage(
   const normalizedInput = normalizeUserInput(input)
   return {
     role: 'user',
-    content: buildUserMessageContent(normalizedInput, supportsVision, supportsAudioInput)
+    content: buildUserMessageContent(normalizedInput, supportsVision, supportsAudioInput, {
+      includeImageData: true,
+      includeAudioData: true,
+      includeFileContent: false
+    })
   }
 }
 
@@ -597,7 +715,11 @@ export function recordToChatMessages(
     const parsed = parseUserRecordContent(record.content)
     const message: ChatMessage = {
       role: 'user',
-      content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput)
+      content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput, {
+        includeImageData: false,
+        includeAudioData: true,
+        includeFileContent: false
+      })
     }
     return hasPromptMessageContent(message) ? [message] : []
   }
@@ -860,18 +982,26 @@ function selectTurnHistory(
   availableTokens: number,
   fallbackProtectedTurnCount: number
 ): ChatMessage[] {
+  return flattenTurns(selectTurnHistoryTurns(turns, availableTokens, fallbackProtectedTurnCount))
+}
+
+function selectTurnHistoryTurns<T extends TokenizedTurn>(
+  turns: T[],
+  availableTokens: number,
+  fallbackProtectedTurnCount: number
+): T[] {
   if (turns.length === 0) {
     return []
   }
 
   const protectedCount = Math.max(0, Math.min(fallbackProtectedTurnCount, turns.length))
   if (availableTokens <= 0) {
-    return protectedCount > 0 ? flattenTurns(turns.slice(-protectedCount)) : []
+    return protectedCount > 0 ? turns.slice(-protectedCount) : []
   }
 
   let total = turns.reduce((sum, turn) => sum + turn.tokens, 0)
   if (total <= availableTokens) {
-    return flattenTurns(turns)
+    return turns
   }
 
   const remainingTurns = [...turns]
@@ -886,10 +1016,38 @@ function selectTurnHistory(
     estimateMessagesTokens(flattened) <= availableTokens ||
     remainingTurns.length <= protectedCount
   ) {
-    return flattened
+    return remainingTurns
   }
 
-  return truncateContext(flattened, availableTokens)
+  const truncatedMessages = truncateContext(flattened, availableTokens)
+  if (truncatedMessages.length === 0) {
+    return []
+  }
+
+  let droppedPrefixCount = flattened.length - truncatedMessages.length
+  const rebuiltTurns: T[] = []
+
+  for (const turn of remainingTurns) {
+    if (droppedPrefixCount >= turn.messages.length) {
+      droppedPrefixCount -= turn.messages.length
+      continue
+    }
+
+    if (droppedPrefixCount > 0) {
+      const keptMessages = turn.messages.slice(droppedPrefixCount)
+      droppedPrefixCount = 0
+      rebuiltTurns.push({
+        ...turn,
+        messages: keptMessages,
+        tokens: estimateMessagesTokens(keptMessages)
+      })
+      continue
+    }
+
+    rebuiltTurns.push(turn)
+  }
+
+  return rebuiltTurns
 }
 
 function filterRecordsFromCursor(
@@ -898,6 +1056,32 @@ function filterRecordsFromCursor(
 ): ChatMessageRecord[] {
   const cursor = Math.max(1, summaryCursorOrderSeq)
   return records.filter((record) => record.orderSeq >= cursor)
+}
+
+function buildSummaryCursorMetadata(
+  preCursorRecords: ChatMessageRecord[],
+  cursor: number
+): ContextSummaryCursorMetadata {
+  if (preCursorRecords.length === 0) {
+    return {
+      summaryCursorOrderSeq: cursor,
+      preCursorOrderSeqMin: null,
+      preCursorOrderSeqMax: null,
+      preCursorCount: 0
+    }
+  }
+  let min = preCursorRecords[0].orderSeq
+  let max = preCursorRecords[0].orderSeq
+  for (const record of preCursorRecords) {
+    if (record.orderSeq < min) min = record.orderSeq
+    if (record.orderSeq > max) max = record.orderSeq
+  }
+  return {
+    summaryCursorOrderSeq: cursor,
+    preCursorOrderSeqMin: min,
+    preCursorOrderSeqMax: max,
+    preCursorCount: preCursorRecords.length
+  }
 }
 
 export function buildContext(
@@ -910,12 +1094,33 @@ export function buildContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
+  return buildContextWithMetadata(
+    sessionId,
+    newUserContent,
+    systemPrompt,
+    contextLength,
+    reserveTokens,
+    messageStore,
+    supportsVision,
+    options
+  ).messages
+}
+
+export function buildContextWithMetadata(
+  sessionId: string,
+  newUserContent: string | SendMessageInput,
+  systemPrompt: string,
+  contextLength: number,
+  reserveTokens: number,
+  messageStore: DeepChatMessageStore,
+  supportsVision: boolean = false,
+  options: ContextBuildOptions = {}
+): ContextBuildResult {
   const supportsAudioInput = options.supportsAudioInput === true
   const candidateRecords = options.historyRecords ?? messageStore.getMessages(sessionId)
-  const historyRecords = filterRecordsFromCursor(
-    candidateRecords.filter(isContextHistoryRecord),
-    options.summaryCursorOrderSeq ?? 1
-  )
+  const contextCandidateRecords = candidateRecords.filter(isContextHistoryRecord)
+  const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
+  const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor)
   const historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,
@@ -933,10 +1138,17 @@ export function buildContext(
     newUserTokens -
     reserveTokens -
     (options.extraReserveTokens ?? 0)
-  const selectedHistory = selectTurnHistory(
+  const selectedTurns = selectTurnHistoryTurns(
     historyTurns,
     available,
     options.fallbackProtectedTurnCount ?? 0
+  )
+  const selectedHistory = flattenTurns(selectedTurns)
+  const selectedRecordIds = new Set(
+    selectedTurns.flatMap((turn) => turn.records.map((record) => record.id))
+  )
+  const emittedRecordIds = new Set(
+    historyTurns.flatMap((turn) => turn.records.map((record) => record.id))
   )
 
   const messages: ChatMessage[] = []
@@ -947,7 +1159,36 @@ export function buildContext(
   if (hasPromptMessageContent(newUserMessage)) {
     messages.push(newUserMessage)
   }
-  return messages
+  const preCursorRecords = contextCandidateRecords.filter((record) => record.orderSeq < cursor)
+  const excludedRecords: ContextExcludedRecord[] = [
+    ...historyRecords
+      .filter((record) => !emittedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'empty_after_formatting' as const
+      })),
+    ...historyRecords
+      .filter((record) => emittedRecordIds.has(record.id) && !selectedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'out_of_budget' as const
+      }))
+  ]
+
+  return {
+    messages,
+    metadata: {
+      includedRecords: selectedTurns.flatMap((turn) =>
+        turn.records.map((record) => ({
+          record,
+          reason: 'selected_history' as const
+        }))
+      ),
+      excludedRecords,
+      summaryCursor: buildSummaryCursorMetadata(preCursorRecords, cursor),
+      includesSystemPrompt: Boolean(systemPrompt)
+    }
+  }
 }
 
 export function fitMessagesToContextWindow(
@@ -1001,6 +1242,28 @@ export function buildResumeContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
+  return buildResumeContextWithMetadata(
+    sessionId,
+    assistantMessageId,
+    systemPrompt,
+    contextLength,
+    reserveTokens,
+    messageStore,
+    supportsVision,
+    options
+  ).messages
+}
+
+export function buildResumeContextWithMetadata(
+  sessionId: string,
+  assistantMessageId: string,
+  systemPrompt: string,
+  contextLength: number,
+  reserveTokens: number,
+  messageStore: DeepChatMessageStore,
+  supportsVision: boolean = false,
+  options: ContextBuildOptions = {}
+): ContextBuildResult {
   const supportsAudioInput = options.supportsAudioInput === true
   const allMessages = options.historyRecords ?? messageStore.getMessages(sessionId)
   const targetMessage = allMessages.find((message) => message.id === assistantMessageId)
@@ -1030,10 +1293,17 @@ export function buildResumeContext(
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const available =
     contextLength - systemPromptTokens - reserveTokens - (options.extraReserveTokens ?? 0)
-  const selectedHistory = selectTurnHistory(
+  const selectedTurns = selectTurnHistoryTurns(
     historyTurns,
     available,
     options.fallbackProtectedTurnCount ?? 1
+  )
+  const selectedHistory = flattenTurns(selectedTurns)
+  const selectedRecordIds = new Set(
+    selectedTurns.flatMap((turn) => turn.records.map((record) => record.id))
+  )
+  const emittedRecordIds = new Set(
+    historyTurns.flatMap((turn) => turn.records.map((record) => record.id))
   )
 
   const messages: ChatMessage[] = []
@@ -1041,5 +1311,43 @@ export function buildResumeContext(
     messages.push({ role: 'system', content: systemPrompt })
   }
   messages.push(...selectedHistory)
-  return messages
+  const preCursorRecords = allMessages.filter(
+    (record) =>
+      record.id !== assistantMessageId &&
+      isContextHistoryRecord(record) &&
+      record.orderSeq < cursor &&
+      (targetOrderSeq === undefined || record.orderSeq <= targetOrderSeq)
+  )
+  const excludedRecords: ContextExcludedRecord[] = [
+    ...historyRecords
+      .filter((record) => !emittedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'empty_after_formatting' as const
+      })),
+    ...historyRecords
+      .filter((record) => emittedRecordIds.has(record.id) && !selectedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'out_of_budget' as const
+      }))
+  ]
+
+  return {
+    messages,
+    metadata: {
+      includedRecords: selectedTurns.flatMap((turn) =>
+        turn.records.map((record) => ({
+          record,
+          reason:
+            record.id === assistantMessageId
+              ? ('resume_target' as const)
+              : ('selected_history' as const)
+        }))
+      ),
+      excludedRecords,
+      summaryCursor: buildSummaryCursorMetadata(preCursorRecords, cursor),
+      includesSystemPrompt: Boolean(systemPrompt)
+    }
+  }
 }

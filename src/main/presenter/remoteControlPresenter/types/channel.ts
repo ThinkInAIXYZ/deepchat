@@ -129,17 +129,15 @@ const relativePathSchema = z
     'must be a relative path inside the plugin package'
   )
 
-const ChannelPluginManifestSchema = z
-  .object({
-    schemaVersion: z.literal(CHANNEL_PLUGIN_SCHEMA_VERSION),
-    pluginId: z.string().regex(CHANNEL_PLUGIN_ID_PATTERN),
-    apiVersion: z.literal(CHANNEL_PLUGIN_API_VERSION),
-    entry: relativePathSchema,
-    types: relativePathSchema,
-    channelType: z.string().regex(CHANNEL_TYPE_PATTERN),
-    configSchema: relativePathSchema.optional()
-  })
-  .strip()
+const ChannelPluginManifestSchema = z.object({
+  schemaVersion: z.literal(CHANNEL_PLUGIN_SCHEMA_VERSION),
+  pluginId: z.string().regex(CHANNEL_PLUGIN_ID_PATTERN),
+  apiVersion: z.literal(CHANNEL_PLUGIN_API_VERSION),
+  entry: relativePathSchema,
+  types: relativePathSchema,
+  channelType: z.string().regex(CHANNEL_TYPE_PATTERN),
+  configSchema: relativePathSchema.optional()
+})
 
 export const parseChannelPluginManifest = (input: unknown): ChannelPluginManifest =>
   ChannelPluginManifestSchema.parse(input)

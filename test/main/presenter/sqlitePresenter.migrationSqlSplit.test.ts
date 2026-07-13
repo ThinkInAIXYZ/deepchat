@@ -31,6 +31,7 @@ describe('sqlitePresenter migration SQL splitting', () => {
       prepare
     }
     presenter.currentVersion = 0
+    presenter.databaseFileExistedBeforeOpen = true
 
     const emptyTable = {
       getLatestVersion: () => 0,
@@ -51,6 +52,7 @@ CREATE INDEX sample_value_idx ON sample(value);`
 
     presenter.acpSessionsTable = migrationTable
     presenter.newEnvironmentsTable = emptyTable
+    presenter.newEnvironmentPreferencesTable = emptyTable
     presenter.newSessionsTable = emptyTable
     presenter.newProjectsTable = emptyTable
     presenter.deepchatSessionsTable = emptyTable
@@ -65,12 +67,19 @@ CREATE INDEX sample_value_idx ON sample(value);`
     presenter.deepchatPendingInputsTable = emptyTable
     presenter.deepchatUsageStatsTable = emptyTable
     presenter.deepchatTapeEntriesTable = emptyTable
+    presenter.deepchatTapeSearchProjectionTable = emptyTable
+    presenter.deepchatSessionMetadataTable = emptyTable
     presenter.legacyImportStatusTable = emptyTable
     presenter.agentsTable = emptyTable
+    presenter.agentMemoryTable = emptyTable
+    presenter.agentMemoryAuditTable = emptyTable
     presenter.configTables = emptyTable
     presenter.newSessionActiveSkillsTable = emptyTable
     presenter.newSessionDisabledAgentToolsTable = emptyTable
     presenter.settingsActivityTable = emptyTable
+    presenter.cronJobsTable = emptyTable
+    presenter.cronJobRunsTable = emptyTable
+    presenter.cronJobDeliveriesTable = emptyTable
 
     presenter.migrate()
 

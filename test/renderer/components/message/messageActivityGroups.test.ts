@@ -202,6 +202,32 @@ describe('messageActivityGroups', () => {
     expect(items.map((item) => item.kind)).toEqual(['block', 'block'])
   })
 
+  it('keeps render keys unique for repeated tool call lifecycle blocks', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: false,
+      blocks: [
+        createBlock('tool_call', {
+          status: 'loading',
+          tool_call: {
+            id: 'tc1',
+            name: 'shell'
+          }
+        }),
+        createBlock('tool_call', {
+          status: 'success',
+          tool_call: {
+            id: 'tc1',
+            name: 'shell'
+          }
+        })
+      ]
+    })
+
+    expect(items.map((item) => item.key)).toEqual(['m1:tc1:0', 'm1:tc1:1'])
+  })
+
   it('skips internal hidden tool calls', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',

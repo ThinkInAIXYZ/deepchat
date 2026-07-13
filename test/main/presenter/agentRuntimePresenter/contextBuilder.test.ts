@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   buildContext,
+  buildContextWithMetadata,
   buildResumeContext,
+  buildResumeContextWithMetadata,
   fitMessagesToContextWindow,
   truncateContext
 } from '@/presenter/agentRuntimePresenter/contextBuilder'
@@ -361,7 +363,7 @@ describe('buildContext', () => {
     expect(result).toEqual([])
   })
 
-  it('keeps attachment-only user messages valid when text is blank', () => {
+  it('keeps attachment-only user messages valid without replaying file content', () => {
     const store = createMockMessageStore([])
     const result = buildContext(
       's1',
@@ -385,9 +387,14 @@ describe('buildContext', () => {
     expect(result).toEqual([
       {
         role: 'user',
-        content: expect.stringContaining('important attachment content')
+        content: expect.stringContaining('[Attached File 1]')
       }
     ])
+    expect(result[0].content).toEqual(expect.stringContaining('path: /tmp/notes.txt'))
+    expect(result[0].content).toEqual(
+      expect.stringContaining('content: [omitted; use read if needed]')
+    )
+    expect(result[0].content).not.toEqual(expect.stringContaining('important attachment content'))
   })
 
   it('includes single prior exchange', () => {
@@ -748,6 +755,44 @@ describe('buildContext', () => {
     ])
   })
 
+  it('emits summary cursor metadata instead of per-record before_summary_cursor refs', () => {
+    const messages = [
+      makeUserRecord(1, 'old user'),
+      makeAssistantRecord(2, 'old reply'),
+      makeUserRecord(3, 'recent user'),
+      makeAssistantRecord(4, 'recent reply')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store, false, {
+      summaryCursorOrderSeq: 3
+    })
+
+    expect(result.metadata.summaryCursor).toEqual({
+      summaryCursorOrderSeq: 3,
+      preCursorOrderSeqMin: 1,
+      preCursorOrderSeqMax: 2,
+      preCursorCount: 2
+    })
+    expect(
+      result.metadata.excludedRecords.some(
+        (item) => (item.reason as string) === 'before_summary_cursor'
+      )
+    ).toBe(false)
+  })
+
+  it('reports zero pre-cursor records when the cursor is at the start', () => {
+    const messages = [makeUserRecord(1, 'a'), makeAssistantRecord(2, 'b')]
+    const store = createMockMessageStore(messages)
+    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store)
+
+    expect(result.metadata.summaryCursor).toEqual({
+      summaryCursorOrderSeq: 1,
+      preCursorOrderSeqMin: null,
+      preCursorOrderSeqMax: null,
+      preCursorCount: 0
+    })
+  })
+
   it('builds from provided history records without rereading newer persisted messages', () => {
     const messages = [
       makeUserRecord(1, 'old user'),
@@ -835,7 +880,7 @@ describe('buildContext', () => {
     ])
   })
 
-  it('includes non-image file context in user content', () => {
+  it('includes document metadata without inline file content in user content', () => {
     const store = createMockMessageStore([])
     const result = buildContext(
       's1',
@@ -862,10 +907,41 @@ describe('buildContext', () => {
         content: expect.stringContaining('[Attached File 1]')
       }
     ])
-    expect(result[0].content).toEqual(expect.stringContaining('# Title'))
+    expect(result[0].content).toEqual(expect.stringContaining('path: /tmp/README.md'))
+    expect(result[0].content).toEqual(
+      expect.stringContaining('content: [omitted; use read if needed]')
+    )
+    expect(result[0].content).not.toEqual(expect.stringContaining('# Title'))
   })
 
-  it('converts image files to image_url when vision is enabled', () => {
+  it('converts current image files to image_url when vision is enabled', () => {
+    const store = createMockMessageStore([])
+    const result = buildContext(
+      's1',
+      {
+        text: 'Look at this',
+        files: [
+          {
+            name: 'img.png',
+            path: '/tmp/img.png',
+            mimeType: 'image/png',
+            content: 'data:image/png;base64,AAA='
+          } as any
+        ]
+      },
+      '',
+      10000,
+      4096,
+      store,
+      true
+    )
+
+    const userMessage = result[0]
+    expect(Array.isArray(userMessage.content)).toBe(true)
+    expect((userMessage.content as any[]).some((part) => part.type === 'image_url')).toBe(true)
+  })
+
+  it('keeps historical image attachments as metadata when vision is enabled', () => {
     const store = createMockMessageStore([
       makeUserRecordWithFiles(1, 'Look at this', [
         {
@@ -879,8 +955,10 @@ describe('buildContext', () => {
 
     const result = buildContext('s1', 'next', '', 10000, 4096, store, true)
     const userHistory = result[0]
-    expect(Array.isArray(userHistory.content)).toBe(true)
-    expect((userHistory.content as any[]).some((part) => part.type === 'image_url')).toBe(true)
+    expect(Array.isArray(userHistory.content)).toBe(false)
+    expect(userHistory.content).toEqual(expect.stringContaining('[Attached Image 1]'))
+    expect(userHistory.content).toEqual(expect.stringContaining('path: /tmp/img.png'))
+    expect(userHistory.content).not.toEqual(expect.stringContaining('data:image/png'))
   })
 
   it('converts audio files to input_audio when audio input is enabled', () => {
@@ -934,6 +1012,37 @@ describe('buildContext', () => {
           part.text.includes('Audio file path:')
       )
     ).toBe(false)
+  })
+
+  it('keeps historical audio as input_audio when audio input is enabled', () => {
+    const store = createMockMessageStore([
+      makeUserRecordWithFiles(1, 'Please transcribe this clip', [
+        {
+          name: 'clip.wav',
+          path: '/tmp/clip.wav',
+          mimeType: 'audio/wav',
+          content: 'data:audio/wav;base64,YXVkaW8tYnl0ZXM='
+        }
+      ])
+    ])
+    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+      supportsAudioInput: true
+    })
+
+    const userHistoryParts = result[0].content as any[]
+    expect(Array.isArray(userHistoryParts)).toBe(true)
+    expect(userHistoryParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'input_audio',
+          input_audio: expect.objectContaining({
+            data: 'YXVkaW8tYnl0ZXM=',
+            media_type: 'audio/wav',
+            filename: 'clip.wav'
+          })
+        })
+      ])
+    )
   })
 
   it('falls back to text-only audio context when audio input is disabled', () => {
@@ -1160,6 +1269,107 @@ describe('buildResumeContext', () => {
       },
       { role: 'tool', tool_call_id: 'tc-resume', content: 'tool result' }
     ])
+  })
+
+  it('does not duplicate empty formatted resume records as out of budget exclusions', () => {
+    const emptyRecord = {
+      id: 'empty-user',
+      sessionId: 's1',
+      orderSeq: 1,
+      role: 'user' as const,
+      content: JSON.stringify({ text: '', files: [], links: [], search: false, think: false }),
+      status: 'sent' as const,
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    const messages = [
+      emptyRecord,
+      makeUserRecord(2, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 3,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'partial answer', status: 'success', timestamp: Date.now() }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]
+    const store = createMockMessageStore(messages)
+
+    const result = buildResumeContextWithMetadata(
+      's1',
+      'resume-target',
+      '',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        fallbackProtectedTurnCount: 1
+      }
+    )
+
+    expect(
+      result.metadata.excludedRecords.filter((item) => item.record.id === 'empty-user')
+    ).toEqual([
+      {
+        record: emptyRecord,
+        reason: 'empty_after_formatting'
+      }
+    ])
+  })
+
+  it('emits resume summary cursor metadata without before_summary_cursor refs', () => {
+    const messages = [
+      makeUserRecord(1, 'old user'),
+      makeAssistantRecord(2, 'old reply'),
+      makeUserRecord(3, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 4,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'partial', status: 'success', timestamp: 100 }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildResumeContextWithMetadata(
+      's1',
+      'resume-target',
+      '',
+      10000,
+      4096,
+      store,
+      false,
+      { summaryCursorOrderSeq: 3, fallbackProtectedTurnCount: 1 }
+    )
+
+    expect(result.metadata.summaryCursor).toEqual({
+      summaryCursorOrderSeq: 3,
+      preCursorOrderSeqMin: 1,
+      preCursorOrderSeqMax: 2,
+      preCursorCount: 2
+    })
+    expect(
+      result.metadata.excludedRecords.some(
+        (item) => (item.reason as string) === 'before_summary_cursor'
+      )
+    ).toBe(false)
   })
 
   it('includes prior assistant error records when building resume context', () => {

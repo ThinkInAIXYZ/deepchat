@@ -1,0 +1,82 @@
+{
+  "behavior": [
+    "test/main/contracts/memoryContractParity.test.ts",
+    "test/main/presenter/agentMemoryLineage.test.ts",
+    "test/main/presenter/agentRuntimePresenter/memoryExtractionChunks.test.ts",
+    "test/main/presenter/lifecyclePresenter/memoryMaintenanceStartHook.test.ts",
+    "test/main/presenter/memory/conflictService.test.ts",
+    "test/main/presenter/memory/embeddingPipeline.test.ts",
+    "test/main/presenter/memory/embeddingDiagnostics.test.ts",
+    "test/main/presenter/memory/lifecycleRegression.test.ts",
+    "test/main/presenter/memory/maintenanceService.test.ts",
+    "test/main/presenter/memory/maintenanceDiagnostics.test.ts",
+    "test/main/presenter/memory/managementService.test.ts",
+    "test/main/presenter/memory/personaService.test.ts",
+    "test/main/presenter/memory/reflectionService.test.ts",
+    "test/main/presenter/memory/repositoryHarness.test.ts",
+    "test/main/presenter/memory/retrievalService.test.ts",
+    "test/main/presenter/memory/retrievalDiagnostics.test.ts",
+    "test/main/presenter/memory/workingMemoryService.test.ts",
+    "test/main/presenter/memory/writeCoordinator.test.ts",
+    "test/main/presenter/memory/vectorStoreManager.test.ts",
+    "test/main/presenter/memory-persona-eval.test.ts",
+    "test/main/presenter/memoryAdd.test.ts",
+    "test/main/presenter/memoryAuditRetention.test.ts",
+    "test/main/presenter/memoryBatchDecision.test.ts",
+    "test/main/presenter/memoryDecision.test.ts",
+    "test/main/presenter/memoryDiagnosticsCollector.test.ts",
+    "test/main/presenter/memoryEmbeddingScale.test.ts",
+    "test/main/presenter/memoryExtraction.test.ts",
+    "test/main/presenter/memoryInjectionPort.test.ts",
+    "test/main/presenter/memoryLifecycle.test.ts",
+    "test/main/presenter/memoryMaintenanceBudget.test.ts",
+    "test/main/presenter/memoryPagination.test.ts",
+    "test/main/presenter/memoryPresenter.test.ts",
+    "test/main/presenter/memoryProviderGateway.test.ts",
+    "test/main/presenter/memoryRuntimeContext.test.ts",
+    "test/main/presenter/memorySearch.test.ts",
+    "test/main/presenter/memoryServiceHarness.test.ts",
+    "test/main/presenter/memorySessionExtractionLock.test.ts",
+    "test/main/presenter/memoryUpdate.test.ts",
+    "test/main/presenter/memoryVectorStore.test.ts",
+    "test/main/presenter/recallKeyword.test.ts",
+    "test/main/presenter/toolPresenter/agentTools/agentMemoryTools.test.ts",
+    "test/main/routes/memoryDto.test.ts",
+    "test/main/scripts/memoryTestScope.test.ts"
+  ],
+  "native": [
+    "test/main/presenter/agentMemoryAuditRetention.test.ts",
+    "test/main/presenter/agentMemoryPaginationNative.test.ts",
+    "test/main/presenter/agentMemoryTable.test.ts",
+    "test/main/presenter/agentRuntimePresenter/tapeService.test.ts",
+    "test/main/presenter/memoryNativeMigration.test.ts",
+    "test/main/presenter/sqlitePresenter/deepchatMemoryIngestionProjection.test.ts"
+  ],
+  "eval": ["test/main/presenter/memoryRetrieval.eval.test.ts"],
+  "perf": [
+    "test/main/performance/memory/maintenanceScale.perf.ts",
+    "test/main/performance/memory/messageHistoryTraceScale.perf.ts",
+    "test/main/performance/memory/memoryBaseline.perf.ts",
+    "test/main/performance/memory/recallScale.perf.ts",
+    "test/main/performance/memory/tapeScale.perf.ts",
+    "test/main/performance/memory/workloadBounds.perf.ts"
+  ],
+  "exemptions": [
+    {
+      "path": "test/main/presenter/configPresenter/deprecatedProviderCleanup.test.ts",
+      "reason": "Cross-domain config regression suite remains in the full main gate; Memory service behavior is covered by focused suites."
+    },
+    {
+      "path": "test/main/presenter/index.test.ts",
+      "reason": "Application composition suite remains in the full main gate and is not Memory-owned."
+    },
+    {
+      "path": "test/main/routes/dispatcher.test.ts",
+      "reason": "Cross-domain route dispatcher suite remains in the full main gate; typed Memory DTO coverage is focused in memoryDto.test.ts."
+    },
+    {
+      "path": "test/main/scripts/architectureGuard.test.ts",
+      "reason": "Repository-wide architecture guard remains in the full main gate and is not Memory-owned."
+    }
+  ]
+}

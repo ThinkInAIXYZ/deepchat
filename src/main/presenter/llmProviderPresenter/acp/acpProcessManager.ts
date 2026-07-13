@@ -41,8 +41,6 @@ import {
   normalizeAcpConfigState,
   updateAcpConfigStateValue
 } from './acpConfigState'
-import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
 import { AcpDebugLog } from '@/presenter/acpClientPresenter/connection/AcpDebugLog'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
@@ -1748,27 +1746,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private notifyModesReady(handle: AcpProcessHandle, conversationId?: string): void {
     if (!handle.availableModes || handle.availableModes.length === 0) return
 
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, SendTarget.ALL_WINDOWS, {
-      conversationId: conversationId ?? handle.boundConversationId,
+    publishDeepchatEvent('sessions.acp.modes.ready', {
+      conversationId: conversationId ?? handle.boundConversationId ?? undefined,
       agentId: handle.agentId,
       workdir: handle.workdir,
       current: handle.currentModeId ?? 'default',
-      available: handle.availableModes
+      available: handle.availableModes,
+      version: Date.now()
     })
   }
 
   private notifyConfigOptionsReady(handle: AcpProcessHandle, conversationId?: string): void {
     const configState = handle.configState ?? createEmptyAcpConfigState('legacy')
-    eventBus.sendToRenderer(
-      ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId: conversationId ?? handle.boundConversationId,
-        agentId: handle.agentId,
-        workdir: handle.workdir,
-        configState
-      }
-    )
     publishDeepchatEvent('sessions.acp.configOptions.ready', {
       conversationId: conversationId ?? handle.boundConversationId ?? undefined,
       agentId: handle.agentId,

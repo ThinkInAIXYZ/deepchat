@@ -7,10 +7,8 @@ const { send } = vi.hoisted(() => ({
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
-    send
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    send,
+    sendToMain: send
   }
 }))
 

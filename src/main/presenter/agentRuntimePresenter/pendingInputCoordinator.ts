@@ -1,5 +1,3 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { SESSION_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type {
   PendingSessionInputRecord,
@@ -15,9 +13,22 @@ function normalizeInput(input: string | SendMessageInput): SendMessageInput {
     return { text: input, files: [] }
   }
 
+  const activeSkills = Array.isArray(input?.activeSkills)
+    ? Array.from(
+        new Set(
+          input.activeSkills
+            .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
+            .filter((skillName) => skillName.length > 0)
+        )
+      )
+    : []
+
+  const inlineItems = Array.isArray(input?.inlineItems) ? input.inlineItems : []
   return {
     text: typeof input?.text === 'string' ? input.text : '',
-    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : []
+    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : [],
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
   }
 }
 
@@ -91,8 +102,19 @@ export class PendingInputCoordinator {
     return record
   }
 
+  /**
+   * Roll a still-pending steer item back to the queue. Used to recover when a steer promotion cannot
+   * actually start (so the item is never stranded in the locked steer lane).
+   */
+  restoreSteerInputToQueue(sessionId: string, itemId: string): PendingSessionInputRecord {
+    this.assertSteerInput(sessionId, itemId)
+    const record = this.store.convertSteerInputToQueue(itemId)
+    this.emitUpdated(sessionId)
+    return record
+  }
+
   deletePendingInput(sessionId: string, itemId: string): void {
-    this.assertQueueInput(sessionId, itemId)
+    this.assertDeletablePendingInput(sessionId, itemId)
     this.store.deleteInput(itemId)
     this.emitUpdated(sessionId)
   }
@@ -186,6 +208,16 @@ export class PendingInputCoordinator {
     }
   }
 
+  private assertDeletablePendingInput(sessionId: string, itemId: string): void {
+    // listPendingInputs only returns pending (not claimed/consumed) items, so any item it returns —
+    // queued or a locked steer item — is safe to remove. Deleting is the recovery path for a steer
+    // item whose interrupt could not be started.
+    const record = this.store.listPendingInputs(sessionId).find((item) => item.id === itemId)
+    if (!record) {
+      throw new Error(`Pending input not found: ${itemId}`)
+    }
+  }
+
   private assertSteerInput(sessionId: string, itemId: string): void {
     const record = this.store.listPendingInputs(sessionId).find((item) => item.id === itemId)
     if (!record) {
@@ -222,9 +254,6 @@ export class PendingInputCoordinator {
   }
 
   private emitUpdated(sessionId: string): void {
-    eventBus.sendToRenderer(SESSION_EVENTS.PENDING_INPUTS_UPDATED, SendTarget.ALL_WINDOWS, {
-      sessionId
-    })
     publishDeepchatEvent('sessions.pendingInputs.changed', {
       sessionId,
       version: Date.now()

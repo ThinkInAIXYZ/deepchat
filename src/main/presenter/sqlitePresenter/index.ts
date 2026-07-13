@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
-import Database from 'better-sqlite3-multiple-ciphers'
-import path from 'path'
+import type Database from 'better-sqlite3-multiple-ciphers'
 import fs from 'fs'
 import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
@@ -18,6 +17,7 @@ import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
 import { AcpTurnsTable, type AcpTurnStatus } from './tables/acpTurns'
 import { NewEnvironmentsTable } from './tables/newEnvironments'
+import { NewEnvironmentPreferencesTable } from './tables/newEnvironmentPreferences'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
@@ -32,16 +32,28 @@ import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import { DeepChatMemoryIngestionProjectionTable } from './tables/deepchatMemoryIngestionProjection'
+import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
+import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { AgentMemoryTable } from './tables/agentMemory'
+import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { CronJobsTable } from './tables/cronJobs'
+import { CronJobRunsTable } from './tables/cronJobRuns'
+import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
+import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
+import type { SchemaTableSpec } from './schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
-import { configureSQLiteConnection } from './connectionConfig'
+import { openSQLiteDatabase } from './databaseConnection'
 import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
+
+export { openSQLiteDatabase } from './databaseConnection'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
@@ -67,25 +79,17 @@ export function isDestructiveDatabaseError(error: unknown): boolean {
   return DESTRUCTIVE_DATABASE_ERROR_PATTERNS.some((pattern) => pattern.test(message))
 }
 
-function ensureDatabaseDirectory(dbPath: string): void {
-  const dbDir = path.dirname(dbPath)
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true })
+export function repairSQLiteDatabaseFile(
+  dbPath: string,
+  password?: string,
+  options?: {
+    catalog?: SchemaTableSpec[]
   }
-}
-
-export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
-  ensureDatabaseDirectory(dbPath)
-  const db = new Database(dbPath)
-  configureSQLiteConnection(db, password)
-  return db
-}
-
-export function repairSQLiteDatabaseFile(dbPath: string, password?: string): DatabaseRepairReport {
+): DatabaseRepairReport {
   const db = openSQLiteDatabase(dbPath, password)
 
   try {
-    return new DatabaseRepairService(db, dbPath).repair()
+    return new DatabaseRepairService(db, dbPath, options?.catalog).repair()
   } finally {
     db.close()
   }
@@ -210,6 +214,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private acpSessionsTable!: AcpSessionsTable
   private acpTurnsTable!: AcpTurnsTable
   public newEnvironmentsTable!: NewEnvironmentsTable
+  public newEnvironmentPreferencesTable!: NewEnvironmentPreferencesTable
   public newSessionsTable!: NewSessionsTable
   public newProjectsTable!: NewProjectsTable
   public deepchatSessionsTable!: DeepChatSessionsTable
@@ -224,16 +229,25 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatPendingInputsTable!: DeepChatPendingInputsTable
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
+  public deepchatMemoryIngestionProjectionTable!: DeepChatMemoryIngestionProjectionTable
+  public deepchatTapeSearchProjectionTable!: DeepChatTapeSearchProjectionTable
+  public deepchatSessionMetadataTable!: DeepChatSessionMetadataTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
+  public agentMemoryTable!: AgentMemoryTable
+  public agentMemoryAuditTable!: AgentMemoryAuditTable
   public configTables!: ConfigTables
   public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
   public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
   public settingsActivityTable!: SettingsActivityTable
+  public cronJobsTable!: CronJobsTable
+  public cronJobRunsTable!: CronJobRunsTable
+  public cronJobDeliveriesTable!: CronJobDeliveriesTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
   private destructiveInitializationRetryCount = 0
+  private databaseFileExistedBeforeOpen = false
 
   constructor(dbPath: string, password?: string) {
     this.dbPath = dbPath
@@ -265,13 +279,20 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.password
   }
 
+  public getLatestSchemaVersion(): number {
+    return this.getMigrationTables().reduce((maxVersion, table) => {
+      const tableMaxVersion = table.getLatestVersion()
+      return Math.max(maxVersion, tableMaxVersion)
+    }, 0)
+  }
+
   public reopenWithPassword(password?: string): void {
     this.password = password
     this.reopen()
   }
 
-  public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {
-    return new SchemaInspector(this.db).diagnose()
+  public async diagnoseSchema(catalog?: SchemaTableSpec[]): Promise<DatabaseSchemaDiagnosis> {
+    return new SchemaInspector(this.db, catalog).diagnose()
   }
 
   public async repairSchema(): Promise<DatabaseRepairReport> {
@@ -296,11 +317,28 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   private initializeDatabase(): void {
+    this.databaseFileExistedBeforeOpen = fs.existsSync(this.dbPath)
+
+    const openStart = performance.now()
     this.db = openSQLiteDatabase(this.dbPath, this.password)
     this.db.prepare('SELECT 1').get()
+    logger.info(
+      `SQLitePresenter: phase=open duration=${(performance.now() - openStart).toFixed(2)}ms`
+    )
+
+    const initTablesStart = performance.now()
     this.initTables()
     this.initVersionTable()
+    logger.info(
+      `SQLitePresenter: phase=initTables duration=${(performance.now() - initTablesStart).toFixed(2)}ms`
+    )
+
+    const migrateStart = performance.now()
     this.migrate()
+    this.agentMemoryTable.assertCurrentSchema()
+    logger.info(
+      `SQLitePresenter: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
+    )
   }
 
   private handleInitializationError(error: unknown): void {
@@ -385,6 +423,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.acpSessionsTable = new AcpSessionsTable(this.db)
     this.acpTurnsTable = new AcpTurnsTable(this.db)
     this.newEnvironmentsTable = new NewEnvironmentsTable(this.db)
+    this.newEnvironmentPreferencesTable = new NewEnvironmentPreferencesTable(this.db)
     this.newSessionsTable = new NewSessionsTable(this.db)
     this.newProjectsTable = new NewProjectsTable(this.db)
     this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
@@ -398,18 +437,32 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatSearchDocumentsTable = new DeepChatSearchDocumentsTable(this.db)
     this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
-    this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
+    this.deepchatMemoryIngestionProjectionTable = new DeepChatMemoryIngestionProjectionTable(
+      this.db
+    )
+    this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(
+      this.db,
+      this.deepchatMemoryIngestionProjectionTable
+    )
+    this.deepchatTapeSearchProjectionTable = new DeepChatTapeSearchProjectionTable(this.db)
+    this.deepchatSessionMetadataTable = new DeepChatSessionMetadataTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
+    this.agentMemoryTable = new AgentMemoryTable(this.db)
+    this.agentMemoryAuditTable = new AgentMemoryAuditTable(this.db)
     this.configTables = new ConfigTables(this.db)
     this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
     this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
     this.settingsActivityTable = new SettingsActivityTable(this.db)
+    this.cronJobsTable = new CronJobsTable(this.db)
+    this.cronJobRunsTable = new CronJobRunsTable(this.db)
+    this.cronJobDeliveriesTable = new CronJobDeliveriesTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
     this.acpTurnsTable.createTable()
     this.newEnvironmentsTable.createTable()
+    this.newEnvironmentPreferencesTable.createTable()
     this.newSessionsTable.createTable()
     this.newProjectsTable.createTable()
     this.deepchatSessionsTable.createTable()
@@ -423,13 +476,21 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatSearchDocumentsTable.createTable()
     this.deepchatPendingInputsTable.createTable()
     this.deepchatUsageStatsTable.createTable()
+    this.deepchatMemoryIngestionProjectionTable.createTable()
     this.deepchatTapeEntriesTable.createTable()
+    this.deepchatTapeSearchProjectionTable.createTable()
+    this.deepchatSessionMetadataTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
+    this.agentMemoryTable.createTable()
+    this.agentMemoryAuditTable.createTable()
     this.configTables.createTable()
     this.newSessionActiveSkillsTable.createTable()
     this.newSessionDisabledAgentToolsTable.createTable()
     this.settingsActivityTable.createTable()
+    this.cronJobsTable.createTable()
+    this.cronJobRunsTable.createTable()
+    this.cronJobDeliveriesTable.createTable()
   }
 
   private initVersionTable() {
@@ -447,12 +508,11 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.currentVersion = result?.version || 0
   }
 
-  private migrate() {
-    // 获取所有表的迁移脚本
-    const migrations = new Map<number, string[]>()
-    const tables = [
+  private getMigrationTables(): BaseTable[] {
+    return [
       this.acpSessionsTable,
       this.newEnvironmentsTable,
+      this.newEnvironmentPreferencesTable,
       this.newSessionsTable,
       this.newProjectsTable,
       this.deepchatSessionsTable,
@@ -467,19 +527,37 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatPendingInputsTable,
       this.deepchatUsageStatsTable,
       this.deepchatTapeEntriesTable,
+      this.deepchatTapeSearchProjectionTable,
+      this.deepchatSessionMetadataTable,
       this.legacyImportStatusTable,
       this.agentsTable,
+      this.agentMemoryTable,
+      this.agentMemoryAuditTable,
       this.configTables,
       this.newSessionActiveSkillsTable,
       this.newSessionDisabledAgentToolsTable,
-      this.settingsActivityTable
+      this.settingsActivityTable,
+      this.cronJobsTable,
+      this.cronJobRunsTable,
+      this.cronJobDeliveriesTable
     ]
+  }
+
+  private migrate() {
+    // 获取所有表的迁移脚本
+    const migrations = new Map<number, string[]>()
+    const tables = this.getMigrationTables()
 
     // 获取最新的迁移版本
-    const latestVersion = tables.reduce((maxVersion, table) => {
-      const tableMaxVersion = table.getLatestVersion?.() || 0
-      return Math.max(maxVersion, tableMaxVersion)
-    }, 0)
+    const latestVersion = this.getLatestSchemaVersion()
+
+    if (!this.databaseFileExistedBeforeOpen && this.currentVersion === 0 && latestVersion > 0) {
+      this.db
+        .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
+        .run(latestVersion, Date.now())
+      this.currentVersion = latestVersion
+      return
+    }
 
     // 只迁移未执行的版本
     tables.forEach((table) => {
@@ -558,12 +636,20 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
         DELETE FROM deepchat_tape_entries;
+        DELETE FROM deepchat_memory_ingestion_projection;
+        DELETE FROM deepchat_memory_ingestion_projection_meta;
+        DELETE FROM deepchat_tape_search_projection;
+        DELETE FROM deepchat_tape_search_projection_meta;
+        DELETE FROM deepchat_session_metadata;
         DELETE FROM deepchat_sessions;
         DELETE FROM new_session_active_skills;
         DELETE FROM new_session_disabled_agent_tools;
+        DELETE FROM new_environment_preferences;
         DELETE FROM new_environments;
         DELETE FROM new_sessions;
       `)
+      this.deepchatMemoryIngestionProjectionTable.clearAll()
+      this.deepchatTapeSearchProjectionTable.clearAll()
     })
   }
 

@@ -10,6 +10,12 @@ declare module 'vue-i18n' {
     mockUpdateButton: string
     clearMockUpdateButton: string
     mockOnboardingButton: string
+    mockChatButton: string
+    mockChatCreating: string
+    mockChatCreated: string
+    mockChatCreatedDesc: string
+    mockChatCreateFailed: string
+    mockChatCreateUnavailable: string
     updateChannel: string
     stableChannel: string
     betaChannel: string
@@ -176,7 +182,6 @@ declare module 'vue-i18n' {
     pendingInput: {
       steer: string
       queueCount: string
-      resumeQueue: string
       toSteer: string
       locked: string
       reorder: string
@@ -184,6 +189,9 @@ declare module 'vue-i18n' {
       attachmentsOnly: string
       empty: string
       limitReached: string
+      remove: string
+      steerUnavailable: string
+      steerFailed: string
     }
     features: {
       webSearch: string
@@ -379,6 +387,8 @@ declare module 'vue-i18n' {
         successMessage: string
         failed: string
         dragInvalid: string
+        basicTitle: string
+        basicDescription: string
       }
       delete: {
         title: string
@@ -392,6 +402,23 @@ declare module 'vue-i18n' {
         env: string
         pythonShort: string
         nodeShort: string
+        enabled: string
+        disabled: string
+        enable: string
+        disable: string
+        viewDetails: string
+        edit: string
+        installToAgent: string
+      }
+      enable: {
+        success: string
+        successMessage: string
+        failed: string
+      }
+      disable: {
+        success: string
+        successMessage: string
+        failed: string
       }
       edit: {
         title: string
@@ -523,6 +550,214 @@ declare module 'vue-i18n' {
         skip: string
         importSelected: string
       }
+      tabs: {
+        library: string
+        agents: string
+        syncDirectory: string
+      }
+      agents: {
+        title: string
+        summary: string
+        refresh: string
+        syncToAgent: string
+        empty: string
+        emptySkills: string
+        loadFailed: string
+        conflictCount: string
+        table: {
+          skill: string
+          owner: string
+          status: string
+          action: string
+          preview: string
+        }
+        owner: {
+          deepchat: string
+          'external-link': string
+          'broken-link': string
+          unknown: string
+        }
+        status: {
+          linked: string
+          'agent-owned': string
+          'linked-out': string
+          'broken-link': string
+          conflict: string
+          empty: string
+        }
+        actions: {
+          adopt: string
+          'resolve-conflict': string
+          'repair-link': string
+          'remove-link': string
+          open: string
+          pending: string
+          view: string
+        }
+        agentStatus: {
+          ready: string
+          'detected-no-skills-dir': string
+          'permission-denied': string
+        }
+        counts: {
+          skills: string
+          linked: string
+          agentOwned: string
+          conflicts: string
+          broken: string
+        }
+        adoptDialog: {
+          adoptTitle: string
+          conflictTitle: string
+          adoptDescription: string
+          conflictDescription: string
+          loading: string
+          previewFailed: string
+          executeFailed: string
+          currentLocation: string
+          afterAdoption: string
+          backup: string
+          chooseAction: string
+          adoptAs: string
+          replaceDeepChat: string
+          keepCurrent: string
+          unsupportedStrategies: string
+          warnings: string
+          apply: string
+          linkArrow: string
+          successTitle: string
+          successDescription: string
+        }
+        syncDialog: {
+          title: string
+          description: string
+          target: string
+          deepchatSkills: string
+          empty: string
+          preview: string
+          loading: string
+          noSelection: string
+          apply: string
+          failed: string
+          successTitle: string
+          successDescription: string
+          status: {
+            ready: string
+            'already-linked': string
+            conflict: string
+            missing: string
+          }
+        }
+        linkAction: {
+          repairSuccess: string
+          removeSuccess: string
+          successDescription: string
+          failed: string
+        }
+      }
+      git: {
+        title: string
+        description: string
+        placeholder: string
+        scan: string
+        detectedFormat: string
+        format: {
+          'single-skill': string
+          'multi-skill': string
+        }
+        selectedCount: string
+        empty: string
+        conflict: string
+        invalid: string
+        strategy: string
+        rename: string
+        overwrite: string
+        skip: string
+        install: string
+        failed: string
+        success: string
+        successMessage: string
+        menuItem: string
+      }
+      importExport: {
+        directory: string
+        browse: string
+        save: string
+        saved: string
+        export: string
+        import: string
+        includeDisabled: string
+        previewExport: string
+        exportNow: string
+        previewImport: string
+        importSelected: string
+        noExportPreview: string
+        noImportPreview: string
+        strategy: string
+        rename: string
+        overwrite: string
+        skip: string
+        exported: string
+        imported: string
+        result: string
+        state: {
+          new: string
+          same: string
+          modified: string
+          conflict: string
+          invalid: string
+        }
+        searchPlaceholder: string
+        selectedCount: string
+        selectVisible: string
+        clearSelection: string
+        refresh: string
+        stateFilter: string
+        allStates: string
+        exportConfirmTitle: string
+        exportConfirmDescription: string
+        emptyExportConfirm: string
+        confirmExport: string
+        noDirectory: string
+        chooseDirectoryHint: string
+        directoryMissing: string
+        chooseDirectory: string
+        changeDirectory: string
+        noDirectoryAction: string
+        directoryMissingAction: string
+      }
+      detail: {
+        failed: string
+        noDescription: string
+        empty: string
+        installToAgent: string
+        enabled: string
+        disabled: string
+        enable: string
+        disable: string
+        preview: string
+        edit: string
+        delete: string
+        confirmDeleteTitle: string
+        confirmDeleteDescription: string
+      }
+      installToAgent: {
+        title: string
+        description: string
+        failed: string
+        emptyAgents: string
+        target: string
+        preview: string
+        loadingPreview: string
+        noPreview: string
+        install: string
+        success: string
+        successMessage: string
+        disconnect: string
+        disconnectSuccess: string
+        disconnectSuccessMessage: string
+        disconnectFailed: string
+      }
     }
     workspace: {
       title: string
@@ -542,9 +777,9 @@ declare module 'vue-i18n' {
           pending: string
           in_progress: string
           completed: string
-          failed: string
-          skipped: string
+          interrupted: string
         }
+        completedCount: string
       }
       files: {
         section: string
@@ -559,6 +794,10 @@ declare module 'vue-i18n' {
           openFile: string
           revealInFolder: string
           insertPath: string
+        }
+        watchStatus: {
+          degraded: string
+          failed: string
         }
       }
       git: {
@@ -620,6 +859,7 @@ declare module 'vue-i18n' {
     }
     permissionMode: {
       default: string
+      autoApprove: string
       fullAccess: string
     }
     sidebar: {
@@ -630,6 +870,9 @@ declare module 'vue-i18n' {
       themeLight: string
       themeDark: string
       themeSystem: string
+      searchCommand: string
+      chatSection: string
+      workspace: string
       remoteControlDisabled: string
       remoteControlStatus: {
         disabled: string
@@ -641,7 +884,13 @@ declare module 'vue-i18n' {
       }
       groupByDate: string
       groupByProject: string
+      projectGroupActions: string
+      moveProjectGroupTop: string
+      moveProjectGroupUp: string
+      moveProjectGroupDown: string
+      moveProjectGroupBottom: string
       pinned: string
+      chats: string
       emptyTitle: string
       emptyDescription: string
       searchPlaceholder: string
@@ -696,6 +945,165 @@ declare module 'vue-i18n' {
         hour: string
         minute: string
         second: string
+      }
+    }
+    memory: {
+      toolbar: string
+      status: {
+        archived: string
+      }
+      actions: {
+        undo: string
+        forget: string
+        edit: string
+      }
+      chip: {
+        title: string
+        heading: string
+        description: string
+      }
+      selection: {
+        remember: string
+      }
+      turn: {
+        title: string
+        empty: string
+        selected: string
+        dropped: string
+        tokens: string
+        budget: string
+        countOnly: string
+        unavailable: string
+        noSelectedDetails: string
+        refreshFailed: string
+        error: string
+      }
+      toast: {
+        undoSuccess: string
+        undoFailed: string
+        forgetSuccess: string
+        forgetFailed: string
+        amendFailed: string
+        rememberFailed: string
+        add: {
+          created: string
+          updated: string
+          superseded: string
+          challenged: string
+          noop: string
+        }
+      }
+      errors: {
+        actionFailed: string
+        amendRetryable: string
+        amendRestoreFailed: string
+      }
+      description: string
+      empty: string
+      agentPicker: string
+      tabConfig: string
+      tabManage: string
+      config: {
+        rootHint: string
+        extractionModel: string
+        extractionModelHint: string
+        injectionBudget: string
+        injectionBudgetHint: string
+        retrievalTitle: string
+        retrievalHint: string
+        retrievalOverride: string
+        topK: string
+        rrfK: string
+        similarityThreshold: string
+        weightSimilarity: string
+        weightRecency: string
+        weightImportance: string
+        advancedTitle: string
+        advancedHint: string
+        inheritedHint: string
+        topKHint: string
+        rrfKHint: string
+        similarityThresholdHint: string
+        weightHint: string
+      }
+      redesign: {
+        tabMemories: string
+        tabPersona: string
+        tabDiagnostics: string
+        statusEnabled: string
+        statusDisabled: string
+        memoryCount: string
+        embeddingModel: string
+        embeddingMissing: string
+        embeddingMissingHint: string
+        enableMemory: string
+        configure: string
+        emptyTitle: string
+        disabledTitle: string
+        emptyDescription: string
+        disabledDescription: string
+        addMemory: string
+        loadMore: string
+        configTitle: string
+        configDescription: string
+        relativeWeightsHint: string
+        configLoadFailed: string
+        configSaveFailed: string
+        detailTitle: string
+        createdAt: string
+        unsavedTitle: string
+        unsavedDescription: string
+        discardChanges: string
+        contentLabel: string
+        contentPlaceholder: string
+        categoryLabel: string
+        importanceLabel: string
+        kindLine: string
+        statusLine: string
+        archivedEditHint: string
+        editRejected: string
+        sourceConversation: string
+        sourceManual: string
+        lifecycleDetails: string
+        archive: string
+        includeArchived: string
+        archivedMatches: string
+        refresh: string
+        inboxTitle: string
+        inboxDescription: string
+        conflictBadge: string
+        personaDraftBadge: string
+        conflictSectionTitle: string
+        conflictExisting: string
+        conflictNew: string
+        personaDraftSectionTitle: string
+        diagnosticsTitle: string
+        diagnosticsDescription: string
+        pipelineTitle: string
+        archiveCandidatesTitle: string
+        archiveCandidatesDescription: string
+        recentFailuresTitle: string
+        activityTitle: string
+        dangerZoneTitle: string
+        dangerZoneDescription: string
+        audit: {
+          'memory-add': string
+          'memory-archive': string
+          'memory-restore': string
+          'memory-delete': string
+          'memory-maintenance-llm': string
+          'memory-reflect': string
+          'persona-evolve': string
+          'memory-repair': string
+          'memory-forget': string
+          'memory-manual-edit': string
+          'memory-challenge-resolved': string
+          'memory-persona-approve': string
+          'memory-persona-reject': string
+          'memory-persona-rollback': string
+          'memory-persona-anchor': string
+          'memory-reindex': string
+        }
       }
     }
     loading: string
@@ -882,6 +1290,11 @@ declare module 'vue-i18n' {
     }
     cut: string
     ok: string
+    deleteMessage: {
+      title: string
+      description: string
+      confirm: string
+    }
     rename: {
       title: string
       description: string
@@ -992,6 +1405,10 @@ declare module 'vue-i18n' {
     tabs: {
       servers: string
       tools: string
+      request: string
+      view: string
+      entries: string
+      budget: string
     }
     serverList: string
     addServer: string
@@ -1399,6 +1816,37 @@ declare module 'vue-i18n' {
     resetToDefaultFailed: string
     parameterRequired: string
     chat: string
+    plugins: {
+      title: string
+      officialOnly: string
+      refresh: string
+      empty: string
+      emptyTitle: string
+      emptyDescription: string
+      loadFailed: string
+      actionFailed: string
+      install: string
+      installFromFile: string
+      openRelease: string
+      enable: string
+      disable: string
+      openSettings: string
+      runtime: string
+      runtimeState: string
+      version: string
+      command: string
+      status: {
+        enabled: string
+        disabled: string
+        available: string
+      }
+      runtimeStates: {
+        missing: string
+        installed: string
+        running: string
+        error: string
+      }
+    }
     welcome: string
     settings: string
     'settings-common': string
@@ -1421,6 +1869,7 @@ declare module 'vue-i18n' {
     'settings-remote': string
     'settings-plugins': string
     'settings-overview': string
+    'settings-memory': string
     common: {
       title: string
       resetData: string
@@ -1565,9 +2014,205 @@ declare module 'vue-i18n' {
       compactionTitle: string
       compactionEnabled: string
       compactionDescription: string
+      memoryTitle: string
+      memoryEnabled: string
+      memoryDescription: string
+      memoryEmbeddingModel: string
+      memoryEmbeddingHint: string
+      memoryManager: {
+        openButton: string
+        title: string
+        description: string
+        degradedHint: string
+        tabMemories: string
+        tabPersona: string
+        tabActivity: string
+        memoriesCount: string
+        clearAll: string
+        clearConfirmTitle: string
+        clearConfirmBody: string
+        emptyMemories: string
+        emptyPersona: string
+        emptyActivity: string
+        auditEventsTitle: string
+        viewManifestsTitle: string
+        manifestIncluded: string
+        manifestExcluded: string
+        manifestSelected: string
+        manifestDropped: string
+        personaActive: string
+        rollback: string
+        actionFailed: string
+        conflict: string
+        conflictPairsTitle: string
+        keepTarget: string
+        keepChallenger: string
+        keepBoth: string
+        restore: string
+        clearNoop: string
+        sourceLine: string
+        sourceDialogTitle: string
+        sourceDialogEmpty: string
+        status: {
+          pending_embedding: string
+          embedded: string
+          error: string
+          fts_only: string
+          archived: string
+          conflicted: string
+        }
+        pendingTitle: string
+        largeChange: string
+        personaCurrent: string
+        personaProposed: string
+        personaNone: string
+        approve: string
+        reject: string
+        anchored: string
+        anchor: string
+        unanchor: string
+        rollbackConfirmTitle: string
+        rollbackConfirmBody: string
+        personaEvolutionOnHint: string
+        personaEvolutionOffHint: string
+        searchPlaceholder: string
+        noSearchResults: string
+        addMemory: string
+        addContentPlaceholder: string
+        addCategoryLabel: string
+        addCategoryNone: string
+        kindSemantic: string
+        kindEpisodic: string
+        importanceLow: string
+        importanceMedium: string
+        importanceHigh: string
+        addSuccess: string
+        addConflict: string
+        addDuplicate: string
+        addDisabledHint: string
+        addSkipped: string
+        searchFailed: string
+        deletePermanent: string
+        deleteConfirmTitle: string
+        deleteConfirmBody: string
+        categoryFilterLabel: string
+        categoryFilterAll: string
+        categoryUncategorized: string
+        noCategoryResults: string
+        category: {
+          user_preference: string
+          project_fact: string
+          task_outcome: string
+          heuristic: string
+          anti_pattern: string
+        }
+        tabHealth: string
+        emptyHealth: string
+        health: {
+          totalRows: string
+          neverAccessed: string
+          archiveCandidates: string
+          staleEmbeddings: string
+          byKind: string
+          byCategory: string
+          byStatus: string
+          pipeline: string
+          reindex: string
+          reindexing: string
+          quality: string
+          topAccessed: string
+          noTopAccessed: string
+          maintenance: string
+          noRecentFailures: string
+          scanWindow: string
+          pending: string
+          error: string
+          ftsOnly: string
+          archived: string
+          conflicted: string
+          challenged: string
+          importanceAvg: string
+          importanceMedian: string
+          confidenceAvg: string
+          completed: string
+          skipped: string
+          failed: string
+          kind: {
+            reflection: string
+            persona: string
+            working: string
+          }
+          archivePrediction: {
+            title: string
+            description: string
+            empty: string
+            decayScore: string
+            ageDays: string
+            scanLimited: string
+            previewLimited: string
+          }
+        }
+        lifecycle: {
+          toggle: string
+          empty: string
+          modelNote: string
+          tier: {
+            fresh: string
+            aging: string
+            stale: string
+            archive_candidate: string
+          }
+          recall: {
+            title: string
+            final: string
+            diagnosticFinal: string
+            similarity: string
+            recency: string
+            importance: string
+            confidence: string
+            floor: string
+            floored: string
+            inactive: string
+            baseline: string
+            notRecallable: string
+          }
+          forget: {
+            title: string
+            score: string
+            materialized: string
+            notRefreshed: string
+            stale: string
+            halfLife: string
+            age: string
+            anchor: string
+          }
+          archive: {
+            title: string
+            oldEnough: string
+            decayedEnough: string
+            neverAccessed: string
+            active: string
+            notExempt: string
+            eligible: string
+            daysUntilOldEnough: string
+            decayAboveThresholdBy: string
+            accessCount: string
+          }
+          exempt: {
+            anchor: string
+            persona: string
+            working: string
+          }
+        }
+      }
       compactionThreshold: string
       compactionRetainPairs: string
       deleteConfirm: string
+      personaEvolutionTitle: string
+      personaEvolutionDescription: string
+      personaEvolutionWarning: string
+      memoryManageLink: string
+      memoryManageLinkHint: string
     }
     notificationsHooks: {
       title: string
@@ -1669,6 +2314,25 @@ declare module 'vue-i18n' {
         uploadSuccessTitle: string
         uploadFailedTitle: string
         pullSuccessTitle: string
+        providerR2: string
+        providerCustom: string
+        r2GuideTitle: string
+        r2EndpointHint: string
+        r2AccessKeyHint: string
+        r2SecretHint: string
+        r2DocsLink: string
+        endpointR2Description: string
+        endpointCustomDescription: string
+        r2AccessKeyAccountIdWarning: string
+        r2SecretApiTokenError: string
+        secretStoredDescription: string
+        secretInputDescription: string
+        advancedTitle: string
+        r2RegionDescription: string
+        prefixDescription: string
+        saveAndTest: string
+        saveOnly: string
+        saveAndTestFirst: string
       }
       backupSelectLabel: string
       backupSelectDescription: string
@@ -2323,66 +2987,69 @@ declare module 'vue-i18n' {
           custom: string
         }
       }
+      authRequired: string
+      authenticate: string
+      authFailed: string
+      authCallbackTitle: string
+      authCallbackDescription: string
+      authCallbackPlaceholder: string
+      completeAuthentication: string
+      saveSuccess: string
+      saveFailed: string
     }
-    scheduledTasks: {
+    cronJobs: {
       title: string
       description: string
-      hint: string
-      newTask: string
       empty: string
-      namePlaceholder: string
-      fireNow: string
-      fireNowSuccess: string
+      none: string
+      nextRunAt: string
       defaults: {
         name: string
-        title: string
-        body: string
       }
-      trigger: {
-        title: string
-        kind: string
-        kindOnce: string
-        kindDaily: string
-        kindWeekly: string
-        firesAt: string
-        dayOfWeek: string
-        time: string
-        description: string
+      actions: {
+        newJob: string
+        runNow: string
+        clearNextRun: string
+        reconcile: string
+        restart: string
       }
-      action: {
-        title: string
-        kind: string
-        kindNotify: string
-        kindPrompt: string
-        titleField: string
-        titlePlaceholder: string
-        body: string
-        message: string
-        agentId: string
-        agentIdPlaceholder: string
-        modelId: string
-        modelIdPlaceholder: string
-        systemPrompt: string
-        autoSend: string
-        description: string
+      fields: {
+        name: string
+        cronExpr: string
+        timezone: string
+        preset: string
+        agent: string
+        noAgent: string
+        taskPrompt: string
+        runtimePolicy: string
+        followAgent: string
+        pinCurrent: string
+        delivery: string
+        remoteDelivery: string
+        remoteChannel: string
+        noRemoteChannels: string
+        deliverySuccess: string
+        deliveryFailed: string
       }
-      weekday: {
-        sun: string
-        mon: string
-        tue: string
-        wed: string
-        thu: string
-        fri: string
-        sat: string
-      }
-      listTitle: string
-      listDescription: string
-      summary: {
-        task: string
-        once: string
+      presets: {
+        custom: string
+        every5Minutes: string
+        hourly: string
         daily: string
-        weekly: string
+        weekdays: string
       }
+      status: {
+        state: string
+        enabled: string
+        heartbeat: string
+        stopped: string
+        starting: string
+        running: string
+        idle: string
+        error: string
+        invalidAgent: string
+      }
+      runNowSuccess: string
     }
     about: {
       title: string
@@ -2648,6 +3315,10 @@ declare module 'vue-i18n' {
         title: string
         description: string
       }
+      tabs: {
+        active: string
+        archived: string
+      }
       actions: {
         refresh: string
         showMissing: string
@@ -2656,6 +3327,15 @@ declare module 'vue-i18n' {
         clearDefault: string
         showTemp: string
         hideTemp: string
+        more: string
+        dragTarget: string
+        moveTop: string
+        moveUp: string
+        moveDown: string
+        moveBottom: string
+        archive: string
+        restore: string
+        remove: string
       }
       badges: {
         default: string
@@ -2666,14 +3346,26 @@ declare module 'vue-i18n' {
       meta: {
         sessions: string
         lastUsed: string
+        archivedAt: string
         never: string
       }
       empty: {
         regular: string
         temp: string
+        archived: string
+      }
+      confirm: {
+        archiveTitle: string
+        archiveDescription: string
+        removeTitle: string
+        removeDescription: string
       }
       errors: {
         openTitle: string
+        archiveTitle: string
+        restoreTitle: string
+        removeTitle: string
+        reorderTitle: string
       }
     }
     remote: {
@@ -2707,6 +3399,59 @@ declare module 'vue-i18n' {
         accessRulesDescription: string
         accessRule1: string
         accessRule2: string
+        setupGuideTitle: string
+        setupGuideDescription: string
+        setupStepCreateApp: string
+        setupStepPermissions: string
+        setupStepEvents: string
+        setupStepPublish: string
+        oauthRedirectUri: string
+        openSetupGuide: string
+        openDeveloperConsole: string
+        openBotChat: string
+        openBotChatMissingAppIdTitle: string
+        openBotChatMissingAppIdDescription: string
+        scanAuthTitle: string
+        scanAuthDescription: string
+        startScanAuth: string
+        scanAuthWaiting: string
+        authStarted: string
+        authSuccess: string
+        authSuccessTitle: string
+        authSuccessDescription: string
+        authFailed: string
+        authDenied: string
+        authMissingCode: string
+        authStateMismatch: string
+        authTimeout: string
+        authCancelled: string
+        authSessionMissing: string
+        installTitle: string
+        installDescription: string
+        startInstall: string
+        installWaiting: string
+        installStarted: string
+        installSuccess: string
+        installSuccessTitle: string
+        installSuccessDescription: string
+        installFailed: string
+        installTimeout: string
+        installCancelled: string
+        installSessionMissing: string
+        installUserCode: string
+        manualSetupTitle: string
+        manualSetupDescription: string
+        openInstallWeb: string
+        showInstallQr: string
+        installQrTitle: string
+        installQrDescription: string
+        installQrAlt: string
+        userAuthTitle: string
+        userAuthDescription: string
+        pairAuthTitle: string
+        pairAuthDescription: string
+        streamingCards: string
+        streamingCardsDescription: string
       }
       discord: {
         title: string
@@ -2833,35 +3578,18 @@ declare module 'vue-i18n' {
         loginConnected: string
       }
     }
-    plugins: {
-      title: string
-      officialOnly: string
-      refresh: string
-      empty: string
-      emptyTitle: string
-      emptyDescription: string
-      loadFailed: string
-      actionFailed: string
-      install: string
-      installFromFile: string
-      openRelease: string
-      enable: string
-      disable: string
-      openSettings: string
-      runtime: string
-      version: string
-      command: string
-      status: {
-        enabled: string
-        disabled: string
-        available: string
-      }
-      runtimeStates: {
-        missing: string
-        installed: string
-        running: string
-        error: string
-      }
+    pluginsHub: {
+      subtitle: string
+      available: string
+      add: string
+      manage: string
+      emptySearch: string
+      pluginNotFound: string
+      actionResult: string
+      cuaDescription: string
+      acpUnavailableTitle: string
+      acpUnavailableDescription: string
+      agentScopeUnsupported: string
     }
     controlCenter: {
       groups: {
@@ -2987,6 +3715,51 @@ declare module 'vue-i18n' {
     notImplemented: string
     notImplementedDesc: string
     mayNotMatch: string
+    empty: string
+    emptyDesc: string
+    requestUnavailable: string
+    requestUnavailableDesc: string
+    manifestUnavailable: string
+    manifestUnavailableDesc: string
+    viewId: string
+    policy: string
+    policyVersion: string
+    taskType: string
+    requestSeq: string
+    latestEntryId: string
+    promptHash: string
+    toolDefinitionsHash: string
+    manifestHash: string
+    includedEntries: string
+    excludedEntries: string
+    entryId: string
+    messageId: string
+    orderSeq: string
+    role: string
+    reason: string
+    contextLength: string
+    requestedMaxTokens: string
+    effectiveMaxTokens: string
+    reserveTokens: string
+    toolReserveTokens: string
+    estimatedPromptTokens: string
+    notAvailable: string
+    integrity: {
+      label: string
+      valid: string
+      invalid: string
+      unverified: string
+      invalidWarning: string
+      unverifiedNote: string
+    }
+    reconstructionAnchor: string
+    anchorEntryIds: string
+    schemaVersion: string
+    hashVersion: string
+    compactedRanges: string
+    rangeFrom: string
+    rangeTo: string
+    rangeCount: string
     newVersion: string
     version: string
     releaseDate: string

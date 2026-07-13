@@ -1,8 +1,17 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { providersChangedEvent, providersOllamaPullProgressEvent } from '@shared/contracts/events'
+import {
+  providersChangedEvent,
+  providersAcpDebugEvent,
+  providersOllamaPullProgressEvent,
+  providersRateLimitConfigUpdatedEvent,
+  providersRateLimitRequestExecutedEvent,
+  providersRateLimitRequestQueuedEvent
+} from '@shared/contracts/events'
 import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
+  providersGetEmbeddingDimensionsRoute,
+  providersGetKeyStatusRoute,
   providersGetRateLimitStatusRoute,
   providersImportApplyRoute,
   providersImportScanRoute,
@@ -16,14 +25,30 @@ import {
   providersRefreshModelsRoute,
   providersRemoveRoute,
   providersReorderRoute,
+  providersRunAcpDebugActionRoute,
   providersSetByIdRoute,
+  providersSyncModelScopeMcpServersRoute,
   providersTestConnectionRoute,
   providersUpdateRoute,
+  providersUpdateRateLimitRoute,
   providersWarmupAcpProcessRoute
 } from '@shared/contracts/routes'
 import type { ProviderImportSelection } from '@shared/providerImport'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type {
+  AcpDebugEventEntry,
+  AcpDebugRequest,
+  AcpDebugRunResult,
+  KeyStatus,
+  LLM_PROVIDER,
+  ModelScopeMcpSyncOptions,
+  ModelScopeMcpSyncResult
+} from '@shared/presenter'
 import { getDeepchatBridge } from './core'
+
+type ProviderModelScopeMcpSyncOptions = ModelScopeMcpSyncOptions & {
+  page_number?: number
+  page_size?: number
+}
 
 export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function getProviders() {
@@ -83,6 +108,51 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
   async function getProviderRateLimitStatus(providerId: string) {
     const result = await bridge.invoke(providersGetRateLimitStatusRoute.name, { providerId })
     return result.status
+  }
+
+  async function getKeyStatus(providerId: string): Promise<KeyStatus | null> {
+    const result = await bridge.invoke(providersGetKeyStatusRoute.name, { providerId })
+    return result.status
+  }
+
+  async function updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number) {
+    const result = await bridge.invoke(providersUpdateRateLimitRoute.name, {
+      providerId,
+      enabled,
+      qpsLimit
+    })
+    return result.config
+  }
+
+  async function getEmbeddingDimensions(providerId: string, modelId: string) {
+    const result = await bridge.invoke(providersGetEmbeddingDimensionsRoute.name, {
+      providerId,
+      modelId
+    })
+    return result.result
+  }
+
+  async function syncModelScopeMcpServers(
+    providerId: string,
+    syncOptions?: ProviderModelScopeMcpSyncOptions
+  ): Promise<ModelScopeMcpSyncResult> {
+    const result = await bridge.invoke(providersSyncModelScopeMcpServersRoute.name, {
+      providerId,
+      syncOptions
+    })
+    return result.result as ModelScopeMcpSyncResult
+  }
+
+  async function runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
+    const result = await bridge.invoke(providersRunAcpDebugActionRoute.name, {
+      agentId: request.agentId,
+      action: request.action,
+      payload: request.payload,
+      sessionId: request.sessionId,
+      workdir: request.workdir,
+      methodName: request.methodName
+    })
+    return result.result as AcpDebugRunResult
   }
 
   async function refreshModels(providerId: string) {
@@ -181,6 +251,42 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     return bridge.on(providersOllamaPullProgressEvent.name, listener)
   }
 
+  function onRateLimitEvent(
+    listener: (payload: {
+      providerId: string
+      config?: {
+        enabled: boolean
+        qpsLimit: number
+      }
+      queueLength?: number
+      requestId?: string
+      timestamp?: number
+      currentQps?: number
+      version: number
+    }) => void
+  ) {
+    const offConfig = bridge.on(providersRateLimitConfigUpdatedEvent.name, listener)
+    const offQueued = bridge.on(providersRateLimitRequestQueuedEvent.name, listener)
+    const offExecuted = bridge.on(providersRateLimitRequestExecutedEvent.name, listener)
+
+    return () => {
+      offConfig()
+      offQueued()
+      offExecuted()
+    }
+  }
+
+  function onAcpDebugEvent(
+    listener: (payload: {
+      webContentsId?: number
+      agentId: string
+      event: AcpDebugEventEntry
+      version: number
+    }) => void
+  ) {
+    return bridge.on(providersAcpDebugEvent.name, listener)
+  }
+
   return {
     getProviders,
     getProviderSummaries,
@@ -193,6 +299,11 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     listModels,
     testConnection,
     getProviderRateLimitStatus,
+    getKeyStatus,
+    updateProviderRateLimit,
+    getEmbeddingDimensions,
+    syncModelScopeMcpServers,
+    runAcpDebugAction,
     refreshModels,
     listOllamaModels,
     listOllamaRunningModels,
@@ -202,7 +313,9 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     scanProviderImports,
     applyProviderImports,
     onProvidersChanged,
-    onOllamaPullProgress
+    onOllamaPullProgress,
+    onRateLimitEvent,
+    onAcpDebugEvent
   }
 }
 

@@ -17,6 +17,12 @@
   "mockUpdateButton": "Próbna pobrana aktualizacja",
   "clearMockUpdateButton": "Wyczyść próbną aktualizację",
   "mockOnboardingButton": "Próbny przewodnik po pierwszym uruchomieniu",
+  "mockChatButton": "Utwórz długi czat testowy",
+  "mockChatCreating": "Tworzenie...",
+  "mockChatCreated": "Czat testowy utworzony",
+  "mockChatCreatedDesc": "Utworzono \"{title}\" z {count} wiadomościami.",
+  "mockChatCreateFailed": "Nie udało się utworzyć czatu testowego.",
+  "mockChatCreateUnavailable": "Dane czatu testowego są dostępne tylko w kompilacjach deweloperskich.",
   "updateChannel": "Aktualizuj kanał",
   "stableChannel": "Stabilny",
   "betaChannel": "Beta"

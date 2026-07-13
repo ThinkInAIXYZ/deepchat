@@ -18,9 +18,11 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const skillPresenter = {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
+    getMetadataList: vi.fn(),
     viewSkill: vi.fn(),
     listSkillScripts: vi.fn().mockResolvedValue([]),
     manageDraftSkill: vi.fn(),
+    setActiveSkills: vi.fn(),
     getSkillExtension: vi.fn().mockResolvedValue({
       version: 1,
       env: {},
@@ -65,6 +67,15 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     resolveConversationWorkdir.mockResolvedValue(null)
     resolveConversationSessionInfo.mockResolvedValue(null)
     skillPresenter.listSkillScripts.mockResolvedValue([])
+    skillPresenter.getMetadataList.mockResolvedValue([
+      {
+        name: 'code-review',
+        description: 'Code Review',
+        category: 'engineering',
+        platforms: [],
+        metadata: {}
+      }
+    ])
     skillPresenter.viewSkill.mockResolvedValue({
       success: true,
       name: 'code-review',
@@ -112,6 +123,25 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(names).not.toContain(CHAT_SETTINGS_TOOL_NAMES.open)
   })
 
+  it('includes settings tools for message-scoped active skills', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([CHAT_SETTINGS_TOOL_NAMES.toggle])
+
+    const manager = buildManager()
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      activeSkillNames: [CHAT_SETTINGS_SKILL_NAME]
+    })
+
+    const names = defs.map((def) => def.function.name)
+    expect(names).toContain(CHAT_SETTINGS_TOOL_NAMES.toggle)
+    expect(skillPresenter.getActiveSkills).not.toHaveBeenCalled()
+  })
+
   it('includes skill_run when an active skill exposes runnable scripts', async () => {
     skillPresenter.getActiveSkills.mockResolvedValue(['ocr'])
     skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
@@ -157,17 +187,55 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(names).not.toContain('skill_control')
   })
 
-  it('returns skill_view activation metadata after viewing a main SKILL.md', async () => {
-    skillPresenter.getActiveSkills
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(['deepchat-settings'])
+  it('keeps skill_list unrestricted when active skill override is omitted', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue(['code-review'])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+
+    const manager = buildManager()
+    const result = (await manager.callTool('skill_list', {}, 'conv-1')) as { content: string }
+    const content = JSON.parse(result.content) as {
+      skills: Array<{ name: string; active: boolean }>
+    }
+
+    expect(content.skills).toEqual([
+      expect.objectContaining({
+        name: 'code-review',
+        active: true
+      })
+    ])
+  })
+
+  it('does not use active skills as the skill_list allowlist', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+
+    const manager = buildManager()
+    const result = (await manager.callTool('skill_list', {}, 'conv-1', {
+      activeSkillNames: []
+    })) as { content: string }
+    const content = JSON.parse(result.content) as {
+      skills: Array<{ name: string; active: boolean }>
+      totalCount: number
+    }
+
+    expect(content.totalCount).toBe(1)
+    expect(content.skills).toEqual([
+      expect.objectContaining({
+        name: 'code-review',
+        active: false
+      })
+    ])
+  })
+
+  it('returns runtime skill_view activation metadata without persisting session skills', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
     skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
     skillPresenter.viewSkill.mockResolvedValue({
       success: true,
       name: 'deepchat-settings',
       filePath: null,
       content: '# Skill',
-      isPinned: true
+      isPinned: false
     })
 
     const manager = buildManager()
@@ -177,7 +245,12 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       'conv-1'
     )) as { content: string; rawData?: { toolResult?: unknown } }
 
-    expect(result.content).toContain('"isPinned":true')
+    const content = JSON.parse(result.content) as Record<string, unknown>
+    expect(content.isPinned).toBe(false)
+    expect(content.activeForCurrentMessage).toBe(true)
+    expect(content.activatedForMessage).toBe(true)
+    expect(content.activationScope).toBe('message')
+    expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
     expect(result.rawData?.toolResult).toEqual({
       activationApplied: true,
       activationSource: 'skill_md',

@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { eventBus } from '@/eventbus'
-import { WINDOW_EVENTS, CONFIG_EVENTS, SYSTEM_EVENTS, TAB_EVENTS } from '@/events'
+import { WINDOW_EVENTS, CONFIG_EVENTS, TAB_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@shared/presenter'
 import {
@@ -60,20 +60,6 @@ export class TabPresenter implements ITabPresenter {
     return this.windowTypes.get(windowId) ?? TabPresenter.DEFAULT_WINDOW_TYPE
   }
 
-  updateChromeHeight(windowId: number, height: number): void {
-    const safeHeight = Math.max(0, Math.floor(height))
-    this.chromeHeights.set(windowId, safeHeight)
-    const window = BrowserWindow.fromId(windowId)
-    if (!window || window.isDestroyed()) return
-    const tabs = this.windowTabs.get(windowId) || []
-    tabs.forEach((tabId) => {
-      const view = this.tabs.get(tabId)
-      if (view) {
-        this.updateViewBounds(window, view)
-      }
-    })
-  }
-
   private onWindowSizeChange(windowId: number) {
     const views = this.windowTabs.get(windowId)
     const window = BrowserWindow.fromId(windowId)
@@ -130,16 +116,6 @@ export class TabPresenter implements ITabPresenter {
         // 为所有活动的标签页更新右键菜单
         for (const [tabId] of this.tabWindowMap.entries()) {
           await this.setupTabContextMenu(tabId)
-        }
-      }
-    })
-
-    // 系统主题更新，通知所有标签页
-    eventBus.on(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, (isDark: boolean) => {
-      // 向所有标签页广播主题更新
-      for (const [, view] of this.tabs.entries()) {
-        if (!view.webContents.isDestroyed()) {
-          view.webContents.send('system-theme-updated', isDark)
         }
       }
     })
@@ -385,9 +361,6 @@ export class TabPresenter implements ITabPresenter {
     // 通知渲染进程更新标签列表
     await this.notifyWindowTabsUpdate(windowId)
 
-    // 通知渲染进程切换活动标签
-    window.webContents.send('setActiveTab', windowId, tabId)
-
     return true
   }
 
@@ -603,17 +576,8 @@ export class TabPresenter implements ITabPresenter {
   /**
    * 通知渲染进程更新标签列表
    */
-  async notifyWindowTabsUpdate(windowId: number): Promise<void> {
-    const window = BrowserWindow.fromId(windowId)
-    if (!window || window.isDestroyed()) return
-
-    // Await the internal async call
-    const tabListData = await this.getWindowTabsData(windowId)
-
-    if (!window.isDestroyed() && window.webContents && !window.webContents.isDestroyed()) {
-      // Sending IPC is typically synchronous
-      window.webContents.send('update-window-tabs', windowId, tabListData)
-    }
+  async notifyWindowTabsUpdate(_windowId: number): Promise<void> {
+    // The legacy tab shell renderer no longer subscribes to tab list updates.
   }
 
   /**
@@ -635,15 +599,6 @@ export class TabPresenter implements ITabPresenter {
       const state = this.tabState.get(tabId)
       if (state) {
         state.title = title || state.url || 'Untitled'
-        // 通知渲染进程标题已更新
-        const window = BrowserWindow.fromId(windowId)
-        if (window && !window.isDestroyed()) {
-          window.webContents.send(TAB_EVENTS.TITLE_UPDATED, {
-            tabId,
-            title: state.title,
-            windowId
-          })
-        }
         this.notifyWindowTabsUpdate(windowId).catch(console.error) // Call async function, handle potential rejection
       }
     })
@@ -694,14 +649,6 @@ export class TabPresenter implements ITabPresenter {
           // 如果没有标题，使用URL作为标题
           if (!state.title || state.title === 'Untitled') {
             state.title = url
-            const window = BrowserWindow.fromId(windowId)
-            if (window && !window.isDestroyed()) {
-              window.webContents.send(TAB_EVENTS.TITLE_UPDATED, {
-                tabId,
-                title: state.title,
-                windowId
-              })
-            }
           }
           this.notifyWindowTabsUpdate(windowId).catch(console.error) // Call async function, handle potential rejection
         }

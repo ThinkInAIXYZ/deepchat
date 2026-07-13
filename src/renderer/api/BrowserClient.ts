@@ -6,6 +6,7 @@ import {
 } from '@shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
+  browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
   browserGetStatusRoute,
@@ -92,6 +93,11 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.status
   }
 
+  async function clearSandboxData() {
+    const result = await bridge.invoke(browserClearSandboxDataRoute.name, {})
+    return result.cleared
+  }
+
   async function openExternal(url: string) {
     await openRuntimeExternal(url)
   }
@@ -115,15 +121,34 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       version: number
     }) => void
   ) {
-    const currentWindowId = getRuntimeWindowId()
+    let disposed = false
+    let cleanup: (() => void) | null = null
 
-    return onOpenRequested((payload) => {
-      if (currentWindowId != null && payload.windowId !== currentWindowId) {
-        return
-      }
+    void getRuntimeWindowId()
+      .then((currentWindowId) => {
+        if (disposed) {
+          return
+        }
 
-      listener(payload)
-    })
+        cleanup = onOpenRequested((payload) => {
+          if (currentWindowId != null && payload.windowId !== currentWindowId) {
+            return
+          }
+
+          listener(payload)
+        })
+      })
+      .catch((error) => {
+        console.warn('[BrowserClient] Failed to resolve runtime window id:', error)
+        if (!disposed) {
+          cleanup = onOpenRequested(listener)
+        }
+      })
+
+    return () => {
+      disposed = true
+      cleanup?.()
+    }
   }
 
   function onStatusChanged(
@@ -153,6 +178,7 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     goBack,
     goForward,
     reload,
+    clearSandboxData,
     openExternal,
     onOpenRequested,
     onOpenRequestedForCurrentWindow,

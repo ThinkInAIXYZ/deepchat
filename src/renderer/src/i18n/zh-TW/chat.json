@@ -71,16 +71,18 @@
     "audioInputUnsupportedDescription": "模型 {model} 不支援音訊輸入，已忽略 {count} 個音訊附件。"
   },
   "pendingInput": {
-    "steer": "引導",
+    "steer": "打斷",
     "queueCount": "待發 {count}/{max}",
-    "resumeQueue": "繼續發送",
-    "toSteer": "轉為引導",
+    "toSteer": "打斷並發送",
     "locked": "已鎖定",
     "reorder": "調整順序",
     "files": "{count} 個檔案",
     "attachmentsOnly": "{count} 個附件",
     "empty": "空訊息",
-    "limitReached": "等待區已滿（最多 {max} 條）。"
+    "limitReached": "等待區已滿（最多 {max} 條）。",
+    "remove": "刪除",
+    "steerUnavailable": "目前無法打斷",
+    "steerFailed": "打斷失敗"
   },
   "features": {
     "webSearch": "網路搜尋",
@@ -218,7 +220,11 @@
         "description": "選擇或拖拽資料夾來設定工作區",
         "button": "選擇資料夾"
       },
-      "section": "文件"
+      "section": "文件",
+      "watchStatus": {
+        "degraded": "正以備援模式監看檔案，變更可能會較慢重新整理。",
+        "failed": "檔案監看暫不可用，請重新整理或重新選擇工作區。"
+      }
     },
     "git": {
       "empty": "暫無可顯示的 diff",
@@ -236,11 +242,11 @@
       "itemAriaLabel": "{status}：{step}",
       "status": {
         "completed": "已完成",
-        "failed": "失敗",
         "in_progress": "進行中",
         "pending": "待處理",
-        "skipped": "已跳過"
-      }
+        "interrupted": "已中斷"
+      },
+      "completedCount": "{completed}/{total} 已完成"
     },
     "terminal": {
       "empty": "暫無輸出",
@@ -305,7 +311,8 @@
   },
   "permissionMode": {
     "default": "預設權限",
-    "fullAccess": "完全存取"
+    "fullAccess": "完全存取",
+    "autoApprove": "助手代審"
   },
   "sidebar": {
     "allAgents": "所有 Agents",
@@ -326,13 +333,22 @@
     "groupByDate": "依時間分組",
     "groupByProject": "依專案分組",
     "pinned": "置頂會話",
+    "chats": "聊天",
     "emptyTitle": "還沒有對話",
     "emptyDescription": "開始新的對話吧",
     "remoteControlDisabled": "未啟用",
     "searchPlaceholder": "搜尋會話標題",
     "searchAriaLabel": "搜尋會話標題",
     "searchEmptyTitle": "找不到相符的會話",
-    "searchEmptyDescription": "試試其他標題關鍵字"
+    "searchEmptyDescription": "試試其他標題關鍵字",
+    "projectGroupActions": "專案群組操作",
+    "moveProjectGroupTop": "移至最上方",
+    "moveProjectGroupUp": "上移",
+    "moveProjectGroupDown": "下移",
+    "moveProjectGroupBottom": "移至最下方",
+    "searchCommand": "搜尋",
+    "chatSection": "Chat",
+    "workspace": "工作區"
   },
   "floatingWidget": {
     "title": "任務總覽",
@@ -416,6 +432,58 @@
       "hour": "小時",
       "minute": "分鐘",
       "second": "秒"
+    }
+  },
+  "memory": {
+    "toolbar": "本輪用到的記憶",
+    "status": {
+      "archived": "已忘掉"
+    },
+    "actions": {
+      "undo": "復原",
+      "forget": "忘掉",
+      "edit": "修改"
+    },
+    "chip": {
+      "title": "已更新記憶 {count}",
+      "heading": "已更新記憶",
+      "description": "這輪對話新增了以下記憶。"
+    },
+    "selection": {
+      "remember": "記住這個"
+    },
+    "turn": {
+      "title": "本輪用到的記憶",
+      "empty": "本輪未注入記憶",
+      "selected": "選中",
+      "dropped": "丟棄",
+      "tokens": "Token",
+      "budget": "預算",
+      "countOnly": "這筆記錄只包含計數摘要。",
+      "unavailable": "這條記憶已不可用。",
+      "noSelectedDetails": "本輪沒有可展示的記憶明細。",
+      "refreshFailed": "重新整理失敗，正在顯示上次載入的記憶。",
+      "error": "無法載入本輪使用的記憶。"
+    },
+    "toast": {
+      "undoSuccess": "已復原這條記憶",
+      "undoFailed": "復原記憶失敗",
+      "forgetSuccess": "已忘掉這條記憶",
+      "forgetFailed": "忘掉記憶失敗",
+      "amendFailed": "修改記憶失敗",
+      "rememberFailed": "儲存記憶失敗",
+      "add": {
+        "created": "已儲存為新記憶",
+        "updated": "已更新已有記憶",
+        "superseded": "已合併為更新後的記憶",
+        "challenged": "已記錄為待確認記憶",
+        "noop": "沒有新增記憶"
+      }
+    },
+    "errors": {
+      "actionFailed": "操作失敗，請稍後重試。",
+      "amendRetryable": "修改失敗，原記憶已還原。請保留輸入後重試。",
+      "amendRestoreFailed": "修改失敗，且原記憶未能還原。請手動重新記住這段內容。"
     }
   }
 }

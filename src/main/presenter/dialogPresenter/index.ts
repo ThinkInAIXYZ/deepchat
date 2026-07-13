@@ -3,7 +3,6 @@ import logger from '@shared/logger'
  * Message dialog implemented via the renderer process
  * The dialog is displayed on the current default window content. If it is in the background, it will automatically switch to the foreground.
  * Only one message dialog can exist within a single active window. Repeated calls will trigger the callback of the previous dialog with null.
- * @see {@link SendTarget.DEFAULT_WINDOW}
  */
 import {
   DialogRequest,
@@ -11,8 +10,6 @@ import {
   DialogResponse,
   IDialogPresenter
 } from '@shared/presenter'
-import { eventBus, SendTarget } from '@/eventbus'
-import { DIALOG_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { nanoid } from 'nanoid'
 
@@ -50,8 +47,6 @@ export class DialogPresenter implements IDialogPresenter {
         }
         this.pendingDialogs.set(finalRequest.id, { resolve, reject })
         try {
-          // send dialog request to renderer
-          eventBus.sendToRenderer(DIALOG_EVENTS.REQUEST, SendTarget.DEFAULT_WINDOW, finalRequest)
           publishDeepchatEvent('dialog.requested', {
             ...finalRequest,
             version: Date.now()

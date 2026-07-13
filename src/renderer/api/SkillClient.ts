@@ -5,24 +5,46 @@ import {
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
   skillsGetFolderTreeRoute,
+  skillsGetSyncConfigRoute,
+  skillsExecuteSyncDirectoryExportRoute,
+  skillsExecuteSyncDirectoryImportRoute,
+  skillsInstallFromGitRoute,
   skillsInstallFromFolderRoute,
   skillsInstallFromUrlRoute,
   skillsInstallFromZipRoute,
+  skillsListCatalogRoute,
   skillsListMetadataRoute,
   skillsListScriptsRoute,
   skillsOpenFolderRoute,
+  skillsPreviewSyncDirectoryExportRoute,
+  skillsPreviewSyncDirectoryImportRoute,
+  skillsReadFileRoute,
+  skillsScanGitRepoRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
+  skillsSetDisabledRoute,
+  skillsSetSyncDirectoryRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute
 } from '@shared/contracts/routes'
-import type { SkillExtensionConfig, SkillInstallOptions } from '@shared/types/skill'
+import type {
+  GitSkillInstallInput,
+  SkillExtensionConfig,
+  SkillInstallOptions,
+  SkillSyncDirectoryExportInput,
+  SkillSyncDirectoryImportInput
+} from '@shared/types/skill'
 import { getDeepchatBridge } from './core'
 
 export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function getMetadataList() {
     const result = await bridge.invoke(skillsListMetadataRoute.name, {})
+    return result.skills
+  }
+
+  async function getUnifiedSkillCatalog() {
+    const result = await bridge.invoke(skillsListCatalogRoute.name, {})
     return result.skills
   }
 
@@ -55,9 +77,54 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.result
   }
 
+  async function scanGitSkillRepo(repoUrl: string) {
+    const result = await bridge.invoke(skillsScanGitRepoRoute.name, { repoUrl })
+    return result.result
+  }
+
+  async function installFromGit(input: GitSkillInstallInput) {
+    const result = await bridge.invoke(skillsInstallFromGitRoute.name, input)
+    return result.results
+  }
+
+  async function getSkillsSyncConfig() {
+    const result = await bridge.invoke(skillsGetSyncConfigRoute.name, {})
+    return result.config
+  }
+
+  async function setSkillsSyncDirectory(skillsDirectory: string) {
+    const result = await bridge.invoke(skillsSetSyncDirectoryRoute.name, { skillsDirectory })
+    return result.config
+  }
+
+  async function previewSyncDirectoryExport(input: SkillSyncDirectoryExportInput) {
+    const result = await bridge.invoke(skillsPreviewSyncDirectoryExportRoute.name, input)
+    return result.preview
+  }
+
+  async function executeSyncDirectoryExport(input: SkillSyncDirectoryExportInput) {
+    const result = await bridge.invoke(skillsExecuteSyncDirectoryExportRoute.name, input)
+    return result.result
+  }
+
+  async function previewSyncDirectoryImport() {
+    const result = await bridge.invoke(skillsPreviewSyncDirectoryImportRoute.name, {})
+    return result.preview
+  }
+
+  async function executeSyncDirectoryImport(input: SkillSyncDirectoryImportInput) {
+    const result = await bridge.invoke(skillsExecuteSyncDirectoryImportRoute.name, input)
+    return result.result
+  }
+
   async function uninstallSkill(name: string) {
     const result = await bridge.invoke(skillsUninstallRoute.name, { name })
     return result.result
+  }
+
+  async function readSkillFile(name: string) {
+    const result = await bridge.invoke(skillsReadFileRoute.name, { name })
+    return result.content
   }
 
   async function updateSkillFile(name: string, content: string) {
@@ -96,6 +163,10 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     await bridge.invoke(skillsSaveExtensionRoute.name, { name, config })
   }
 
+  async function setSkillDisabled(name: string, disabled: boolean) {
+    await bridge.invoke(skillsSetDisabledRoute.name, { name, disabled })
+  }
+
   async function listSkillScripts(name: string) {
     const result = await bridge.invoke(skillsListScriptsRoute.name, { name })
     return result.scripts
@@ -116,7 +187,15 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
 
   function onCatalogChanged(
     listener: (payload: {
-      reason: 'discovered' | 'installed' | 'uninstalled' | 'metadata-updated'
+      reason:
+        | 'discovered'
+        | 'installed'
+        | 'uninstalled'
+        | 'metadata-updated'
+        | 'disabled-updated'
+        | 'management-state-updated'
+        | 'git-installed'
+        | 'sync-directory-updated'
       name?: string
       version: number
     }) => void
@@ -137,17 +216,28 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
 
   return {
     getMetadataList,
+    getUnifiedSkillCatalog,
     getSkillsDir,
     installFromFolder,
     installFromZip,
     installFromUrl,
+    scanGitSkillRepo,
+    installFromGit,
+    getSkillsSyncConfig,
+    setSkillsSyncDirectory,
+    previewSyncDirectoryExport,
+    executeSyncDirectoryExport,
+    previewSyncDirectoryImport,
+    executeSyncDirectoryImport,
     uninstallSkill,
+    readSkillFile,
     updateSkillFile,
     saveSkillWithExtension,
     getSkillFolderTree,
     openSkillsFolder,
     getSkillExtension,
     saveSkillExtension,
+    setSkillDisabled,
     listSkillScripts,
     getActiveSkills,
     setActiveSkills,

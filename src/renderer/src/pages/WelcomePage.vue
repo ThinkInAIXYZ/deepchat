@@ -6,6 +6,13 @@
       :data-guide-target="coachmarkTargetSurface"
       class="pointer-events-none fixed inset-0 z-70"
     >
+      <div
+        data-testid="welcome-guide-blocker"
+        aria-hidden="true"
+        class="pointer-events-auto absolute inset-0"
+        @click.stop
+      />
+
       <OnBoardingSpotlight
         :path-d="coachmarkPathD"
         :cutout-path-d="coachmarkCutoutPathD"
@@ -497,6 +504,14 @@ const openSettings = async (
   section?: string
 ) => {
   await syncOnboardingStep(stepId)
+  if (routeName === 'settings-mcp' && router.hasRoute('plugins-mcp')) {
+    await router.push({ name: 'plugins-mcp' })
+    return
+  }
+  if (routeName === 'settings-skills' && router.hasRoute('plugins-skills')) {
+    await router.push({ name: 'plugins-skills' })
+    return
+  }
   await configClient.openSettings({ routeName, section })
 }
 

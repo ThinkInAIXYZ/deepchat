@@ -2,7 +2,7 @@ import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { zipSync, unzipSync } from 'fflate'
+import { zip, unzip, type AsyncZipOptions } from 'fflate'
 import {
   ISyncPresenter,
   IConfigPresenter,
@@ -11,8 +11,9 @@ import {
   CloudSyncResult
 } from '@shared/presenter'
 import { CloudStorageService } from './cloudStorageService'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { DataImporter } from '../sqlitePresenter/importData'
 import { ImportMode } from '../sqlitePresenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -65,6 +66,28 @@ const ZIP_PATHS = {
   mcpSettings: 'configs/mcp-settings.json',
   manifest: 'manifest.json'
 }
+
+const zipAsync = (files: Record<string, Uint8Array>, options: AsyncZipOptions) =>
+  new Promise<Uint8Array>((resolve, reject) => {
+    zip(files, options, (error, data) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve(data)
+    })
+  })
+
+const unzipAsync = (data: Uint8Array) =>
+  new Promise<Record<string, Uint8Array>>((resolve, reject) => {
+    unzip(data, (error, extracted) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve(extracted)
+    })
+  })
 
 type BackupDbSource = {
   type: 'agent' | 'chat'
@@ -191,7 +214,7 @@ export class SyncPresenter implements ISyncPresenter {
           continue
         }
         try {
-          this.validateBackupArchive(localPath)
+          await this.validateBackupArchive(localPath)
         } catch (error) {
           console.warn('Skipping invalid local backup during cloud upload:', backup.fileName, error)
           continue
@@ -229,24 +252,25 @@ export class SyncPresenter implements ISyncPresenter {
   public async listBackups(): Promise<SyncBackupInfo[]> {
     const { path: syncFolderPath } = await this.checkSyncFolder()
     const backupsDir = this.getBackupsDirectory(syncFolderPath)
-    if (!fs.existsSync(backupsDir)) {
+    try {
+      await fs.promises.access(backupsDir)
+    } catch {
       return []
     }
 
-    const entries = fs
-      .readdirSync(backupsDir)
-      .filter((file) => file.endsWith(BACKUP_EXTENSION))
-      .map((fileName) => {
+    const entries = (await fs.promises.readdir(backupsDir)).filter((file) =>
+      file.endsWith(BACKUP_EXTENSION)
+    )
+    const backups = await Promise.all(
+      entries.map(async (fileName) => {
         const match = fileName.match(/backup-(\d+)\.zip$/)
-        const createdAt = match
-          ? Number(match[1])
-          : fs.statSync(path.join(backupsDir, fileName)).mtimeMs
-        const stats = fs.statSync(path.join(backupsDir, fileName))
+        const stats = await fs.promises.stat(path.join(backupsDir, fileName))
+        const createdAt = match ? Number(match[1]) : stats.mtimeMs
         return { fileName, createdAt, size: stats.size }
       })
-      .sort((a, b) => b.createdAt - a.createdAt)
+    )
 
-    return entries
+    return backups.sort((a, b) => b.createdAt - a.createdAt)
   }
 
   public async startBackup(): Promise<SyncBackupInfo | null> {
@@ -262,11 +286,10 @@ export class SyncPresenter implements ISyncPresenter {
       return await this.performBackup()
     } catch (error) {
       console.error('Backup failed:', error)
-      eventBus.send(
-        SYNC_EVENTS.BACKUP_ERROR,
-        SendTarget.ALL_WINDOWS,
-        (error as Error).message || 'sync.error.unknown'
-      )
+      publishDeepchatEvent('sync.backup.error', {
+        error: (error as Error).message || 'sync.error.unknown',
+        version: Date.now()
+      })
       throw error
     }
   }
@@ -312,7 +335,9 @@ export class SyncPresenter implements ISyncPresenter {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
-    eventBus.send(SYNC_EVENTS.IMPORT_STARTED, SendTarget.ALL_WINDOWS)
+    publishDeepchatEvent('sync.import.started', {
+      version: Date.now()
+    })
 
     const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-${Date.now()}`)
     fs.mkdirSync(extractionDir, { recursive: true })
@@ -329,7 +354,7 @@ export class SyncPresenter implements ISyncPresenter {
     let sqliteReopenedForLegacyImport = false
 
     try {
-      this.extractBackupArchive(backupZipPath, extractionDir)
+      await this.extractBackupArchive(backupZipPath, extractionDir)
       const configImportService = this.createConfigImportService()
       const manifest = configImportService.readManifest(extractionDir)
       const backupVersion = this.resolveBackupVersion(manifest)
@@ -468,7 +493,9 @@ export class SyncPresenter implements ISyncPresenter {
       if (importMode === ImportMode.OVERWRITE) {
         await this.resetShellWindowsToSingleNewChatTab()
       }
-      eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
+      publishDeepchatEvent('sync.import.completed', {
+        version: Date.now()
+      })
       return {
         success: true,
         message: 'sync.success.importComplete',
@@ -497,7 +524,10 @@ export class SyncPresenter implements ISyncPresenter {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
         }
       }
-      eventBus.send(SYNC_EVENTS.IMPORT_ERROR, SendTarget.ALL_WINDOWS, errorMessage)
+      publishDeepchatEvent('sync.import.error', {
+        error: errorMessage,
+        version: Date.now()
+      })
       return {
         success: false,
         message: KNOWN_IMPORT_ERRORS.has(errorMessage) ? errorMessage : 'sync.error.importFailed'
@@ -511,7 +541,9 @@ export class SyncPresenter implements ISyncPresenter {
   private async performBackup(): Promise<SyncBackupInfo> {
     this.isBackingUp = true
     this.emitBackupStatus('preparing')
-    eventBus.send(SYNC_EVENTS.BACKUP_STARTED, SendTarget.ALL_WINDOWS)
+    publishDeepchatEvent('sync.backup.started', {
+      version: Date.now()
+    })
 
     const syncFolderPath = this.configPresenter.getSyncFolderPath()
     if (!fs.existsSync(syncFolderPath)) {
@@ -542,9 +574,9 @@ export class SyncPresenter implements ISyncPresenter {
       this.checkpointDatabaseForBackup()
       const files: Record<string, Uint8Array> = {}
       files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(this.DB_PATH))
-      files[ZIP_PATHS.appSettings] = this.readSanitizedAppSettingsBackup()
-      this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
-      this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+      files[ZIP_PATHS.appSettings] = await this.readSanitizedAppSettingsBackup()
+      await this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
+      await this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
 
       const manifest = {
         version: CURRENT_SYNC_BACKUP_VERSION,
@@ -560,24 +592,27 @@ export class SyncPresenter implements ISyncPresenter {
       )
 
       this.emitBackupStatus('compressing')
-      const zipData = zipSync(files, { level: 6 })
-      fs.writeFileSync(tempZipPath, Buffer.from(zipData))
+      const zipData = await zipAsync(files, { level: 6 })
+      await fs.promises.writeFile(tempZipPath, Buffer.from(zipData))
 
       if (fs.existsSync(finalZipPath)) {
-        fs.unlinkSync(finalZipPath)
+        await fs.promises.unlink(finalZipPath)
       }
       this.emitBackupStatus('finalizing')
-      fs.renameSync(tempZipPath, finalZipPath)
+      await fs.promises.rename(tempZipPath, finalZipPath)
 
-      const backupStats = fs.statSync(finalZipPath)
+      const backupStats = await fs.promises.stat(finalZipPath)
       this.configPresenter.setLastSyncTime(timestamp)
-      eventBus.send(SYNC_EVENTS.BACKUP_COMPLETED, SendTarget.ALL_WINDOWS, timestamp)
+      publishDeepchatEvent('sync.backup.completed', {
+        timestamp,
+        version: Date.now()
+      })
       completedTimestamp = timestamp
 
       return { fileName: backupFileName, createdAt: timestamp, size: backupStats.size }
     } catch (error) {
       if (fs.existsSync(tempZipPath)) {
-        fs.unlinkSync(tempZipPath)
+        await fs.promises.unlink(tempZipPath)
       }
       encounteredError = true
       this.emitBackupStatus('error', {
@@ -624,10 +659,16 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private emitBackupStatus(status: BackupStatus, extra: Record<string, unknown> = {}): void {
-    eventBus.send(SYNC_EVENTS.BACKUP_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('sync.backup.status.changed', {
       status,
       previousStatus: this.currentBackupStatus,
-      ...extra
+      lastSuccessfulBackupTime:
+        typeof extra.lastSuccessfulBackupTime === 'number'
+          ? extra.lastSuccessfulBackupTime
+          : undefined,
+      failed: typeof extra.failed === 'boolean' ? extra.failed : undefined,
+      message: typeof extra.message === 'string' ? extra.message : undefined,
+      version: Date.now()
     })
     this.currentBackupStatus = status
   }
@@ -749,18 +790,18 @@ export class SyncPresenter implements ISyncPresenter {
     return baseName
   }
 
-  private addOptionalFile(
+  private async addOptionalFile(
     files: Record<string, Uint8Array>,
     zipPath: string,
     filePath: string
-  ): void {
+  ): Promise<void> {
     if (fs.existsSync(filePath)) {
-      files[zipPath] = new Uint8Array(fs.readFileSync(filePath))
+      files[zipPath] = new Uint8Array(await fs.promises.readFile(filePath))
     }
   }
 
-  private readSanitizedAppSettingsBackup(): Uint8Array {
-    const raw = fs.readFileSync(this.APP_SETTINGS_PATH, 'utf-8')
+  private async readSanitizedAppSettingsBackup(): Promise<Uint8Array> {
+    const raw = await fs.promises.readFile(this.APP_SETTINGS_PATH, 'utf-8')
     const parsed = JSON.parse(raw) as Record<string, unknown>
     const sanitized = this.removeMigratedAppSettings(parsed)
     return new Uint8Array(Buffer.from(JSON.stringify(sanitized, null, 2), 'utf-8'))
@@ -843,9 +884,9 @@ export class SyncPresenter implements ISyncPresenter {
     return null
   }
 
-  private extractBackupArchive(zipPath: string, targetDir: string): void {
-    const zipContent = new Uint8Array(fs.readFileSync(zipPath))
-    const extracted = unzipSync(zipContent)
+  private async extractBackupArchive(zipPath: string, targetDir: string): Promise<void> {
+    const zipContent = new Uint8Array(await fs.promises.readFile(zipPath))
+    const extracted = await unzipAsync(zipContent)
     const resolvedTargetDir = path.resolve(targetDir)
 
     for (const entryName of Object.keys(extracted)) {
@@ -887,21 +928,21 @@ export class SyncPresenter implements ISyncPresenter {
       }
 
       if (isDirectoryEntry) {
-        fs.mkdirSync(destination, { recursive: true })
+        await fs.promises.mkdir(destination, { recursive: true })
         continue
       }
 
-      fs.mkdirSync(path.dirname(destination), { recursive: true })
-      fs.writeFileSync(destination, Buffer.from(fileContent))
+      await fs.promises.mkdir(path.dirname(destination), { recursive: true })
+      await fs.promises.writeFile(destination, Buffer.from(fileContent))
     }
   }
 
-  private validateBackupArchive(backupZipPath: string): void {
+  private async validateBackupArchive(backupZipPath: string): Promise<void> {
     const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-validate-${Date.now()}`)
     fs.mkdirSync(extractionDir, { recursive: true })
 
     try {
-      this.extractBackupArchive(backupZipPath, extractionDir)
+      await this.extractBackupArchive(backupZipPath, extractionDir)
       const configImportService = this.createConfigImportService()
       const manifest = configImportService.readManifest(extractionDir)
       const backupVersion = this.resolveBackupVersion(manifest)

@@ -11,6 +11,7 @@ import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
+  SessionMetadata,
   SessionListItem,
   SessionWithState,
   CreateSessionInput,
@@ -24,6 +25,7 @@ import {
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
+import { useAgentPlanStore } from './agentPlan'
 import { bindSessionStoreIpc } from './sessionIpc'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
@@ -40,6 +42,7 @@ export interface UISession {
   parentSessionId: string | null
   subagentEnabled: boolean
   subagentMeta: DeepChatSubagentMeta | null
+  metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
 }
@@ -87,6 +90,7 @@ function mapSessionStatus(status: string): UISessionStatus {
 }
 
 function mapToUISession(session: SessionListItem | SessionWithState): UISession {
+  const metadata = session.metadata ?? null
   return {
     id: session.id,
     title: session.title,
@@ -99,6 +103,7 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     parentSessionId: session.parentSessionId ?? null,
     subagentEnabled: session.subagentEnabled,
     subagentMeta: session.subagentMeta ?? null,
+    ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   }
@@ -124,8 +129,8 @@ function isRegularSession(session: Pick<UISession, 'sessionKind'>): boolean {
   return (session.sessionKind ?? 'regular') === 'regular'
 }
 
-function getCurrentWebContentsId(): number {
-  return getRuntimeWebContentsId() ?? -1
+async function getCurrentWebContentsId(): Promise<number | null> {
+  return await getRuntimeWebContentsId()
 }
 
 function registerStoreCleanup(cleanup: () => void): void {
@@ -250,6 +255,12 @@ function mergeSessions(current: UISession[], updates: UISession[]): UISession[] 
   return sortSessions(Array.from(next.values()))
 }
 
+function cloneSessionPageCursor(
+  cursor: { updatedAt: number; id: string } | null
+): { updatedAt: number; id: string } | null {
+  return cursor ? { updatedAt: cursor.updatedAt, id: cursor.id } : null
+}
+
 export const useSessionStore = defineStore('session', () => {
   const sessionClient = createSessionClient()
   const chatClient = createChatClient()
@@ -259,7 +270,8 @@ export const useSessionStore = defineStore('session', () => {
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
-  const myWebContentsId = getCurrentWebContentsId()
+  const agentPlanStore = useAgentPlanStore()
+  const myWebContentsId = ref<number | null>(null)
   let rendererReadyNotified = false
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWritePromise: Promise<void> = Promise.resolve()
@@ -267,6 +279,8 @@ export const useSessionStore = defineStore('session', () => {
   let groupModeUpdateVersion = 0
   let initialPageRequestId = 0
   let nextPageRequestId = 0
+  let activationNavigationRequestId = 0
+  let sessionFetchPromise: Promise<void> | null = null
 
   const sessions = ref<UISession[]>([])
   const bootstrapActiveSession = ref<UISession | null>(null)
@@ -280,10 +294,26 @@ export const useSessionStore = defineStore('session', () => {
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
   const error = ref<string | null>(null)
 
+  void getCurrentWebContentsId()
+    .then((webContentsId) => {
+      myWebContentsId.value = webContentsId
+    })
+    .catch((identityError) => {
+      console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
+    })
+
   const setActiveSessionId = (sessionId: string | null): void => {
     activeSessionId.value = sessionId
     messageStore.setCurrentSessionId(sessionId)
   }
+
+  const createActivationNavigationRequest = (): number => {
+    activationNavigationRequestId += 1
+    return activationNavigationRequestId
+  }
+
+  const isCurrentActivationNavigation = (requestId: number, sessionId: string): boolean =>
+    activationNavigationRequestId === requestId && activeSessionId.value === sessionId
 
   const notifyRendererReady = (): void => {
     if (rendererReadyNotified) return
@@ -343,6 +373,9 @@ export const useSessionStore = defineStore('session', () => {
   const removeSessions = (sessionIds: string[]): void => {
     const targetIds = new Set(sessionIds)
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
+    for (const sessionId of targetIds) {
+      agentPlanStore.purge(sessionId)
+    }
 
     if (bootstrapActiveSession.value && targetIds.has(bootstrapActiveSession.value.id)) {
       bootstrapActiveSession.value = null
@@ -353,6 +386,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     if (activeSessionId.value && targetIds.has(activeSessionId.value)) {
+      createActivationNavigationRequest()
       messageStore.clearStreamingState()
       setActiveSessionId(null)
       pageRouter.goToNewThread()
@@ -467,6 +501,17 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  const hydrateActiveSessionSummary = async (sessionId: string): Promise<void> => {
+    try {
+      const active = await sessionClient.getActive()
+      if (active.session?.id === sessionId) {
+        applyRestoredSession(active.session)
+      }
+    } catch (restoreError) {
+      console.warn('[sessionStore] Failed to hydrate selected session:', restoreError)
+    }
+  }
+
   const applyBootstrapShell = async (input: {
     activeSessionId: string | null
     activeSession?: SessionListItem | null
@@ -501,7 +546,9 @@ export const useSessionStore = defineStore('session', () => {
         const result = await sessionClient.listLightweight({
           limit: DEFAULT_SESSION_PAGE_SIZE,
           cursor: null,
-          includeSubagents: true,
+          // 侧边栏只展示 regular 会话；携带子代理会话会占用分页名额，
+          // 导致一页 30 条里的可见 regular 会话被显示层过滤后所剩无几。
+          includeSubagents: false,
           prioritizeSessionId: options.prioritizeSessionId ?? undefined
         })
 
@@ -539,8 +586,9 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const result = await sessionClient.listLightweight({
         limit: DEFAULT_SESSION_PAGE_SIZE,
-        cursor: nextCursor.value,
-        includeSubagents: true
+        cursor: cloneSessionPageCursor(nextCursor.value),
+        // 与首屏一致：仅分页 regular 会话，避免子代理会话占用页槽。
+        includeSubagents: false
       })
 
       if (requestId !== nextPageRequestId) {
@@ -562,11 +610,23 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function fetchSessions(): Promise<void> {
-    await loadSessionPage({
+  function fetchSessions(): Promise<void> {
+    if (sessionFetchPromise) {
+      return sessionFetchPromise
+    }
+
+    const loadPromise = loadSessionPage({
       reset: true,
       prioritizeSessionId: activeSessionId.value ?? bootstrapActiveSession.value?.id ?? null
     })
+    const currentFetchPromise = loadPromise.finally(() => {
+      if (sessionFetchPromise === currentFetchPromise) {
+        sessionFetchPromise = null
+      }
+    })
+
+    sessionFetchPromise = currentFetchPromise
+    return currentFetchPromise
   }
 
   async function loadNextPage(): Promise<void> {
@@ -606,6 +666,7 @@ export const useSessionStore = defineStore('session', () => {
 
   async function createSession(input: CreateSessionInput): Promise<void> {
     error.value = null
+    createActivationNavigationRequest()
     try {
       const result = await sessionClient.create(input)
       const session = result.session
@@ -625,14 +686,22 @@ export const useSessionStore = defineStore('session', () => {
 
   async function selectSession(sessionId: string): Promise<void> {
     error.value = null
+    const requestId = createActivationNavigationRequest()
     try {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
       }
       await sessionClient.activate(sessionId)
+      if (activationNavigationRequestId !== requestId) {
+        return
+      }
       clearActiveSessionSummary()
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
+      await hydrateActiveSessionSummary(sessionId)
+      if (!isCurrentActivationNavigation(requestId, sessionId)) {
+        return
+      }
       pageRouter.goToChat(sessionId)
     } catch (selectError) {
       error.value = `Failed to select session: ${selectError}`
@@ -641,6 +710,7 @@ export const useSessionStore = defineStore('session', () => {
 
   async function closeSession(options: CloseSessionOptions = {}): Promise<void> {
     error.value = null
+    createActivationNavigationRequest()
     try {
       messageStore.clearStreamingState()
       await sessionClient.deactivate()
@@ -670,6 +740,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     pageRouter.goToNewThread({ refresh: options.refresh ?? true })
+    createActivationNavigationRequest()
   }
 
   async function completeOnboardingStep(stepId: GuidedOnboardingStepId): Promise<void> {
@@ -938,21 +1009,29 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   const cleanupIpcBindings = bindSessionStoreIpc({
-    webContentsId: myWebContentsId,
+    webContentsId: () => myWebContentsId.value,
     fetchSessions,
     refreshSessionsByIds,
     removeSessions,
-    onActivated: (sessionId) => {
+    onActivated: async (sessionId) => {
+      const requestId = createActivationNavigationRequest()
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
       }
-      clearActiveSessionSummary()
+      if (activeSessionSummary.value?.id !== sessionId) {
+        clearActiveSessionSummary()
+      }
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
+      await hydrateActiveSessionSummary(sessionId)
+      if (!isCurrentActivationNavigation(requestId, sessionId)) {
+        return
+      }
       pageRouter.goToChat(sessionId)
       void tabClient.notifyRendererActivated(sessionId)
     },
     onDeactivated: () => {
+      createActivationNavigationRequest()
       messageStore.clearStreamingState()
       clearActiveSessionSummary()
       setActiveSessionId(null)

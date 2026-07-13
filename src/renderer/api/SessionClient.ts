@@ -2,6 +2,8 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   sessionsAcpCommandsReadyEvent,
   sessionsAcpConfigOptionsReadyEvent,
+  sessionsAcpModesReadyEvent,
+  sessionsCompactionChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
   sessionsUpdatedEvent
@@ -11,7 +13,6 @@ import {
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
   sessionsCompactRoute,
-  sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
   sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
@@ -20,6 +21,7 @@ import {
   sessionsDeactivateRoute,
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
+  sessionsExportMessageTapeReplaySliceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
   sessionsGetAcpSessionCommandsRoute,
@@ -32,6 +34,8 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetTapeContextRoute,
+  sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
@@ -42,7 +46,7 @@ import {
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
-  sessionsResumePendingQueueRoute,
+  sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute
 } from '@shared/contracts/routes'
@@ -53,13 +57,23 @@ import {
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
   sessionsSetSubagentEnabledRoute,
+  sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
   sessionsUpdateDisabledAgentToolsRoute,
   sessionsUpdateGenerationSettingsRoute,
   sessionsUpdateQueuedInputRoute
 } from '@shared/contracts/routes'
-import type { CreateSessionInput, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  AgentTapeContextOptions,
+  CreateSessionInput,
+  PermissionMode,
+  SendMessageInput
+} from '@shared/types/agent-interface'
+import type {
+  DeepChatTapeReplayExportOptions,
+  DeepChatTapeReplaySlice
+} from '@shared/types/tape-replay'
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -127,7 +141,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   async function ensureAcpDraftSession(input: {
     agentId: string
     projectDir: string
-    permissionMode?: 'default' | 'full_access'
+    permissionMode?: PermissionMode
   }) {
     const result = await bridge.invoke(sessionsEnsureAcpDraftRoute.name, input)
     return result.session
@@ -168,8 +182,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.items
   }
 
-  async function convertPendingInputToSteer(sessionId: string, itemId: string) {
-    const result = await bridge.invoke(sessionsConvertPendingInputToSteerRoute.name, {
+  async function steerPendingInput(sessionId: string, itemId: string) {
+    const result = await bridge.invoke(sessionsSteerPendingInputRoute.name, {
       sessionId,
       itemId
     })
@@ -181,10 +195,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId,
       itemId
     })
-  }
-
-  async function resumePendingQueue(sessionId: string) {
-    await bridge.invoke(sessionsResumePendingQueueRoute.name, { sessionId })
   }
 
   async function retryMessage(sessionId: string, messageId: string) {
@@ -229,9 +239,48 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.results
   }
 
+  async function getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ) {
+    const result = await bridge.invoke(sessionsGetTapeContextRoute.name, {
+      sessionId,
+      entryIds,
+      options
+    })
+    return result.context
+  }
+
   async function listMessageTraces(messageId: string) {
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
     return result.traces
+  }
+
+  async function listMessageTraceDiagnostics(messageId: string) {
+    const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
+    const manifests = Array.isArray(result.manifests) ? result.manifests : []
+    return {
+      traces: result.traces,
+      manifests
+    }
+  }
+
+  async function listMessageViewManifests(messageId: string) {
+    const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
+    const manifests = Array.isArray(result.manifests) ? result.manifests : []
+    return manifests
+  }
+
+  async function exportMessageTapeReplaySlice(
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null> {
+    const result = await bridge.invoke(sessionsExportMessageTapeReplaySliceRoute.name, {
+      messageId,
+      options
+    })
+    return result.slice
   }
 
   async function translateText(text: string, locale?: string, agentId?: string) {
@@ -246,6 +295,16 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   async function getAgents() {
     const result = await bridge.invoke(sessionsGetAgentsRoute.name, {})
     return result.agents
+  }
+
+  async function getUsageDashboard() {
+    const result = await bridge.invoke(sessionsGetUsageDashboardRoute.name, {})
+    return result.dashboard
+  }
+
+  async function retryRtkHealthCheck() {
+    const result = await bridge.invoke(sessionsRetryRtkHealthCheckRoute.name, {})
+    return result.retried
   }
 
   async function renameSession(sessionId: string, title: string) {
@@ -333,7 +392,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.mode
   }
 
-  async function setPermissionMode(sessionId: string, mode: 'default' | 'full_access') {
+  async function setPermissionMode(sessionId: string, mode: PermissionMode) {
     await bridge.invoke(sessionsSetPermissionModeRoute.name, { sessionId, mode })
   }
 
@@ -412,6 +471,18 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(sessionsStatusChangedEvent.name, listener)
   }
 
+  function onCompactionChanged(
+    listener: (payload: {
+      sessionId: string
+      status: 'idle' | 'compacting' | 'compacted'
+      cursorOrderSeq: number
+      summaryUpdatedAt: number | null
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsCompactionChangedEvent.name, listener)
+  }
+
   function onPendingInputsChanged(
     listener: (payload: { sessionId: string; version: number }) => void
   ) {
@@ -431,6 +502,19 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     }) => void
   ) {
     return bridge.on(sessionsAcpCommandsReadyEvent.name, listener)
+  }
+
+  function onAcpModesReady(
+    listener: (payload: {
+      conversationId?: string
+      agentId: string
+      workdir: string
+      current: string
+      available: Array<{ id: string; name: string; description: string }>
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsAcpModesReadyEvent.name, listener)
   }
 
   function onAcpConfigOptionsReady(
@@ -477,18 +561,23 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     queuePendingInput,
     updateQueuedInput,
     moveQueuedInput,
-    convertPendingInputToSteer,
+    steerPendingInput,
     deletePendingInput,
-    resumePendingQueue,
     retryMessage,
     deleteMessage,
     editUserMessage,
     forkSession,
     searchHistory,
     getSearchResults,
+    getTapeContext,
     listMessageTraces,
+    listMessageTraceDiagnostics,
+    listMessageViewManifests,
+    exportMessageTapeReplaySlice,
     translateText,
     getAgents,
+    getUsageDashboard,
+    retryRtkHealthCheck,
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,
@@ -513,7 +602,9 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     updateSessionGenerationSettings,
     onUpdated,
     onStatusChanged,
+    onCompactionChanged,
     onPendingInputsChanged,
+    onAcpModesReady,
     onAcpCommandsReady,
     onAcpConfigOptionsReady
   }

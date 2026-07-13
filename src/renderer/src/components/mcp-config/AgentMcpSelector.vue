@@ -36,10 +36,10 @@ const isPluginOwnedServerConfig = (config: AgentMcpServerConfig): boolean =>
 const load = async () => {
   loading.value = true
   try {
-    const [servers, currentSelections] = await Promise.all([
+    const [servers, currentSelections] = (await Promise.all([
       configClient.getMcpServers(),
       configClient.getAcpSharedMcpSelections()
-    ])
+    ])) as [Record<string, AgentMcpServerConfig>, string[]]
 
     availableServers.value = Object.entries(servers ?? {})
       .filter(([, config]) => !isPluginOwnedServerConfig(config))

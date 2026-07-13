@@ -2,6 +2,7 @@
 import { computed, toRefs } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 
 import type { UISession } from '@/stores/ui/session'
 
@@ -43,6 +44,9 @@ const pinActionLabel = computed(() =>
 )
 
 const deleteActionLabel = computed(() => t('thread.actions.delete'))
+const sourceIndicatorLabel = computed(() =>
+  session.value.metadata?.source === 'cron_job' ? t('routes.settings-scheduled-tasks') : ''
+)
 
 const shortcutBadgeTitle = computed(() => {
   const shortcut = props.shortcutBadgeLabel
@@ -173,6 +177,19 @@ const titleSegments = computed(() => {
       <span v-if="statusIcon" class="session-status shrink-0">
         <Icon :icon="statusIcon.icon" class="h-3.5 w-3.5" :class="statusIcon.className" />
       </span>
+
+      <Tooltip v-if="sourceIndicatorLabel">
+        <TooltipTrigger as-child>
+          <span
+            class="session-source-indicator shrink-0"
+            :aria-label="sourceIndicatorLabel"
+            role="img"
+          >
+            <Icon icon="lucide:calendar-clock" class="h-3.5 w-3.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{{ sourceIndicatorLabel }}</TooltipContent>
+      </Tooltip>
     </div>
 
     <span
@@ -446,6 +463,13 @@ const titleSegments = computed(() => {
 .session-status {
   position: relative;
   z-index: 1;
+}
+
+.session-source-indicator {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  color: color-mix(in srgb, var(--muted-foreground) 88%, var(--primary) 12%);
 }
 
 .session-title__sheen {

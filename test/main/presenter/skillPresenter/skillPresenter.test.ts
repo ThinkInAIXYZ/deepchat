@@ -26,6 +26,8 @@ const discoveryWorkerMock = vi.hoisted(() => ({
   logSkillDiscoveryWorkerWarnings: vi.fn()
 }))
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
 // Mock external dependencies
 vi.mock('electron', () => ({
   app: {
@@ -112,43 +114,42 @@ vi.mock('path', () => ({
   }
 }))
 
-vi.mock('chokidar', () => ({
-  watch: vi.fn(() => ({
-    on: vi.fn().mockReturnThis(),
-    close: vi.fn()
-  }))
-}))
-
-vi.mock('gray-matter', () => ({
-  default: vi.fn()
-}))
+vi.mock('gray-matter', () => {
+  const parser = vi.fn()
+  ;(parser as any).stringify = vi.fn((content: string, data: Record<string, unknown>) => {
+    const frontmatter = Object.entries(data)
+      .map(([key, value]) => `${key}: ${String(value)}`)
+      .join('\n')
+    return `---\n${frontmatter}\n---\n${content}`
+  })
+  return {
+    default: parser
+  }
+})
 
 vi.mock('fflate', () => ({
   unzipSync: vi.fn()
+}))
+
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn(
+    (
+      _file: string,
+      _args: string[],
+      _options: unknown,
+      callback: (error: Error | null, stdout: string, stderr: string) => void
+    ) => {
+      callback(null, '', '')
+    }
+  )
 }))
 
 vi.mock('node:crypto', () => ({
   randomUUID: vi.fn().mockReturnValue('12345678-1234-1234-1234-123456789abc')
 }))
 
-vi.mock('../../../../src/main/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all'
-  }
-}))
-
-vi.mock('../../../../src/main/events', () => ({
-  SKILL_EVENTS: {
-    DISCOVERED: 'skill:discovered',
-    METADATA_UPDATED: 'skill:metadata-updated',
-    INSTALLED: 'skill:installed',
-    UNINSTALLED: 'skill:uninstalled',
-    ACTIVATED: 'skill:activated',
-    DEACTIVATED: 'skill:deactivated'
-  }
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 vi.mock('@shared/logger', () => ({
@@ -169,13 +170,20 @@ vi.mock('../../../../src/main/presenter/skillPresenter/discoveryWorker', () => d
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
-import { watch } from 'chokidar'
 import { unzipSync } from 'fflate'
+import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
-import { eventBus } from '../../../../src/main/eventbus'
-import { SKILL_EVENTS } from '../../../../src/main/events'
 import { SKILL_CONFIG, SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
+import type {
+  IFileWatcherService,
+  WatchBatchListener,
+  WatcherEvent,
+  WatcherStatus,
+  WatchMode,
+  WatchRequest,
+  WatchStatusListener
+} from '../../../../src/main/lib/fileWatcher'
 
 function createDirEntry(name: string) {
   return {
@@ -239,27 +247,88 @@ function createSkillMetadata(name: string, dirName: string): SkillMetadata {
   }
 }
 
-function getWatcherHandler(eventName: string) {
-  const watcherInstance = (watch as Mock).mock.results[(watch as Mock).mock.results.length - 1]
-    ?.value as { on: Mock } | undefined
-  return watcherInstance?.on.mock.calls.find((call: unknown[]) => call[0] === eventName)?.[1] as
-    | ((filePath: string) => Promise<void>)
-    | undefined
+type FakeWatcher = {
+  request: WatchRequest
+  close: ReturnType<typeof vi.fn>
+  emit(events: WatcherEvent[], mode?: WatchMode): Promise<void>
+  emitStatus(status: Partial<WatcherStatus>): void
+}
+
+function createFakeWatcherService() {
+  const watchers: FakeWatcher[] = []
+  const service: IFileWatcherService = {
+    watch: vi.fn(async (request, onBatch: WatchBatchListener, _onStatus?: WatchStatusListener) => {
+      const watcher: FakeWatcher = {
+        request,
+        close: vi.fn().mockResolvedValue(undefined),
+        async emit(events, mode = 'native') {
+          const listener = onBatch as unknown as (batch: {
+            watchId: string
+            rootPath: string
+            purpose: WatchRequest['purpose']
+            hostKind: WatchRequest['hostKind']
+            mode: WatchMode
+            events: WatcherEvent[]
+            version: number
+          }) => unknown
+          await listener({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            mode,
+            events,
+            version: Date.now()
+          })
+        },
+        emitStatus(status) {
+          _onStatus?.({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            health: 'degraded',
+            mode: 'snapshot-polling',
+            reason: 'native-error',
+            version: Date.now(),
+            ...status
+          })
+        }
+      }
+      watchers.push(watcher)
+      return {
+        close: watcher.close
+      }
+    }),
+    destroy: vi.fn().mockResolvedValue(undefined)
+  }
+
+  return {
+    service,
+    watchers
+  }
 }
 
 describe('SkillPresenter', () => {
   let skillPresenter: SkillPresenter
   let mockConfigPresenter: IConfigPresenter
+  let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
+  let configSettings: Map<string, unknown>
 
   beforeEach(() => {
     vi.clearAllMocks()
     newSessionActiveSkillsStore.clear()
+    configSettings = new Map()
     ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')
 
     mockConfigPresenter = {
       getSkillsPath: vi.fn().mockReturnValue(''),
-      getSetting: vi.fn().mockReturnValue(undefined)
+      getSetting: vi.fn((key: string) => configSettings.get(key)),
+      setSetting: vi.fn((key: string, value: unknown) => {
+        configSettings.set(key, value)
+      })
     } as unknown as IConfigPresenter
+    fakeWatcherService = createFakeWatcherService()
 
     // Setup default mocks
     ;(fs.existsSync as Mock).mockReturnValue(true)
@@ -300,13 +369,17 @@ describe('SkillPresenter', () => {
       async (conversationId: string) => newSessionActiveSkillsStore.get(conversationId) ?? []
     )
 
-    skillPresenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
+    skillPresenter = new SkillPresenter(
+      mockConfigPresenter,
+      skillSessionStatePort as any,
+      fakeWatcherService.service
+    )
     ;(skillPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
     ;(skillPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
   })
 
-  afterEach(() => {
-    skillPresenter.destroy()
+  afterEach(async () => {
+    await skillPresenter.destroy()
   })
 
   describe('constructor', () => {
@@ -328,6 +401,21 @@ describe('SkillPresenter', () => {
 
       const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
+      presenter.destroy()
+    })
+
+    it('does not create a management sidecar directory under the skills path', () => {
+      ;(fs.mkdirSync as Mock).mockClear()
+      ;(fs.existsSync as Mock).mockReturnValue(false)
+
+      const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
+
+      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.not.stringContaining('.deepchat-meta'), {
+        recursive: true
+      })
+      expect(fs.mkdirSync).not.toHaveBeenCalledWith(expect.stringContaining('.deepchat-meta'), {
+        recursive: true
+      })
       presenter.destroy()
     })
 
@@ -383,6 +471,28 @@ describe('SkillPresenter', () => {
     })
   })
 
+  describe('initialize', () => {
+    it('continues when the file watcher cannot start', async () => {
+      const error = new Error('File watcher utility process exited with code 1.')
+      const installSpy = vi.spyOn(skillPresenter, 'installBuiltinSkills').mockResolvedValue()
+      const discoverSpy = vi.spyOn(skillPresenter, 'discoverSkills').mockResolvedValue([])
+      ;(fakeWatcherService.service.watch as Mock).mockRejectedValueOnce(error)
+
+      await expect(skillPresenter.initialize()).resolves.toBeUndefined()
+      await skillPresenter.initialize()
+
+      expect(installSpy).toHaveBeenCalledTimes(1)
+      expect(discoverSpy).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher unavailable; skill hot reload disabled.',
+        {
+          reason: 'start-failed',
+          error
+        }
+      )
+    })
+  })
+
   describe('discoverSkills', () => {
     it('should return empty array when skills directory does not exist', async () => {
       ;(fs.existsSync as Mock).mockReturnValue(false)
@@ -417,10 +527,13 @@ describe('SkillPresenter', () => {
       const skills = await skillPresenter.discoverSkills()
 
       expect(skills.length).toBe(2)
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.DISCOVERED,
-        'all',
-        expect.any(Array)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'discovered',
+          skills: expect.any(Array),
+          version: expect.any(Number)
+        })
       )
     })
 
@@ -675,6 +788,106 @@ describe('SkillPresenter', () => {
     })
   })
 
+  describe('skill management state', () => {
+    it('keeps disabled skills in the unified catalog and filters runtime paths', async () => {
+      mockSkillTree(['test-skill'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'test-skill', description: 'Test' },
+        content: '# Test'
+      })
+      await skillPresenter.discoverSkills()
+      publishDeepchatEventMock.mockClear()
+
+      await skillPresenter.setSkillDeepChatDisabled('test-skill', true)
+
+      expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([])
+      expect(await skillPresenter.loadSkillContent('test-skill')).toBeNull()
+      expect(await skillPresenter.validateSkillNames(['test-skill'])).toEqual([])
+      expect(await skillPresenter.getUnifiedSkillCatalog()).toEqual([
+        expect.objectContaining({
+          name: 'test-skill',
+          deepchatDisabled: true
+        })
+      ])
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'disabled-updated',
+          name: 'test-skill'
+        })
+      )
+
+      const rehydratedPresenter = new SkillPresenter(
+        mockConfigPresenter,
+        skillSessionStatePort as any
+      )
+      ;(rehydratedPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
+      ;(rehydratedPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
+      await rehydratedPresenter.discoverSkills()
+
+      expect((await rehydratedPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([])
+      await rehydratedPresenter.destroy()
+
+      await skillPresenter.setSkillDeepChatDisabled('test-skill', false)
+
+      expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
+        'test-skill'
+      ])
+      expect(await skillPresenter.validateSkillNames(['test-skill'])).toEqual(['test-skill'])
+    })
+
+    it('records adopted skill provenance and DeepChat-owned agent link state', async () => {
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue(
+        '---\nname: adopted-skill\ndescription: Adopted\n---\n# Adopted'
+      )
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'adopted-skill', description: 'Adopted' },
+        content: '# Adopted'
+      })
+
+      await skillPresenter.registerAdoptedSkill({
+        name: 'adopted-skill',
+        canonicalPath: `${DEFAULT_SKILLS_DIR}/adopted-skill`,
+        agentId: 'codex',
+        agentPath: '/mock/home/.codex/skills/adopted-skill',
+        originalPath: '/mock/home/.codex/skills/adopted-skill'
+      })
+
+      const state = configSettings.get('skills.managementState') as any
+      expect(state.skills['adopted-skill']).toEqual(
+        expect.objectContaining({
+          canonicalPath: `${DEFAULT_SKILLS_DIR}/adopted-skill`,
+          source: expect.objectContaining({
+            type: 'adopted',
+            agentId: 'codex',
+            originalPath: '/mock/home/.codex/skills/adopted-skill',
+            adoptedAt: expect.any(String)
+          }),
+          agentLinks: {
+            codex: expect.objectContaining({
+              path: '/mock/home/.codex/skills/adopted-skill',
+              state: 'linked',
+              createdByDeepChat: true,
+              linkedAt: expect.any(String)
+            })
+          }
+        })
+      )
+      expect(await skillPresenter.getUnifiedSkillCatalog()).toEqual([
+        expect.objectContaining({
+          name: 'adopted-skill',
+          sourceType: 'adopted',
+          agentLinks: expect.objectContaining({
+            codex: expect.objectContaining({ createdByDeepChat: true })
+          })
+        })
+      ])
+    })
+  })
+
   describe('getMetadataPrompt', () => {
     it('should return formatted prompt with no skills', async () => {
       ;(fs.readdirSync as Mock).mockReturnValue([])
@@ -838,9 +1051,9 @@ describe('SkillPresenter', () => {
       ])
     })
 
-    it('activates a skill after viewing the main SKILL.md in a new-agent session', async () => {
+    it('does not pin a skill after viewing the main SKILL.md in a new-agent session', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
-      ;(eventBus.sendToRenderer as Mock).mockClear()
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.viewSkill('test-skill', {
         conversationId: 'conv-view-auto-activate'
@@ -850,21 +1063,21 @@ describe('SkillPresenter', () => {
         expect.objectContaining({
           success: true,
           name: 'test-skill',
-          isPinned: true
+          isPinned: false
         })
       )
-      expect(await skillPresenter.getActiveSkills('conv-view-auto-activate')).toEqual([
-        'test-skill'
-      ])
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(SKILL_EVENTS.ACTIVATED, 'all', {
-        conversationId: 'conv-view-auto-activate',
-        skills: ['test-skill']
-      })
+      expect(await skillPresenter.getActiveSkills('conv-view-auto-activate')).toEqual([])
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
+        expect.objectContaining({
+          conversationId: 'conv-view-auto-activate'
+        })
+      )
     })
 
     it('does not activate a skill when only viewing a linked file', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
-      ;(eventBus.sendToRenderer as Mock).mockClear()
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.viewSkill('test-skill', {
         conversationId: 'conv-view-file-only',
@@ -880,9 +1093,8 @@ describe('SkillPresenter', () => {
         })
       )
       expect(await skillPresenter.getActiveSkills('conv-view-file-only')).toEqual([])
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.ACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.objectContaining({
           conversationId: 'conv-view-file-only'
         })
@@ -892,7 +1104,7 @@ describe('SkillPresenter', () => {
     it('does not emit a second activation event when viewing an already pinned skill', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       await skillPresenter.setActiveSkills('conv-view-existing', ['test-skill'])
-      ;(eventBus.sendToRenderer as Mock).mockClear()
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.viewSkill('test-skill', {
         conversationId: 'conv-view-existing'
@@ -905,9 +1117,8 @@ describe('SkillPresenter', () => {
           isPinned: true
         })
       )
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.ACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.objectContaining({
           conversationId: 'conv-view-existing'
         })
@@ -1127,8 +1338,9 @@ describe('SkillPresenter', () => {
         data: { name: 'draft-skill', description: 'Draft' },
         content: '# Draft body'
       })
-      const draftPath =
-        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
+      const draftId = 'draft-12345678-1234-1234-1234-123456789abc'
+      const draftPath = (skillPresenter as any).getDraftPathForId('conv-draft', draftId)
+      expect(draftPath).toBeTruthy()
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         return (
           target === draftPath ||
@@ -1143,15 +1355,12 @@ describe('SkillPresenter', () => {
         return 'test'
       })
 
-      const result = await skillPresenter.viewDraftSkill(
-        'conv-draft',
-        'draft-12345678-1234-1234-1234-123456789abc'
-      )
+      const result = await skillPresenter.viewDraftSkill('conv-draft', draftId)
 
       expect(result).toEqual({
         success: true,
         action: 'view',
-        draftId: 'draft-12345678-1234-1234-1234-123456789abc',
+        draftId,
         skillName: 'draft-skill',
         content: '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
       })
@@ -1168,8 +1377,9 @@ describe('SkillPresenter', () => {
         data: { name: 'draft-skill', description: 'Draft' },
         content: '# Draft body'
       })
-      const draftPath =
-        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
+      const draftId = 'draft-12345678-1234-1234-1234-123456789abc'
+      const draftPath = (skillPresenter as any).getDraftPathForId('conv-draft', draftId)
+      expect(draftPath).toBeTruthy()
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         if (target === `${DEFAULT_SKILLS_DIR}/draft-skill`) return false
         return (
@@ -1190,15 +1400,12 @@ describe('SkillPresenter', () => {
         return []
       })
 
-      const result = await skillPresenter.installDraftSkill(
-        'conv-draft',
-        'draft-12345678-1234-1234-1234-123456789abc'
-      )
+      const result = await skillPresenter.installDraftSkill('conv-draft', draftId)
 
       expect(result).toEqual({
         success: true,
         action: 'install',
-        draftId: 'draft-12345678-1234-1234-1234-123456789abc',
+        draftId,
         skillName: 'draft-skill',
         installedSkillName: 'draft-skill'
       })
@@ -1210,9 +1417,10 @@ describe('SkillPresenter', () => {
     })
 
     it('discards draft content and removes empty conversation draft folder', async () => {
-      const draftPath =
-        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
-      const conversationPath = '/mock/temp/deepchat-skill-drafts/conv-draft'
+      const draftId = 'draft-12345678-1234-1234-1234-123456789abc'
+      const draftPath = (skillPresenter as any).getDraftPathForId('conv-draft', draftId)
+      expect(draftPath).toBeTruthy()
+      const conversationPath = path.dirname(draftPath)
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         return target === draftPath || target === conversationPath
       })
@@ -1221,15 +1429,12 @@ describe('SkillPresenter', () => {
         return []
       })
 
-      const result = await skillPresenter.discardDraftSkill(
-        'conv-draft',
-        'draft-12345678-1234-1234-1234-123456789abc'
-      )
+      const result = await skillPresenter.discardDraftSkill('conv-draft', draftId)
 
       expect(result).toEqual({
         success: true,
         action: 'discard',
-        draftId: 'draft-12345678-1234-1234-1234-123456789abc'
+        draftId
       })
       expect(fs.rmSync).toHaveBeenCalledWith(draftPath, { recursive: true, force: true })
       expect(fs.rmSync).toHaveBeenCalledWith(conversationPath, { recursive: true, force: true })
@@ -1393,6 +1598,64 @@ describe('SkillPresenter', () => {
       expect(result.error).toContain('already exists')
     })
 
+    it('should reinstall over stale residue without backup rename', async () => {
+      const targetDir = `${DEFAULT_SKILLS_DIR}/reloaded-skill`
+      let removed = false
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === '/source/reloaded' || target === '/source/reloaded/SKILL.md') return true
+        if (target === targetDir) return !removed
+        if (target === `${targetDir}/SKILL.md`) return false
+        return true
+      })
+      ;(fs.rmSync as Mock).mockImplementation((target: string) => {
+        if (target === targetDir) {
+          removed = true
+        }
+      })
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(fs.readdirSync as Mock).mockReturnValue([])
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'reloaded-skill', description: 'Reloaded skill' },
+        content: '# Content'
+      })
+
+      const result = await skillPresenter.installFromFolder('/source/reloaded', { overwrite: true })
+
+      expect(result).toMatchObject({ success: true, skillName: 'reloaded-skill' })
+      expect(fs.rmSync).toHaveBeenCalledWith(targetDir, { recursive: true, force: true })
+      expect(fs.renameSync).not.toHaveBeenCalled()
+    })
+
+    it('should return target_locked when overwrite backup rename is denied', async () => {
+      const targetDir = `${DEFAULT_SKILLS_DIR}/locked-skill`
+      const lockError = Object.assign(new Error('EPERM: operation not permitted, rename'), {
+        code: 'EPERM'
+      })
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === '/source/locked' || target === '/source/locked/SKILL.md') return true
+        if (target === targetDir || target === `${targetDir}/SKILL.md`) return true
+        return false
+      })
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'locked-skill', description: 'Locked skill' },
+        content: '# Content'
+      })
+      ;(fs.renameSync as Mock).mockImplementation(() => {
+        throw lockError
+      })
+
+      const result = await skillPresenter.installFromFolder('/source/locked', { overwrite: true })
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'target_locked',
+        skillName: 'locked-skill',
+        targetPath: targetDir
+      })
+      expect(fs.rmSync).not.toHaveBeenCalledWith(targetDir, { recursive: true, force: true })
+    })
+
     it('should successfully install a valid skill', async () => {
       // Mock path functions first
       ;(path.resolve as Mock).mockImplementation((p: string) => {
@@ -1421,10 +1684,263 @@ describe('SkillPresenter', () => {
 
       expect(result.success).toBe(true)
       expect(result.skillName).toBe('new-skill')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.INSTALLED,
-        'all',
-        expect.objectContaining({ name: 'new-skill' })
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'installed',
+          name: 'new-skill',
+          version: expect.any(Number)
+        })
+      )
+    })
+  })
+
+  describe('Git install and sync directory', () => {
+    beforeEach(() => {
+      ;(path.resolve as Mock).mockImplementation((...args: string[]) => {
+        let resolved = ''
+        for (const part of args.filter(Boolean)) {
+          if (part.startsWith('/')) {
+            resolved = part
+          } else {
+            resolved = resolved ? `${resolved}/${part}` : `/${part}`
+          }
+        }
+        return resolved || '/'
+      })
+      ;(path.relative as Mock).mockImplementation((from: string, to: string) => {
+        if (to.startsWith(from)) return to.substring(from.length + 1)
+        return '../' + to
+      })
+      ;(fs.readFileSync as Mock).mockReturnValue(
+        '---\nname: guizang-ppt-skill\ndescription: PPT\n---\n# PPT'
+      )
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'guizang-ppt-skill', description: 'Create PPT files' },
+        content: '# PPT'
+      })
+    })
+
+    it('scans the guizang-ppt-skill root SKILL.md Git repo shape', async () => {
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/SKILL.md')) return true
+        if (target === `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill`) return false
+        return true
+      })
+
+      const result = await skillPresenter.scanGitSkillRepo(
+        'https://github.com/op7418/guizang-ppt-skill'
+      )
+
+      expect(execFile).toHaveBeenCalledWith(
+        'git',
+        [
+          'clone',
+          '--depth',
+          '1',
+          'https://github.com/op7418/guizang-ppt-skill',
+          expect.stringContaining('/.deepchat/tmp/skill-installs/')
+        ],
+        expect.objectContaining({ timeout: SKILL_CONFIG.DOWNLOAD_TIMEOUT }),
+        expect.any(Function)
+      )
+      expect(result).toEqual({
+        repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
+        repoFormat: 'single-skill',
+        skills: [
+          {
+            name: 'guizang-ppt-skill',
+            description: 'Create PPT files',
+            relativePath: 'SKILL.md',
+            conflict: false,
+            valid: true
+          }
+        ]
+      })
+      expect(fs.rmSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.deepchat/tmp/skill-installs/'),
+        { recursive: true, force: true }
+      )
+    })
+
+    it('installs a conflicting Git skill with the rename strategy and records provenance', async () => {
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/SKILL.md')) return true
+        if (target === `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill`) return true
+        if (target === `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill-1`) return false
+        return true
+      })
+      ;(fs.readdirSync as Mock).mockReturnValue([createFileEntry('SKILL.md')])
+
+      const results = await skillPresenter.installSkillsFromGit({
+        repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
+        skillNames: ['guizang-ppt-skill'],
+        strategy: 'rename'
+      })
+
+      expect(results).toEqual([
+        expect.objectContaining({
+          success: true,
+          skillName: 'guizang-ppt-skill-1',
+          targetPath: `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill-1`
+        })
+      ])
+      expect(fs.copyFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/SKILL.md'),
+        `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill-1/SKILL.md`
+      )
+      expect((matter as any).stringify).toHaveBeenCalledWith(
+        '# PPT',
+        expect.objectContaining({ name: 'guizang-ppt-skill-1' })
+      )
+      expect(configSettings.get('skills.managementState')).toMatchObject({
+        skills: {
+          'guizang-ppt-skill-1': {
+            source: {
+              type: 'git-install',
+              repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
+              repoFormat: 'single-skill'
+            }
+          }
+        }
+      })
+    })
+
+    it('scans multi-skill Git repositories under skills/<name>/SKILL.md', async () => {
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/SKILL.md') && target.includes('/skills/')) return true
+        if (target.endsWith('/SKILL.md')) return false
+        if (target.endsWith('/skills')) return true
+        if (target === `${DEFAULT_SKILLS_DIR}/deck-a`) return false
+        if (target === `${DEFAULT_SKILLS_DIR}/deck-b`) return false
+        return true
+      })
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/skills')) {
+          return [createDirEntry('deck-a'), createDirEntry('deck-b')]
+        }
+        return []
+      })
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => target)
+      ;(matter as unknown as Mock).mockImplementation((raw: string) => {
+        const name = raw.includes('deck-b') ? 'deck-b' : 'deck-a'
+        return {
+          data: { name, description: `${name} description` },
+          content: '# Skill'
+        }
+      })
+
+      const result = await skillPresenter.scanGitSkillRepo('/repos/multi-skills')
+
+      expect(result).toEqual({
+        repoUrl: '/repos/multi-skills',
+        repoFormat: 'multi-skill',
+        skills: [
+          {
+            name: 'deck-a',
+            description: 'deck-a description',
+            relativePath: 'skills/deck-a/SKILL.md',
+            conflict: false,
+            valid: true
+          },
+          {
+            name: 'deck-b',
+            description: 'deck-b description',
+            relativePath: 'skills/deck-b/SKILL.md',
+            conflict: false,
+            valid: true
+          }
+        ]
+      })
+    })
+
+    it('exports and imports the configured multi-skill sync directory layout', async () => {
+      const syncDir = '/mock/sync'
+      await skillPresenter.setSkillsSyncDirectory({ skillsDirectory: syncDir })
+      vi.spyOn(skillPresenter, 'getUnifiedSkillCatalog').mockResolvedValue([
+        {
+          name: 'guizang-ppt-skill',
+          description: 'Create PPT files',
+          path: `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill/SKILL.md`,
+          skillRoot: `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill`,
+          canonicalPath: `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill`,
+          sourceType: 'created',
+          deepchatDisabled: false,
+          agentLinks: {},
+          mutable: true
+        }
+      ])
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === `${syncDir}/skills/guizang-ppt-skill`) return false
+        if (target === `${syncDir}/README.md`) return false
+        if (target.endsWith('/SKILL.md')) return true
+        if (target === `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill`) return true
+        return true
+      })
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target === `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill`)
+          return [createFileEntry('SKILL.md')]
+        if (target === `${syncDir}/skills`) return [createDirEntry('guizang-ppt-skill')]
+        if (target === `${syncDir}/skills/guizang-ppt-skill`) return [createFileEntry('SKILL.md')]
+        return []
+      })
+
+      const exportResult = await skillPresenter.executeSyncDirectoryExport({
+        skillNames: ['guizang-ppt-skill']
+      })
+      const importPreview = await skillPresenter.previewSyncDirectoryImport()
+
+      expect(exportResult).toMatchObject({ success: true, exported: 1 })
+      expect(fs.copyFileSync).toHaveBeenCalledWith(
+        `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill/SKILL.md`,
+        `${syncDir}/skills/guizang-ppt-skill/SKILL.md`
+      )
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        `${syncDir}/README.md`,
+        expect.stringContaining('DeepChat Skills'),
+        'utf-8'
+      )
+      expect(importPreview.items).toEqual([
+        expect.objectContaining({
+          name: 'guizang-ppt-skill',
+          state: 'same',
+          sourcePath: `${syncDir}/skills/guizang-ppt-skill`
+        })
+      ])
+    })
+
+    it('defaults sync directory import conflicts to overwrite', async () => {
+      const syncDir = '/mock/sync'
+      await skillPresenter.setSkillsSyncDirectory({ skillsDirectory: syncDir })
+      vi.spyOn(skillPresenter, 'previewSyncDirectoryImport').mockResolvedValue({
+        skillsDirectory: syncDir,
+        items: [
+          {
+            name: 'conflict-skill',
+            state: 'conflict',
+            sourcePath: `${syncDir}/skills/conflict-skill`,
+            targetPath: `${DEFAULT_SKILLS_DIR}/conflict-skill`
+          }
+        ]
+      })
+      const installSpy = vi
+        .spyOn(skillPresenter as any, 'installFromDirectory')
+        .mockResolvedValue({ success: true })
+
+      const result = await skillPresenter.executeSyncDirectoryImport({
+        skillNames: ['conflict-skill']
+      })
+
+      expect(result).toMatchObject({ success: true, imported: 1 })
+      expect(installSpy).toHaveBeenCalledWith(
+        `${syncDir}/skills/conflict-skill`,
+        { overwrite: true },
+        'imported',
+        expect.objectContaining({
+          importedFrom: `${syncDir}/skills/conflict-skill`,
+          importedAt: expect.any(String)
+        }),
+        'conflict-skill'
       )
     })
   })
@@ -1469,29 +1985,115 @@ describe('SkillPresenter', () => {
   })
 
   describe('uninstallSkill', () => {
-    it('should fail if skill does not exist', async () => {
+    it('should clean stale local state when skill directory no longer exists', async () => {
+      ;(skillPresenter as any).metadataCache.set(
+        'nonexistent',
+        createSkillMetadata('nonexistent', 'nonexistent')
+      )
+      ;(skillPresenter as any).contentCache.set('nonexistent', {
+        name: 'nonexistent',
+        content: 'content'
+      })
+      configSettings.set('skills.managementState', {
+        version: 1,
+        skills: {
+          nonexistent: {
+            name: 'nonexistent',
+            canonicalPath: `${DEFAULT_SKILLS_DIR}/nonexistent`,
+            deepchat: { disabled: true },
+            extension: {
+              version: 1,
+              env: {},
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              scriptOverrides: {}
+            },
+            source: { type: 'created' }
+          }
+        }
+      })
       ;(fs.existsSync as Mock).mockReturnValue(false)
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.uninstallSkill('nonexistent')
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('not found')
+      expect(result.errorCode).toBe('not_found')
+      expect(
+        (configSettings.get('skills.managementState') as any).skills.nonexistent
+      ).toBeUndefined()
+      expect((skillPresenter as any).metadataCache.has('nonexistent')).toBe(false)
+      expect((skillPresenter as any).contentCache.has('nonexistent')).toBe(false)
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
+    })
+
+    it('should not remove sidecar paths for invalid missing skill names', async () => {
+      ;(fs.existsSync as Mock).mockReturnValue(false)
+
+      const result = await skillPresenter.uninstallSkill('../outside')
+
+      expect(result.errorCode).toBe('not_found')
+      expect(fs.rmSync).not.toHaveBeenCalled()
     })
 
     it('should successfully uninstall a skill', async () => {
-      ;(fs.existsSync as Mock).mockReturnValue(true)
-      ;(fs.rmSync as Mock).mockReturnValue(undefined)
+      const skillDir = `${DEFAULT_SKILLS_DIR}/test-skill`
+      let removed = false
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) return !removed
+        return true
+      })
+      ;(fs.rmSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) {
+          removed = true
+        }
+      })
 
       const result = await skillPresenter.uninstallSkill('test-skill')
 
       expect(result.success).toBe(true)
       expect(result.skillName).toBe('test-skill')
       expect(fs.rmSync).toHaveBeenCalled()
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.UNINSTALLED,
-        'all',
-        expect.objectContaining({ name: 'test-skill' })
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'uninstalled',
+          name: 'test-skill',
+          version: expect.any(Number)
+        })
       )
+    })
+
+    it('should not clear caches or publish success when uninstall cannot remove the folder', async () => {
+      const skillDir = `${DEFAULT_SKILLS_DIR}/locked-skill`
+      const lockError = Object.assign(new Error('EPERM: operation not permitted, rmdir'), {
+        code: 'EPERM'
+      })
+      ;(skillPresenter as any).metadataCache.set(
+        'locked-skill',
+        createSkillMetadata('locked-skill', 'locked-skill')
+      )
+      ;(skillPresenter as any).contentCache.set('locked-skill', {
+        name: 'locked-skill',
+        content: 'content'
+      })
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => target === skillDir)
+      ;(fs.rmSync as Mock).mockImplementation(() => {
+        throw lockError
+      })
+      publishDeepchatEventMock.mockClear()
+
+      const result = await skillPresenter.uninstallSkill('locked-skill')
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'target_locked',
+        skillName: 'locked-skill',
+        targetPath: skillDir
+      })
+      expect((skillPresenter as any).metadataCache.has('locked-skill')).toBe(true)
+      expect((skillPresenter as any).contentCache.has('locked-skill')).toBe(true)
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
   })
 
@@ -1527,21 +2129,8 @@ describe('SkillPresenter', () => {
   describe('saveSkillWithExtension', () => {
     beforeEach(async () => {
       mockSkillTree(['test-skill'])
-      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
-        if (target.endsWith('/.deepchat-meta/test-skill.json')) {
-          return true
-        }
-        return true
-      })
+      ;(fs.existsSync as Mock).mockReturnValue(true)
       ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
-        if (target.endsWith('/.deepchat-meta/test-skill.json')) {
-          return JSON.stringify({
-            version: 1,
-            env: { API_KEY: 'old-secret' },
-            runtimePolicy: { python: 'auto', node: 'auto' },
-            scriptOverrides: {}
-          })
-        }
         if (target.endsWith('/test-skill/SKILL.md')) {
           return 'old skill content'
         }
@@ -1574,27 +2163,19 @@ describe('SkillPresenter', () => {
         'new content',
         'utf-8'
       )
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('/.deepchat-meta/test-skill.json'),
-        JSON.stringify(extension, null, 2),
-        'utf-8'
-      )
+      const state = configSettings.get('skills.managementState') as any
+      expect(state.skills['test-skill'].extension).toEqual(extension)
     })
 
-    it('rolls back skill content when extension save fails', async () => {
+    it('rolls back skill content when management state save fails', async () => {
       const extension = {
         version: 1 as const,
         env: { API_KEY: 'secret' },
         runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
         scriptOverrides: {}
       }
-      ;(fs.writeFileSync as Mock).mockImplementation((target: string, content: string) => {
-        if (
-          target.endsWith('/.deepchat-meta/test-skill.json') &&
-          content === JSON.stringify(extension, null, 2)
-        ) {
-          throw new Error('sidecar write failed')
-        }
+      ;(mockConfigPresenter.setSetting as Mock).mockImplementationOnce(() => {
+        throw new Error('management state write failed')
       })
 
       const result = await skillPresenter.saveSkillWithExtension(
@@ -1604,22 +2185,15 @@ describe('SkillPresenter', () => {
       )
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('sidecar write failed')
+      expect(result.error).toContain('management state write failed')
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('/test-skill/SKILL.md'),
         'old skill content',
         'utf-8'
       )
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('/.deepchat-meta/test-skill.json'),
-        JSON.stringify({
-          version: 1,
-          env: { API_KEY: 'old-secret' },
-          runtimePolicy: { python: 'auto', node: 'auto' },
-          scriptOverrides: {}
-        }),
-        'utf-8'
-      )
+      expect(
+        (configSettings.get('skills.managementState') as any).skills['test-skill']
+      ).toBeUndefined()
     })
   })
 
@@ -1672,7 +2246,7 @@ describe('SkillPresenter', () => {
       await skillPresenter.discoverSkills()
     })
 
-    it('should save and load sidecar runtime config', async () => {
+    it('should save and load database runtime config', async () => {
       const extension = {
         version: 1 as const,
         env: { API_KEY: 'secret' },
@@ -1686,25 +2260,46 @@ describe('SkillPresenter', () => {
       }
 
       await skillPresenter.saveSkillExtension('test-skill', extension)
-      ;(fs.existsSync as Mock).mockImplementation(
-        (target: string) =>
-          !target.includes('/scripts') || target.endsWith('/.deepchat-meta/test-skill.json')
+
+      const loaded = await skillPresenter.getSkillExtension('test-skill')
+
+      expect(mockConfigPresenter.setSetting).toHaveBeenCalledWith(
+        'skills.managementState',
+        expect.objectContaining({
+          skills: expect.objectContaining({
+            'test-skill': expect.objectContaining({
+              extension
+            })
+          })
+        })
       )
+      expect(loaded).toEqual(extension)
+    })
+
+    it('migrates legacy sidecar runtime config into database state', async () => {
+      const extension = {
+        version: 1 as const,
+        env: { API_KEY: 'legacy-secret' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {}
+      }
+      const sidecarPath = `${DEFAULT_SKILLS_DIR}/.deepchat-meta/test-skill.json`
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === sidecarPath) return true
+        return !target.includes('/scripts')
+      })
       ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
-        if (target.endsWith('/.deepchat-meta/test-skill.json')) {
-          return JSON.stringify(extension)
-        }
+        if (target === sidecarPath) return JSON.stringify(extension)
         return 'test'
       })
 
       const loaded = await skillPresenter.getSkillExtension('test-skill')
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('/.deepchat-meta/test-skill.json'),
-        JSON.stringify(extension, null, 2),
-        'utf-8'
-      )
       expect(loaded).toEqual(extension)
+      expect(
+        (configSettings.get('skills.managementState') as any).skills['test-skill'].extension
+      ).toEqual(extension)
+      expect(fs.rmSync).toHaveBeenCalledWith(sidecarPath, { force: true })
     })
 
     it('reads raw skill file content by skill name', async () => {
@@ -1772,15 +2367,30 @@ describe('SkillPresenter', () => {
       ])
     })
 
-    it('should remove sidecar config when uninstalling a skill', async () => {
-      ;(fs.existsSync as Mock).mockReturnValue(true)
+    it('should remove management state when uninstalling a skill', async () => {
+      const skillDir = `${DEFAULT_SKILLS_DIR}/test-skill`
+      let removed = false
+      await skillPresenter.saveSkillExtension('test-skill', {
+        version: 1,
+        env: { API_KEY: 'secret' },
+        runtimePolicy: { python: 'builtin', node: 'system' },
+        scriptOverrides: {}
+      })
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) return !removed
+        return true
+      })
+      ;(fs.rmSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) {
+          removed = true
+        }
+      })
 
       await skillPresenter.uninstallSkill('test-skill')
 
-      expect(fs.rmSync).toHaveBeenCalledWith(
-        expect.stringContaining('/.deepchat-meta/test-skill.json'),
-        { force: true }
-      )
+      expect(
+        (configSettings.get('skills.managementState') as any).skills['test-skill']
+      ).toBeUndefined()
     })
   })
 
@@ -1836,6 +2446,27 @@ describe('SkillPresenter', () => {
       expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
         'new-session-2b',
         ['exists']
+      )
+    })
+
+    it('migrates the old CUA active skill name to computer-use', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      newSessionActiveSkillsStore.set('new-session-cua', ['cua-driver'])
+      mockSkillTree(['computer-use'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'computer-use', description: 'Computer Use' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      const active = await skillPresenter.getActiveSkills('new-session-cua')
+
+      expect(active).toEqual(['computer-use'])
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-cua',
+        ['computer-use']
       )
     })
 
@@ -1929,21 +2560,21 @@ describe('SkillPresenter', () => {
     })
 
     it('does not emit activated event for retired raw legacy conversations', async () => {
+      publishDeepchatEventMock.mockClear()
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
 
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.ACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.anything()
       )
     })
 
     it('does not emit deactivated event for retired raw legacy conversations', async () => {
+      publishDeepchatEventMock.mockClear()
       await skillPresenter.setActiveSkills('conv-123', ['skill-2'])
 
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.DEACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.anything()
       )
     })
@@ -1958,6 +2589,26 @@ describe('SkillPresenter', () => {
       expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
         'new-session-3',
         ['skill-1']
+      )
+    })
+
+    it('normalizes the old CUA skill name when setting active skills', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      mockSkillTree(['computer-use'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'computer-use', description: 'Computer Use' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      const active = await skillPresenter.setActiveSkills('new-session-cua-set', ['cua-driver'])
+
+      expect(active).toEqual(['computer-use'])
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-cua-set',
+        ['computer-use']
       )
     })
   })
@@ -2063,20 +2714,89 @@ describe('SkillPresenter', () => {
 
       expect(tools).toEqual([])
     })
+
+    it('returns allowed tools for message-scoped active skill overrides', async () => {
+      const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123', [
+        'skill-with-tools'
+      ])
+
+      expect(tools).toContain('read')
+      expect(tools).toContain('write')
+    })
   })
 
   describe('watchSkillFiles', () => {
-    it('should start file watcher', () => {
-      skillPresenter.watchSkillFiles()
+    it('should start file watcher', async () => {
+      await skillPresenter.watchSkillFiles()
 
-      expect(watch).toHaveBeenCalled()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalled()
     })
 
-    it('should not start watcher twice', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.watchSkillFiles()
+    it('does not throw and remains retryable when watcher startup fails', async () => {
+      const error = new Error('File watcher utility process exited with code 1.')
+      ;(fakeWatcherService.service.watch as Mock).mockRejectedValueOnce(error)
 
-      expect(watch).toHaveBeenCalledTimes(1)
+      await expect(skillPresenter.watchSkillFiles()).resolves.toBeUndefined()
+      await skillPresenter.watchSkillFiles()
+
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher unavailable; skill hot reload disabled.',
+        {
+          reason: 'start-failed',
+          error
+        }
+      )
+    })
+
+    it('should not start watcher twice', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.watchSkillFiles()
+
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears failed watcher state so later calls can retry', async () => {
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
+
+      watcher?.emitStatus({
+        health: 'failed',
+        mode: 'snapshot-polling',
+        reason: 'native-error',
+        message: 'snapshot polling failed'
+      })
+      await skillPresenter.watchSkillFiles()
+
+      expect(watcher?.close).toHaveBeenCalledTimes(1)
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher degraded.',
+        expect.objectContaining({
+          health: 'failed',
+          mode: 'snapshot-polling',
+          reason: 'native-error',
+          message: 'snapshot polling failed'
+        })
+      )
+    })
+
+    it('publishes one catalog change when watcher overflow triggers rediscovery', async () => {
+      mockSkillTree(['skill-a'])
+      await skillPresenter.watchSkillFiles()
+      publishDeepchatEventMock.mockClear()
+      const watcher = fakeWatcherService.watchers.at(-1)
+
+      await watcher?.emit([{ type: 'overflow', path: DEFAULT_SKILLS_DIR }])
+
+      expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'discovered',
+          version: expect.any(Number)
+        })
+      )
     })
 
     it('keeps the first cached entry when a changed skill renames to a duplicate name', async () => {
@@ -2090,10 +2810,10 @@ describe('SkillPresenter', () => {
         .fn()
         .mockResolvedValue(createSkillMetadata('skill-b', 'skill-a'))
 
-      skillPresenter.watchSkillFiles()
-      const changeHandler = getWatcherHandler('change')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await changeHandler?.(originalMetadata.path)
+      await watcher?.emit([{ type: 'update', path: originalMetadata.path }])
 
       expect(metadataCache.has('skill-a')).toBe(false)
       expect(metadataCache.get('skill-b')).toEqual(existingDuplicate)
@@ -2105,7 +2825,7 @@ describe('SkillPresenter', () => {
           existingPath: existingDuplicate.path
         })
       )
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
 
     it('updates cached metadata when a changed skill is renamed without conflicts', async () => {
@@ -2116,17 +2836,21 @@ describe('SkillPresenter', () => {
       metadataCache.set(originalMetadata.name, originalMetadata)
       ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(renamedMetadata)
 
-      skillPresenter.watchSkillFiles()
-      const changeHandler = getWatcherHandler('change')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await changeHandler?.(originalMetadata.path)
+      await watcher?.emit([{ type: 'update', path: originalMetadata.path }])
 
       expect(metadataCache.has('skill-a')).toBe(false)
       expect(metadataCache.get('skill-c')).toEqual(renamedMetadata)
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.METADATA_UPDATED,
-        'all',
-        renamedMetadata
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'metadata-updated',
+          name: 'skill-c',
+          skill: renamedMetadata,
+          version: expect.any(Number)
+        })
       )
     })
 
@@ -2138,10 +2862,10 @@ describe('SkillPresenter', () => {
       metadataCache.set(existingMetadata.name, existingMetadata)
       ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(duplicateMetadata)
 
-      skillPresenter.watchSkillFiles()
-      const addHandler = getWatcherHandler('add')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await addHandler?.(duplicateMetadata.path)
+      await watcher?.emit([{ type: 'create', path: duplicateMetadata.path }])
 
       expect(metadataCache.get('skill-b')).toEqual(existingMetadata)
       expect(logger.warn).toHaveBeenCalledWith(
@@ -2152,29 +2876,29 @@ describe('SkillPresenter', () => {
           existingPath: existingMetadata.path
         })
       )
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
   })
 
   describe('stopWatching', () => {
-    it('should stop the file watcher', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.stopWatching()
+    it('should stop the file watcher', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.stopWatching()
 
       // Watcher should be null after stopping
-      skillPresenter.watchSkillFiles()
-      expect(watch).toHaveBeenCalledTimes(2)
+      await skillPresenter.watchSkillFiles()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
     })
   })
 
   describe('destroy', () => {
-    it('should cleanup all resources', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.destroy()
+    it('should cleanup all resources', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.destroy()
 
       // Should be able to start watcher again after destroy
-      skillPresenter.watchSkillFiles()
-      expect(watch).toHaveBeenCalledTimes(2)
+      await skillPresenter.watchSkillFiles()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
     })
   })
 })

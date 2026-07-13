@@ -3,6 +3,7 @@ import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
+import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
 
@@ -12,8 +13,13 @@ vi.mock('nanoid', () => {
 })
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn(), sendToMain: vi.fn(), on: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: { sendToMain: vi.fn(), on: vi.fn() }
+}))
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 vi.mock('@/events', async (importOriginal) => {
@@ -50,8 +56,6 @@ vi.mock('@/presenter', () => ({
     }
   }
 }))
-
-import { eventBus } from '@/eventbus'
 
 function createMockSqlitePresenter() {
   // In-memory storage for integration-level testing
@@ -171,7 +175,7 @@ function createMockSqlitePresenter() {
           id: string,
           providerId: string,
           modelId: string,
-          permissionMode: 'default' | 'full_access' = 'full_access',
+          permissionMode: PermissionMode = 'full_access',
           generationSettings: {
             systemPrompt?: string
             temperature?: number
@@ -196,7 +200,8 @@ function createMockSqlitePresenter() {
             verbosity: generationSettings.verbosity ?? null,
             summary_text: null,
             summary_cursor_order_seq: 1,
-            summary_updated_at: null
+            summary_updated_at: null,
+            memory_cursor_order_seq: null
           })
         }
       ),
@@ -225,7 +230,7 @@ function createMockSqlitePresenter() {
           summary_updated_at: row.summary_updated_at ?? null
         }
       }),
-      updatePermissionMode: vi.fn((id: string, mode: 'default' | 'full_access') => {
+      updatePermissionMode: vi.fn((id: string, mode: PermissionMode) => {
         const row = deepchatSessionsStore.get(id)
         if (row) {
           row.permission_mode = mode
@@ -300,6 +305,23 @@ function createMockSqlitePresenter() {
         row.summary_text = null
         row.summary_cursor_order_seq = 1
         row.summary_updated_at = null
+      }),
+      getMemoryCursorOrderSeq: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        return row?.memory_cursor_order_seq ?? null
+      }),
+      updateMemoryCursorOrderSeq: vi.fn((id: string, cursorOrderSeq: number) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.memory_cursor_order_seq = Math.max(
+          row.memory_cursor_order_seq ?? 0,
+          Math.max(0, Math.floor(cursorOrderSeq))
+        )
+      }),
+      rewindMemoryCursorOrderSeq: vi.fn((id: string, cursorOrderSeq: number) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.memory_cursor_order_seq = Math.max(0, Math.floor(cursorOrderSeq))
       }),
       delete: vi.fn((id: string) => deepchatSessionsStore.delete(id))
     },
@@ -454,6 +476,7 @@ function createMockSqlitePresenter() {
       insert: vi.fn().mockReturnValue(1),
       listByMessageId: vi.fn().mockReturnValue([]),
       countByMessageId: vi.fn().mockReturnValue(0),
+      maxRequestSeqByMessageId: vi.fn().mockReturnValue(0),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
     },
@@ -692,20 +715,20 @@ describe('Integration: createSession end-to-end', () => {
     // 4. Assistant message finalized with content
     expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalled()
 
-    // 5. Events emitted with conversationId
-    const activatedCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (c: any[]) => c[0] === 'session:activated'
+    // 5. Typed events emitted with conversationId
+    const activatedCalls = publishDeepchatEventMock.mock.calls.filter(
+      (c: any[]) => c[0] === 'sessions.updated' && c[1]?.reason === 'created'
     )
     expect(activatedCalls.length).toBeGreaterThanOrEqual(1)
-    expect(activatedCalls[0][2].webContentsId).toBe(1)
-    expect(activatedCalls[0][2].sessionId).toBe(session.id)
+    expect(activatedCalls[0][1].webContentsId).toBe(1)
+    expect(activatedCalls[0][1].activeSessionId).toBe(session.id)
 
     // Stream events should carry conversationId (sessionId)
-    const streamEndCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (c: any[]) => c[0] === 'stream:end'
+    const streamEndCalls = publishDeepchatEventMock.mock.calls.filter(
+      (c: any[]) => c[0] === 'chat.stream.completed'
     )
     expect(streamEndCalls.length).toBeGreaterThanOrEqual(1)
-    expect(streamEndCalls[0][2].conversationId).toBe(session.id)
+    expect(streamEndCalls[0][1].sessionId).toBe(session.id)
   })
 
   it('session list returns enriched sessions', async () => {
@@ -1106,7 +1129,7 @@ describe('Integration: multi-turn context', () => {
     let releaseFirstTurn: (() => void) | null = null
     const firstPrompt = 'P'.repeat(2000)
     const firstResponse = 'R'.repeat(2000)
-    const steerFileContent = 'S'.repeat(8000)
+    const steerUserText = `Steer with attachment\n${'S'.repeat(8000)}`
     const providerInstance = {
       coreStream: vi
         .fn()
@@ -1136,13 +1159,12 @@ describe('Integration: multi-turn context', () => {
     })
 
     await agentPresenter.queuePendingInput(session.id, {
-      text: 'Steer with attachment',
+      text: steerUserText,
       files: [
         {
           name: 'steer.txt',
           path: '/tmp/steer.txt',
-          mimeType: 'text/plain',
-          content: steerFileContent
+          mimeType: 'text/plain'
         } as any
       ]
     })
@@ -1244,11 +1266,6 @@ describe('Integration: multi-turn context', () => {
     expect(providerInstance.coreStream).not.toHaveBeenCalled()
     await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
 
-    await deepchatAgent.resumePendingQueue('s-follow-up')
-    await new Promise((r) => setTimeout(r, 20))
-    expect(providerInstance.coreStream).not.toHaveBeenCalled()
-    await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
-
     await deepchatAgent.queuePendingInput('s-follow-up', 'Actual follow-up answer')
     await new Promise((r) => setTimeout(r, 80))
 
@@ -1310,7 +1327,7 @@ describe('Integration: multi-turn context', () => {
     await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 
-  it('resumePendingQueue drains queued turns after a session error', async () => {
+  it('drains queued turns when a new message is enqueued after a session error', async () => {
     let releaseFirstTurn: (() => void) | null = null
     const providerInstance = {
       coreStream: vi
@@ -1345,17 +1362,21 @@ describe('Integration: multi-turn context', () => {
     expect(pendingAfterError).toHaveLength(1)
     expect(pendingAfterError[0].mode).toBe('queue')
 
-    await agentPresenter.resumePendingQueue(session.id)
-    await new Promise((r) => setTimeout(r, 80))
+    // Enqueuing from an errored session drains the backlog (no manual resume step).
+    await agentPresenter.queuePendingInput(session.id, 'New message after error')
+    await vi.waitFor(() => {
+      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    })
 
     const recoveredSession = await agentPresenter.getSession(session.id)
     expect(recoveredSession?.status).toBe('idle')
-    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
 
     const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
     const userMessages = messages.filter((message: any) => message.role === 'user')
-    expect(userMessages).toHaveLength(2)
+    expect(userMessages).toHaveLength(3)
     expect(JSON.parse(userMessages[1].content).text).toBe('Queued while failing')
+    expect(JSON.parse(userMessages[2].content).text).toBe('New message after error')
     await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 })

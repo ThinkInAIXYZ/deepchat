@@ -55,6 +55,19 @@ const MARKDOWN_ONLY_CAPABILITIES: FormatCapabilities = {
  */
 export const EXTERNAL_TOOLS: ExternalToolConfig[] = [
   {
+    id: 'agents',
+    name: 'Agents',
+    skillsDir: '~/.agents/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'agents',
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    }
+  },
+  {
     id: 'claude-code',
     name: 'Claude Code',
     skillsDir: '~/.claude/skills/',

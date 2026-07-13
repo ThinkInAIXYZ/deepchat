@@ -12,7 +12,12 @@
 | `AgentToolManager` | `src/main/presenter/toolPresenter/agentTools/agentToolManager.ts` | 本地 agent tools 装配与执行 |
 | `AgentFileSystemHandler` | `src/main/presenter/toolPresenter/agentTools/agentFileSystemHandler.ts` | 文件系统类工具 |
 | `AgentBashHandler` | `src/main/presenter/toolPresenter/agentTools/agentBashHandler.ts` | 命令执行与后台 session |
+| `AgentFffSearchHandler` | `src/main/presenter/toolPresenter/agentTools/agentFffSearchHandler.ts` | FFF-backed `glob` / `grep` code search |
 | `chatSettingsTools` | `src/main/presenter/toolPresenter/agentTools/chatSettingsTools.ts` | chat/session settings 工具 |
+| `SubagentOrchestratorTool` | `src/main/presenter/toolPresenter/agentTools/subagentOrchestratorTool.ts` | subagent orchestration |
+| `AgentPlanTool` | `src/main/presenter/toolPresenter/agentTools/agentPlanTool.ts` | `agent-core/update_plan` |
+| `AgentTapeToolHandler` | `src/main/presenter/toolPresenter/agentTools/agentTapeTools.ts` | tape read/merge/discard tools |
+| `AgentImageGenerationTool` | `src/main/presenter/toolPresenter/agentTools/agentImageGenerationTool.ts` | image generation tool |
 | `McpPresenter` | `src/main/presenter/mcpPresenter/` | 外部 MCP servers 与 tools |
 | `ACP helpers` | `src/main/presenter/llmProviderPresenter/acp/` | ACP provider runtime、workdir、config、MCP 映射 |
 
@@ -26,7 +31,10 @@ graph LR
     ToolPresenter --> AgentTools["AgentToolManager"]
     AgentTools --> Fs["AgentFileSystemHandler"]
     AgentTools --> Bash["AgentBashHandler"]
+    AgentTools --> FFF["AgentFffSearchHandler"]
     AgentTools --> Settings["chatSettingsTools"]
+    AgentTools --> Subagents["SubagentOrchestratorTool"]
+    AgentTools --> Plan["AgentPlanTool"]
 ```
 
 ## 获取工具定义
@@ -36,6 +44,7 @@ graph LR
 1. 从 `mcpPresenter` 拉取 MCP tools。
 2. 从 `AgentToolManager` 拉取本地 agent tools。
 3. 用 `ToolMapper` 记录来源，并在重名时优先保留 MCP tool。
+4. 过滤 disabled agent tools，并为每个 conversation 维护独立映射。
 
 这意味着 `agentRuntimePresenter` 不需要知道 tool 的真实来源，只需要持有统一的
 `MCPToolDefinition[]`。
@@ -77,6 +86,25 @@ port 负责提供：
 - 已批准路径查询
 - settings approval 消费
 - `agentSessionPresenter` 会话上下文桥接
+
+## FFF Search
+
+Agent code/file search uses `@ff-labs/fff-node` through `AgentFffSearchHandler`.
+
+Current model-facing search tools:
+
+| Tool | Backing API | Output |
+| --- | --- | --- |
+| `glob` | `FffSearchService.findFiles()` | JSON file hits with `path` and score |
+| `grep` | `FffSearchService.grep()` | JSON line hits with `path`, `lineNumber`, snippet, and score |
+
+Search policy:
+
+- Agent prompts should prefer `glob -> grep -> read`.
+- Shell search commands are outside the model-facing code search path.
+- FFF unavailable errors stay tool errors.
+- Tool metadata reports `source: "fff"` so downstream rendering/debug paths can identify search
+  origin.
 
 权限能力拆分：
 

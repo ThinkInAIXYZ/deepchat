@@ -1,137 +1,215 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { IpcRendererEvent } from 'electron'
+import { FLOATING_BUTTON_EVENTS } from '@shared/floatingButtonChannels'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
 
-// Define event constants directly to avoid path resolution issues
-const FLOATING_BUTTON_EVENTS = {
-  CLICKED: 'floating-button:clicked',
-  RIGHT_CLICKED: 'floating-button:right-clicked',
-  HOVER_STATE_CHANGED: 'floating-button:hover-state-changed',
-  SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
-  SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',
-  LANGUAGE_REQUEST: 'floating-button:language-request',
-  LANGUAGE_CHANGED: 'floating-button:language-changed',
-  THEME_REQUEST: 'floating-button:theme-request',
-  THEME_CHANGED: 'floating-button:theme-changed',
-  ACP_REGISTRY_ICON_REQUEST: 'floating-button:acp-registry-icon-request',
-  TOGGLE_EXPANDED: 'floating-button:toggle-expanded',
-  SET_EXPANDED: 'floating-button:set-expanded',
-  OPEN_SESSION: 'floating-button:open-session',
-  DRAG_START: 'floating-button:drag-start',
-  DRAG_MOVE: 'floating-button:drag-move',
-  DRAG_END: 'floating-button:drag-end'
-} as const
+const EMPTY_SNAPSHOT: FloatingWidgetSnapshot = {
+  expanded: false,
+  activeCount: 0,
+  sessions: []
+}
+
+type Unsubscribe = () => void
+type FloatingTheme = 'dark' | 'light'
+type FloatingEventCallback<T> = (payload: T) => void
+type FloatingEventParser<T> = (payload: unknown) => T | null
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const isFiniteCoordinate = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0
+
+const isTheme = (value: unknown): value is FloatingTheme => value === 'dark' || value === 'light'
+
+const isFloatingWidgetSnapshot = (value: unknown): value is FloatingWidgetSnapshot => {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  const activeCount = value.activeCount
+
+  return (
+    typeof value.expanded === 'boolean' &&
+    typeof activeCount === 'number' &&
+    Number.isInteger(activeCount) &&
+    activeCount >= 0 &&
+    Array.isArray(value.sessions) &&
+    value.sessions.every((session) => {
+      if (!isRecord(session) || !isRecord(session.agent)) {
+        return false
+      }
+
+      return (
+        isNonEmptyString(session.id) &&
+        typeof session.title === 'string' &&
+        isFiniteCoordinate(session.updatedAt) &&
+        (session.status === 'in_progress' ||
+          session.status === 'done' ||
+          session.status === 'error') &&
+        isNonEmptyString(session.agent.id) &&
+        typeof session.agent.name === 'string' &&
+        typeof session.agent.type === 'string'
+      )
+    })
+  )
+}
+
+const parseSnapshot: FloatingEventParser<FloatingWidgetSnapshot> = (payload) =>
+  isFloatingWidgetSnapshot(payload) ? payload : null
+
+const parseLanguage: FloatingEventParser<string> = (payload) =>
+  isNonEmptyString(payload) ? payload : null
+
+const parseTheme: FloatingEventParser<FloatingTheme> = (payload) =>
+  isTheme(payload) ? payload : null
+
+const warnInvalidPayload = (channel: string) => {
+  console.warn(`FloatingPreload: Ignoring invalid payload for ${channel}`)
+}
+
+const sendMessage = (channel: string, ...args: unknown[]) => {
+  try {
+    ipcRenderer.send(channel, ...args)
+  } catch (error) {
+    console.error(`FloatingPreload: Error sending ${channel}:`, error)
+  }
+}
+
+const sendBooleanMessage = (channel: string, value: unknown) => {
+  if (typeof value !== 'boolean') {
+    warnInvalidPayload(channel)
+    return
+  }
+
+  sendMessage(channel, value)
+}
+
+const sendPointMessage = (channel: string, x: unknown, y: unknown) => {
+  if (!isFiniteCoordinate(x) || !isFiniteCoordinate(y)) {
+    warnInvalidPayload(channel)
+    return
+  }
+
+  sendMessage(channel, { x, y })
+}
+
+const onFloatingEvent = <T>(
+  channel: string,
+  parse: FloatingEventParser<T>,
+  callback: FloatingEventCallback<T>
+): Unsubscribe => {
+  const listener = (_event: IpcRendererEvent, payload: unknown) => {
+    const parsedPayload = parse(payload)
+    if (parsedPayload === null) {
+      warnInvalidPayload(channel)
+      return
+    }
+
+    callback(parsedPayload)
+  }
+
+  ipcRenderer.on(channel, listener)
+  return () => {
+    ipcRenderer.removeListener(channel, listener)
+  }
+}
 
 // Define floating button API
 const floatingButtonAPI = {
   // Backward-compatible click entry; now toggles the floating widget panel.
   onClick: () => {
-    try {
-      ipcRenderer.send(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED)
-    } catch (error) {
-      console.error('FloatingPreload: Error sending IPC message:', error)
-    }
+    sendMessage(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED)
   },
 
   onRightClick: () => {
-    try {
-      ipcRenderer.send(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
-    } catch (error) {
-      console.error('FloatingPreload: Error sending right click IPC message:', error)
-    }
+    sendMessage(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
   },
 
   getSnapshot: async (): Promise<FloatingWidgetSnapshot> => {
-    return await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
+    const snapshot = parseSnapshot(
+      await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
+    )
+    if (!snapshot) {
+      warnInvalidPayload(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
+      return { ...EMPTY_SNAPSHOT }
+    }
+
+    return snapshot
   },
 
   getLanguage: async (): Promise<string> => {
-    return await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST)
+    const language = parseLanguage(
+      await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST)
+    )
+    return language ?? 'en-US'
   },
 
-  getTheme: async (): Promise<'dark' | 'light'> => {
-    return await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
+  getTheme: async (): Promise<FloatingTheme> => {
+    const theme = parseTheme(await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.THEME_REQUEST))
+    return theme ?? 'dark'
   },
 
   getAcpRegistryIconMarkup: async (agentId: string, iconUrl: string): Promise<string> => {
-    return await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST, {
-      agentId,
-      iconUrl
+    if (!isNonEmptyString(agentId) || !isNonEmptyString(iconUrl)) {
+      return ''
+    }
+
+    const markup = await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST, {
+      agentId: agentId.trim(),
+      iconUrl: iconUrl.trim()
     })
+    return typeof markup === 'string' ? markup : ''
   },
 
   toggleExpanded: () => {
-    ipcRenderer.send(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED)
+    sendMessage(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED)
   },
 
   setExpanded: (expanded: boolean) => {
-    ipcRenderer.send(FLOATING_BUTTON_EVENTS.SET_EXPANDED, expanded)
+    sendBooleanMessage(FLOATING_BUTTON_EVENTS.SET_EXPANDED, expanded)
   },
 
   setHovering: (hovering: boolean) => {
-    ipcRenderer.send(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, hovering)
+    sendBooleanMessage(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, hovering)
   },
 
   openSession: (sessionId: string) => {
-    ipcRenderer.send(FLOATING_BUTTON_EVENTS.OPEN_SESSION, sessionId)
+    if (!isNonEmptyString(sessionId)) {
+      warnInvalidPayload(FLOATING_BUTTON_EVENTS.OPEN_SESSION)
+      return
+    }
+
+    sendMessage(FLOATING_BUTTON_EVENTS.OPEN_SESSION, sessionId.trim())
   },
 
   // Drag-related API
   onDragStart: (x: number, y: number) => {
-    try {
-      ipcRenderer.send(FLOATING_BUTTON_EVENTS.DRAG_START, { x, y })
-    } catch (error) {
-      console.error('FloatingPreload: Error sending drag start IPC message:', error)
-    }
+    sendPointMessage(FLOATING_BUTTON_EVENTS.DRAG_START, x, y)
   },
 
   onDragMove: (x: number, y: number) => {
-    try {
-      ipcRenderer.send(FLOATING_BUTTON_EVENTS.DRAG_MOVE, { x, y })
-    } catch (error) {
-      console.error('FloatingPreload: Error sending drag move IPC message:', error)
-    }
+    sendPointMessage(FLOATING_BUTTON_EVENTS.DRAG_MOVE, x, y)
   },
 
   onDragEnd: (x: number, y: number) => {
-    try {
-      ipcRenderer.send(FLOATING_BUTTON_EVENTS.DRAG_END, { x, y })
-    } catch (error) {
-      console.error('FloatingPreload: Error sending drag end IPC message:', error)
-    }
+    sendPointMessage(FLOATING_BUTTON_EVENTS.DRAG_END, x, y)
   },
 
   // Listen to events from main process
   onSnapshotUpdate: (callback: (snapshot: FloatingWidgetSnapshot) => void) => {
-    ipcRenderer.on(FLOATING_BUTTON_EVENTS.SNAPSHOT_UPDATED, (_event, snapshot) => {
-      callback(snapshot)
-    })
+    return onFloatingEvent(FLOATING_BUTTON_EVENTS.SNAPSHOT_UPDATED, parseSnapshot, callback)
   },
 
   onLanguageChanged: (callback: (language: string) => void) => {
-    ipcRenderer.on(FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED, (_event, language) => {
-      callback(language)
-    })
+    return onFloatingEvent(FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED, parseLanguage, callback)
   },
 
-  onThemeChanged: (callback: (theme: 'dark' | 'light') => void) => {
-    ipcRenderer.on(FLOATING_BUTTON_EVENTS.THEME_CHANGED, (_event, theme) => {
-      callback(theme)
-    })
-  },
-
-  onConfigUpdate: (callback: (config: Record<string, unknown>) => void) => {
-    ipcRenderer.on('floating-button-config-update', (_event, config) => {
-      callback(config)
-    })
-  },
-
-  // Remove event listeners
-  removeAllListeners: () => {
-    console.log('FloatingPreload: Removing all listeners')
-    ipcRenderer.removeAllListeners(FLOATING_BUTTON_EVENTS.SNAPSHOT_UPDATED)
-    ipcRenderer.removeAllListeners(FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED)
-    ipcRenderer.removeAllListeners(FLOATING_BUTTON_EVENTS.THEME_CHANGED)
-    ipcRenderer.removeAllListeners('floating-button-config-update')
+  onThemeChanged: (callback: (theme: FloatingTheme) => void) => {
+    return onFloatingEvent(FLOATING_BUTTON_EVENTS.THEME_CHANGED, parseTheme, callback)
   }
 }
 

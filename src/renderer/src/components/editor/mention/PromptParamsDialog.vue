@@ -1,6 +1,6 @@
 <template>
   <Dialog :open="true" @update:open="$emit('close')">
-    <DialogContent class="sm:max-w-[425px] z-100">
+    <DialogContent class="sm:max-w-[425px]" style="z-index: var(--dc-z-modal)">
       <DialogHeader>
         <DialogTitle>{{
           t('components.promptParamsDialog.title', { name: promptName })

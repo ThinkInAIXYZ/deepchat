@@ -79,7 +79,7 @@ const buildBlockKey = (
   index: number
 ): string => {
   const stableId = block.id ?? block.tool_call?.id
-  return stableId ? `${messageId}:${stableId}` : `${messageId}:${index}`
+  return stableId ? `${messageId}:${stableId}:${index}` : `${messageId}:${index}`
 }
 
 const buildGroupKey = (messageId: string, buffer: BufferedActivityBlock[]): string => {

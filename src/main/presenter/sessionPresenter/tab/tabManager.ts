@@ -1,6 +1,3 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONVERSATION_EVENTS } from '@/events'
-
 export interface ITabAdapter {
   getTab(tabId: number): Promise<any>
   switchTab(tabId: number): Promise<void>
@@ -112,8 +109,6 @@ export class TabManager {
     }
 
     this.tabMetadata.delete(tabId)
-
-    eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, { tabId })
   }
 
   async activateSession(tabId: number, sessionId: string): Promise<void> {
@@ -139,11 +134,7 @@ export class TabManager {
       await this.bindToTab(sessionId, tabId, targetMetadata?.windowType || 'main')
 
       const windowId = this.tabAdapter.getWindowId(tabId)
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-        sessionId,
-        tabId,
-        windowId
-      })
+      void windowId
       return
     }
 
@@ -160,11 +151,7 @@ export class TabManager {
     await this.bindToTab(sessionId, tabId, metadata?.windowType || 'main')
 
     const windowId = this.tabAdapter.getWindowId(tabId)
-    eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-      sessionId,
-      tabId,
-      windowId
-    })
+    void windowId
   }
 
   unbindAllForSession(sessionId: string): void {
@@ -172,8 +159,6 @@ export class TabManager {
     for (const tabId of tabIds) {
       this.tabIdToSessionId.delete(tabId)
       this.tabMetadata.delete(tabId)
-
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, { tabId })
     }
     this.sessionIdToTabIds.delete(sessionId)
   }

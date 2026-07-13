@@ -50,10 +50,7 @@ vi.mock('@/presenter', () => ({
 }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMock,
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
-  }
+  eventBus: eventBusMock
 }))
 
 function createConfigPresenter(shortcuts = {}) {

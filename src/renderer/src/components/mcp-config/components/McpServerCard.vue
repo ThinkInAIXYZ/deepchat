@@ -18,6 +18,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { Separator } from '@shadcn/components/ui/separator'
+import type { McpServerAuthStatus } from '@shared/presenter'
 
 interface ServerInfo {
   name: string
@@ -30,6 +31,7 @@ interface ServerInfo {
   type?: string
   baseUrl?: string
   errorMessage?: string
+  authStatus?: McpServerAuthStatus
   source?: string
   sourceId?: string
 }
@@ -54,6 +56,7 @@ interface Emits {
   (e: 'viewTools'): void
   (e: 'viewPrompts'): void
   (e: 'viewResources'): void
+  (e: 'authenticate'): void
 }
 
 const props = defineProps<Props>()
@@ -75,10 +78,19 @@ const getLocalizedServerDesc = (serverName: string, fallbackDesc: string) => {
 // 计算服务器状态
 const serverStatus = computed(() => {
   if (props.isLoading) return 'loading'
+  if (props.server.authStatus?.state === 'authenticating') return 'loading'
+  if (props.server.authStatus?.state === 'required') return 'auth-required'
+  if (props.server.authStatus?.state === 'error') return 'auth-error'
   if (props.server.errorMessage) return 'error'
   if (props.server.isRunning) return 'running'
   return 'stopped'
 })
+
+const showAuthenticateButton = computed(() =>
+  ['required', 'error', 'authenticating'].includes(props.server.authStatus?.state || '')
+)
+
+const isAuthenticating = computed(() => props.server.authStatus?.state === 'authenticating')
 
 // 计算状态样式
 const statusConfig = computed(() => {
@@ -94,6 +106,18 @@ const statusConfig = computed(() => {
         dot: 'bg-blue-500 animate-pulse',
         text: t('settings.mcp.starting'),
         color: 'text-blue-600 dark:text-blue-400'
+      }
+    case 'auth-required':
+      return {
+        dot: 'bg-yellow-500',
+        text: t('settings.mcp.authRequired'),
+        color: 'text-yellow-600 dark:text-yellow-400'
+      }
+    case 'auth-error':
+      return {
+        dot: 'bg-red-500',
+        text: t('settings.mcp.authFailed'),
+        color: 'text-red-600 dark:text-red-400'
       }
     case 'error':
       return {
@@ -224,10 +248,35 @@ watch(watchDescription, () => {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          <TooltipProvider v-if="server.authStatus?.error">
+            <Tooltip>
+              <TooltipTrigger>
+                <Icon icon="lucide:key-round" class="w-3 h-3 text-yellow-500" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p class="text-xs max-w-xs">{{ server.authStatus.error }}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         <!-- 开关 -->
-        <div class="shrink-0" @click.stop @keydown.stop>
+        <div class="flex shrink-0 items-center gap-2" @click.stop @keydown.stop>
+          <Button
+            v-if="showAuthenticateButton"
+            variant="outline"
+            size="sm"
+            class="h-6 px-2 text-[11px]"
+            :disabled="disabled || isAuthenticating"
+            @click.stop="$emit('authenticate')"
+          >
+            <Icon
+              :icon="isAuthenticating ? 'lucide:loader-2' : 'lucide:key-round'"
+              :class="['h-3 w-3', { 'animate-spin': isAuthenticating }]"
+            />
+            {{ t('settings.mcp.authenticate') }}
+          </Button>
           <Switch
             :model-value="server.enabled"
             :disabled="disabled || isLoading"

@@ -23,6 +23,7 @@ describe('AgentPlanTool', () => {
     )
 
     expect(result.content).toBe('{}')
+    expect(result.rawData.toolResult).toEqual({ kind: 'agent_plan' })
     expect(onProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'agent_plan',
@@ -40,47 +41,40 @@ describe('AgentPlanTool', () => {
         })
       })
     )
-    expect(tool.getState('session-1')).toMatchObject({
-      revision: 1,
-      current: {
-        explanation: 'Repo inspected',
-        plan: [
-          { step: 'Inspect current runtime', status: 'completed' },
-          { step: 'Implement handler', status: 'in_progress' },
-          { step: 'Add tests', status: 'pending' }
-        ]
-      }
-    })
   })
 
   it('increments revision and allows an empty plan to clear the checklist', () => {
     const tool = new AgentPlanTool()
+    const onProgress = vi.fn()
 
     tool.call(
       {
         plan: [{ step: 'Start', status: 'in_progress' }]
       },
       'session-1',
-      { toolCallId: 'tool-1' }
+      { toolCallId: 'tool-1', onProgress }
     )
     tool.call(
       {
         plan: []
       },
       'session-1',
-      { toolCallId: 'tool-2' }
+      { toolCallId: 'tool-2', onProgress }
     )
 
-    expect(tool.getState('session-1')).toMatchObject({
-      revision: 2,
-      current: {
+    expect(onProgress).toHaveBeenLastCalledWith({
+      kind: 'agent_plan',
+      toolCallId: 'tool-2',
+      snapshot: expect.objectContaining({
+        revision: 2,
         plan: []
-      }
+      })
     })
   })
 
   it('rejects invalid payloads without updating state', () => {
     const tool = new AgentPlanTool()
+    const onProgress = vi.fn()
 
     expect(() =>
       tool.call(
@@ -115,9 +109,73 @@ describe('AgentPlanTool', () => {
       )
     ).toThrow('Unrecognized key')
 
-    expect(tool.getState('session-1')).toMatchObject({
-      revision: 0,
-      current: null
+    tool.call(
+      {
+        plan: [{ step: 'Valid', status: 'pending' }]
+      },
+      'session-1',
+      { toolCallId: 'tool-2', onProgress }
+    )
+
+    expect(onProgress).toHaveBeenCalledWith({
+      kind: 'agent_plan',
+      toolCallId: 'tool-2',
+      snapshot: expect.objectContaining({
+        revision: 1,
+        plan: [{ step: 'Valid', status: 'pending' }]
+      })
+    })
+  })
+
+  it('clears session state so revisions restart for that session', () => {
+    const tool = new AgentPlanTool()
+    const onProgress = vi.fn()
+
+    tool.call({ plan: [{ step: 'Start', status: 'pending' }] }, 'session-1', {
+      toolCallId: 'tool-1',
+      onProgress
+    })
+    tool.clearState('session-1')
+    tool.call({ plan: [{ step: 'Restart', status: 'pending' }] }, 'session-1', {
+      toolCallId: 'tool-2',
+      onProgress
+    })
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      kind: 'agent_plan',
+      toolCallId: 'tool-2',
+      snapshot: expect.objectContaining({
+        revision: 1,
+        plan: [{ step: 'Restart', status: 'pending' }]
+      })
+    })
+  })
+
+  it('rejects calls without a tool call ID', () => {
+    const tool = new AgentPlanTool()
+    const onProgress = vi.fn()
+
+    expect(() =>
+      tool.call(
+        {
+          plan: [{ step: 'Start', status: 'in_progress' }]
+        },
+        'session-1'
+      )
+    ).toThrow('update_plan requires a tool call ID')
+
+    tool.call({ plan: [{ step: 'Start', status: 'in_progress' }] }, 'session-1', {
+      toolCallId: 'tool-1',
+      onProgress
+    })
+
+    expect(onProgress).toHaveBeenCalledWith({
+      kind: 'agent_plan',
+      toolCallId: 'tool-1',
+      snapshot: expect.objectContaining({
+        revision: 1,
+        plan: [{ step: 'Start', status: 'in_progress' }]
+      })
     })
   })
 

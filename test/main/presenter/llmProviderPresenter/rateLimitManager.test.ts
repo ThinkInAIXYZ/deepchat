@@ -1,25 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    send: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all'
-  }
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
 }))
 
-vi.mock('@/events', () => ({
-  RATE_LIMIT_EVENTS: {
-    CONFIG_UPDATED: 'rate-limit:config-updated',
-    REQUEST_QUEUED: 'rate-limit:request-queued',
-    REQUEST_EXECUTED: 'rate-limit:request-executed',
-    LIMIT_EXCEEDED: 'rate-limit:limit-exceeded'
-  }
-}))
-
-import { eventBus } from '@/eventbus'
 import { RateLimitManager } from '@/presenter/llmProviderPresenter/managers/rateLimitManager'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 function createConfigPresenter(rateLimit?: { enabled: boolean; qpsLimit: number }) {
   const provider = {
@@ -60,12 +46,12 @@ describe('RateLimitManager', () => {
 
     await manager.executeWithRateLimit('openai')
 
-    expect(eventBus.send).toHaveBeenCalledWith(
-      'rate-limit:request-executed',
-      'all',
+    expect(publishDeepchatEvent).toHaveBeenCalledWith(
+      'providers.rateLimit.requestExecuted',
       expect.objectContaining({
         providerId: 'openai',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        version: Date.now()
       })
     )
   })
@@ -97,13 +83,13 @@ describe('RateLimitManager', () => {
 
     expect(manager.getQueueLength('openai')).toBe(0)
     expect(
-      (eventBus.send as ReturnType<typeof vi.fn>).mock.calls.filter(
-        ([eventName]) => eventName === 'rate-limit:request-queued'
+      (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([eventName]) => eventName === 'providers.rateLimit.requestQueued'
       )
     ).toHaveLength(1)
     expect(
-      (eventBus.send as ReturnType<typeof vi.fn>).mock.calls.filter(
-        ([eventName]) => eventName === 'rate-limit:request-executed'
+      (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([eventName]) => eventName === 'providers.rateLimit.requestExecuted'
       )
     ).toHaveLength(2)
   })
@@ -129,8 +115,8 @@ describe('RateLimitManager', () => {
     await vi.advanceTimersByTimeAsync(1000)
 
     expect(
-      (eventBus.send as ReturnType<typeof vi.fn>).mock.calls.filter(
-        ([eventName]) => eventName === 'rate-limit:request-executed'
+      (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([eventName]) => eventName === 'providers.rateLimit.requestExecuted'
       )
     ).toHaveLength(1)
   })

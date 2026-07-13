@@ -19,6 +19,27 @@ export interface RuntimeCapabilitiesPromptOptions {
   hasProcess?: boolean
 }
 
+const SYSTEM_ENV_SLOW_STEP_MS = 500
+const AGENTS_READ_BUDGET_MS = 200
+const AGENTS_CACHE_TTL_MS = 30_000
+
+type AgentsCacheEntry = {
+  content: string
+  refreshedAt: number
+  pending?: Promise<string>
+}
+
+const agentsInstructionsCache = new Map<string, AgentsCacheEntry>()
+
+function logSlowSystemEnvStep(step: string, startedAt: number): void {
+  const elapsed = Date.now() - startedAt
+  if (elapsed < SYSTEM_ENV_SLOW_STEP_MS) {
+    return
+  }
+
+  logger.warn(`[SystemEnvPromptBuilder] step slow step=${step} elapsed=${elapsed}ms`)
+}
+
 function resolveModelDisplayName(
   providerId: string,
   modelId: string,
@@ -86,16 +107,87 @@ function isGitRepository(workdir: string): boolean {
   }
 }
 
-async function readAgentsInstructions(sourcePath: string): Promise<string> {
+async function readAgentsInstructionsFromDisk(sourcePath: string): Promise<string> {
   try {
     return await fs.promises.readFile(sourcePath, 'utf8')
   } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    if (nodeError.code === 'ENOENT' || nodeError.code === 'ENOTDIR') {
+      return ''
+    }
+
     logger.warn('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
       sourcePath,
-      error
+      code: nodeError.code,
+      message: error instanceof Error ? error.message : String(error)
     })
     return ''
   }
+}
+
+function refreshAgentsInstructions(sourcePath: string, fallback: AgentsCacheEntry | undefined) {
+  const pending = readAgentsInstructionsFromDisk(sourcePath).then((content) => {
+    agentsInstructionsCache.set(sourcePath, {
+      content,
+      refreshedAt: Date.now()
+    })
+    return content
+  })
+
+  agentsInstructionsCache.set(sourcePath, {
+    content: fallback?.content ?? '',
+    refreshedAt: fallback?.refreshedAt ?? 0,
+    pending
+  })
+
+  return pending
+}
+
+async function waitForAgentsInstructions(
+  sourcePath: string,
+  pending: Promise<string>,
+  fallback: string
+): Promise<string> {
+  let timeout: NodeJS.Timeout | undefined
+  const result = await Promise.race([
+    pending.then((content) => ({ content })),
+    new Promise<{ timedOut: true }>((resolve) => {
+      timeout = setTimeout(() => resolve({ timedOut: true }), AGENTS_READ_BUDGET_MS)
+    })
+  ])
+
+  if (timeout) {
+    clearTimeout(timeout)
+  }
+
+  if ('timedOut' in result) {
+    logger.warn('[SystemEnvPromptBuilder] AGENTS.md read deferred', {
+      sourcePath,
+      budgetMs: AGENTS_READ_BUDGET_MS
+    })
+    return fallback
+  }
+
+  return result.content
+}
+
+async function readAgentsInstructions(sourcePath: string): Promise<string> {
+  const cached = agentsInstructionsCache.get(sourcePath)
+  const now = Date.now()
+  if (cached && now - cached.refreshedAt < AGENTS_CACHE_TTL_MS) {
+    return cached.content
+  }
+
+  if (cached?.pending) {
+    return cached.content
+  }
+
+  const pending = refreshAgentsInstructions(sourcePath, cached)
+  if (cached) {
+    return cached.content
+  }
+
+  return waitForAgentsInstructions(sourcePath, pending, '')
 }
 
 export function buildRuntimeCapabilitiesPrompt(
@@ -138,12 +230,19 @@ export async function buildSystemEnvPrompt(
   const agentsFilePath = options.agentsFilePath
     ? path.resolve(options.agentsFilePath)
     : path.join(workdir, 'AGENTS.md')
+  let stepStartedAt = Date.now()
   const agentsContent = await readAgentsInstructions(agentsFilePath)
+  logSlowSystemEnvStep('read-agents', stepStartedAt)
+  stepStartedAt = Date.now()
   const { modelName, exactModelId } = resolveModelIdentity(
     options.providerId,
     options.modelId,
     options.modelLookup
   )
+  logSlowSystemEnvStep('model-identity', stepStartedAt)
+  stepStartedAt = Date.now()
+  const isGitRepo = isGitRepository(workdir)
+  logSlowSystemEnvStep('git-detect', stepStartedAt)
 
   const promptLines = [
     `You are powered by the model named ${modelName}.`,
@@ -151,7 +250,7 @@ export async function buildSystemEnvPrompt(
     `Here is some useful information about the environment you are running in:`,
     '<env>',
     `Working directory: ${workdir}`,
-    `Is directory a git repo: ${isGitRepository(workdir) ? 'yes' : 'no'}`,
+    `Is directory a git repo: ${isGitRepo ? 'yes' : 'no'}`,
     `Platform: ${platform}`,
     `Today's date: ${now.toDateString()}`,
     '</env>'

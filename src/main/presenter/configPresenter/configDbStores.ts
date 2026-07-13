@@ -13,7 +13,8 @@ export const SENSITIVE_APP_SETTING_KEYS = [
   'hooksNotifications',
   'knowledgeConfigs',
   'customPrompts',
-  'systemPrompts'
+  'systemPrompts',
+  'skills.managementState'
 ] as const
 
 const SENSITIVE_APP_SETTING_KEY_SET = new Set<string>(SENSITIVE_APP_SETTING_KEYS)

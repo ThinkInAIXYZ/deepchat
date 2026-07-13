@@ -74,9 +74,9 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type { NewDiscovery } from '@shared/types/skillSync'
-import { SKILL_SYNC_EVENTS } from '@/events'
+import { getSkillToolIcon as getToolIcon, getSkillToolIconBg as getToolIconBg } from './toolIcon'
 
 const emit = defineEmits<{
   import: [toolIds: string[]]
@@ -84,7 +84,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
+const skillSyncClient = createSkillSyncClient()
 
 const isOpen = ref(false)
 const discoveries = ref<NewDiscovery[]>([])
@@ -104,7 +104,7 @@ const toggleTool = (toolId: string) => {
 const handleSkip = async () => {
   if (dontShowAgain.value) {
     // Acknowledge discoveries so they won't show again
-    await skillSyncPresenter.acknowledgeDiscoveries()
+    await skillSyncClient.acknowledgeDiscoveries()
   }
   isOpen.value = false
   emit('close')
@@ -112,50 +112,16 @@ const handleSkip = async () => {
 
 const handleImport = async () => {
   // Acknowledge discoveries after import
-  await skillSyncPresenter.acknowledgeDiscoveries()
+  await skillSyncClient.acknowledgeDiscoveries()
   isOpen.value = false
   emit('import', Array.from(selectedTools.value))
 }
 
-const getToolIcon = (toolId: string): string => {
-  const icons: Record<string, string> = {
-    'claude-code': 'simple-icons:anthropic',
-    cursor: 'simple-icons:cursor',
-    windsurf: 'lucide:wind',
-    copilot: 'simple-icons:github',
-    'copilot-user': 'simple-icons:github',
-    kiro: 'lucide:sparkles',
-    antigravity: 'lucide:rocket',
-    codex: 'simple-icons:openai',
-    opencode: 'lucide:code-2',
-    goose: 'lucide:bird',
-    kilocode: 'lucide:binary'
-  }
-  return icons[toolId] || 'lucide:box'
-}
-
-const getToolIconBg = (toolId: string): string => {
-  const bgs: Record<string, string> = {
-    'claude-code': 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-    cursor: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-    windsurf: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',
-    copilot: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-    'copilot-user': 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-    kiro: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
-    antigravity: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-    codex: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-    opencode: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
-    goose: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
-    kilocode: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
-  }
-  return bgs[toolId] || 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
-}
-
 // Listen for new discoveries event from main process
-const handleNewDiscoveries = (_event: unknown, data: { discoveries: NewDiscovery[] }) => {
-  if (data.discoveries && data.discoveries.length > 0) {
-    discoveries.value = data.discoveries
-    selectedTools.value = new Set(data.discoveries.map((d) => d.toolId))
+const handleNewDiscoveries = (nextDiscoveries: NewDiscovery[]) => {
+  if (nextDiscoveries.length > 0) {
+    discoveries.value = nextDiscoveries
+    selectedTools.value = new Set(nextDiscoveries.map((d) => d.toolId))
     isOpen.value = true
   }
 }
@@ -163,16 +129,7 @@ const handleNewDiscoveries = (_event: unknown, data: { discoveries: NewDiscovery
 let cleanup: (() => void) | null = null
 
 onMounted(() => {
-  // Listen for new discoveries event
-  if (window.electron?.ipcRenderer) {
-    window.electron.ipcRenderer.on(SKILL_SYNC_EVENTS.NEW_DISCOVERIES, handleNewDiscoveries)
-    cleanup = () => {
-      window.electron.ipcRenderer.removeListener(
-        SKILL_SYNC_EVENTS.NEW_DISCOVERIES,
-        handleNewDiscoveries
-      )
-    }
-  }
+  cleanup = skillSyncClient.onDiscoveriesChanged(handleNewDiscoveries)
 })
 
 onUnmounted(() => {
@@ -182,7 +139,7 @@ onUnmounted(() => {
 // Expose method for parent component to trigger check
 defineExpose({
   checkAndShow: async () => {
-    const newDiscoveries = await skillSyncPresenter.getNewDiscoveries()
+    const newDiscoveries = await skillSyncClient.getNewDiscoveries()
     if (newDiscoveries.length > 0) {
       discoveries.value = newDiscoveries
       selectedTools.value = new Set(newDiscoveries.map((d) => d.toolId))

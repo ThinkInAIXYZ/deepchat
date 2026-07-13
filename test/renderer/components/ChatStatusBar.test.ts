@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
+import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 
 const TEST_TIMEOUT_MS = 20000
 
@@ -44,6 +44,7 @@ type SetupOptions = {
   activeProviderId?: string
   activeModelId?: string
   activeProjectDir?: string | null
+  activePermissionMode?: PermissionMode
   activeSessionSubagentEnabled?: boolean
   draftSubagentEnabled?: boolean
   supportsEffort?: boolean
@@ -82,6 +83,13 @@ const passthrough = (name: string) =>
   defineComponent({
     name,
     template: '<div><slot /></div>'
+  })
+
+const clickablePassthrough = (name: string) =>
+  defineComponent({
+    name,
+    emits: ['select'],
+    template: '<div @click="$emit(\'select\', $event)"><slot /></div>'
   })
 
 const ButtonStub = defineComponent({
@@ -309,6 +317,7 @@ const setup = async (options: SetupOptions = {}) => {
       }
     }),
     enabledModels: [...baseModelGroups, ...normalizedExtraModelGroups],
+    chatSelectableModelGroupsRevision: 0,
     get chatSelectableModelGroups() {
       return getChatSelectableModelGroups()
     },
@@ -398,7 +407,7 @@ const setup = async (options: SetupOptions = {}) => {
   const draftStore = reactive({
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
-    permissionMode: 'full_access' as const,
+    permissionMode: 'full_access' as PermissionMode,
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
     contextLength: undefined as number | undefined,
@@ -514,7 +523,7 @@ const setup = async (options: SetupOptions = {}) => {
     | undefined
 
   const agentSessionPresenter = {
-    getPermissionMode: vi.fn().mockResolvedValue('full_access'),
+    getPermissionMode: vi.fn().mockResolvedValue(options.activePermissionMode ?? 'full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
     getSessionGenerationSettings: vi.fn().mockResolvedValue(sessionSettingsResult),
     getAcpSessionConfigOptions: vi.fn().mockResolvedValue(options.acpSessionConfig ?? null),
@@ -559,20 +568,16 @@ const setup = async (options: SetupOptions = {}) => {
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
   }
 
-  const ipcRenderer = {
-    emit: (channel: string, payload?: unknown) => {
-      if (channel === ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY && payload) {
-        acpConfigOptionsReadyHandler?.({
-          ...(payload as {
-            conversationId?: string
-            agentId: string
-            workdir: string
-            configState: AcpConfigState
-          }),
-          version: Date.now()
-        })
-      }
-    }
+  const emitAcpConfigOptionsReady = (payload: {
+    conversationId?: string
+    agentId: string
+    workdir: string
+    configState: AcpConfigState
+  }) => {
+    acpConfigOptionsReadyHandler?.({
+      ...payload,
+      version: Date.now()
+    })
   }
   const startupDeferredTasks: Array<() => void | Promise<void>> = []
   const onboardingClient = {
@@ -691,7 +696,7 @@ const setup = async (options: SetupOptions = {}) => {
         Input: InputStub,
         DropdownMenu: passthrough('DropdownMenu'),
         DropdownMenuContent: passthrough('DropdownMenuContent'),
-        DropdownMenuItem: passthrough('DropdownMenuItem'),
+        DropdownMenuItem: clickablePassthrough('DropdownMenuItem'),
         DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
         Popover: passthrough('Popover'),
         PopoverContent: passthrough('PopoverContent'),
@@ -726,7 +731,7 @@ const setup = async (options: SetupOptions = {}) => {
     draftStore,
     configPresenter,
     projectStore,
-    ipcRenderer,
+    emitAcpConfigOptionsReady,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -783,6 +788,33 @@ describe('ChatStatusBar model and session panels', () => {
     },
     TEST_TIMEOUT_MS
   )
+
+  it('renders the auto approve permission mode for active sessions', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activePermissionMode: 'auto_approve'
+    })
+
+    expect(agentSessionPresenter.getPermissionMode).toHaveBeenCalledWith('s1')
+    expect(wrapper.text()).toContain('chat.permissionMode.autoApprove')
+  })
+
+  it('selects auto approve permission mode for active sessions', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true
+    })
+
+    const item = wrapper
+      .findAllComponents({ name: 'DropdownMenuItem' })
+      .find((candidate) => candidate.text().includes('chat.permissionMode.autoApprove'))
+    expect(item).toBeTruthy()
+    await item!.trigger('click')
+    await flushPromises()
+
+    expect(agentSessionPresenter.setPermissionMode).toHaveBeenCalledWith('s1', 'auto_approve')
+  })
 
   it('routes the subagent toggle through the unified tools panel', async () => {
     const active = await setup({
@@ -957,6 +989,33 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).displayModelText).toBe('gpt-4')
   })
 
+  it('syncs draft model selection when the shallow model group revision changes', async () => {
+    const { wrapper, modelStore, draftStore } = await setup({
+      defaultModel: { providerId: 'new-api', modelId: 'gpt-4.1' },
+      preferredModel: undefined,
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'text-embedding-3-large', name: 'Embedding', type: 'embedding' }]
+        }
+      ]
+    })
+
+    expect(draftStore.providerId).toBe('openai')
+    expect(draftStore.modelId).toBe('gpt-4')
+
+    draftStore.providerId = undefined
+    draftStore.modelId = undefined
+    const newApiGroup = modelStore.enabledModels.find((group) => group.providerId === 'new-api')
+    newApiGroup?.models.push({ id: 'gpt-4.1', name: 'GPT-4.1', type: 'chat' })
+    modelStore.chatSelectableModelGroupsRevision += 1
+    await flushPromises()
+
+    expect(draftStore.providerId).toBe('new-api')
+    expect(draftStore.modelId).toBe('gpt-4.1')
+    expect((wrapper.vm as any).displayModelText).toBe('gpt-4.1')
+  })
   it('shows reasoning effort controls only when model capability supports it', async () => {
     const enabled = await setup({
       hasActiveSession: true,
@@ -1852,6 +1911,23 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).displayModelText).toBe('claude-3-5-sonnet')
   })
 
+  it('coalesces generation settings syncs triggered in the same tick', async () => {
+    const { sessionStore, agentSessionPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+    await flushPromises()
+    agentSessionPresenter.getSessionGenerationSettings.mockClear()
+
+    if (sessionStore.activeSession) {
+      sessionStore.activeSession.providerId = 'anthropic'
+      sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
+    }
+    await flushPromises()
+
+    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledTimes(1)
+  })
   it('debounces generation setting persistence to a single session update', async () => {
     vi.useFakeTimers()
 
@@ -2281,10 +2357,11 @@ describe('ChatStatusBar model and session panels', () => {
   it('clears ACP badge loading when the current warmup config-ready event arrives', async () => {
     const pendingWarmup = createDeferred<AcpConfigState | null>()
     const processConfig = createAcpConfigState({}, 'gpt-5')
-    const { wrapper, llmproviderPresenter, agentStore, projectStore, ipcRenderer } = await setup({
-      agentId: 'deepchat',
-      hasActiveSession: false
-    })
+    const { wrapper, llmproviderPresenter, agentStore, projectStore, emitAcpConfigOptionsReady } =
+      await setup({
+        agentId: 'deepchat',
+        hasActiveSession: false
+      })
 
     llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     projectStore.selectedProject = { path: '/tmp/workspace' }
@@ -2293,7 +2370,7 @@ describe('ChatStatusBar model and session panels', () => {
 
     expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'acp-agent',
       workdir: '/tmp/workspace',
       configState: processConfig
@@ -2311,10 +2388,11 @@ describe('ChatStatusBar model and session panels', () => {
   it('keeps ACP badge loading when an old agent warmup event arrives after switching agents', async () => {
     const pendingWarmup = createDeferred<AcpConfigState | null>()
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
-    const { wrapper, llmproviderPresenter, agentStore, projectStore, ipcRenderer } = await setup({
-      agentId: 'deepchat',
-      hasActiveSession: false
-    })
+    const { wrapper, llmproviderPresenter, agentStore, projectStore, emitAcpConfigOptionsReady } =
+      await setup({
+        agentId: 'deepchat',
+        hasActiveSession: false
+      })
 
     llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     projectStore.selectedProject = { path: '/tmp/workspace' }
@@ -2329,7 +2407,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'codex',
       workdir: '/tmp/workspace',
       configState: createAcpConfigState({}, 'gpt-5')
@@ -2339,7 +2417,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'claude',
       workdir: '/tmp/workspace',
       configState: claudeConfig
@@ -2435,7 +2513,7 @@ describe('ChatStatusBar model and session panels', () => {
     const codexConfig = createAcpConfigState({}, 'gpt-5')
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
     const pendingWarmup = createDeferred<AcpConfigState | null>()
-    const { wrapper, llmproviderPresenter, agentStore, ipcRenderer } = await setup({
+    const { wrapper, llmproviderPresenter, agentStore, emitAcpConfigOptionsReady } = await setup({
       agentId: 'codex',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
@@ -2456,7 +2534,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'codex',
       workdir: '/tmp/workspace',
       configState: codexConfig
@@ -2466,7 +2544,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'claude',
       workdir: '/tmp/workspace',
       configState: claudeConfig

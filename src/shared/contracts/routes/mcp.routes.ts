@@ -5,6 +5,7 @@ import type {
   MCPToolDefinition,
   MCPToolResponse,
   McpClient,
+  McpServerAuthStatus,
   McpSamplingDecision,
   PromptListEntry,
   Resource,
@@ -21,6 +22,14 @@ const ResourceSchema = z.custom<Resource>()
 const MCPToolCallSchema = z.custom<MCPToolCall>()
 const MCPToolResponseSchema = z.custom<MCPToolResponse>()
 const McpSamplingDecisionSchema = z.custom<McpSamplingDecision>()
+export const McpServerAuthStatusSchema: z.ZodType<McpServerAuthStatus> = z.object({
+  serverName: z.string(),
+  state: z.enum(['unsupported', 'none', 'required', 'authenticating', 'authenticated', 'error']),
+  authenticated: z.boolean(),
+  error: z.string().optional(),
+  updatedAt: z.number().optional(),
+  storage: z.enum(['safeStorage', 'file', 'none']).optional()
+})
 const NpmRegistryStatusSchema = z.custom<{
   currentRegistry: string | null
   isFromCache: boolean
@@ -28,12 +37,25 @@ const NpmRegistryStatusSchema = z.custom<{
   autoDetectEnabled: boolean
   customRegistry?: string
 }>()
+export const McpRouterMarketItemSchema = z.object({
+  uuid: z.string().min(1),
+  created_at: z.string(),
+  updated_at: z.string(),
+  name: z.string(),
+  author_name: z.string(),
+  title: z.string(),
+  description: z.string(),
+  content: z.string().optional(),
+  server_key: z.string().min(1),
+  config_name: z.string().optional(),
+  server_url: z.string().optional()
+})
 
 export const mcpGetServersRoute = defineRouteContract({
   name: 'mcp.getServers',
   input: z.object({}),
   output: z.object({
-    servers: z.record(MCPServerConfigSchema)
+    servers: z.record(z.string(), MCPServerConfigSchema)
   })
 })
 
@@ -173,11 +195,52 @@ export const mcpStopServerRoute = defineRouteContract({
   })
 })
 
+export const mcpGetServerAuthStatusRoute = defineRouteContract({
+  name: 'mcp.getServerAuthStatus',
+  input: z.object({
+    serverName: z.string()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
+  })
+})
+
+export const mcpStartServerAuthRoute = defineRouteContract({
+  name: 'mcp.startServerAuth',
+  input: z.object({
+    serverName: z.string()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
+  })
+})
+
+export const mcpCompleteServerAuthFromCallbackUrlRoute = defineRouteContract({
+  name: 'mcp.completeServerAuthFromCallbackUrl',
+  input: z.object({
+    serverName: z.string(),
+    callbackUrl: z.url()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
+  })
+})
+
+export const mcpLogoutServerAuthRoute = defineRouteContract({
+  name: 'mcp.logoutServerAuth',
+  input: z.object({
+    serverName: z.string()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
+  })
+})
+
 export const mcpGetPromptRoute = defineRouteContract({
   name: 'mcp.getPrompt',
   input: z.object({
     prompt: PromptListEntrySchema,
-    args: z.record(z.unknown()).optional()
+    args: z.record(z.string(), z.unknown()).optional()
   }),
   output: z.object({
     result: z.unknown()
@@ -258,3 +321,65 @@ export const mcpClearNpmRegistryCacheRoute = defineRouteContract({
     cleared: z.literal(true)
   })
 })
+
+export const mcpRouterListServersRoute = defineRouteContract({
+  name: 'mcp.router.listServers',
+  input: z.object({
+    page: z.number().int().positive(),
+    limit: z.number().int().positive().max(100)
+  }),
+  output: z.object({
+    servers: z.array(McpRouterMarketItemSchema)
+  })
+})
+
+export const mcpRouterInstallServerRoute = defineRouteContract({
+  name: 'mcp.router.installServer',
+  input: z.object({
+    serverKey: z.string().min(1)
+  }),
+  output: z.object({
+    installed: z.boolean()
+  })
+})
+
+export const mcpRouterGetApiKeyRoute = defineRouteContract({
+  name: 'mcp.router.getApiKey',
+  input: z.object({}).default({}),
+  output: z.object({
+    key: z.string()
+  })
+})
+
+export const mcpRouterSetApiKeyRoute = defineRouteContract({
+  name: 'mcp.router.setApiKey',
+  input: z.object({
+    key: z.string()
+  }),
+  output: z.object({
+    saved: z.literal(true)
+  })
+})
+
+export const mcpRouterIsServerInstalledRoute = defineRouteContract({
+  name: 'mcp.router.isServerInstalled',
+  input: z.object({
+    source: z.string().min(1),
+    sourceId: z.string().min(1)
+  }),
+  output: z.object({
+    installed: z.boolean()
+  })
+})
+
+export const mcpRouterUpdateServersAuthRoute = defineRouteContract({
+  name: 'mcp.router.updateServersAuth',
+  input: z.object({
+    apiKey: z.string()
+  }),
+  output: z.object({
+    updated: z.literal(true)
+  })
+})
+
+export type McpRouterMarketItem = z.infer<typeof McpRouterMarketItemSchema>

@@ -106,7 +106,7 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
       throw new Error(`Unexpected SQL: ${sql}`)
     })
 
-    expect(table.getLatestVersion()).toBe(29)
+    expect(table.getLatestVersion()).toBe(31)
 
     expect(table.getMigrationSQL(23)).toBe(
       [
@@ -115,7 +115,8 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
         'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;',
         'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;',
-        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
+        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;',
+        'ALTER TABLE deepchat_sessions ADD COLUMN memory_cursor_order_seq INTEGER;'
       ].join('\n')
     )
 
@@ -183,6 +184,60 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     })
   })
 
+  it('normalizes invalid persisted permission modes on read', () => {
+    prepare.mockImplementation((sql: string) => {
+      if (sql === 'SELECT * FROM deepchat_sessions WHERE id = ?') {
+        return {
+          get: () => ({
+            id: 's1',
+            provider_id: 'openai',
+            model_id: 'gpt-4',
+            permission_mode: 'unexpected'
+          })
+        }
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`)
+    })
+
+    expect(table.get('s1')?.permission_mode).toBe('full_access')
+  })
+
+  it('updates the memory cursor with a monotonic MAX guard (C2, AC-2.1)', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.updateMemoryCursorOrderSeq('s1', 5)
+
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('MAX(COALESCE(memory_cursor_order_seq, 0), ?)')
+    )
+    expect(run).toHaveBeenCalledWith(5, 's1')
+  })
+
+  it('floors and clamps the memory cursor input to a non-negative integer', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.updateMemoryCursorOrderSeq('s1', -3)
+    expect(run).toHaveBeenLastCalledWith(0, 's1')
+
+    table.updateMemoryCursorOrderSeq('s1', 4.9)
+    expect(run).toHaveBeenLastCalledWith(4, 's1')
+  })
+
+  it('rewinds the memory cursor without the monotonic MAX guard', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.rewindMemoryCursorOrderSeq('s1', 2.9)
+
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.stringContaining('SET memory_cursor_order_seq = ?')
+    )
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.not.stringContaining('MAX(COALESCE(memory_cursor_order_seq, 0), ?)')
+    )
+    expect(run).toHaveBeenCalledWith(2, 's1')
+  })
+
   it('writes image generation settings as normalized JSON', () => {
     run.mockReturnValue({ changes: 1 })
 
@@ -234,7 +289,7 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
 
         if (sql === 'SELECT MAX(version) as version FROM schema_versions') {
           return {
-            get: () => ({ version: 30 })
+            get: () => ({ version: 32 })
           }
         }
 
@@ -246,11 +301,11 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     const guardedTable = new DeepChatSessionsTable(guardedDb)
 
     expect(() => guardedTable.createTable()).toThrow(
-      'Recorded deepchat_sessions schema version 30 exceeds supported version 29.'
+      'Recorded deepchat_sessions schema version 32 exceeds supported version 31.'
     )
     expect(exec).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith(
-      'Recorded deepchat_sessions schema version 30 exceeds supported version 29. Refusing to create table from a downgraded schema.'
+      'Recorded deepchat_sessions schema version 32 exceeds supported version 31. Refusing to create table from a downgraded schema.'
     )
   })
 })

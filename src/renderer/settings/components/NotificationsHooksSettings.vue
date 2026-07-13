@@ -338,7 +338,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
 import type {
   HookCommandItem,
   HookEventName,
@@ -363,7 +363,7 @@ type HookDocField =
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = useLegacyPresenter('configPresenter')
+const configClient = createConfigClient()
 
 const config = ref<HooksNotificationsSettings | null>(null)
 const isLoading = ref(false)
@@ -440,7 +440,7 @@ function fallbackHookName(index: number): string {
 const loadConfig = async () => {
   isLoading.value = true
   try {
-    config.value = await configPresenter.getHooksNotificationsConfig()
+    config.value = await configClient.getHooksNotificationsConfig()
   } catch (error) {
     console.error('Failed to load hooks config:', error)
     toast({
@@ -464,7 +464,7 @@ const persistConfig = async () => {
 
   isSaving.value = true
   try {
-    const updated = await configPresenter.setHooksNotificationsConfig(config.value)
+    const updated = await configClient.setHooksNotificationsConfig(config.value)
     if (updated) {
       config.value = updated
     }
@@ -543,7 +543,7 @@ const runHookTest = async (hookId: string) => {
 
   try {
     await persistConfig()
-    const result = await configPresenter.testHookCommand(hookId)
+    const result = await configClient.testHookCommand(hookId)
     testResults.value = {
       ...testResults.value,
       [hookId]: result

@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4" data-testid="skills-sync-status-section">
     <!-- Section header -->
     <div class="flex items-center justify-between">
       <div>
@@ -8,7 +8,13 @@
           {{ t('settings.skills.syncStatus.description') }}
         </p>
       </div>
-      <Button variant="ghost" size="sm" :disabled="scanning" @click="refresh">
+      <Button
+        data-testid="skills-sync-refresh-button"
+        variant="ghost"
+        size="sm"
+        :disabled="scanning"
+        @click="refresh"
+      >
         <Icon
           :icon="scanning ? 'lucide:loader-2' : 'lucide:refresh-cw'"
           class="w-4 h-4"
@@ -18,7 +24,11 @@
     </div>
 
     <!-- Loading state -->
-    <div v-if="scanning && tools.length === 0" class="flex items-center justify-center py-6">
+    <div
+      v-if="scanning && tools.length === 0"
+      data-testid="skills-sync-scanning"
+      class="flex items-center justify-center py-6"
+    >
       <Icon icon="lucide:loader-2" class="w-5 h-5 animate-spin text-muted-foreground" />
       <span class="ml-2 text-sm text-muted-foreground">
         {{ t('settings.skills.syncStatus.scanning') }}
@@ -28,6 +38,7 @@
     <!-- Empty state -->
     <div
       v-else-if="tools.length === 0"
+      data-testid="skills-sync-empty"
       class="flex flex-col items-center justify-center py-6 text-center"
     >
       <Icon icon="lucide:inbox" class="w-10 h-10 text-muted-foreground/50 mb-2" />
@@ -37,7 +48,7 @@
     </div>
 
     <!-- Tools grid -->
-    <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-2">
+    <div v-else data-testid="skills-sync-tools-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2">
       <SyncStatusCard
         v-for="tool in sortedTools"
         :key="tool.toolId"
@@ -55,7 +66,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useToast } from '@/components/use-toast'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type { ScanResult } from '@shared/types/skillSync'
 import SyncStatusCard from './SyncStatusCard.vue'
 
@@ -65,7 +76,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
+const skillSyncClient = createSkillSyncClient()
 
 const tools = ref<ScanResult[]>([])
 const scanning = ref(false)
@@ -88,7 +99,7 @@ const sortedTools = computed(() => {
 const refresh = async () => {
   scanning.value = true
   try {
-    const results = await skillSyncPresenter.scanExternalTools()
+    const results = await skillSyncClient.scanExternalTools()
     tools.value = results
   } catch (error) {
     console.error('Failed to scan external tools:', error)
@@ -116,7 +127,7 @@ const handleSync = async (toolId: string) => {
 
 onMounted(async () => {
   await refresh()
-  // Note: We don't listen for skill-sync:scan-completed here
+  // Note: We don't listen for skillSync.scan.completed here
   // because calling refresh() in response to that event would
   // cause an infinite loop (scan -> event -> refresh -> scan...)
   // The refresh button is available for manual refresh

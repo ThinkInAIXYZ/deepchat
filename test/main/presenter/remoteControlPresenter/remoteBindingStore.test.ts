@@ -228,6 +228,52 @@ describe('RemoteBindingStore', () => {
     )
   })
 
+  it('enables configured channels when legacy enabled flags are missing', () => {
+    const configPresenter = createConfigPresenter()
+    configPresenter.setSetting('remoteControl', {
+      telegram: {
+        botToken: 'telegram-token'
+      },
+      feishu: {
+        appId: 'cli_a',
+        appSecret: 'secret'
+      },
+      qqbot: {
+        appId: 'qq-app',
+        clientSecret: 'qq-secret'
+      },
+      discord: {
+        botToken: 'discord-token',
+        enabled: false
+      },
+      weixinIlink: {
+        accounts: [
+          {
+            accountId: 'account-1',
+            ownerUserId: 'owner-1'
+          }
+        ]
+      }
+    })
+
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    expect(store.getTelegramConfig().enabled).toBe(true)
+    expect(store.getFeishuConfig().enabled).toBe(true)
+    expect(store.getQQBotConfig().enabled).toBe(true)
+    expect(store.getDiscordConfig().enabled).toBe(false)
+    expect(store.getWeixinIlinkConfig().enabled).toBe(true)
+
+    const rootConfigPresenter = createConfigPresenter()
+    rootConfigPresenter.setSetting('remoteControl', {
+      botToken: 'legacy-telegram-token'
+    })
+
+    expect(new RemoteBindingStore(rootConfigPresenter as any).getTelegramConfig().enabled).toBe(
+      true
+    )
+  })
+
   it('removes authorized principals without touching other entries', () => {
     const configPresenter = createConfigPresenter()
     configPresenter.setSetting('remoteControl', {

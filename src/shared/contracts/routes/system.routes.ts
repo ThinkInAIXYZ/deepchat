@@ -17,6 +17,7 @@ export const SettingsRouteNameSchema = z.enum([
   'settings-plugins',
   'settings-skills',
   'settings-prompt',
+  'settings-memory',
   'settings-knowledge-base',
   'settings-database',
   'settings-shortcut',
@@ -28,7 +29,7 @@ export const systemOpenSettingsRoute = defineRouteContract({
   input: z
     .object({
       routeName: SettingsRouteNameSchema.optional(),
-      params: z.record(z.string()).optional(),
+      params: z.record(z.string(), z.string()).optional(),
       section: z.string().optional()
     })
     .default({}),

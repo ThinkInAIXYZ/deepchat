@@ -1,6 +1,10 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 import { presenter } from '@/presenter'
+import type {
+  StartupWorkloadCoordinator,
+  StartupWorkloadTaskContext
+} from '@/presenter/startupWorkloadCoordinator'
 
 export const usageStatsBackfillHook: LifecycleHook = {
   name: 'usage-stats-backfill',
@@ -13,14 +17,27 @@ export const usageStatsBackfillHook: LifecycleHook = {
     }
 
     const agentSessionPresenter = presenter.agentSessionPresenter as unknown as {
-      startUsageStatsBackfill?: () => Promise<void>
+      startUsageStatsBackfillTask?: (taskContext?: StartupWorkloadTaskContext) => Promise<void>
     }
-    if (!agentSessionPresenter.startUsageStatsBackfill) {
+    if (!agentSessionPresenter.startUsageStatsBackfillTask) {
       return
     }
 
-    void agentSessionPresenter.startUsageStatsBackfill().catch((error) => {
-      console.error('usageStatsBackfillHook: failed to start usage stats backfill:', error)
-    })
+    const startupWorkloadCoordinator =
+      presenter.getStartupWorkloadCoordinator() as StartupWorkloadCoordinator
+    void startupWorkloadCoordinator
+      .scheduleTask({
+        id: 'main:usage-stats-backfill',
+        target: 'main',
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.usageStatsBackfill',
+        run: async (taskContext) => {
+          await agentSessionPresenter.startUsageStatsBackfillTask?.(taskContext)
+        }
+      })
+      .catch((error) => {
+        console.error('usageStatsBackfillHook: failed to start usage stats backfill:', error)
+      })
   }
 }

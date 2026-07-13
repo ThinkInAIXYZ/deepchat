@@ -1,6 +1,6 @@
 import { FileMetaData } from './presenter'
 import type { ToolCallImagePreview } from './types/core/mcp'
-import type { AgentPlanDisplayItem } from './types/agent-plan'
+import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
 
 export type Message = {
   id: string
@@ -61,6 +61,20 @@ export type UserMessageMentionBlock = {
   category: string
 }
 
+export type UserMessageInlineItem =
+  | {
+      type: 'skill'
+      offset: number
+      skillName: string
+    }
+  | {
+      type: 'file'
+      offset: number
+      fileName: string
+      filePath: string
+      mimeType?: string
+    }
+
 export type UserMessageContent = {
   continue?: boolean
   files: MessageFile[]
@@ -70,6 +84,7 @@ export type UserMessageContent = {
   think: boolean
   search: boolean
   text: string
+  inlineItems?: UserMessageInlineItem[]
   content?: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
 }
 
@@ -193,6 +208,7 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   plan_explanation?: string
   plan_revision?: number
   plan_updated_at?: string
+  plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
 }

@@ -27,8 +27,10 @@
         :provider-models="providerModels"
         :custom-models="customModels"
         :is-model-list-loading="isModelListLoading"
+        :is-refreshing-models="isRefreshingModels"
         @custom-model-added="handleAddModelSaved"
         @disable-all-models="disableAllModelsConfirm"
+        @refresh-models="handleRefreshModels"
         @model-enabled-change="handleModelEnabledChange"
         @config-changed="handleConfigChanged"
       />
@@ -141,6 +143,7 @@ const emptyModels: RENDERER_MODEL_META[] = []
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
 const isModelListLoading = ref(true)
+const isRefreshingModels = ref(false)
 const hasInitializedModelList = ref(false)
 
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
@@ -482,6 +485,22 @@ const handleOAuthError = (error: string) => {
 const handleConfigChanged = () => {
   // 模型配置变更后先刷新provider模型数据，确保能看到最新的模型能力
   return modelStore.refreshProviderModels(props.provider.id)
+}
+
+const handleRefreshModels = async () => {
+  if (isRefreshingModels.value) {
+    return
+  }
+
+  isRefreshingModels.value = true
+  isModelListLoading.value = true
+
+  try {
+    await modelStore.refreshProviderModels(props.provider.id)
+  } finally {
+    isRefreshingModels.value = false
+    isModelListLoading.value = false
+  }
 }
 
 const openModelCheckDialog = () => {

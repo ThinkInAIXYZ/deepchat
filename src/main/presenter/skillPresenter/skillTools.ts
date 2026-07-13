@@ -9,17 +9,33 @@ import type {
 export class SkillTools {
   constructor(private readonly skillPresenter: ISkillPresenter) {}
 
-  async handleSkillList(conversationId?: string): Promise<{
+  async handleSkillList(
+    conversationId?: string,
+    allowedSkillNames?: string[] | null,
+    activeSkillNames?: string[]
+  ): Promise<{
     skills: SkillListItem[]
     pinnedCount: number
     activeCount: number
     totalCount: number
   }> {
-    const allSkills = await this.skillPresenter.getMetadataList()
+    const allowedSkillSet = Array.isArray(allowedSkillNames)
+      ? new Set(allowedSkillNames.map((skillName) => skillName.trim()).filter(Boolean))
+      : undefined
+    const allSkills = (await this.skillPresenter.getMetadataList()).filter(
+      (skill) => !allowedSkillSet || allowedSkillSet.has(skill.name)
+    )
+    const listedSkillNames = new Set(allSkills.map((skill) => skill.name))
     const pinnedSkills = conversationId
-      ? await this.skillPresenter.getActiveSkills(conversationId)
+      ? (await this.skillPresenter.getActiveSkills(conversationId)).filter((skillName) =>
+          listedSkillNames.has(skillName)
+        )
       : []
+    const activeSkills = (Array.isArray(activeSkillNames) ? activeSkillNames : pinnedSkills).filter(
+      (skillName) => listedSkillNames.has(skillName)
+    )
     const pinnedSet = new Set(pinnedSkills)
+    const activeSet = new Set(activeSkills)
 
     const skillList = allSkills.map((skill) => ({
       name: skill.name,
@@ -28,22 +44,35 @@ export class SkillTools {
       platforms: skill.platforms,
       metadata: skill.metadata,
       isPinned: pinnedSet.has(skill.name),
-      active: pinnedSet.has(skill.name)
+      active: activeSet.has(skill.name)
     }))
 
     return {
       skills: skillList,
       pinnedCount: pinnedSkills.length,
-      activeCount: pinnedSkills.length,
+      activeCount: activeSkills.length,
       totalCount: allSkills.length
     }
   }
 
   async handleSkillView(
     conversationId: string | undefined,
-    input: { name: string; file_path?: string }
+    input: { name: string; file_path?: string },
+    allowedSkillNames?: string[] | null
   ): Promise<SkillViewResult> {
-    return await this.skillPresenter.viewSkill(input.name, {
+    const requestedSkillName = input.name.trim()
+    const allowedSkillSet = Array.isArray(allowedSkillNames)
+      ? new Set(allowedSkillNames.map((skillName) => skillName.trim()).filter(Boolean))
+      : undefined
+    if (allowedSkillSet && !allowedSkillSet.has(requestedSkillName)) {
+      return {
+        success: false,
+        name: requestedSkillName,
+        error: `Skill '${requestedSkillName}' is not enabled for this agent`
+      }
+    }
+
+    return await this.skillPresenter.viewSkill(requestedSkillName, {
       filePath: input.file_path,
       conversationId
     })

@@ -4,6 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { type Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type { ChildProcess } from 'node:child_process'
 import {
   ToolListChangedNotificationSchema,
   PromptListChangedNotificationSchema,
@@ -15,8 +16,9 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js'
 import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import path from 'path'
 import { presenter } from '@/presenter'
 import { app } from 'electron'
@@ -24,6 +26,8 @@ import { app } from 'electron'
 import { getInMemoryServer } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
+import type { McpOAuthManager } from './mcpOAuthManager'
 import {
   PromptListEntry,
   ToolCallResult,
@@ -33,8 +37,14 @@ import {
   Resource,
   ChatMessage,
   McpSamplingRequestPayload,
-  McpSamplingDecision
+  McpSamplingDecision,
+  MCPServerConfig
 } from '@shared/presenter'
+import type {
+  McpServerLifecycleStatus,
+  McpServerStatusPhase,
+  McpServerStatusReason
+} from '@shared/types/core/mcp'
 
 const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
   'image/png',
@@ -42,6 +52,48 @@ const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
   'image/gif',
   'image/webp'
 ])
+
+const MCP_STARTUP_SOFT_TIMEOUT_MS = 45 * 1000
+const MCP_CONNECT_HARD_TIMEOUT_MS = 5 * 60 * 1000
+
+export type McpConnectResult = 'connected' | 'soft-timeout-released' | 'stopped'
+
+export class McpStartupSoftTimeoutError extends Error {
+  constructor(serverName: string) {
+    super(`Connection to MCP server ${serverName} reached startup soft timeout`)
+    this.name = 'McpStartupSoftTimeoutError'
+  }
+}
+
+export class McpConnectionHardTimeoutError extends Error {
+  constructor(serverName: string) {
+    super(`Connection to MCP server ${serverName} timed out`)
+    this.name = 'McpConnectionHardTimeoutError'
+  }
+}
+
+export class McpConnectionCancelledError extends Error {
+  constructor(serverName: string) {
+    super(`Connection to MCP server ${serverName} was cancelled`)
+    this.name = 'McpConnectionCancelledError'
+  }
+}
+
+type McpConnectOptions = {
+  phase?: McpServerStatusPhase
+  waitForConnection?: boolean
+}
+
+interface ServerStatusChangedOptions {
+  phase?: McpServerStatusPhase
+  attempt?: number
+  reason?: McpServerStatusReason
+  message?: string
+}
+
+type StdioClientTransportProcessAccess = {
+  _process?: ChildProcess
+}
 
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
 // Simple OAuth provider for handling Bearer Token
@@ -60,11 +112,6 @@ class SimpleOAuthProvider {
     }
     return null
   }
-}
-
-// Ensure TypeScript can recognize SERVER_STATUS_CHANGED property
-type MCPEventsType = typeof MCP_EVENTS & {
-  SERVER_STATUS_CHANGED: string
 }
 
 // Session management related types
@@ -112,6 +159,14 @@ function isSessionError(error: unknown): error is SessionError {
   return false
 }
 
+function isUnsupportedCapabilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  if (error instanceof McpError && error.code === ErrorCode.MethodNotFound) {
+    return true
+  }
+  return /method not found|unknown method|not supported|unsupported|mcp error -32601/i.test(message)
+}
+
 // MCP client class
 export class McpClient {
   private client: Client | null = null
@@ -120,8 +175,14 @@ export class McpClient {
   public serverConfig: Record<string, unknown>
   private isConnected: boolean = false
   private connectionTimeout: NodeJS.Timeout | null = null
+  private stdioChildProcessForShutdown?: ChildProcess
+  private connectPromise: Promise<void> | null = null
+  private startupAttempt = 0
+  private lifecycleStatus: McpServerLifecycleStatus = 'stopped'
+  private connectAborted = false
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
+  private mcpOAuthManager?: McpOAuthManager
   private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   // Session management
@@ -137,13 +198,38 @@ export class McpClient {
     serverName: string,
     serverConfig: Record<string, unknown>,
     npmRegistry: string | null = null,
-    uvRegistry: string | null = null
+    uvRegistry: string | null = null,
+    mcpOAuthManager?: McpOAuthManager
   ) {
     this.serverName = serverName
     this.serverConfig = serverConfig
     this.npmRegistry = npmRegistry
     this.uvRegistry = uvRegistry
+    this.mcpOAuthManager = mcpOAuthManager
     this.runtimeHelper.initializeRuntimes()
+  }
+
+  private emitServerStatusChanged(
+    lifecycleStatus: McpServerLifecycleStatus,
+    options: ServerStatusChangedOptions = {}
+  ): void {
+    this.lifecycleStatus = lifecycleStatus
+    const isRunning = lifecycleStatus === 'connected'
+    const payload = {
+      name: this.serverName,
+      serverName: this.serverName,
+      lifecycleStatus,
+      status: lifecycleStatus,
+      isRunning,
+      phase: options.phase,
+      attempt: options.attempt,
+      reason: options.reason,
+      message: options.message,
+      version: Date.now()
+    }
+
+    eventBus.sendToMain(MCP_EVENTS.SERVER_STATUS_CHANGED, payload)
+    publishDeepchatEvent('mcp.server.status.changed', payload)
   }
 
   public processCommandWithArgs(
@@ -185,12 +271,101 @@ export class McpClient {
   }
 
   // Connect to MCP server
-  async connect(): Promise<void> {
+  async connect(options: McpConnectOptions = {}): Promise<McpConnectResult> {
     if (this.isConnected && this.client) {
       console.info(`MCP server ${this.serverName} is already running`)
-      return
+      return 'connected'
     }
 
+    if (this.connectPromise) {
+      if (options.waitForConnection) {
+        await this.connectPromise
+        return 'connected'
+      }
+      return this.waitForConnectSoftTimeout(this.connectPromise, this.startupAttempt, options.phase)
+    }
+
+    const attempt = this.startupAttempt + 1
+    this.startupAttempt = attempt
+    const phase = options.phase ?? 'manual'
+    this.connectAborted = false
+    this.emitServerStatusChanged('connecting', { phase, attempt })
+
+    const connectPromise = this.performConnect(attempt, phase)
+    this.connectPromise = connectPromise
+    connectPromise
+      .catch(() => undefined)
+      .finally(() => {
+        if (this.connectPromise === connectPromise) {
+          this.connectPromise = null
+        }
+      })
+
+    if (options.waitForConnection) {
+      await connectPromise
+      return 'connected'
+    }
+
+    return this.waitForConnectSoftTimeout(connectPromise, attempt, options.phase)
+  }
+
+  private async ensureConnectedForRequest(): Promise<void> {
+    if (!this.isConnected) {
+      await this.connect({ phase: 'manual', waitForConnection: true })
+    }
+
+    if (!this.isConnected || !this.client) {
+      throw new Error(`MCP client ${this.serverName} is not connected`)
+    }
+  }
+
+  private async waitForConnectSoftTimeout(
+    connectPromise: Promise<void>,
+    attempt: number,
+    phase: McpServerStatusPhase = 'manual'
+  ): Promise<McpConnectResult> {
+    let softTimeout: NodeJS.Timeout | null = null
+    try {
+      await Promise.race([
+        connectPromise,
+        new Promise<never>((_, reject) => {
+          softTimeout = setTimeout(() => {
+            reject(new McpStartupSoftTimeoutError(this.serverName))
+          }, MCP_STARTUP_SOFT_TIMEOUT_MS)
+        })
+      ])
+      return 'connected'
+    } catch (error) {
+      if (error instanceof McpStartupSoftTimeoutError) {
+        if (this.connectAborted || this.lifecycleStatus === 'stopped') {
+          throw new McpConnectionCancelledError(this.serverName)
+        }
+        console.warn(
+          `MCP server ${this.serverName} startup soft timeout reached; continuing in background`
+        )
+        this.emitServerStatusChanged('timeout', {
+          phase,
+          attempt,
+          reason: 'soft-timeout',
+          message: error.message
+        })
+        this.emitServerStatusChanged('retrying', {
+          phase: 'retry',
+          attempt,
+          reason: 'soft-timeout',
+          message: 'Connection is still running in the background'
+        })
+        return 'soft-timeout-released'
+      }
+      throw error
+    } finally {
+      if (softTimeout) {
+        clearTimeout(softTimeout)
+      }
+    }
+  }
+
+  private async performConnect(attempt: number, phase: McpServerStatusPhase): Promise<void> {
     try {
       console.info(`Starting MCP server ${this.serverName}...`, this.serverConfig)
 
@@ -204,6 +379,12 @@ export class McpClient {
         authProvider = new SimpleOAuthProvider(customHeaders.Authorization)
         delete customHeaders.Authorization // Remove from headers as it will be handled by AuthProvider
       }
+      const runtimeOAuthProvider =
+        authProvider ??
+        this.mcpOAuthManager?.createRuntimeProvider(
+          this.serverName,
+          this.serverConfig as Partial<MCPServerConfig>
+        )
 
       if (this.serverConfig.type === 'inmemory') {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -397,7 +578,7 @@ export class McpClient {
         this.transport = new SSEClientTransport(new URL(this.serverConfig.baseUrl as string), {
           requestInit: { headers: customHeaders },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          authProvider: (authProvider ?? undefined) as any
+          authProvider: (runtimeOAuthProvider ?? undefined) as any
         })
       } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'http') {
         this.transport = new StreamableHTTPClientTransport(
@@ -405,7 +586,7 @@ export class McpClient {
           {
             requestInit: { headers: customHeaders },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            authProvider: (authProvider ?? undefined) as any
+            authProvider: (runtimeOAuthProvider ?? undefined) as any
           }
         )
       } else {
@@ -432,45 +613,32 @@ export class McpClient {
 
       // 设置连接超时
       const timeoutPromise = new Promise<void>((_, reject) => {
-        this.connectionTimeout = setTimeout(
-          () => {
-            console.error(`Connection to MCP server ${this.serverName} timed out`)
-            reject(new Error(`Connection to MCP server ${this.serverName} timed out`))
-          },
-          5 * 60 * 1000
-        ) // 5分钟
+        this.connectionTimeout = setTimeout(() => {
+          console.error(`Connection to MCP server ${this.serverName} timed out`)
+          reject(new McpConnectionHardTimeoutError(this.serverName))
+        }, MCP_CONNECT_HARD_TIMEOUT_MS)
       })
 
       // 连接到服务器
-      const connectPromise = this.client
-        .connect(this.transport)
-        .then(() => {
-          // 清除超时
-          if (this.connectionTimeout) {
-            clearTimeout(this.connectionTimeout)
-            this.connectionTimeout = null
-          }
+      const connectPromise = this.client.connect(this.transport)
 
-          this.isConnected = true
-          console.info(`MCP server ${this.serverName} connected successfully`)
-
-          // 触发服务器状态变更事件
-          eventBus.send(
-            (MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED,
-            SendTarget.ALL_WINDOWS,
-            {
-              name: this.serverName,
-              status: 'running'
-            }
-          )
-        })
-        .catch((error) => {
-          console.error(`Failed to connect to MCP server ${this.serverName}:`, error)
-          throw error
-        })
-
-      // 等待连接完成或超时
+      // 等待连接完成或硬超时
       await Promise.race([connectPromise, timeoutPromise])
+
+      // 清除超时
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout)
+        this.connectionTimeout = null
+      }
+
+      if (this.connectAborted) {
+        throw new McpConnectionCancelledError(this.serverName)
+      }
+
+      this.isConnected = true
+      console.info(`MCP server ${this.serverName} connected successfully`)
+
+      this.emitServerStatusChanged('connected', { phase, attempt })
     } catch (error) {
       // 清除超时
       if (this.connectionTimeout) {
@@ -479,14 +647,20 @@ export class McpClient {
       }
 
       // 清理资源
-      this.cleanupResources()
+      await this.cleanupResources({ emitStopped: false })
+
+      if (error instanceof McpConnectionCancelledError || this.connectAborted) {
+        console.info(`MCP server ${this.serverName} connection cancelled`)
+        throw new McpConnectionCancelledError(this.serverName)
+      }
 
       console.error(`Failed to connect to MCP server ${this.serverName}:`, error)
 
-      // 触发服务器状态变更事件
-      eventBus.send((MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-        name: this.serverName,
-        status: 'stopped'
+      this.emitServerStatusChanged('failed', {
+        phase,
+        attempt,
+        reason: error instanceof McpConnectionHardTimeoutError ? 'hard-timeout' : 'connect-error',
+        message: error instanceof Error ? error.message : String(error)
       })
 
       throw error
@@ -495,13 +669,16 @@ export class McpClient {
 
   // 断开与 MCP 服务器的连接
   async disconnect(): Promise<void> {
-    if (!this.isConnected || !this.client) {
+    if (!this.client && !this.transport && !this.connectPromise) {
       return
     }
 
+    this.connectAborted = true
+    this.emitServerStatusChanged('stopped', { phase: 'shutdown', reason: 'shutdown' })
+
     try {
       // Use internal disconnect method for normal disconnection
-      await this.internalDisconnect()
+      await this.internalDisconnect(undefined, 'shutdown')
     } catch (error) {
       console.error(`Failed to disconnect from MCP server ${this.serverName}:`, error)
       throw error
@@ -509,7 +686,7 @@ export class McpClient {
   }
 
   // 清理资源
-  private cleanupResources(): void {
+  private async cleanupResources(options: { emitStopped?: boolean } = {}): Promise<void> {
     // 清除超时定时器
     if (this.connectionTimeout) {
       clearTimeout(this.connectionTimeout)
@@ -517,9 +694,12 @@ export class McpClient {
     }
 
     // 关闭transport
-    if (this.transport) {
+    const transport = this.transport
+    this.stdioChildProcessForShutdown = this.getStdioChildProcess(transport)
+    this.transport = null
+    if (transport) {
       try {
-        this.transport.close()
+        await this.closeTransport(transport)
       } catch (error) {
         console.error(`Failed to close MCP transport:`, error)
       }
@@ -527,13 +707,63 @@ export class McpClient {
 
     // 重置状态
     this.client = null
-    this.transport = null
     this.isConnected = false
 
     // 清空缓存
     this.cachedTools = null
     this.cachedPrompts = null
     this.cachedResources = null
+
+    if (options.emitStopped) {
+      this.emitServerStatusChanged('stopped', { reason: 'shutdown' })
+    }
+  }
+
+  private getStdioChildProcess(
+    transport: Transport | null = this.transport
+  ): ChildProcess | undefined {
+    if (!(transport instanceof StdioClientTransport)) {
+      return undefined
+    }
+    return (transport as unknown as StdioClientTransportProcessAccess)._process
+  }
+
+  async forceTerminateStdioProcessTree(reason: string): Promise<boolean> {
+    const child = this.getStdioChildProcess() ?? this.stdioChildProcessForShutdown
+    if (!child) {
+      return false
+    }
+
+    try {
+      await terminateProcessTree(child, { graceMs: 2000 })
+      console.warn(`[MCP] Force terminated stdio process tree for ${this.serverName}: ${reason}`)
+      return true
+    } catch (error) {
+      console.warn(
+        `Failed to force terminate MCP stdio process tree for ${this.serverName}:`,
+        error
+      )
+      return false
+    }
+  }
+
+  private async closeTransport(transport: Transport): Promise<void> {
+    const child = this.getStdioChildProcess(transport)
+    if (child) {
+      try {
+        await terminateProcessTree(child, { graceMs: 2000 })
+      } catch (error) {
+        console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
+      }
+    }
+
+    try {
+      await transport.close()
+    } finally {
+      if (this.stdioChildProcessForShutdown === child) {
+        this.stdioChildProcessForShutdown = undefined
+      }
+    }
   }
 
   // Register notification handlers
@@ -891,6 +1121,18 @@ export class McpClient {
     return this.isConnected && !!this.client
   }
 
+  isActive(): boolean {
+    return !!this.client || !!this.transport || !!this.connectPromise
+  }
+
+  getLifecycleStatus(): McpServerLifecycleStatus {
+    return this.lifecycleStatus
+  }
+
+  getConnectionCompletion(): Promise<void> | null {
+    return this.connectPromise
+  }
+
   // Check and handle session errors by restarting the service
   private async checkAndHandleSessionError(error: unknown): Promise<void> {
     if (isSessionError(error) && !this.isRecovering) {
@@ -915,7 +1157,7 @@ export class McpClient {
 
       try {
         // Clean up current connection
-        this.cleanupResources()
+        await this.cleanupResources()
 
         // Clear all caches to ensure fresh data after reconnection
         this.cachedTools = null
@@ -938,16 +1180,19 @@ export class McpClient {
   private async stopService(): Promise<void> {
     try {
       // Use the same disconnect logic but with different reason
-      await this.internalDisconnect('persistent session errors')
+      await this.internalDisconnect('persistent session errors', 'connect-error')
     } catch (error) {
       console.error(`Failed to stop service ${this.serverName}:`, error)
     }
   }
 
   // Internal disconnect with custom reason
-  private async internalDisconnect(reason?: string): Promise<void> {
+  private async internalDisconnect(
+    reason?: string,
+    statusReason: McpServerStatusReason = 'shutdown'
+  ): Promise<void> {
     // Clean up all resources
-    this.cleanupResources()
+    await this.cleanupResources()
 
     const logMessage = reason
       ? `MCP service ${this.serverName} has been stopped due to ${reason}`
@@ -955,19 +1200,13 @@ export class McpClient {
 
     logger.info(logMessage)
 
-    // Trigger server status changed event to notify the system
-    eventBus.send((MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-      name: this.serverName,
-      status: 'stopped'
-    })
+    this.emitServerStatusChanged('stopped', { reason: statusReason })
   }
 
   // 调用 MCP 工具
   async callTool(toolName: string, args: Record<string, unknown>): Promise<ToolCallResult> {
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1013,9 +1252,7 @@ export class McpClient {
     }
 
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1039,10 +1276,8 @@ export class McpClient {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
 
-      // 尝试从错误对象中提取更多信息
-      const errorMessage = error instanceof Error ? error.message : String(error)
       // 如果错误表明不支持，则缓存空数组
-      if (errorMessage.includes('Method not found') || errorMessage.includes('not supported')) {
+      if (isUnsupportedCapabilityError(error)) {
         console.warn(`Server ${this.serverName} does not support listTools`)
         this.cachedTools = []
         return this.cachedTools
@@ -1062,9 +1297,7 @@ export class McpClient {
     }
 
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1102,11 +1335,9 @@ export class McpClient {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
 
-      // 尝试从错误对象中提取更多信息
-      const errorMessage = error instanceof Error ? error.message : String(error)
       // 如果错误表明不支持，则缓存空数组
-      if (errorMessage.includes('Method not found') || errorMessage.includes('not supported')) {
-        console.warn(`Server ${this.serverName} does not support listPrompts`)
+      if (isUnsupportedCapabilityError(error)) {
+        console.info(`Server ${this.serverName} does not support listPrompts`)
         this.cachedPrompts = []
         return this.cachedPrompts
       } else {
@@ -1120,9 +1351,7 @@ export class McpClient {
   // 获取指定提示
   async getPrompt(name: string, args?: Record<string, unknown>): Promise<Prompt> {
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1170,9 +1399,7 @@ export class McpClient {
     }
 
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1203,11 +1430,9 @@ export class McpClient {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
 
-      // 尝试从错误对象中提取更多信息
-      const errorMessage = error instanceof Error ? error.message : String(error)
       // 如果错误表明不支持，则缓存空数组
-      if (errorMessage.includes('Method not found') || errorMessage.includes('not supported')) {
-        console.warn(`Server ${this.serverName} does not support listResources`)
+      if (isUnsupportedCapabilityError(error)) {
+        console.info(`Server ${this.serverName} does not support listResources`)
         this.cachedResources = []
         return this.cachedResources
       } else {
@@ -1221,9 +1446,7 @@ export class McpClient {
   // 读取资源
   async readResource(resourceUri: string): Promise<Resource> {
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)

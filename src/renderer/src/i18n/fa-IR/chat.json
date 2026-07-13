@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "هدایت",
     "queueCount": "در انتظار ارسال {count}/{max}",
-    "resumeQueue": "ادامه ارسال",
-    "toSteer": "تبدیل به هدایت",
+    "toSteer": "وقفه و ارسال",
     "locked": "قفل‌شده",
     "reorder": "تغییر ترتیب",
     "files": "{count} فایل",
     "attachmentsOnly": "{count} پیوست",
     "empty": "پیام خالی",
-    "limitReached": "بخش انتظار پر است (حداکثر {max})."
+    "limitReached": "بخش انتظار پر است (حداکثر {max}).",
+    "remove": "حذف",
+    "steerUnavailable": "اکنون نمی‌توان وقفه داد",
+    "steerFailed": "وقفه در این نوبت ناموفق بود"
   },
   "features": {
     "webSearch": "جستجوی وب",
@@ -210,6 +212,10 @@
         "title": "بدون فضای کاری",
         "description": "پوشه‌ای را انتخاب یا بکشید تا فضای کاری را تنظیم کنید",
         "button": "انتخاب پوشه"
+      },
+      "watchStatus": {
+        "degraded": "پایش در حالت جایگزین اجرا می‌شود. تغییرات ممکن است کندتر تازه‌سازی شوند.",
+        "failed": "پایش فایل در دسترس نیست. تازه‌سازی کنید یا فضای کاری را دوباره انتخاب کنید."
       }
     },
     "git": {
@@ -228,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "تکمیل شد",
-        "failed": "شکست بخورد",
         "in_progress": "در حال انجام است",
         "pending": "در انتظار",
-        "skipped": "پرش کرد"
-      }
+        "interrupted": "قطع شد"
+      },
+      "completedCount": "{completed}/{total} تکمیل شد"
     },
     "terminal": {
       "empty": "هنوز خروجی وجود ندارد",
@@ -305,7 +311,8 @@
   },
   "permissionMode": {
     "default": "مجوزهای پیش‌فرض",
-    "fullAccess": "دسترسی کامل"
+    "fullAccess": "دسترسی کامل",
+    "autoApprove": "به جای من تأیید کن"
   },
   "sidebar": {
     "allAgents": "همه عامل‌ها",
@@ -326,13 +333,22 @@
     "groupByDate": "گروه‌بندی بر اساس تاریخ",
     "groupByProject": "گروه‌بندی بر اساس پروژه",
     "pinned": "سنجاق‌شده‌ها",
+    "chats": "چت‌ها",
     "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
     "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید",
     "remoteControlDisabled": "غیرفعال",
     "searchPlaceholder": "جستجوی گفتگوها",
     "searchAriaLabel": "جستجوی گفتگوها",
     "searchEmptyTitle": "گفتگوی منطبقی پیدا نشد",
-    "searchEmptyDescription": "یک کلیدواژه دیگر برای عنوان امتحان کنید"
+    "searchEmptyDescription": "یک کلیدواژه دیگر برای عنوان امتحان کنید",
+    "projectGroupActions": "اقدام‌های گروه پروژه",
+    "moveProjectGroupTop": "انتقال به بالاترین جایگاه",
+    "moveProjectGroupUp": "انتقال به بالا",
+    "moveProjectGroupDown": "انتقال به پایین",
+    "moveProjectGroupBottom": "انتقال به پایین‌ترین جایگاه",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "نمای کلی کارها",
@@ -416,6 +432,58 @@
       "hour": " ساعت ",
       "minute": " دقیقه ",
       "second": " ثانیه"
+    }
+  },
+  "memory": {
+    "toolbar": "حافظه‌های استفاده‌شده",
+    "status": {
+      "archived": "فراموش‌شده"
+    },
+    "actions": {
+      "undo": "واگرد",
+      "forget": "فراموش کن",
+      "edit": "ویرایش"
+    },
+    "chip": {
+      "title": "حافظه به‌روزرسانی شد {count}",
+      "heading": "حافظه به‌روزرسانی شد",
+      "description": "در این نوبت حافظه‌های زیر اضافه شدند."
+    },
+    "selection": {
+      "remember": "این را به خاطر بسپار"
+    },
+    "turn": {
+      "title": "حافظه‌های استفاده‌شده در این نوبت",
+      "empty": "در این نوبت هیچ حافظه‌ای تزریق نشد",
+      "selected": "انتخاب‌شده",
+      "dropped": "کنارگذاشته‌شده",
+      "tokens": "توکن",
+      "budget": "بودجه",
+      "countOnly": "این رکورد فقط خلاصهٔ شمارشی دارد.",
+      "unavailable": "این حافظه دیگر در دسترس نیست.",
+      "noSelectedDetails": "برای این نوبت جزئیات حافظه‌ای برای نمایش وجود ندارد.",
+      "refreshFailed": "بازخوانی ناموفق بود. آخرین حافظه‌های بارگذاری‌شده نمایش داده می‌شوند.",
+      "error": "امکان بارگیری حافظه‌های این نوبت وجود ندارد."
+    },
+    "toast": {
+      "undoSuccess": "حافظه واگرد شد",
+      "undoFailed": "واگرد حافظه ممکن نبود",
+      "forgetSuccess": "حافظه فراموش شد",
+      "forgetFailed": "فراموش کردن حافظه ممکن نبود",
+      "amendFailed": "به‌روزرسانی حافظه ممکن نبود",
+      "rememberFailed": "ذخیرهٔ حافظه ممکن نبود",
+      "add": {
+        "created": "به‌عنوان حافظهٔ جدید ذخیره شد",
+        "updated": "حافظهٔ موجود به‌روزرسانی شد",
+        "superseded": "در یک حافظهٔ به‌روزشده ادغام شد",
+        "challenged": "به‌عنوان حافظهٔ نیازمند بررسی ثبت شد",
+        "noop": "حافظهٔ جدیدی اضافه نشد"
+      }
+    },
+    "errors": {
+      "actionFailed": "عملیات ناموفق بود. دوباره تلاش کنید.",
+      "amendRetryable": "ویرایش ناموفق بود. حافظه اصلی بازیابی شد؛ دوباره تلاش کنید.",
+      "amendRestoreFailed": "ویرایش ناموفق بود و حافظه اصلی هم بازیابی نشد."
     }
   }
 }

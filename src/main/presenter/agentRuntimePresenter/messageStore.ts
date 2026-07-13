@@ -26,7 +26,8 @@ import {
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
-  appendMessageRetractionToTape
+  appendMessageRetractionToTape,
+  appendToolFactsToTape
 } from './tapeFacts'
 
 function shouldConvertPendingBlockToError(
@@ -285,6 +286,10 @@ export class DeepChatMessageStore {
     return this.toRecords(rows)
   }
 
+  hasMessages(sessionId: string): boolean {
+    return this.sqlitePresenter.deepchatMessagesTable.hasBySession(sessionId)
+  }
+
   listMessagesPage(
     sessionId: string,
     options?: {
@@ -520,6 +525,7 @@ export class DeepChatMessageStore {
     bodyJson: string
     truncated: boolean
     createdAt?: number
+    requestSeq?: number
   }): number {
     return this.sqlitePresenter.deepchatMessageTracesTable.insert(row)
   }
@@ -543,6 +549,10 @@ export class DeepChatMessageStore {
 
   getMessageTraceCount(messageId: string): number {
     return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(messageId)
+  }
+
+  getMaxMessageTraceRequestSeq(messageId: string): number {
+    return this.sqlitePresenter.deepchatMessageTracesTable.maxRequestSeqByMessageId(messageId)
   }
 
   cloneSentMessagesToSession(
@@ -672,6 +682,28 @@ export class DeepChatMessageStore {
     appendMessageRecordToTape(this.sqlitePresenter.deepchatTapeEntriesTable, record, 'live')
   }
 
+  appendAssistantToolFactsSnapshot(messageId: string, reason: string): void {
+    const table = this.sqlitePresenter.deepchatTapeEntriesTable
+    if (!table) {
+      return
+    }
+
+    const record = this.getMessage(messageId)
+    if (!record || record.role !== 'assistant') {
+      return
+    }
+
+    try {
+      appendToolFactsToTape(table, record, 'live', reason)
+    } catch (error) {
+      logger.warn(
+        `[DeepChatMessageStore] Failed to snapshot tool facts: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+  }
+
   private toRecord(row: DeepChatMessageRow): ChatMessageRecord {
     return this.toRecords([row])[0]!
   }
@@ -705,25 +737,30 @@ export class DeepChatMessageStore {
         return row.content
       }
 
-      const fileRows =
-        maps?.fileRows.get(row.id) ??
-        this.sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds([row.id])
-      const linkRows =
-        maps?.linkRows.get(row.id) ??
-        this.sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds([row.id])
+      const fileRows = maps
+        ? (maps.fileRows.get(row.id) ?? [])
+        : this.sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds([row.id])
+      const linkRows = maps
+        ? (maps.linkRows.get(row.id) ?? [])
+        : this.sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds([row.id])
 
+      const rawUserContent = this.parseUserContent(row.content)
+      const activeSkills = rawUserContent?.activeSkills ?? []
+      const inlineItems = rawUserContent?.inlineItems ?? []
       return JSON.stringify({
         text: userRow.text,
         files: fileRows.map((fileRow) => this.toMessageFile(fileRow)),
         links: linkRows.map((linkRow) => linkRow.url),
         search: userRow.search_enabled === 1,
-        think: userRow.think_enabled === 1
+        think: userRow.think_enabled === 1,
+        ...(activeSkills.length > 0 ? { activeSkills } : {}),
+        ...(inlineItems.length > 0 ? { inlineItems } : {})
       } satisfies UserMessageContent)
     }
 
-    const assistantRows =
-      maps?.assistantRows.get(row.id) ??
-      this.sqlitePresenter.deepchatAssistantBlocksTable.listByMessageId(row.id)
+    const assistantRows = maps
+      ? (maps.assistantRows.get(row.id) ?? [])
+      : this.sqlitePresenter.deepchatAssistantBlocksTable.listByMessageId(row.id)
     if (assistantRows.length === 0) {
       return row.content
     }
@@ -754,11 +791,28 @@ export class DeepChatMessageStore {
           ? parsed.links.filter((item): item is string => typeof item === 'string')
           : [],
         search: parsed.search === true,
-        think: parsed.think === true
+        think: parsed.think === true,
+        activeSkills: this.normalizeActiveSkills(parsed.activeSkills),
+        inlineItems: Array.isArray(parsed.inlineItems) ? parsed.inlineItems : []
       }
     } catch {
       return null
     }
+  }
+
+  private normalizeActiveSkills(activeSkills?: string[]): string[] {
+    if (!Array.isArray(activeSkills)) {
+      return []
+    }
+
+    return Array.from(
+      new Set(
+        activeSkills
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    )
   }
 
   private buildCompactionBlocks(status: 'compacting' | 'compacted'): AssistantMessageBlock[] {
