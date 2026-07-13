@@ -14,6 +14,9 @@ const setupStore = async (options?: {
   const settingsClient = {
     openSettings: vi.fn().mockResolvedValue({ windowId: 9 })
   }
+  const router = {
+    push: vi.fn().mockResolvedValue(undefined)
+  }
   const providerStore = reactive({
     sortedProviders: [
       {
@@ -63,6 +66,9 @@ const setupStore = async (options?: {
   vi.doMock('@api/SettingsClient', () => ({
     createSettingsClient: vi.fn(() => settingsClient)
   }))
+  vi.doMock('vue-router', () => ({
+    useRouter: () => router
+  }))
 
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
@@ -92,7 +98,8 @@ const setupStore = async (options?: {
     providerStore,
     sessionStore,
     pageRouterStore,
-    settingsClient
+    settingsClient,
+    router
   }
 }
 
@@ -198,6 +205,22 @@ describe('spotlightStore new-chat action', () => {
         })
       ])
     )
+  })
+
+  it('opens the chat route after selecting a session result', async () => {
+    const { store, sessionStore, router } = await setupStore()
+
+    await store.executeItem({
+      id: 'session:session-1',
+      kind: 'session',
+      icon: 'lucide:message-square',
+      title: 'Session 1',
+      sessionId: 'session-1',
+      score: 1
+    })
+
+    expect(sessionStore.selectSession).toHaveBeenCalledWith('session-1')
+    expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
   })
 
   it('reuses settings-provider route params when opening a provider result', async () => {

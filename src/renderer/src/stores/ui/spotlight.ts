@@ -425,6 +425,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     if (item.kind === 'session' && item.sessionId) {
       await sessionStore.selectSession(item.sessionId)
+      await router.push({ name: 'chat' })
       return
     }
 
@@ -434,6 +435,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         messageId: item.messageId
       }
       await sessionStore.selectSession(item.sessionId)
+      await router.push({ name: 'chat' })
       return
     }
 
