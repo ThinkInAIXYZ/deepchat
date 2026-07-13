@@ -30,6 +30,8 @@ in persisted metadata.
 - Use the same canonical provider/tool/empty stop reason in persisted metadata, `ProcessResult`, and
   terminal hooks.
 - Mark tool calls rejected by the 128-call budget as unexecuted errors before finalizing the message.
+- Reject permission-approved deferred execution before invocation when persisted accounting has
+  already reached the 128-call budget, without incrementing beyond the cap.
 - Give `processStream` sole ownership of terminal persistence after streaming starts; lifecycle code
   owns only pre-stream cancellation/error settlement and includes run identity and zero-count
   accounting there.
@@ -44,6 +46,7 @@ in persisted metadata.
 - [x] Add focused process/evaluation regression scenarios.
 - [x] Align metadata, process results, and terminal hook stop reasons.
 - [x] Mark budget-skipped tool blocks and remove double stream-abort settlement.
+- [x] Enforce the same tool-call budget on deferred permission execution.
 - [x] Persist complete pre-stream error/abort run metadata.
 - [ ] Run final repository quality gates.
 
@@ -54,6 +57,7 @@ in persisted metadata.
 - Context-window errors return the same usage and reason persisted in message metadata.
 - Terminal hooks receive the normalized reason and usage.
 - A tool call that exceeds the hard cap is never finalized as a successful execution.
+- A granted deferred tool at the hard cap does not invoke the tool and keeps `toolCalls` at 128.
 - Stream abort writes one terminal message; pre-stream abort remains lifecycle-owned.
 
 ## GitHub

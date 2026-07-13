@@ -69,7 +69,7 @@ function stripTrailingErrorBlock(state: StreamState, message: string): void {
   }
 }
 
-const MAX_TOOL_CALLS_SKIPPED_ERROR =
+export const MAX_TOOL_CALLS_SKIPPED_ERROR =
   'Tool call was not executed because the maximum tool-call limit was reached.'
 
 function stampRunAccounting(state: StreamState): void {

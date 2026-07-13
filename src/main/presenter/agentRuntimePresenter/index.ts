@@ -89,6 +89,7 @@ import {
   buildSystemEnvPrompt
 } from '@/agent/deepchat/resources/systemEnvPromptBuilder'
 import { createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
+import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import type {
@@ -143,7 +144,7 @@ import {
 } from './tapeViewManifest'
 import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
 import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInputStore'
-import { processStream } from './process'
+import { MAX_TOOL_CALLS_SKIPPED_ERROR, processStream } from './process'
 import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { MemoryRuntimePort } from '../memoryPresenter/injection'
@@ -2393,36 +2394,45 @@ export class AgentRuntimePresenter {
             this.grantPermissionForPayload(sessionId, permissionPayload, toolCall),
             interactionAbortSignal
           )
-          this.dispatchHook('PreToolUse', {
-            sessionId,
-            messageId,
-            providerId: state?.providerId,
-            modelId: state?.modelId,
-            projectDir,
-            tool: {
-              callId: toolCall.id,
-              name: toolCall.name,
-              params: toolCall.params
-            }
-          })
+          const nextToolCallAccounting = incrementToolCallAccounting(resumeAccounting)
           let deferredToolCallCounted = false
           const markDeferredToolCallStarted = () => {
             if (deferredToolCallCounted) {
               return
             }
             deferredToolCallCounted = true
-            resumeAccounting = incrementToolCallAccounting(resumeAccounting)
+            resumeAccounting = nextToolCallAccounting
             accountingChanged = true
             this.messageStore.updateAssistantMetadata(messageId, JSON.stringify(resumeAccounting))
           }
-          const execution = await this.executeDeferredToolCall(
-            sessionId,
-            messageId,
-            toolCall,
-            markDeferredToolCallStarted
-          )
-          if ((execution.invoked || execution.terminalError) && !deferredToolCallCounted) {
-            markDeferredToolCallStarted()
+          let execution: DeferredToolExecutionResult
+          if ((nextToolCallAccounting.toolCalls ?? 0) > MAX_TOOL_CALLS) {
+            execution = {
+              responseText: MAX_TOOL_CALLS_SKIPPED_ERROR,
+              isError: true
+            }
+          } else {
+            this.dispatchHook('PreToolUse', {
+              sessionId,
+              messageId,
+              providerId: state?.providerId,
+              modelId: state?.modelId,
+              projectDir,
+              tool: {
+                callId: toolCall.id,
+                name: toolCall.name,
+                params: toolCall.params
+              }
+            })
+            execution = await this.executeDeferredToolCall(
+              sessionId,
+              messageId,
+              toolCall,
+              markDeferredToolCallStarted
+            )
+            if ((execution.invoked || execution.terminalError) && !deferredToolCallCounted) {
+              markDeferredToolCallStarted()
+            }
           }
           if (execution.invoked) {
             instance.advancePendingToolBatch({ invokedCallId: toolCall.id })
@@ -7039,7 +7049,7 @@ export class AgentRuntimePresenter {
         imagePreviews
       }
     } catch (error) {
-      if (deferredAbortSignal?.aborted || this.isAbortError(error)) {
+      if (deferredAbortSignal?.aborted) {
         throw error
       }
       const errorText = error instanceof Error ? error.message : String(error)

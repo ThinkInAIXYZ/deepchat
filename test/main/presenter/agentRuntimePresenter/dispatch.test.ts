@@ -2320,10 +2320,10 @@ describe('dispatch', () => {
       expect(block!.status).toBe('error')
     })
 
-    it('stops on abort', async () => {
+    it('commits a returned parallel result before stopping on abort', async () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
-      const tools = [makeTool('tool_a'), makeTool('tool_b')]
+      const tools = [makeAgentTool('read')]
       const toolPresenter = createMockToolPresenter()
 
       // Abort after first tool call
@@ -2337,18 +2337,18 @@ describe('dispatch', () => {
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc1', name: 'tool_a', params: '{}', response: '' }
+        tool_call: { id: 'tc1', name: 'read', params: '{"path":"a"}', response: '' }
       })
       state.blocks.push({
         type: 'tool_call',
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc2', name: 'tool_b', params: '{}', response: '' }
+        tool_call: { id: 'tc2', name: 'read', params: '{"path":"b"}', response: '' }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'tool_a', arguments: '{}' },
-        { id: 'tc2', name: 'tool_b', arguments: '{}' }
+        { id: 'tc1', name: 'read', arguments: '{"path":"a"}' },
+        { id: 'tc2', name: 'read', arguments: '{"path":"b"}' }
       ]
 
       const conversation: any[] = []
@@ -2366,16 +2366,24 @@ describe('dispatch', () => {
         1024
       )
 
-      await expect(executing).rejects.toMatchObject({ name: 'AbortError' })
+      await expect(executing).resolves.toMatchObject({ type: 'completed', executed: 1 })
       expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
-      expect(conversation.some((message) => message.role === 'tool')).toBe(false)
+      expect(conversation).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'tool', tool_call_id: 'tc1', content: 'ok' })
+        ])
+      )
       expect(state.blocks.find((block) => block.tool_call?.id === 'tc1')).toMatchObject({
+        status: 'success',
+        tool_call: { response: 'ok' }
+      })
+      expect(state.blocks.find((block) => block.tool_call?.id === 'tc2')).toMatchObject({
         status: 'pending',
         tool_call: { response: '' }
       })
     })
 
-    it('does not stage CanceledError from a parallel read batch as a tool failure', async () => {
+    it('stages CanceledError from a parallel read batch when the run remains active', async () => {
       const tools = [makeAgentTool('read')]
       const toolPresenter = createMockToolPresenter()
       const canceledError = new Error('Canceled')
@@ -2423,12 +2431,28 @@ describe('dispatch', () => {
           32000,
           1024
         )
-      ).rejects.toBe(canceledError)
-      expect(conversation.some((message) => message.role === 'tool')).toBe(false)
-      expect(state.blocks.every((block) => block.status === 'pending')).toBe(true)
+      ).resolves.toMatchObject({ type: 'completed', executed: 2 })
+      expect(conversation).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            role: 'tool',
+            tool_call_id: 'tc1',
+            content: 'Error: Canceled'
+          }),
+          expect.objectContaining({
+            role: 'tool',
+            tool_call_id: 'tc2',
+            content: 'second result'
+          })
+        ])
+      )
+      expect(state.blocks.find((block) => block.tool_call?.id === 'tc1')).toMatchObject({
+        status: 'error',
+        tool_call: { response: 'Error: Canceled' }
+      })
     })
 
-    it('checks abort after asynchronous result normalization before staging output', async () => {
+    it('commits the raw result when cancellation wins during asynchronous normalization', async () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
       const tools = [makeTool('tool_a')]
@@ -2463,12 +2487,16 @@ describe('dispatch', () => {
           1024,
           { resultNormalizer }
         )
-      ).rejects.toMatchObject({ name: 'AbortError' })
+      ).resolves.toMatchObject({ type: 'completed', executed: 1 })
       expect(resultNormalizer).toHaveBeenCalledOnce()
-      expect(conversation.some((message) => message.role === 'tool')).toBe(false)
+      expect(conversation).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'tool', tool_call_id: 'tc1', content: 'raw result' })
+        ])
+      )
       expect(state.blocks[0]).toMatchObject({
-        status: 'pending',
-        tool_call: { response: '' }
+        status: 'success',
+        tool_call: { response: 'raw result' }
       })
     })
 

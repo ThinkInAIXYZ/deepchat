@@ -28,6 +28,8 @@ does not maintain a per-round snapshot plus run aggregate.
 - Persist accounting when a turn pauses or aborts, then seed a resumed stream from the persisted
   totals so one assistant message remains cumulative across user interactions.
 - Count a permission-approved deferred tool before resuming the provider stream.
+- Refuse a permission-approved deferred tool before invocation when its next count would exceed the
+  global 128-call budget.
 - Replace paused metadata with the actual terminal outcome when resume ends before `processStream`.
 
 ## Compatibility
@@ -42,6 +44,7 @@ ignore the new optional fields. Single-round values remain unchanged.
 - [x] Add single-round, multi-round, missing-usage, and failure-path tests.
 - [x] Persist run identity and normalized terminal outcome metadata.
 - [x] Keep tool counts and terminal metadata correct across every interaction-resume exit.
+- [x] Keep deferred permission execution at or below the global tool-call cap.
 - [ ] Run final unified tests, typecheck, format, i18n, lint, and build.
 
 ## Validation
@@ -52,4 +55,5 @@ ignore the new optional fields. Single-round values remain unchanged.
 - Usage emitted before an `AbortError` remains persisted.
 - A permission pause persists its partial totals and the resumed run adds to them once.
 - A granted deferred tool increments the persisted cumulative tool count exactly once.
+- A deferred tool rejected at the global cap does not execute or increment the persisted count.
 - Resume cancellation and pre-stream failures no longer leave `runOutcome: paused` metadata.

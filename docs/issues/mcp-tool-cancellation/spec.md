@@ -35,6 +35,10 @@ default request timeout expires.
   become an unhandled rejection.
 - Treat abort failures as cancellation: do not run MCP session recovery, invalidate tool caches, or
   retry the operation. Preserve the current handling of all non-abort failures.
+- Classify a tool failure as parent cancellation only when the run signal is aborted; an
+  `AbortError` name alone remains a tool-local failure.
+- Once tool execution returns a result, commit that result and its Tape facts before settling a
+  concurrently requested parent cancellation.
 - Add focused forwarding and MCP client cancellation tests.
 
 ## Constraints
@@ -51,6 +55,8 @@ default request timeout expires.
 - [x] Pass the signal into the MCP SDK request and preserve abort semantics.
 - [x] Propagate cancellation through MCP preflight and helper awaits.
 - [x] Keep the public `IToolPresenter` option contract aligned with the implementation.
+- [x] Preserve returned tool results across late parent cancellation.
+- [x] Keep tool-local `AbortError` failures inside the tool batch while the run signal is active.
 - [x] Add focused regression tests.
 - [ ] Run final unified tests, formatting, i18n validation, lint, typecheck, and build.
 
@@ -63,6 +69,8 @@ default request timeout expires.
 - [x] Abort failures do not trigger session recovery or tool-cache invalidation.
 - [x] Existing non-abort MCP failure behavior remains covered and unchanged.
 - [x] A native Agent turn cancellation reaches an in-flight MCP call through the real ToolPresenter.
+- [x] A tool result returned as cancellation arrives is persisted before the run settles aborted.
+- [x] A tool-local `AbortError` becomes a tool failure when the parent run remains active.
 - [x] Abort winning a helper race consumes a later source rejection without an
   `unhandledRejection`.
 - [x] Standalone media cancellation consumes iterator teardown failures without an

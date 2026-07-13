@@ -246,6 +246,7 @@ function createMockSqlitePresenter() {
   const deepchatMessagesTable = {
     insert: vi.fn(),
     updateContent: vi.fn(),
+    updateMetadata: vi.fn(),
     updateStatus: vi.fn(),
     incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
@@ -8550,6 +8551,68 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
 
+    it('rejects deferred permission execution at the global tool-call cap', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        metadata: { toolCalls: 128 },
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                paths: ['a.txt']
+              })
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: true
+      })
+
+      expect(result).toEqual({ resumed: true })
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(
+        (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].initialAccounting
+      ).toEqual(expect.objectContaining({ toolCalls: 128 }))
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.at(-1)[1]
+      )
+      expect(updatedBlocks[0]).toEqual(
+        expect.objectContaining({
+          status: 'error',
+          tool_call: expect.objectContaining({
+            response: 'Tool call was not executed because the maximum tool-call limit was reached.'
+          })
+        })
+      )
+      expect(
+        sqlitePresenter.deepchatMessagesTable.updateMetadata.mock.calls.every(
+          ([, metadata]: [string, string]) => JSON.parse(metadata).toolCalls <= 128
+        )
+      ).toBe(true)
+    })
+
     it('fails loudly when a confirmed permission grant has no session permission port', async () => {
       const skillPresenter = getSkillPresenterMock()
       const agentWithoutPermissionPort = new AgentRuntimePresenter(
@@ -9793,6 +9856,37 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('returns a deferred tool-local AbortError as a tool failure while the run is active', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'echo',
+            description: 'Echo tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test-server', icons: '', description: '' }
+        }
+      ])
+      const timeoutError = new Error('Model request timed out')
+      timeoutError.name = 'AbortError'
+      toolPresenter.callTool.mockRejectedValueOnce(timeoutError)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'echo',
+        params: '{}'
+      })
+
+      expect(result).toEqual({
+        responseText: 'Error: Model request timed out',
+        isError: true,
+        invoked: true
+      })
+    })
+
     it('returns image previews from deferred tool execution', async () => {
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
         {
@@ -10085,12 +10179,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.cancelGeneration('s1')
 
       expect(capturedSignal?.aborted).toBe(true)
-      await expect(executionPromise).resolves.toEqual(
-        expect.objectContaining({
-          isError: true,
-          responseText: 'Error: Aborted'
-        })
-      )
+      await expect(executionPromise).rejects.toMatchObject({ name: 'AbortError' })
       expect(
         agent.deepChatRuntime
           .getHydrated(toAppSessionId('s1'))

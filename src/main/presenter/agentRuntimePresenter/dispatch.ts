@@ -145,14 +145,6 @@ type MutableToolBatchState = {
 const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 
-function isToolCancellation(error: unknown, signal: AbortSignal): boolean {
-  const errorName =
-    error && typeof error === 'object' && 'name' in error
-      ? (error as { name?: unknown }).name
-      : undefined
-  return signal.aborted || errorName === 'AbortError' || errorName === 'CanceledError'
-}
-
 function createToolBatchState(state: StreamState): MutableToolBatchState {
   return {
     callOrder: state.completedToolCalls.map((toolCall) => toolCall.id),
@@ -645,6 +637,37 @@ function buildToolErrorOutcome(
       isError: true,
       searchPayload: null,
       postHookKind: 'failure'
+    },
+    toolsChanged: false
+  }
+}
+
+function buildReturnedToolResultOutcome(
+  execution: ToolExecutionContext,
+  rawData: MCPToolResponse
+): Extract<ToolRunOutcome, { kind: 'staged' }> {
+  const responseText = toolResponseToText(rawData.content)
+  const isError = rawData.isError === true
+  return {
+    kind: 'staged',
+    stagedResult: {
+      toolCallId: execution.completedToolCall.id,
+      toolName: execution.completedToolCall.name,
+      toolSource: execution.toolDef?.source,
+      serverName: execution.toolContext.serverName,
+      toolArgs: execution.completedToolCall.arguments,
+      responseText,
+      isError,
+      searchPayload: extractSearchPayload(
+        rawData.content,
+        execution.toolContext.name,
+        execution.toolContext.serverName
+      ),
+      rtkApplied: rawData.rtkApplied,
+      rtkMode: rawData.rtkMode,
+      rtkFallbackReason: rawData.rtkFallbackReason,
+      imagePreviews: rawData.imagePreviews,
+      postHookKind: isError ? 'failure' : 'success'
     },
     toolsChanged: false
   }
@@ -1273,6 +1296,7 @@ async function runToolCall(params: {
     onToolCallStarted
   } = params
   const { completedToolCall, toolCall, toolContext } = execution
+  let returnedToolResult: MCPToolResponse | null = null
 
   try {
     io.abortSignal.throwIfAborted()
@@ -1328,7 +1352,6 @@ async function runToolCall(params: {
         activeSkillNames: controls?.getActiveSkillNames?.(),
         enabledSkillNames: controls?.getEnabledSkillNames?.()
       })
-      io.abortSignal.throwIfAborted()
       return result
     }
 
@@ -1336,6 +1359,7 @@ async function runToolCall(params: {
     let toolRawData = toolCallResult.rawData
 
     if (toolRawData?.requiresPermission) {
+      io.abortSignal.throwIfAborted()
       const pendingPermission = normalizePermissionRequest(
         toolRawData.permissionRequest as PermissionRequestLike | undefined,
         {
@@ -1379,6 +1403,11 @@ async function runToolCall(params: {
           }
         }
       }
+    }
+
+    returnedToolResult = toolRawData
+    if (io.abortSignal.aborted) {
+      return buildReturnedToolResultOutcome(execution, toolRawData)
     }
 
     const subagentState = extractSubagentToolState(toolRawData)
@@ -1464,7 +1493,10 @@ async function runToolCall(params: {
       toolsChanged: Boolean(activatedSkill)
     }
   } catch (err) {
-    if (isToolCancellation(err, io.abortSignal)) throw err
+    if (io.abortSignal.aborted && returnedToolResult) {
+      return buildReturnedToolResultOutcome(execution, returnedToolResult)
+    }
+    if (io.abortSignal.aborted) throw err
     return buildToolErrorOutcome(execution, err)
   }
 }
@@ -1565,7 +1597,7 @@ export async function executeTools(
       buildToolExecutionContext(tc, tools, io.sessionId, providerId)
     )
 
-    const outcomes = await Promise.all(
+    const settledOutcomes = await Promise.allSettled(
       executions.map(async (execution) => {
         try {
           if (toolExecution.preCheck) {
@@ -1610,11 +1642,22 @@ export async function executeTools(
             onToolCallStarted
           })
         } catch (error) {
-          if (isToolCancellation(error, io.abortSignal)) throw error
+          if (io.abortSignal.aborted) throw error
           return buildToolErrorOutcome(execution, error)
         }
       })
     )
+    const outcomes: ToolRunOutcome[] = []
+    let cancellationError: unknown
+    for (const outcome of settledOutcomes) {
+      if (outcome.status === 'fulfilled') {
+        outcomes.push(outcome.value)
+      } else if (io.abortSignal.aborted) {
+        cancellationError ??= outcome.reason
+      } else {
+        throw outcome.reason
+      }
+    }
 
     for (const outcome of outcomes) {
       batchState.invokedCallIds.add(
@@ -1649,6 +1692,10 @@ export async function executeTools(
       executed += 1
     }
 
+    if (cancellationError && stagedResults.length === 0) {
+      throw cancellationError
+    }
+
     if (stagedResults.length > 0) {
       const fittedResults = await toolResults.fitBatch({
         conversationMessages: conversation,
@@ -1663,8 +1710,6 @@ export async function executeTools(
         contextLength,
         maxTokens
       })
-      io.abortSignal.throwIfAborted()
-
       const finalizedInteractions = applyFinalizedToolResults({
         stagedResults,
         fittedResults: fittedResults.results,
@@ -1697,6 +1742,9 @@ export async function executeTools(
   }
 
   for (const tc of state.completedToolCalls) {
+    if (io.abortSignal.aborted && stagedResults.length > 0) {
+      break
+    }
     io.abortSignal.throwIfAborted()
 
     const execution = buildToolExecutionContext(tc, tools, io.sessionId, providerId)
@@ -1913,7 +1961,12 @@ export async function executeTools(
       toolsChanged = toolsChanged || outcome.toolsChanged
       executed += 1
     } catch (err) {
-      if (isToolCancellation(err, io.abortSignal)) throw err
+      if (io.abortSignal.aborted) {
+        if (stagedResults.length > 0) {
+          break
+        }
+        throw err
+      }
       const errorText = err instanceof Error ? err.message : String(err)
       stagedResults.push({
         toolCallId: tc.id,
@@ -1942,8 +1995,6 @@ export async function executeTools(
       contextLength,
       maxTokens
     })
-    io.abortSignal.throwIfAborted()
-
     const finalizedInteractions = applyFinalizedToolResults({
       stagedResults,
       fittedResults: fittedResults.results,

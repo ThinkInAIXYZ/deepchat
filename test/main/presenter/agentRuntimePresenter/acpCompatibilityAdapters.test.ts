@@ -232,11 +232,10 @@ describe('ACP compatibility adapters', () => {
     const tapeRecord = harness.getAssistantTapeRecord()
 
     expect(settlement).toEqual({
-      status: 'error',
-      stopReason: 'error',
-      errorMessage: 'ACP: prompt failed'
+      status: 'completed',
+      stopReason: 'complete'
     })
-    expect(message?.status).toBe('error')
+    expect(message?.status).toBe('sent')
     expect(blocks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'content', content: 'from-events', status: 'success' })
@@ -336,8 +335,12 @@ describe('ACP compatibility adapters', () => {
     const blocks = JSON.parse(message?.content ?? '[]')
     const tapeRecord = harness.getAssistantTapeRecord()
 
-    expect(settlement).toEqual({ status: 'completed', stopReason: 'complete' })
-    expect(message?.status).toBe('sent')
+    expect(settlement).toEqual({
+      status: 'error',
+      stopReason: 'error',
+      errorMessage: 'ACP: prompt failed'
+    })
+    expect(message?.status).toBe('error')
     expect(blocks).toEqual([
       expect.objectContaining({ type: 'error', content: 'ACP: prompt failed', status: 'error' })
     ])

@@ -1,6 +1,6 @@
 import { enterProviderRound, type LoopRun } from './loopRun'
 
-const MAX_TOOL_CALLS = 128
+export const MAX_TOOL_CALLS = 128
 
 export type ProviderRoundOutcome<TToolBatch, THalted> =
   | { type: 'terminal' }

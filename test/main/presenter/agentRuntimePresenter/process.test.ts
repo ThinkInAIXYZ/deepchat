@@ -831,6 +831,57 @@ describe('processStream', () => {
       expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
+    it('keeps a tool-local AbortError as a tool failure while the run remains active', async () => {
+      let providerRound = 0
+      const coreStream = vi.fn(() => {
+        providerRound += 1
+        if (providerRound === 1) {
+          return (async function* () {
+            yield {
+              type: 'tool_call_start',
+              tool_call_id: 'tc1',
+              tool_call_name: 'action'
+            } as LLMCoreStreamEvent
+            yield {
+              type: 'tool_call_end',
+              tool_call_id: 'tc1',
+              tool_call_arguments_complete: '{}'
+            } as LLMCoreStreamEvent
+            yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+          })()
+        }
+        return (async function* () {
+          yield { type: 'text', content: 'Recovered' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }) as unknown as ProcessParams['coreStream']
+      const timeoutError = new Error('Model request timed out')
+      timeoutError.name = 'AbortError'
+      const toolPresenter = createMockToolPresenter()
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(timeoutError)
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolExecution: createToolExecutionPort(toolPresenter),
+          tools: [makeTool('action')]
+        })
+      )
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'complete' })
+      expect(messageStore.setMessageError).not.toHaveBeenCalled()
+      expect(messageStore.finalizeAssistantMessage.mock.calls.at(-1)?.[1]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool_call',
+            status: 'error',
+            tool_call: expect.objectContaining({ response: 'Error: Model request timed out' })
+          })
+        ])
+      )
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
+    })
+
     it('persists the completed batch before settling for pending input', async () => {
       const order: string[] = []
       observeCommitOrder(order)
