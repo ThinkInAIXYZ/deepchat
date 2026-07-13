@@ -20,7 +20,6 @@ import type {
   ISkillSyncPresenter
 } from '@shared/presenter'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
-import type { CronJobRunSessionStarter } from '@/presenter/cronJobs'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
@@ -1578,162 +1577,10 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('wires Cron Job run sessions with source metadata', async () => {
-    const { cronJobs, agentSessionPresenter } = createRuntime()
-    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
-      | CronJobRunSessionStarter
-      | undefined
+  it('does not wire the Cron session starter from route runtime construction', () => {
+    const { cronJobs } = createRuntime()
 
-    expect(starter).toBeDefined()
-    await starter!.createSessionForRun({
-      job: {
-        id: 'cron-1',
-        name: 'Morning job',
-        agentId: 'deepchat',
-        agentSnapshot: null,
-        modelPolicy: 'follow_agent',
-        permissionPolicy: 'follow_agent',
-        toolPolicy: 'follow_agent',
-        taskSystemInstruction: null
-      } as CronJob,
-      run: {
-        id: 'run-1',
-        scheduledAt: 123
-      } as CronJobRun
-    })
-
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith({
-      agentId: 'deepchat',
-      title: 'Morning job',
-      metadata: {
-        source: 'cron_job',
-        cronJobId: 'cron-1',
-        cronJobRunId: 'run-1',
-        scheduledAt: 123
-      }
-    })
-  })
-
-  it('wires pinned Cron Job snapshots into detached sessions', async () => {
-    const { cronJobs, agentSessionPresenter } = createRuntime()
-    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
-      | CronJobRunSessionStarter
-      | undefined
-
-    expect(starter).toBeDefined()
-    await starter!.createSessionForRun({
-      job: {
-        id: 'cron-1',
-        name: 'Morning job',
-        agentId: 'deepchat',
-        agentSnapshot: {
-          version: 1,
-          capturedAt: 100,
-          agent: { id: 'deepchat', name: 'DeepChat', type: 'deepchat' },
-          config: {
-            defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-sonnet' },
-            permissionMode: 'full_access',
-            disabledAgentTools: ['write_file'],
-            subagentEnabled: false,
-            systemPrompt: 'Snapshot system prompt'
-          }
-        },
-        modelPolicy: 'pin_current',
-        permissionPolicy: 'snapshot',
-        toolPolicy: 'snapshot',
-        taskSystemInstruction: '  Task-specific system prompt  '
-      } as CronJob,
-      run: {
-        id: 'run-1',
-        scheduledAt: 123
-      } as CronJobRun
-    })
-
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith({
-      agentId: 'deepchat',
-      title: 'Morning job',
-      providerId: 'anthropic',
-      modelId: 'claude-sonnet',
-      permissionMode: 'full_access',
-      disabledAgentTools: ['write_file'],
-      subagentEnabled: false,
-      generationSettings: { systemPrompt: 'Task-specific system prompt' },
-      metadata: {
-        source: 'cron_job',
-        cronJobId: 'cron-1',
-        cronJobRunId: 'run-1',
-        scheduledAt: 123
-      }
-    })
-  })
-
-  it('routes ACP Cron Job prompts through the agent-session direct-routing facade', async () => {
-    const { cronJobs, configPresenter, agentSessionPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValue('acp')
-    vi.mocked(agentSessionPresenter.sendMessage).mockResolvedValueOnce({
-      requestId: 'request-2',
-      messageId: 'message-2'
-    })
-    vi.mocked(agentSessionPresenter.createDetachedSession).mockResolvedValue({
-      id: 'acp-session-1',
-      agentId: 'manual-acp',
-      title: 'ACP job',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'acp',
-      modelId: 'manual-acp'
-    })
-    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
-      | CronJobRunSessionStarter
-      | undefined
-    const job = {
-      id: 'cron-acp',
-      name: 'ACP job',
-      agentId: 'manual-acp',
-      agentSnapshot: null,
-      modelPolicy: 'follow_agent',
-      permissionPolicy: 'follow_agent',
-      toolPolicy: 'follow_agent',
-      taskSystemInstruction: null,
-      taskPrompt: 'Review the workspace',
-      runtime: { maxTurns: 7 }
-    } as CronJob
-    const run = { id: 'run-acp', scheduledAt: 123 } as CronJobRun
-
-    await expect(starter!.createSessionForRun({ job, run })).resolves.toEqual({
-      sessionId: 'acp-session-1'
-    })
-    await expect(
-      starter!.startSessionRun({ job, run, sessionId: 'acp-session-1' })
-    ).resolves.toEqual({ outputMessageId: 'message-2' })
-
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentId: 'manual-acp',
-        providerId: 'acp',
-        modelId: 'manual-acp'
-      })
-    )
-    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith(
-      'acp-session-1',
-      'Review the workspace',
-      { maxProviderRounds: 7 }
-    )
-    await starter!.cancelSessionRun?.({
-      job,
-      run,
-      sessionId: 'acp-session-1',
-      reason: 'Cron job exceeded max duration.'
-    })
-    expect(agentSessionPresenter.cancelGeneration).toHaveBeenCalledWith('acp-session-1')
+    expect(cronJobs.setRunSessionStarter).not.toHaveBeenCalled()
   })
 
   it('reconciles Cron Jobs after agent mutation routes', async () => {

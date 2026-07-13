@@ -66,7 +66,7 @@ import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
-import { CronJobsService } from './cronJobs'
+import { CronJobsService, createCronJobRunSessionStarter } from './cronJobs'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
@@ -885,6 +885,13 @@ export class Presenter implements IPresenter {
       projection: this.sessionProjectionCoordinator,
       deletion: this.sessionDeletionTransaction
     })
+    this.cronJobs.setRunSessionStarter(
+      createCronJobRunSessionStarter({
+        lifecycle: this.sessionLifecycleCoordinator,
+        turn: this.sessionTurnCoordinator,
+        agentCatalog: this.configPresenter
+      })
+    )
     this.agentSessionPresenter = new AgentSessionPresenter(
       this.agentManager,
       appSessionService,
@@ -907,7 +914,10 @@ export class Presenter implements IPresenter {
     )
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
-      agentSessionPresenter: this.agentSessionPresenter,
+      lifecycle: this.sessionLifecycleCoordinator,
+      turn: this.sessionTurnCoordinator,
+      assignment: this.sessionAgentAssignmentCoordinator,
+      projection: this.sessionProjectionCoordinator,
       filePresenter: this.filePresenter,
       agentManager: this.agentManager,
       windowPresenter: this.windowPresenter,

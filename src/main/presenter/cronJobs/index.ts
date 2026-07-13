@@ -486,4 +486,10 @@ export class CronJobsService {
 }
 
 export { CronJobsRepository }
+export { createCronJobRunSessionStarter } from './runSessionStarter'
+export type {
+  CronJobAgentCatalogPort,
+  CronJobSessionLifecyclePort,
+  CronJobSessionTurnPort
+} from './runSessionStarter'
 export type { CronJobRunSessionStarter }
