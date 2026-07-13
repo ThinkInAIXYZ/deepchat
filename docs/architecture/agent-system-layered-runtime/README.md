@@ -2,24 +2,24 @@
 
 > 状态：implementation complete；`ASLR-000..092` 已完成，最终全量验证与受控 baseline
 > regeneration 记录见 [migration-and-validation.md](./migration-and-validation.md#aslr-092-final-close-out-record)。
-> 代码基线：`dev@1a57d15b99a6`（2026-07-11）
-> 本文是目标架构的总入口。`spec.md` 定义验收合同，`plan.md` 和 `tasks.md` 定义实施顺序；
-> `modules/` 描述各模块的本地合同。
+> 迁移前基线：`dev@1a57d15b99a6`（2026-07-11）
+> 本文是已实现架构的决策入口。`spec.md` 定义验收合同，`migration-and-validation.md`
+> 保留兼容与验证证据，`modules/` 描述各模块的本地合同。
 
 ## 结论
 
-当前问题不是“Presenter 文件太长”这么简单，而是三种不同层次被压进了同一组类型和
-singleton：
+迁移前的问题不是“Presenter 文件太长”这么简单，而是三种不同层次被压进了同一组类型和
+singleton。以下问题描述是迁移前的历史快照：
 
 1. agent catalog / session application control plane；
 2. 某个具体 agent session 的运行时实例；
 3. DeepChat 自己拥有的 LLM/tool loop。
 
-ACP 又被包装成 LLM provider，穿过 DeepChat loop 后再进入 ACP 自己的外部 loop。这个双层执行
+迁移前，ACP 又被包装成 LLM provider，穿过 DeepChat loop 后再进入 ACP 自己的外部 loop。这个双层执行
 模型让统一抽象看似成立，实际只能靠 optional method、`providerId === 'acp'` 和 fallback 分支维持。
 
-目标不是把 ACP 与 DeepChat 变成两个毫无关系的孤岛，也不是创建一个万能 hook/plugin 框架。
-目标是：
+本次迁移目标不是把 ACP 与 DeepChat 变成两个毫无关系的孤岛，也不是创建一个万能 hook/plugin
+框架。已实现目标是：
 
 - 顶层只共享 catalog、app session shell、transcript/event projection 与资源选择引用；
 - ACP 与 DeepChat 使用两个明确的 session backend；
@@ -49,8 +49,6 @@ main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
 | 文档 | 单一职责 |
 | --- | --- |
 | [spec.md](./spec.md) | 目标、约束、决策、验收标准 |
-| [plan.md](./plan.md) | 分阶段实施、依赖链、集成顺序 |
-| [tasks.md](./tasks.md) | 可映射到 PR/commit 的任务清单 |
 | [migration-and-validation.md](./migration-and-validation.md) | 兼容矩阵、回滚边界、测试门禁 |
 | [modules/agent-manager.md](./modules/agent-manager.md) | 顶层 control plane 与 kind router |
 | [modules/shared-data-and-io.md](./modules/shared-data-and-io.md) | shared table、typed repository、transcript/output ports |
@@ -63,11 +61,11 @@ main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
 | [modules/permission-and-interactions.md](./modules/permission-and-interactions.md) | ordered tool interactions、ACP permission、pause/fresh resume |
 | [modules/memory-integration.md](./modules/memory-integration.md) | Memory 的两个 loop seam 与不可回归合同 |
 
-## BEFORE：当前真实结构
+## BEFORE：迁移前历史快照
 
-### 规模与事实
+### 迁移前规模与职责
 
-| 位置 | 当前规模 | 实际职责 |
+| 位置 | 迁移前规模 | 迁移前职责 |
 | --- | ---: | --- |
 | `agentSessionPresenter/index.ts` | 4210 行 / 158 methods | route facade、session CRUD、DeepChat/ACP dispatch、draft/subagent/transfer、title、import、search、export、dashboard |
 | `agentRuntimePresenter/index.ts` | 7636 行 / 229 methods / 41 readonly fields | 所有 session 的内存态、turn orchestration、prompt、provider、Tape、compaction、memory、permission、tool、events |
@@ -77,11 +75,11 @@ main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
 | `llmProviderPresenter/providers/acpProvider.ts` | 2035 行 | ACP process/session/prompt/permission/event 到 LLM provider 的兼容包装 |
 | `agentRepository/index.ts` | 597 行 | DeepChat config 与 ACP manual/registry/install state 的混合 repository |
 
-旧提案 [agent-runtime-presenter-split](../agent-runtime-presenter-split/spec.md) 记录的是 5656 行、
-209 methods 的旧快照。它把问题定义成 façade service extraction，没有覆盖随后进入 runtime 的 Memory、
-projection、agent-scoped extensions 和 ACP 分离，因此被本设计取代。
+更早的 presenter-split 提案只把问题定义成 façade service extraction，没有覆盖随后进入 runtime 的
+Memory、projection、agent-scoped extensions 和 ACP 分离，因此已由本设计取代；历史内容通过 Git
+记录查询，不再作为仓库内并行架构入口。
 
-### 当前调用关系
+### 迁移前调用关系
 
 ```text
 Renderer / typed routes
@@ -107,13 +105,13 @@ AgentSessionPresenter (4210 lines)
                                       external ACP process loop
 ```
 
-`AgentRegistry` 不是实际 manager：生产只注册一个 `deepchat` implementation，遇到任意已知
+迁移前的 `AgentRegistry` 不是实际 manager：生产只注册一个 `deepchat` implementation，遇到任意已知
 `deepchat` 或 `acp` agent id 都返回这个 implementation。UI catalog 反而来自
 `ConfigPresenter -> AgentRepository`。
 
-### 当前 DeepChat initial turn 顺序
+### 迁移前 DeepChat initial turn 顺序
 
-下列顺序属于兼容合同，不允许在目录整理时顺手调整：
+下列迁移前顺序是迁移期间必须保持的兼容合同：
 
 ```text
 accept input / claim pending item
@@ -125,7 +123,7 @@ accept input / claim pending item
        create compaction projection
        -> append user message fact
        -> apply compaction
-       -> trigger current compaction-to-Memory path only after a normal initial-path return
+       -> trigger the then-current compaction-to-Memory path only after a normal initial-path return
      else:
        append user message fact
   -> emit user refresh and dispatch UserPromptSubmit notification (fire-and-forget)
@@ -150,10 +148,10 @@ accept input / claim pending item
        -> continue next provider round
   -> finalize assistant fact and terminal events
   -> drain pending input when allowed
-  -> schedule non-blocking Memory extraction when current rules admit it
+  -> schedule non-blocking Memory extraction when the then-current rules admit it
 ```
 
-### 根因
+### 迁移前根因
 
 1. `IAgentImplementation` 是 optional capability soup，而不是两个对等 runtime 的公共合同。
 2. `Agent` 同时携带 `type`、`agentType?`、DeepChat-only `config` 与 ACP-only `installState`。
@@ -163,10 +161,10 @@ accept input / claim pending item
    甚至调用 `notifyAcpAgentsChanged()`。
 6. `src/main/lib/agentRuntime` 实际包含 process/shell/search/path/question 等不同 owner 的工具，
    名称让它看起来像第二套 agent runtime。
-7. 当前 hooks notification 是 `queueMicrotask` fire-and-forget observer，不是可以 await 的 loop
+7. 迁移前 hooks notification 是 `queueMicrotask` fire-and-forget observer，不是可以 await 的 loop
    lifecycle。
 
-## AFTER：目标结构
+## AFTER：已实现的当前架构
 
 ```text
 typed routes / remote / cron

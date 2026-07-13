@@ -120,8 +120,6 @@ decisions:
 
 The historical missing ACP timeout/cancel settlement was fixed and remains covered by:
 
-- [Architecture issue note](./issues/P0-1-acp-permission-timeout.md)
-- [SDD issue spec](../../issues/acp-permission-timeout/spec.md)
 - [GitHub issue #1881](https://github.com/ThinkInAIXYZ/deepchat/issues/1881)
 
 ## Shared and separate data

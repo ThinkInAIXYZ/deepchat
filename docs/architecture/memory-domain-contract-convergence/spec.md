@@ -1,8 +1,7 @@
 # Memory Domain Contract Convergence — Specification
 
-> This document defines the goals, constraints, and acceptance criteria for converging the agent
-> memory domain contracts. See [plan.md](./plan.md) for the implementation design and
-> [tasks.md](./tasks.md) for the execution record.
+> This document defines the maintained goals, constraints, and acceptance criteria for the converged agent
+> memory domain contracts.
 >
 > - Status: **implemented**
 > - Classification: architecture refactor

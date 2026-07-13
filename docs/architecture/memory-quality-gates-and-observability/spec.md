@@ -1,6 +1,6 @@
 # Memory Quality Gates and Observability — Specification
 
-> Status: **implementation-complete / external-native-validation-pending**
+> Status: **implementation-complete / retrieval-artifact-upload-pending**
 >
 > Classification: **architecture**
 >

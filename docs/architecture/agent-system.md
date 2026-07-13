@@ -1,8 +1,8 @@
 # Agent 系统架构详解
 
-本文描述当前实现。迁移决策、兼容矩阵与最终验证计划见
-[Agent System Layered Runtime](./agent-system-layered-runtime/README.md)。旧
-`agent-runtime-presenter-split` 仅是 superseded 历史提案，不是并行计划。
+本文描述当前实现。迁移决策、兼容矩阵与最终验证记录见
+[Agent System Layered Runtime](./agent-system-layered-runtime/README.md)。更早的 presenter-split
+提案已经被取代，历史内容通过 Git 记录查询。
 
 DeepChat 与 ACP 的执行路径对比见
 [deepchat-vs-acp-agents/](./deepchat-vs-acp-agents/)。

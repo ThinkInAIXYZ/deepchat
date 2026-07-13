@@ -1,14 +1,16 @@
 # Perf Audit Review Hardening Spec
 
+> Status: **implemented regression contract**
+
 ## User Need
 
-The `perf/audit-fixes` branch should keep its performance improvements without introducing startup,
-MCP, renderer navigation, icon, backfill, shutdown, or contract regressions found during PR review.
+DeepChat should keep the implemented performance improvements without introducing startup, MCP, renderer
+navigation, icon, backfill, shutdown, or contract regressions found during review.
 
 ## Goal
 
-Fix the merge-blocking review issues and the highest-value follow-up issues that directly undermine
-the performance audit goals.
+Preserve the fixes for the merge-blocking review issues and the highest-value follow-up issues that directly
+undermined the performance audit goals.
 
 ## Acceptance Criteria
 

@@ -1,14 +1,15 @@
 # Agent System Layered Runtime — Specification
 
 > 状态：implementation complete；本文记录最终架构与已验证的兼容合同。
-> 总览：[README.md](./README.md)
+> 总览：[README.md](./README.md)；当前实现入口：[ARCHITECTURE.md](../../ARCHITECTURE.md) 与
+> [FLOWS.md](../../FLOWS.md)。
 
 ## 1. User need
 
 维护者需要用稳定、可观察、可暂停的心智模型理解和修改 agent runtime：顶层管理 agent 与
 session，具体实例管理自己的 session state，DeepChat loop 只负责 turn/round/tool 状态机。
 
-当前实现把 ACP 与 DeepChat 合并到同一 `IAgentImplementation`，但生产只有一个
+迁移前实现把 ACP 与 DeepChat 合并到同一 `IAgentImplementation`，但生产只有一个
 `AgentRuntimePresenter` implementation；ACP 实际通过 `AcpProvider` 再进入外部 loop。这造成：
 
 - 类型充满 optional fields/methods；

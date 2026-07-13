@@ -11,10 +11,8 @@ The agent-session separation is implemented:
 ## Files
 
 - [spec.md](./spec.md): current routing, ownership, data and lifecycle comparison.
-- [issues/P0-1-acp-permission-timeout.md](./issues/P0-1-acp-permission-timeout.md): historical implemented
-  permission timeout/cancellation issue.
 - [Agent System Layered Runtime](../agent-system-layered-runtime/README.md): migration decisions, compatibility
-  contract and final validation plan.
+  contract and final validation record.
 
 ## Stable conclusions
 
