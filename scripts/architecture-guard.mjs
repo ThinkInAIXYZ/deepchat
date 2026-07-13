@@ -925,7 +925,7 @@ function newMapSignature(property, sourceFile) {
   return initializer.typeArguments.map((node) => node.getText(sourceFile).replaceAll(/\s/g, ''))
 }
 
-function analyzeMemoryRuntimeCoordinatorStructure(source, filePath) {
+export function analyzeMemoryRuntimeCoordinatorStructure(source, filePath) {
   const sourceFile = sourceFileForAst(source, filePath)
   const classes = findNamedClassDeclarations(sourceFile, 'MemoryRuntimeCoordinator')
   if (classes.length === 0) {

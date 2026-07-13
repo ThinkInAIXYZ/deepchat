@@ -3,7 +3,10 @@ import path from 'node:path'
 import ts from 'typescript'
 import { beforeAll, describe, expect, it } from 'vitest'
 
-import { runArchitectureGuard } from '../../../scripts/architecture-guard.mjs'
+import {
+  analyzeMemoryRuntimeCoordinatorStructure,
+  runArchitectureGuard
+} from '../../../scripts/architecture-guard.mjs'
 import { analyzeMemoryArchitecture } from '../../../scripts/lib/memory-architecture-guard.mjs'
 
 const ROOT = process.cwd()
@@ -115,26 +118,15 @@ const REMOTE_CONTROL_PRESENTER_PATH = path.join(
   'src/main/presenter/remoteControlPresenter/index.ts'
 )
 
-const SESSION_PRODUCTION_CONSUMER_FIXTURES = [
-  {
-    filePath: REMOTE_CONTROL_PRESENTER_PATH,
-    rule: '[session-consumer-presenter-type]',
-    expected: 'IAgentSessionPresenter',
-    source: `
-      import type { IAgentSessionPresenter as SessionFacade } from '@shared/presenter'
-      export type Fixture = SessionFacade
-    `
-  },
-  {
-    filePath: REMOTE_CONTROL_PRESENTER_PATH,
-    rule: '[session-consumer-presenter-facade]',
-    expected: 'agentSessionPresenter',
-    source: `
-      declare const presenter: Record<string, unknown>
-      export const fixture = presenter['agentSessionPresenter']
-    `
-  }
-]
+const SESSION_PRODUCTION_CONSUMER_FIXTURE = {
+  filePath: REMOTE_CONTROL_PRESENTER_PATH,
+  source: `
+    import type { IAgentSessionPresenter as SessionFacade } from '@shared/presenter'
+    declare const presenter: Record<string, unknown>
+    export type Fixture = SessionFacade
+    export const fixture = presenter['agentSessionPresenter']
+  `
+}
 
 const SESSION_OUTSIDE_ROOT_CONSTRUCTION_FIXTURES = [
   'SessionProjectionCoordinator',
@@ -513,6 +505,7 @@ const SESSION_SAFE_AGGREGATE_FIXTURES = [
 ]
 
 const SESSION_ARCHITECTURE_FIXTURES = [
+  SESSION_PRODUCTION_CONSUMER_FIXTURE,
   ...SESSION_DUPLICATE_CONSTRUCTION_FIXTURES,
   ...SESSION_SCOPED_OWNER_ALIAS_FIXTURES,
   SESSION_SCOPED_OWNER_SHADOW_FIXTURE,
@@ -553,6 +546,7 @@ const typeProperty = ['ty', 'pe'].join('')
 
 const virtualFiles = new Map<string, string>([
   ...SESSION_ARCHITECTURE_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
+  [DUPLICATE_MEMORY_COORDINATOR_FIXTURE, 'export class MemoryRuntimeCoordinator {}'],
   [
     SETTINGS_FIXTURE,
     `
@@ -917,16 +911,6 @@ const VALID_MEMORY_COORDINATOR_FIXTURE = `
   }
 `
 
-async function memoryCoordinatorFixtureViolations(
-  source: string,
-  additionalVirtualFiles: Map<string, string> = new Map()
-): Promise<string[]> {
-  const violations = await runArchitectureGuard({
-    virtualFiles: new Map([[MEMORY_COORDINATOR_PATH, source], ...additionalVirtualFiles])
-  })
-  return violations.filter((violation) => violation.includes('[memory-coordinator-'))
-}
-
 async function invalidCompilerViolations(memoryCompiler: Record<string, unknown>) {
   return analyzeMemoryArchitecture({
     root: ROOT,
@@ -954,19 +938,16 @@ describe('architecture guard', () => {
     expect(result.stdout).toContain('Architecture guard passed.')
   })
 
-  it.each(SESSION_PRODUCTION_CONSUMER_FIXTURES)(
-    'guards the production Remote presenter path from $expected',
-    async ({ filePath, source, rule, expected }) => {
-      const fixtureViolations = sessionViolationsForFile(
-        await runArchitectureGuard({ virtualFiles: new Map([[filePath, source]]) }),
-        filePath
-      )
-      expect(fixtureViolations).toHaveLength(1)
-      expect(fixtureViolations[0]).toContain(rule)
-      expect(fixtureViolations[0]).toContain(expected)
-    },
-    10_000
-  )
+  it('guards the production Remote presenter path from broad session presenter access', () => {
+    const fixtureViolations = sessionViolationsForFile(
+      violations,
+      SESSION_PRODUCTION_CONSUMER_FIXTURE.filePath
+    )
+    expect(fixtureViolations).toEqual([
+      expect.stringContaining('[session-consumer-presenter-type]'),
+      expect.stringContaining('[session-consumer-presenter-facade]')
+    ])
+  })
 
   it.each(SESSION_DUPLICATE_CONSTRUCTION_FIXTURES)(
     'rejects duplicate construction of $expected',
@@ -1137,7 +1118,7 @@ describe('architecture guard', () => {
 
   it(
     'requires the coordinator owner structure without locking method bodies',
-    async () => {
+    () => {
       const emptyFixture = 'export class MemoryRuntimeCoordinator {}'
       const missingQueueFixture = VALID_MEMORY_COORDINATOR_FIXTURE.replace(
         /\s+private readonly extractionQueue = new Map<[\s\S]*?>\(\)/,
@@ -1147,21 +1128,15 @@ describe('architecture guard', () => {
         '\n    private nextExtractionQueueId = 0',
         ''
       )
-      const [valid, empty, missingQueue, missingCounter, duplicate] = await Promise.all([
-        memoryCoordinatorFixtureViolations(VALID_MEMORY_COORDINATOR_FIXTURE),
-        memoryCoordinatorFixtureViolations(emptyFixture),
-        memoryCoordinatorFixtureViolations(missingQueueFixture),
-        memoryCoordinatorFixtureViolations(missingCounterFixture),
-        memoryCoordinatorFixtureViolations(
-          VALID_MEMORY_COORDINATOR_FIXTURE,
-          new Map([
-            [
-              DUPLICATE_MEMORY_COORDINATOR_FIXTURE,
-              'export class MemoryRuntimeCoordinator {}'
-            ]
-          ])
-        )
-      ])
+      const fixtureViolations = (source: string) =>
+        analyzeMemoryRuntimeCoordinatorStructure(source, MEMORY_COORDINATOR_PATH).violations
+      const valid = fixtureViolations(VALID_MEMORY_COORDINATOR_FIXTURE)
+      const empty = fixtureViolations(emptyFixture)
+      const missingQueue = fixtureViolations(missingQueueFixture)
+      const missingCounter = fixtureViolations(missingCounterFixture)
+      const duplicate = violations.filter((violation) =>
+        violation.startsWith('[memory-coordinator-owner-count]')
+      )
 
       expect(valid).toEqual([])
       expect(empty.join('\n')).toContain('[memory-coordinator-missing-extraction-chain]')
