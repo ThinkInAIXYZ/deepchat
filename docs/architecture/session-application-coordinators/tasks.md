@@ -94,4 +94,4 @@
 - [x] Reconcile tests, guards, current docs, and architecture baselines without restoring a broad
       presenter dependency.
 - [x] Run focused and full validation.
-- [ ] Push the integration commits and confirm PR #1961 is mergeable.
+- [x] Push the integration commits and confirm PR #1961 is mergeable.
