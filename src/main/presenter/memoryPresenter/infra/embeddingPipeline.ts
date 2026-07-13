@@ -11,21 +11,25 @@ import {
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '../runtimeConstants'
 import type { EmbeddedMemoryUpdate, FailedEmbeddingUpdate, MemoryVectorRecord } from '../types'
-import type { VectorStoreCleanupDisposition } from '../domain/types'
+import {
+  VectorStoreLeaseUnavailableError,
+  VectorStoreOperationTimeoutError,
+  type VectorStoreCleanupDisposition
+} from '../domain/types'
 import {
   embeddingFingerprint,
   type MemoryModelRef,
   type MemoryOperationFence,
   type MemoryRuntimeContext
 } from '../context'
-import { VectorStoreLeaseUnavailableError } from './vectorStoreManager'
 import type {
   IMemoryVectorStore,
   MemoryAgentPolicyPort,
   MemoryEmbeddingGatewayPort,
   MemoryEmbeddingRepositoryPort,
   MemoryPendingEmbeddableRowPort,
-  MemoryReadRepositoryPort
+  MemoryReadRepositoryPort,
+  VectorStoreRecallHealth
 } from '../ports'
 
 export interface EmbeddingPipelinePorts {
@@ -35,6 +39,7 @@ export interface EmbeddingPipelinePorts {
   embeddingGateway: MemoryEmbeddingGatewayPort
   rows: MemoryPendingEmbeddableRowPort
   vectorStore: {
+    getRecallHealth(agentId: string): VectorStoreRecallHealth
     warmupKey(agentId: string, embedding: MemoryModelRef): string
     hasReadyCertificate(agentId: string, embedding: MemoryModelRef): boolean
     getReadyCertificateDimension(agentId: string, embedding: MemoryModelRef): number | null
@@ -360,6 +365,9 @@ export class EmbeddingPipeline {
             }
             await store.upsert(records)
             sidecarWritten = true
+            if (!this.ports.vectorStore.isGenerationCurrent(agentId, generation)) {
+              return { written: new Set<string>(), usable: true, generation }
+            }
             sqliteTransitionAttempted = true
             const readyIds = this.ports.repository.markPendingEmbeddingsReady(agentId, readyUpdates)
             succeeded = readyIds.length
@@ -408,7 +416,10 @@ export class EmbeddingPipeline {
       return embeddingDrainResult('progress', batchSize, { succeeded, failed })
     } catch (error) {
       logger.error(`[Memory] vector store write failed for ${agentId}: ${String(error)}`)
-      if (error instanceof VectorStoreLeaseUnavailableError) {
+      if (
+        error instanceof VectorStoreLeaseUnavailableError ||
+        error instanceof VectorStoreOperationTimeoutError
+      ) {
         return embeddingDrainResult('blocked', batchSize, { succeeded })
       }
       if (!this.ctx.canContinueOperation(operationFence)) {
@@ -518,6 +529,9 @@ export class EmbeddingPipeline {
     options: { delayOpen?: boolean } = {}
   ): Promise<void> {
     if (this.ctx.isDisposed || !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)) {
+      return Promise.resolve()
+    }
+    if (this.ports.vectorStore.getRecallHealth(agentId) !== 'available') {
       return Promise.resolve()
     }
     if (this.ports.vectorStore.hasReadyCertificate(agentId, embedding)) return Promise.resolve()
@@ -680,6 +694,9 @@ export class EmbeddingPipeline {
           let complete = false
           for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
             const page = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
+            if (!this.ports.vectorStore.isGenerationCurrent(agentId, generation)) {
+              return { verified: false, missingAuthoritativeVector: false, generation }
+            }
             sidecarIds.push(...page)
             if (page.length < ORPHAN_RECONCILE_BATCH) {
               complete = true
@@ -699,6 +716,9 @@ export class EmbeddingPipeline {
           const extras = sidecarIds.filter((id) => !authoritativeSet.has(id))
           for (let start = 0; start < extras.length; start += ORPHAN_RECONCILE_BATCH) {
             await store.deleteByMemoryIds(extras.slice(start, start + ORPHAN_RECONCILE_BATCH))
+            if (!this.ports.vectorStore.isGenerationCurrent(agentId, generation)) {
+              return { verified: false, missingAuthoritativeVector: false, generation }
+            }
           }
           return { verified: true, missingAuthoritativeVector: false, generation }
         }

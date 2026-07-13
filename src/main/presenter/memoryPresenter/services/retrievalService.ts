@@ -39,7 +39,7 @@ import {
   type MemorySearchHit,
   type NormalizedMemoryCandidate
 } from '../types'
-import { VectorStoreQueryTimeoutError } from '../domain/types'
+import { VectorStoreLeaseUnavailableError, VectorStoreQueryTimeoutError } from '../domain/types'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type {
   MemoryAccessRepositoryPort,
@@ -93,6 +93,22 @@ function isCurrentRecallVectorRow(
 function clampRetrievalTopK(value: number): number {
   if (!Number.isFinite(value)) return 1
   return Math.min(MAX_TOP_K, Math.max(1, Math.floor(value)))
+}
+
+function vectorStoreDegradation(
+  error: unknown,
+  health: ReturnType<VectorStoreRetrievalPort['getRecallHealth']>,
+  activeStage: MemoryRecallLatencyStage
+): MemoryRetrievalDegradationCause {
+  if (error instanceof VectorStoreQueryTimeoutError || health === 'suspect') return 'storeTimeout'
+  if (
+    error instanceof VectorStoreLeaseUnavailableError ||
+    health === 'quarantined' ||
+    health === 'stopped'
+  ) {
+    return 'storeUnusable'
+  }
+  return activeStage === 'queryEmbedding' ? 'embeddingError' : 'storeError'
 }
 
 async function withSoftTimeout<T>(
@@ -273,7 +289,10 @@ export class RetrievalService {
       )
       let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
       if (currentEmbedding && this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)) {
-        if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
+        const recallHealth = this.ports.vectorStore.getRecallHealth(agentId)
+        if (recallHealth !== 'available') {
+          degradations.add(recallHealth === 'suspect' ? 'storeTimeout' : 'storeUnusable')
+        } else if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
           degradations.add('vectorCold')
           void this.ports
             .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
@@ -314,15 +333,18 @@ export class RetrievalService {
               }
             } catch (error) {
               const errorName = (error as { name?: string } | null)?.name
-              if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
+              if (
+                errorName !== 'AbortError' &&
+                !(error instanceof VectorStoreLeaseUnavailableError)
+              ) {
                 this.ports.vectorStore.clearReady(agentId)
               }
               degradations.add(
-                error instanceof VectorStoreQueryTimeoutError
-                  ? 'storeTimeout'
-                  : errorName === 'VectorStoreLeaseUnavailableError'
-                    ? 'storeUnusable'
-                    : 'storeError'
+                vectorStoreDegradation(
+                  error,
+                  this.ports.vectorStore.getRecallHealth(agentId),
+                  activeStage
+                )
               )
               logger.warn(`[Memory] batch vector recall degraded to FTS: ${String(error)}`)
             }
@@ -591,7 +613,10 @@ export class RetrievalService {
       const embedding = config?.memoryEmbedding
       if (embedding?.providerId && embedding?.modelId) {
         const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-        if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
+        const recallHealth = this.ports.vectorStore.getRecallHealth(agentId)
+        if (recallHealth !== 'available') {
+          degradations.add(recallHealth === 'suspect' ? 'storeTimeout' : 'storeUnusable')
+        } else if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
           degradations.add('vectorCold')
           void this.ports
             .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
@@ -686,17 +711,18 @@ export class RetrievalService {
               return []
             }
             const errorName = (error as { name?: string } | null)?.name
-            if (errorName !== 'AbortError' && errorName !== 'VectorStoreLeaseUnavailableError') {
+            if (
+              errorName !== 'AbortError' &&
+              !(error instanceof VectorStoreLeaseUnavailableError)
+            ) {
               this.ports.vectorStore.clearReady(agentId)
             }
             degradations.add(
-              error instanceof VectorStoreQueryTimeoutError
-                ? 'storeTimeout'
-                : errorName === 'VectorStoreLeaseUnavailableError'
-                  ? 'storeUnusable'
-                  : activeStage === 'queryEmbedding'
-                    ? 'embeddingError'
-                    : 'storeError'
+              vectorStoreDegradation(
+                error,
+                this.ports.vectorStore.getRecallHealth(agentId),
+                activeStage
+              )
             )
             logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
           }

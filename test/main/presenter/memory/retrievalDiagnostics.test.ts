@@ -134,7 +134,7 @@ describe('RetrievalService diagnostics', () => {
         { agentId: 'agent' }
       )
       await presenter.processPendingEmbeddings('agent')
-      vi.spyOn(store, 'query').mockImplementation(() => new Promise(() => undefined))
+      const query = vi.spyOn(store, 'query').mockImplementation(() => new Promise(() => undefined))
 
       const recall = presenter.recall('agent', 'redis')
       await vi.advanceTimersByTimeAsync(2_000)
@@ -143,6 +143,11 @@ describe('RetrievalService diagnostics', () => {
       expect(
         presenter.getHealth('agent').runtime.agent.retrieval.recall.degradationCounts.storeTimeout
       ).toBe(1)
+      await expect(presenter.recall('agent', 'redis')).resolves.toEqual([
+        expect.objectContaining({ id: memoryId })
+      ])
+      expect(query).toHaveBeenCalledTimes(1)
+      expect(presenter.getHealth('agent').runtime.process.vector.warmupFailed).toBe(0)
       await presenter.dispose()
     } finally {
       vi.useRealTimers()
@@ -200,6 +205,7 @@ describe('RetrievalService diagnostics', () => {
         getDimensions: async () => ({ data: { dimensions: 4, normalized: false } })
       },
       vectorStore: {
+        getRecallHealth: () => 'available',
         hasReadyCertificate: () => true,
         query: async () => [],
         queryBatch: async () => {

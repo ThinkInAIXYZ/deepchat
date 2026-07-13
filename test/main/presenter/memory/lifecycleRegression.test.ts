@@ -728,7 +728,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(repo.countByAgent('a')).toBe(1)
   })
 
-  it('a recall whose vector-store open spans dispose reads nothing and leaks no store (AC-3.8)', async () => {
+  it('dispose detaches from a vector-store open without touching the late store (AC-3.8)', async () => {
     const repo = createFakeRepository()
     const store = new FakeVectorStore()
     let blockCreate = false
@@ -774,18 +774,24 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(recordSpy).toHaveBeenCalledWith(['m1'], expect.any(Number))
 
     let disposed = false
-    const disposePromise = presenter.dispose().then(() => {
-      disposed = true
-    })
-    await new Promise((r) => setTimeout(r, 0))
-    expect(disposed).toBe(false) // dispose awaits the in-flight open lock
+    vi.useFakeTimers()
+    try {
+      const disposePromise = presenter.dispose().then(() => {
+        disposed = true
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      await disposePromise
+      expect(disposed).toBe(true)
+      expect(closeSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
 
     resolveCreate()
-    await disposePromise
-    expect(disposed).toBe(true)
+    await new Promise((r) => setTimeout(r, 0))
     expect(backfillSpy).not.toHaveBeenCalled()
     expect(reindexSpy).not.toHaveBeenCalled()
-    expect(closeSpy).toHaveBeenCalledTimes(1) // the background warm store is closed, not leaked
+    expect(closeSpy).not.toHaveBeenCalled()
   })
 
   it('a recall whose vector query spans dispose reads no rows and records no access (AC-3.9)', async () => {
@@ -1115,7 +1121,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(repo.getById('m1')).toBeUndefined()
   })
 
-  it('dispose waits for an in-flight vector delete before closing the store (AC-3.11)', async () => {
+  it('dispose detaches from an in-flight vector delete without closing its store (AC-3.11)', async () => {
     const { presenter, repo, store } = makeLLMPresenter(routedLLM({}))
     const id = await seedEmbedded(presenter, 'user likes redis')
 
@@ -1134,18 +1140,24 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(repo.getById(id)).toBeUndefined() // SQLite row already gone
 
     let disposed = false
-    const disp = presenter.dispose().then(() => {
-      disposed = true
-    })
-    await new Promise((r) => setTimeout(r, 0))
-    expect(disposed).toBe(false) // dispose blocks on the in-flight delete via vectorStoreLocks
-    expect(closeSpy).not.toHaveBeenCalled() // the store is not closed mid-DELETE
+    let disp!: Promise<void>
+    vi.useFakeTimers()
+    try {
+      disp = presenter.dispose().then(() => {
+        disposed = true
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      await disp
+      expect(disposed).toBe(true)
+      expect(closeSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
 
     resolveDelete()
     const [ok] = await Promise.all([del, disp])
     expect(ok).toBe(true)
-    expect(disposed).toBe(true)
-    expect(closeSpy).toHaveBeenCalledTimes(1) // closed only after the delete resolved
+    expect(closeSpy).not.toHaveBeenCalled()
   })
 
   it('an extraction whose triage await spans dispose fires no extraction call (AC-3.12)', async () => {

@@ -404,7 +404,7 @@ unbounded await turns out to be.
       `health: 'healthy' | 'suspect' | 'quarantined'` (not reusing `accepting`);
       `RetrievalService` catches the typed error → `storeTimeout` degradation (added to
       `@shared/types/agent-memory`) + FTS fallback.
-- [ ] Post-timeout policy in the manager: grace observation
+- [x] Post-timeout policy in the manager: grace observation
       (`RECALL_VECTOR_QUERY_GRACE_MS = 30_000`) of the same promise; every non-fatal settlement
       exits suspect into resume/identity-transition/existing-cleanup ownership, while only fatal
       rejection or a still-unsettled grace expiry persists quarantine.
@@ -420,9 +420,9 @@ unbounded await turns out to be.
       rate-limit wait with provider beforeStream as fallback; sync steps get completion-time slow
       logs only.
 - [x] Info log when memory injection is skipped/degraded (timeout or recall degradation causes).
-- [ ] Start manager deadlines before admission/locks/open, cover non-recall leases with a typed
+- [x] Start manager deadlines before admission/locks/open, cover non-recall leases with a typed
       operation timeout, and fence sequential native work after every await.
-- [ ] Make shutdown detach suspect/in-flight agents without marker persistence, prevent late timer
+- [x] Make shutdown detach suspect/in-flight agents without marker persistence, prevent late timer
       state resurrection, and make explicit reset/retire await the existing grace result.
 - [ ] Reserve injection fallback time, abort abandoned retrieval pipelines, suppress normal
       `vectorCold` anchors, and map suspect/quarantined admission without failed warmup churn.
@@ -473,9 +473,9 @@ unbounded await turns out to be.
   results within the deadline, records `storeTimeout` degradation, clears ready.
 - Timeout escalation (fake timers, observing one promise): soft timeout → health `suspect`,
   typed `VectorStoreQueryTimeoutError` surfaced, no second query issued; promise settles OK
-  within grace → back to `healthy` only when lease epoch / store generation / embedding
-  identity are unchanged (a changed epoch or identity blocks the resume); promise settles with
-  a fatal error within grace → quarantine path invoked; grace expires unsettled → terminal
+  within grace → back to `healthy`, then either resume unchanged admission, converge a changed
+  identity, or return control to an existing cleanup owner; promise settles with a fatal error
+  within grace → quarantine path invoked; grace expires unsettled → terminal
   `quarantined`, `markVectorStoreQuarantined` called, and a late settlement does not resume;
   an identity-transition `finally` restoring `accepting` does not resurrect a `suspect` or
   `quarantined` agent; instance never evicted/reset in-process.

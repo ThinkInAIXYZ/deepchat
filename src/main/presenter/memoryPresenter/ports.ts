@@ -470,7 +470,10 @@ export interface MemoryPerfObserver {
   observe(name: MemoryPerfHighWaterName, value: number): void
 }
 
+export type VectorStoreRecallHealth = 'available' | 'suspect' | 'quarantined' | 'stopped'
+
 export interface VectorStoreRetrievalPort {
+  getRecallHealth(agentId: string): VectorStoreRecallHealth
   hasReadyCertificate(agentId: string, embedding: MemoryModelRef): boolean
   query(
     agentId: string,
