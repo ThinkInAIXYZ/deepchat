@@ -96,6 +96,7 @@ const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
     'src/main/routes/sessions/sessionService.ts',
     'src/main/routes/chat/chatService.ts',
     'src/main/routes/hotPathPorts.ts',
+    'src/main/presenter/remoteControlPresenter/index.ts',
     'src/main/presenter/remoteControlPresenter/interface.ts',
     'src/main/presenter/remoteControlPresenter/services/remoteConversationRunner.ts',
     'src/main/presenter/cronJobs/runSessionStarter.ts',
@@ -111,6 +112,18 @@ const SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES = new Set([
 const SESSION_COMBINED_FACADE_NAMES = new Set([
   'SessionApplicationServices',
   'SessionApplicationCoordinator'
+])
+const SESSION_FACADE_CAPABILITY_CATEGORIES = new Map([
+  ['SessionLifecyclePort', 'lifecycle'],
+  ['SessionLifecycleCoordinator', 'lifecycle'],
+  ['SessionTurnPort', 'turn'],
+  ['SessionTurnCoordinator', 'turn'],
+  ['SessionAgentAssignmentPort', 'assignment'],
+  ['SessionAgentAssignmentCoordinator', 'assignment'],
+  ['SessionProjectionCoordinator', 'projection'],
+  ['SessionProjectionReadPort', 'projection'],
+  ['SessionProjectionMutationPort', 'projection'],
+  ['SessionWindowProjectionPort', 'projection']
 ])
 const SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN =
   /(?:^|[/_.-])(?:history|export(?:er)?|usage(?:[-_.]?stats?)?|rtk|legacy[-_.]?import(?:er|s)?|import(?:er|s)?|migrations?|translation|catalog)(?:$|[/_.-])/
@@ -249,10 +262,7 @@ function isUnder(targetPath, parentPath) {
 }
 
 function isSessionMigratedConsumerPath(filePath) {
-  return (
-    SESSION_MIGRATED_CONSUMER_PATHS.has(path.resolve(filePath)) ||
-    path.basename(filePath).startsWith('__architecture_guard_session_consumer_')
-  )
+  return SESSION_MIGRATED_CONSUMER_PATHS.has(path.resolve(filePath))
 }
 
 function isSessionApplicationOwnerPath(filePath) {
@@ -381,30 +391,107 @@ function findIdentifierNames(sourceFile, names) {
   return found
 }
 
+function resolveSessionApplicationOwner(expression, aliases) {
+  const unwrapped = unwrapExpression(expression)
+  if (ts.isIdentifier(unwrapped)) {
+    const owner = aliases.get(unwrapped.text) ?? unwrapped.text
+    return SESSION_APPLICATION_OWNER_NAMES.has(owner) ? owner : null
+  }
+
+  const owner = accessMemberName(unwrapped)
+  return owner && SESSION_APPLICATION_OWNER_NAMES.has(owner) ? owner : null
+}
+
 function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
-  const importedAliases = new Map()
+  const aliases = new Map()
   for (const record of importRecords) {
     if (SESSION_APPLICATION_OWNER_NAMES.has(record.importedName)) {
-      importedAliases.set(record.localName, record.importedName)
+      aliases.set(record.localName, record.importedName)
     }
   }
 
-  const owners = new Set()
+  const constDeclarations = []
+  const collectAliases = (node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isVariableDeclarationList(node.parent) &&
+      (node.parent.flags & ts.NodeFlags.Const) !== 0
+    ) {
+      constDeclarations.push(node)
+    }
+    ts.forEachChild(node, collectAliases)
+  }
+  collectAliases(sourceFile)
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const declaration of constDeclarations) {
+      const owner = resolveSessionApplicationOwner(declaration.initializer, aliases)
+      if (owner && aliases.get(declaration.name.text) !== owner) {
+        aliases.set(declaration.name.text, owner)
+        changed = true
+      }
+    }
+  }
+
+  const constructions = new Map()
   const visit = (node) => {
     if (ts.isNewExpression(node)) {
-      const expression = unwrapExpression(node.expression)
-      if (ts.isIdentifier(expression)) {
-        const owner = importedAliases.get(expression.text) ?? expression.text
-        if (SESSION_APPLICATION_OWNER_NAMES.has(owner)) owners.add(owner)
-      } else {
-        const owner = accessMemberName(expression)
-        if (owner && SESSION_APPLICATION_OWNER_NAMES.has(owner)) owners.add(owner)
+      const owner = resolveSessionApplicationOwner(node.expression, aliases)
+      if (owner) {
+        constructions.set(owner, (constructions.get(owner) ?? 0) + 1)
       }
     }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return owners
+  return constructions
+}
+
+function findCombinedSessionFacadeDeclarations(sourceFile, importRecords) {
+  const aliases = new Map(
+    importRecords
+      .filter((record) => SESSION_FACADE_CAPABILITY_CATEGORIES.has(record.importedName))
+      .map((record) => [record.localName, record.importedName])
+  )
+  const facades = []
+
+  const capabilityCategories = (nodes) => {
+    const categories = new Set()
+    const visit = (node) => {
+      if (ts.isIdentifier(node)) {
+        const name = aliases.get(node.text) ?? node.text
+        const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(name)
+        if (category) categories.add(category)
+      }
+      ts.forEachChild(node, visit)
+    }
+    for (const node of nodes) visit(node)
+    return categories
+  }
+
+  const visit = (node) => {
+    let name = null
+    let structure = []
+    if (ts.isInterfaceDeclaration(node)) {
+      name = node.name.text
+      structure = [...(node.heritageClauses ?? []), ...node.members]
+    } else if (ts.isTypeAliasDeclaration(node)) {
+      name = node.name.text
+      structure = [node.type]
+    } else if (ts.isClassDeclaration(node) && node.name) {
+      name = node.name.text
+      structure = [...(node.heritageClauses ?? [])]
+    }
+
+    if (name && capabilityCategories(structure).size === 4) facades.push(name)
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return facades
 }
 
 function isSessionPhaseOneForeignImport(value) {
@@ -1158,15 +1245,24 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         }
       }
 
-      if (path.resolve(filePath) !== path.resolve(PRESENTER_ROOT_ENTRY)) {
-        for (const owner of findSessionApplicationOwnerConstructions(sourceFile, importRecords)) {
+      const allowedOwnerConstructions =
+        path.resolve(filePath) === path.resolve(PRESENTER_ROOT_ENTRY) ? 1 : 0
+      for (const [owner, count] of findSessionApplicationOwnerConstructions(
+        sourceFile,
+        importRecords
+      )) {
+        if (count > allowedOwnerConstructions) {
           violations.push(
-            `[session-application-duplicate-construction] ${relativePath(filePath)} constructs ${owner}; construct session application owners only in src/main/presenter/index.ts`
+            `[session-application-duplicate-construction] ${relativePath(filePath)} constructs ${owner} ${count} times; expected <= ${allowedOwnerConstructions}`
           )
         }
       }
 
-      for (const facade of findIdentifierNames(sourceFile, SESSION_COMBINED_FACADE_NAMES)) {
+      const combinedFacades = findIdentifierNames(sourceFile, SESSION_COMBINED_FACADE_NAMES)
+      for (const facade of findCombinedSessionFacadeDeclarations(sourceFile, importRecords)) {
+        combinedFacades.add(facade)
+      }
+      for (const facade of combinedFacades) {
         violations.push(
           `[session-application-combined-facade] ${relativePath(filePath)} contains ${facade}`
         )
@@ -1180,7 +1276,9 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
             )
           }
         }
+      }
 
+      if (isUnder(filePath, SESSION_APPLICATION_ROOT)) {
         const wholeDependencies = findIdentifierNames(
           sourceFile,
           SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES
