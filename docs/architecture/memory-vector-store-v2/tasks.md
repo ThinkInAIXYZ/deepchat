@@ -87,10 +87,10 @@
 - [x] Change marker recovery to files-first and marker-last **within the destruction phase**;
       publish only after marker deletion succeeds. Sweep markers for deleted agents at process
       startup.
-- [ ] Make the production marker dependency required and replace manager quarantine double
+- [x] Make the production marker dependency required and replace manager quarantine double
       bookkeeping with one health field. Quarantined reset/retire/shutdown must not wait for or
       call native resources.
-- [ ] Return `cleanupPendingRestart` from memory clear and agent delete; run deletion cleanup
+- [x] Return `cleanupPendingRestart` from memory clear and agent delete; run deletion cleanup
       preflight before deleting repository state and surface the restart cleanup notice in UI.
 - [ ] Add unit, native, Windows handle, performance, and crash regression coverage, including a
       genuine HNSW v1 file renamed to the v2 path reaching the metadata self-check.

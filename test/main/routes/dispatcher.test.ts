@@ -414,6 +414,10 @@ function createRuntime() {
       }
       agents.splice(index, 1)
       return true
+    }),
+    deleteDeepChatAgentWithCleanup: vi.fn().mockImplementation(async (agentId: string) => {
+      const removed = await configPresenter.deleteDeepChatAgent(agentId)
+      return { removed, cleanupPendingRestart: false }
     })
   } as unknown as IConfigPresenter
 
@@ -3330,7 +3334,8 @@ describe('dispatchDeepchatRoute', () => {
     })
     expect(configPresenter.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
     expect(deleteResult).toEqual({
-      removed: true
+      removed: true,
+      cleanupPendingRestart: false
     })
   })
 

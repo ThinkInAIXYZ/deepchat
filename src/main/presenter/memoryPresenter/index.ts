@@ -9,6 +9,7 @@ import {
 } from './injection'
 import { isSafeAgentId } from '@shared/types/agent-memory'
 import type { AgentMemoryRow } from './types'
+import type { DeletedAgentMemoryCleanupResult, MemoryClearResult } from './domain/types'
 import type {
   MemoryCandidate,
   MemoryConflictPair,
@@ -139,7 +140,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const vectorStoreFactory: MemoryVectorStoreFactoryPort = {
       createVectorStore: deps.createVectorStore,
       resetVectorStore: deps.resetVectorStore,
-      markVectorStoreQuarantined: deps.markVectorStoreQuarantined ?? (() => undefined)
+      markVectorStoreQuarantined: deps.markVectorStoreQuarantined
     }
 
     this.runtime = new MemoryRuntimeContext({
@@ -566,19 +567,25 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   async clearMemories(agentId: string): Promise<number> {
+    return (await this.clearMemoriesWithCleanup(agentId)).removed
+  }
+
+  async clearMemoriesWithCleanup(agentId: string): Promise<MemoryClearResult> {
     const cleared = await this.management.clearMemories(agentId)
     this.diagnostics.cleanupAgent(agentId)
     return cleared
   }
 
-  async cleanupDeletedAgentResources(agentId: string): Promise<void> {
-    if (this.runtime.isDisposed) return
+  async cleanupDeletedAgentResources(agentId: string): Promise<DeletedAgentMemoryCleanupResult> {
+    if (this.runtime.isDisposed) return { cleanupPendingRestart: false }
     this.runtime.assertSafeAgentId(agentId)
     this.runtime.invalidateAgentOperations(agentId)
     this.maintenance.clearPrewarmTimer(agentId)
     let resetError: unknown
+    let cleanupPendingRestart = false
     try {
-      await this.vectorStore.retireAgentStore(agentId)
+      cleanupPendingRestart =
+        (await this.vectorStore.retireAgentStore(agentId)) === 'pending-restart'
     } catch (error) {
       resetError = error
     } finally {
@@ -586,13 +593,18 @@ export class MemoryPresenter implements MemoryRuntimePort {
       this.reflection.cleanupAgent(agentId)
       this.workingMemory.cleanupAgent(agentId)
       this.retrieval.cleanupAgent(agentId)
-      await this.embedding.cleanupAgent(agentId)
+      if (cleanupPendingRestart || this.vectorStore.isQuarantined(agentId)) {
+        this.embedding.abandonAgent(agentId)
+      } else {
+        await this.embedding.cleanupAgent(agentId)
+      }
       await this.vectorStore.settleAgent(agentId)
       await this.persona.cleanupAgent(agentId)
       this.runtime.cleanupAgent(agentId)
       this.diagnostics.cleanupAgent(agentId)
     }
     if (resetError) throw resetError
+    return { cleanupPendingRestart }
   }
 
   getStatus(agentId: string): MemoryStatus {

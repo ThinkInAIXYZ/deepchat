@@ -227,7 +227,7 @@ describe('renderer api clients', () => {
                 }
               }
             case 'config.deleteDeepChatAgent':
-              return { removed: true }
+              return { removed: true, cleanupPendingRestart: false }
             case 'sessions.getAgents':
               return {
                 agents: [

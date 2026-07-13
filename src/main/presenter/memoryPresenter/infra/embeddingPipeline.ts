@@ -11,6 +11,7 @@ import {
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '../runtimeConstants'
 import type { EmbeddedMemoryUpdate, FailedEmbeddingUpdate, MemoryVectorRecord } from '../types'
+import type { VectorStoreCleanupDisposition } from '../domain/types'
 import {
   embeddingFingerprint,
   type MemoryModelRef,
@@ -44,7 +45,7 @@ export interface EmbeddingPipelinePorts {
       leaseEpoch?: number
     ): void
     clearReady(agentId: string): void
-    resetAgentStore(agentId: string): Promise<void>
+    resetAgentStore(agentId: string): Promise<VectorStoreCleanupDisposition>
     isGenerationCurrent(agentId: string, generation: number): boolean
     withVectorMutation<T>(agentId: string, task: () => Promise<T>): Promise<T>
     withStoreLease<T>(
@@ -839,6 +840,10 @@ export class EmbeddingPipeline {
       await Promise.allSettled(inflight)
     }
 
+    this.abandonAgent(agentId)
+  }
+
+  abandonAgent(agentId: string): void {
     this.reindexing.delete(agentId)
     this.backfilling.delete(agentId)
     this.embeddingDrains.delete(agentId)

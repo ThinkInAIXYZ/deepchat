@@ -163,6 +163,7 @@
       "clearAll": "Wyczyść wszystko",
       "clearConfirmTitle": "Wyczyścić wszystkie wspomnienia?",
       "clearConfirmBody": "To trwale usuwa wszystkie wspomnienia tego agenta. Tej operacji nie można cofnąć.",
+      "cleanupPendingRestart": "Zablokowane pliki wektorowe zostaną usunięte po ponownym uruchomieniu",
       "emptyMemories": "Brak wspomnień. Gromadzą się podczas rozmów z tym agentem.",
       "emptyPersona": "Brak wersji modelu siebie.",
       "personaActive": "Aktywna",

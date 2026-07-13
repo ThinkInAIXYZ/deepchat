@@ -2558,6 +2558,7 @@
       "clearAll": "すべて消去",
       "clearConfirmTitle": "すべてのメモリを消去しますか？",
       "clearConfirmBody": "このエージェントのすべてのメモリを完全に削除します。元に戻せません。",
+      "cleanupPendingRestart": "ロックされたベクトルファイルは再起動後に削除されます",
       "emptyMemories": "まだメモリはありません。このエージェントと対話するにつれて蓄積されます。",
       "emptyPersona": "自己モデルのバージョンはまだありません。",
       "personaActive": "有効",

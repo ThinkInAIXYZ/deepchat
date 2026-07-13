@@ -646,11 +646,13 @@ export class Presenter implements IPresenter {
     })
     ;(
       this.configPresenter as IConfigPresenter & {
-        setDeepChatAgentDeleteCleanup?: (cleanup: (agentId: string) => Promise<void>) => void
+        setDeepChatAgentDeleteCleanup?: (
+          cleanup: (agentId: string) => Promise<{ cleanupPendingRestart: boolean }>
+        ) => void
       }
-    ).setDeepChatAgentDeleteCleanup?.(async (agentId) => {
-      await this.memoryPresenter.cleanupDeletedAgentResources(agentId)
-    })
+    ).setDeepChatAgentDeleteCleanup?.((agentId) =>
+      this.memoryPresenter.cleanupDeletedAgentResources(agentId)
+    )
     ;(
       this.configPresenter as IConfigPresenter & {
         setDeepChatAgentMemoryMaintenanceConfigChanged?: (

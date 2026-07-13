@@ -478,8 +478,13 @@ async function clearAll(): Promise<void> {
   if (!agentId || loading.value) return
   loading.value = true
   try {
-    await memoryClient.clear(agentId)
+    const result = await memoryClient.clear(agentId)
     if (props.agentId !== agentId) return
+    if (result.cleanupPendingRestart) {
+      toast({
+        title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+      })
+    }
     await load()
   } catch (error) {
     if (props.agentId !== agentId) return

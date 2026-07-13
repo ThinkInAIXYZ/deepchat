@@ -163,6 +163,7 @@
       "clearAll": "Cancella tutto",
       "clearConfirmTitle": "Cancellare tutte le memorie?",
       "clearConfirmBody": "Questo rimuove permanentemente tutte le memorie di questo agente. Non può essere annullato.",
+      "cleanupPendingRestart": "I file vettoriali bloccati verranno eliminati dopo il riavvio",
       "emptyMemories": "Ancora nessuna memoria. Si accumulano mentre chatti con questo agente.",
       "emptyPersona": "Ancora nessuna versione dell'automodello.",
       "personaActive": "Attiva",

@@ -2,6 +2,7 @@ import { vi } from 'vitest'
 
 import { MemoryPresenter as BaseMemoryPresenter } from '@/presenter/memoryPresenter'
 import type { ConflictService } from '@/presenter/memoryPresenter/services/conflictService'
+import type { VectorStoreManager } from '@/presenter/memoryPresenter/infra/vectorStoreManager'
 import type { MemoryPresenterDeps } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
@@ -47,14 +48,7 @@ type MemoryPresenterRuntimeTestSeams = {
       embedding: { providerId: string; modelId: string }
     ): void
   }
-  vectorStore: {
-    clearReady(agentId: string): void
-    closeAgentStore(agentId: string): Promise<void>
-    hasReadyCertificate(
-      agentId: string,
-      embedding: { providerId: string; modelId: string }
-    ): boolean
-  }
+  vectorStore: VectorStoreManager
   conflict: Pick<ConflictService, 'repairConflictIntegrity' | 'runChallengeResolutionPass'>
 }
 

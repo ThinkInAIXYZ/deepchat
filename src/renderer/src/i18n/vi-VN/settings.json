@@ -163,6 +163,7 @@
       "clearAll": "Xóa tất cả",
       "clearConfirmTitle": "Xóa tất cả ký ức?",
       "clearConfirmBody": "Thao tác này xóa vĩnh viễn mọi ký ức của tác nhân này. Không thể hoàn tác.",
+      "cleanupPendingRestart": "Các tệp vectơ bị khóa sẽ được xóa sau khi khởi động lại",
       "emptyMemories": "Chưa có ký ức. Chúng được tích lũy khi bạn trò chuyện với tác nhân này.",
       "emptyPersona": "Chưa có phiên bản mô hình bản thân.",
       "personaActive": "Đang dùng",

@@ -98,7 +98,7 @@ async function setup(
     getArchiveCandidateLifecyclePreview: vi.fn().mockResolvedValue(basePreview),
     listAuditEvents: vi.fn().mockResolvedValue(options.auditEvents ?? []),
     reindex: vi.fn().mockResolvedValue({ started: true }),
-    clear: vi.fn().mockResolvedValue(0)
+    clear: vi.fn().mockResolvedValue({ removed: 0, cleanupPendingRestart: false })
   }
   const toast = vi.fn()
   const t = vi.fn((key: string, params?: Record<string, string | number>) => {
@@ -349,9 +349,22 @@ describe('MemoryDiagnosticsPanel', () => {
     wrapper.unmount()
   })
 
+  it('shows a restart cleanup notice for quarantined vector files', async () => {
+    const { wrapper, memoryClient, toast } = await setup()
+    memoryClient.clear.mockResolvedValueOnce({ removed: 3, cleanupPendingRestart: true })
+
+    await clearAllActionButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.deepchatAgents.memoryManager.cleanupPendingRestart'
+    })
+    wrapper.unmount()
+  })
+
   it('drops a stale clear-all response after the agent changes', async () => {
     const { wrapper, memoryClient, toast } = await setup()
-    const pending = deferred<number>()
+    const pending = deferred<{ removed: number; cleanupPendingRestart: boolean }>()
     memoryClient.clear.mockReturnValueOnce(pending.promise)
 
     await clearAllActionButton(wrapper).trigger('click')
@@ -362,7 +375,7 @@ describe('MemoryDiagnosticsPanel', () => {
     await flushPromises()
     const healthCallsAfterAgentSwitch = memoryClient.getHealth.mock.calls.length
 
-    pending.resolve(0)
+    pending.resolve({ removed: 0, cleanupPendingRestart: false })
     await flushPromises()
     await flushPromises()
 

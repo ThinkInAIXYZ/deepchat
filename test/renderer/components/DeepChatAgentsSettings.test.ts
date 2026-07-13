@@ -156,7 +156,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(options.agents[0]),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined),
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false }),
       ...options.configPresenter
     }
     const toolPresenter = {
@@ -280,7 +282,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([
@@ -580,7 +584,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -675,7 +681,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -784,7 +792,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -955,7 +965,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(child),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
     const projectPresenter = {
@@ -1110,7 +1122,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -1226,7 +1240,9 @@ describe('DeepChatAgentsSettings', () => {
       ]),
       updateDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -1364,7 +1380,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue(createdAgent),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -1499,7 +1517,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -1672,7 +1692,9 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])

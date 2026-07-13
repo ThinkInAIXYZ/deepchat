@@ -2532,8 +2532,9 @@ export async function dispatchDeepchatRoute(
 
     case memoryClearRoute.name: {
       const input = memoryClearRoute.input.parse(rawInput)
-      const removed = await runtime.memoryPresenter.clearMemories(input.agentId)
-      return memoryClearRoute.output.parse({ removed })
+      return memoryClearRoute.output.parse(
+        await runtime.memoryPresenter.clearMemoriesWithCleanup(input.agentId)
+      )
     }
 
     case memoryRestoreRoute.name: {

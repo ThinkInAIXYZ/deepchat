@@ -323,10 +323,10 @@ unbounded await turns out to be.
       (`upsert` catch must not `ROLLBACK` on fatal, `create()` catch must not `close()` on
       fatal/timeout, `readEmbeddingMeta()` must propagate fatal errors instead of returning
       `null`).
-- [ ] Quarantine on fatal error in `vectorStoreManager.ts` `withStoreLease`: clearReady, health
+- [x] Quarantine on fatal error in `vectorStoreManager.ts` `withStoreLease`: clearReady, health
       → `quarantined`, `markVectorStoreQuarantined(agentId)` via the extended factory port,
       drop the cached instance without closing it.
-- [ ] Shutdown exclusion: `closeAllStores()` / dispose skip quarantined agents entirely — no
+- [x] Shutdown exclusion: `closeAllStores()` / dispose skip quarantined agents entirely — no
       `drainAndClose`, no lease-drain / agent-lock / mutation-lock waits, no `closeSync`;
       dispose completes within a fixed bound.
 - [x] Marker check at `MemoryVectorStore.create()`: marker present → destroy all agent store
@@ -335,7 +335,7 @@ unbounded await turns out to be.
 - [x] Terminal recovery errors: current/post-commit open and required recovery cleanup failures
       persist marker + close admission once; no same-process file retry. Fatal errors never
       close, while non-fatal failures close safely before cleanup.
-- [ ] Quarantined clear/delete lifecycle: no drain/lock/native waits, marker durability
+- [x] Quarantined clear/delete lifecycle: no drain/lock/native waits, marker durability
       preflight before repository deletion, and public `cleanupPendingRestart` result surfaced
       in Settings UI.
 - [ ] Fatal-error handling in `embeddingPipeline.ts` warm/verify flows → same quarantine path

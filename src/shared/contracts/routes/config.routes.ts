@@ -832,7 +832,8 @@ export const configDeleteDeepChatAgentRoute = defineRouteContract({
     agentId: z.string().min(1)
   }),
   output: z.object({
-    removed: z.boolean()
+    removed: z.boolean(),
+    cleanupPendingRestart: z.boolean()
   })
 })
 

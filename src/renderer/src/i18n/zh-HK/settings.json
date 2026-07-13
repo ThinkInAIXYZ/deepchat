@@ -2558,6 +2558,7 @@
       "clearAll": "清空全部",
       "clearConfirmTitle": "清空全部記憶？",
       "clearConfirmBody": "將永久刪除此助手的所有記憶，此操作無法復原。",
+      "cleanupPendingRestart": "已鎖定的向量檔案將在重新啟動後刪除",
       "emptyMemories": "尚無記憶。隨着與此助手對話會逐漸累積。",
       "emptyPersona": "尚無自我模型版本。",
       "personaActive": "目前生效",

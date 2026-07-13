@@ -1978,6 +1978,7 @@ export function makePresenter(
   repo = createFakeRepository(),
   options: {
     isManagedAgent?: (agentId: string) => boolean
+    markVectorStoreQuarantined?: MemoryPresenterDeps['markVectorStoreQuarantined']
     onMemoryChanged?: MemoryPresenterDeps['onMemoryChanged']
   } = {}
 ) {
@@ -1999,6 +2000,9 @@ export function makePresenter(
     auditRepository: auditRepo,
     resolveAgentConfig: () => config,
     isManagedAgent: options.isManagedAgent,
+    ...(options.markVectorStoreQuarantined
+      ? { markVectorStoreQuarantined: options.markVectorStoreQuarantined }
+      : {}),
     onMemoryChanged: options.onMemoryChanged,
     getEmbeddings,
     getDimensions,

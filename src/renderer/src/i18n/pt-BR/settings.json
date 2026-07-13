@@ -2558,6 +2558,7 @@
       "clearAll": "Limpar tudo",
       "clearConfirmTitle": "Limpar todas as memórias?",
       "clearConfirmBody": "Isso remove permanentemente todas as memórias deste agente. Não pode ser desfeito.",
+      "cleanupPendingRestart": "Os arquivos vetoriais bloqueados serão excluídos após a reinicialização",
       "emptyMemories": "Ainda sem memórias. Elas se acumulam conforme você conversa com este agente.",
       "emptyPersona": "Ainda sem versões do automodelo.",
       "personaActive": "Ativa",

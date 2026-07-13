@@ -2558,6 +2558,7 @@
       "clearAll": "Ryd alt",
       "clearConfirmTitle": "Ryd al hukommelse?",
       "clearConfirmBody": "Dette fjerner permanent alle minder for denne agent. Dette kan ikke fortrydes.",
+      "cleanupPendingRestart": "Låste vektorfiler slettes efter genstart",
       "emptyMemories": "Ingen minder endnu. De samles, mens du chatter med denne agent.",
       "emptyPersona": "Ingen selvmodel-versioner endnu.",
       "personaActive": "Aktiv",

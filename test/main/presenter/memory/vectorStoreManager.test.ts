@@ -134,7 +134,10 @@ describe('VectorStoreManager open failures', () => {
     await expect(
       manager.withStoreLease('agent', embedding, 4, async () => undefined)
     ).rejects.toMatchObject({ reason: 'quarantined' })
-    await expect(manager.resetAgentStore('agent')).rejects.toMatchObject({ reason: 'quarantined' })
+    await expect(manager.resetAgentStore('agent')).resolves.toBe('pending-restart')
+    await expect(manager.withVectorMutation('agent', async () => undefined)).rejects.toMatchObject({
+      reason: 'quarantined'
+    })
     manager.markReady('agent', embedding, 4)
     expect(manager.hasReadyCertificate('agent', embedding)).toBe(false)
     await manager.settleAgent('agent')
@@ -143,7 +146,7 @@ describe('VectorStoreManager open failures', () => {
     ).rejects.toMatchObject({ reason: 'quarantined' })
 
     expect(createVectorStore).toHaveBeenCalledTimes(1)
-    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(1)
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(2)
     expect(resetVectorStore).not.toHaveBeenCalled()
     await manager.closeAllStores()
   })
@@ -179,6 +182,9 @@ describe('VectorStoreManager open failures', () => {
     await expect(
       manager.withStoreLease('agent', embedding, 4, async () => undefined)
     ).rejects.toMatchObject({ reason: 'quarantined' })
+    await expect(manager.resetAgentStore('agent')).rejects.toMatchObject({
+      name: 'VectorStoreQuarantineMarkerError'
+    })
     await manager.closeAllStores()
   })
 
@@ -258,5 +264,101 @@ describe('VectorStoreManager runtime fatal failures', () => {
     expect(close).not.toHaveBeenCalled()
     await manager.closeAllStores()
     expect(close).not.toHaveBeenCalled()
+  })
+
+  it('settles and shuts down without awaiting a quarantined active lease', async () => {
+    const embedding = { providerId: 'p', modelId: 'm' }
+    const policy = {
+      resolveAgentConfig: () =>
+        ({ memoryEnabled: true, memoryEmbedding: embedding }) as DeepChatAgentConfig
+    }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const close = vi.fn(async () => undefined)
+    const store = { ...createStore(), close }
+    const manager = new VectorStoreManager({
+      ctx,
+      policy,
+      repository: {} as MemoryEmbeddingRepositoryPort,
+      vectorStoreFactory: {
+        createVectorStore: async () => store,
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined: () => undefined
+      }
+    })
+    let markWedgedLeaseStarted!: () => void
+    const wedgedLeaseStarted = new Promise<void>((resolve) => {
+      markWedgedLeaseStarted = resolve
+    })
+    const neverSettles = new Promise<void>(() => undefined)
+    const wedgedLease = manager
+      .withStoreLease('agent', embedding, 4, async () => {
+        markWedgedLeaseStarted()
+        await neverSettles
+      })
+      .catch(() => undefined)
+    void wedgedLease
+    await wedgedLeaseStarted
+
+    await expect(
+      manager.withStoreLease('agent', embedding, 4, async () => {
+        throw new Error('INTERNAL Error: concurrent fatal failure')
+      })
+    ).rejects.toMatchObject({ reason: 'quarantined' })
+
+    await expect(manager.settleAgent('agent')).resolves.toBeUndefined()
+    await expect(manager.closeAllStores()).resolves.toBeUndefined()
+    expect(close).not.toHaveBeenCalled()
+  })
+
+  it('converts an in-progress reset to pending when lease drain discovers quarantine', async () => {
+    const embedding = { providerId: 'p', modelId: 'm' }
+    const policy = {
+      resolveAgentConfig: () =>
+        ({ memoryEnabled: true, memoryEmbedding: embedding }) as DeepChatAgentConfig
+    }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const close = vi.fn(async () => undefined)
+    const store = { ...createStore(), close }
+    const resetVectorStore = vi.fn(async () => undefined)
+    const markVectorStoreQuarantined = vi.fn()
+    const manager = new VectorStoreManager({
+      ctx,
+      policy,
+      repository: {} as MemoryEmbeddingRepositoryPort,
+      vectorStoreFactory: {
+        createVectorStore: async () => store,
+        resetVectorStore,
+        markVectorStoreQuarantined
+      }
+    })
+    let markLeaseStarted!: () => void
+    let releaseLease!: () => void
+    const leaseStarted = new Promise<void>((resolve) => {
+      markLeaseStarted = resolve
+    })
+    const leaseGate = new Promise<void>((resolve) => {
+      releaseLease = resolve
+    })
+    const lease = manager.withStoreLease('agent', embedding, 4, async () => {
+      markLeaseStarted()
+      await leaseGate
+      throw new Error('INTERNAL Error: fatal while reset drains')
+    })
+    await leaseStarted
+    const reset = manager.resetAgentStore('agent')
+    releaseLease()
+
+    await expect(lease).rejects.toMatchObject({ reason: 'quarantined' })
+    await expect(reset).resolves.toBe('pending-restart')
+    expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(2)
+    expect(close).not.toHaveBeenCalled()
+    expect(resetVectorStore).not.toHaveBeenCalled()
+    await manager.closeAllStores()
   })
 })
