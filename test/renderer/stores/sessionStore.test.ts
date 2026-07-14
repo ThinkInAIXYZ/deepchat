@@ -722,7 +722,7 @@ describe('sessionStore.startNewConversation', () => {
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
 
-  it('keeps the active session agent when all agents is selected during a chat', async () => {
+  it('keeps the active session agent and workspace intent during a chat', async () => {
     const { store, agentStore, pageRouter, sessionClient } = await setupStore({
       selectedAgentId: null,
       enabledAgents: []
@@ -731,12 +731,36 @@ describe('sessionStore.startNewConversation', () => {
     store.sessions.value = [createSession({ id: 'session-active', agentId: 'acp-a' })]
     store.activeSessionId.value = 'session-active'
 
-    await store.startNewConversation({ refresh: true })
+    await store.startNewConversation({ refresh: true, projectDir: '/work/design' })
 
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(sessionClient.deactivate).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBeNull()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+    expect(store.newConversationProjectDirIntent.value).toEqual({
+      id: 1,
+      projectDir: '/work/design',
+      consumed: false
+    })
+
+    store.consumeNewConversationProjectDirIntent(1)
+
+    expect(store.newConversationProjectDirIntent.value?.consumed).toBe(true)
+  })
+
+  it('preserves an explicit null workspace intent for Chats', async () => {
+    const { store } = await setupStore({
+      selectedAgentId: 'deepchat',
+      enabledAgents: [{ id: 'deepchat' }]
+    })
+
+    await store.startNewConversation({ refresh: true, projectDir: null })
+
+    expect(store.newConversationProjectDirIntent.value).toEqual({
+      id: 1,
+      projectDir: null,
+      consumed: false
+    })
   })
 
   it('preserves the selected agent when one is already chosen', async () => {

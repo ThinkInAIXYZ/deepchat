@@ -1,6 +1,6 @@
 # Sidebar new chat workspace intent
 
-Status: diagnosed; implementation pending
+Status: implemented and validated
 
 Related contracts:
 
@@ -133,12 +133,12 @@ result dependent on async agent-config resolution and component mount timing.
 - [x] Trace the sidebar action through active-session teardown and new-thread initialization.
 - [x] Confirm the main-process project-directory precedence is correct.
 - [x] Record the regression and existing test gap.
-- [ ] Add a one-shot workspace intent to the unified new-conversation path.
-- [ ] Apply and consume the intent during new-thread draft initialization.
-- [ ] Update sidebar and session-store tests for the intent payload.
-- [ ] Add a regression test where an active agent default differs from the clicked workspace.
-- [ ] Add coverage for both a project-folder target and an explicit `Chats` target.
-- [ ] After implementation, rerun formatter, i18n validation, lint, and focused renderer tests.
+- [x] Add a one-shot workspace intent to the unified new-conversation path.
+- [x] Apply and consume the intent during new-thread draft initialization.
+- [x] Update sidebar and session-store tests for the intent payload.
+- [x] Add a regression test where an active agent default differs from the clicked workspace.
+- [x] Add coverage for both a project-folder target and an explicit `Chats` target.
+- [x] After implementation, rerun formatter, i18n validation, lint, and focused renderer tests.
 
 ## Validation
 

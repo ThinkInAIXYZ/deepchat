@@ -245,6 +245,7 @@ const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
 const isCompletingSwitchAgentGuide = ref(false)
 let currentDraftDefaultsTask: Promise<void> | null = null
+let draftDefaultsRequestSeq = 0
 let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
 let attachmentFilterToken = 0
@@ -925,10 +926,18 @@ const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgen
   })
 }
 
-const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
+const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<void> => {
   const agentId = selectedAgent.value.id
   const globalDefaultProjectPath = normalizeProjectPath(projectStore.defaultProjectPath)
   const currentProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
+  const pendingProjectDirIntent = sessionStore.newConversationProjectDirIntent
+  const projectDirIntent =
+    pendingProjectDirIntent && !pendingProjectDirIntent.consumed
+      ? {
+          id: pendingProjectDirIntent.id,
+          projectDir: normalizeProjectPath(pendingProjectDirIntent.projectDir)
+        }
+      : null
   draftStore.agentId = agentId
   draftStore.providerId = undefined
   draftStore.modelId = undefined
@@ -950,8 +959,12 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.videoGeneration = undefined
 
   if (selectedAgent.value.type === 'acp') {
-    const resolvedProjectPath = currentProjectPath ?? globalDefaultProjectPath
-    if (!currentProjectPath && globalDefaultProjectPath) {
+    const resolvedProjectPath = projectDirIntent
+      ? projectDirIntent.projectDir
+      : (currentProjectPath ?? globalDefaultProjectPath)
+    if (projectDirIntent) {
+      projectStore.selectProject(projectDirIntent.projectDir, 'manual')
+    } else if (!currentProjectPath && globalDefaultProjectPath) {
       projectStore.selectProject(globalDefaultProjectPath, 'default')
     }
     draftStore.projectDir = resolvedProjectPath ?? undefined
@@ -960,14 +973,23 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
     draftStore.permissionMode = 'full_access'
     draftStore.disabledAgentTools = []
     draftStore.subagentEnabled = false
+    if (projectDirIntent) {
+      sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+    }
     return
   }
 
   const config = await resolveDeepChatAgentConfig(agentId)
+  if (requestSeq !== draftDefaultsRequestSeq) {
+    return
+  }
   const agentDefaultProjectPath = normalizeProjectPath(config.defaultProjectPath)
-  const resolvedProjectPath =
-    agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath
-  if (agentDefaultProjectPath) {
+  const resolvedProjectPath = projectDirIntent
+    ? projectDirIntent.projectDir
+    : (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+  if (projectDirIntent) {
+    projectStore.selectProject(projectDirIntent.projectDir, 'manual')
+  } else if (agentDefaultProjectPath) {
     projectStore.selectProject(
       agentDefaultProjectPath,
       agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
@@ -982,6 +1004,9 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)]
   draftStore.subagentEnabled = config.subagentEnabled === true
   Object.assign(draftStore, buildDraftGenerationSettings(config))
+  if (projectDirIntent) {
+    sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+  }
 }
 
 function onAttach() {
@@ -1171,9 +1196,14 @@ watch(
 )
 
 watch(
-  () => [selectedAgent.value.id, selectedAgent.value.type] as const,
+  [
+    () => selectedAgent.value.id,
+    () => selectedAgent.value.type,
+    () => sessionStore.newConversationProjectDirIntent?.id ?? 0
+  ],
   () => {
-    const task = applyDraftDefaultsForSelectedAgent().finally(() => {
+    const requestSeq = ++draftDefaultsRequestSeq
+    const task = applyDraftDefaultsForSelectedAgent(requestSeq).finally(() => {
       if (currentDraftDefaultsTask === task) {
         currentDraftDefaultsTask = null
       }

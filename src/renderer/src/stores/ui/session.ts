@@ -60,8 +60,14 @@ export interface SessionGroup {
 }
 
 export type GroupMode = 'time' | 'project'
+export interface NewConversationProjectDirIntent {
+  id: number
+  projectDir: string | null
+  consumed: boolean
+}
 export type StartNewConversationOptions = {
   refresh?: boolean
+  projectDir?: string | null
 }
 export type CloseSessionOptions = {
   refresh?: boolean
@@ -280,12 +286,14 @@ export const useSessionStore = defineStore('session', () => {
   let initialPageRequestId = 0
   let nextPageRequestId = 0
   let activationNavigationRequestId = 0
+  let newConversationProjectDirIntentId = 0
   let sessionFetchPromise: Promise<void> | null = null
 
   const sessions = ref<UISession[]>([])
   const bootstrapActiveSession = ref<UISession | null>(null)
   const activeSessionSummary = ref<UIActiveSessionSummary | null>(null)
   const activeSessionId = ref<string | null>(null)
+  const newConversationProjectDirIntent = ref<NewConversationProjectDirIntent | null>(null)
   const groupMode = ref<GroupMode>(DEFAULT_GROUP_MODE)
   const loading = ref(false)
   const loadingMore = ref(false)
@@ -737,6 +745,17 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
+    newConversationProjectDirIntent.value = Object.prototype.hasOwnProperty.call(
+      options,
+      'projectDir'
+    )
+      ? {
+          id: ++newConversationProjectDirIntentId,
+          projectDir: options.projectDir?.trim() || null,
+          consumed: false
+        }
+      : null
+
     if (agentStore.selectedAgentId !== targetAgentId) {
       agentStore.setSelectedAgent(targetAgentId)
     }
@@ -748,6 +767,15 @@ export const useSessionStore = defineStore('session', () => {
 
     pageRouter.goToNewThread({ refresh: options.refresh ?? true })
     createActivationNavigationRequest()
+  }
+
+  function consumeNewConversationProjectDirIntent(intentId: number): void {
+    const intent = newConversationProjectDirIntent.value
+    if (!intent || intent.id !== intentId || intent.consumed) {
+      return
+    }
+
+    newConversationProjectDirIntent.value = { ...intent, consumed: true }
   }
 
   async function completeOnboardingStep(stepId: GuidedOnboardingStepId): Promise<void> {
@@ -1056,6 +1084,7 @@ export const useSessionStore = defineStore('session', () => {
   return {
     sessions,
     activeSessionId,
+    newConversationProjectDirIntent,
     groupMode,
     loading,
     loadingMore,
@@ -1077,6 +1106,7 @@ export const useSessionStore = defineStore('session', () => {
     selectSession,
     closeSession,
     startNewConversation,
+    consumeNewConversationProjectDirIntent,
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,

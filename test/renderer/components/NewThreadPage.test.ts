@@ -66,6 +66,14 @@ const setup = async (options?: {
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
   resolvedAgentConfig?: Record<string, unknown>
+  resolveDeepChatAgentConfig?: (agentId: string) => Promise<Record<string, unknown>>
+  selectedAgentId?: string
+  selectedAgentType?: 'deepchat' | 'acp'
+  newConversationProjectDirIntent?: {
+    id: number
+    projectDir: string | null
+    consumed?: boolean
+  } | null
   deferStartupTasks?: boolean
   modelStoreInitialized?: boolean
   initializeModels?: () => Promise<void>
@@ -107,15 +115,36 @@ const setup = async (options?: {
     openFolderPicker: vi.fn()
   })
 
-  const sessionStore = {
+  const initialProjectDirIntent = options?.newConversationProjectDirIntent
+    ? {
+        ...options.newConversationProjectDirIntent,
+        consumed: options.newConversationProjectDirIntent.consumed ?? false
+      }
+    : null
+  const sessionStore = reactive({
     createSession: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn().mockResolvedValue(undefined),
-    sendMessage: vi.fn().mockResolvedValue(undefined)
-  }
+    sendMessage: vi.fn().mockResolvedValue(undefined),
+    newConversationProjectDirIntent: initialProjectDirIntent,
+    consumeNewConversationProjectDirIntent: vi.fn((intentId: number) => {
+      const intent = sessionStore.newConversationProjectDirIntent
+      if (!intent || intent.id !== intentId || intent.consumed) {
+        return
+      }
+      sessionStore.newConversationProjectDirIntent = { ...intent, consumed: true }
+    })
+  })
 
+  const selectedAgentId = options?.selectedAgentId ?? 'acp-agent'
+  const selectedAgentType = options?.selectedAgentType ?? 'acp'
   const agentStore = reactive({
-    selectedAgentId: 'acp-agent',
-    selectedAgent: { id: 'acp-agent', name: 'ACP Agent', type: 'acp' as const, enabled: true }
+    selectedAgentId,
+    selectedAgent: {
+      id: selectedAgentId,
+      name: selectedAgentId,
+      type: selectedAgentType,
+      enabled: true
+    }
   })
 
   const getChatSelectableModelGroups = () => modelStore.enabledModels
@@ -180,11 +209,15 @@ const setup = async (options?: {
       }
       return Promise.resolve(undefined)
     }),
-    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue(
-      options?.resolvedAgentConfig ?? {
-        disabledAgentTools: [],
-        permissionMode: 'full_access'
-      }
+    resolveDeepChatAgentConfig: vi.fn(
+      options?.resolveDeepChatAgentConfig ??
+        (() =>
+          Promise.resolve(
+            options?.resolvedAgentConfig ?? {
+              disabledAgentTools: [],
+              permissionMode: 'full_access'
+            }
+          ))
     )
   }
 
@@ -719,6 +752,96 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       name: 'agent-writer'
     })
     expect(draftStore.projectDir).toBe('/workspaces/agent-writer')
+  })
+
+  it('prefers a new-conversation workspace intent over the agent default directory', async () => {
+    const { projectStore, draftStore, sessionStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      defaultProjectPath: '/workspaces/global',
+      resolvedAgentConfig: {
+        defaultProjectPath: '/workspaces/agent-writer',
+        disabledAgentTools: [],
+        permissionMode: 'full_access'
+      },
+      newConversationProjectDirIntent: {
+        id: 1,
+        projectDir: '/workspaces/design'
+      }
+    })
+
+    expect(projectStore.selectProject).toHaveBeenCalledWith('/workspaces/design', 'manual')
+    expect(projectStore.selectedProject).toEqual({
+      path: '/workspaces/design',
+      name: 'design'
+    })
+    expect(draftStore.projectDir).toBe('/workspaces/design')
+    expect(sessionStore.consumeNewConversationProjectDirIntent).toHaveBeenCalledWith(1)
+  })
+
+  it('preserves an explicit null Chats intent over the agent default directory', async () => {
+    const { projectStore, draftStore, sessionStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolvedAgentConfig: {
+        defaultProjectPath: '/workspaces/agent-writer',
+        disabledAgentTools: [],
+        permissionMode: 'full_access'
+      },
+      newConversationProjectDirIntent: {
+        id: 1,
+        projectDir: null
+      }
+    })
+
+    expect(projectStore.selectProject).toHaveBeenCalledWith(null, 'manual')
+    expect(projectStore.selectedProject).toBeNull()
+    expect(projectStore.selectionSource).toBe('manual')
+    expect(draftStore.projectDir).toBeUndefined()
+    expect(sessionStore.consumeNewConversationProjectDirIntent).toHaveBeenCalledWith(1)
+  })
+
+  it('fences stale agent defaults after a workspace intent arrives', async () => {
+    const configResolvers: Array<(config: Record<string, unknown>) => void> = []
+    const { projectStore, draftStore, sessionStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolveDeepChatAgentConfig: () =>
+        new Promise((resolve) => {
+          configResolvers.push(resolve)
+        })
+    })
+
+    expect(configResolvers).toHaveLength(1)
+
+    sessionStore.newConversationProjectDirIntent = {
+      id: 1,
+      projectDir: '/workspaces/design',
+      consumed: false
+    }
+    await Promise.resolve()
+    expect(configResolvers).toHaveLength(2)
+
+    configResolvers[1]({
+      defaultProjectPath: '/workspaces/agent-writer',
+      disabledAgentTools: [],
+      permissionMode: 'full_access'
+    })
+    await flushPromises()
+
+    configResolvers[0]({
+      defaultProjectPath: '/workspaces/agent-writer',
+      disabledAgentTools: [],
+      permissionMode: 'full_access'
+    })
+    await flushPromises()
+
+    expect(projectStore.selectedProject).toEqual({
+      path: '/workspaces/design',
+      name: 'design'
+    })
+    expect(draftStore.projectDir).toBe('/workspaces/design')
+    expect(sessionStore.consumeNewConversationProjectDirIntent).toHaveBeenCalledTimes(1)
   })
 
   it('prefers preferredModel over defaultModel when creating a deepchat session', async () => {

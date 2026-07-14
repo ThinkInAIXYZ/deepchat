@@ -545,7 +545,12 @@ import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
-import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
+import {
+  useSessionStore,
+  type SessionGroup,
+  type StartNewConversationOptions,
+  type UISession
+} from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import type { RemoteChannel, RemoteRuntimeState } from '@shared/presenter'
@@ -1250,19 +1255,23 @@ const navigateToChat = async () => {
   }
 }
 
-const handleNewChat = async () => {
+const startNewChat = async (options: StartNewConversationOptions) => {
   try {
     await navigateToChat()
   } catch (error) {
     console.warn('[WindowSideBar] Failed to switch to chat route:', error)
   } finally {
-    await sessionStore.startNewConversation({ refresh: true })
+    await sessionStore.startNewConversation(options)
   }
+}
+
+const handleNewChat = async () => {
+  await startNewChat({ refresh: true })
 }
 
 const handleNewChatForProject = async (projectPath: string | null) => {
   await projectStore.selectProject(projectPath, 'manual')
-  await handleNewChat()
+  await startNewChat({ refresh: true, projectDir: projectPath })
 }
 
 const handleAgentSelect = async (id: string | null) => {

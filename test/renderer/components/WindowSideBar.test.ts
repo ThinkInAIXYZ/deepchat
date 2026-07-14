@@ -718,7 +718,10 @@ describe('WindowSideBar agent switch', () => {
         'manual'
       )
       expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
-      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({
+        refresh: true,
+        projectDir: '/Users/test/Documents/DeepChat'
+      })
       expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
 
       await wrapper.find('[data-group-id="__chat__"]').trigger('click')
@@ -770,7 +773,10 @@ describe('WindowSideBar agent switch', () => {
 
       expect(projectStore.selectProject).toHaveBeenCalledWith('/work/design', 'manual')
       expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
-      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({
+        refresh: true,
+        projectDir: '/work/design'
+      })
 
       const { wrapper: timeWrapper } = await setup({
         groupMode: 'time',
