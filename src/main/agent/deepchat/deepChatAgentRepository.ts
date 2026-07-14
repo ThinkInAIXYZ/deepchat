@@ -205,4 +205,22 @@ export class DeepChatAgentRepository {
     if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) return mergeDeepChatConfig({}, builtin)
     return mergeDeepChatConfig(builtin, this.getConfig(agentId) ?? {})
   }
+
+  listResolvedConfigs(): Array<{ agentId: string; config: DeepChatAgentConfig }> {
+    const rows = this.dependencies.rows.list({ agentType: 'deepchat' })
+    const configByAgentId = new Map(
+      rows.map((row) => {
+        const parsed = parseJson<DeepChatAgentConfig>(row.config_json)
+        return [row.id, parsed ? normalizeDeepChatSubagentConfig(parsed) : null] as const
+      })
+    )
+    const builtin = configByAgentId.get(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    return rows.map((row) => ({
+      agentId: row.id,
+      config:
+        row.id === BUILTIN_DEEPCHAT_AGENT_ID
+          ? mergeDeepChatConfig({}, builtin)
+          : mergeDeepChatConfig(builtin, configByAgentId.get(row.id) ?? {})
+    }))
+  }
 }

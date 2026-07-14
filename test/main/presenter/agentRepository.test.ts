@@ -80,6 +80,16 @@ describe('AgentRepository', () => {
       systemPrompt: 'Builtin prompt',
       permissionMode: 'full_access'
     })
+    expect(repository.listResolvedDeepChatAgentConfigs()).toEqual([
+      expect.objectContaining({
+        agentId: 'deepchat',
+        config: expect.objectContaining({ systemPrompt: 'Builtin prompt' })
+      }),
+      expect.objectContaining({
+        agentId: 'broken-deepchat',
+        config: expect.objectContaining({ systemPrompt: 'Builtin prompt' })
+      })
+    ])
     expect(repository.getAgent('broken-registry')).toMatchObject({
       type: 'acp',
       agentType: 'acp',

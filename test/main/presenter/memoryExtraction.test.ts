@@ -329,6 +329,7 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
   async function build(config: any, generateText: any) {
     const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
     const repo = makeFakeRepo()
+    const onMemoryChanged = vi.fn()
     const presenter = new MemoryPresenter({
       executeWithRateLimit: vi.fn(async () => undefined),
       repository: repo as any,
@@ -344,9 +345,10 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
         close: async () => {},
         isUsable: () => true
       }),
-      resetVectorStore: async () => {}
+      resetVectorStore: async () => {},
+      onMemoryChanged
     } as any)
-    return { presenter, repo }
+    return { presenter, repo, onMemoryChanged }
   }
 
   it('skips the extraction call when triage returns SKIP, still ok (cursor advances)', async () => {
@@ -393,6 +395,42 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
     await expect(extraction).resolves.toEqual({ ok: false })
     expect(generateText).toHaveBeenCalledTimes(1)
     expect(repo.countByAgent('a')).toBe(0)
+  })
+
+  it('rejects a stale triage response across an enabled true-to-false-to-true ABA', async () => {
+    let memoryEnabled = true
+    let resolveTriage: (value: string) => void = () => {}
+    const triageGate = new Promise<string>((resolve) => {
+      resolveTriage = resolve
+    })
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return triageGate
+      return '[{"kind":"semantic","content":"user prefers redis"}]'
+    })
+    const config = {
+      get memoryEnabled() {
+        return memoryEnabled
+      }
+    }
+    const { presenter, repo, onMemoryChanged } = await build(config, generateText)
+
+    const extraction = presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    await Promise.resolve()
+
+    memoryEnabled = false
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    memoryEnabled = true
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    resolveTriage('KEEP')
+
+    await expect(extraction).resolves.toEqual({ ok: false })
+    expect(generateText).toHaveBeenCalledTimes(1)
+    expect(repo.countByAgent('a')).toBe(0)
+    expect(onMemoryChanged).not.toHaveBeenCalled()
   })
 
   it('falls through to extraction when triage itself fails', async () => {

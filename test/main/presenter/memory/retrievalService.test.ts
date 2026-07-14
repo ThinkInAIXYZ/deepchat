@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { appendMemorySection, buildMemorySection } from '@/presenter/memoryPresenter'
 import {
@@ -12,8 +12,17 @@ import {
   retrievalScore
 } from '@/presenter/memoryPresenter/core/scoring'
 import { FTS_SIMILARITY_BASELINE } from '@/presenter/memoryPresenter/types'
-import { enabledConfig, makePresenter } from '../fakes/memoryFakes'
-import { DAY, makeLLMPresenter, makeRow, routedLLM, seedEmbedded } from './serviceTestSupport'
+import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import { enabledConfig, makePresenter, textToVector } from '../fakes/memoryFakes'
+import {
+  DAY,
+  deferred,
+  makeLLMPresenter,
+  makeRow,
+  memoryRuntimeForTests,
+  routedLLM,
+  seedEmbedded
+} from './serviceTestSupport'
 
 describe('memory scoring', () => {
   it('distanceToSimilarity clamps to [0,1]', () => {
@@ -279,6 +288,161 @@ describe('MemoryPresenter recall + injection', () => {
     await presenter.processPendingEmbeddings('a')
     const payload = await presenter.buildInjection('a', 'redis')
     expect(payload?.payload.memories[0]?.breakdown).toBeUndefined()
+  })
+
+  it('does not return or record a stale recall across an enabled ABA transition', async () => {
+    let memoryEnabled = true
+    const config = {
+      get memoryEnabled() {
+        return memoryEnabled
+      },
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    } as DeepChatAgentConfig
+    const { presenter, repo, getEmbeddings } = makePresenter(config)
+    const [memoryId] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+    const pendingEmbedding = deferred<number[][]>()
+    const callsBeforeRecall = getEmbeddings.mock.calls.length
+    getEmbeddings.mockImplementationOnce(() => pendingEmbedding.promise)
+
+    const recall = presenter.recall('a', 'redis')
+    await vi.waitFor(() => {
+      expect(getEmbeddings).toHaveBeenCalledTimes(callsBeforeRecall + 1)
+    })
+    memoryEnabled = false
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    memoryEnabled = true
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    pendingEmbedding.resolve([textToVector('redis')])
+
+    await expect(recall).resolves.toEqual([])
+    expect(repo.getById(memoryId)?.access_count).toBe(0)
+    await presenter.dispose()
+  })
+
+  it('does not return stale search results across an enabled ABA transition', async () => {
+    let memoryEnabled = true
+    const config = {
+      get memoryEnabled() {
+        return memoryEnabled
+      },
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    } as DeepChatAgentConfig
+    const { presenter, getEmbeddings } = makePresenter(config)
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    const pendingEmbedding = deferred<number[][]>()
+    const callsBeforeSearch = getEmbeddings.mock.calls.length
+    getEmbeddings.mockImplementationOnce(() => pendingEmbedding.promise)
+
+    const search = presenter.searchMemories('a', 'redis')
+    await vi.waitFor(() => {
+      expect(getEmbeddings).toHaveBeenCalledTimes(callsBeforeSearch + 1)
+    })
+    memoryEnabled = false
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    memoryEnabled = true
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    pendingEmbedding.resolve([textToVector('redis')])
+
+    await expect(search).resolves.toEqual([])
+    await presenter.dispose()
+  })
+
+  it('rethrows a real retrieval error even when the operation fence becomes stale', async () => {
+    let memoryEnabled = true
+    const config = {
+      get memoryEnabled() {
+        return memoryEnabled
+      },
+      memoryEmbedding: null
+    } as DeepChatAgentConfig
+    const { presenter, repo } = makePresenter(config)
+    const failure = new Error('storage unavailable')
+    failure.name = 'AbortError'
+    vi.spyOn(repo, 'searchWithStrategy').mockImplementation(() => {
+      memoryEnabled = false
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+      memoryEnabled = true
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+      throw failure
+    })
+
+    await expect(presenter.recall('a', 'redis')).rejects.toBe(failure)
+    await presenter.dispose()
+  })
+
+  it('preserves vector-store recovery before rethrowing a stale real error', async () => {
+    let memoryEnabled = true
+    const config = {
+      get memoryEnabled() {
+        return memoryEnabled
+      },
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    } as DeepChatAgentConfig
+    const { presenter, store } = makePresenter(config)
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    const failure = new Error('vector store unavailable')
+    vi.spyOn(store, 'query').mockImplementation(async () => {
+      memoryEnabled = false
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+      memoryEnabled = true
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+      throw failure
+    })
+    const vectorStore = memoryRuntimeForTests(presenter).vectorStoreService
+    const clearReady = vi.spyOn(vectorStore, 'clearReady')
+
+    await expect(presenter.recall('a', 'redis')).rejects.toBe(failure)
+    expect(clearReady).toHaveBeenCalledWith('a')
+    await presenter.dispose()
+  })
+
+  it('does not seed execution state for an unmanaged search Agent', async () => {
+    const { presenter } = makePresenter(enabledConfig, undefined, {
+      isManagedAgent: (agentId) => agentId !== 'unmanaged-agent'
+    })
+
+    await expect(presenter.searchMemories('unmanaged-agent', 'redis')).resolves.toEqual([])
+    const runtime = (
+      presenter as unknown as {
+        runtime: { listObservedExecutionAgentIds(): string[] }
+      }
+    ).runtime
+    expect(runtime.listObservedExecutionAgentIds()).not.toContain('unmanaged-agent')
+    await presenter.dispose()
+  })
+
+  it('returns no injection from a read admitted before an enabled ABA transition', async () => {
+    let memoryEnabled = true
+    const config = {
+      get memoryEnabled() {
+        return memoryEnabled
+      },
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    } as DeepChatAgentConfig
+    const { presenter, getEmbeddings } = makePresenter(config)
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    const pendingEmbedding = deferred<number[][]>()
+    const callsBeforeInjection = getEmbeddings.mock.calls.length
+    getEmbeddings.mockImplementationOnce(() => pendingEmbedding.promise)
+
+    const injection = presenter.buildInjection('a', 'redis')
+    await vi.waitFor(() => {
+      expect(getEmbeddings).toHaveBeenCalledTimes(callsBeforeInjection + 1)
+    })
+    memoryEnabled = false
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    memoryEnabled = true
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    pendingEmbedding.resolve([textToVector('redis')])
+
+    await expect(injection).resolves.toBeNull()
+    await presenter.dispose()
   })
 })
 

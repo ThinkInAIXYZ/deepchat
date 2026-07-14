@@ -111,6 +111,13 @@ export class AgentRepository {
     return this.deepchat.resolveConfig(agentId)
   }
 
+  listResolvedDeepChatAgentConfigs(): Array<{
+    agentId: string
+    config: DeepChatAgentConfig
+  }> {
+    return this.deepchat.listResolvedConfigs()
+  }
+
   listManualAcpAgents(): AcpManualAgent[] {
     return this.acp.listManual()
   }

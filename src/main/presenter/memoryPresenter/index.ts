@@ -2,12 +2,14 @@ import {
   appendMemorySection,
   appendMemorySectionWithManifest,
   buildMemorySection,
+  type MemoryExecutionToken,
   type MemoryInjectionOptions,
   type MemoryInjectionPayload,
   type MemoryInjectionPort,
   type MemoryInjectionResult,
   type MemoryRuntimePort
 } from './injection'
+import logger from '@shared/logger'
 import { isSafeAgentId } from '@shared/types/agent-memory'
 import type { AgentMemoryRow } from './types'
 import {
@@ -59,6 +61,10 @@ import {
   MemoryDiagnosticsCollector
 } from './infra/diagnostics/memoryDiagnosticsCollector'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
+import {
+  resolveMemoryEmbedding,
+  type MemoryExecutionConfigObservation
+} from './core/executionIdentity'
 import type {
   MemoryAgentPolicyPort,
   MemoryPerfObserver,
@@ -68,6 +74,7 @@ import type {
 
 export { appendMemorySection, appendMemorySectionWithManifest, buildMemorySection, isSafeAgentId }
 export type {
+  MemoryExecutionToken,
   MemoryInjectionPayload,
   MemoryInjectionOptions,
   MemoryInjectionPort,
@@ -103,6 +110,11 @@ function observeRepository(
   })
 }
 
+interface ExecutionConfigSyncResult {
+  observation: MemoryExecutionConfigObservation
+  embeddingIdentityChanged: boolean
+}
+
 export class MemoryPresenter implements MemoryRuntimePort {
   private readonly repository: MemoryRepositoryPort
   private readonly policy: MemoryAgentPolicyPort
@@ -131,6 +143,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
       resolveAgentConfig: deps.resolveAgentConfig,
       resolveAgentDefaultModel: deps.resolveAgentDefaultModel,
       isManagedAgent: deps.isManagedAgent,
+      listManagedAgentIds: deps.listManagedAgentIds,
+      listManagedAgentConfigs: deps.listManagedAgentConfigs,
       listManagedMemoryAgentIds: deps.listManagedMemoryAgentIds
     }
     const repository = this.repository
@@ -167,6 +181,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
       perfObserver,
       diagnostics: this.diagnostics
     })
+    try {
+      this.syncAgentExecutionConfig(BUILTIN_DEEPCHAT_AGENT_ID)
+    } catch (error) {
+      logger.warn(`[Memory] builtin execution config baseline failed: ${String(error)}`)
+    }
     this.embedding = new EmbeddingPipeline({
       ctx: this.runtime,
       repository,
@@ -332,6 +351,17 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.runtime.canReadAgentMemory(agentId)
   }
 
+  captureExecutionToken(agentId: string): MemoryExecutionToken {
+    if (isSafeAgentId(agentId) && this.runtime.isManagedAgent(agentId)) {
+      this.syncAgentExecutionConfig(agentId)
+    }
+    return this.runtime.captureOperationFence(agentId)
+  }
+
+  canContinueExecution(token: MemoryExecutionToken): boolean {
+    return this.runtime.canContinueOperation(token)
+  }
+
   canReindex(agentId: string): boolean {
     return this.runtime.canContinueAgentMemoryTask(agentId)
   }
@@ -366,27 +396,86 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   onAgentMemoryMaintenanceConfigChanged(agentId: string, delayMs?: number): void {
-    const embedding = this.policy.resolveAgentConfig(agentId)?.memoryEmbedding
-    const identityChanged = this.vectorStore.noteEmbeddingConfig(
-      agentId,
-      embedding?.providerId && embedding?.modelId
-        ? { providerId: embedding.providerId, modelId: embedding.modelId }
-        : null
-    )
-    if (identityChanged) this.runtime.invalidateAgentOperations(agentId)
-    this.maintenance.onAgentMemoryMaintenanceConfigChanged(agentId, delayMs)
+    if (this.runtime.isDisposed) return
+    try {
+      if (isSafeAgentId(agentId) && this.runtime.isManagedAgent(agentId)) {
+        this.syncAgentExecutionConfig(agentId)
+      }
+    } catch (error) {
+      logger.warn(`[Memory] execution config sync failed for ${agentId}: ${String(error)}`)
+    } finally {
+      this.maintenance.onAgentMemoryMaintenanceConfigChanged(agentId, delayMs)
+    }
   }
 
   onBuiltinDeepChatMemoryMaintenanceConfigChanged(): void {
-    const embedding = this.policy.resolveAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID)?.memoryEmbedding
-    const identityChanged = this.vectorStore.noteEmbeddingConfig(
-      BUILTIN_DEEPCHAT_AGENT_ID,
-      embedding?.providerId && embedding?.modelId
-        ? { providerId: embedding.providerId, modelId: embedding.modelId }
-        : null
+    if (this.runtime.isDisposed) return
+    try {
+      let builtinSync: ExecutionConfigSyncResult | null = null
+      try {
+        builtinSync = this.syncAgentExecutionConfig(BUILTIN_DEEPCHAT_AGENT_ID)
+      } catch (error) {
+        logger.warn(`[Memory] builtin execution config sync failed: ${String(error)}`)
+      }
+
+      const shouldFanOut =
+        builtinSync === null ||
+        builtinSync.observation !== 'unchanged' ||
+        builtinSync.embeddingIdentityChanged
+      if (!shouldFanOut) return
+
+      const candidateAgentIds = new Set(this.runtime.listObservedExecutionAgentIds())
+      let managedConfigs: Map<
+        string,
+        ReturnType<MemoryAgentPolicyPort['resolveAgentConfig']>
+      > | null = null
+      try {
+        const entries = this.policy.listManagedAgentConfigs?.()
+        if (entries) {
+          managedConfigs = new Map(entries.map(({ agentId, config }) => [agentId, config]))
+          for (const agentId of managedConfigs.keys()) candidateAgentIds.add(agentId)
+        } else {
+          for (const agentId of this.policy.listManagedAgentIds?.() ?? []) {
+            candidateAgentIds.add(agentId)
+          }
+        }
+      } catch (error) {
+        logger.warn(`[Memory] managed Agent config enumeration failed: ${String(error)}`)
+      }
+
+      for (const agentId of [...candidateAgentIds].sort()) {
+        if (agentId === BUILTIN_DEEPCHAT_AGENT_ID || !isSafeAgentId(agentId)) continue
+        try {
+          if (managedConfigs) {
+            const config = managedConfigs.get(agentId)
+            if (!config) continue
+            this.syncAgentExecutionConfig(agentId, config)
+          } else if (this.runtime.isManagedAgent(agentId)) {
+            this.syncAgentExecutionConfig(agentId)
+          }
+        } catch (error) {
+          logger.warn(`[Memory] execution config sync failed for ${agentId}: ${String(error)}`)
+        }
+      }
+    } finally {
+      this.maintenance.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+    }
+  }
+
+  private syncAgentExecutionConfig(
+    agentId: string,
+    resolvedConfig?: ReturnType<MemoryAgentPolicyPort['resolveAgentConfig']>
+  ): ExecutionConfigSyncResult {
+    const config = resolvedConfig ?? this.policy.resolveAgentConfig(agentId)
+    const observation = this.runtime.noteAgentExecutionConfig(agentId, config)
+    const embeddingIdentityChanged = this.vectorStore.noteEmbeddingConfig(
+      agentId,
+      resolveMemoryEmbedding(config)
     )
-    if (identityChanged) this.runtime.invalidateAgentOperations(BUILTIN_DEEPCHAT_AGENT_ID)
-    this.maintenance.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+    if (embeddingIdentityChanged && observation !== 'changed') {
+      this.runtime.invalidateAgentOperations(agentId)
+    }
+    return { observation, embeddingIdentityChanged }
   }
 
   async runConsolidationPass(agentId: string, now: number = Date.now()): Promise<void> {
@@ -428,6 +517,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
     options: WriteMemoriesOptions,
     model?: { providerId: string; modelId: string } | null
   ): Promise<MemoryWriteOutcome> {
+    if (isSafeAgentId(options.agentId) && this.runtime.isManagedAgent(options.agentId)) {
+      this.syncAgentExecutionConfig(options.agentId)
+    }
     if (unicodeCodePointLength(candidate.content) > AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS) {
       return { action: 'noop', reason: 'content-too-large' }
     }
@@ -435,6 +527,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
+    if (isSafeAgentId(agentId) && this.runtime.isManagedAgent(agentId)) {
+      this.syncAgentExecutionConfig(agentId)
+    }
     return this.retrieval.recall(agentId, query, now)
   }
 
@@ -443,6 +538,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
     query: string,
     options: { limit?: number } = {}
   ): Promise<MemorySearchHit[]> {
+    if (isSafeAgentId(agentId) && this.runtime.isManagedAgent(agentId)) {
+      this.syncAgentExecutionConfig(agentId)
+    }
     return this.retrieval.searchMemories(agentId, query, options)
   }
 
@@ -457,6 +555,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     sessionId?: string | null
   ): Promise<MemoryWriteOutcome> {
     this.runtime.assertSafeAgentId(agentId)
+    if (this.runtime.isManagedAgent(agentId)) this.syncAgentExecutionConfig(agentId)
     if (unicodeCodePointLength(input.content) > AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS) {
       return { action: 'noop', reason: 'content-too-large' }
     }

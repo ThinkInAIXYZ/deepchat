@@ -93,6 +93,8 @@ export interface MemoryPresenterDeps {
   resolveAgentConfig: MemoryAgentPolicyPort['resolveAgentConfig']
   resolveAgentDefaultModel?: MemoryAgentPolicyPort['resolveAgentDefaultModel']
   isManagedAgent?: MemoryAgentPolicyPort['isManagedAgent']
+  listManagedAgentIds?: MemoryAgentPolicyPort['listManagedAgentIds']
+  listManagedAgentConfigs?: MemoryAgentPolicyPort['listManagedAgentConfigs']
   listManagedMemoryAgentIds?: MemoryAgentPolicyPort['listManagedMemoryAgentIds']
   executeWithRateLimit: (
     providerId: string,

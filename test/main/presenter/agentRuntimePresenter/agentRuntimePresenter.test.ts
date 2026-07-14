@@ -715,12 +715,34 @@ describe('AgentRuntimePresenter', () => {
   const getMemoryCoordinator = () =>
     (agent as unknown as { memoryCoordinator: MemoryRuntimeCoordinator }).memoryCoordinator
 
+  let installedMemoryPort: any
   const setMemoryPort = (port: any) => {
-    getMemoryCoordinator().setPort(port)
+    const isEnabled = port.isEnabled ?? vi.fn(() => true)
+    installedMemoryPort = {
+      ...port,
+      isEnabled,
+      captureExecutionToken:
+        port.captureExecutionToken ?? vi.fn((agentId: string) => ({ agentId, generation: 0 })),
+      canContinueExecution:
+        port.canContinueExecution ??
+        vi.fn(
+          (token: { agentId: string; generation: number }) =>
+            token.generation === 0 && isEnabled(token.agentId)
+        )
+    }
+    getMemoryCoordinator().setPort(installedMemoryPort)
+  }
+
+  const captureMemoryExecutionToken = (sessionId = 's1') => {
+    if (!installedMemoryPort) throw new Error('memory port has not been installed')
+    const coordinator = getMemoryCoordinator()
+    const agentId = (coordinator as any).deps.getSessionAgentId(sessionId) ?? 'deepchat'
+    return installedMemoryPort.captureExecutionToken(agentId)
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
+    installedMemoryPort = undefined
     ;(processStream as ReturnType<typeof vi.fn>).mockReset()
     ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'completed' })
     const skillPresenter = getSkillPresenterMock()
@@ -1151,7 +1173,8 @@ describe('AgentRuntimePresenter', () => {
           ],
           reason: 'fallback'
         },
-        epoch
+        epoch,
+        captureMemoryExecutionToken()
       ) as Promise<void>
     }
 
@@ -1282,7 +1305,8 @@ describe('AgentRuntimePresenter', () => {
       await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [1, 2, 3, 4, 5].map(extractionChunk), reason: 'fallback' },
-        epoch
+        epoch,
+        captureMemoryExecutionToken()
       )
       await waitForExtractionChain()
 
@@ -1307,7 +1331,8 @@ describe('AgentRuntimePresenter', () => {
       await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [1, 2, 3].map(extractionChunk), reason: 'fallback' },
-        epoch
+        epoch,
+        captureMemoryExecutionToken()
       )
 
       expect(extractAndStore).toHaveBeenCalledTimes(2)
@@ -1330,7 +1355,8 @@ describe('AgentRuntimePresenter', () => {
       await getMemoryCoordinator().runExtractionChunks(
         's1',
         { chunks: [extractionChunk(2)], reason: 'compaction' },
-        epoch
+        epoch,
+        captureMemoryExecutionToken()
       )
 
       expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).toHaveBeenCalledWith(

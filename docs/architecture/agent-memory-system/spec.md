@@ -51,9 +51,10 @@ These hold across every module and are the system's core invariants.
     bounded fresh retry; unresolved conflict participants cannot be independently mutated.
 11. **Bounded external lifecycles.** Provider work passes RateLimit admission and purpose deadlines;
     vector operations use manager-owned leases, and disposal has one five-second drain deadline.
-12. **Destructive generations are separate from read epochs.** Ordinary semantic mutations advance the
-    per-agent read epoch; clear, agent deletion, and dispose invalidate a destructive operation generation
-    and abort stale provider continuations before they can write rows, cursors, audits, events, or vectors.
+12. **Execution epochs are separate from read epochs.** Ordinary semantic mutations advance the per-Agent
+    read epoch. Clear, Agent deletion, dispose, and effective `memoryEnabled` / `memoryEmbedding` transitions
+    advance one per-Agent execution epoch and abort stale provider continuations before they can write rows,
+    cursors, audits, events, vectors, prompt sections, or access accounting.
 13. **Scale is contractually bounded.** Recall chooses either indexed FTS or one LIKE fallback; extraction
     batches candidate recall/decisions; embedding persists in bulk; maintenance has row/call/token/concurrency
     budgets; startup, vector-store residency, management pages, content, and operational audit history all
@@ -118,7 +119,7 @@ flowchart TD
 | Layer | File | Responsibility |
 | --- | --- | --- |
 | Kernel | `src/main/presenter/memoryPresenter/index.ts` | `MemoryPresenter` facade — public method compatibility, service wiring, narrow port binding, `dispose()` and deleted-agent cleanup orchestration |
-| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — read epochs, destructive operation generations, disposed state, validation/guard helpers, private provider abort coordination, audit/events, and model resolution; it exposes no repository/provider/vector escape hatch |
+| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — read epochs, execution epochs and effective execution-config identity, disposed state, validation/guard helpers, private provider abort coordination, audit/events, and model resolution; it exposes no repository/provider/vector escape hatch |
 | Kernel | `memoryPresenter/runtimeConstants.ts` | Internal runtime scheduling, lifecycle, working-memory, and warmup constants |
 | Domain | `memoryPresenter/domain/types.ts` | Persistence-shaped memory rows plus lifecycle, recall, write, management, and maintenance domain types; no runtime or storage-concrete dependencies |
 | Domain | `memoryPresenter/domain/audit.ts` | Content-free audit rows, actors, statuses, inputs, and query result types |
@@ -305,15 +306,16 @@ flowchart TD
 
 **`buildInjection` details**
 
-- Captures the per-agent read epoch, then resolves recalled units with access recording disabled. After all
-  provider/vector awaits, retrieval performs one agent-scoped `listByIds` authoritative re-read of the
+- Captures the per-Agent read epoch and execution fence, then resolves recalled units with access recording
+  disabled. After all provider/vector awaits, retrieval performs one Agent-scoped `listByIds` authoritative re-read of the
   FTS/vector union and replaces stale snapshots with the latest rows.
 - Re-checks the original epoch, synchronously flushes any correctness-only working dirty state, captures the
   post-flush epoch, and only then reads the **active** persona and working blob. Draft/rejected persona is
   never injected and working reads do not bump `access_count`.
-- Performs one final enabled/managed/disposed/epoch gate and returns immediately without another await. Any
-  concurrent semantic mutation fails the whole injection closed; the coordinator separately re-checks enablement
-  before prompt append, access accounting, and the `memory/view_assembled` anchor.
+- Performs one final enabled/managed/disposed/read-epoch/execution-fence gate and returns immediately without
+  another await. Any concurrent semantic mutation or enabled/embedding ABA transition fails the whole
+  injection closed. The coordinator binds its own execution token before the await and revalidates it before
+  prompt append, access accounting, and the `memory/view_assembled` anchor.
 - Produces a `MemoryInjectionPayload` (selfModel + working + memories + `tokenBudget`) and a manifest
   (selected/dropped/queryHash). The coordinator appends the section and persists a `memory/view_assembled`
   anchor.
@@ -397,6 +399,14 @@ last fragment succeeds. One queue task processes at most four chunks and enqueue
 the same session chain. Triage and extraction receive the exact same complete chunk—there is no prompt-side
 tail slice. `parseTriageDecision` skips only on an explicit `SKIP` without `KEEP`; a thrown triage call remains
 fail-open. A successful SKIP consumes only that chunk's committable message boundary.
+
+Queue admission also binds the resolved Agent identity and its current execution token. The token is checked
+when the task starts and after each asynchronous extraction response. Cursor and Tape-anchor commits form the
+immediately following synchronous segment, so no configuration callback can interleave between validation and
+those writes. Continuation tasks inherit the original token; a configuration transition or session Agent change
+makes the queued work stale without advancing its cursor, writing an anchor, or automatically re-enqueuing it.
+A later normal admission captures a fresh token and scans from the retained cursor to the then-current tail.
+Ordinary tasks still resolve the session epoch at start, while continuations retain their expected session epoch.
 
 **Extraction.** For each complete chunk the model returns at most **8** raw candidates (enforced both in the
 prompt and as a hard parse cap), each `{category, content, importance}`. Parsing is tolerant
@@ -583,6 +593,16 @@ changes fan out to active inheritors with the same deterministic stagger. Render
 config patches, so unchanged model keys do not reach this field-presence gate. Every arm funnels into
 `runConsolidationPass`, which then enforces the cooldown.
 
+Execution invalidation is intentionally separate from that maintenance fan-out. A custom config update
+synchronizes the Agent's resolved `memoryEnabled + memoryEmbedding` identity. A builtin update synchronizes the
+builtin first and skips execution fan-out when that identity is unchanged. A real builtin transition bulk
+resolves all managed DeepChat Agents—including disabled Agents—in one repository read, unions them with observed
+execution states, and advances only Agents whose resolved identity actually changed; explicit child overrides
+therefore remain valid. Enumeration and per-Agent synchronization failures are isolated, and maintenance arming
+still runs. The builtin baseline and every first Agent observation seed identity without advancing the epoch.
+Extraction-model, assistant-model, default-preset, and persona-policy changes may arm future maintenance but do
+not invalidate already-admitted execution.
+
 **Restart-durable cooldown.** The LLM-backed work runs at most once per **6 hours** per agent. The watermark
 is seeded from the audit table (`getLatestCompletedEventAt('memory/maintenance_llm')`) when the in-memory
 value is absent, so the cooldown survives restarts. Within the cooldown only cheap local upkeep runs (no LLM,
@@ -739,10 +759,16 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   startup/maintenance repair restores missing target state, archives invalid challengers, clears orphan
   challenged state, and removes stray `conflict_with` links. The participant lookup uses the
   `(agent_id, conflict_with, status, superseded_by)` index.
-- **Read epoch vs. destructive generation.** Every semantic SQLite commit advances the agent read epoch;
-  operational access/decay/embedding/audit writes do not. Clear invalidates the destructive operation
-  generation before row deletion even for an empty store; agent deletion does so before its first await.
-  Those paths also abort the agent's provider work, so late completions cannot recreate cleared data.
+- **Read epoch vs. execution epoch.** Every semantic SQLite commit advances the Agent read epoch;
+  operational access/decay/embedding/audit writes do not. One per-Agent execution epoch covers both
+  destructive invalidation and resolved `memoryEnabled + memoryEmbedding` changes. Clear advances it before
+  row deletion even for an empty store; Agent deletion does so before its first await. Configuration
+  synchronization occurs at Presenter admission and config notifications, updating runtime and vector identity
+  together; fence capture itself is an O(1) epoch read. Observation seeds without advancing, then each effective
+  transition—including A-to-B-to-A—advances once. All such paths abort the Agent's provider work, so late
+  completions cannot recreate cleared data or cross a configuration boundary. Agent cleanup removes the observed
+  configuration snapshot but retains the advanced epoch, preventing a previously captured fence from becoming
+  valid after state recreation.
 - **Embedding-drain config guard.** A background embedding drain captures the embedding identity it started
   with; before writing vectors, and before a reindex reset, it re-checks the agent's current `memoryEmbedding`
   fingerprint and discards the batch if the config changed mid-flight, so a stale drain can never write
@@ -866,7 +892,9 @@ Memory is a first-class, top-level settings section, configured strictly per-age
 - **Inheritance.** Per-agent config inherits the builtin `deepchat` root then applies its own overrides
   (`override ?? base ?? default`). Clearing an override writes an **explicit `null`** (so an inherited value
   is never ossified onto a child agent); untouched booleans are omitted from the patch. The agent editor
-  keeps only an "enable memory" toggle + a deep-link to this page.
+  keeps only an "enable memory" toggle + a deep-link to this page. Builtin execution-identity changes enumerate
+  all managed DeepChat Agents without post-update enabled filtering and invalidate only inheritors whose
+  effective enabled/embedding identity changed.
 
 ---
 

@@ -18,6 +18,16 @@ import {
 
 export const DAY = 24 * 60 * 60 * 1000
 
+export function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 export class MemoryPresenter extends BaseMemoryPresenter {
   constructor(deps: ConstructorParameters<typeof BaseMemoryPresenter>[0]) {
     super({ executeWithRateLimit: vi.fn(async () => undefined), ...deps })

@@ -1,7 +1,8 @@
 import logger from '@shared/logger'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { appendMemorySectionWithManifest } from '@/presenter/memoryPresenter/injection'
-import type { MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
+import type { MemoryExecutionToken, MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/presenter/agentRepository'
 import { withSoftDeadline } from '@/presenter/memoryPresenter/core/asyncDeadline'
 import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
 import type {
@@ -140,8 +141,9 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     try {
       this.deps.assertCurrentSessionHandle(input.session)
       const sessionId = input.session.sessionId
-      const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
+      const agentId = this.resolveSessionAgentId(sessionId)
       if (!this.memoryPort.isEnabled(agentId)) return input.basePrompt
+      const executionToken = this.memoryPort.captureExecutionToken(agentId)
       const injectionAbort = new AbortController()
       const deadlineResult = await withSoftDeadline(
         this.memoryPort.buildInjection(agentId, input.query, { signal: injectionAbort.signal }),
@@ -155,7 +157,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         return input.basePrompt
       }
       const injection = deadlineResult.value
-      if (!this.memoryPort.isEnabled(agentId)) return input.basePrompt
+      if (!this.canContinueExecution(sessionId, executionToken)) return input.basePrompt
       const assembled = appendMemorySectionWithManifest(input.basePrompt, injection)
       if (assembled.manifest) {
         if (assembled.manifest.degradations?.length) {
@@ -163,7 +165,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
             `[DeepChatAgent] memory injection degraded for session=${sessionId} causes=${assembled.manifest.degradations.join(',')}`
           )
         }
-        if (this.memoryPort.isEnabled(agentId)) {
+        if (this.canContinueExecution(sessionId, executionToken)) {
           this.recordInjectionAccess(
             agentId,
             sessionId,
@@ -171,7 +173,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
             input.messageId
           )
         }
-        if (this.memoryPort.isEnabled(agentId)) {
+        if (this.canContinueExecution(sessionId, executionToken)) {
           try {
             this.deps.appendTapeAnchor({
               sessionId,
@@ -255,7 +257,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       const sessionId = input.session.sessionId
       if (!this.isMemoryEnabled(sessionId)) return
       const toOrderSeq = Math.max(1, input.targetCursorOrderSeq)
-      this.enqueueSessionExtraction(sessionId, async (epoch) => {
+      this.enqueueSessionExtraction(sessionId, async (epoch, executionToken) => {
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
         const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
         const window = this.buildExtractionWindow(sessionId, cursor, toOrderSeq)
@@ -263,7 +265,8 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         await this.runExtractionChunks(
           sessionId,
           { chunks: window.chunks, reason: 'compaction' },
-          epoch
+          epoch,
+          executionToken
         )
       })
     } catch (error) {
@@ -288,10 +291,19 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
 
   enqueueSessionExtraction(
     sessionId: string,
-    task: (epoch: number) => Promise<void>,
-    expectedEpoch?: number
+    task: (epoch: number, executionToken: MemoryExecutionToken) => Promise<void>,
+    expectedEpoch?: number,
+    expectedExecutionToken?: MemoryExecutionToken
   ): void {
-    if (!this.acceptingIngestion) return
+    if (!this.acceptingIngestion || !this.memoryPort) return
+    const agentId = this.resolveSessionAgentId(sessionId)
+    const executionToken = expectedExecutionToken ?? this.memoryPort.captureExecutionToken(agentId)
+    if (
+      executionToken.agentId !== agentId ||
+      !this.memoryPort.canContinueExecution(executionToken)
+    ) {
+      return
+    }
     const admissionGeneration = this.ingestionAdmissionGeneration
     const queueId = ++this.nextExtractionQueueId
     this.extractionQueue.set(queueId, { sessionId, queuedAt: Date.now() })
@@ -300,9 +312,10 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     const runTask = async () => {
       try {
         if (admissionGeneration !== this.ingestionAdmissionGeneration) return
+        if (!this.canContinueExecution(sessionId, executionToken)) return
         const currentEpoch = this.ensureSessionEpoch(sessionId)
         if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
-        await task(expectedEpoch ?? currentEpoch)
+        await task(expectedEpoch ?? currentEpoch, executionToken)
       } finally {
         this.extractionQueue.delete(queueId)
         this.observeExtractionQueue()
@@ -337,18 +350,19 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       chunks: readonly MemoryExtractionChunk[]
       reason: 'compaction' | 'fallback'
     },
-    epoch: number
+    epoch: number,
+    executionToken: MemoryExecutionToken
   ): Promise<void> {
     if (!this.memoryPort) return
     try {
-      const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
-      if (!this.memoryPort.isEnabled(agentId)) return
+      const agentId = executionToken.agentId
+      if (!this.canContinueExecution(sessionId, executionToken)) return
       const state = this.deps.getSessionRuntimeState(sessionId)
       if (!state || !this.isSessionEpochCurrent(sessionId, epoch)) return
 
       const currentTaskChunks = options.chunks.slice(0, MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK)
       for (const chunk of currentTaskChunks) {
-        if (!this.memoryPort.isEnabled(agentId)) return
+        if (!this.canContinueExecution(sessionId, executionToken)) return
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
         const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
         if (chunk.coveredThroughOrderSeq <= cursor) continue
@@ -360,7 +374,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
           sourceSession: sessionId,
           sourceEntryIds: chunk.sourceEntryIds
         })
-        if (!result.ok || !this.memoryPort.isEnabled(agentId)) return
+        if (!result.ok || !this.canContinueExecution(sessionId, executionToken)) return
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
 
         if (chunk.cursorCommitOrderSeq !== null) {
@@ -386,19 +400,21 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       const remaining = options.chunks.slice(MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK)
       if (
         remaining.length > 0 &&
-        this.memoryPort.isEnabled(agentId) &&
+        this.canContinueExecution(sessionId, executionToken) &&
         this.isSessionEpochCurrent(sessionId, epoch)
       ) {
         this.enqueueSessionExtraction(
           sessionId,
-          async (continuationEpoch) => {
+          async (continuationEpoch, continuationExecutionToken) => {
             await this.runExtractionChunks(
               sessionId,
               { chunks: remaining, reason: options.reason },
-              continuationEpoch
+              continuationEpoch,
+              continuationExecutionToken
             )
           },
-          epoch
+          epoch,
+          executionToken
         )
       }
     } catch (error) {
@@ -503,7 +519,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   private enqueueFallbackExtraction(sessionId: string): void {
     if (!this.isMemoryEnabled(sessionId)) return
 
-    this.enqueueSessionExtraction(sessionId, async (epoch) => {
+    this.enqueueSessionExtraction(sessionId, async (epoch, executionToken) => {
       if (!this.isSessionEpochCurrent(sessionId, epoch)) return
       const tailOrderSeq = this.deps.getNextMessageOrderSeq(sessionId) - 1
       const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
@@ -519,15 +535,28 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       await this.runExtractionChunks(
         sessionId,
         { chunks: window.chunks, reason: 'fallback' },
-        epoch
+        epoch,
+        executionToken
       )
     })
   }
 
+  private canContinueExecution(sessionId: string, executionToken: MemoryExecutionToken): boolean {
+    if (!this.memoryPort) return false
+    const agentId = this.resolveSessionAgentId(sessionId)
+    return (
+      agentId === executionToken.agentId && this.memoryPort.canContinueExecution(executionToken)
+    )
+  }
+
   private isMemoryEnabled(sessionId: string): boolean {
     if (!this.memoryPort) return false
-    const agentId = this.deps.getSessionAgentId(sessionId) ?? 'deepchat'
+    const agentId = this.resolveSessionAgentId(sessionId)
     return this.memoryPort.isEnabled(agentId)
+  }
+
+  private resolveSessionAgentId(sessionId: string): string {
+    return this.deps.getSessionAgentId(sessionId) ?? BUILTIN_DEEPCHAT_AGENT_ID
   }
 
   private injectionAccessKey(sessionId: string, messageId: string): string {

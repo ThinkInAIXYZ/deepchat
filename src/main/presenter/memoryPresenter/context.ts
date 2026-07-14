@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid'
+import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   isSafeAgentId,
   type AgentMemoryAuditActorType,
@@ -7,6 +8,12 @@ import {
 import type { MemoryUpdateReason } from '@shared/contracts/events/memory.events'
 
 import type { MemoryModelRef, MemoryUpdateContext } from './domain/types'
+import {
+  memoryEmbeddingFingerprint,
+  memoryExecutionConfigFingerprint,
+  type MemoryExecutionConfigObservation,
+  type MemoryExecutionToken
+} from './core/executionIdentity'
 import type {
   MemoryAgentPolicyPort,
   MemoryAuditWritePort,
@@ -16,9 +23,11 @@ import type {
 
 export type { MemoryModelRef } from './domain/types'
 
-export interface MemoryOperationFence {
-  agentId: string
+export type MemoryOperationFence = MemoryExecutionToken
+
+interface MemoryExecutionState {
   generation: number
+  configFingerprint?: string
 }
 
 export interface MemoryRuntimeContextOptions {
@@ -30,7 +39,7 @@ export interface MemoryRuntimeContextOptions {
 }
 
 export function embeddingFingerprint(providerId: string, modelId: string): string {
-  return `${providerId}:${modelId}`
+  return memoryEmbeddingFingerprint({ providerId, modelId })
 }
 
 export function isUniqueConstraintError(error: unknown): boolean {
@@ -43,7 +52,7 @@ export function isUniqueConstraintError(error: unknown): boolean {
 export class MemoryRuntimeContext {
   private disposed = false
   private readonly readEpochByAgent = new Map<string, number>()
-  private readonly operationGenerationByAgent = new Map<string, number>()
+  private readonly executionStateByAgent = new Map<string, MemoryExecutionState>()
 
   constructor(private readonly options: MemoryRuntimeContextOptions) {}
 
@@ -62,14 +71,14 @@ export class MemoryRuntimeContext {
   captureOperationFence(agentId: string): MemoryOperationFence {
     return {
       agentId,
-      generation: this.operationGenerationByAgent.get(agentId) ?? 0
+      generation: this.getOrCreateExecutionState(agentId).generation
     }
   }
 
   isOperationFenceCurrent(fence: MemoryOperationFence): boolean {
     return (
       !this.disposed &&
-      (this.operationGenerationByAgent.get(fence.agentId) ?? 0) === fence.generation
+      (this.executionStateByAgent.get(fence.agentId)?.generation ?? 0) === fence.generation
     )
   }
 
@@ -78,10 +87,33 @@ export class MemoryRuntimeContext {
   }
 
   invalidateAgentOperations(agentId: string): number {
-    const generation = (this.operationGenerationByAgent.get(agentId) ?? 0) + 1
-    this.operationGenerationByAgent.set(agentId, generation)
+    const state = this.getOrCreateExecutionState(agentId)
+    const generation = state.generation + 1
+    state.generation = generation
     this.options.providerControl.abortAgent(agentId)
     return generation
+  }
+
+  noteAgentExecutionConfig(
+    agentId: string,
+    config: DeepChatAgentConfig | null
+  ): MemoryExecutionConfigObservation {
+    const state = this.getOrCreateExecutionState(agentId)
+    const fingerprint = memoryExecutionConfigFingerprint(config)
+    if (state.configFingerprint === undefined) {
+      state.configFingerprint = fingerprint
+      return 'seeded'
+    }
+    if (state.configFingerprint === fingerprint) return 'unchanged'
+    state.configFingerprint = fingerprint
+    this.invalidateAgentOperations(agentId)
+    return 'changed'
+  }
+
+  listObservedExecutionAgentIds(): string[] {
+    return [...this.executionStateByAgent.entries()]
+      .filter(([, state]) => state.configFingerprint !== undefined)
+      .map(([agentId]) => agentId)
   }
 
   captureReadEpoch(agentId: string): number {
@@ -100,11 +132,22 @@ export class MemoryRuntimeContext {
 
   cleanupAgent(agentId: string): void {
     this.readEpochByAgent.delete(agentId)
+    const executionState = this.executionStateByAgent.get(agentId)
+    if (executionState) executionState.configFingerprint = undefined
   }
 
   clearRuntimeState(): void {
     this.readEpochByAgent.clear()
-    this.operationGenerationByAgent.clear()
+    this.executionStateByAgent.clear()
+  }
+
+  private getOrCreateExecutionState(agentId: string): MemoryExecutionState {
+    let state = this.executionStateByAgent.get(agentId)
+    if (!state) {
+      state = { generation: 0 }
+      this.executionStateByAgent.set(agentId, state)
+    }
+    return state
   }
 
   isEnabled(agentId: string): boolean {

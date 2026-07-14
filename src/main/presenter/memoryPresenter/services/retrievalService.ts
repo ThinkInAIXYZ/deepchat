@@ -13,6 +13,7 @@ import {
   resolveRetrieval
 } from '../core/scoring'
 import { withSoftDeadline } from '../core/asyncDeadline'
+import { isMemoryProviderAbortError } from '../core/providerCancellation'
 import {
   buildRecallKeywordQuery,
   extractRecallKeywordCandidates,
@@ -42,7 +43,12 @@ import {
   type NormalizedMemoryCandidate
 } from '../types'
 import { VectorStoreLeaseUnavailableError, VectorStoreQueryTimeoutError } from '../domain/types'
-import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import {
+  embeddingFingerprint,
+  type MemoryModelRef,
+  type MemoryOperationFence,
+  type MemoryRuntimeContext
+} from '../context'
 import type {
   MemoryAccessRepositoryPort,
   MemoryAgentPolicyPort,
@@ -113,6 +119,13 @@ function vectorStoreDegradation(
     return 'storeUnusable'
   }
   return activeStage === 'queryEmbedding' ? 'embeddingError' : 'storeError'
+}
+
+function isStaleExecutionCancellation(error: unknown, isDisposed: boolean): boolean {
+  return (
+    isMemoryProviderAbortError(error) ||
+    (isDisposed && error instanceof VectorStoreLeaseUnavailableError && error.reason === 'stopped')
+  )
 }
 
 export class RetrievalService {
@@ -521,11 +534,14 @@ export class RetrievalService {
         ? Math.min(MAX_TOP_K, Math.max(0, Math.floor(options.limit)))
         : MEMORY_SEARCH_DEFAULT_LIMIT
     if (limit === 0) return []
+    if (!this.ctx.canReadAgentMemory(agentId)) return []
+    const operationFence = this.ctx.captureOperationFence(agentId)
     const hits = await this.retrieve(agentId, query, Date.now(), false, {
       purpose: 'search',
       topKOverride: limit,
       enableInlinePrune: false
     })
+    if (!this.ctx.canContinueOperation(operationFence)) return []
     const limited = hits.slice(0, limit)
     const results: MemorySearchHit[] = []
     for (const hit of limited) {
@@ -561,11 +577,13 @@ export class RetrievalService {
     let vectorCandidates = 0
     let selected = 0
     let activeStage: MemoryRecallLatencyStage | 'idle' = 'idle'
+    let operationFence: MemoryOperationFence | null = null
     try {
       if (!this.ctx.canReadAgentMemory(agentId)) {
         outcome = 'disabled'
         return []
       }
+      operationFence = this.ctx.captureOperationFence(agentId)
       throwIfAborted(options.signal)
       const config = this.ports.policy.resolveAgentConfig(agentId)
       const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
@@ -641,13 +659,13 @@ export class RetrievalService {
                 )
               } else {
                 const vectors = vectorsResult.value
-                if (!this.ctx.canReadAgentMemory(agentId)) {
+                if (!this.ctx.canContinueOperation(operationFence)) {
                   outcome = 'cancelled'
                   return []
                 }
                 const vector = vectors[0]
                 if (vector?.length) {
-                  if (!this.ctx.canReadAgentMemory(agentId)) {
+                  if (!this.ctx.canContinueOperation(operationFence)) {
                     outcome = 'cancelled'
                     return []
                   }
@@ -662,7 +680,7 @@ export class RetrievalService {
                   )
                   throwIfAborted(options.signal)
                   latencyMs.vector = performance.now() - vectorStartedAt
-                  if (!this.ctx.canReadAgentMemory(agentId)) {
+                  if (!this.ctx.canContinueOperation(operationFence)) {
                     outcome = 'cancelled'
                     return []
                   }
@@ -670,7 +688,7 @@ export class RetrievalService {
                     this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
                     this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
                   ) {
-                    if (!this.ctx.canReadAgentMemory(agentId)) {
+                    if (!this.ctx.canContinueOperation(operationFence)) {
                       outcome = 'cancelled'
                       return []
                     }
@@ -680,13 +698,16 @@ export class RetrievalService {
                       if (similarity < similarityThreshold) continue
                       vecCandidates.push({ memoryId: match.memoryId, similarity })
                     }
-                    if (this.ctx.canReadAgentMemory(agentId) && !this.ports.isReindexing(agentId)) {
+                    if (
+                      this.ctx.canContinueOperation(operationFence) &&
+                      !this.ports.isReindexing(agentId)
+                    ) {
                       void this.ports.backfillEmbeddings(agentId).catch((error) => {
                         logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
                       })
                     }
                   } else if (
-                    this.ctx.canReadAgentMemory(agentId) &&
+                    this.ctx.canContinueOperation(operationFence) &&
                     !this.ports.isReindexing(agentId)
                   ) {
                     degradations.add('revisionChanged')
@@ -699,7 +720,8 @@ export class RetrievalService {
             }
           } catch (error) {
             if (options.signal?.aborted) throwIfAborted(options.signal)
-            if (!this.ctx.canReadAgentMemory(agentId)) {
+            const executionIsCurrent = this.ctx.canContinueOperation(operationFence)
+            if (!executionIsCurrent && isStaleExecutionCancellation(error, this.ctx.isDisposed)) {
               outcome = 'cancelled'
               return []
             }
@@ -718,10 +740,18 @@ export class RetrievalService {
               )
             )
             logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
+            if (!executionIsCurrent) {
+              outcome = 'cancelled'
+              throw error
+            }
           }
         }
       }
 
+      if (!this.ctx.canContinueOperation(operationFence)) {
+        outcome = 'cancelled'
+        return []
+      }
       const candidateIds = [
         ...ftsRows.map((row) => row.id),
         ...vecCandidates.map((candidate) => candidate.memoryId)
@@ -761,7 +791,7 @@ export class RetrievalService {
       if (
         options.enableInlinePrune !== false &&
         vectorContext &&
-        this.ctx.canReadAgentMemory(agentId)
+        this.ctx.canContinueOperation(operationFence)
       ) {
         throwIfAborted(options.signal)
         const liveVectorIds = new Set(authoritativeVecMatches.map((match) => match.row.id))
@@ -798,7 +828,7 @@ export class RetrievalService {
       })
       latencyMs.assembly = performance.now() - assemblyStartedAt
       selected = results.length
-      if (recordAccessHits && this.ctx.canReadAgentMemory(agentId)) {
+      if (recordAccessHits) {
         this.ports.repository.recordAccessBatch(
           results.map((item) => item.id),
           now
@@ -807,8 +837,12 @@ export class RetrievalService {
       outcome = 'completed'
       return results
     } catch (error) {
-      if (options.signal?.aborted || !this.ctx.canReadAgentMemory(agentId)) outcome = 'cancelled'
-      else {
+      if (operationFence && !this.ctx.canContinueOperation(operationFence)) {
+        outcome = 'cancelled'
+        if (isStaleExecutionCancellation(error, this.ctx.isDisposed)) return []
+      } else if (options.signal?.aborted || !this.ctx.canReadAgentMemory(agentId)) {
+        outcome = 'cancelled'
+      } else {
         outcome = 'failed'
         degradations.add(
           activeStage === 'keyword' || activeStage === 'authoritativeRevalidation'
@@ -837,6 +871,8 @@ export class RetrievalService {
     options: MemoryInjectionOptions = {}
   ): Promise<MemoryInjectionResult | null> {
     throwIfAborted(options.signal)
+    if (!this.ctx.canReadAgentMemory(agentId)) return null
+    const operationFence = this.ctx.captureOperationFence(agentId)
     const readEpoch = this.ctx.captureReadEpoch(agentId)
     const config = this.ports.policy.resolveAgentConfig(agentId)
     const degradations = new Set<MemoryRetrievalDegradationCause>()
@@ -848,7 +884,10 @@ export class RetrievalService {
       signal: options.signal
     })
     throwIfAborted(options.signal)
-    if (!this.ctx.canReadAgentMemory(agentId) || !this.ctx.isReadEpochCurrent(agentId, readEpoch)) {
+    if (
+      !this.ctx.canContinueOperation(operationFence) ||
+      !this.ctx.isReadEpochCurrent(agentId, readEpoch)
+    ) {
       return null
     }
     this.ports.workingMemory.flushWorkingMemoryIfDirty(agentId)
@@ -859,7 +898,7 @@ export class RetrievalService {
     if (!working) this.ports.workingMemory.scheduleWorkingRefresh(agentId)
     throwIfAborted(options.signal)
     if (
-      !this.ctx.canReadAgentMemory(agentId) ||
+      !this.ctx.canContinueOperation(operationFence) ||
       !this.ctx.isReadEpochCurrent(agentId, finalizedEpoch)
     ) {
       return null

@@ -6,6 +6,7 @@ export {
   resolveInjectionTokenBudget
 } from './core/injectionPort'
 export type {
+  MemoryExecutionToken,
   MemoryInjectionManifest,
   MemoryInjectionOptions,
   MemoryInjectionPayload,

@@ -1,6 +1,7 @@
 import type { MemoryRetrievalDegradationCause } from '@shared/types/agent-memory'
 
 import type { AgentMemoryKind } from '../domain/types'
+import type { MemoryExecutionToken } from './executionIdentity'
 import type {
   MemoryExtractionResult,
   MemoryPersonaDraftResult,
@@ -105,9 +106,15 @@ export interface MemoryInjectionPort {
   ): Promise<MemoryInjectionResult | null>
 }
 
+export type { MemoryExecutionToken } from './executionIdentity'
+
 // Adds extraction entry points on top of injection. Extraction is an independent cheap
 // LLM call that never touches summarization.
 export interface MemoryRuntimePort extends MemoryInjectionPort {
+  // Runtime work binds this token at admission and must retain it across queued continuations.
+  captureExecutionToken(agentId: string): MemoryExecutionToken
+  canContinueExecution(token: MemoryExecutionToken): boolean
+
   observeExtractionQueue?(depth: number, oldestQueuedAt: number | null): void
 
   // Records memory rows that actually entered the assembled runtime prompt. Runtime owns the
