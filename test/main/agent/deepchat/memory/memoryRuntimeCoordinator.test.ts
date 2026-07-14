@@ -71,7 +71,7 @@ function createHarness() {
   const runtimeStates = new Map([['s1', { providerId: 'openai', modelId: 'gpt-4' }]])
   const handles = new Map<string, MemorySessionHandle>()
   const executionGenerations = new Map<string, number>()
-  const isEnabled = vi.fn(() => true)
+  const isEnabled = vi.fn((_agentId: string) => true)
   const port = {
     isEnabled,
     captureExecutionToken: vi.fn((agentId: string) => ({
