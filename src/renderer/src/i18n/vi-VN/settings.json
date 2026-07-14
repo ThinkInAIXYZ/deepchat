@@ -2971,8 +2971,8 @@
     "acpUnavailableTitle": "Plugin không khả dụng cho tác nhân ACP",
     "acpUnavailableDescription": "Tác nhân ACP quản lý công cụ và tiện ích mở rộng trong môi trường chạy riêng. Chọn một tác nhân DeepChat để sử dụng plugin.",
     "agentScopeUnsupported": "Tiện ích mở rộng theo từng tác nhân chỉ khả dụng cho tác nhân DeepChat.",
-    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
-    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
-    "currentAgentFallback": "current agent"
+    "scopeGlobalPlugins": "Trang này mang tính toàn ứng dụng: cài đặt, bật/tắt và trạng thái tiến trình của plugin chính thức được chia sẻ cho mọi tác nhân DeepChat.",
+    "scopeCurrentAgent": "Trang này là chính sách tác nhân: thay đổi chỉ ảnh hưởng đến khả dụng Skills/MCP của “{agent}”, không ảnh hưởng cài đặt toàn cục.",
+    "currentAgentFallback": "tác nhân hiện tại"
   }
 }

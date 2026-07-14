@@ -2980,8 +2980,8 @@
     "acpUnavailableTitle": "תוספים אינם זמינים לסוכני ACP",
     "acpUnavailableDescription": "סוכני ACP מנהלים כלים והרחבות בסביבת הריצה שלהם. יש לבחור סוכן DeepChat כדי להשתמש בתוספים.",
     "agentScopeUnsupported": "הרחבות ברמת הסוכן זמינות רק לסוכני DeepChat.",
-    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
-    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
-    "currentAgentFallback": "current agent"
+    "scopeGlobalPlugins": "עמוד זה הוא גלובלי לאפליקציה: התקנה, הפעלה ומצב תהליך של תוספים רשמיים משותפים לכל סוכני DeepChat.",
+    "scopeCurrentAgent": "עמוד זה הוא מדיניות סוכן: השינויים משפיעים רק על זמינות Skills/MCP של „{agent}”, לא על התקנות גלובליות.",
+    "currentAgentFallback": "הסוכן הנוכחי"
   }
 }

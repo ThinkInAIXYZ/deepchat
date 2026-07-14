@@ -2980,8 +2980,8 @@
     "acpUnavailableTitle": "افزونه‌ها برای عامل‌های ACP در دسترس نیستند",
     "acpUnavailableDescription": "عامل‌های ACP ابزارها و افزونه‌ها را در محیط اجرای خود مدیریت می‌کنند. برای استفاده از افزونه‌ها، یک عامل DeepChat را انتخاب کنید.",
     "agentScopeUnsupported": "افزونه‌های ویژهٔ هر عامل فقط برای عامل‌های DeepChat در دسترس هستند.",
-    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
-    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
-    "currentAgentFallback": "current agent"
+    "scopeGlobalPlugins": "این صفحه سراسری برنامه است: نصب، فعال‌سازی و وضعیت فرایند افزونه‌های رسمی بین همه عامل‌های DeepChat مشترک است.",
+    "scopeCurrentAgent": "این صفحه سیاست عامل است: تغییرات فقط روی در دسترس بودن Skills/MCP برای «{agent}» اثر می‌گذارد، نه روی نصب‌های سراسری.",
+    "currentAgentFallback": "عامل فعلی"
   }
 }

@@ -2971,8 +2971,8 @@
     "acpUnavailableTitle": "Eklentiler ACP ajanları için kullanılamaz",
     "acpUnavailableDescription": "ACP ajanları araçları ve uzantıları kendi çalışma ortamlarında yönetir. Eklentileri kullanmak için bir DeepChat ajanı seçin.",
     "agentScopeUnsupported": "Ajan düzeyindeki uzantılar yalnızca DeepChat ajanları tarafından kullanılabilir.",
-    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
-    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
-    "currentAgentFallback": "current agent"
+    "scopeGlobalPlugins": "Bu sayfa uygulama genelindedir: resmi eklentilerin kurulumu, etkinleştirilmesi ve süreç durumu tüm DeepChat ajanları arasında paylaşılır.",
+    "scopeCurrentAgent": "Bu sayfa ajan politikasıdır: değişiklikler yalnızca “{agent}” için Skills/MCP kullanılabilirliğini etkiler, global kurulumları etkilemez.",
+    "currentAgentFallback": "geçerli ajan"
   }
 }

@@ -2980,8 +2980,8 @@
     "acpUnavailableTitle": "Os plugins não estão disponíveis para agentes ACP",
     "acpUnavailableDescription": "Os agentes ACP gerenciam ferramentas e extensões no próprio ambiente de execução. Selecione um agente DeepChat para usar plugins.",
     "agentScopeUnsupported": "As extensões por agente estão disponíveis apenas para agentes DeepChat.",
-    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
-    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
-    "currentAgentFallback": "current agent"
+    "scopeGlobalPlugins": "Esta página é global do app: instalação, ativação e estado de processo dos plugins oficiais são compartilhados por todos os agentes DeepChat.",
+    "scopeCurrentAgent": "Esta página é política do agente: as alterações afetam apenas a disponibilidade de Skills/MCP de “{agent}”, não as instalações globais.",
+    "currentAgentFallback": "agente atual"
   }
 }
