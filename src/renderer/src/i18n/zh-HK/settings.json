@@ -2980,8 +2980,8 @@
     "acpUnavailableTitle": "ACP Agent 無法使用插件",
     "acpUnavailableDescription": "ACP Agent 透過自身的執行環境管理工具和擴充功能。請選擇 DeepChat Agent 後再使用插件。",
     "agentScopeUnsupported": "Agent 層級的擴充功能只適用於 DeepChat Agent。",
-    "scopeGlobalPlugins": "当前页为应用全局：官方插件的安装、启用与进程对所有 DeepChat Agent 共享。",
-    "scopeCurrentAgent": "当前页为 Agent 策略：仅影响「{agent}」可用的 Skills / MCP，不会全局禁用资源。",
-    "currentAgentFallback": "当前 Agent"
+    "scopeGlobalPlugins": "目前頁面為應用全域：官方外掛的安裝、啟用與程序對所有 DeepChat Agent 共用。",
+    "scopeCurrentAgent": "目前頁面為 Agent 策略：僅影響「{agent}」可用的 Skills / MCP，不會全域停用資源。",
+    "currentAgentFallback": "目前 Agent"
   }
 }
