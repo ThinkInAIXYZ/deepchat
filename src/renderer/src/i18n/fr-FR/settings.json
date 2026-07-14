@@ -1135,7 +1135,21 @@
     "openaiCodexCallbackTitle": "Terminer l'authentification",
     "openaiCodexCallbackDescription": "Lorsque le navigateur a terminé, revenez à DeepChat. Si DeepChat ne se met pas à jour, collez ici l'URL de rappel complète.",
     "openaiCodexCallbackPlaceholder": "Coller l'URL de rappel complète",
-    "openaiCodexCompleteAuthentication": "Terminer l'authentification"
+    "openaiCodexCompleteAuthentication": "Terminer l'authentification",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok connecté",
+    "xaiGrokNotConnected": "xAI Grok non connecté",
+    "xaiGrokPendingDevice": "En attente de l’autorisation de l’appareil",
+    "xaiGrokDisabled": "OAuth xAI Grok est désactivé",
+    "xaiGrokError": "Échec de l’autorisation xAI Grok",
+    "xaiGrokAccount": "Compte",
+    "xaiGrokSignInDevice": "Se connecter avec SuperGrok / Premium+",
+    "xaiGrokReconnect": "Reconnecter",
+    "xaiGrokSignOut": "Se déconnecter",
+    "xaiGrokCancel": "Annuler",
+    "xaiGrokOpenVerification": "Ouvrir la page de vérification",
+    "xaiGrokLoginTip": "Utilise le flux OAuth par code d’appareil de xAI pour SuperGrok ou X Premium+. Les jetons sont stockés séparément des clés API. Les clés API de Console restent prises en charge ci-dessous.",
+    "xaiGrokApiKeyAlternative": "Ou utiliser une clé API xAI Console :"
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",

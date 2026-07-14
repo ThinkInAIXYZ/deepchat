@@ -1135,7 +1135,21 @@
     "openaiCodexCallbackTitle": "השלמת האימות",
     "openaiCodexCallbackDescription": "לאחר שהדפדפן מסיים, חזור אל DeepChat. אם DeepChat לא מתעדכן, הדבק כאן את כתובת ה-URL המלאה לחזרה.",
     "openaiCodexCallbackPlaceholder": "הדבק את כתובת ה-URL המלאה לחזרה",
-    "openaiCodexCompleteAuthentication": "השלמת האימות"
+    "openaiCodexCompleteAuthentication": "השלמת האימות",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok מחובר",
+    "xaiGrokNotConnected": "xAI Grok אינו מחובר",
+    "xaiGrokPendingDevice": "ממתין לאישור המכשיר",
+    "xaiGrokDisabled": "OAuth של xAI Grok מושבת",
+    "xaiGrokError": "האישור של xAI Grok נכשל",
+    "xaiGrokAccount": "חשבון",
+    "xaiGrokSignInDevice": "כניסה באמצעות SuperGrok / Premium+",
+    "xaiGrokReconnect": "התחברות מחדש",
+    "xaiGrokSignOut": "יציאה",
+    "xaiGrokCancel": "ביטול",
+    "xaiGrokOpenVerification": "פתיחת דף האימות",
+    "xaiGrokLoginTip": "משתמש ב-OAuth עם קוד מכשיר של xAI עבור SuperGrok או X Premium+. האסימונים נשמרים בנפרד ממפתחות API. מפתחות API של Console עדיין נתמכים למטה.",
+    "xaiGrokApiKeyAlternative": "או להשתמש במפתח API של xAI Console:"
   },
   "knowledgeBase": {
     "title": "הגדרות בסיס ידע",

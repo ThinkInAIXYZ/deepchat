@@ -196,6 +196,10 @@ import {
   oauthOpenAICodexGetStatusRoute,
   oauthOpenAICodexLogoutRoute,
   oauthOpenAICodexStartBrowserLoginRoute,
+  oauthXaiGrokCancelLoginRoute,
+  oauthXaiGrokGetStatusRoute,
+  oauthXaiGrokLogoutRoute,
+  oauthXaiGrokStartDeviceLoginRoute,
   remoteControlCancelFeishuAuthRoute,
   remoteControlCancelFeishuInstallRoute,
   remoteControlClearChannelPairCodeRoute,
@@ -2659,6 +2663,34 @@ export async function dispatchDeepchatRoute(
       oauthOpenAICodexLogoutRoute.input.parse(rawInput)
       return oauthOpenAICodexLogoutRoute.output.parse({
         status: await runtime.oauthPresenter.logoutOpenAICodex()
+      })
+    }
+
+    case oauthXaiGrokGetStatusRoute.name: {
+      oauthXaiGrokGetStatusRoute.input.parse(rawInput)
+      return oauthXaiGrokGetStatusRoute.output.parse({
+        status: await runtime.oauthPresenter.getXaiGrokStatus()
+      })
+    }
+
+    case oauthXaiGrokStartDeviceLoginRoute.name: {
+      oauthXaiGrokStartDeviceLoginRoute.input.parse(rawInput)
+      return oauthXaiGrokStartDeviceLoginRoute.output.parse({
+        status: await runtime.oauthPresenter.startXaiGrokDeviceLogin()
+      })
+    }
+
+    case oauthXaiGrokCancelLoginRoute.name: {
+      oauthXaiGrokCancelLoginRoute.input.parse(rawInput)
+      return oauthXaiGrokCancelLoginRoute.output.parse({
+        status: await runtime.oauthPresenter.cancelXaiGrokLogin()
+      })
+    }
+
+    case oauthXaiGrokLogoutRoute.name: {
+      oauthXaiGrokLogoutRoute.input.parse(rawInput)
+      return oauthXaiGrokLogoutRoute.output.parse({
+        status: await runtime.oauthPresenter.logoutXaiGrok()
       })
     }
 

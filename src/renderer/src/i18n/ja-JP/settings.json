@@ -1135,7 +1135,21 @@
     "openaiCodexCallbackTitle": "認証を完了",
     "openaiCodexCallbackDescription": "ブラウザーで完了したら DeepChat に戻ってください。DeepChat が更新されない場合は、完全なコールバックURLをここに貼り付けてください。",
     "openaiCodexCallbackPlaceholder": "完全なコールバックURLを貼り付け",
-    "openaiCodexCompleteAuthentication": "認証を完了"
+    "openaiCodexCompleteAuthentication": "認証を完了",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok 接続済み",
+    "xaiGrokNotConnected": "xAI Grok 未接続",
+    "xaiGrokPendingDevice": "デバイス認証を待機中",
+    "xaiGrokDisabled": "xAI Grok OAuth は無効です",
+    "xaiGrokError": "xAI Grok 認可に失敗しました",
+    "xaiGrokAccount": "アカウント",
+    "xaiGrokSignInDevice": "SuperGrok / Premium+ でサインイン",
+    "xaiGrokReconnect": "再接続",
+    "xaiGrokSignOut": "サインアウト",
+    "xaiGrokCancel": "キャンセル",
+    "xaiGrokOpenVerification": "認証ページを開く",
+    "xaiGrokLoginTip": "SuperGrok または X Premium+ 向けの xAI デバイスコード OAuth を使用します。トークンは API キーとは別に保存されます。下記の Console API キーも引き続き使用できます。",
+    "xaiGrokApiKeyAlternative": "または xAI Console API キーを使用："
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",

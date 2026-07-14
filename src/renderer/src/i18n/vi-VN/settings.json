@@ -1395,7 +1395,21 @@
     "openaiCodexCallbackTitle": "Hoàn tất xác thực",
     "openaiCodexCallbackDescription": "Sau khi trình duyệt hoàn tất, hãy quay lại DeepChat. Nếu DeepChat không cập nhật, hãy dán URL callback đầy đủ vào đây.",
     "openaiCodexCallbackPlaceholder": "Dán URL callback đầy đủ",
-    "openaiCodexCompleteAuthentication": "Hoàn tất xác thực"
+    "openaiCodexCompleteAuthentication": "Hoàn tất xác thực",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok đã kết nối",
+    "xaiGrokNotConnected": "xAI Grok chưa kết nối",
+    "xaiGrokPendingDevice": "Đang chờ cấp quyền thiết bị",
+    "xaiGrokDisabled": "OAuth xAI Grok đã bị tắt",
+    "xaiGrokError": "Cấp quyền xAI Grok thất bại",
+    "xaiGrokAccount": "Tài khoản",
+    "xaiGrokSignInDevice": "Đăng nhập bằng SuperGrok / Premium+",
+    "xaiGrokReconnect": "Kết nối lại",
+    "xaiGrokSignOut": "Đăng xuất",
+    "xaiGrokCancel": "Hủy",
+    "xaiGrokOpenVerification": "Mở trang xác minh",
+    "xaiGrokLoginTip": "Sử dụng OAuth mã thiết bị của xAI cho SuperGrok hoặc X Premium+. Token được lưu riêng với khóa API. Khóa API Console vẫn được hỗ trợ bên dưới.",
+    "xaiGrokApiKeyAlternative": "Hoặc sử dụng khóa API xAI Console:"
   },
   "knowledgeBase": {
     "title": "Cài đặt cơ sở kiến thức",

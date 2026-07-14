@@ -25,6 +25,7 @@ import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { IWindowPresenter, TabData } from './window.presenter'
 import type { OpenAICodexAuthStatus } from '../openai-codex'
+import type { XaiGrokAuthStatus } from '../xai-grok'
 import type {
   Agent,
   AgentType,
@@ -412,6 +413,10 @@ export interface IOAuthPresenter {
   completeOpenAICodexBrowserLoginFromUrl(callbackUrl: string): Promise<OpenAICodexAuthStatus>
   cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
   logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
+  getXaiGrokStatus(): Promise<XaiGrokAuthStatus>
+  startXaiGrokDeviceLogin(): Promise<XaiGrokAuthStatus>
+  cancelXaiGrokLogin(): Promise<XaiGrokAuthStatus>
+  logoutXaiGrok(): Promise<XaiGrokAuthStatus>
 }
 
 export interface OAuthConfig {

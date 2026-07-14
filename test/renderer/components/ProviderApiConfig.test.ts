@@ -150,7 +150,8 @@ async function setup(options?: {
     global: {
       stubs: {
         GitHubCopilotOAuth: true,
-        OpenAICodexOAuth: true
+        OpenAICodexOAuth: true,
+        GrokOAuth: true
       }
     }
   })
@@ -245,6 +246,38 @@ describe('ProviderApiConfig', () => {
 
     expect(wrapper.findComponent({ name: 'OpenAICodexOAuth' }).exists()).toBe(true)
     expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
+  })
+
+  it('shows Grok OAuth alongside the API key fallback', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({
+        id: 'grok',
+        name: 'Grok',
+        apiType: 'grok',
+        apiKey: '',
+        baseUrl: 'https://api.x.ai/v1'
+      })
+    })
+
+    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('settings.provider.xaiGrokApiKeyAlternative')
+  })
+
+  it('hides Grok OAuth when the API URL is not an xAI endpoint', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({
+        id: 'grok',
+        name: 'Grok',
+        apiType: 'grok',
+        apiKey: '',
+        baseUrl: 'https://grok-compatible.example.com/v1'
+      })
+    })
+
+    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(false)
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('settings.provider.xaiGrokApiKeyAlternative')
   })
 
   it('keeps custom providers editable by default', async () => {

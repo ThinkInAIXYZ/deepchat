@@ -1135,7 +1135,21 @@
     "openaiCodexCallbackTitle": "Завершить аутентификацию",
     "openaiCodexCallbackDescription": "Когда браузер завершит процесс, вернитесь в DeepChat. Если DeepChat не обновится, вставьте здесь полный URL обратного вызова.",
     "openaiCodexCallbackPlaceholder": "Вставьте полный URL обратного вызова",
-    "openaiCodexCompleteAuthentication": "Завершить аутентификацию"
+    "openaiCodexCompleteAuthentication": "Завершить аутентификацию",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok подключён",
+    "xaiGrokNotConnected": "xAI Grok не подключён",
+    "xaiGrokPendingDevice": "Ожидание авторизации устройства",
+    "xaiGrokDisabled": "OAuth xAI Grok отключён",
+    "xaiGrokError": "Не удалось авторизовать xAI Grok",
+    "xaiGrokAccount": "Учётная запись",
+    "xaiGrokSignInDevice": "Войти через SuperGrok / Premium+",
+    "xaiGrokReconnect": "Подключить снова",
+    "xaiGrokSignOut": "Выйти",
+    "xaiGrokCancel": "Отмена",
+    "xaiGrokOpenVerification": "Открыть страницу подтверждения",
+    "xaiGrokLoginTip": "Используется OAuth xAI с кодом устройства для SuperGrok или X Premium+. Токены хранятся отдельно от ключей API. Ниже по-прежнему можно использовать ключи API Console.",
+    "xaiGrokApiKeyAlternative": "Или используйте ключ API xAI Console:"
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",

@@ -1395,7 +1395,21 @@
     "openaiCodexCallbackTitle": "Kimlik doğrulamayı tamamla",
     "openaiCodexCallbackDescription": "Tarayıcı işlemi tamamladıktan sonra DeepChat'e dönün. DeepChat güncellenmezse tam geri çağırma URL'sini buraya yapıştırın.",
     "openaiCodexCallbackPlaceholder": "Tam geri çağırma URL'sini yapıştır",
-    "openaiCodexCompleteAuthentication": "Kimlik doğrulamayı tamamla"
+    "openaiCodexCompleteAuthentication": "Kimlik doğrulamayı tamamla",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok bağlı",
+    "xaiGrokNotConnected": "xAI Grok bağlı değil",
+    "xaiGrokPendingDevice": "Cihaz yetkilendirmesi bekleniyor",
+    "xaiGrokDisabled": "xAI Grok OAuth devre dışı",
+    "xaiGrokError": "xAI Grok yetkilendirmesi başarısız oldu",
+    "xaiGrokAccount": "Hesap",
+    "xaiGrokSignInDevice": "SuperGrok / Premium+ ile oturum aç",
+    "xaiGrokReconnect": "Yeniden bağlan",
+    "xaiGrokSignOut": "Oturumu kapat",
+    "xaiGrokCancel": "İptal",
+    "xaiGrokOpenVerification": "Doğrulama sayfasını aç",
+    "xaiGrokLoginTip": "SuperGrok veya X Premium+ için xAI cihaz kodu OAuth kullanır. Token'lar API anahtarlarından ayrı saklanır. Console API anahtarları aşağıda desteklenmeye devam eder.",
+    "xaiGrokApiKeyAlternative": "Veya bir xAI Console API anahtarı kullanın:"
   },
   "knowledgeBase": {
     "title": "Bilgi Bankası Ayarları",

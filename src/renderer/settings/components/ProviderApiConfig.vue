@@ -98,6 +98,20 @@
     />
 
     <div v-else class="flex flex-col items-start gap-4">
+      <GrokOAuth
+        v-if="isGrokOAuthAvailable"
+        :provider="provider"
+        @auth-success="handleOAuthSuccess"
+        @auth-error="handleOAuthError"
+      />
+
+      <div
+        v-if="isGrokOAuthAvailable"
+        class="w-full border-t border-border pt-3 text-xs text-muted-foreground"
+      >
+        {{ t('settings.provider.xaiGrokApiKeyAlternative') }}
+      </div>
+
       <div class="flex flex-col gap-2 w-full">
         <Label :for="`${provider.id}-apikey`" class="w-full">API Key</Label>
         <div class="relative w-full">
@@ -202,6 +216,7 @@ import {
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import OpenAICodexOAuth from './OpenAICodexOAuth.vue'
+import GrokOAuth from './GrokOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
 import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -262,6 +277,18 @@ const showLockedBaseUrl = computed(
   () => !isBaseUrlEditableByDefault.value && !baseUrlUnlocked.value
 )
 const shouldRefreshProviderDbFirst = computed(() => isProviderDbBackedProvider(props.provider.id))
+const isGrokOAuthAvailable = computed(() => {
+  if (props.provider.id !== 'grok') {
+    return false
+  }
+
+  try {
+    const url = new URL(apiHost.value.trim())
+    return url.protocol === 'https:' && (url.hostname === 'x.ai' || url.hostname.endsWith('.x.ai'))
+  } catch {
+    return false
+  }
+})
 const providerApiKeyUrl = computed(() => {
   if (props.provider.id !== 'new-api') {
     return props.providerWebsites?.apiKey || ''

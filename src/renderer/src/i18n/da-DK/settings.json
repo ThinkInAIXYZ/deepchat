@@ -1068,7 +1068,21 @@
     "openaiCodexCallbackTitle": "Fuldfør godkendelse",
     "openaiCodexCallbackDescription": "Når browseren er færdig, skal du vende tilbage til DeepChat. Hvis DeepChat ikke opdateres, skal du indsætte den fulde callback-URL her.",
     "openaiCodexCallbackPlaceholder": "Indsæt den fulde callback-URL",
-    "openaiCodexCompleteAuthentication": "Fuldfør godkendelse"
+    "openaiCodexCompleteAuthentication": "Fuldfør godkendelse",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok er tilsluttet",
+    "xaiGrokNotConnected": "xAI Grok er ikke tilsluttet",
+    "xaiGrokPendingDevice": "Venter på enhedsgodkendelse",
+    "xaiGrokDisabled": "xAI Grok OAuth er deaktiveret",
+    "xaiGrokError": "Godkendelse af xAI Grok mislykkedes",
+    "xaiGrokAccount": "Konto",
+    "xaiGrokSignInDevice": "Log ind med SuperGrok / Premium+",
+    "xaiGrokReconnect": "Opret forbindelse igen",
+    "xaiGrokSignOut": "Log ud",
+    "xaiGrokCancel": "Annuller",
+    "xaiGrokOpenVerification": "Åbn bekræftelsessiden",
+    "xaiGrokLoginTip": "Bruger xAI-enhedskode-OAuth til SuperGrok eller X Premium+. Tokens gemmes separat fra API-nøgler. API-nøgler fra Console understøttes stadig nedenfor.",
+    "xaiGrokApiKeyAlternative": "Eller brug en xAI Console-API-nøgle:"
   },
   "knowledgeBase": {
     "title": "Indstillinger for vidensbase",
