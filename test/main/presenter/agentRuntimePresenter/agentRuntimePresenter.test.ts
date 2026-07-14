@@ -22,6 +22,7 @@ import {
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
+import { resolveInterleavedReasoningConfig } from '@/presenter/agentRuntimePresenter/generationSettings'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import {
@@ -4597,7 +4598,8 @@ describe('AgentRuntimePresenter', () => {
         })
       )
 
-      const interleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const interleavedConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'openai',
         'gpt-4',
         disabled
@@ -4605,7 +4607,8 @@ describe('AgentRuntimePresenter', () => {
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
       expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
-      const deepseekDisabledConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const deepseekDisabledConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'openai',
         'deepseek-v4',
         disabled
@@ -4613,7 +4616,8 @@ describe('AgentRuntimePresenter', () => {
       expect(deepseekDisabledConfig.preserveReasoningContent).toBe(true)
       expect(deepseekDisabledConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const deepseekInterleavedConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'deepseek',
         'deepseek-v4',
         defaults
@@ -4621,7 +4625,8 @@ describe('AgentRuntimePresenter', () => {
       expect(deepseekInterleavedConfig.preserveReasoningContent).toBe(true)
       expect(deepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const nonDeepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const nonDeepseekInterleavedConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'openai',
         'gpt-4',
         defaults
