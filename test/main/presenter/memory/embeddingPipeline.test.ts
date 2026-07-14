@@ -947,6 +947,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     const presenter = new MemoryPresenter({
       repository: repo,
       resolveAgentConfig: () => ({ memoryEnabled: true }),
+      getEmbeddings: async () => [],
       createVectorStore,
       resetVectorStore: async () => undefined
     })
@@ -1088,6 +1089,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     const presenter = new MemoryPresenter({
       repository: createFakeRepository(),
       resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async () => [],
       getDimensions: embeddingDimensions,
       createVectorStore: async () => unusableStore,
       resetVectorStore: async () => undefined
@@ -1112,6 +1114,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     const presenter = new MemoryPresenter({
       repository: createFakeRepository(),
       resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async () => [],
       getDimensions,
       createVectorStore: async () => new FakeVectorStore(),
       resetVectorStore: async () => undefined

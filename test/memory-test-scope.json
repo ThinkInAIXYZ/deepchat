@@ -15,6 +15,7 @@
     "test/main/presenter/memory/managementService.test.ts",
     "test/main/presenter/memory/personaService.test.ts",
     "test/main/presenter/memory/reflectionService.test.ts",
+    "test/main/presenter/memory/reindexResult.test.ts",
     "test/main/presenter/memory/repositoryHarness.test.ts",
     "test/main/presenter/memory/retrievalService.test.ts",
     "test/main/presenter/memory/retrievalDiagnostics.test.ts",
