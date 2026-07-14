@@ -9,7 +9,7 @@
 > `DeepChatLoopEngine` remains the inner provider-round/tool-batch decision engine. The presenter is
 > the composition root and compatibility façade; session/run state remains in
 > `DeepChatAgentInstance`/`LoopRun`.
-
+>
 > Implementation progress: ASLR-050 introduced the per-turn `LoopRun` and narrow provider, tool,
 > Tape, output, and context port contracts. That slice left the legacy `processStream` control flow
 > unchanged while moving provider-round state, provider-attempt sequencing, and recovery flags into

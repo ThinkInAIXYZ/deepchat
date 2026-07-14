@@ -313,7 +313,7 @@ describe('DeepChat tool adapters', () => {
       'gpt-4o',
       0.1,
       500,
-      undefined
+      { signal: undefined, swallowErrors: false }
     )
   })
 })

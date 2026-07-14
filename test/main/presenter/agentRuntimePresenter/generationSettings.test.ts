@@ -3,6 +3,7 @@ import type { IConfigPresenter } from '@shared/presenter'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import {
   buildPersistedGenerationSettingsPatch,
+  mapPersistedGenerationPatch,
   sanitizeGenerationSettings
 } from '@/presenter/agentRuntimePresenter/generationSettings'
 
@@ -61,5 +62,37 @@ describe('generation settings policy', () => {
         sanitized
       )
     ).toEqual({ temperature: 0.3, reasoningEffort: 'medium' })
+  })
+
+  it('restores persisted image and video generation options', () => {
+    const patch = mapPersistedGenerationPatch(createConfigPresenter(), {
+      provider_id: 'openai',
+      model_id: 'gpt-image-2',
+      permission_mode: 'default',
+      system_prompt: null,
+      temperature: null,
+      top_p: null,
+      context_length: null,
+      max_tokens: null,
+      timeout_ms: null,
+      thinking_budget: null,
+      reasoning_effort: null,
+      reasoning_visibility: null,
+      verbosity: null,
+      force_interleaved_thinking_compat: null,
+      image_generation_options_json: JSON.stringify({
+        size: '1024x1024',
+        quality: 'high'
+      }),
+      video_generation_options_json: JSON.stringify({
+        duration: 8,
+        generateAudio: true
+      })
+    })
+
+    expect(patch).toMatchObject({
+      imageGeneration: { size: '1024x1024', quality: 'high' },
+      videoGeneration: { duration: 8, generateAudio: true }
+    })
   })
 })

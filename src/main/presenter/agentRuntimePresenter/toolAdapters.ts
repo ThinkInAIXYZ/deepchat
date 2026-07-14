@@ -179,7 +179,7 @@ export async function normalizeToolResultContent(
       visionModel.modelId,
       modelConfig?.temperature ?? 0.2,
       Math.min(modelConfig?.maxTokens ?? 900, 900),
-      abortSignal ? { signal: abortSignal } : undefined
+      { signal: abortSignal, swallowErrors: false }
     )
     throwIfAbortRequested(abortSignal)
     const normalized = response.trim()

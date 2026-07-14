@@ -50,11 +50,24 @@ export type PersistedSessionGenerationRow = {
   reasoning_visibility: SessionGenerationSettings['reasoningVisibility'] | null
   verbosity: SessionGenerationSettings['verbosity'] | null
   force_interleaved_thinking_compat: number | null
+  image_generation_options_json: string | null
+  video_generation_options_json: string | null
 }
 
 function normalizeTopP(value: unknown): number | undefined {
   const numeric = parseFiniteNumericValue(value)
   return numeric !== undefined && numeric >= 0.1 && numeric <= 1 ? numeric : undefined
+}
+
+function parsePersistedJson<T>(value: string | null): T | undefined {
+  if (!value) {
+    return undefined
+  }
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return undefined
+  }
 }
 
 export function mapPersistedGenerationPatch(
@@ -103,6 +116,18 @@ export function mapPersistedGenerationPatch(
   }
   if (typeof sessionRow.force_interleaved_thinking_compat === 'number') {
     patch.forceInterleavedThinkingCompat = sessionRow.force_interleaved_thinking_compat === 1
+  }
+  const imageGeneration = normalizeImageGenerationOptions(
+    parsePersistedJson(sessionRow.image_generation_options_json)
+  )
+  if (imageGeneration) {
+    patch.imageGeneration = imageGeneration
+  }
+  const videoGeneration = normalizeVideoGenerationOptions(
+    parsePersistedJson(sessionRow.video_generation_options_json)
+  )
+  if (videoGeneration) {
+    patch.videoGeneration = videoGeneration
   }
 
   return patch

@@ -7407,6 +7407,47 @@ describe('AgentRuntimePresenter', () => {
       })
     })
 
+    it('restores the previous compaction state when compaction throws', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      sqlitePresenter.deepchatMessagesTable.delete.mockClear()
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValueOnce(
+        new Error('compaction failed')
+      )
+
+      await expect(
+        (agent as any).applyCompactionIntent('s1', {
+          sessionId: 's1',
+          previousState: {
+            summaryText: 'previous summary',
+            summaryCursorOrderSeq: 3,
+            summaryUpdatedAt: 111
+          },
+          targetCursorOrderSeq: 5,
+          summaryBlocks: ['summarize this'],
+          currentModel: {
+            providerId: 'openai',
+            modelId: 'gpt-4',
+            contextLength: 128000
+          },
+          reserveTokens: 512
+        })
+      ).rejects.toThrow('compaction failed')
+
+      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+      expect(instance.getCompactionState()).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: 111
+      })
+      expectPublished('sessions.compaction.changed', {
+        sessionId: 's1',
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: 111
+      })
+    })
+
     it('emits idle when clearMessages resets compaction state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
@@ -7815,6 +7856,32 @@ describe('AgentRuntimePresenter', () => {
         true
       )
       preStreamStepSpy.mockRestore()
+    })
+
+    it('keeps runtime-activated skills when rebuilding resume resources', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getMetadataList.mockResolvedValue([
+        { name: 'runtime-skill', description: 'Runtime skill' }
+      ])
+      skillPresenter.getActiveSkills.mockResolvedValue([])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'RUNTIME_SKILL_BODY' })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow()
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      instance.replaceRuntimeActivatedSkills(['runtime-skill'])
+      let streamParams: any
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        streamParams = params
+        return { status: 'completed' }
+      })
+
+      await expect((agent as any).resumeAssistantMessage('s1', 'm1', [])).resolves.toBe(true)
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({ activeSkillNames: ['runtime-skill'] })
+      )
+      expect(streamParams.run.resources.activeSkillNames).toEqual(['runtime-skill'])
+      expect(String(streamParams.run.messages[0]?.content ?? '')).toContain('RUNTIME_SKILL_BODY')
     })
 
     it('handles question_option and resumes assistant message', async () => {
@@ -10683,7 +10750,7 @@ describe('AgentRuntimePresenter', () => {
         'gemini-2.5-flash',
         expect.any(Number),
         expect.any(Number),
-        undefined
+        { signal: undefined, swallowErrors: false }
       )
       expect(normalized).toBe('English screenshot summary')
     })

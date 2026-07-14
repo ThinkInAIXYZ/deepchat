@@ -73,10 +73,10 @@ export class CompactionRuntimeCoordinator {
       result = await this.deps.compactionService.applyCompaction(intent, options?.signal)
     } catch (error) {
       this.deps.assertCurrent(sessionId, expectedInstance)
+      this.deps.messageStore.deleteMessage(compactionMessageId)
+      this.deps.emitMessageRefresh(sessionId, compactionMessageId)
+      this.emit(sessionId, this.fromSummary(intent.previousState), expectedInstance)
       if (this.deps.isAbortError(error) || options?.signal?.aborted) {
-        this.deps.messageStore.deleteMessage(compactionMessageId)
-        this.deps.emitMessageRefresh(sessionId, compactionMessageId)
-        this.emit(sessionId, this.fromSummary(intent.previousState), expectedInstance)
         this.deps.throwIfAbortRequested(options?.signal)
       }
       throw error

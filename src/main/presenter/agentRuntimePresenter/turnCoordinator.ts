@@ -231,9 +231,7 @@ export class TurnCoordinator {
         )
     )
     this.ports.throwIfStaleDeepChatInstance(sessionId, instance)
-    const activeSkillNames = input.runtimeActivatedSkillNames
-      ? resolveEffectiveActiveSkillNames(sessionActiveSkillNames, instance)
-      : sessionActiveSkillNames
+    const activeSkillNames = resolveEffectiveActiveSkillNames(sessionActiveSkillNames, instance)
     const tools = await this.ports.runPreStreamStep(
       { sessionId, messageId, step: 'tool-definitions', signal },
       () =>
