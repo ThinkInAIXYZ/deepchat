@@ -308,6 +308,34 @@ describe('MemoryDiagnosticsPanel', () => {
     wrapper.unmount()
   })
 
+  it('shows restart guidance without a retry action for non-retryable failures', async () => {
+    const status: MemoryStatusDto = {
+      ...failedReindexStatus,
+      lastReindex: {
+        outcome: 'blocked',
+        finishedAt: 1,
+        lastError: {
+          message: '[Memory] vector store cleanup pending restart',
+          retryable: false,
+          code: 'pending-restart'
+        }
+      }
+    }
+    const { wrapper, memoryClient } = await setup(status, {
+      messages: {
+        'settings.memory.redesign.reindexIncomplete': 'Rebuild failed: {reason}',
+        'settings.deepchatAgents.memoryManager.cleanupPendingRestart':
+          'Locked vector files will be deleted after restart'
+      }
+    })
+
+    const banner = wrapper.get('[data-testid="reindex-failure-banner"]')
+    expect(banner.text()).toContain('Locked vector files will be deleted after restart')
+    expect(banner.find('button').exists()).toBe(false)
+    expect(memoryClient.reindex).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('localizes internal reindex failures instead of rendering backend control-flow text', async () => {
     const status: MemoryStatusDto = {
       ...failedReindexStatus,

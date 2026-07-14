@@ -948,7 +948,8 @@ export class EmbeddingPipeline {
         )
         if (result.outcome === 'failed') {
           this.ports.vectorStore.clearReady(agentId)
-          logger.warn(`[Memory] vector store warm failed for ${agentId}: ${String(result.error)}`)
+          const projectedError = toMemoryReindexError(result.error)
+          logger.warn(`[Memory] vector store warm failed for ${agentId}: ${projectedError.message}`)
         }
         return result
       })
@@ -1233,12 +1234,10 @@ export class EmbeddingPipeline {
       }
       const dimensions = attrs.data.dimensions
       if (!Number.isFinite(dimensions) || dimensions <= 0) {
-        throw attrs.errorMsg
-          ? new Error(attrs.errorMsg)
-          : new MemoryReindexFailure(
-              'embedding-invalid',
-              '[Memory] embedding provider returned an invalid dimension'
-            )
+        throw new MemoryReindexFailure(
+          'embedding-invalid',
+          attrs.errorMsg ?? '[Memory] embedding provider returned an invalid dimension'
+        )
       }
       this.vectorStoreDimensionFailures.delete(key)
       return dimensions

@@ -1194,6 +1194,8 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   public async runDimensions(modelId: string, signal?: AbortSignal): Promise<LLM_EMBEDDING_ATTRS> {
+    signal?.throwIfAborted()
+
     if (modelId === 'text-embedding-3-small' || modelId === 'text-embedding-ada-002') {
       return {
         dimensions: 1536,

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ERROR_RETRY_COOLDOWN_MS } from '@/presenter/memoryPresenter/runtimeConstants'
 import { type IMemoryVectorStore } from '@/presenter/memoryPresenter/types'
+import logger from '@shared/logger'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   FakeVectorStore,
@@ -1133,6 +1134,40 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
         code: 'vector-store-unavailable'
       }
     })
+  })
+
+  it('redacts warm dimension errors while preserving the embedding-invalid code', async () => {
+    const secret = 'sk-proj-secretvalue123456789'
+    const warn = vi.mocked(logger.warn)
+    warn.mockClear()
+    const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const presenter = new MemoryPresenter({
+      repository: createFakeRepository(),
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async () => [],
+      getDimensions: async () => ({
+        data: { dimensions: 0, normalized: false },
+        errorMsg: `Incorrect API key provided: ${secret}`
+      }),
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+
+    await presenter.reindexEmbeddings('a', true)
+
+    expect(createVectorStore).not.toHaveBeenCalled()
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'blocked',
+      lastError: {
+        message: 'Incorrect API key provided: [REDACTED]',
+        code: 'embedding-invalid'
+      }
+    })
+    const warmLog = warn.mock.calls
+      .flatMap((call) => call.map(String))
+      .find((message) => message.includes('vector store warm failed for a'))
+    expect(warmLog).toContain('Incorrect API key provided: [REDACTED]')
+    expect(warmLog).not.toContain(secret)
   })
 
   it('does not restore a reindex result after the agent pipeline was abandoned', async () => {

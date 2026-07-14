@@ -42,6 +42,7 @@
         </p>
       </div>
       <Button
+        v-if="canRetryReindex"
         variant="outline"
         size="sm"
         class="h-8 shrink-0 text-xs"
@@ -379,6 +380,7 @@ const showReindexFailure = computed(
     props.status?.lastReindex !== undefined &&
     props.status.lastReindex.outcome !== 'completed'
 )
+const canRetryReindex = computed(() => props.status?.lastReindex?.lastError?.retryable === true)
 const reindexFailureReason = computed(() => {
   const error = props.status?.lastReindex?.lastError
   if (!error?.code) return error?.message ?? t('settings.memory.redesign.reindexInternalReason')

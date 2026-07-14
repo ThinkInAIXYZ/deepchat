@@ -107,6 +107,21 @@ describe('AiSdkProvider openai-compatible', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each(['text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large'])(
+    'honors cancellation before returning hard-coded dimensions for %s',
+    async (modelId) => {
+      const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+      const controller = new AbortController()
+      controller.abort()
+
+      await expect(provider.getDimensions(modelId, controller.signal)).rejects.toMatchObject({
+        name: 'AbortError'
+      })
+      expect(mockRunAiSdkEmbeddings).not.toHaveBeenCalled()
+      expect(mockRunAiSdkDimensions).not.toHaveBeenCalled()
+    }
+  )
+
   it('fetches models over the provider HTTP endpoint instead of the legacy SDK client', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
