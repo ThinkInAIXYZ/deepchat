@@ -44,7 +44,7 @@ export interface ChatServiceProjectionPort {
  * Controllers here only support route-level abort for the in-flight accept path.
  */
 export class ChatService {
-  private readonly acceptControllers = new Map<string, AbortController>()
+  private readonly acceptControllers = new Map<string, Set<AbortController>>()
 
   constructor(
     private readonly deps: {
@@ -64,7 +64,9 @@ export class ChatService {
     messageId: string | null
   }> {
     const controller = new AbortController()
-    this.acceptControllers.set(sessionId, controller)
+    const controllers = this.acceptControllers.get(sessionId) ?? new Set<AbortController>()
+    controllers.add(controller)
+    this.acceptControllers.set(sessionId, controllers)
 
     try {
       const session = await this.deps.scheduler.timeout({
@@ -95,7 +97,9 @@ export class ChatService {
       }
       throw error
     } finally {
-      if (this.acceptControllers.get(sessionId) === controller) {
+      const activeControllers = this.acceptControllers.get(sessionId)
+      activeControllers?.delete(controller)
+      if (activeControllers?.size === 0) {
         this.acceptControllers.delete(sessionId)
       }
     }
@@ -143,40 +147,47 @@ export class ChatService {
       return { stopped: false }
     }
 
-    const controller = this.acceptControllers.get(targetSessionId)
-    if (controller) {
-      controller.abort()
+    const controllers = this.acceptControllers.get(targetSessionId)
+    if (controllers) {
+      for (const controller of controllers) {
+        controller.abort()
+      }
       this.acceptControllers.delete(targetSessionId)
     }
 
     let cancelFailed = false
-    await this.deps.scheduler.timeout({
-      task: Promise.allSettled([
-        Promise.resolve().then(() =>
-          this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
-        ),
-        Promise.resolve().then(() => this.deps.turn.cancelGeneration(targetSessionId))
-      ]).then((results) => {
-        const clearPermissionsResult = results[0]
-        if (clearPermissionsResult?.status === 'rejected') {
-          console.warn(
-            `[ChatService] Failed to clear session permissions during stop for ${targetSessionId}:`,
-            clearPermissionsResult.reason
-          )
-        }
+    try {
+      await this.deps.scheduler.timeout({
+        task: Promise.allSettled([
+          Promise.resolve().then(() =>
+            this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
+          ),
+          Promise.resolve().then(() => this.deps.turn.cancelGeneration(targetSessionId))
+        ]).then((results) => {
+          const clearPermissionsResult = results[0]
+          if (clearPermissionsResult?.status === 'rejected') {
+            console.warn(
+              `[ChatService] Failed to clear session permissions during stop for ${targetSessionId}:`,
+              clearPermissionsResult.reason
+            )
+          }
 
-        const cancelGenerationResult = results[1]
-        if (cancelGenerationResult?.status === 'rejected') {
-          cancelFailed = true
-          console.warn(
-            `[ChatService] Failed to cancel generation during stop for ${targetSessionId}:`,
-            cancelGenerationResult.reason
-          )
-        }
-      }),
-      ms: CHAT_STOP_TIMEOUT_MS,
-      reason: `chat.stopStream:${targetSessionId}`
-    })
+          const cancelGenerationResult = results[1]
+          if (cancelGenerationResult?.status === 'rejected') {
+            cancelFailed = true
+            console.warn(
+              `[ChatService] Failed to cancel generation during stop for ${targetSessionId}:`,
+              cancelGenerationResult.reason
+            )
+          }
+        }),
+        ms: CHAT_STOP_TIMEOUT_MS,
+        reason: `chat.stopStream:${targetSessionId}`
+      })
+    } catch (error) {
+      cancelFailed = true
+      console.warn(`[ChatService] Stop cleanup timed out for ${targetSessionId}:`, error)
+    }
 
     return { stopped: !cancelFailed }
   }
@@ -205,10 +216,22 @@ export class ChatService {
   }
 
   private async bestEffortCancel(sessionId: string, reason: string): Promise<void> {
-    const cleanupResults = await Promise.allSettled([
-      Promise.resolve(this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)),
-      this.deps.turn.cancelGeneration(sessionId)
-    ])
+    let cleanupResults: PromiseSettledResult<void>[]
+    try {
+      cleanupResults = await this.deps.scheduler.timeout({
+        task: Promise.allSettled([
+          Promise.resolve().then(() =>
+            this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
+          ),
+          Promise.resolve().then(() => this.deps.turn.cancelGeneration(sessionId))
+        ]),
+        ms: CHAT_STOP_TIMEOUT_MS,
+        reason: `chat.bestEffortCancel:${sessionId}`
+      })
+    } catch (error) {
+      console.warn(`[ChatService] Cleanup timed out after ${reason} for ${sessionId}:`, error)
+      return
+    }
     const clearPermissionsResult = cleanupResults[0]
     if (clearPermissionsResult?.status === 'rejected') {
       console.warn(

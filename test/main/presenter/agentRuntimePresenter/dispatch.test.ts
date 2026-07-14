@@ -349,6 +349,41 @@ describe('dispatch', () => {
       expect(toolBlock!.status).toBe('success')
     })
 
+    it('rejects calls missing from the current session tool definitions', async () => {
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = createMockToolPresenter()
+      const conversation: any[] = []
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'exec', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'exec', arguments: '{}' }]
+
+      const outcome = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(outcome.executed).toBe(1)
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(conversation.find((message: any) => message.role === 'tool')?.content).toBe(
+        'Error: Tool is not available in the current session: exec'
+      )
+      expect(state.blocks.find((block) => block.type === 'tool_call')?.status).toBe('error')
+    })
+
     it('publishes plan update events without inserting plan blocks into messages', async () => {
       const tools = [makeAgentTool('update_plan')]
       const snapshot = {

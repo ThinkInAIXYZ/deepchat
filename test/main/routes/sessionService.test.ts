@@ -119,7 +119,7 @@ describe('SessionService', () => {
     expect(projection.listMessagesPage).not.toHaveBeenCalled()
   })
 
-  it('routes session lifecycle operations through five-second scheduler boundaries', async () => {
+  it('does not race session creation and applies read-operation scheduler boundaries', async () => {
     const scheduler = createScheduler()
     const session = { id: 'session-1' }
     const lifecycle = { createSession: vi.fn().mockResolvedValue(session) }
@@ -159,8 +159,7 @@ describe('SessionService', () => {
     expect(projection.deactivate).toHaveBeenCalledWith(42)
     expect(projection.getActive).toHaveBeenCalledWith(42)
     expect(scheduler.timeout.mock.calls.map(([options]) => [options.ms, options.reason])).toEqual([
-      [5_000, 'sessions.create'],
-      [5_000, 'sessions.list'],
+      [15_000, 'sessions.list'],
       [5_000, 'sessions.listMessagesPage:session-1'],
       [5_000, 'sessions.activate:session-1'],
       [5_000, 'sessions.deactivate'],

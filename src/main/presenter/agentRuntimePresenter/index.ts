@@ -5146,7 +5146,7 @@ export class AgentRuntimePresenter {
     const allowedSkillNameSet =
       extensionPolicy.enabledSkillNames === null || extensionPolicy.enabledSkillNames === undefined
         ? null
-        : new Set(this.normalizeSkillNames(extensionPolicy.enabledSkillNames))
+        : new Set(this.normalizeStringList(extensionPolicy.enabledSkillNames))
 
     if (skillsEnabled && skillPresenter) {
       if (skillPresenter.getMetadataList) {
@@ -5489,15 +5489,15 @@ export class AgentRuntimePresenter {
     sessionActiveSkillNames: string[],
     instance: DeepChatAgentInstance
   ): string[] {
-    return this.normalizeSkillNames([
+    return this.normalizeStringList([
       ...sessionActiveSkillNames,
       ...instance.getRuntimeActivatedSkills()
     ])
   }
 
-  private normalizeSkillNames(skillNames: string[]): string[] {
+  private normalizeStringList(values: string[]): string[] {
     return Array.from(
-      new Set(skillNames.map((name) => name.trim()).filter((name) => name.length > 0))
+      new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))
     ).sort((a, b) => a.localeCompare(b))
   }
 
@@ -6298,7 +6298,7 @@ export class AgentRuntimePresenter {
       const files = Array.isArray((parsed as { files?: unknown }).files)
         ? ((parsed as { files?: unknown }).files as MessageFile[]).filter((file) => Boolean(file))
         : []
-      const activeSkills = this.normalizeSkillNames(
+      const activeSkills = this.normalizeStringList(
         Array.isArray((parsed as { activeSkills?: unknown }).activeSkills)
           ? ((parsed as { activeSkills?: unknown }).activeSkills as string[])
           : []
@@ -6332,7 +6332,7 @@ export class AgentRuntimePresenter {
     const files = Array.isArray(input.files)
       ? input.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    const activeSkills = this.normalizeSkillNames(
+    const activeSkills = this.normalizeStringList(
       Array.isArray(input.activeSkills) ? input.activeSkills : []
     )
     const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
@@ -7490,7 +7490,7 @@ export class AgentRuntimePresenter {
     try {
       const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
       return this.filterSkillNamesByPolicy(
-        this.normalizeSkillNames(await this.skillPresenter.getActiveSkills(sessionId)),
+        this.normalizeStringList(await this.skillPresenter.getActiveSkills(sessionId)),
         policy
       )
     } catch (error) {
@@ -7531,7 +7531,7 @@ export class AgentRuntimePresenter {
     if (value === null || value === undefined) {
       return undefined
     }
-    return this.normalizeSkillNames(value)
+    return this.normalizeStringList(value)
   }
 
   private async refilterActiveSkillsForAgentPolicy(
@@ -7569,19 +7569,19 @@ export class AgentRuntimePresenter {
     if (value === null || value === undefined) {
       return value
     }
-    return this.normalizeSkillNames(value)
+    return this.normalizeStringList(value)
   }
 
   private filterSkillNamesByPolicy(
     skillNames: string[] | undefined,
     policy: AgentExtensionPolicy
   ): string[] {
-    const normalizedSkillNames = this.normalizeSkillNames(skillNames ?? [])
+    const normalizedSkillNames = this.normalizeStringList(skillNames ?? [])
     if (policy.enabledSkillNames === null || policy.enabledSkillNames === undefined) {
       return normalizedSkillNames
     }
 
-    const allowed = new Set(this.normalizeSkillNames(policy.enabledSkillNames))
+    const allowed = new Set(this.normalizeStringList(policy.enabledSkillNames))
     return normalizedSkillNames.filter((skillName) => allowed.has(skillName))
   }
 

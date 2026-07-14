@@ -1040,6 +1040,10 @@ export class McpPresenter implements IMCPPresenter {
     }
   }
 
+  clearSessionPermissions(conversationId: string): void {
+    this.toolManager.clearSessionPermissions(conversationId)
+  }
+
   async getNpmRegistryStatus(): Promise<{
     currentRegistry: string | null
     isFromCache: boolean

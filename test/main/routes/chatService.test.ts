@@ -169,6 +169,50 @@ describe('ChatService', () => {
     expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
 
+  it('returns an honest stop result when bounded cleanup times out', async () => {
+    const harness = createHarness()
+    const cleanupTimeout = new Error('cleanup timed out')
+    cleanupTimeout.name = 'TimeoutError'
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    harness.scheduler.timeout.mockRejectedValueOnce(cleanupTimeout)
+
+    await expect(harness.service.stopStream({ sessionId: 'session-1' })).resolves.toEqual({
+      stopped: false
+    })
+
+    expect(harness.sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
+    warn.mockRestore()
+  })
+
+  it('bounds timeout cleanup and preserves the original send timeout', async () => {
+    const harness = createHarness()
+    const sendTimeout = new Error('send timed out')
+    sendTimeout.name = 'TimeoutError'
+    const clearError = new Error('clear failed synchronously')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    harness.sessionPermissionPort.clearSessionPermissions.mockImplementation(() => {
+      throw clearError
+    })
+    harness.scheduler.timeout.mockImplementation(
+      async <T>({ task, reason }: { task: Promise<T>; reason: string }) => {
+        if (reason === 'chat.sendMessage:session-1') throw sendTimeout
+        return await task
+      }
+    )
+
+    await expect(harness.service.sendMessage('session-1', 'hello')).rejects.toBe(sendTimeout)
+
+    expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
+    expect(harness.scheduler.timeout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ms: 5_000,
+        reason: 'chat.bestEffortCancel:session-1'
+      })
+    )
+    warn.mockRestore()
+  })
+
   it('resolves stop target from message id when session id is omitted', async () => {
     const harness = createHarness()
     harness.projection.getMessage.mockResolvedValue(createMessage())
@@ -180,7 +224,7 @@ describe('ChatService', () => {
     expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
 
-  it('aborts an in-flight send accept path on stop', async () => {
+  it('aborts every concurrent in-flight send accept path on stop', async () => {
     const scheduler = {
       sleep: vi.fn(),
       timeout: vi.fn(async <T>({ task, signal }: { task: Promise<T>; signal?: AbortSignal }) => {
@@ -214,12 +258,12 @@ describe('ChatService', () => {
       }),
       retry: vi.fn()
     }
-    let resolveSession!: (value: SessionWithState) => void
+    const resolveSessions: Array<(value: SessionWithState) => void> = []
     const projection = {
       getSession: vi.fn().mockImplementation(
         async () =>
           await new Promise<SessionWithState>((resolve) => {
-            resolveSession = resolve
+            resolveSessions.push(resolve)
           })
       ),
       getMessage: vi.fn().mockResolvedValue(null)
@@ -240,16 +284,21 @@ describe('ChatService', () => {
       scheduler
     })
 
-    const pendingSend = service.sendMessage('session-1', 'hello')
+    const firstPendingSend = service.sendMessage('session-1', 'hello')
+    const secondPendingSend = service.sendMessage('session-1', 'again')
     await Promise.resolve()
 
     await expect(service.stopStream({ sessionId: 'session-1' })).resolves.toEqual({
       stopped: true
     })
 
-    resolveSession(createSession())
+    expect(resolveSessions).toHaveLength(2)
+    for (const resolveSession of resolveSessions) {
+      resolveSession(createSession())
+    }
 
-    await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(firstPendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(secondPendingSend).rejects.toMatchObject({ name: 'AbortError' })
     expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
     expect(turn.cancelGeneration).toHaveBeenCalledWith('session-1')
   })

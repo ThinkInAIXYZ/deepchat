@@ -19,9 +19,9 @@ tools, memory, permissions, and workspace boundaries aligned with the session's 
 | MCP servers | global process | agent `enabledMcpServerIds` | catalog + call + pre-check + fingerprint |
 | Plugins | global | none (always global for DeepChat) | plugin lifecycle only |
 | Plugin-owned MCP | global | exempt from agent MCP allow-list | always available when plugin enabled |
-| Built-in agent tools | process | session `disabledAgentTools` | catalog filter |
+| Built-in agent tools | process | session `disabledAgentTools` | catalog filter + execution membership check |
 | Memory | per-agent storage | agent memory settings | agentId-keyed rows / vectors |
-| Permission approvals | session | session `permissionMode` + caches | conversation-scoped; cleared on transfer |
+| Permission approvals | session | session `permissionMode` + caches | conversation-scoped; all caches cleared on transfer |
 | Workspace | session `project_dir` | session | tool allowed dirs from call workdir only |
 | Tape / messages | session | session | session-scoped |
 | ACP MCP | ACP process | ACP `agent_mcp_selections` | ACP session/call path |
@@ -37,6 +37,8 @@ tools, memory, permissions, and workspace boundaries aligned with the session's 
 5. Plugins remain globally enabled for DeepChat agents; UI/docs distinguish global plugins from
    agent-scoped Skills/MCP.
 6. ACP agents continue using ACP MCP selections, not DeepChat `enabledMcpServerIds`.
+7. Tool calls absent from the current session's tool definitions are rejected before dispatch, even
+   when a process-global tool mapper contains the same name.
 
 ## Constraints
 
@@ -59,5 +61,7 @@ tools, memory, permissions, and workspace boundaries aligned with the session's 
   `resolveDeepChatAgentConfig(session.agentId)` into tool discovery and MCP call paths.
 - Historical `enabledPluginIds` remains omitted from tool discovery forever.
 - Tool workspace allow lists trust the conversation workdir argument, not a shared mutable manager
-  workspace field.
-- Transfer is a security boundary: approvals and pinned skills do not silently survive host change.
+  workspace field. A missing or failed conversation workdir lookup uses the isolated default
+  workspace and never falls back to the manager's last synchronized workspace.
+- Transfer is a security boundary: command, file, settings, and MCP session approvals plus pinned
+  skills do not silently survive host change.

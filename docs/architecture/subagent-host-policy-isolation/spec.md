@@ -22,6 +22,7 @@ while keeping intentional parent inheritance for workspace and model selection.
 | `disabledAgentTools` | parent session | **target agent config** |
 | `systemPrompt` | parent generation settings | **target agent config** |
 | `activeSkills` | parent session pins | parent pins **∩ target `enabledSkillNames`** |
+| Permission approvals | inherit non-MCP session approvals | **start clean** |
 | MCP / plugins | runtime host policy (agentId) | runtime host policy (target agentId) |
 
 ## Acceptance Criteria
@@ -32,6 +33,8 @@ while keeping intentional parent inheritance for workspace and model selection.
 3. Cross-agent active skills are filtered by the target agent allow-list (`[]` means none).
 4. Workdir remains the parent session workdir for both cases.
 5. ACP subagent targets remain ACP-shaped (no DeepChat tool/skill inheritance).
+6. Only self-target children inherit parent session approvals. Cross-agent children start with
+   empty approval caches, and MCP temporary approvals are never cloned.
 
 ## Constraints
 

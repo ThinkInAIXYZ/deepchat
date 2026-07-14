@@ -259,8 +259,11 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
         if (runtimeConfig.activeSkills.length > 0) {
           await this.dependencies.skills.setActiveSkills(sessionId, runtimeConfig.activeSkills)
         }
-        // Inherit parent session approvals so child does not re-prompt for already-trusted work.
-        this.dependencies.permissions?.cloneSessionPermissions?.(parentSessionId, sessionId)
+        const parentAgentId = input.parentAgentId?.trim()
+        if (parentAgentId && runtimeConfig.agentId === parentAgentId) {
+          // Only self-target children share the parent's trust boundary.
+          this.dependencies.permissions?.cloneSessionPermissions?.(parentSessionId, sessionId)
+        }
         if (!this.dependencies.sessions.get(sessionId)) {
           throw new Error(`Subagent session not found after creation: ${sessionId}`)
         }

@@ -26,4 +26,5 @@
 - Rewrite agentRuntimePresenter tool-discovery expectations to enforce MCP policy.
 - Keep plugin policy omission assertion.
 - Workspace allow-list unit coverage for call workdir only.
-- Transfer/rebind clears permissions and refilters skills.
+- Transfer/rebind clears command, file, settings, and MCP permissions and refilters skills.
+- Dispatch rejects tool names missing from the current session catalog.

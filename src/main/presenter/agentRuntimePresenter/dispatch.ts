@@ -1779,6 +1779,20 @@ export async function executeTools(
     const execution = buildToolExecutionContext(tc, tools, io.sessionId, providerId)
     const { toolCall, toolContext } = execution
 
+    if (!execution.toolDef) {
+      stagedResults.push({
+        toolCallId: tc.id,
+        toolName: tc.name,
+        toolArgs: tc.arguments,
+        responseText: `Error: Tool is not available in the current session: ${tc.name}`,
+        isError: true,
+        searchPayload: null,
+        postHookKind: 'failure'
+      })
+      executed += 1
+      continue
+    }
+
     try {
       if (toolCall.function.name === QUESTION_TOOL_NAME) {
         const parsedQuestion = parseQuestionToolArgs(tc.arguments)

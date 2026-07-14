@@ -64,7 +64,7 @@ describe('AgentToolManager read routing', () => {
       generateCompletionStandalone: vi.fn(),
       generateImageStandalone: vi.fn()
     }
-    resolveConversationWorkdir = vi.fn().mockResolvedValue(null)
+    resolveConversationWorkdir = vi.fn().mockResolvedValue(workspaceDir)
     resolveConversationSessionInfo = vi.fn().mockResolvedValue({
       agentId: 'deepchat',
       providerId: 'openai',
@@ -153,6 +153,31 @@ describe('AgentToolManager read routing', () => {
         needsPermission: true,
         permissionType: 'read',
         paths: [externalFile]
+      })
+    )
+  })
+
+  it('does not inherit the last synchronized workspace when session workdir lookup is empty', async () => {
+    const otherWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-other-'))
+    const otherFile = path.join(otherWorkspace, 'other-session.txt')
+    await fs.writeFile(otherFile, 'other session', 'utf-8')
+    manager.syncContext({ chatMode: 'agent', agentWorkspacePath: otherWorkspace })
+    resolveConversationWorkdir.mockImplementation(async (conversationId: string) =>
+      conversationId === 'session-a' ? null : otherWorkspace
+    )
+
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: otherFile },
+      'session-a'
+    )
+    const resolvedOtherFile = await fs.realpath(otherFile)
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'read',
+        paths: [resolvedOtherFile]
       })
     )
   })

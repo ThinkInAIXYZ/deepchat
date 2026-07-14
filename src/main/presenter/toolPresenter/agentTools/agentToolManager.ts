@@ -959,8 +959,7 @@ export class AgentToolManager {
       }
     }
 
-    const workspaceRoot =
-      dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
+    const workspaceRoot = this.resolveCallWorkspaceRoot(dynamicWorkdir, conversationId)
     const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
       includeSkillRoots: toolName !== 'exec',
       includeRuntimeRoots: toolName !== 'exec',
@@ -1783,6 +1782,12 @@ export class AgentToolManager {
     return tempDir
   }
 
+  private resolveCallWorkspaceRoot(dynamicWorkdir: string | null, conversationId?: string): string {
+    if (dynamicWorkdir) return dynamicWorkdir
+    if (conversationId) return this.getDefaultAgentWorkspacePath()
+    return this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
+  }
+
   private isSkillsEnabled(): boolean {
     return this.configPresenter.getSkillsEnabled()
   }
@@ -2020,8 +2025,7 @@ export class AgentToolManager {
         }
       }
 
-      const workspaceRoot =
-        dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
+      const workspaceRoot = this.resolveCallWorkspaceRoot(dynamicWorkdir, conversationId)
       const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
         includeSkillRoots: toolName !== 'exec',
         includeRuntimeRoots: toolName !== 'exec',

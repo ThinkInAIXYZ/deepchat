@@ -2775,7 +2775,7 @@
     "acpUnavailableDescription": "ACP Agent 通过自己的运行时管理工具和扩展。请选择一个 DeepChat Agent 后再使用插件。",
     "agentScopeUnsupported": "Agent 级扩展配置仅支持 DeepChat Agent。",
     "scopeGlobalPlugins": "当前页为应用全局：官方插件的安装、启用与进程对所有 DeepChat Agent 共享。",
-    "scopeCurrentAgent": "当前页为 Agent 策略：仅影响「{agent}」可用的 Skills / MCP，不会全局禁用资源。",
+    "scopeCurrentAgent": "当前页为 Agent 策略：仅影响「{agent}」可用的 Skills / MCP，不会影响全局插件的安装、启用状态或进程状态。",
     "currentAgentFallback": "当前 Agent"
   },
   "controlCenter": {

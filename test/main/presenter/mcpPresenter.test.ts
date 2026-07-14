@@ -16,7 +16,8 @@ const serverManagerMocks = vi.hoisted(() => ({
 
 const toolManagerMocks = vi.hoisted(() => ({
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-  getRunningClients: vi.fn().mockResolvedValue([])
+  getRunningClients: vi.fn().mockResolvedValue([]),
+  clearSessionPermissions: vi.fn()
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -40,7 +41,8 @@ vi.mock('../../../src/main/presenter/mcpPresenter/serverManager', () => ({
 vi.mock('../../../src/main/presenter/mcpPresenter/toolManager', () => ({
   ToolManager: vi.fn().mockImplementation(() => ({
     getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
-    getRunningClients: toolManagerMocks.getRunningClients
+    getRunningClients: toolManagerMocks.getRunningClients,
+    clearSessionPermissions: toolManagerMocks.clearSessionPermissions
   }))
 }))
 
@@ -132,6 +134,17 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     expect(configPresenter.setMcpServerEnabled.mock.invocationCallOrder[0]).toBeLessThan(
       startSpy.mock.invocationCallOrder[0]
     )
+  })
+
+  it('clears MCP temporary approvals for a session', () => {
+    const presenter = new McpPresenter(createConfigPresenter(true))
+    ;(presenter as any).toolManager = {
+      clearSessionPermissions: toolManagerMocks.clearSessionPermissions
+    }
+
+    presenter.clearSessionPermissions('session-1')
+
+    expect(toolManagerMocks.clearSessionPermissions).toHaveBeenCalledExactlyOnceWith('session-1')
   })
 
   it('stops a server immediately after disabling it when MCP is active', async () => {
