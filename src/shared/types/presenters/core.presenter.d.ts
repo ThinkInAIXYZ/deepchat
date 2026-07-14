@@ -20,7 +20,6 @@ import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
-import type { IAgentSessionPresenter } from './agent-session.presenter'
 import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { IWindowPresenter, TabData } from './window.presenter'
@@ -446,7 +445,6 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
-  agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
   init(): void
   destroy(): Promise<void>

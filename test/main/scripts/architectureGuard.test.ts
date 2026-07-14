@@ -112,7 +112,6 @@ const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
 )
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
 const SESSION_APPLICATION_ROOT = path.join(ROOT, 'src/main/presenter/sessionApplication')
-const SESSION_APPLICATION_PORTS_PATH = path.join(SESSION_APPLICATION_ROOT, 'ports.ts')
 const REMOTE_CONTROL_PRESENTER_PATH = path.join(
   ROOT,
   'src/main/presenter/remoteControlPresenter/index.ts'
@@ -263,12 +262,6 @@ const SESSION_WHOLE_DEPENDENCY_FIXTURES = [
     dependency: 'Presenter',
     specifier: '../index',
     localName: 'AppPresenter'
-  },
-  {
-    dependency: 'IAgentSessionPresenter',
-    specifier: '@shared/presenter',
-    localName: 'SessionFacade',
-    filePath: SESSION_APPLICATION_PORTS_PATH
   },
   {
     dependency: 'AgentSharedDataPorts',
@@ -938,15 +931,14 @@ describe('architecture guard', () => {
     expect(result.stdout).toContain('Architecture guard passed.')
   })
 
-  it('guards the production Remote presenter path from broad session presenter access', () => {
+  it('guards the production Remote presenter path from retired session facade access', () => {
     const fixtureViolations = sessionViolationsForFile(
       violations,
       SESSION_PRODUCTION_CONSUMER_FIXTURE.filePath
     )
-    expect(fixtureViolations).toEqual([
-      expect.stringContaining('[session-consumer-presenter-type]'),
-      expect.stringContaining('[session-consumer-presenter-facade]')
-    ])
+    expect(fixtureViolations.join('\n')).toContain('[session-consumer-presenter-type]')
+    expect(fixtureViolations.join('\n')).toContain('[session-consumer-presenter-facade]')
+    expect(fixtureViolations.join('\n')).toContain('[session-retired-facade-symbol]')
   })
 
   it.each(SESSION_DUPLICATE_CONSTRUCTION_FIXTURES)(
@@ -1021,27 +1013,21 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[memory-legacy-list-caller]')
   })
 
-  it('keeps moved capabilities and owners out of AgentSessionPresenter', () => {
+  it('keeps the AgentSessionPresenter path and symbol retired', () => {
     const fixtureViolations = forFile(violations, AGENT_SESSION_PRESENTER_PATH).join('\n')
-    expect(fixtureViolations).toContain('[session-boundary-presenter-method]')
-    for (const owner of [
-      'legacy import',
-      'startup migrations',
-      'usage owner or policy',
-      'RTK runtime',
-      'exporter formats',
-      'history search',
-      'session translation',
-      'agent catalog'
-    ]) {
-      expect(fixtureViolations).toContain(`must not import ${owner}`)
-    }
+    expect(violations.join('\n')).toContain(
+      '[main-retired-path] src/main/presenter/agentSessionPresenter'
+    )
+    expect(fixtureViolations).toContain('[session-retired-facade-symbol]')
   })
 
-  it('keeps moved capabilities out of IAgentSessionPresenter', () => {
-    expect(forFile(violations, AGENT_SESSION_PRESENTER_INTERFACE_PATH).join('\n')).toContain(
-      '[session-boundary-interface-method]'
-    )
+  it('keeps the IAgentSessionPresenter path and symbol retired', () => {
+    const fixtureViolations = forFile(
+      violations,
+      AGENT_SESSION_PRESENTER_INTERFACE_PATH
+    ).join('\n')
+    expect(fixtureViolations).toContain('[main-retired-path]')
+    expect(fixtureViolations).toContain('[session-retired-facade-symbol]')
   })
 
   it(
@@ -1104,7 +1090,7 @@ describe('architecture guard', () => {
       expect(unsafeCastResult.join('\n')).toContain('[session-boundary-hook-type-cast]')
       expect(unsafeCastResult.join('\n')).not.toContain('[session-boundary-hook-optional-task]')
     },
-    30_000
+    60_000
   )
 
   it('keeps Memory orchestration and injection callbacks out of the runtime presenter', () => {

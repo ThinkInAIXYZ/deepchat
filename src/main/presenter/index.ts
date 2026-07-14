@@ -29,7 +29,6 @@ import {
   IYoBrowserPresenter,
   ISkillPresenter,
   ISkillSyncPresenter,
-  IAgentSessionPresenter,
   IProjectPresenter,
   IRemoteControlPresenter
 } from '@shared/presenter'
@@ -76,7 +75,6 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { AgentSessionPresenter } from './agentSessionPresenter'
 import { SessionProjectionCoordinator } from './sessionApplication/projectionCoordinator'
 import { SessionAgentAssignmentPolicy } from './sessionApplication/agentAssignmentPolicy'
 import { SessionAgentAssignmentCoordinator } from './sessionApplication/agentAssignmentCoordinator'
@@ -173,7 +171,6 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
-  agentSessionPresenter: IAgentSessionPresenter
   sessionProjectionCoordinator: SessionProjectionCoordinator
   sessionAgentAssignmentPolicy: SessionAgentAssignmentPolicy
   sessionAgentAssignmentCoordinator: SessionAgentAssignmentCoordinator
@@ -301,7 +298,7 @@ export class Presenter implements IPresenter {
     const agentToolRuntime: AgentToolRuntimePort = {
       resolveConversationWorkdir: async (conversationId) => {
         try {
-          const session = await this.agentSessionPresenter?.getSession(conversationId)
+          const session = await this.sessionProjectionCoordinator.getSession(conversationId)
           const normalized = session?.projectDir?.trim()
           if (normalized) {
             return normalized
@@ -316,25 +313,20 @@ export class Presenter implements IPresenter {
         return null
       },
       resolveConversationSessionInfo: async (conversationId) => {
-        const session = await this.agentSessionPresenter?.getSession(conversationId)
+        const session = await this.sessionProjectionCoordinator.getSession(conversationId)
         if (!session) {
           return null
         }
 
         const agent = await this.configPresenter.getAgent(session.agentId)
         const agentType = await this.configPresenter.getAgentType(session.agentId)
-        const permissionMode =
-          typeof this.agentSessionPresenter?.getPermissionMode === 'function'
-            ? await this.agentSessionPresenter.getPermissionMode(session.id)
-            : 'full_access'
+        const permissionMode = await this.sessionAgentAssignmentCoordinator.getPermissionMode(
+          session.id
+        )
         const generationSettings =
-          typeof this.agentSessionPresenter?.getSessionGenerationSettings === 'function'
-            ? await this.agentSessionPresenter.getSessionGenerationSettings(session.id)
-            : null
+          await this.sessionAgentAssignmentCoordinator.getSessionGenerationSettings(session.id)
         const disabledAgentTools =
-          typeof this.agentSessionPresenter?.getSessionDisabledAgentTools === 'function'
-            ? await this.agentSessionPresenter.getSessionDisabledAgentTools(session.id)
-            : []
+          await this.sessionAgentAssignmentCoordinator.getSessionDisabledAgentTools(session.id)
         const activeSkills = await this.skillPresenter.getActiveSkills(session.id)
         const availableSubagentSlots =
           agentType === 'deepchat' && session.sessionKind === 'regular'
@@ -363,19 +355,23 @@ export class Presenter implements IPresenter {
         }
       },
       getTapeInfo: async (conversationId) => {
-        return await this.agentSessionPresenter.getTapeInfo(conversationId)
+        return await this.sessionProjectionCoordinator.getTapeInfo(conversationId)
       },
       searchTape: async (conversationId, query, options) => {
-        return await this.agentSessionPresenter.searchTape(conversationId, query, options)
+        return await this.sessionProjectionCoordinator.searchTape(conversationId, query, options)
       },
       getTapeContext: async (conversationId, entryIds, options) => {
-        return await this.agentSessionPresenter.getTapeContext(conversationId, entryIds, options)
+        return await this.sessionProjectionCoordinator.getTapeContext(
+          conversationId,
+          entryIds,
+          options
+        )
       },
       listTapeAnchors: async (conversationId, options) => {
-        return await this.agentSessionPresenter.listTapeAnchors(conversationId, options)
+        return await this.sessionProjectionCoordinator.listTapeAnchors(conversationId, options)
       },
       handoffTape: async (conversationId, name, state) => {
-        return await this.agentSessionPresenter.handoffTape(conversationId, name, state)
+        return await this.sessionProjectionCoordinator.handoffTape(conversationId, name, state)
       },
       isMemoryEnabled: (agentId) => this.memoryPresenter.isEnabled(agentId),
       rememberMemory: async (agentId, input, sourceSession, model) =>
@@ -409,29 +405,28 @@ export class Presenter implements IPresenter {
       listCronJobRuns: async (jobId, limit) => this.cronJobs.listRuns(jobId, limit),
       previewCronSchedule: async (input) => this.cronJobs.previewSchedule(input),
       createSubagentSession: async (input) => {
-        const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
-          createSubagentSession?: (createInput: typeof input) => Promise<{
-            id: string
-          } | null>
-        }
-        const created = await agentSessionPresenter.createSubagentSession?.(input)
-        if (!created?.id) {
-          return null
-        }
-
+        const created = await this.sessionLifecycleCoordinator.createSubagentSession(input)
         return await agentToolRuntime.resolveConversationSessionInfo(created.id)
       },
       mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await this.agentSessionPresenter.mergeSubagentTape(parentSessionId, childSessionId, meta)
+        await this.sessionAgentAssignmentCoordinator.mergeSubagentTape(
+          parentSessionId,
+          childSessionId,
+          meta
+        )
       },
       discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await this.agentSessionPresenter.discardSubagentTape(parentSessionId, childSessionId, meta)
+        await this.sessionAgentAssignmentCoordinator.discardSubagentTape(
+          parentSessionId,
+          childSessionId,
+          meta
+        )
       },
       sendConversationMessage: async (conversationId, content) => {
-        await this.agentSessionPresenter.sendMessage(conversationId, content)
+        await this.sessionTurnCoordinator.sendMessage(conversationId, content)
       },
       cancelConversation: async (conversationId) => {
-        await this.agentSessionPresenter.cancelGeneration(conversationId)
+        await this.sessionTurnCoordinator.cancelGeneration(conversationId)
       },
       subscribeDeepChatSessionUpdates: (listener) =>
         subscribeDeepChatInternalSessionUpdates(listener),
@@ -501,7 +496,7 @@ export class Presenter implements IPresenter {
     const skillSessionStatePort: SkillSessionStatePort = {
       hasNewSession: async (conversationId) => {
         try {
-          return Boolean(await this.agentSessionPresenter?.getSession(conversationId))
+          return Boolean(await this.sessionProjectionCoordinator.getSession(conversationId))
         } catch {
           return false
         }
@@ -944,15 +939,6 @@ export class Presenter implements IPresenter {
       configPresenter: this.configPresenter,
       llmProviderPresenter: this.llmproviderPresenter
     })
-    this.agentSessionPresenter = new AgentSessionPresenter(
-      this.sessionProjectionCoordinator,
-      this.sessionLifecycleCoordinator,
-      this.sessionAgentAssignmentCoordinator,
-      this.sessionTurnCoordinator,
-      {
-        sessionPermissionPort
-      }
-    )
     this.projectPresenter = new ProjectPresenter(
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.devicePresenter,
@@ -972,10 +958,10 @@ export class Presenter implements IPresenter {
     this.remoteControlPresenter = this.#remoteControlPresenter
     this.cronJobs.setRemoteDeliveryPort(this.#remoteControlPresenter)
 
-    // Update hooksNotifications with actual dependencies now that agentSessionPresenter is ready
+    // Update hooks notifications with the composition-owned projection.
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getSession: this.agentSessionPresenter.getSession.bind(this.agentSessionPresenter),
-      getMessage: this.agentSessionPresenter.getMessage.bind(this.agentSessionPresenter)
+      getSession: (sessionId) => this.sessionProjectionCoordinator.getSession(sessionId),
+      getMessage: (messageId) => this.sessionProjectionCoordinator.getMessage(messageId)
     })
 
     this.setupEventBus()
@@ -1367,10 +1353,10 @@ const buildMainKernelRouteRuntime = () =>
     configPresenter: presenter.configPresenter,
     llmProviderPresenter: presenter.llmproviderPresenter,
     acpProviderAdminPort: presenter.acpProviderAdminPort,
-    agentSessionPresenter: presenter.agentSessionPresenter,
     sessionLifecyclePort: presenter.sessionLifecycleCoordinator,
     sessionProjectionPort: presenter.sessionProjectionCoordinator,
     sessionTurnPort: presenter.sessionTurnCoordinator,
+    sessionAssignmentPort: presenter.sessionAgentAssignmentCoordinator,
     sessionPermissionPort: presenter.sessionPermissionPort,
     skillPresenter: presenter.skillPresenter,
     skillSyncPresenter: presenter.skillSyncPresenter,

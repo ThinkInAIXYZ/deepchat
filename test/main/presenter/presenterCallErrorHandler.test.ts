@@ -31,7 +31,7 @@ describe('presenterCallErrorHandler', () => {
     await expect(
       handlePresenterCallResult(Promise.reject(error), {
         webContentsId: 7,
-        presenterName: 'agentSessionPresenter',
+        presenterName: 'sessionLifecycleCoordinator',
         methodName: 'createSession'
       })
     ).rejects.toThrow(error)
@@ -56,7 +56,7 @@ describe('presenterCallErrorHandler', () => {
     await expect(
       handlePresenterCallResult(Promise.reject(new Error(errorMessage)), {
         webContentsId: 9,
-        presenterName: 'agentSessionPresenter',
+        presenterName: 'sessionLifecycleCoordinator',
         methodName: 'createSession'
       })
     ).rejects.toThrow(errorMessage)
@@ -80,7 +80,7 @@ describe('presenterCallErrorHandler', () => {
     await expect(
       handlePresenterCallResult(Promise.reject(new Error(errorMessage)), {
         webContentsId: 11,
-        presenterName: 'agentSessionPresenter',
+        presenterName: 'sessionLifecycleCoordinator',
         methodName: 'createSession'
       })
     ).rejects.toThrow(errorMessage)

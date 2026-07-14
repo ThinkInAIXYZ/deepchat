@@ -166,9 +166,9 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
 
 vi.mock('../../../../src/main/presenter/index', () => ({
   presenter: {
-    agentSessionPresenter: {
-      getSessionList: getSessionListMock,
-      activateSession: vi.fn()
+    sessionProjectionCoordinator: {
+      listSessions: getSessionListMock,
+      activate: vi.fn()
     },
     windowPresenter: {
       mainWindow: null,

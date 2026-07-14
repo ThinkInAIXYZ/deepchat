@@ -1,5 +1,4 @@
 import type {
-  IAgentSessionPresenter,
   IConfigPresenter,
   IConversationExporter,
   IDevicePresenter,
@@ -420,118 +419,6 @@ function createRuntime() {
     })
   } as unknown as IConfigPresenter
 
-  const agentSessionPresenter = {
-    getActiveSessionId: vi.fn(() => null),
-    getLightweightSessionsByIds: vi.fn().mockResolvedValue([]),
-    createDetachedSession: vi.fn().mockResolvedValue({
-      id: 'session-1',
-      agentId: 'deepchat',
-      title: 'New Chat',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-5.4'
-    }),
-    createSession: vi.fn().mockResolvedValue({
-      id: 'session-1',
-      agentId: 'deepchat',
-      title: 'New Chat',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-5.4'
-    }),
-    getSession: vi.fn().mockResolvedValue({
-      id: 'session-1',
-      agentId: 'deepchat',
-      title: 'Restored',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-5.4'
-    }),
-    getMessages: vi.fn().mockResolvedValue([
-      {
-        id: 'message-1',
-        sessionId: 'session-1',
-        orderSeq: 1,
-        role: 'user',
-        content: '{"text":"hello"}',
-        status: 'sent',
-        isContextEdge: 0,
-        metadata: '{}',
-        createdAt: 1,
-        updatedAt: 1
-      }
-    ]),
-    getSessionList: vi.fn().mockResolvedValue([]),
-    getActiveSession: vi.fn().mockResolvedValue(null),
-    activateSession: vi.fn().mockResolvedValue(undefined),
-    deactivateSession: vi.fn().mockResolvedValue(undefined),
-    getSessionGenerationSettings: vi.fn().mockResolvedValue({
-      systemPrompt: '',
-      temperature: 0.7,
-      contextLength: 32000,
-      maxTokens: 4096,
-      timeout: 5000
-    }),
-    updateSessionGenerationSettings: vi
-      .fn()
-      .mockImplementation(async (_sessionId: string, settings: { timeout?: number }) => ({
-        systemPrompt: '',
-        temperature: 0.7,
-        contextLength: 32000,
-        maxTokens: 4096,
-        timeout: settings.timeout ?? 5000
-      })),
-    sendMessage: vi.fn().mockResolvedValue({
-      requestId: 'message-2',
-      messageId: 'message-2'
-    }),
-    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
-    compactSession: vi.fn().mockResolvedValue({
-      compacted: true,
-      state: {
-        status: 'compacted',
-        cursorOrderSeq: 5,
-        summaryUpdatedAt: 123
-      }
-    }),
-    cancelGeneration: vi.fn().mockResolvedValue(undefined),
-    getMessage: vi.fn().mockResolvedValue({
-      id: 'message-1',
-      sessionId: 'session-1'
-    }),
-    respondToolInteraction: vi.fn().mockResolvedValue({
-      resumed: true
-    }),
-    clearSessionPermissions: vi.fn()
-  } as unknown as IAgentSessionPresenter
-
   const sessionSnapshot = {
     id: 'session-1',
     agentId: 'deepchat',
@@ -550,7 +437,12 @@ function createRuntime() {
     modelId: 'gpt-5.4'
   }
   const sessionLifecyclePort = {
-    createSession: vi.fn().mockResolvedValue({ ...sessionSnapshot, title: 'New Chat' })
+    createSession: vi.fn().mockResolvedValue({ ...sessionSnapshot, title: 'New Chat' }),
+    createDetachedSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    createSubagentSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    ensureAcpDraftSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    forkSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    deleteSession: vi.fn().mockResolvedValue(undefined)
   }
   const sessionProjectionPort = {
     getSession: vi.fn().mockResolvedValue(sessionSnapshot),
@@ -576,6 +468,20 @@ function createRuntime() {
     activate: vi.fn().mockResolvedValue(undefined),
     deactivate: vi.fn().mockResolvedValue(undefined),
     getActive: vi.fn().mockResolvedValue(null),
+    getActiveId: vi.fn(() => null),
+    listLightweight: vi.fn().mockResolvedValue({
+      sessions: [],
+      nextCursor: null,
+      hasMore: false
+    }),
+    getLightweightByIds: vi.fn().mockResolvedValue([]),
+    getSearchResults: vi.fn().mockResolvedValue([]),
+    getTapeContext: vi.fn().mockResolvedValue({ entries: [] }),
+    listMessageTraces: vi.fn().mockResolvedValue([]),
+    listMessageViewManifests: vi.fn().mockResolvedValue([]),
+    exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
+    renameSession: vi.fn().mockResolvedValue(undefined),
+    toggleSessionPinned: vi.fn().mockResolvedValue(undefined),
     getMessage: vi.fn().mockResolvedValue({
       id: 'message-1',
       sessionId: 'session-1',
@@ -595,8 +501,60 @@ function createRuntime() {
       messageId: 'message-2'
     }),
     steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+    listPendingInputs: vi.fn().mockResolvedValue([]),
+    queuePendingInput: vi.fn().mockResolvedValue({}),
+    updateQueuedInput: vi.fn().mockResolvedValue({}),
+    moveQueuedInput: vi.fn().mockResolvedValue([]),
+    convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
+    steerPendingInput: vi.fn().mockResolvedValue({}),
+    deletePendingInput: vi.fn().mockResolvedValue(undefined),
+    retryMessage: vi.fn().mockResolvedValue(undefined),
+    deleteMessage: vi.fn().mockResolvedValue(undefined),
+    editUserMessage: vi.fn().mockResolvedValue({}),
+    getSessionCompactionState: vi.fn().mockResolvedValue({ status: 'idle' }),
+    compactSession: vi.fn().mockResolvedValue({
+      compacted: true,
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123
+      }
+    }),
+    clearSessionMessages: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     respondToolInteraction: vi.fn().mockResolvedValue({ resumed: true })
+  }
+  const sessionAssignmentPort = {
+    getAgentTransferImpact: vi.fn().mockResolvedValue({}),
+    moveAgentSessions: vi.fn().mockResolvedValue({ movedSessionIds: [], deletedSessionIds: [] }),
+    deleteAgentSessions: vi.fn().mockResolvedValue([]),
+    moveSessionToAgent: vi.fn().mockResolvedValue(sessionSnapshot),
+    getAcpSessionCommands: vi.fn().mockResolvedValue([]),
+    getAcpSessionConfigOptions: vi.fn().mockResolvedValue(null),
+    setAcpSessionConfigOption: vi.fn().mockResolvedValue(null),
+    getPermissionMode: vi.fn().mockResolvedValue('full_access'),
+    setPermissionMode: vi.fn().mockResolvedValue(undefined),
+    setSessionSubagentEnabled: vi.fn().mockResolvedValue(sessionSnapshot),
+    setSessionModel: vi.fn().mockResolvedValue(sessionSnapshot),
+    setSessionProjectDir: vi.fn().mockResolvedValue(sessionSnapshot),
+    getSessionGenerationSettings: vi.fn().mockResolvedValue({
+      systemPrompt: '',
+      temperature: 0.7,
+      contextLength: 32000,
+      maxTokens: 4096,
+      timeout: 5000
+    }),
+    getSessionDisabledAgentTools: vi.fn().mockResolvedValue([]),
+    updateSessionDisabledAgentTools: vi.fn().mockResolvedValue([]),
+    updateSessionGenerationSettings: vi
+      .fn()
+      .mockImplementation(async (_sessionId: string, settings: { timeout?: number }) => ({
+        systemPrompt: '',
+        temperature: 0.7,
+        contextLength: 32000,
+        maxTokens: 4096,
+        timeout: settings.timeout ?? 5000
+      }))
   }
   const sessionPermissionPort = {
     clearSessionPermissions: vi.fn()
@@ -1344,10 +1302,10 @@ function createRuntime() {
       configPresenter,
       llmProviderPresenter,
       acpProviderAdminPort,
-      agentSessionPresenter,
       sessionLifecyclePort,
       sessionProjectionPort,
       sessionTurnPort,
+      sessionAssignmentPort,
       sessionPermissionPort,
       skillPresenter,
       skillSyncPresenter,
@@ -1375,10 +1333,10 @@ function createRuntime() {
     configPresenter,
     llmProviderPresenter,
     acpProviderAdminPort,
-    agentSessionPresenter,
     sessionLifecyclePort,
     sessionProjectionPort,
     sessionTurnPort,
+    sessionAssignmentPort,
     sessionPermissionPort,
     skillPresenter,
     skillSyncPresenter,
@@ -3635,8 +3593,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches session and chat routes with renderer context', async () => {
-    const { runtime, agentSessionPresenter, sessionLifecyclePort, sessionTurnPort } =
-      createRuntime()
+    const { runtime, sessionLifecyclePort, sessionTurnPort } = createRuntime()
 
     const createResult = await dispatchDeepchatRoute(
       runtime,
@@ -3709,7 +3666,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(agentSessionPresenter.compactSession).toHaveBeenCalledWith('session-1')
+    expect(sessionTurnPort.compactSession).toHaveBeenCalledWith('session-1')
     expect(compactResult).toEqual({
       compacted: true,
       state: {
@@ -3721,7 +3678,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches session generation settings routes without dropping timeout', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+    const { runtime, sessionAssignmentPort } = createRuntime()
 
     const updateResult = await dispatchDeepchatRoute(
       runtime,
@@ -3750,7 +3707,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(sessionAssignmentPort.updateSessionGenerationSettings).toHaveBeenCalledWith(
       'session-1',
       {
         timeout: 5000
@@ -3765,7 +3722,7 @@ describe('dispatchDeepchatRoute', () => {
         timeout: 5000
       }
     })
-    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('session-1')
+    expect(sessionAssignmentPort.getSessionGenerationSettings).toHaveBeenCalledWith('session-1')
     expect(getResult).toEqual({
       settings: {
         systemPrompt: '',

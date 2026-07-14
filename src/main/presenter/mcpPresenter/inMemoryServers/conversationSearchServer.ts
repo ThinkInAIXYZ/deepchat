@@ -266,11 +266,11 @@ export class ConversationSearchServer {
   // 获取对话历史
   private async getConversationHistory(conversationId: string, includeSystem: boolean = false) {
     try {
-      const session = await presenter.agentSessionPresenter.getSession(conversationId)
+      const session = await presenter.sessionProjectionCoordinator.getSession(conversationId)
       if (!session) {
         throw new Error(`Session not found: ${conversationId}`)
       }
-      const records = await presenter.agentSessionPresenter.getMessages(conversationId)
+      const records = await presenter.sessionProjectionCoordinator.getMessages(conversationId)
 
       const filteredMessages = includeSystem
         ? records

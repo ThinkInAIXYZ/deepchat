@@ -7,7 +7,6 @@ import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import { AgentRepository } from '@/presenter/agentRepository'
-import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
 import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
@@ -598,16 +597,11 @@ function createDescriptorIndependentDeleteHarness(options: {
     skillPresenter,
     sessionPermissionPort
   })
-  const presenter = new AgentSessionPresenter(
-    projection,
-    sessionApplications.lifecycle,
-    sessionApplications.assignment,
-    sessionApplications.turn,
-    { sessionPermissionPort }
-  )
-
   return {
-    presenter,
+    lifecycle: sessionApplications.lifecycle,
+    turn: sessionApplications.turn,
+    assignment: sessionApplications.assignment,
+    projection,
     manager,
     sessions,
     deleteSessionRow,
@@ -621,7 +615,7 @@ function createDescriptorIndependentDeleteHarness(options: {
   }
 }
 
-describe('AgentSessionPresenter', () => {
+describe('Session application coordinators', () => {
   let deepChatAgent: ReturnType<typeof createMockDeepChatAgent>
   let llmProviderPresenter: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
@@ -640,7 +634,10 @@ describe('AgentSessionPresenter', () => {
     resolveSubagentFacet: ReturnType<typeof vi.fn>
     cleanupSessionBackends: ReturnType<typeof vi.fn>
   }
-  let presenter: AgentSessionPresenter
+  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
+  let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
+  let assignment: ReturnType<typeof createAssignmentCoordinatorFixture>['assignment']
+  let projection: ReturnType<typeof createProjectionCoordinatorFixture>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -730,7 +727,7 @@ describe('AgentSessionPresenter', () => {
       transcriptMutation: deepChatAgent,
       tape: deepChatAgent
     } as any
-    const projection = createProjectionCoordinatorFixture({
+    projection = createProjectionCoordinatorFixture({
       agentManager: agentManager as any,
       appSessionService,
       llmProviderPresenter,
@@ -749,12 +746,9 @@ describe('AgentSessionPresenter', () => {
       acp: llmProviderPresenter,
       skillPresenter
     })
-    presenter = new AgentSessionPresenter(
-      projection,
-      sessionApplications.lifecycle,
-      sessionApplications.assignment,
-      sessionApplications.turn
-    )
+    lifecycle = sessionApplications.lifecycle
+    turn = sessionApplications.turn
+    assignment = sessionApplications.assignment
   })
 
   it('routes public session operations through the real catalog and manager chain', async () => {
@@ -1001,23 +995,18 @@ describe('AgentSessionPresenter', () => {
       acp: llmProviderPresenter,
       skillPresenter
     })
-    const integratedPresenter = new AgentSessionPresenter(
-      projection,
-      sessionApplications.lifecycle,
-      sessionApplications.assignment,
-      sessionApplications.turn
-    )
-
-    await expect(integratedPresenter.sendMessage('deepchat-session', 'Hello')).resolves.toEqual({
+    await expect(
+      sessionApplications.turn.sendMessage('deepchat-session', 'Hello')
+    ).resolves.toEqual({
       requestId: null,
       messageId: null
     })
-    await expect(integratedPresenter.sendMessage('acp-session', 'Hello')).resolves.toEqual({
+    await expect(sessionApplications.turn.sendMessage('acp-session', 'Hello')).resolves.toEqual({
       requestId: null,
       messageId: null
     })
-    await integratedPresenter.queuePendingInput('acp-session', 'Later')
-    await integratedPresenter.steerActiveTurn('acp-session', 'Now')
+    await sessionApplications.turn.queuePendingInput('acp-session', 'Later')
+    await sessionApplications.turn.steerActiveTurn('acp-session', 'Now')
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(deepchatImplementation.queuePendingInput).toHaveBeenCalledWith(
       'deepchat-session',
@@ -1047,21 +1036,20 @@ describe('AgentSessionPresenter', () => {
       'claude-acp'
     )
     await expect(
-      integratedPresenter.sendMessage('unconfigured-session', 'Hello')
+      sessionApplications.turn.sendMessage('unconfigured-session', 'Hello')
     ).rejects.toMatchObject({ code: 'AGENT_UNAVAILABLE', reason: 'invalid-config' })
-    await expect(integratedPresenter.deleteSession('unconfigured-session')).resolves.toBeUndefined()
+    await expect(
+      sessionApplications.lifecycle.deleteSession('unconfigured-session')
+    ).resolves.toBeUndefined()
     expect(directAcpRuntime.cleanupSession).toHaveBeenCalledWith('unconfigured-session')
     expect(deepchatImplementation.queuePendingInput).toHaveBeenCalledTimes(1)
     expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
-    await expect(integratedPresenter.sendMessage('missing-session', 'Hello')).rejects.toMatchObject(
-      {
-        code: 'AGENT_NOT_FOUND'
-      }
-    )
-    await expect(integratedPresenter.sendMessage('broken-session', 'Hello')).rejects.toMatchObject({
-      code: 'AGENT_UNAVAILABLE',
-      reason: 'missing-manual-command'
-    })
+    await expect(
+      sessionApplications.turn.sendMessage('missing-session', 'Hello')
+    ).rejects.toMatchObject({ code: 'AGENT_NOT_FOUND' })
+    await expect(
+      sessionApplications.turn.sendMessage('broken-session', 'Hello')
+    ).rejects.toMatchObject({ code: 'AGENT_UNAVAILABLE', reason: 'missing-manual-command' })
   })
 
   it.each([
@@ -1130,7 +1118,7 @@ describe('AgentSessionPresenter', () => {
       agents: agent ? [agent] : []
     })
 
-    await expect(harness.presenter.deleteSession('delete-target')).resolves.toBeUndefined()
+    await expect(harness.lifecycle.deleteSession('delete-target')).resolves.toBeUndefined()
 
     expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
     expect(harness.resolveInput).not.toHaveBeenCalled()
@@ -1194,7 +1182,7 @@ describe('AgentSessionPresenter', () => {
       ]
     })
 
-    await expect(harness.presenter.deleteSession('parent-session')).resolves.toBeUndefined()
+    await expect(harness.lifecycle.deleteSession('parent-session')).resolves.toBeUndefined()
 
     expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
     expect(harness.resolveInput).not.toHaveBeenCalled()
@@ -1230,7 +1218,7 @@ describe('AgentSessionPresenter', () => {
     await resolved.handle.snapshot()
     harness.resolveExecutableDescriptor.mockClear()
 
-    await expect(harness.presenter.deleteSession('deepchat-session')).resolves.toBeUndefined()
+    await expect(harness.lifecycle.deleteSession('deepchat-session')).resolves.toBeUndefined()
 
     expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
     expect(harness.deepchatImplementation.cancelGeneration).toHaveBeenCalledExactlyOnceWith(
@@ -1260,7 +1248,7 @@ describe('AgentSessionPresenter', () => {
     })
     harness.resolveExecutableDescriptor.mockClear()
 
-    await expect(harness.presenter.deleteSession('direct-session')).resolves.toBeUndefined()
+    await expect(harness.lifecycle.deleteSession('direct-session')).resolves.toBeUndefined()
 
     expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
     expect(harness.resolveInput).not.toHaveBeenCalled()
@@ -1274,7 +1262,7 @@ describe('AgentSessionPresenter', () => {
 
   describe('createSession', () => {
     it('creates session with correct parameters', async () => {
-      const result = await presenter.createSession(
+      const result = await lifecycle.createSession(
         { agentId: 'deepchat', message: 'Hello world', projectDir: '/tmp/proj' },
         1
       )
@@ -1307,20 +1295,20 @@ describe('AgentSessionPresenter', () => {
 
     it('derives title from first 50 chars of message', async () => {
       const longMessage = 'A'.repeat(100)
-      const result = await presenter.createSession({ agentId: 'deepchat', message: longMessage }, 1)
+      const result = await lifecycle.createSession({ agentId: 'deepchat', message: longMessage }, 1)
 
       expect(result.title).toBe('A'.repeat(50))
     })
 
     it('defaults to "New Chat" when message is empty', async () => {
-      const result = await presenter.createSession({ agentId: 'deepchat', message: '' }, 1)
+      const result = await lifecycle.createSession({ agentId: 'deepchat', message: '' }, 1)
 
       expect(result.title).toBe('New Chat')
       expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
     })
 
     it('calls agent.initSession and queues the first message', async () => {
-      await presenter.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
         'mock-session-id',
@@ -1359,7 +1347,7 @@ describe('AgentSessionPresenter', () => {
       })
       deepChatAgent.queuePendingInput.mockImplementation(queuePendingInput)
 
-      await presenter.createSession(
+      await lifecycle.createSession(
         { agentId: 'deepchat', message: 'Hello', projectDir: '/tmp/proj' },
         1
       )
@@ -1373,7 +1361,7 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('publishes typed created session update', async () => {
-      await presenter.createSession({ agentId: 'deepchat', message: 'Hello' }, 42)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Hello' }, 42)
 
       expectSessionsUpdated({
         sessionIds: ['mock-session-id'],
@@ -1384,7 +1372,7 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('uses default provider/model from config when not specified', async () => {
-      await presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
         expect.any(String),
@@ -1403,7 +1391,7 @@ describe('AgentSessionPresenter', () => {
         defaultProjectPath: '/workspaces/agent-default'
       })
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
         expect.any(String),
@@ -1424,7 +1412,7 @@ describe('AgentSessionPresenter', () => {
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({})
       configPresenter.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
         expect.any(String),
@@ -1447,7 +1435,7 @@ describe('AgentSessionPresenter', () => {
       })
       configPresenter.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Hi', projectDir: null }, 1)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Hi', projectDir: null }, 1)
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
         expect.any(String),
@@ -1465,7 +1453,7 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('uses input provider/model when specified', async () => {
-      await presenter.createSession(
+      await lifecycle.createSession(
         { agentId: 'deepchat', message: 'Hi', providerId: 'anthropic', modelId: 'claude-3' },
         1
       )
@@ -1483,7 +1471,7 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('uses input permission mode when specified', async () => {
-      await presenter.createSession(
+      await lifecycle.createSession(
         {
           agentId: 'deepchat',
           message: 'Hi',
@@ -1507,7 +1495,7 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('passes generationSettings to agent.initSession', async () => {
-      await presenter.createSession(
+      await lifecycle.createSession(
         {
           agentId: 'deepchat',
           message: 'Hi',
@@ -1542,7 +1530,7 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('persists disabled agent tools for deepchat sessions', async () => {
-      await presenter.createSession(
+      await lifecycle.createSession(
         {
           agentId: 'deepchat',
           message: 'Hi',
@@ -1567,12 +1555,12 @@ describe('AgentSessionPresenter', () => {
       configPresenter.getDefaultModel.mockReturnValue(null)
 
       await expect(
-        presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
+        lifecycle.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
       ).rejects.toThrow('No provider or model configured')
     })
 
     it('passes active skills as initial message-scoped skills without pinning the session', async () => {
-      await presenter.createSession(
+      await lifecycle.createSession(
         {
           agentId: 'deepchat',
           message: 'Hello',
@@ -1648,7 +1636,7 @@ describe('AgentSessionPresenter', () => {
         }
       ])
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
       await new Promise((r) => setTimeout(r, 20))
 
       expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
@@ -1705,7 +1693,7 @@ describe('AgentSessionPresenter', () => {
 
       vi.useFakeTimers()
       try {
-        await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+        await lifecycle.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
         await vi.advanceTimersByTimeAsync(20)
         expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
 
@@ -1789,7 +1777,7 @@ describe('AgentSessionPresenter', () => {
 
       vi.useFakeTimers()
       try {
-        await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+        await lifecycle.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
         await vi.advanceTimersByTimeAsync(20)
         expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
 
@@ -1816,8 +1804,8 @@ describe('AgentSessionPresenter', () => {
           })
       )
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Original prompt' }, 1)
-      await presenter.renameSession('mock-session-id', 'Manual title')
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Original prompt' }, 1)
+      await projection.renameSession('mock-session-id', 'Manual title')
       resolveMessages([
         {
           id: 'u1',
@@ -1854,9 +1842,9 @@ describe('AgentSessionPresenter', () => {
           })
       )
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Original prompt' }, 1)
+      await lifecycle.createSession({ agentId: 'deepchat', message: 'Original prompt' }, 1)
       await vi.waitFor(() => expect(llmProviderPresenter.summaryTitles).toHaveBeenCalledOnce())
-      await presenter.renameSession('mock-session-id', 'Manual title')
+      await projection.renameSession('mock-session-id', 'Manual title')
       resolveTitle('Generated title')
       await new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -1885,7 +1873,7 @@ describe('AgentSessionPresenter', () => {
         .mockRejectedValueOnce(new Error('assistant unavailable'))
         .mockResolvedValueOnce('Fallback title')
 
-      await presenter.createSession(
+      await lifecycle.createSession(
         {
           agentId: 'deepchat',
           message: 'Original prompt',
@@ -1925,7 +1913,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await presenter.createSession(
+      await lifecycle.createSession(
         {
           agentId: 'acp-coder',
           message: 'Hello ACP',
@@ -1966,7 +1954,7 @@ describe('AgentSessionPresenter', () => {
       llmProviderPresenter.setAcpWorkdir.mockRejectedValueOnce(new Error('sync failed'))
 
       await expect(
-        presenter.createSession(
+        lifecycle.createSession(
           {
             agentId: 'acp-coder',
             message: 'Hello ACP',
@@ -1994,7 +1982,7 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.destroySession.mockRejectedValueOnce(closeError)
 
       await expect(
-        presenter.createSession(
+        lifecycle.createSession(
           {
             agentId: 'deepchat',
             message: 'Hello ACP',
@@ -2015,7 +2003,7 @@ describe('AgentSessionPresenter', () => {
       expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
         sqlitePresenter.newSessionsTable.delete.mock.invocationCallOrder[0]
       )
-      expect(presenter.getActiveSessionId(1)).toBeNull()
+      expect(projection.getActiveId(1)).toBeNull()
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
       expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
@@ -2032,7 +2020,7 @@ describe('AgentSessionPresenter', () => {
 
   describe('createDetachedSession', () => {
     it('creates a detached session without window activation', async () => {
-      const result = await presenter.createDetachedSession({
+      const result = await lifecycle.createDetachedSession({
         title: 'Remote Session',
         agentId: 'deepchat'
       })
@@ -2065,7 +2053,7 @@ describe('AgentSessionPresenter', () => {
       })
       configPresenter.getAgentType.mockResolvedValue('deepchat')
 
-      await presenter.createDetachedSession({
+      await lifecycle.createDetachedSession({
         title: 'Remote Agent Session',
         agentId: 'deepchat-remote'
       })
@@ -2102,9 +2090,9 @@ describe('AgentSessionPresenter', () => {
 
   describe('draft turn promotion failures', () => {
     it.each([
-      ['send', () => presenter.sendMessage('s-draft', 'New prompt')],
-      ['steer', () => presenter.steerActiveTurn('s-draft', 'New prompt')],
-      ['queue', () => presenter.queuePendingInput('s-draft', 'New prompt')]
+      ['send', () => turn.sendMessage('s-draft', 'New prompt')],
+      ['steer', () => turn.steerActiveTurn('s-draft', 'New prompt')],
+      ['queue', () => turn.queuePendingInput('s-draft', 'New prompt')]
     ])('does not roll back draft promotion when %s fails later', async (_name, invoke) => {
       const row = {
         id: 's-draft',
@@ -2170,7 +2158,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await presenter.sendMessage('s-draft', 'Hello ACP')
+      await turn.sendMessage('s-draft', 'Hello ACP')
 
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s-draft', {
         is_draft: 0,
@@ -2202,7 +2190,7 @@ describe('AgentSessionPresenter', () => {
       })
       deepChatAgent.hasMessages.mockResolvedValue(true)
 
-      await presenter.sendMessage('s1', 'Follow-up')
+      await turn.sendMessage('s1', 'Follow-up')
       expect(agentManager.resolveSessionHandle).toHaveBeenCalledWith('s1')
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         's1',
@@ -2242,7 +2230,7 @@ describe('AgentSessionPresenter', () => {
         }
       })
 
-      await presenter.sendMessage('s1', 'Scheduled prompt', { maxProviderRounds: 4 })
+      await turn.sendMessage('s1', 'Scheduled prompt', { maxProviderRounds: 4 })
 
       expect(send).toHaveBeenCalledWith({
         content: { text: 'Scheduled prompt', files: [] },
@@ -2269,7 +2257,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await presenter.sendMessage('s1', 'Refine this')
+      await turn.sendMessage('s1', 'Refine this')
 
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         's1',
@@ -2284,9 +2272,7 @@ describe('AgentSessionPresenter', () => {
 
     it('throws for unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
-      await expect(presenter.sendMessage('unknown', 'hi')).rejects.toThrow(
-        'Session not found: unknown'
-      )
+      await expect(turn.sendMessage('unknown', 'hi')).rejects.toThrow('Session not found: unknown')
     })
   })
 
@@ -2316,7 +2302,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      await presenter.queuePendingInput('s1', 'Later')
+      await turn.queuePendingInput('s1', 'Later')
 
       expect(queuePendingInput).toHaveBeenCalledWith(
         's1',
@@ -2350,11 +2336,11 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.convertPendingInputToSteer.mockResolvedValueOnce(converted)
       deepChatAgent.steerPendingInput.mockResolvedValueOnce(steered)
 
-      await expect(presenter.updateQueuedInput('s1', 'pending-1', 'Updated')).resolves.toBe(updated)
-      await expect(presenter.moveQueuedInput('s1', 'pending-1', 2)).resolves.toBe(moved)
-      await expect(presenter.convertPendingInputToSteer('s1', 'pending-1')).resolves.toBe(converted)
-      await expect(presenter.steerPendingInput('s1', 'pending-1')).resolves.toBe(steered)
-      await expect(presenter.deletePendingInput('s1', 'pending-1')).resolves.toBeUndefined()
+      await expect(turn.updateQueuedInput('s1', 'pending-1', 'Updated')).resolves.toBe(updated)
+      await expect(turn.moveQueuedInput('s1', 'pending-1', 2)).resolves.toBe(moved)
+      await expect(turn.convertPendingInputToSteer('s1', 'pending-1')).resolves.toBe(converted)
+      await expect(turn.steerPendingInput('s1', 'pending-1')).resolves.toBe(steered)
+      await expect(turn.deletePendingInput('s1', 'pending-1')).resolves.toBeUndefined()
 
       expect(deepChatAgent.updateQueuedInput).toHaveBeenCalledWith('s1', 'pending-1', {
         text: 'Updated',
@@ -2367,11 +2353,11 @@ describe('AgentSessionPresenter', () => {
     })
 
     it.each([
-      ['update', () => presenter.updateQueuedInput('missing', 'pending-1', 'Updated')],
-      ['move', () => presenter.moveQueuedInput('missing', 'pending-1', 1)],
-      ['convert', () => presenter.convertPendingInputToSteer('missing', 'pending-1')],
-      ['steer', () => presenter.steerPendingInput('missing', 'pending-1')],
-      ['delete', () => presenter.deletePendingInput('missing', 'pending-1')]
+      ['update', () => turn.updateQueuedInput('missing', 'pending-1', 'Updated')],
+      ['move', () => turn.moveQueuedInput('missing', 'pending-1', 1)],
+      ['convert', () => turn.convertPendingInputToSteer('missing', 'pending-1')],
+      ['steer', () => turn.steerPendingInput('missing', 'pending-1')],
+      ['delete', () => turn.deletePendingInput('missing', 'pending-1')]
     ])('rejects %s before resolving a handle for a missing session', async (_name, invoke) => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
 
@@ -2383,7 +2369,7 @@ describe('AgentSessionPresenter', () => {
     it('returns an empty pending list for a missing session without resolving a handle', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
 
-      await expect(presenter.listPendingInputs('missing')).resolves.toEqual([])
+      await expect(turn.listPendingInputs('missing')).resolves.toEqual([])
 
       expect(agentManager.resolveSessionHandle).not.toHaveBeenCalled()
     })
@@ -2409,7 +2395,7 @@ describe('AgentSessionPresenter', () => {
         projectDir: '/retry/project'
       })
 
-      await presenter.retryMessage('s1', 'message-1')
+      await turn.retryMessage('s1', 'message-1')
 
       expect(deepChatAgent.prepareRetryMessage).toHaveBeenCalledWith('s1', 'message-1')
       expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
@@ -2427,12 +2413,12 @@ describe('AgentSessionPresenter', () => {
       const cancelError = new Error('cancel failed')
       deepChatAgent.cancelGeneration.mockRejectedValueOnce(cancelError)
 
-      await expect(presenter.deleteMessage('s1', 'message-1')).rejects.toBe(cancelError)
+      await expect(turn.deleteMessage('s1', 'message-1')).rejects.toBe(cancelError)
 
       expect(deepChatAgent.deleteMessage).not.toHaveBeenCalled()
 
       deepChatAgent.cancelGeneration.mockResolvedValueOnce(undefined)
-      await presenter.deleteMessage('s1', 'message-1')
+      await turn.deleteMessage('s1', 'message-1')
 
       expect(deepChatAgent.deleteMessage).toHaveBeenCalledWith('s1', 'message-1')
       expect(deepChatAgent.cancelGeneration.mock.invocationCallOrder.at(-1)).toBeLessThan(
@@ -2444,7 +2430,7 @@ describe('AgentSessionPresenter', () => {
       const edited = { id: 'message-1', sessionId: 's1', role: 'user', content: 'Edited' }
       deepChatAgent.editUserMessage.mockResolvedValueOnce(edited)
 
-      await expect(presenter.editUserMessage('s1', 'message-1', 'Edited')).resolves.toBe(edited)
+      await expect(turn.editUserMessage('s1', 'message-1', 'Edited')).resolves.toBe(edited)
 
       expect(deepChatAgent.editUserMessage).toHaveBeenCalledWith('s1', 'message-1', 'Edited')
       expect(deepChatAgent.cancelGeneration).not.toHaveBeenCalled()
@@ -2470,7 +2456,7 @@ describe('AgentSessionPresenter', () => {
         }
       })
 
-      await presenter.setSessionProjectDir('s1', '/tmp/workspace')
+      await assignment.setSessionProjectDir('s1', '/tmp/workspace')
 
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
         project_dir: '/tmp/workspace'
@@ -2497,7 +2483,7 @@ describe('AgentSessionPresenter', () => {
       const runtimeError = new Error('runtime project update failed')
       deepChatAgent.setSessionProjectDir.mockRejectedValueOnce(runtimeError)
 
-      await expect(presenter.setSessionProjectDir('s1', '/tmp/workspace')).rejects.toBe(
+      await expect(assignment.setSessionProjectDir('s1', '/tmp/workspace')).rejects.toBe(
         runtimeError
       )
 
@@ -2538,7 +2524,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const session = await presenter.ensureAcpDraftSession({
+      const session = await lifecycle.ensureAcpDraftSession({
         agentId: 'acp-coder',
         projectDir: '/tmp/workspace'
       })
@@ -2584,7 +2570,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const session = await presenter.ensureAcpDraftSession({
+      const session = await lifecycle.ensureAcpDraftSession({
         agentId: 'acp-coder',
         projectDir: '/tmp/workspace'
       })
@@ -2641,7 +2627,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const session = await presenter.createSubagentSession({
+      const session = await lifecycle.createSubagentSession({
         parentSessionId: 'parent-1',
         agentId: '  kimi-cli  ',
         slotId: 'reviewer',
@@ -2735,7 +2721,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const session = await presenter.createSubagentSession({
+      const session = await lifecycle.createSubagentSession({
         parentSessionId: 'parent-1',
         agentId: 'acp-reviewer',
         slotId: 'reviewer',
@@ -2813,7 +2799,7 @@ describe('AgentSessionPresenter', () => {
         }
       })
 
-      const session = await presenter.createSubagentSession({
+      const session = await lifecycle.createSubagentSession({
         parentSessionId: 'parent-1',
         agentId: 'deepchat',
         slotId: 'reviewer',
@@ -2854,7 +2840,7 @@ describe('AgentSessionPresenter', () => {
           return undefined
         })
 
-        await presenter[action]('parent', 'child', { source: 'test' })
+        await assignment[action]('parent', 'child', { source: 'test' })
 
         expect(deepChatAgent[method]).toHaveBeenCalledWith('parent', 'child', { source: 'test' })
       }
@@ -2867,7 +2853,7 @@ describe('AgentSessionPresenter', () => {
         return undefined
       })
 
-      await expect(presenter.mergeSubagentTape('parent', 'child')).rejects.toThrow(
+      await expect(assignment.mergeSubagentTape('parent', 'child')).rejects.toThrow(
         'Session child is not a child of parent.'
       )
       expect(agentManager.resolveSubagentFacet).not.toHaveBeenCalled()
@@ -2911,7 +2897,7 @@ describe('AgentSessionPresenter', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
       await expect(
-        presenter.forkSession('source-session', 'message-1', 'Forked title')
+        lifecycle.forkSession('source-session', 'message-1', 'Forked title')
       ).rejects.toBe(forkError)
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
@@ -2965,7 +2951,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const sessions = await presenter.getSessionList()
+      const sessions = await projection.listSessions()
 
       expect(sessions).toHaveLength(1)
       expect(sessions[0].providerId).toBe('summary-provider')
@@ -2987,7 +2973,7 @@ describe('AgentSessionPresenter', () => {
         }
       ])
 
-      const sessions = await presenter.getSessionList()
+      const sessions = await projection.listSessions()
       expect(sessions).toHaveLength(1)
       expect(sessions[0].status).toBe('idle')
       expect(sessions[0].providerId).toBe('openai')
@@ -3017,7 +3003,7 @@ describe('AgentSessionPresenter', () => {
         }
       ])
 
-      const sessions = await presenter.getSessionList()
+      const sessions = await projection.listSessions()
 
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('s1')
@@ -3062,7 +3048,7 @@ describe('AgentSessionPresenter', () => {
         }
       })
 
-      const sessions = await presenter.getSessionList()
+      const sessions = await projection.listSessions()
 
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('healthy-state')
@@ -3099,10 +3085,10 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await expect(presenter.getSession('s1')).resolves.toMatchObject({ status: 'generating' })
+      await expect(projection.getSession('s1')).resolves.toMatchObject({ status: 'generating' })
       agentManager.resolveSessionHandle.mockClear()
 
-      await expect(presenter.getLightweightSessionList()).resolves.toMatchObject({
+      await expect(projection.listLightweight()).resolves.toMatchObject({
         items: [expect.objectContaining({ id: 's1', status: 'generating' })],
         nextCursor: null,
         hasMore: false
@@ -3129,7 +3115,7 @@ describe('AgentSessionPresenter', () => {
       }
       sqlitePresenter.newSessionsTable.listPage.mockReturnValue({ rows: [row], hasMore: false })
 
-      const result = await presenter.getLightweightSessionList()
+      const result = await projection.listLightweight()
 
       expect(result.items).toEqual([expect.objectContaining({ id: 's1', status: 'idle' })])
       expect(agentManager.resolveSessionHandle).not.toHaveBeenCalled()
@@ -3148,14 +3134,14 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      const session = await presenter.getSession('s1')
+      const session = await projection.getSession('s1')
       expect(session).not.toBeNull()
       expect(session!.status).toBe('idle')
     })
 
     it('returns null for unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
-      expect(await presenter.getSession('unknown')).toBeNull()
+      expect(await projection.getSession('unknown')).toBeNull()
     })
 
     it('returns null when session agent is unavailable', async () => {
@@ -3170,7 +3156,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      expect(await presenter.getSession('s-disabled')).toBeNull()
+      expect(await projection.getSession('s-disabled')).toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
         '[SessionProjectionCoordinator] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
@@ -3196,7 +3182,7 @@ describe('AgentSessionPresenter', () => {
         summaryUpdatedAt: 123
       })
 
-      const state = await presenter.getSessionCompactionState('s1')
+      const state = await turn.getSessionCompactionState('s1')
 
       expect(deepChatAgent.getSessionCompactionState).toHaveBeenCalledWith('s1')
       expect(state).toEqual({
@@ -3217,7 +3203,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      await expect(presenter.getSessionCompactionState('s-acp')).resolves.toEqual({
+      await expect(turn.getSessionCompactionState('s-acp')).resolves.toEqual({
         status: 'idle',
         cursorOrderSeq: 1,
         summaryUpdatedAt: null
@@ -3237,7 +3223,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      await expect(presenter.compactSession('s-acp')).rejects.toThrow(
+      await expect(turn.compactSession('s-acp')).rejects.toThrow(
         'Agent acp-coder does not support manual compaction.'
       )
 
@@ -3257,7 +3243,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await expect(presenter.compactSession('s-compat')).rejects.toThrow(
+      await expect(turn.compactSession('s-compat')).rejects.toThrow(
         'Manual compaction is only available for DeepChat agent sessions.'
       )
       expect(deepChatAgent.compactSession).not.toHaveBeenCalled()
@@ -3276,7 +3262,7 @@ describe('AgentSessionPresenter', () => {
       })
       deepChatAgent.compactSession.mockRejectedValueOnce(compactError)
 
-      await expect(presenter.compactSession('s1')).rejects.toBe(compactError)
+      await expect(turn.compactSession('s1')).rejects.toBe(compactError)
 
       expect(deepChatAgent.compactSession).toHaveBeenCalledWith('s1')
     })
@@ -3300,7 +3286,7 @@ describe('AgentSessionPresenter', () => {
         }
       ])
 
-      const traces = await presenter.listMessageTraces('m1')
+      const traces = await projection.listMessageTraces('m1')
       expect(traces).toEqual([
         {
           id: 't2',
@@ -3319,14 +3305,14 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('returns empty list for blank message id', async () => {
-      const traces = await presenter.listMessageTraces('  ')
+      const traces = await projection.listMessageTraces('  ')
       expect(traces).toEqual([])
       expect(sqlitePresenter.deepchatMessageTracesTable.listByMessageId).not.toHaveBeenCalled()
     })
 
     it('returns trace count by message id', async () => {
       sqlitePresenter.deepchatMessageTracesTable.countByMessageId.mockReturnValue(3)
-      await expect(presenter.getMessageTraceCount('m1')).resolves.toBe(3)
+      await expect(projection.getMessageTraceCount('m1')).resolves.toBe(3)
       expect(sqlitePresenter.deepchatMessageTracesTable.countByMessageId).toHaveBeenCalledWith('m1')
     })
   })
@@ -3336,7 +3322,7 @@ describe('AgentSessionPresenter', () => {
       const message = { id: 'm1', sessionId: 's1', role: 'assistant' }
       deepChatAgent.getMessage.mockResolvedValue(message as any)
 
-      await expect(presenter.getMessage('m1')).resolves.toBe(message)
+      await expect(projection.getMessage('m1')).resolves.toBe(message)
 
       expect(deepChatAgent.getMessage).toHaveBeenCalledWith('m1')
     })
@@ -3354,14 +3340,16 @@ describe('AgentSessionPresenter', () => {
         }
       ])
 
-      await expect(presenter.getSearchResults('  message-1  ', 'missing-search')).resolves.toEqual([
-        expect.objectContaining({
-          title: 'Legacy result',
-          url: 'https://example.com',
-          rank: 2,
-          searchId: undefined
-        })
-      ])
+      await expect(projection.getSearchResults('  message-1  ', 'missing-search')).resolves.toEqual(
+        [
+          expect.objectContaining({
+            title: 'Legacy result',
+            url: 'https://example.com',
+            rank: 2,
+            searchId: undefined
+          })
+        ]
+      )
 
       expect(
         sqlitePresenter.deepchatMessageSearchResultsTable.listByMessageId
@@ -3395,8 +3383,8 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.listMessageViewManifests.mockRejectedValueOnce(new Error('manifest failed'))
       deepChatAgent.exportMessageTapeReplaySlice.mockRejectedValueOnce(new Error('replay failed'))
 
-      await expect(presenter.listMessageViewManifests('message-1')).resolves.toEqual([])
-      await expect(presenter.exportMessageTapeReplaySlice('message-1')).resolves.toBeNull()
+      await expect(projection.listMessageViewManifests('message-1')).resolves.toEqual([])
+      await expect(projection.exportMessageTapeReplaySlice('message-1')).resolves.toBeNull()
 
       expect(deepChatAgent.listMessageViewManifests).toHaveBeenCalledWith('s1', 'message-1')
       expect(deepChatAgent.exportMessageTapeReplaySlice).toHaveBeenCalledWith(
@@ -3409,9 +3397,6 @@ describe('AgentSessionPresenter', () => {
 
   describe('session update publication', () => {
     it('trims and dedupes ids, applies reason defaults, and refreshes session UI', () => {
-      const projection = Reflect.get(presenter, 'sessionProjection') as {
-        notify(options?: { sessionIds?: string[] }): void
-      }
       const emit = projection.notify.bind(projection) as (options?: {
         sessionIds?: string[]
       }) => void
@@ -3442,7 +3427,7 @@ describe('AgentSessionPresenter', () => {
 
   describe('activateSession', () => {
     it('binds window and publishes typed activated update', async () => {
-      await presenter.activateSession(42, 's1')
+      await projection.activate(42, 's1')
       expectSessionsUpdated({
         webContentsId: 42,
         sessionIds: ['s1'],
@@ -3457,7 +3442,7 @@ describe('AgentSessionPresenter', () => {
 
   describe('deactivateSession', () => {
     it('unbinds window and publishes typed deactivated update', async () => {
-      await presenter.deactivateSession(42)
+      await projection.deactivate(42)
       expectSessionsUpdated({
         sessionIds: [],
         reason: 'deactivated',
@@ -3480,7 +3465,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      await presenter.deleteSession('s1')
+      await lifecycle.deleteSession('s1')
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
       expectSessionsUpdated({ reason: 'deleted', sessionIds: ['s1'] })
@@ -3488,7 +3473,7 @@ describe('AgentSessionPresenter', () => {
 
     it('no-ops for unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
-      await presenter.deleteSession('unknown') // should not throw
+      await lifecycle.deleteSession('unknown') // should not throw
       expect(deepChatAgent.destroySession).not.toHaveBeenCalled()
     })
 
@@ -3512,7 +3497,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await presenter.deleteSession('s-acp')
+      await lifecycle.deleteSession('s-acp')
 
       expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('s-acp')
@@ -3535,7 +3520,7 @@ describe('AgentSessionPresenter', () => {
       })
       agentManager.cleanupSessionBackends.mockRejectedValueOnce(cleanupError)
 
-      await expect(presenter.deleteSession('s1')).rejects.toBe(cleanupError)
+      await expect(lifecycle.deleteSession('s1')).rejects.toBe(cleanupError)
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledExactlyOnceWith('s1')
       expect(skillPresenter.clearNewAgentSessionSkills).not.toHaveBeenCalled()
@@ -3557,7 +3542,7 @@ describe('AgentSessionPresenter', () => {
       agentManager.cleanupSessionBackends.mockRejectedValueOnce(backendError)
       deepChatAgent.destroySession.mockRejectedValueOnce(sharedError)
 
-      await expect(presenter.deleteSession('s1')).rejects.toBe(backendError)
+      await expect(lifecycle.deleteSession('s1')).rejects.toBe(backendError)
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledExactlyOnceWith('s1')
       expect(skillPresenter.clearNewAgentSessionSkills).not.toHaveBeenCalled()
@@ -3578,7 +3563,7 @@ describe('AgentSessionPresenter', () => {
       })
       deepChatAgent.destroySession.mockRejectedValueOnce(sharedError)
 
-      await expect(presenter.deleteSession('s1')).rejects.toBe(sharedError)
+      await expect(lifecycle.deleteSession('s1')).rejects.toBe(sharedError)
 
       expect(agentManager.cleanupSessionBackends).toHaveBeenCalledExactlyOnceWith('s1')
       expect(skillPresenter.clearNewAgentSessionSkills).not.toHaveBeenCalled()
@@ -3599,14 +3584,14 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      await presenter.cancelGeneration('s1')
+      await turn.cancelGeneration('s1')
       expect(deepChatAgent.cancelGeneration).toHaveBeenCalledWith('s1')
     })
 
     it('is a no-op for a missing session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
 
-      await expect(presenter.cancelGeneration('missing')).resolves.toBeUndefined()
+      await expect(turn.cancelGeneration('missing')).resolves.toBeUndefined()
 
       expect(agentManager.resolveSessionHandle).not.toHaveBeenCalled()
       expect(deepChatAgent.cancelGeneration).not.toHaveBeenCalled()
@@ -3628,7 +3613,7 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.respondToolInteraction.mockResolvedValueOnce({ resumed: true })
 
       await expect(
-        presenter.respondToolInteraction('s1', 'message-1', 'tool-1', response)
+        turn.respondToolInteraction('s1', 'message-1', 'tool-1', response)
       ).resolves.toEqual({ resumed: true })
 
       expect(deepChatAgent.respondToolInteraction).toHaveBeenCalledWith(
@@ -3643,7 +3628,7 @@ describe('AgentSessionPresenter', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
 
       await expect(
-        presenter.respondToolInteraction('missing', 'message-1', 'tool-1', {
+        turn.respondToolInteraction('missing', 'message-1', 'tool-1', {
           kind: 'permission',
           granted: true
         })
@@ -3666,7 +3651,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      const settings = await presenter.getSessionGenerationSettings('s1')
+      const settings = await assignment.getSessionGenerationSettings('s1')
 
       expect(deepChatAgent.getGenerationSettings).toHaveBeenCalledWith('s1')
       expect(settings).toEqual({
@@ -3688,7 +3673,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      const updated = await presenter.updateSessionGenerationSettings('s1', {
+      const updated = await assignment.updateSessionGenerationSettings('s1', {
         temperature: 1.4,
         reasoningEffort: 'high'
       })
@@ -3704,11 +3689,11 @@ describe('AgentSessionPresenter', () => {
     it('throws when generation settings methods target unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
 
-      await expect(presenter.getSessionGenerationSettings('unknown')).rejects.toThrow(
+      await expect(assignment.getSessionGenerationSettings('unknown')).rejects.toThrow(
         'Session not found: unknown'
       )
       await expect(
-        presenter.updateSessionGenerationSettings('unknown', { temperature: 1 })
+        assignment.updateSessionGenerationSettings('unknown', { temperature: 1 })
       ).rejects.toThrow('Session not found: unknown')
     })
   })
@@ -3726,7 +3711,7 @@ describe('AgentSessionPresenter', () => {
       })
       sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec', 'cdp_send'])
 
-      const disabledTools = await presenter.getSessionDisabledAgentTools('s1')
+      const disabledTools = await assignment.getSessionDisabledAgentTools('s1')
 
       expect(disabledTools).toEqual(['exec', 'cdp_send'])
     })
@@ -3742,7 +3727,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      const disabledTools = await presenter.updateSessionDisabledAgentTools('s1', [
+      const disabledTools = await assignment.updateSessionDisabledAgentTools('s1', [
         'grep',
         'ls',
         'cdp_send',
@@ -3777,7 +3762,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      await expect(presenter.setSessionSubagentEnabled('s-acp', true)).rejects.toThrow(
+      await expect(assignment.setSessionSubagentEnabled('s-acp', true)).rejects.toThrow(
         'Only DeepChat sessions can change subagent state.'
       )
 
@@ -3807,7 +3792,7 @@ describe('AgentSessionPresenter', () => {
       })
       deepChatAgent.getSessionState.mockRejectedValueOnce(new Error('state unavailable'))
 
-      await expect(presenter.setSessionSubagentEnabled('s1', true)).rejects.toThrow(
+      await expect(assignment.setSessionSubagentEnabled('s1', true)).rejects.toThrow(
         'Failed to build session state for sessionId: s1'
       )
 
@@ -3837,7 +3822,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const updated = await presenter.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')
+      const updated = await assignment.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')
 
       expect(deepChatAgent.setSessionModel).toHaveBeenCalledWith(
         's1',
@@ -3863,7 +3848,7 @@ describe('AgentSessionPresenter', () => {
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
 
-      await expect(presenter.setSessionModel('s-acp', 'openai', 'gpt-4')).rejects.toThrow(
+      await expect(assignment.setSessionModel('s-acp', 'openai', 'gpt-4')).rejects.toThrow(
         'ACP session model is locked.'
       )
       expect(deepChatAgent.setSessionModel).not.toHaveBeenCalled()
@@ -3910,7 +3895,7 @@ describe('AgentSessionPresenter', () => {
         async (sessionId: string) => sessionId === 's-ready'
       )
 
-      const impact = await presenter.getAgentTransferImpact('deepchat-writer')
+      const impact = await assignment.getAgentTransferImpact('deepchat-writer')
 
       expect(impact.totalSessions).toBe(2)
       expect(impact.movableSessions).toBe(1)
@@ -3943,7 +3928,7 @@ describe('AgentSessionPresenter', () => {
       configPresenter.getAgentType.mockResolvedValue('deepchat')
       deepChatAgent.hasMessages.mockRejectedValue(new Error('query failed'))
 
-      const impact = await presenter.getAgentTransferImpact('deepchat-writer')
+      const impact = await assignment.getAgentTransferImpact('deepchat-writer')
 
       expect(impact.movableSessions).toBe(1)
       expect(impact.emptyDrafts).toBe(0)
@@ -3970,7 +3955,7 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.hasMessages.mockResolvedValue(true)
       deepChatAgent.listPendingInputs.mockRejectedValue(new Error('pending query failed'))
 
-      await expect(presenter.moveSessionToAgent('s1', 'deepchat-coder')).rejects.toThrow(
+      await expect(assignment.moveSessionToAgent('s1', 'deepchat-coder')).rejects.toThrow(
         'Session s1 cannot be moved: pending-input'
       )
 
@@ -3981,7 +3966,7 @@ describe('AgentSessionPresenter', () => {
     })
 
     it('rejects blank agent ids for destructive agent-session deletion', async () => {
-      await expect(presenter.deleteAgentSessions('   ')).rejects.toThrow('Agent id is required.')
+      await expect(assignment.deleteAgentSessions('   ')).rejects.toThrow('Agent id is required.')
       expect(sqlitePresenter.newSessionsTable.list).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
     })
@@ -4037,7 +4022,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'default'
       })
 
-      const updated = await presenter.moveSessionToAgent('s1', 'deepchat-coder')
+      const updated = await assignment.moveSessionToAgent('s1', 'deepchat-coder')
 
       expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalledWith(
         's1',
@@ -4122,7 +4107,7 @@ describe('AgentSessionPresenter', () => {
       }))
 
       await expect(
-        presenter.moveAgentSessions('deepchat-writer', 'deepchat-coder')
+        assignment.moveAgentSessions('deepchat-writer', 'deepchat-coder')
       ).rejects.toThrow('Session s-active cannot be moved: active')
 
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
@@ -4188,7 +4173,7 @@ describe('AgentSessionPresenter', () => {
         }
       })
 
-      const updated = await presenter.moveSessionToAgent('s-acp', 'deepchat-coder')
+      const updated = await assignment.moveSessionToAgent('s-acp', 'deepchat-coder')
 
       expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalledWith(
         's-acp',
@@ -4254,7 +4239,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await expect(presenter.moveSessionToAgent('s-acp', 'deepchat-coder')).rejects.toThrow(
+      await expect(assignment.moveSessionToAgent('s-acp', 'deepchat-coder')).rejects.toThrow(
         'ownership update failed'
       )
 
@@ -4348,7 +4333,7 @@ describe('AgentSessionPresenter', () => {
       })
 
       await expect(
-        presenter.moveAgentSessions('deepchat-writer', 'deepchat-coder')
+        assignment.moveAgentSessions('deepchat-writer', 'deepchat-coder')
       ).rejects.toThrow('Partial transfer completed: 1 moved.')
 
       expect(rows.get('s-ready-1').agent_id).toBe('deepchat-coder')
@@ -4385,7 +4370,7 @@ describe('AgentSessionPresenter', () => {
       })
       deepChatAgent.hasMessages.mockResolvedValue(true)
 
-      await expect(presenter.moveSessionToAgent('s-deepchat', 'acp-coder')).rejects.toThrow(
+      await expect(assignment.moveSessionToAgent('s-deepchat', 'acp-coder')).rejects.toThrow(
         'Conversation history cannot be moved to ACP agents.'
       )
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
@@ -4405,7 +4390,7 @@ describe('AgentSessionPresenter', () => {
         return null
       })
 
-      await expect(presenter.moveAgentSessions('deepchat-writer', 'acp-coder')).rejects.toThrow(
+      await expect(assignment.moveAgentSessions('deepchat-writer', 'acp-coder')).rejects.toThrow(
         'Conversation history cannot be moved to ACP agents.'
       )
       expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
@@ -4445,7 +4430,7 @@ describe('AgentSessionPresenter', () => {
       deepChatAgent.hasMessages.mockResolvedValue(true)
 
       await expect(
-        presenter.moveSessionToAgent('s-deepchat', 'deepchat-acp-default')
+        assignment.moveSessionToAgent('s-deepchat', 'deepchat-acp-default')
       ).rejects.toThrow('Conversation history cannot be moved to ACP agents.')
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
@@ -4481,7 +4466,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      await expect(presenter.moveSessionToAgent('s-acp', 'acp-reviewer')).rejects.toThrow(
+      await expect(assignment.moveSessionToAgent('s-acp', 'acp-reviewer')).rejects.toThrow(
         'Conversation history cannot be moved to ACP agents.'
       )
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
@@ -4502,7 +4487,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      await presenter.deleteSession('s1')
+      await lifecycle.deleteSession('s1')
       expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
     })
   })
@@ -4519,7 +4504,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      await presenter.renameSession('s1', '  New Title  ')
+      await projection.renameSession('s1', '  New Title  ')
 
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
         title: 'New Title'
@@ -4538,7 +4523,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      await presenter.toggleSessionPinned('s1', true)
+      await projection.toggleSessionPinned('s1', true)
 
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
         is_pinned: 1
@@ -4557,7 +4542,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      await presenter.clearSessionMessages('s1')
+      await turn.clearSessionMessages('s1')
 
       expect(deepChatAgent.clearMessages).toHaveBeenCalledWith('s1')
       expect(deepChatAgent.cancelGeneration.mock.invocationCallOrder[0]).toBeLessThan(
@@ -4580,7 +4565,7 @@ describe('AgentSessionPresenter', () => {
       const cancelError = new Error('cancel failed')
       deepChatAgent.cancelGeneration.mockRejectedValueOnce(cancelError)
 
-      await expect(presenter.clearSessionMessages('s1')).rejects.toBe(cancelError)
+      await expect(turn.clearSessionMessages('s1')).rejects.toBe(cancelError)
 
       expect(deepChatAgent.clearMessages).not.toHaveBeenCalled()
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
@@ -4600,7 +4585,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      const commands = await presenter.getAcpSessionCommands('s1')
+      const commands = await assignment.getAcpSessionCommands('s1')
       expect(commands).toEqual([])
       expect(llmProviderPresenter.getAcpSessionCommands).not.toHaveBeenCalled()
     })
@@ -4625,7 +4610,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const commands = await presenter.getAcpSessionCommands('s-acp')
+      const commands = await assignment.getAcpSessionCommands('s-acp')
 
       expect(directAcpControl.getCommands).toHaveBeenCalledOnce()
       expect(llmProviderPresenter.getAcpSessionCommands).not.toHaveBeenCalled()
@@ -4650,7 +4635,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const commands = await presenter.getAcpSessionCommands('s-compat')
+      const commands = await assignment.getAcpSessionCommands('s-compat')
 
       expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-compat')
       expect(directAcpControl.getCommands).not.toHaveBeenCalled()
@@ -4670,7 +4655,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 1000
       })
 
-      const result = await presenter.getAcpSessionConfigOptions('s1')
+      const result = await assignment.getAcpSessionConfigOptions('s1')
 
       expect(result).toBeNull()
       expect(llmProviderPresenter.getAcpSessionConfigOptions).not.toHaveBeenCalled()
@@ -4696,7 +4681,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const result = await presenter.getAcpSessionConfigOptions('s-acp')
+      const result = await assignment.getAcpSessionConfigOptions('s-acp')
 
       expect(directAcpControl.getConfigOptions).toHaveBeenCalledOnce()
       expect(llmProviderPresenter.getAcpSessionConfigOptions).not.toHaveBeenCalled()
@@ -4723,7 +4708,7 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const result = await presenter.setAcpSessionConfigOption('s-acp', 'model', 'gpt-5-mini')
+      const result = await assignment.setAcpSessionConfigOption('s-acp', 'model', 'gpt-5-mini')
 
       expect(directAcpControl.setConfigOption).toHaveBeenCalledWith('model', 'gpt-5-mini')
       expect(llmProviderPresenter.setAcpSessionConfigOption).not.toHaveBeenCalled()
@@ -4747,8 +4732,8 @@ describe('AgentSessionPresenter', () => {
         permissionMode: 'full_access'
       })
 
-      const state = await presenter.getAcpSessionConfigOptions('s-compat')
-      const updated = await presenter.setAcpSessionConfigOption('s-compat', 'model', 'gpt-5-mini')
+      const state = await assignment.getAcpSessionConfigOptions('s-compat')
+      const updated = await assignment.setAcpSessionConfigOption('s-compat', 'model', 'gpt-5-mini')
 
       expect(llmProviderPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-compat')
       expect(llmProviderPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
@@ -4765,7 +4750,7 @@ describe('AgentSessionPresenter', () => {
 
   describe('getActiveSession', () => {
     it('returns null when no session bound', async () => {
-      expect(await presenter.getActiveSession(99)).toBeNull()
+      expect(await projection.getActive(99)).toBeNull()
     })
 
     it('returns session when bound', async () => {
@@ -4779,25 +4764,25 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      await presenter.activateSession(1, 's1')
-      const session = await presenter.getActiveSession(1)
+      await projection.activate(1, 's1')
+      const session = await projection.getActive(1)
       expect(session).not.toBeNull()
       expect(session!.id).toBe('s1')
     })
 
     it('keeps bindings isolated by window', async () => {
-      await presenter.activateSession(1, 's1')
-      await presenter.activateSession(2, 's2')
-      await presenter.deactivateSession(1)
+      await projection.activate(1, 's1')
+      await projection.activate(2, 's2')
+      await projection.deactivate(1)
 
-      expect(presenter.getActiveSessionId(1)).toBeNull()
-      expect(presenter.getActiveSessionId(2)).toBe('s2')
+      expect(projection.getActiveId(1)).toBeNull()
+      expect(projection.getActiveId(2)).toBe('s2')
     })
 
     it('returns null and clears binding when bound session becomes unavailable', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      await presenter.activateSession(1, 's-disabled')
+      await projection.activate(1, 's-disabled')
       vi.mocked(publishDeepchatEvent).mockClear()
       sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
         id: 's-disabled',
@@ -4809,7 +4794,7 @@ describe('AgentSessionPresenter', () => {
         updated_at: 2000
       })
 
-      await expect(presenter.getActiveSession(1)).resolves.toBeNull()
+      await expect(projection.getActive(1)).resolves.toBeNull()
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
 
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
@@ -4821,7 +4806,7 @@ describe('AgentSessionPresenter', () => {
         created_at: 1000,
         updated_at: 2000
       })
-      await expect(presenter.getActiveSession(1)).resolves.toBeNull()
+      await expect(projection.getActive(1)).resolves.toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
         '[SessionProjectionCoordinator] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
