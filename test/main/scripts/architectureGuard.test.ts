@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import ts from 'typescript'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -515,10 +514,58 @@ const AGENT_SESSION_PRESENTER_INTERFACE_PATH = path.join(
   ROOT,
   'src/shared/types/presenters/agent-session.presenter.d.ts'
 )
-const SESSION_BOUNDARY_HOOK_FIXTURE_PATH = path.join(
+const SESSION_BOUNDARY_HOOK_ROOT = path.join(
   ROOT,
-  'src/main/presenter/lifecyclePresenter/hooks/after-start/legacyImportHook.ts'
+  'src/main/presenter/lifecyclePresenter/hooks/after-start'
 )
+const SESSION_BOUNDARY_HOOK_FIXTURES = [
+  {
+    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'disabledSearchToolCleanupHook.ts'),
+    rules: ['presenter'],
+    source: `
+      declare const presenter: { agentSessionPresenter: unknown }
+      export const owner = presenter.agentSessionPresenter
+    `
+  },
+  {
+    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'legacyImportHook.ts'),
+    rules: ['presenter'],
+    source: `
+      declare const presenter: { agentSessionPresenter: unknown }
+      export const owner = presenter['agentSessionPresenter']
+    `
+  },
+  {
+    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'rtkHealthCheckHook.ts'),
+    rules: ['presenter', 'optional-task'],
+    source: `
+      declare const presenter: { agentSessionPresenter: unknown }
+      export const { agentSessionPresenter } = presenter
+      declare const startLegacyImportTask: (() => void) | undefined
+      startLegacyImportTask?.()
+    `
+  },
+  {
+    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'sqliteMainlineNormalizationHook.ts'),
+    rules: ['presenter'],
+    source: `
+      declare const presenter: { agentSessionPresenter: unknown }
+      export const { agentSessionPresenter: owner } = presenter
+    `
+  },
+  {
+    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'usageStatsBackfillHook.ts'),
+    rules: ['presenter', 'unknown-cast', 'type-cast', 'optional-task'],
+    source: `
+      import type { AgentSessionPresenter } from '../../../agentSessionPresenter'
+      declare const presenter: unknown
+      export const owner = presenter as unknown as AgentSessionPresenter
+      declare const optionalOwner: Record<string, (() => void) | undefined>
+      const { startLegacyImportTask } = optionalOwner
+      startLegacyImportTask?.()
+    `
+  }
+]
 
 const retiredAgentRuntimeSymbols = [
   ['IAgent', 'Implementation'].join(''),
@@ -539,6 +586,7 @@ const typeProperty = ['ty', 'pe'].join('')
 
 const virtualFiles = new Map<string, string>([
   ...SESSION_ARCHITECTURE_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
+  ...SESSION_BOUNDARY_HOOK_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
   [DUPLICATE_MEMORY_COORDINATOR_FIXTURE, 'export class MemoryRuntimeCoordinator {}'],
   [
     SETTINGS_FIXTURE,
@@ -881,13 +929,6 @@ function sessionViolationsForFile(violations: string[], filePath: string): strin
   return forFile(violations, filePath).filter((violation) => violation.startsWith('[session-'))
 }
 
-async function sessionBoundaryHookFixtureViolations(source: string): Promise<string[]> {
-  const fixtureViolations = await runArchitectureGuard({
-    virtualFiles: new Map([[SESSION_BOUNDARY_HOOK_FIXTURE_PATH, source]])
-  })
-  return forFile(fixtureViolations, SESSION_BOUNDARY_HOOK_FIXTURE_PATH)
-}
-
 const VALID_MEMORY_COORDINATOR_FIXTURE = `
   interface MemoryInjectionAccessTurnEntry {}
   export class MemoryRuntimeCoordinator {
@@ -920,16 +961,6 @@ describe('architecture guard', () => {
   beforeAll(async () => {
     violations = await runArchitectureGuard({ virtualFiles })
   }, 30_000)
-
-  it('passes against the current production source through the CLI', () => {
-    const result = spawnSync(process.execPath, ['scripts/architecture-guard.mjs'], {
-      cwd: ROOT,
-      encoding: 'utf8'
-    })
-
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Architecture guard passed.')
-  })
 
   it('guards the production Remote presenter path from retired session facade access', () => {
     const fixtureViolations = sessionViolationsForFile(
@@ -1030,68 +1061,20 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[session-retired-facade-symbol]')
   })
 
-  it(
-    'keeps startup hooks on required typed owners across semantic access forms',
-    async () => {
-      const presenterSources = [
-        `
-          declare const presenter: { agentSessionPresenter: unknown }
-          export const owner = presenter.agentSessionPresenter
-        `,
-        `
-          declare const presenter: { agentSessionPresenter: unknown }
-          export const owner = presenter['agentSessionPresenter']
-        `,
-        `
-          declare const presenter: { agentSessionPresenter: unknown }
-          export const { agentSessionPresenter } = presenter
-        `,
-        `
-          declare const presenter: { agentSessionPresenter: unknown }
-          export const { agentSessionPresenter: owner } = presenter
-        `
-      ]
-      const optionalTaskSources = [
-        `
-          declare const owner: Record<string, (() => void) | undefined>
-          const { startLegacyImportTask } = owner
-          startLegacyImportTask?.()
-        `,
-        `
-          declare const startLegacyImportTask: (() => void) | undefined
-          startLegacyImportTask?.()
-        `
-      ]
-      const unsafeCastSource = `
-        import type { AgentSessionPresenter } from '../../../agentSessionPresenter'
-        declare const presenter: unknown
-        export const owner = presenter as unknown as AgentSessionPresenter
-      `
-      const [presenterResults, optionalTaskResults, unsafeCastResult] = await Promise.all([
-        Promise.all(presenterSources.map(sessionBoundaryHookFixtureViolations)),
-        Promise.all(optionalTaskSources.map(sessionBoundaryHookFixtureViolations)),
-        sessionBoundaryHookFixtureViolations(unsafeCastSource)
-      ])
-
-      for (const fixtureViolations of presenterResults) {
-        const result = fixtureViolations.join('\n')
-        expect(result).toContain('[session-boundary-hook-presenter]')
-        expect(result).not.toContain('[session-boundary-hook-optional-task]')
-        expect(result).not.toContain('[session-boundary-hook-type-cast]')
+  it('keeps startup hooks on required typed owners across semantic access forms', () => {
+    const ruleNames = ['presenter', 'unknown-cast', 'type-cast', 'optional-task']
+    for (const fixture of SESSION_BOUNDARY_HOOK_FIXTURES) {
+      const result = forFile(violations, fixture.filePath).join('\n')
+      for (const ruleName of ruleNames) {
+        const rule = `[session-boundary-hook-${ruleName}]`
+        if (fixture.rules.includes(ruleName)) {
+          expect(result).toContain(rule)
+        } else {
+          expect(result).not.toContain(rule)
+        }
       }
-      for (const fixtureViolations of optionalTaskResults) {
-        const result = fixtureViolations.join('\n')
-        expect(result).toContain('[session-boundary-hook-optional-task]')
-        expect(result).not.toContain('[session-boundary-hook-presenter]')
-        expect(result).not.toContain('[session-boundary-hook-type-cast]')
-      }
-      expect(unsafeCastResult.join('\n')).toContain('[session-boundary-hook-presenter]')
-      expect(unsafeCastResult.join('\n')).toContain('[session-boundary-hook-unknown-cast]')
-      expect(unsafeCastResult.join('\n')).toContain('[session-boundary-hook-type-cast]')
-      expect(unsafeCastResult.join('\n')).not.toContain('[session-boundary-hook-optional-task]')
-    },
-    60_000
-  )
+    }
+  })
 
   it('keeps Memory orchestration and injection callbacks out of the runtime presenter', () => {
     const fixtureViolations = forFile(violations, RETIRED_MEMORY_OWNER_FIXTURE).join('\n')

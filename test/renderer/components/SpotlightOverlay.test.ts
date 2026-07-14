@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createPinia } from 'pinia'
 import { defineComponent, nextTick, reactive } from 'vue'
 import { mount } from '@vue/test-utils'
 
@@ -58,6 +59,7 @@ const setup = async () => {
   const wrapper = mount(SpotlightOverlay, {
     attachTo: document.body,
     global: {
+      plugins: [createPinia()],
       stubs: {
         Teleport: true
       }
