@@ -36,7 +36,7 @@ Add OpenCode Go as a built-in DeepChat provider using the documented OpenCode Go
 - OpenCode Go Anthropic-routed model IDs build runtime context with `providerKind: 'anthropic'` and OpenCode Go base URL.
 - OpenCode Go OpenAI-compatible model IDs build runtime context with `providerKind: 'openai-compatible'`.
 - Focused tests cover provider registration, model mapping, route selection, and check-model configuration.
-- SDD files contain no unresolved `[NEEDS CLARIFICATION]` markers.
+- SDD files contain no unresolved clarification markers.
 
 ## Non-Goals
 

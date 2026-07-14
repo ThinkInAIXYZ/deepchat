@@ -63,7 +63,6 @@ src/
 ├── main/
 │   ├── presenter/
 │   │   ├── sessionApplication/           # core session application owners
-│   │   ├── agentSessionPresenter/        # core session compatibility forwarding only
 │   │   ├── exporter/                     # current agent-session export owner
 │   │   ├── startupMigrations/            # legacy import and session-data migrations
 │   │   ├── agentRuntimePresenter/        # 当前聊天 runtime
@@ -96,8 +95,7 @@ src/
 7. `src/main/routes/chat/chatService.ts`
 8. `src/main/presenter/sessionApplication/`
 9. `src/main/routes/providers/providerService.ts`
-10. `src/main/presenter/agentSessionPresenter/index.ts`
-11. `src/main/presenter/agentRuntimePresenter/index.ts`
+10. `src/main/presenter/agentRuntimePresenter/index.ts`
 
 ## 常见开发任务
 

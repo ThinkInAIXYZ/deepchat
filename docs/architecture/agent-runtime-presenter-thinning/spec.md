@@ -27,8 +27,8 @@ responsibilities from the class, not move the entire class behind a new name.
 
 ## Acceptance Criteria
 
-- `agentRuntimePresenter/index.ts` is at most 5,000 lines.
-- The class has at most 150 methods.
+- `agentRuntimePresenter/index.ts` is at most 3,200 lines.
+- The class has at most 130 methods.
 - Public presenter and session-application contracts remain unchanged.
 - Extracted modules do not receive the presenter instance or a generic service locator.
 - Generation settings, auto-approve review, system prompt/resources, and tool-result normalization
@@ -61,9 +61,7 @@ responsibilities from the class, not move the entire class behind a new name.
 - Generation policy, prompt/resource assembly, permission review, tool normalization, interaction
   projection, session settings, tool resolution, deferred execution, ACP compatibility, compaction
   projection, and provider permission settlement now have focused owners with explicit dependencies.
-- `scripts/agent-cleanup-guard.mjs` rejects growth beyond 5,000 lines.
-- Follow-up [turn preparation deduplication](../agent-turn-preparation-deduplication/spec.md) reduced
-  the current boundary further to 4,874 lines / 136 methods without adding a runtime entity.
+- `scripts/agent-cleanup-guard.mjs` rejects growth beyond 3,200 lines.
 - Follow-up [runtime lifecycle ownership](../deepchat-runtime-lifecycle-owners/spec.md) moved the
   initial/resume turn, provider/tool loop, and paused-interaction control flows behind three explicit
   owners and reduced the presenter boundary to 2,604 lines / 122 methods.

@@ -6,6 +6,9 @@
 > Branch: `task/session-application-coordinators`
 > Follow-up: stage 3 retired `AgentSessionPresenter` and `IAgentSessionPresenter`; current callers use
 > the four coordinator ports directly.
+> Historical scope: the Context, Problem, Goals, and original acceptance criteria below describe the
+> stage-2 extraction. The maintained contract is the four composition-owned coordinators, direct
+> consumer-owned ports, and no aggregate compatibility façade.
 
 ## Context
 
@@ -16,7 +19,8 @@ The layered runtime migration established the execution boundary:
 - backend instances own runtime state and turn execution;
 - transcript, Tape, permission, skill, and UI adapters retain their existing data ownership.
 
-`AgentSessionPresenter` still combines four application responsibilities above those owners:
+Before this goal, `AgentSessionPresenter` combined four application responsibilities above those
+owners:
 
 1. session lifecycle transactions;
 2. turn commands and message mutations;
@@ -40,7 +44,7 @@ baselines.
 
 ## Problem
 
-The current façade produces five concrete architecture failures:
+The pre-extraction façade produced five concrete architecture failures:
 
 1. `SessionService` and `ChatService` reach application behavior through
    `createPresenterHotPathPorts(IAgentSessionPresenter)` instead of explicit owners.
@@ -60,19 +64,19 @@ The current façade produces five concrete architecture failures:
    `SessionAgentAssignmentCoordinator`, and `SessionProjectionCoordinator`.
 2. Move the corresponding policy, state, transaction ordering, private helpers, and tests out of
    `AgentSessionPresenter`.
-3. Keep `AgentSessionPresenter` as a compatibility façade that forwards existing public methods to
-   the four coordinators. Presenter retirement remains stage 3.
+3. Allow a temporary compatibility façade during stage 2, then retire it after remaining consumers
+   move to the four coordinator ports in stage 3.
 4. Make `SessionService`, `ChatService`, Remote, and Cron depend on consumer-owned narrow ports rather
    than `IAgentSessionPresenter`.
-5. Construct one shared coordinator set in the composition root and reuse it across the compatibility
-   façade, routes, Remote, Cron, tools, and other migrated consumers.
+5. Construct one shared coordinator set in the composition root and reuse it across routes, Remote,
+   Cron, tools, and other migrated consumers.
 6. Remove Cron's route-runtime priming dependency and wire its existing
    `CronJobRunSessionStarter` from the composition root.
 7. Preserve route/event/data contracts and all DeepChat/direct-ACP behavior.
 8. Add architecture enforcement that prevents the migrated consumers from regaining the presenter
    dependency or an aggregate replacement façade.
 
-## Non-goals
+## Original Stage-2 Non-goals
 
 - Reimplementing or absorbing stage-1 history, import, migration, usage, RTK, export, translation, or
   catalog ownership. After integration those capabilities remain with their explicit stage-1 owners.
@@ -167,9 +171,7 @@ Presenter composition root
   ├─ SessionProjectionCoordinator (one instance)
   ├─ SessionAgentAssignmentCoordinator (one instance)
   ├─ SessionTurnCoordinator (one instance)
-  ├─ SessionLifecycleCoordinator (one instance)
-  └─ AgentSessionPresenter compatibility façade
-       └─ forwards existing core methods to the four coordinators
+  └─ SessionLifecycleCoordinator (one instance)
 
 typed routes
   ├─ SessionService -> lifecycle + projection ports
@@ -196,8 +198,8 @@ defined as `Pick<IAgentSessionPresenter, ...>` and must not be grouped under a r
 1. A coordinator may orchestrate existing owners but must not copy their state or persistence logic.
 2. Coordinators depend on the smallest required typed ports. They must not receive the entire
    `Presenter`, `IAgentSessionPresenter`, `AgentSharedDataPorts`, or concrete SQLite presenter.
-3. The compatibility façade contains forwarding only for migrated core methods. Coordinator state,
-   policy, and private helpers must not remain duplicated there.
+3. No aggregate compatibility façade remains. Consumers use the smallest coordinator ports they
+   own, and coordinator state, policy, and private helpers remain with their explicit owner.
 4. `SessionService`, `ChatService`, Remote runner/interfaces, Cron starter, and
    `createPresenterHotPathPorts` must not import or accept `IAgentSessionPresenter` after migration.
 5. `SessionService` continues to compose restore as projection lookup plus paged messages; there is no
@@ -211,7 +213,7 @@ defined as `Pick<IAgentSessionPresenter, ...>` and must not be grouped under a r
 10. Stage-1 foreign owners remain independent after integration and are not imported by the new
     coordinators.
 
-## Compatibility Invariants
+## Behavior Invariants
 
 ### Lifecycle
 
@@ -285,7 +287,7 @@ defined as `Pick<IAgentSessionPresenter, ...>` and must not be grouped under a r
 - Output segment precedence/labels, concurrency skip/queue, timeout cleanup order, late-failure
   fencing, and delivery behavior remain unchanged.
 
-## Acceptance Criteria
+## Stage-2 Acceptance Criteria (Historical)
 
 1. One composition-owned instance exists for each of the four coordinators.
 2. Core lifecycle, turn, assignment, and projection implementation/state/private helpers no longer

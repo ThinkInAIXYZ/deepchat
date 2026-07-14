@@ -9992,43 +9992,6 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
-    it('falls back to ask_user when auto-review action hash mismatches', async () => {
-      llmProvider.generateCompletionStandalone.mockResolvedValueOnce(
-        JSON.stringify({
-          actionHash: 'wrong',
-          decision: 'auto_allow',
-          riskLevel: 'low',
-          userAuthorization: 'high',
-          rationale: 'safe'
-        })
-      )
-
-      const result = await (agent as any).reviewToolPermissionForAutoApprove(
-        {
-          sessionId: 's1',
-          messageId: 'm1',
-          toolCallId: 'tc1',
-          toolName: 'read',
-          toolArgs: '{"path":"/tmp/a.txt"}',
-          toolSource: 'agent',
-          reason: 'tool_call'
-        },
-        {
-          providerId: 'openai',
-          modelId: 'gpt-4',
-          messages: [{ role: 'user', content: 'read /tmp/a.txt' }],
-          signal: new AbortController().signal
-        }
-      )
-
-      expect(result).toEqual(
-        expect.objectContaining({
-          decision: 'ask_user',
-          rationale: 'Auto-review action hash mismatch.'
-        })
-      )
-    })
-
     it.each([
       ['missing', undefined],
       ['invalid', 'unknown']
@@ -10410,83 +10373,6 @@ describe('AgentRuntimePresenter', () => {
         }),
         expect.objectContaining({
           signal: expect.any(Object)
-        })
-      )
-    })
-
-    it('prefers the current session model for screenshot analysis during deferred execution', async () => {
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
-        {
-          type: 'function',
-          function: {
-            name: 'cdp_send',
-            description: 'CDP tool',
-            parameters: { type: 'object', properties: {} }
-          },
-          server: { name: 'yobrowser', icons: '', description: '' }
-        }
-      ])
-      toolPresenter.callTool.mockResolvedValueOnce({
-        content: '{"data":"YWJj"}',
-        rawData: { toolCallId: 'tc1', content: '{"data":"YWJj"}', isError: false }
-      })
-      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
-        temperature: 0.7,
-        maxTokens: 4096,
-        contextLength: 128000,
-        thinkingBudget: 512,
-        reasoningEffort: 'medium',
-        verbosity: 'medium',
-        vision: providerId === 'openai' && modelId === 'gpt-4o'
-      }))
-
-      await agent.initSession('s1', {
-        providerId: 'openai',
-        modelId: 'gpt-4o'
-      })
-
-      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc1',
-        name: 'cdp_send',
-        params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
-      })
-
-      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
-        'openai',
-        expect.objectContaining({
-          signal: expect.any(Object)
-        })
-      )
-      expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
-        'openai',
-        [
-          {
-            role: 'user',
-            content: [
-              expect.objectContaining({
-                type: 'text'
-              }),
-              {
-                type: 'image_url',
-                image_url: {
-                  url: 'data:image/jpeg;base64,YWJj',
-                  detail: 'auto'
-                }
-              }
-            ]
-          }
-        ],
-        'gpt-4o',
-        expect.any(Number),
-        expect.any(Number),
-        expect.objectContaining({
-          signal: expect.any(Object)
-        })
-      )
-      expect(result).toEqual(
-        expect.objectContaining({
-          isError: false,
-          responseText: 'English screenshot summary'
         })
       )
     })

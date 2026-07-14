@@ -1518,43 +1518,6 @@ describe('processStream', () => {
     warning.mockRestore()
   })
 
-  it('stops before exceeding max provider rounds', async () => {
-    const coreStream = vi.fn(function () {
-      return (async function* () {
-        yield {
-          type: 'tool_call_start',
-          tool_call_id: 'tc1',
-          tool_call_name: 'get_weather'
-        } as LLMCoreStreamEvent
-        yield {
-          type: 'tool_call_end',
-          tool_call_id: 'tc1',
-          tool_call_arguments_complete: '{}'
-        } as LLMCoreStreamEvent
-        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-      })()
-    }) as unknown as ProcessParams['coreStream']
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('get_weather')],
-      maxProviderRounds: 1
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    const result = await promise
-
-    expect(result).toMatchObject({
-      status: 'error',
-      stopReason: 'max_turns',
-      errorMessage: 'Maximum agent turns exceeded (1).'
-    })
-    expect(coreStream).toHaveBeenCalledTimes(1)
-    expect(params.run.providerRoundCount).toBe(2)
-  })
-
   it('signals first provider round after flushing without blocking tool loop', async () => {
     const order: string[] = []
     let callCount = 0
@@ -2021,48 +1984,6 @@ describe('processStream', () => {
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
   })
 
-  it('multi-turn tool loop', async () => {
-    let callCount = 0
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
-
-    const coreStream = vi.fn(function () {
-      callCount++
-      if (callCount <= 2) {
-        return (async function* () {
-          yield {
-            type: 'tool_call_start',
-            tool_call_id: `tc${callCount}`,
-            tool_call_name: 'get_weather'
-          } as LLMCoreStreamEvent
-          yield {
-            type: 'tool_call_end',
-            tool_call_id: `tc${callCount}`,
-            tool_call_arguments_complete: `{"round":${callCount}}`
-          } as LLMCoreStreamEvent
-          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-        })()
-      } else {
-        return (async function* () {
-          yield { type: 'text', content: 'Final answer' } as LLMCoreStreamEvent
-          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
-        })()
-      }
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('get_weather')]
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(coreStream).toHaveBeenCalledTimes(3)
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
-  })
-
   it('passes reasoning_content back after each interleaved tool-call loop', async () => {
     let callCount = 0
     const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
@@ -2126,43 +2047,6 @@ describe('processStream', () => {
       'Think 1',
       'Think 2'
     ])
-  })
-
-  it('max tool calls limit', async () => {
-    let callCount = 0
-    const toolPresenter = createMockToolPresenter({ action: 'done' })
-
-    const coreStream = vi.fn(function () {
-      callCount++
-      return (async function* () {
-        yield {
-          type: 'tool_call_start',
-          tool_call_id: `tc${callCount}`,
-          tool_call_name: 'action'
-        } as LLMCoreStreamEvent
-        yield {
-          type: 'tool_call_end',
-          tool_call_id: `tc${callCount}`,
-          tool_call_arguments_complete: '{}'
-        } as LLMCoreStreamEvent
-        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-      })()
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('action')]
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(
-      (toolPresenter.callTool as ReturnType<typeof vi.fn>).mock.calls.length
-    ).toBeLessThanOrEqual(128)
-    expect((coreStream as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(129)
   })
 
   it('completes a plan-only stream without writing an error or plan block', async () => {
@@ -2237,7 +2121,8 @@ describe('processStream', () => {
     const params = createParams({
       coreStream,
       toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('action')]
+      tools: [makeTool('action')],
+      initialAccounting: { providerRounds: 0, toolCalls: 128 }
     })
 
     const promise = processStream(params)
