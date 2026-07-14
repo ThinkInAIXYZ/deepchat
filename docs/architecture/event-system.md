@@ -36,7 +36,7 @@ Current event families include:
 | Family | Examples | Publisher owner |
 | --- | --- | --- |
 | `chat.*` | `chat.stream.updated`, `chat.stream.completed`, `chat.stream.failed`, `chat.plan.updated` | `agentRuntimePresenter`, `dispatch` |
-| `sessions.*` | `sessions.updated`, `sessions.status.changed`, `sessions.pendingInputs.changed` | `agentSessionPresenter`, runtime services |
+| `sessions.*` | `sessions.updated`, `sessions.status.changed`, `sessions.pendingInputs.changed` | session application coordinators, runtime services |
 | `settings.*` | `settings.changed`, `settings.navigateRequested`, `settings.checkForUpdatesRequested` | config/settings/window flows |
 | `config.*` | language, theme, system prompts, agents, shortcut keys | `configPresenter` helpers |
 | `providers.*` and `models.*` | provider/model/rate-limit updates | provider runtime |

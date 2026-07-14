@@ -1,5 +1,8 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { oauthOpenAICodexStatusChangedEvent } from '@shared/contracts/events'
+import {
+  oauthOpenAICodexStatusChangedEvent,
+  oauthXaiGrokStatusChangedEvent
+} from '@shared/contracts/events'
 import {
   oauthOpenAICodexCancelLoginRoute,
   oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
@@ -8,7 +11,12 @@ import {
   oauthOpenAICodexStartBrowserLoginRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
-  type OpenAICodexAuthStatus
+  oauthXaiGrokCancelLoginRoute,
+  oauthXaiGrokGetStatusRoute,
+  oauthXaiGrokLogoutRoute,
+  oauthXaiGrokStartDeviceLoginRoute,
+  type OpenAICodexAuthStatus,
+  type XaiGrokAuthStatus
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
@@ -62,6 +70,32 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     })
   }
 
+  async function getXaiGrokStatus(): Promise<XaiGrokAuthStatus> {
+    const result = await bridge.invoke(oauthXaiGrokGetStatusRoute.name, {})
+    return result.status
+  }
+
+  async function startXaiGrokDeviceLogin(): Promise<XaiGrokAuthStatus> {
+    const result = await bridge.invoke(oauthXaiGrokStartDeviceLoginRoute.name, {})
+    return result.status
+  }
+
+  async function cancelXaiGrokLogin(): Promise<XaiGrokAuthStatus> {
+    const result = await bridge.invoke(oauthXaiGrokCancelLoginRoute.name, {})
+    return result.status
+  }
+
+  async function logoutXaiGrok(): Promise<XaiGrokAuthStatus> {
+    const result = await bridge.invoke(oauthXaiGrokLogoutRoute.name, {})
+    return result.status
+  }
+
+  function onXaiGrokStatusChanged(listener: (status: XaiGrokAuthStatus) => void): () => void {
+    return bridge.on(oauthXaiGrokStatusChangedEvent.name, (payload) => {
+      listener(payload.status)
+    })
+  }
+
   return {
     startGitHubCopilotLogin,
     startGitHubCopilotDeviceFlowLogin,
@@ -70,7 +104,12 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     completeOpenAICodexBrowserLoginFromUrl,
     cancelOpenAICodexLogin,
     logoutOpenAICodex,
-    onOpenAICodexStatusChanged
+    onOpenAICodexStatusChanged,
+    getXaiGrokStatus,
+    startXaiGrokDeviceLogin,
+    cancelXaiGrokLogin,
+    logoutXaiGrok,
+    onXaiGrokStatusChanged
   }
 }
 

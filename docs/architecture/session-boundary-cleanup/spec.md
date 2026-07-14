@@ -1,5 +1,8 @@
 # Session Boundary Cleanup
 
+> Historical stage-1 specification. Stages 2 and 3 later extracted the four session application
+> coordinators and retired `AgentSessionPresenter` / `IAgentSessionPresenter`.
+
 > Status: implemented and merged in PR #1957
 > Base: `dev@28e2a0e92`
 > Branch: `codex/session-boundary-cleanup`

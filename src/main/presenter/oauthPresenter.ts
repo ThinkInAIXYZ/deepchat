@@ -6,8 +6,10 @@ import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
 import { getGlobalOpenAICodexAuth } from './openaiCodexAuth'
+import { getGlobalXaiGrokAuth } from './xaiGrokAuth'
 import { eventBus } from '@/eventbus'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
+import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 
 export interface OAuthConfig {
   authUrl: string
@@ -107,6 +109,22 @@ export class OAuthPresenter {
 
   async logoutOpenAICodex(): Promise<OpenAICodexAuthStatus> {
     return getGlobalOpenAICodexAuth().logout()
+  }
+
+  async getXaiGrokStatus(): Promise<XaiGrokAuthStatus> {
+    return getGlobalXaiGrokAuth().getStatus()
+  }
+
+  async startXaiGrokDeviceLogin(): Promise<XaiGrokAuthStatus> {
+    return getGlobalXaiGrokAuth().startDeviceLogin()
+  }
+
+  async cancelXaiGrokLogin(): Promise<XaiGrokAuthStatus> {
+    return getGlobalXaiGrokAuth().cancelLogin()
+  }
+
+  async logoutXaiGrok(): Promise<XaiGrokAuthStatus> {
+    return getGlobalXaiGrokAuth().logout()
   }
 
   /**

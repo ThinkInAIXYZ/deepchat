@@ -4,6 +4,8 @@
 > Original base: `dev@28e2a0e92`
 > Integrated base: `dev@135779210` via merge commit `1122b2406`
 > Branch: `task/session-application-coordinators`
+> Follow-up: stage 3 retired `AgentSessionPresenter` and `IAgentSessionPresenter`; current callers use
+> the four coordinator ports directly.
 
 ## Context
 

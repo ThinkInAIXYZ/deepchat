@@ -1,5 +1,8 @@
 # Session Application Coordinators — Implementation Plan
 
+> Historical stage-2 plan. Stage 3 subsequently removed the compatibility façade and connected the
+> remaining consumers directly to the four coordinators.
+
 ## Approach
 
 The migration uses a strangler sequence inside the existing compatibility façade:

@@ -19,17 +19,14 @@ const SOURCE_EXTENSIONS = new Set([
 ])
 
 const MAIN_GUARD_PATHS = [
-  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/agent')
 ]
 const REGULAR_MAIN_TEST_ROOT = path.join(ROOT, 'test/main')
 const INTERNAL_AGENT_KIND_ROOTS = [
   path.join(ROOT, 'src/main/agent'),
-  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'test/main/agent'),
-  path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'test/main/presenter/agentRuntimePresenter')
 ]
 const AGENT_HANDLE_BACKEND_RUNTIME_KIND_ROOTS = [
@@ -49,8 +46,16 @@ const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
 ]
 const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/lib/agentRuntime'),
-  path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts')
+  path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
+  path.join(ROOT, 'test/main/presenter/agentSessionPresenter')
 ]
+const RETIRED_SESSION_FACADE_NAMES = new Set([
+  'AgentSessionPresenter',
+  'IAgentSessionPresenter',
+  'agentSessionPresenter'
+])
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
@@ -127,14 +132,6 @@ const SESSION_FACADE_CAPABILITY_CATEGORIES = new Map([
 ])
 const SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN =
   /(?:^|[/_.-])(?:history|export(?:er)?|usage(?:[-_.]?stats?)?|rtk|legacy[-_.]?import(?:er|s)?|import(?:er|s)?|migrations?|translation|catalog)(?:$|[/_.-])/
-const AGENT_SESSION_PRESENTER_PATH = path.join(
-  ROOT,
-  'src/main/presenter/agentSessionPresenter/index.ts'
-)
-const AGENT_SESSION_PRESENTER_INTERFACE_PATH = path.join(
-  ROOT,
-  'src/shared/types/presenters/agent-session.presenter.d.ts'
-)
 const SESSION_BOUNDARY_STARTUP_HOOK_PATHS = new Set(
   [
     'disabledSearchToolCleanupHook.ts',
@@ -146,37 +143,6 @@ const SESSION_BOUNDARY_STARTUP_HOOK_PATHS = new Set(
     path.join(ROOT, 'src/main/presenter/lifecyclePresenter/hooks/after-start', fileName)
   )
 )
-const REMOVED_AGENT_SESSION_CAPABILITY_METHODS = new Set([
-  'searchHistory',
-  'getLegacyImportStatus',
-  'retryLegacyImport',
-  'startLegacyImport',
-  'startLegacyImportTask',
-  'startUsageStatsBackfill',
-  'startUsageStatsBackfillTask',
-  'startMainlineNormalizationBackfill',
-  'startMainlineNormalizationBackfillTask',
-  'startDisabledSearchToolCleanupBackfill',
-  'startDisabledSearchToolCleanupBackfillTask',
-  'startRtkHealthCheck',
-  'startRtkHealthCheckTask',
-  'retryRtkHealthCheck',
-  'getUsageDashboard',
-  'repairImportedLegacySessionSkills',
-  'translateText',
-  'getAgents',
-  'exportSession'
-])
-const AGENT_SESSION_FORBIDDEN_IMPORTS = [
-  ['legacy import', /(?:^|\/)legacy(?:Chat)?ImportService$/],
-  ['startup migrations', /(?:^|\/)startupMigrations(?:\/|$)/],
-  ['usage owner or policy', /(?:^|\/)usageStats(?:Service)?$/],
-  ['RTK runtime', /(?:^|\/)rtkRuntimeService$/],
-  ['exporter formats', /(?:^|\/)exporter\/formats(?:\/|$)/],
-  ['history search', /(?:^|\/)sessionHistorySearch$/],
-  ['session translation', /(?:^|\/)sessionTranslation$/],
-  ['agent catalog', /(?:^|\/)availableAgentCatalog$/]
-]
 const PHASE_ORDER = new Map([
   ['P0', 0],
   ['P1', 1],
@@ -210,7 +176,6 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/settings'),
   path.join(ROOT, 'src/main/presenter/windowPresenter'),
   path.join(ROOT, 'src/main/presenter/configPresenter'),
-  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
@@ -227,7 +192,6 @@ const MIGRATED_RAW_CHANNEL_BASELINE = new Map()
 const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/presenter/index.ts'),
   path.join(ROOT, 'src/main/eventbus.ts'),
-  path.join(ROOT, 'src/main/presenter/agentSessionPresenter/index.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter/index.ts')
@@ -830,25 +794,6 @@ function findNamedClassDeclarations(sourceFile, className) {
   }
   visit(sourceFile)
   return declarations
-}
-
-function findNamedDeclarationMembers(source, filePath, declarationName) {
-  const sourceFile = sourceFileForAst(source, filePath)
-  const names = []
-  const visit = (node) => {
-    if (
-      (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) &&
-      node.name?.text === declarationName
-    ) {
-      for (const member of node.members) {
-        const name = member.name ? propertyNameText(member.name) : null
-        if (name) names.push(name)
-      }
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(sourceFile)
-  return names
 }
 
 function analyzeSessionBoundaryStartupHook(source, filePath) {
@@ -1604,7 +1549,10 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
   }
 
   for (const retiredPath of RETIRED_MAIN_PATHS) {
-    if (await pathExists(retiredPath)) {
+    const virtualPathExists = [...normalizedVirtualFiles.keys()].some((filePath) =>
+      isUnder(filePath, retiredPath)
+    )
+    if ((await pathExists(retiredPath)) || virtualPathExists) {
       violations.push(`[main-retired-path] ${relativePath(retiredPath)} must remain deleted`)
     }
   }
@@ -1613,9 +1561,25 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
     const isMainSource = isUnder(filePath, MAIN_SOURCE_ROOT)
+    const scansRetiredSessionFacade =
+      isMainSource ||
+      isUnder(filePath, SHARED_SOURCE_ROOT) ||
+      isUnder(filePath, REGULAR_MAIN_TEST_ROOT)
+    const sourceFile = scansRetiredSessionFacade ? sourceFileForAst(source, filePath) : null
+
+    if (scansRetiredSessionFacade) {
+      const retiredFacadeNames = findIdentifierNames(
+        sourceFile,
+        RETIRED_SESSION_FACADE_NAMES
+      )
+      for (const name of retiredFacadeNames) {
+        violations.push(
+          `[session-retired-facade-symbol] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+    }
 
     if (isMainSource) {
-      const sourceFile = sourceFileForAst(source, filePath)
       const importRecords = importRecordsFromSourceFile(sourceFile)
 
       if (isSessionMigratedConsumerPath(filePath)) {
@@ -1711,42 +1675,6 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       }
     }
 
-    if (path.resolve(filePath) === path.resolve(AGENT_SESSION_PRESENTER_PATH)) {
-      const removedMethods = findNamedDeclarationMembers(
-        source,
-        filePath,
-        'AgentSessionPresenter'
-      ).filter((name) => REMOVED_AGENT_SESSION_CAPABILITY_METHODS.has(name))
-      if (removedMethods.length > 0) {
-        violations.push(
-          `[session-boundary-presenter-method] ${relativePath(filePath)} must not declare moved capabilities: ${removedMethods.join(', ')}`
-        )
-      }
-
-      for (const specifier of specifiers) {
-        for (const [owner, pattern] of AGENT_SESSION_FORBIDDEN_IMPORTS) {
-          if (pattern.test(specifier)) {
-            violations.push(
-              `[session-boundary-presenter-import] ${relativePath(filePath)} must not import ${owner}: ${specifier}`
-            )
-          }
-        }
-      }
-    }
-
-    if (path.resolve(filePath) === path.resolve(AGENT_SESSION_PRESENTER_INTERFACE_PATH)) {
-      const removedMethods = findNamedDeclarationMembers(
-        source,
-        filePath,
-        'IAgentSessionPresenter'
-      ).filter((name) => REMOVED_AGENT_SESSION_CAPABILITY_METHODS.has(name))
-      if (removedMethods.length > 0) {
-        violations.push(
-          `[session-boundary-interface-method] ${relativePath(filePath)} must not declare moved capabilities: ${removedMethods.join(', ')}`
-        )
-      }
-    }
-
     if (SESSION_BOUNDARY_STARTUP_HOOK_PATHS.has(path.resolve(filePath))) {
       const hook = analyzeSessionBoundaryStartupHook(source, filePath)
       if (hook.agentSessionPresenterDependencies > 0) {
@@ -1803,7 +1731,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     if (isUnder(filePath, MAIN_SOURCE_ROOT)) {
       if (source.includes('MemoryRuntimeCoordinator')) {
         const coordinatorClasses = findNamedClassDeclarations(
-          sourceFileForAst(source, filePath),
+          sourceFile,
           'MemoryRuntimeCoordinator'
         )
         memoryCoordinatorOwners.push(

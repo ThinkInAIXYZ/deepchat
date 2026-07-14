@@ -436,7 +436,7 @@ export class ToolManager {
     }
 
     try {
-      const session = await presenter.agentSessionPresenter.getSession(sessionId)
+      const session = await presenter.sessionProjectionCoordinator.getSession(sessionId)
       const agentId = session?.agentId?.trim()
       const providerId = session?.providerId?.trim()
       if (session && providerId === 'acp' && agentId) {

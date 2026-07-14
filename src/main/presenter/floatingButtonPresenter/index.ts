@@ -612,17 +612,12 @@ export class FloatingButtonPresenter {
   }
 
   private async loadSessions(): Promise<SessionWithState[]> {
-    const agentSessionPresenter = presenter.agentSessionPresenter as
-      | {
-          getSessionList?: (filters?: { agentId?: string }) => Promise<SessionWithState[]>
-        }
-      | undefined
-
-    if (!agentSessionPresenter?.getSessionList) {
+    const projection = presenter?.sessionProjectionCoordinator
+    if (!projection) {
       return []
     }
 
-    return await agentSessionPresenter.getSessionList()
+    return await projection.listSessions()
   }
 
   private async loadAgents(): Promise<Agent[]> {
@@ -631,13 +626,8 @@ export class FloatingButtonPresenter {
 
   private async openSession(sessionId: string): Promise<void> {
     try {
-      const agentSessionPresenter = presenter.agentSessionPresenter as
-        | {
-            activateSession?: (webContentsId: number, sessionId: string) => Promise<void>
-          }
-        | undefined
-
-      if (!agentSessionPresenter?.activateSession) {
+      const projection = presenter?.sessionProjectionCoordinator
+      if (!projection) {
         return
       }
 
@@ -646,7 +636,7 @@ export class FloatingButtonPresenter {
         return
       }
 
-      await agentSessionPresenter.activateSession(targetWindow.webContents.id, sessionId)
+      await projection.activate(targetWindow.webContents.id, sessionId)
       presenter.windowPresenter.show(targetWindow.id, true)
       this.setExpanded(false)
     } catch (error) {

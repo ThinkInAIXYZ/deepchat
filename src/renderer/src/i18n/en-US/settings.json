@@ -1396,7 +1396,21 @@
     "openaiCodexCallbackTitle": "Complete authentication",
     "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
     "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexCompleteAuthentication": "Complete authentication",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok Connected",
+    "xaiGrokNotConnected": "xAI Grok Not Connected",
+    "xaiGrokPendingDevice": "Waiting for device authorization",
+    "xaiGrokDisabled": "xAI Grok OAuth is disabled",
+    "xaiGrokError": "xAI Grok authorization failed",
+    "xaiGrokAccount": "Account",
+    "xaiGrokSignInDevice": "Sign in with SuperGrok / Premium+",
+    "xaiGrokReconnect": "Reconnect",
+    "xaiGrokSignOut": "Sign out",
+    "xaiGrokCancel": "Cancel",
+    "xaiGrokOpenVerification": "Open verification page",
+    "xaiGrokLoginTip": "Uses xAI device-code OAuth for SuperGrok or X Premium+. Tokens are stored separately from API keys. Console API keys remain supported below.",
+    "xaiGrokApiKeyAlternative": "Or use an xAI Console API key:"
   },
   "knowledgeBase": {
     "title": "Knowledge Base Settings",

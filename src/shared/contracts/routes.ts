@@ -239,7 +239,11 @@ import {
   oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
   oauthOpenAICodexGetStatusRoute,
   oauthOpenAICodexLogoutRoute,
-  oauthOpenAICodexStartBrowserLoginRoute
+  oauthOpenAICodexStartBrowserLoginRoute,
+  oauthXaiGrokCancelLoginRoute,
+  oauthXaiGrokGetStatusRoute,
+  oauthXaiGrokLogoutRoute,
+  oauthXaiGrokStartDeviceLoginRoute
 } from './routes/oauth.routes'
 import {
   remoteControlCancelFeishuAuthRoute,
@@ -590,6 +594,10 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
     oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
   [oauthOpenAICodexCancelLoginRoute.name]: oauthOpenAICodexCancelLoginRoute,
   [oauthOpenAICodexLogoutRoute.name]: oauthOpenAICodexLogoutRoute,
+  [oauthXaiGrokGetStatusRoute.name]: oauthXaiGrokGetStatusRoute,
+  [oauthXaiGrokStartDeviceLoginRoute.name]: oauthXaiGrokStartDeviceLoginRoute,
+  [oauthXaiGrokCancelLoginRoute.name]: oauthXaiGrokCancelLoginRoute,
+  [oauthXaiGrokLogoutRoute.name]: oauthXaiGrokLogoutRoute,
   [remoteControlListChannelsRoute.name]: remoteControlListChannelsRoute,
   [remoteControlGetChannelSettingsRoute.name]: remoteControlGetChannelSettingsRoute,
   [remoteControlSaveChannelSettingsRoute.name]: remoteControlSaveChannelSettingsRoute,

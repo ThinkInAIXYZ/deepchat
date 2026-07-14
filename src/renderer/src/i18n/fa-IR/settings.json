@@ -1135,7 +1135,21 @@
     "openaiCodexCallbackTitle": "تکمیل احراز هویت",
     "openaiCodexCallbackDescription": "پس از پایان کار مرورگر، به DeepChat برگردید. اگر DeepChat به‌روزرسانی نشد، URL کامل بازگشت را اینجا بچسبانید.",
     "openaiCodexCallbackPlaceholder": "URL کامل بازگشت را بچسبانید",
-    "openaiCodexCompleteAuthentication": "تکمیل احراز هویت"
+    "openaiCodexCompleteAuthentication": "تکمیل احراز هویت",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok متصل است",
+    "xaiGrokNotConnected": "xAI Grok متصل نیست",
+    "xaiGrokPendingDevice": "در انتظار مجوز دستگاه",
+    "xaiGrokDisabled": "OAuth ‏xAI Grok غیرفعال است",
+    "xaiGrokError": "مجوزدهی xAI Grok ناموفق بود",
+    "xaiGrokAccount": "حساب",
+    "xaiGrokSignInDevice": "ورود با SuperGrok / Premium+",
+    "xaiGrokReconnect": "اتصال مجدد",
+    "xaiGrokSignOut": "خروج از حساب",
+    "xaiGrokCancel": "لغو",
+    "xaiGrokOpenVerification": "باز کردن صفحه تأیید",
+    "xaiGrokLoginTip": "برای SuperGrok یا X Premium+ از OAuth کد دستگاه xAI استفاده می‌کند. توکن‌ها جدا از کلیدهای API ذخیره می‌شوند. کلیدهای API کنسول نیز در پایین پشتیبانی می‌شوند.",
+    "xaiGrokApiKeyAlternative": "یا از کلید API کنسول xAI استفاده کنید:"
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",

@@ -1395,7 +1395,21 @@
     "openaiCodexCallbackTitle": "完成认证",
     "openaiCodexCallbackDescription": "浏览器完成后回到 DeepChat。如果 DeepChat 没有更新，请把完整回调 URL 粘贴到这里。",
     "openaiCodexCallbackPlaceholder": "粘贴完整回调 URL",
-    "openaiCodexCompleteAuthentication": "完成认证"
+    "openaiCodexCompleteAuthentication": "完成认证",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok 已连接",
+    "xaiGrokNotConnected": "xAI Grok 未连接",
+    "xaiGrokPendingDevice": "等待设备授权",
+    "xaiGrokDisabled": "xAI Grok OAuth 已禁用",
+    "xaiGrokError": "xAI Grok 授权失败",
+    "xaiGrokAccount": "账号",
+    "xaiGrokSignInDevice": "使用 SuperGrok / Premium+ 登录",
+    "xaiGrokReconnect": "重新连接",
+    "xaiGrokSignOut": "退出登录",
+    "xaiGrokCancel": "取消",
+    "xaiGrokOpenVerification": "打开验证页面",
+    "xaiGrokLoginTip": "通过 xAI 设备码 OAuth 使用 SuperGrok 或 X Premium+ 订阅。Token 单独存储，不会写入 API Key。下方仍支持控制台 API Key。",
+    "xaiGrokApiKeyAlternative": "或者使用 xAI 控制台 API Key："
   },
   "knowledgeBase": {
     "title": "知识库设置",

@@ -56,7 +56,7 @@ Flow:
 
 ```text
 Renderer send
-  -> AgentSessionPresenter
+  -> SessionService / ChatService -> Lifecycle / Turn coordinator
   -> AgentManager -> typed DeepChat handle
   -> DeepChatAgentInstance preparation
   -> create/register LoopRun
@@ -88,7 +88,7 @@ Flow:
 
 ```text
 Renderer send
-  -> AgentSessionPresenter
+  -> SessionService / ChatService -> Lifecycle / Turn coordinator
   -> AgentManager -> direct ACP handle
   -> validate descriptor/config/workdir identity
   -> AcpAgentRuntime hydrate/prepare AcpAgentInstance

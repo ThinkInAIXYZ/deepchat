@@ -17,7 +17,10 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
 ]
 const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
   'src/main/presenter/index.ts',
-  'src/main/presenter/agentSessionPresenter/index.ts',
+  'src/main/presenter/sessionApplication/projectionCoordinator.ts',
+  'src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts',
+  'src/main/presenter/sessionApplication/turnCoordinator.ts',
+  'src/main/presenter/sessionApplication/lifecycleCoordinator.ts',
   'src/main/presenter/agentRuntimePresenter/index.ts',
   'src/main/presenter/agentRuntimePresenter/process.ts',
   'src/main/presenter/agentRuntimePresenter/dispatch.ts',
@@ -98,9 +101,24 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
     /\bclass AcpAgentInstance\b/g
   ],
   [
-    'retainedAgentSessionFacade',
-    'src/main/presenter/agentSessionPresenter/index.ts',
-    /\bclass AgentSessionPresenter\b/g
+    'sessionProjectionCoordinator',
+    'src/main/presenter/sessionApplication/projectionCoordinator.ts',
+    /\bclass SessionProjectionCoordinator\b/g
+  ],
+  [
+    'sessionAgentAssignmentCoordinator',
+    'src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts',
+    /\bclass SessionAgentAssignmentCoordinator\b/g
+  ],
+  [
+    'sessionTurnCoordinator',
+    'src/main/presenter/sessionApplication/turnCoordinator.ts',
+    /\bclass SessionTurnCoordinator\b/g
+  ],
+  [
+    'sessionLifecycleCoordinator',
+    'src/main/presenter/sessionApplication/lifecycleCoordinator.ts',
+    /\bclass SessionLifecycleCoordinator\b/g
   ],
   [
     'retainedDeepChatStateDelegateFacade',
@@ -111,10 +129,13 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
 const AGENT_SYSTEM_RETIRED_PATHS = [
   'src/main/agent/manager/legacyAgentBackends.ts',
   'src/main/lib/agentRuntime',
-  'src/main/presenter/agentSessionPresenter/agentRegistry.ts'
+  'src/main/presenter/agentSessionPresenter',
+  'src/shared/types/presenters/agent-session.presenter.d.ts'
 ]
 const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
   ['AgentRegistry', /\bAgentRegistry\b/g],
+  ['AgentSessionPresenter', /\bAgentSessionPresenter\b/g],
+  ['IAgentSessionPresenter', /\bIAgentSessionPresenter\b/g],
   ['IAgentImplementation', /\bIAgentImplementation\b/g],
   ['createLegacyAgentBackend', /\bcreateLegacyAgentBackend\b/g],
   ['LegacyDeepChatSessionBackend', /\bLegacyDeepChatSessionBackend\b/g],
@@ -185,7 +206,6 @@ const BRIDGE_REGISTER_PATH = path.join(
 const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/presenter/index.ts'),
   path.join(ROOT, 'src/main/eventbus.ts'),
-  path.join(ROOT, 'src/main/presenter/agentSessionPresenter/index.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter/index.ts')
@@ -203,7 +223,6 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/main/presenter/windowPresenter'),
   path.join(ROOT, 'src/main/presenter/configPresenter'),
-  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),

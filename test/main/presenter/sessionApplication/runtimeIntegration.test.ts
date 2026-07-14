@@ -1,6 +1,5 @@
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
@@ -676,7 +675,9 @@ describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let agentPresenter: AgentSessionPresenter
+  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
+  let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
+  let projection: ReturnType<typeof createProjectionCoordinatorFixture>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -703,7 +704,7 @@ describe('Integration: createSession end-to-end', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
-    const projection = createProjectionCoordinatorFixture({
+    projection = createProjectionCoordinatorFixture({
       agentManager,
       appSessionService,
       llmProviderPresenter: llmProvider,
@@ -720,16 +721,12 @@ describe('Integration: createSession end-to-end', () => {
       projection,
       acp: llmProvider
     })
-    agentPresenter = new AgentSessionPresenter(
-      projection,
-      sessionApplications.lifecycle,
-      sessionApplications.assignment,
-      sessionApplications.turn
-    )
+    lifecycle = sessionApplications.lifecycle
+    turn = sessionApplications.turn
   })
 
   it('createSession → new_sessions row + deepchat_sessions row + messages + events', async () => {
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       {
         agentId: 'deepchat',
         message: 'Tell me a joke',
@@ -805,26 +802,23 @@ describe('Integration: createSession end-to-end', () => {
   })
 
   it('session list returns enriched sessions', async () => {
-    await agentPresenter.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
+    await lifecycle.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
 
     // Wait for processMessage to complete
     await new Promise((r) => setTimeout(r, 50))
 
-    const sessions = await agentPresenter.getSessionList()
+    const sessions = await projection.listSessions()
     expect(sessions).toHaveLength(1)
     expect(sessions[0].status).toBe('idle')
     expect(sessions[0].providerId).toBe('openai')
   })
 
   it('deleteSession cleans up all data', async () => {
-    const session = await agentPresenter.createSession(
-      { agentId: 'deepchat', message: 'To delete' },
-      1
-    )
+    const session = await lifecycle.createSession({ agentId: 'deepchat', message: 'To delete' }, 1)
 
     await new Promise((r) => setTimeout(r, 50))
 
-    await agentPresenter.deleteSession(session.id)
+    await lifecycle.deleteSession(session.id)
 
     expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith(session.id)
     expect(sqlitePresenter.deepchatSessionsTable.delete).toHaveBeenCalledWith(session.id)
@@ -832,14 +826,11 @@ describe('Integration: createSession end-to-end', () => {
   })
 
   it('clearSessionMessages clears messages but keeps session row', async () => {
-    const session = await agentPresenter.createSession(
-      { agentId: 'deepchat', message: 'To clear' },
-      1
-    )
+    const session = await lifecycle.createSession({ agentId: 'deepchat', message: 'To clear' }, 1)
 
     await new Promise((r) => setTimeout(r, 50))
 
-    await agentPresenter.clearSessionMessages(session.id)
+    await turn.clearSessionMessages(session.id)
 
     expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith(session.id)
     expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalledWith(session.id)
@@ -853,7 +844,7 @@ describe('Integration: ACP hooks bridge', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let agentPresenter: AgentSessionPresenter
+  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
 
   beforeEach(() => {
@@ -901,16 +892,11 @@ describe('Integration: ACP hooks bridge', () => {
       projection,
       acp: llmProvider
     })
-    agentPresenter = new AgentSessionPresenter(
-      projection,
-      sessionApplications.lifecycle,
-      sessionApplications.assignment,
-      sessionApplications.turn
-    )
+    lifecycle = sessionApplications.lifecycle
   })
 
   it('dispatches lifecycle hooks for ACP sessions through the new bridge', async () => {
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       {
         agentId: 'coder',
         providerId: 'acp',
@@ -966,7 +952,10 @@ describe('Integration: multi-turn context', () => {
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let deepchatAgent: AgentRuntimePresenter
-  let agentPresenter: AgentSessionPresenter
+  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
+  let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
+  let assignment: ReturnType<typeof createAssignmentCoordinatorFixture>['assignment']
+  let projection: ReturnType<typeof createProjectionCoordinatorFixture>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -993,7 +982,7 @@ describe('Integration: multi-turn context', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
-    const projection = createProjectionCoordinatorFixture({
+    projection = createProjectionCoordinatorFixture({
       agentManager,
       appSessionService,
       llmProviderPresenter: llmProvider,
@@ -1010,17 +999,14 @@ describe('Integration: multi-turn context', () => {
       projection,
       acp: llmProvider
     })
-    agentPresenter = new AgentSessionPresenter(
-      projection,
-      sessionApplications.lifecycle,
-      sessionApplications.assignment,
-      sessionApplications.turn
-    )
+    lifecycle = sessionApplications.lifecycle
+    turn = sessionApplications.turn
+    assignment = sessionApplications.assignment
   })
 
   it('second message includes first exchange in LLM context', async () => {
     // Send first message
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'Hello', projectDir: null },
       1
     )
@@ -1029,7 +1015,7 @@ describe('Integration: multi-turn context', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     // Send second message
-    await agentPresenter.sendMessage(session.id, 'Follow up question')
+    await turn.sendMessage(session.id, 'Follow up question')
 
     // Wait for second processMessage to complete
     await new Promise((r) => setTimeout(r, 50))
@@ -1093,16 +1079,16 @@ describe('Integration: multi-turn context', () => {
   })
 
   it('supports both string and object sendMessage input', async () => {
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'Hello', projectDir: null },
       1
     )
     await new Promise((r) => setTimeout(r, 50))
 
-    await agentPresenter.sendMessage(session.id, 'Follow up (string)')
+    await turn.sendMessage(session.id, 'Follow up (string)')
     await new Promise((r) => setTimeout(r, 50))
 
-    await agentPresenter.sendMessage(session.id, {
+    await turn.sendMessage(session.id, {
       text: 'Follow up (object)',
       files: [{ name: 'a.md', path: '/tmp/a.md', mimeType: 'text/markdown', content: '# a' } as any]
     })
@@ -1130,7 +1116,7 @@ describe('Integration: multi-turn context', () => {
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
       1
     )
@@ -1166,16 +1152,16 @@ describe('Integration: multi-turn context', () => {
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
       1
     )
     await new Promise((r) => setTimeout(r, 80))
 
-    await agentPresenter.sendMessage(session.id, 'Immediate follow up')
+    await turn.sendMessage(session.id, 'Immediate follow up')
     await new Promise((r) => setTimeout(r, 20))
 
-    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
 
     const messagesDuringSecondTurn = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
     const userMessagesDuringSecondTurn = messagesDuringSecondTurn.filter(
@@ -1207,15 +1193,15 @@ describe('Integration: multi-turn context', () => {
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
       1
     )
     await new Promise((r) => setTimeout(r, 20))
 
-    await agentPresenter.queuePendingInput(session.id, 'Queued follow up')
+    await turn.queuePendingInput(session.id, 'Queued follow up')
 
-    const pendingBeforeRelease = await agentPresenter.listPendingInputs(session.id)
+    const pendingBeforeRelease = await turn.listPendingInputs(session.id)
     expect(pendingBeforeRelease).toHaveLength(1)
     expect(pendingBeforeRelease[0].mode).toBe('queue')
 
@@ -1231,7 +1217,7 @@ describe('Integration: multi-turn context', () => {
     const afterUserMessages = afterMessages.filter((message: any) => message.role === 'user')
     expect(afterUserMessages).toHaveLength(2)
     expect(JSON.parse(afterUserMessages[1].content).text).toBe('Queued follow up')
-    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
   })
 
   it('drains converted steer inputs as visible user messages before queued messages', async () => {
@@ -1253,18 +1239,18 @@ describe('Integration: multi-turn context', () => {
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'Turn one', projectDir: null },
       1
     )
     await new Promise((r) => setTimeout(r, 20))
 
-    await agentPresenter.queuePendingInput(session.id, 'Steer instruction')
-    await agentPresenter.queuePendingInput(session.id, 'Queued target')
+    await turn.queuePendingInput(session.id, 'Steer instruction')
+    await turn.queuePendingInput(session.id, 'Queued target')
 
-    const pendingInputs = await agentPresenter.listPendingInputs(session.id)
+    const pendingInputs = await turn.listPendingInputs(session.id)
     expect(pendingInputs).toHaveLength(2)
-    await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
+    await turn.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
     releaseFirstTurn?.()
     await vi.waitFor(() => {
@@ -1297,7 +1283,7 @@ describe('Integration: multi-turn context', () => {
       'Steer instruction',
       'Queued target'
     ])
-    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
   })
 
   it('rebudgets long converted steer inputs as their own visible turn', async () => {
@@ -1322,18 +1308,18 @@ describe('Integration: multi-turn context', () => {
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: firstPrompt, projectDir: null },
       1
     )
     await new Promise((r) => setTimeout(r, 20))
 
-    await agentPresenter.updateSessionGenerationSettings(session.id, {
+    await assignment.updateSessionGenerationSettings(session.id, {
       contextLength: 2048,
       maxTokens: 128
     })
 
-    await agentPresenter.queuePendingInput(session.id, {
+    await turn.queuePendingInput(session.id, {
       text: steerUserText,
       files: [
         {
@@ -1343,11 +1329,11 @@ describe('Integration: multi-turn context', () => {
         } as any
       ]
     })
-    await agentPresenter.queuePendingInput(session.id, 'Queued target')
+    await turn.queuePendingInput(session.id, 'Queued target')
 
-    const pendingInputs = await agentPresenter.listPendingInputs(session.id)
+    const pendingInputs = await turn.listPendingInputs(session.id)
     expect(pendingInputs).toHaveLength(2)
-    await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
+    await turn.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
     releaseFirstTurn?.()
     await vi.waitFor(() => {
@@ -1483,19 +1469,19 @@ describe('Integration: multi-turn context', () => {
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'Fail first', projectDir: null },
       1
     )
     await new Promise((r) => setTimeout(r, 50))
 
-    const failedSession = await agentPresenter.getSession(session.id)
+    const failedSession = await projection.getSession(session.id)
     expect(failedSession?.status).toBe('error')
 
-    await agentPresenter.sendMessage(session.id, 'Recover after error')
+    await turn.sendMessage(session.id, 'Recover after error')
     await new Promise((r) => setTimeout(r, 80))
 
-    const recoveredSession = await agentPresenter.getSession(session.id)
+    const recoveredSession = await projection.getSession(session.id)
     expect(recoveredSession?.status).toBe('idle')
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
 
@@ -1503,7 +1489,7 @@ describe('Integration: multi-turn context', () => {
     const userMessages = messages.filter((message: any) => message.role === 'user')
     expect(userMessages).toHaveLength(2)
     expect(JSON.parse(userMessages[1].content).text).toBe('Recover after error')
-    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
   })
 
   it('drains queued turns when a new message is enqueued after a session error', async () => {
@@ -1524,30 +1510,30 @@ describe('Integration: multi-turn context', () => {
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
-    const session = await agentPresenter.createSession(
+    const session = await lifecycle.createSession(
       { agentId: 'deepchat', message: 'Turn that errors', projectDir: null },
       1
     )
     await new Promise((r) => setTimeout(r, 20))
 
-    await agentPresenter.queuePendingInput(session.id, 'Queued while failing')
+    await turn.queuePendingInput(session.id, 'Queued while failing')
     releaseFirstTurn?.()
     await new Promise((r) => setTimeout(r, 80))
 
-    const failedSession = await agentPresenter.getSession(session.id)
+    const failedSession = await projection.getSession(session.id)
     expect(failedSession?.status).toBe('error')
 
-    const pendingAfterError = await agentPresenter.listPendingInputs(session.id)
+    const pendingAfterError = await turn.listPendingInputs(session.id)
     expect(pendingAfterError).toHaveLength(1)
     expect(pendingAfterError[0].mode).toBe('queue')
 
     // Enqueuing from an errored session drains the backlog (no manual resume step).
-    await agentPresenter.queuePendingInput(session.id, 'New message after error')
+    await turn.queuePendingInput(session.id, 'New message after error')
     await vi.waitFor(() => {
       expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
     })
 
-    const recoveredSession = await agentPresenter.getSession(session.id)
+    const recoveredSession = await projection.getSession(session.id)
     expect(recoveredSession?.status).toBe('idle')
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
 
@@ -1556,7 +1542,7 @@ describe('Integration: multi-turn context', () => {
     expect(userMessages).toHaveLength(3)
     expect(JSON.parse(userMessages[1].content).text).toBe('Queued while failing')
     expect(JSON.parse(userMessages[2].content).text).toBe('New message after error')
-    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
   })
 })
 

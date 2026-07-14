@@ -34,7 +34,8 @@ flowchart TD
     UI["Renderer / typed routes"] --> RouteOwners["Session route owners<br/>search / translation / export / usage / catalog"]
     UI --> Services["SessionService / ChatService"]
     Services --> App["Session application coordinators"]
-    Compat["AgentSessionPresenter<br/>compatibility forwarding"] --> App
+    UI --> RoutePorts["Main route runtime<br/>four separate session ports"]
+    RoutePorts --> App
     App --> Sessions["AppSessionService"]
     App --> Manager["AgentManager"]
     Manager --> Catalog["strict executable catalog"]
@@ -58,8 +59,8 @@ flowchart TD
 - `SessionLifecycleCoordinator`、`SessionTurnCoordinator`、`SessionAgentAssignmentCoordinator` 和
   `SessionProjectionCoordinator` 分别拥有 core session application invariants；typed Session/Chat、Remote
   和 Cron 通过 consumer-owned narrow ports 调用它们。
-- `AgentSessionPresenter` 仅保留 compatibility public surface；core session methods 只转发到
-  composition-owned coordinators，不拥有 application policy、state 或 session-boundary capabilities。
+- `AgentSessionPresenter` 与 main-process `IAgentSessionPresenter` 已退休；main route runtime、Tool、MCP、
+  Floating 与 hooks 直接调用 composition-owned coordinators，不经过 aggregate façade。
 - typed session routes 直接组合 `SessionHistorySearch`、`SessionTranslation`、
   `AgentSessionExportService`、`UsageStatsService`、RTK runtime service 与 available-agent catalog policy；
   lifecycle hooks 直接调用 startup migration/maintenance owner。
@@ -173,7 +174,7 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 
 仍保留：
 
-- `AgentSessionPresenter` compatibility façade 和 `AgentRuntimePresenter` state/delegate façade；
+- `AgentRuntimePresenter` state/delegate façade；
 - `AcpProvider` 的 DeepChat + ACP-provider compatibility；
 - `startupMigrations/LegacyChatImportService`、旧 conversations/messages、`SessionPresenter`
   export/thread/data compatibility；current agent-session export 由 `AgentSessionExportService` 拥有；
@@ -181,6 +182,7 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 
 已经退休并由 guard 阻止回流：
 
+- `AgentSessionPresenter` compatibility façade 与 main-process `IAgentSessionPresenter`；
 - fake `AgentRegistry`；
 - unified optional implementation interface；
 - reflection-based legacy backend；
@@ -193,7 +195,7 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 
 1. kind/session routing：`src/main/agent/manager/agentManager.ts`
 2. core session application behavior：`src/main/presenter/sessionApplication/`
-3. compatibility forwarding：`src/main/presenter/agentSessionPresenter/index.ts`
+3. route composition：`src/main/routes/index.ts`
 4. session search/translation：`src/main/routes/sessions/`
 5. current session export：`src/main/presenter/exporter/agentSessionExporter.ts`
 6. usage/startup/catalog：`src/main/presenter/{usageStatsService.ts,startupMigrations/}` 与

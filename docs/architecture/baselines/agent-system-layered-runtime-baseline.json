@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "1122b240619afae1bd97c2395f0c820c41ecf048",
+  "headCommit": "30d57c3873cec94e342ce616d8ccafe9f71676b3",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -95,9 +95,12 @@
     "src/main/presenter/agentRuntimePresenter/messageStore.ts",
     "src/main/presenter/agentRuntimePresenter/process.ts",
     "src/main/presenter/agentRuntimePresenter/tapeService.ts",
-    "src/main/presenter/agentSessionPresenter/index.ts",
     "src/main/presenter/index.ts",
-    "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts"
+    "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts",
+    "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts",
+    "src/main/presenter/sessionApplication/lifecycleCoordinator.ts",
+    "src/main/presenter/sessionApplication/projectionCoordinator.ts",
+    "src/main/presenter/sessionApplication/turnCoordinator.ts"
   ],
   "expectedFiles": {
     "src/main/agent/acp/instance/acpAgentInstance.ts": true,
@@ -121,9 +124,12 @@
     "src/main/presenter/agentRuntimePresenter/messageStore.ts": true,
     "src/main/presenter/agentRuntimePresenter/process.ts": true,
     "src/main/presenter/agentRuntimePresenter/tapeService.ts": true,
-    "src/main/presenter/agentSessionPresenter/index.ts": true,
     "src/main/presenter/index.ts": true,
-    "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts": true
+    "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts": true,
+    "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts": true,
+    "src/main/presenter/sessionApplication/lifecycleCoordinator.ts": true,
+    "src/main/presenter/sessionApplication/projectionCoordinator.ts": true,
+    "src/main/presenter/sessionApplication/turnCoordinator.ts": true
   },
   "ownerEvidence": {
     "agentManager": {
@@ -186,8 +192,23 @@
       "exists": true,
       "declarationCount": 1
     },
-    "retainedAgentSessionFacade": {
-      "file": "src/main/presenter/agentSessionPresenter/index.ts",
+    "sessionProjectionCoordinator": {
+      "file": "src/main/presenter/sessionApplication/projectionCoordinator.ts",
+      "exists": true,
+      "declarationCount": 1
+    },
+    "sessionAgentAssignmentCoordinator": {
+      "file": "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts",
+      "exists": true,
+      "declarationCount": 1
+    },
+    "sessionTurnCoordinator": {
+      "file": "src/main/presenter/sessionApplication/turnCoordinator.ts",
+      "exists": true,
+      "declarationCount": 1
+    },
+    "sessionLifecycleCoordinator": {
+      "file": "src/main/presenter/sessionApplication/lifecycleCoordinator.ts",
       "exists": true,
       "declarationCount": 1
     },
@@ -201,10 +222,13 @@
     "paths": {
       "src/main/agent/manager/legacyAgentBackends.ts": 0,
       "src/main/lib/agentRuntime": 0,
-      "src/main/presenter/agentSessionPresenter/agentRegistry.ts": 0
+      "src/main/presenter/agentSessionPresenter": 0,
+      "src/shared/types/presenters/agent-session.presenter.d.ts": 0
     },
     "symbols": {
       "AgentRegistry": 0,
+      "AgentSessionPresenter": 0,
+      "IAgentSessionPresenter": 0,
       "IAgentImplementation": 0,
       "createLegacyAgentBackend": 0,
       "LegacyDeepChatSessionBackend": 0,
@@ -238,9 +262,12 @@
       "src/main/presenter/agentRuntimePresenter/messageStore.ts",
       "src/main/presenter/agentRuntimePresenter/process.ts",
       "src/main/presenter/agentRuntimePresenter/tapeService.ts",
-      "src/main/presenter/agentSessionPresenter/index.ts",
       "src/main/presenter/index.ts",
-      "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts"
+      "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts",
+      "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts",
+      "src/main/presenter/sessionApplication/lifecycleCoordinator.ts",
+      "src/main/presenter/sessionApplication/projectionCoordinator.ts",
+      "src/main/presenter/sessionApplication/turnCoordinator.ts"
     ]
   },
   "contracts": {
@@ -407,7 +434,7 @@
         "providers",
         "settings_activity"
       ],
-      "sha256": "ca9306d19cb9066d6447268aac2e9485ca867fc65f89abda5a1e4b54d4f21974"
+      "sha256": "16882d6b4c22ec84e0e28c4eb7f5aeb7a867503648e67eeb42461f4f838fe198"
     },
     "memoryDuckDbSidecar": {
       "files": [
@@ -428,7 +455,7 @@
       "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
       "src/main/presenter/lifecyclePresenter/index.ts"
     ],
-    "sha256": "90836b4d0ef4078293ac7d001ef2992f572809a10c67d35fdd8a972e8a66fb86"
+    "sha256": "d42c0862ef9e41fa77cb9296dcb625f5559b5ae594bd1fbba3ba248b2a4e5203"
   },
   "dependencyMetrics": {
     "loopFiles": [

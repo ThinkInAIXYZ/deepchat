@@ -22,4 +22,20 @@ describe('session boundary composition', () => {
     )
     expect(legacyHookSource).toContain('presenter.legacyChatImportService.start(false)')
   })
+
+  it('keeps hooks notifications on one instance with lazy projection dependencies', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const presenterSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/presenter/index.ts'),
+      'utf8'
+    )
+
+    expect(presenterSource.match(/new HooksNotificationsService\(/g)).toHaveLength(1)
+    expect(presenterSource).toContain(
+      'getSession: (sessionId) => this.sessionProjectionCoordinator.getSession(sessionId)'
+    )
+    expect(presenterSource).toContain(
+      'getMessage: (messageId) => this.sessionProjectionCoordinator.getMessage(messageId)'
+    )
+  })
 })

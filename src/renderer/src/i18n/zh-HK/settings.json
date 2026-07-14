@@ -1135,7 +1135,21 @@
     "openaiCodexCallbackTitle": "完成認證",
     "openaiCodexCallbackDescription": "瀏覽器完成後返回 DeepChat。如果 DeepChat 沒有更新，請在此貼上完整回調 URL。",
     "openaiCodexCallbackPlaceholder": "貼上完整回調 URL",
-    "openaiCodexCompleteAuthentication": "完成認證"
+    "openaiCodexCompleteAuthentication": "完成認證",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok 已連線",
+    "xaiGrokNotConnected": "xAI Grok 未連線",
+    "xaiGrokPendingDevice": "正在等待裝置授權",
+    "xaiGrokDisabled": "xAI Grok OAuth 已停用",
+    "xaiGrokError": "xAI Grok 授權失敗",
+    "xaiGrokAccount": "帳戶",
+    "xaiGrokSignInDevice": "使用 SuperGrok / Premium+ 登入",
+    "xaiGrokReconnect": "重新連線",
+    "xaiGrokSignOut": "登出",
+    "xaiGrokCancel": "取消",
+    "xaiGrokOpenVerification": "開啟驗證頁面",
+    "xaiGrokLoginTip": "透過 xAI 裝置代碼 OAuth 使用 SuperGrok 或 X Premium+。Token 會與 API Key 分開儲存，下方仍支援 Console API Key。",
+    "xaiGrokApiKeyAlternative": "或使用 xAI Console API Key："
   },
   "knowledgeBase": {
     "fastgptTitle": "FastGPT知識庫",

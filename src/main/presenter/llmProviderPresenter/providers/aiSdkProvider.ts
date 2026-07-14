@@ -48,6 +48,9 @@ import {
 } from '../aiSdk'
 import type { AiSdkProviderKind } from '../aiSdk/providerFactory'
 import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../aiSdk/providerFactory'
+import { shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
+import { getGlobalXaiGrokAuth } from '../../xaiGrokAuth'
+import { isTrustedXaiApiEndpoint } from '../../xaiGrokAuth/constants'
 import { proxyConfig } from '../../proxyConfig'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import {
@@ -585,10 +588,22 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   private getRuntimeProvider(decision: RouteDecision): LLM_PROVIDER {
-    return {
+    const base: LLM_PROVIDER = {
       ...this.provider,
       ...decision.providerPatch
     }
+
+    if (shouldUseXaiGrokOAuthFetch(base)) {
+      const oauthToken = getGlobalXaiGrokAuth().peekAccessToken()
+      if (oauthToken) {
+        return {
+          ...base,
+          oauthToken
+        }
+      }
+    }
+
+    return base
   }
 
   private getResolvedModelConfig(modelId: string, modelConfig?: ModelConfig): ModelConfig {
@@ -834,7 +849,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     decision?: RouteDecision
   ): Promise<T> {
     const resolvedDecision = decision ?? { providerKind: this.definition.runtimeKind }
-    const runtimeProvider = this.getRuntimeProvider(resolvedDecision)
     const defaultHeaders = {
       ...this.defaultHeaders,
       ...this.definition.defaultHeadersPatch
@@ -862,13 +876,26 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     try {
+      // Refresh Grok OAuth tokens before model/list requests that use sync headers.
+      const runtimeProvider = this.getRuntimeProvider(resolvedDecision)
+      const useGrokOAuth =
+        shouldUseXaiGrokOAuthFetch(runtimeProvider) && isTrustedXaiApiEndpoint(url)
+      if (useGrokOAuth) {
+        await getGlobalXaiGrokAuth()
+          .ensureAccessToken()
+          .catch(() => null)
+      }
+      const refreshedRuntimeProvider = this.getRuntimeProvider(resolvedDecision)
+      const requestRuntimeProvider = useGrokOAuth
+        ? refreshedRuntimeProvider
+        : { ...refreshedRuntimeProvider, oauthToken: undefined }
       const dispatcher = this.getFetchDispatcher()
       const response = await fetch(url, {
         ...init,
         headers: {
           ...this.getRequestHeaders(
             resolvedDecision,
-            runtimeProvider,
+            requestRuntimeProvider,
             defaultHeaders,
             init.body && !(init.body instanceof FormData) ? 'application/json' : undefined
           ),
@@ -2297,6 +2324,12 @@ export class AiSdkProvider extends BaseLLMProvider {
   private validateCredentials(strategy: AiSdkCredentialStrategy): string | null {
     switch (strategy) {
       case 'api-key':
+        if (shouldUseXaiGrokOAuthFetch(this.provider)) {
+          if (this.provider.apiKey || getGlobalXaiGrokAuth().isAuthenticated()) {
+            return null
+          }
+          return 'Missing API key or xAI Grok OAuth sign-in'
+        }
         return this.provider.apiKey ? null : 'Missing API key'
       case 'anthropic':
         return this.provider.apiKey || process.env.ANTHROPIC_API_KEY ? null : 'Missing API key'

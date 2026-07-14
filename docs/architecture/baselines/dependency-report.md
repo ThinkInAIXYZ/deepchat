@@ -1,20 +1,20 @@
 # Dependency Baseline
 
-Generated on 2026-07-13.
+Generated on 2026-07-14.
 
 ## main
 
-- Total files: 563
-- Internal dependency edges: 1526
+- Total files: 565
+- Internal dependency edges: 1537
 - Cycles detected: 36
 
 ### Top outgoing dependencies
 
-- `presenter/index.ts`: 70
-- `presenter/agentRuntimePresenter/index.ts`: 45
+- `presenter/index.ts`: 69
+- `presenter/agentRuntimePresenter/index.ts`: 48
 - `presenter/sqlitePresenter/index.ts`: 40
 - `presenter/sqlitePresenter/schemaCatalog.ts`: 37
-- `routes/index.ts`: 34
+- `routes/index.ts`: 36
 - `presenter/configPresenter/index.ts`: 27
 - `presenter/lifecyclePresenter/hooks/index.ts`: 23
 - `presenter/toolPresenter/agentTools/agentToolManager.ts`: 22
@@ -40,7 +40,7 @@ Generated on 2026-07-13.
 - `presenter/sqlitePresenter/index.ts`: 21
 - `presenter/memoryPresenter/ports.ts`: 20
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
-- `presenter/memoryPresenter/domain/types.ts`: 14
+- `presenter/memoryPresenter/domain/types.ts`: 15
 - `presenter/filePresenter/BaseFileAdapter.ts`: 13
 - `presenter/memoryPresenter/context.ts`: 12
 

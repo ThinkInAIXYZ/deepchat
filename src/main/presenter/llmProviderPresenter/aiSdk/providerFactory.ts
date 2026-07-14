@@ -21,6 +21,7 @@ import {
   createOpenAICodexFetch,
   normalizeOpenAICodexBaseUrl
 } from '../openaiCodexAdapter'
+import { createXaiGrokFetch, shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
 
 export type AiSdkProviderKind =
   | 'openai-compatible'
@@ -586,12 +587,17 @@ export function createAiSdkProviderContext(
       const openAICompatibleBaseUrl = isOllamaProvider(params.provider)
         ? normalizeOllamaOpenAIBaseUrl(baseUrl)
         : baseUrl
+      const useGrokOAuthFetch = shouldUseXaiGrokOAuthFetch(params.provider)
+      const resolvedFetch = useGrokOAuthFetch
+        ? createXaiGrokFetch(params.provider, params.defaultHeaders, fetch)
+        : fetch
+      const resolvedApiKey = params.provider.apiKey || (useGrokOAuthFetch ? 'xai-grok-oauth' : '')
       const provider = createOpenAICompatible({
         name: params.provider.id,
         baseURL: openAICompatibleBaseUrl,
-        apiKey: params.provider.apiKey,
+        apiKey: resolvedApiKey,
         headers: params.defaultHeaders,
-        fetch,
+        fetch: resolvedFetch,
         includeUsage: true
       })
 

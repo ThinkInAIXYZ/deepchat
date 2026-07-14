@@ -1395,7 +1395,21 @@
     "openaiCodexCallbackTitle": "Lengkapkan pengesahan",
     "openaiCodexCallbackDescription": "Selepas pelayar selesai, kembali ke DeepChat. Jika DeepChat tidak dikemas kini, tampal URL panggil balik penuh di sini.",
     "openaiCodexCallbackPlaceholder": "Tampal URL panggil balik penuh",
-    "openaiCodexCompleteAuthentication": "Lengkapkan pengesahan"
+    "openaiCodexCompleteAuthentication": "Lengkapkan pengesahan",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok disambungkan",
+    "xaiGrokNotConnected": "xAI Grok tidak disambungkan",
+    "xaiGrokPendingDevice": "Menunggu kebenaran peranti",
+    "xaiGrokDisabled": "OAuth xAI Grok dinyahdayakan",
+    "xaiGrokError": "Kebenaran xAI Grok gagal",
+    "xaiGrokAccount": "Akaun",
+    "xaiGrokSignInDevice": "Log masuk dengan SuperGrok / Premium+",
+    "xaiGrokReconnect": "Sambung semula",
+    "xaiGrokSignOut": "Log keluar",
+    "xaiGrokCancel": "Batal",
+    "xaiGrokOpenVerification": "Buka halaman pengesahan",
+    "xaiGrokLoginTip": "Menggunakan OAuth kod peranti xAI untuk SuperGrok atau X Premium+. Token disimpan berasingan daripada kunci API. Kunci API Console masih disokong di bawah.",
+    "xaiGrokApiKeyAlternative": "Atau gunakan kunci API xAI Console:"
   },
   "knowledgeBase": {
     "title": "Tetapan asas pengetahuan",

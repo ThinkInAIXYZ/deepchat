@@ -38,11 +38,12 @@ DeepChat loop + `AcpProvider` compatibility。
 
 Memory runtime orchestration 已收敛到唯一 `MemoryRuntimeCoordinator`，通过 awaited
 `MemoryPromptContributor` 与 background `MemoryIngestionObserver` 接入；Tape tool facts 已迁到 stable
-per-fact `TapeRecorder` path，causal observation 只读联结现有 Tape/message/trace。`AgentSessionPresenter`
-仅保留 compatibility forwarding；core lifecycle、turn、assignment 与 projection 已由四个
-composition-owned session application coordinators 承担。typed routes 直接组合 history、translation、
-export、usage、RTK 与 catalog owner，startup hooks 直接调用 migration/maintenance owner。
-`AgentRuntimePresenter` 保留 DeepChat state/delegate 与 adapter wiring；两者不再构成 generic agent runtime。
+per-fact `TapeRecorder` path，causal observation 只读联结现有 Tape/message/trace。core lifecycle、turn、
+assignment 与 projection 已由四个 composition-owned session application coordinators 承担；
+`AgentSessionPresenter` 与 main-process `IAgentSessionPresenter` 已退休。typed routes、Tool、MCP、Floating
+与 hooks 直接使用分离的 coordinator ports；history、translation、export、usage、RTK 与 catalog owner
+继续独立。startup hooks 直接调用 migration/maintenance owner。`AgentRuntimePresenter` 保留 DeepChat
+state/delegate 与 adapter wiring，不再构成 generic agent runtime。
 current docs、architecture guards 与 baseline generator
 已在 `ASLR-091` 收敛；`ASLR-092` 已完成 canonical baseline write、全量
 main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
@@ -173,7 +174,7 @@ accept input / claim pending item
 typed routes -> SessionService / ChatService -- narrow ports ─┐
 remote -> RemoteConversationRunner -- four narrow ports ─────┤
 cron -> Cron session starter -- Lifecycle / Turn ports ──────┤
-AgentSessionPresenter compatibility façade -- forwarding ─────┘
+Tool / MCP / Floating / hooks -- owner-specific ports ────────┘
                                                               ▼
 Lifecycle / Turn / AgentAssignment / Projection
 ├─ AppSessionService ─ new_sessions / window binding / shared CRUD
@@ -275,7 +276,6 @@ src/main/agent/
 
 src/main/presenter/
 ├── sessionApplication/        # lifecycle/turn/assignment/projection coordinators
-├── agentSessionPresenter/     # retained compatibility façade
 └── agentRuntimePresenter/     # retained DeepChat state/delegate + message/Tape/resource adapters
 ```
 
