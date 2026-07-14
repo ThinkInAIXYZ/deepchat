@@ -1,6 +1,6 @@
 {
   "program": "main-kernel-refactor",
-  "generatedOn": "2026-07-13",
+  "generatedOn": "2026-07-14",
   "currentPhase": "P5",
   "metrics": {
     "renderer.usePresenter.count": 0,
@@ -13,8 +13,8 @@
     "renderer.business.windowApi.count": 0,
     "renderer.quarantine.windowApi.count": 0,
     "renderer.quarantine.sourceFile.count": 0,
-    "hotpath.presenterEdge.count": 9,
-    "runtime.rawTimer.count": 206,
+    "hotpath.presenterEdge.count": 8,
+    "runtime.rawTimer.count": 211,
     "migrated.rawChannel.count": 0,
     "bridge.active.count": 0,
     "bridge.expired.count": 0
@@ -61,7 +61,6 @@
     "src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts",
     "src/main/presenter/index.ts -> src/main/eventbus.ts",
     "src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts",
-    "src/main/presenter/index.ts -> src/main/presenter/agentSessionPresenter/index.ts",
     "src/main/presenter/index.ts -> src/main/presenter/llmProviderPresenter/index.ts",
     "src/main/presenter/index.ts -> src/main/presenter/sessionPresenter/index.ts",
     "src/main/presenter/llmProviderPresenter/index.ts -> src/main/eventbus.ts",

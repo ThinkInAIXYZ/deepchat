@@ -1,6 +1,6 @@
 # Main Kernel Boundary Baseline
 
-Generated on 2026-07-13.
+Generated on 2026-07-14.
 Current phase: P5.
 
 ## Metric Snapshot
@@ -17,8 +17,8 @@ Current phase: P5.
 | `renderer.business.windowApi.count` | 0 |
 | `renderer.quarantine.windowApi.count` | 0 |
 | `renderer.quarantine.sourceFile.count` | 0 |
-| `hotpath.presenterEdge.count` | 9 |
-| `runtime.rawTimer.count` | 206 |
+| `hotpath.presenterEdge.count` | 8 |
+| `runtime.rawTimer.count` | 211 |
 | `migrated.rawChannel.count` | 0 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
@@ -55,12 +55,11 @@ Current phase: P5.
 
 ## Hot Path Direct Dependencies
 
-- Direct edge count: 9
+- Direct edge count: 8
 
 - `src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts`
 - `src/main/presenter/index.ts -> src/main/eventbus.ts`
 - `src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts`
-- `src/main/presenter/index.ts -> src/main/presenter/agentSessionPresenter/index.ts`
 - `src/main/presenter/index.ts -> src/main/presenter/llmProviderPresenter/index.ts`
 - `src/main/presenter/index.ts -> src/main/presenter/sessionPresenter/index.ts`
 - `src/main/presenter/llmProviderPresenter/index.ts -> src/main/eventbus.ts`
@@ -87,7 +86,7 @@ Current phase: P5.
 
 ## Raw Timers
 
-- Total count: 206
+- Total count: 211
 
 - `src/main/presenter/githubCopilotDeviceFlow.ts`: 6
 - `src/main/presenter/browser/BrowserTab.ts`: 5
@@ -95,12 +94,12 @@ Current phase: P5.
 - `src/main/presenter/llmProviderPresenter/aiSdk/runtime.ts`: 5
 - `src/main/presenter/remoteControlPresenter/index.ts`: 5
 - `src/renderer/src/pages/ChatPage.vue`: 5
+- `src/main/presenter/memoryPresenter/infra/vectorStoreManager.ts`: 4
 - `src/main/presenter/memoryPresenter/services/maintenanceService.ts`: 4
 - `src/renderer/src/components/message/MessageToolbar.vue`: 4
 - `src/renderer/src/composables/message/useMessageScroll.ts`: 4
 - `src/main/agent/acp/launch/acpInitHelper.ts`: 3
 - `src/main/agent/shared/process/backgroundExecSessionManager.ts`: 3
-- `src/main/lib/fileWatcher/watcherHost.ts`: 3
 
 ## Migrated Path Raw Channel Literals
 
