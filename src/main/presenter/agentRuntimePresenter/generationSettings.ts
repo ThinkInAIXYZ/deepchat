@@ -38,7 +38,7 @@ import type { InterleavedReasoningConfig } from './types'
 export type PersistedSessionGenerationRow = {
   provider_id: string
   model_id: string
-  permission_mode: PermissionMode | null
+  permission_mode: PermissionMode
   system_prompt: string | null
   temperature: number | null
   top_p: number | null

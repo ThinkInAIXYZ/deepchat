@@ -25,13 +25,13 @@ export interface AgentSessionLifecycleFacet {
 }
 
 export interface AgentPendingInputFacet {
-  steerActiveTurn(content: string | SendMessageInput): Promise<void>
+  steerActiveTurn(content: SendMessageInput): Promise<void>
   list(): Promise<PendingSessionInputRecord[]>
   queue(
-    content: string | SendMessageInput,
+    content: SendMessageInput,
     options?: { source: 'queue' | 'send'; projectDir?: string | null }
   ): Promise<PendingSessionInputRecord>
-  update(itemId: string, content: string | SendMessageInput): Promise<PendingSessionInputRecord>
+  update(itemId: string, content: SendMessageInput): Promise<PendingSessionInputRecord>
   move(itemId: string, toIndex: number): Promise<PendingSessionInputRecord[]>
   convertToSteer(itemId: string): Promise<PendingSessionInputRecord>
   steer(itemId: string): Promise<PendingSessionInputRecord>

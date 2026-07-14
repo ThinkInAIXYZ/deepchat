@@ -160,7 +160,7 @@ export class AcpAgentRuntime {
 
   async send(
     input: AcpAgentRuntimeSessionInput,
-    content: string | SendMessageInput
+    content: SendMessageInput
   ): Promise<MessageStartResult> {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
@@ -245,7 +245,7 @@ export class AcpAgentRuntime {
 
   async queuePendingInput(
     input: AcpAgentRuntimeSessionInput,
-    content: string | SendMessageInput
+    content: SendMessageInput
   ): Promise<PendingSessionInputRecord> {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
@@ -271,7 +271,7 @@ export class AcpAgentRuntime {
 
   async steer(
     input: AcpAgentRuntimeSessionInput,
-    content: string | SendMessageInput
+    content: SendMessageInput
   ): Promise<PendingSessionInputRecord> {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
@@ -291,7 +291,7 @@ export class AcpAgentRuntime {
   updateQueuedInput(
     sessionId: AppSessionId,
     itemId: string,
-    content: string | SendMessageInput
+    content: SendMessageInput
   ): PendingSessionInputRecord {
     return this.requirePendingInputs().updateQueuedInput(sessionId, itemId, content)
   }

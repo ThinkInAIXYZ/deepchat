@@ -50,7 +50,13 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-import { processStream } from '@/presenter/agentRuntimePresenter/process'
+import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
+import {
+  INCOMPLETE_PROVIDER_STREAM_ERROR,
+  INCOMPLETE_TOOL_USE_ERROR,
+  processStream,
+  resolveProviderTerminalDecision
+} from '@/presenter/agentRuntimePresenter/process'
 
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
@@ -63,6 +69,51 @@ const DEFAULT_INTERLEAVED_REASONING = {
   reasoningSupported: false,
   providerDbSourceUrl: 'https://example.com/provider-db.json'
 } as const
+
+describe('provider terminal decisions', () => {
+  it('rejects a provider stream that ends without a stop event', () => {
+    expect(resolveProviderTerminalDecision(createState())).toEqual({
+      type: 'error',
+      error: INCOMPLETE_PROVIDER_STREAM_ERROR,
+      source: 'provider',
+      stopReason: 'provider_error'
+    })
+  })
+
+  it('preserves max_turn_requests as a bounded completion', () => {
+    const state = createState()
+    accumulate(state, { type: 'text', content: 'partial response' })
+    accumulate(state, { type: 'stop', stop_reason: 'max_turn_requests' })
+
+    expect(resolveProviderTerminalDecision(state)).toEqual({
+      type: 'complete',
+      stopReason: 'max_turn_requests'
+    })
+  })
+
+  it('rejects tool_use without a completed tool call', () => {
+    const state = createState()
+    accumulate(state, { type: 'text', content: 'calling a tool' })
+    accumulate(state, { type: 'stop', stop_reason: 'tool_use' })
+
+    expect(resolveProviderTerminalDecision(state)).toEqual({
+      type: 'error',
+      error: INCOMPLETE_TOOL_USE_ERROR,
+      source: 'provider',
+      stopReason: 'provider_error'
+    })
+  })
+
+  it('rejects a non-canonical provider stop reason instead of treating it as complete', () => {
+    const state = createState()
+    accumulate(state, { type: 'text', content: 'partial response' })
+    state.stopReason = 'end_turn' as any
+
+    expect(() => resolveProviderTerminalDecision(state)).toThrow(
+      'Unsupported provider stop reason: end_turn'
+    )
+  })
+})
 
 function createMockMessageStore() {
   return {

@@ -598,7 +598,7 @@ function createMockLlmProviderPresenter() {
             type: 'usage',
             usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
           }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })()
       })
     }),
@@ -1111,7 +1111,7 @@ describe('Integration: multi-turn context', () => {
           releaseFirstTurn = resolve
         })
         yield { type: 'text', content: 'First response' }
-        yield { type: 'stop', stop_reason: 'end_turn' }
+        yield { type: 'stop', stop_reason: 'complete' }
       })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1140,14 +1140,14 @@ describe('Integration: multi-turn context', () => {
         .fn()
         .mockImplementationOnce(async function* () {
           yield { type: 'text', content: 'First response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementationOnce(async function* () {
           await new Promise<void>((resolve) => {
             releaseSecondTurn = resolve
           })
           yield { type: 'text', content: 'Second response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1184,11 +1184,11 @@ describe('Integration: multi-turn context', () => {
             releaseFirstTurn = resolve
           })
           yield { type: 'text', content: 'First response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Queued response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1230,11 +1230,11 @@ describe('Integration: multi-turn context', () => {
             releaseFirstTurn = resolve
           })
           yield { type: 'text', content: 'First response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Second response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1299,11 +1299,11 @@ describe('Integration: multi-turn context', () => {
             releaseFirstTurn = resolve
           })
           yield { type: 'text', content: firstResponse }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Second response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1378,7 +1378,7 @@ describe('Integration: multi-turn context', () => {
             typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : 'unknown'
           }`
         }
-        yield { type: 'stop', stop_reason: 'end_turn' }
+        yield { type: 'stop', stop_reason: 'complete' }
       })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1464,7 +1464,7 @@ describe('Integration: multi-turn context', () => {
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Recovered response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1505,7 +1505,7 @@ describe('Integration: multi-turn context', () => {
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Recovered queued response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)

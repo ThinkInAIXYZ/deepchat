@@ -614,8 +614,8 @@ describe('AcpAgentRuntime', () => {
     const harness = createHarness({ pendingInputs })
     const input = createInput()
 
-    await harness.runtime.queuePendingInput(input, 'first')
-    await harness.runtime.queuePendingInput(input, 'second')
+    await harness.runtime.queuePendingInput(input, { text: 'first', files: [] })
+    await harness.runtime.queuePendingInput(input, { text: 'second', files: [] })
 
     await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(2))
     expect(pendingInputs.queuedStates[0]).toBe('claimed')
@@ -830,7 +830,10 @@ describe('AcpAgentRuntime', () => {
     const input = createInput()
     const active = harness.runtime.send(input, 'active')
     await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(1))
-    const queued = pendingInputs.queuePendingInput(input.sessionId, 'promoted steer')
+    const queued = pendingInputs.queuePendingInput(input.sessionId, {
+      text: 'promoted steer',
+      files: []
+    })
 
     await expect(
       harness.runtime.steerPendingInput(input.sessionId, queued.id)
@@ -893,7 +896,7 @@ describe('AcpAgentRuntime', () => {
     const harness = createHarness({ pendingInputs, resourceRejects: true })
     const input = createInput()
 
-    const record = await harness.runtime.queuePendingInput(input, 'retry me')
+    const record = await harness.runtime.queuePendingInput(input, { text: 'retry me', files: [] })
 
     await vi.waitFor(async () => {
       expect(await harness.runtime.getHydrated(input.sessionId)?.snapshot()).toMatchObject({

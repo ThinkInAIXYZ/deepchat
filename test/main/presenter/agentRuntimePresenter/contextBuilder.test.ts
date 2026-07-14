@@ -763,9 +763,18 @@ describe('buildContext', () => {
       makeAssistantRecord(4, 'recent reply')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store, false, {
-      summaryCursorOrderSeq: 3
-    })
+    const result = buildContextWithMetadata(
+      's1',
+      { text: 'next', files: [] },
+      'System',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        summaryCursorOrderSeq: 3
+      }
+    )
 
     expect(result.metadata.summaryCursor).toEqual({
       summaryCursorOrderSeq: 3,
@@ -783,7 +792,14 @@ describe('buildContext', () => {
   it('reports zero pre-cursor records when the cursor is at the start', () => {
     const messages = [makeUserRecord(1, 'a'), makeAssistantRecord(2, 'b')]
     const store = createMockMessageStore(messages)
-    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store)
+    const result = buildContextWithMetadata(
+      's1',
+      { text: 'next', files: [] },
+      'System',
+      10000,
+      4096,
+      store
+    )
 
     expect(result.metadata.summaryCursor).toEqual({
       summaryCursorOrderSeq: 1,

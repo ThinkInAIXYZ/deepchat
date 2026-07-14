@@ -32,7 +32,7 @@ export class SessionTurnCoordinator implements SessionTurnPort, SessionInitialTu
   constructor(private readonly dependencies: SessionTurnCoordinatorDependencies) {}
 
   startInitialTurn(input: SessionInitialTurnInput): void {
-    const content = normalizeSendMessageInput(input.content)
+    const content = input.content
     if (!content.text.trim() && (content.files?.length ?? 0) === 0) return
 
     try {

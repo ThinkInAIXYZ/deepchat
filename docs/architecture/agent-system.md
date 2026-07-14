@@ -7,6 +7,15 @@
 DeepChat 与 ACP 的执行路径对比见
 [deepchat-vs-acp-agents/](./deepchat-vs-acp-agents/)。
 
+当前消息与权限边界由以下维护合同定义：
+
+- [Send Message Canonical Boundary](./send-message-canonical-boundary/spec.md)：route/application
+  compatibility 与 runtime canonical input 的分界；
+- [Permission Mode Policy Ownership](./permission-mode-policy-owner/spec.md)：assignment、storage 与
+  deferred execution 的权限策略 owner；
+- [Provider Round Stop Contract](./provider-round-stop-contract/spec.md)：AI SDK、ACP 与内部 provider
+  round terminal reason 的无损映射。
+
 ## Agent 类型与路由
 
 DeepChat 支持两个 executable descriptor kind：

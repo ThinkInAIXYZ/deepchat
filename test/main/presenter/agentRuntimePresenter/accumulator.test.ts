@@ -300,6 +300,9 @@ describe('accumulate', () => {
     expect(state.blocks[1].content).toBe('Rate limit')
     expect(state.blocks[1].status).toBe('error')
     expect(state.stopReason).toBe('error')
+
+    accumulate(state, { type: 'stop', stop_reason: 'complete' })
+    expect(state.stopReason).toBe('error')
   })
 
   it('sets dirty flag on block mutations', () => {

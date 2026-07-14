@@ -125,7 +125,7 @@ describe('direct ACP agent backend', () => {
     const handle = harness.backend.open(sessionId, descriptor)
 
     await handle.lifecycle.initialize({ providerId: 'acp', modelId: descriptor.id })
-    await expect(handle.send({ content: 'hello' })).resolves.toEqual({
+    await expect(handle.send({ content: { text: 'hello', files: [] } })).resolves.toEqual({
       requestId: 'request',
       messageId: 'message'
     })
@@ -137,7 +137,7 @@ describe('direct ACP agent backend', () => {
     })
     expect(harness.runtime.send).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId, descriptor }),
-      'hello'
+      { text: 'hello', files: [] }
     )
   })
 

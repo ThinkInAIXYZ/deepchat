@@ -331,7 +331,7 @@ export class CompactionService {
     supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
-    newUserContent: string | SendMessageInput
+    newUserContent: SendMessageInput
     historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {

@@ -35,7 +35,7 @@ export interface DeepChatAgentBackendPort {
   waitForFirstTurnReady(sessionId: AppSessionId, options?: { timeoutMs?: number }): Promise<boolean>
   processMessage(
     sessionId: AppSessionId,
-    content: string | SendMessageInput,
+    content: SendMessageInput,
     context?: {
       projectDir?: string | null
       emitRefreshBeforeStream?: boolean
@@ -45,17 +45,17 @@ export interface DeepChatAgentBackendPort {
     }
   ): Promise<MessageStartResult>
   cancelGeneration(sessionId: AppSessionId): Promise<void>
-  steerActiveTurn(sessionId: AppSessionId, content: string | SendMessageInput): Promise<void>
+  steerActiveTurn(sessionId: AppSessionId, content: SendMessageInput): Promise<void>
   listPendingInputs(sessionId: AppSessionId): Promise<PendingSessionInputRecord[]>
   queuePendingInput(
     sessionId: AppSessionId,
-    content: string | SendMessageInput,
+    content: SendMessageInput,
     options?: QueuePendingInputOptions
   ): Promise<PendingSessionInputRecord>
   updateQueuedInput(
     sessionId: AppSessionId,
     itemId: string,
-    content: string | SendMessageInput
+    content: SendMessageInput
   ): Promise<PendingSessionInputRecord>
   moveQueuedInput(
     sessionId: AppSessionId,

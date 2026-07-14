@@ -243,7 +243,7 @@ describe('CompactionService', () => {
       reserveTokens: 256,
       supportsVision: true,
       preserveInterleavedReasoning: false,
-      newUserContent: 'Next turn'
+      newUserContent: { text: 'Next turn', files: [] }
     })
 
     expect(intent).not.toBeNull()
@@ -279,7 +279,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'latest turn'
+      newUserContent: { text: 'latest turn', files: [] }
     })
 
     expect(intent).toBeNull()
@@ -335,7 +335,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'latest turn'
+      newUserContent: { text: 'latest turn', files: [] }
     })
     const manualIntent = await service.prepareForManualCompaction({
       sessionId: 's1',
@@ -404,7 +404,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'latest turn'
+      newUserContent: { text: 'latest turn', files: [] }
     })
 
     sessionConfig.autoCompactionTriggerThreshold = 80
@@ -417,7 +417,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'latest turn'
+      newUserContent: { text: 'latest turn', files: [] }
     })
 
     expect(noIntentAtFullBudget).toBeNull()
@@ -448,7 +448,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'latest turn'
+      newUserContent: { text: 'latest turn', files: [] }
     })
 
     expect(intent).not.toBeNull()
@@ -478,7 +478,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'next turn'
+      newUserContent: { text: 'next turn', files: [] }
     })
     await service.prepareForNextUserTurn({
       sessionId: 's1',
@@ -489,7 +489,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: true,
-      newUserContent: 'next turn'
+      newUserContent: { text: 'next turn', files: [] }
     })
 
     expect(buildHistoryTurns).toHaveBeenNthCalledWith(
@@ -535,7 +535,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'latest turn'
+      newUserContent: { text: 'latest turn', files: [] }
     })
 
     const buildHistoryTurns = vi.mocked(contextBuilderModule.buildHistoryTurns)
@@ -568,7 +568,7 @@ describe('CompactionService', () => {
       reserveTokens: 100,
       supportsVision: false,
       preserveInterleavedReasoning: false,
-      newUserContent: 'latest turn'
+      newUserContent: { text: 'latest turn', files: [] }
     })
 
     expect(intent?.summaryBlocks.join('\n')).toContain('[Generation failed]\nReason: Unknown error')

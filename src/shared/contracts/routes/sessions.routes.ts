@@ -5,8 +5,7 @@ import type {
   AgentTransferImpact,
   AgentTapeContextResult,
   MessageTraceRecord,
-  PendingSessionInputRecord,
-  SendMessageInput
+  PendingSessionInputRecord
 } from '@shared/types/agent-interface'
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
@@ -20,6 +19,7 @@ import {
   MessageFileSchema,
   UserMessageInlineItemSchema,
   PermissionModeSchema,
+  SendMessageInputSchema,
   SessionCompactionStateSchema,
   SessionGenerationSettingsSchema,
   SessionGenerationSettingsPatchSchema,
@@ -212,7 +212,7 @@ export const sessionsListPendingInputsRoute = defineRouteContract({
   })
 })
 
-const PendingInputPayloadSchema = z.union([z.string(), z.custom<SendMessageInput>()])
+const PendingInputPayloadSchema = z.union([z.string(), SendMessageInputSchema])
 
 export const sessionsQueuePendingInputRoute = defineRouteContract({
   name: 'sessions.queuePendingInput',

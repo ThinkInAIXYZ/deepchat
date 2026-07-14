@@ -126,7 +126,7 @@ export interface SessionAgentContextUpdate {
   providerId: string
   modelId: string
   projectDir?: string | null
-  permissionMode?: PermissionMode
+  permissionMode: PermissionMode
   generationSettings?: Partial<SessionGenerationSettings>
 }
 

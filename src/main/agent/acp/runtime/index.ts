@@ -16,7 +16,7 @@ export {
   type AcpCapabilitySnapshot
 } from './acpCapabilities'
 export { AcpMessageFormatter } from './acpMessageFormatter'
-export { AcpContentMapper, mapAcpPromptStopReason } from './acpContentMapper'
+export { AcpContentMapper, createAcpPromptTerminalEvents } from './acpContentMapper'
 export { AcpCompatibilityPromptBuilder } from './acpCompatibilityPromptBuilder'
 export {
   AcpSessionController,

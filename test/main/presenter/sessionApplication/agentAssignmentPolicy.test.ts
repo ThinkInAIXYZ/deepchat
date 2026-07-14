@@ -41,7 +41,7 @@ function createHarness() {
 }
 
 describe('SessionAgentAssignmentPolicy', () => {
-  it('resolves DeepChat creation precedence and normalizes persisted settings', async () => {
+  it('resolves DeepChat creation precedence and configured settings', async () => {
     const { policy } = createHarness()
 
     await expect(
@@ -62,6 +62,25 @@ describe('SessionAgentAssignmentPolicy', () => {
       generationSettings: { systemPrompt: 'Agent prompt', temperature: 0.2 },
       disabledAgentTools: ['write'],
       subagentEnabled: true
+    })
+  })
+
+  it('owns the full-access default for omitted assignment modes', async () => {
+    const { policy } = createHarness()
+
+    await expect(
+      policy.resolveCreateAssignment({
+        agentId: 'reviewer',
+        preserveExplicitNullProjectDir: false
+      })
+    ).resolves.toMatchObject({ permissionMode: 'full_access' })
+    expect(policy.resolveAcpDraftAssignment('claude-acp')).toEqual({
+      agentId: 'claude-acp',
+      permissionMode: 'full_access'
+    })
+    expect(policy.resolveAcpDraftAssignment('claude-acp', 'default')).toEqual({
+      agentId: 'claude-acp',
+      permissionMode: 'default'
     })
   })
 

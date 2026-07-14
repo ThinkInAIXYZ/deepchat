@@ -73,9 +73,16 @@ export interface UsageStreamEvent {
   }
 }
 
+export type ProviderRoundStopReason =
+  | 'tool_use'
+  | 'max_tokens'
+  | 'max_turn_requests'
+  | 'error'
+  | 'complete'
+
 export interface StopStreamEvent {
   type: 'stop'
-  stop_reason: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete'
+  stop_reason: ProviderRoundStopReason
 }
 
 export interface ImageDataStreamEvent {
@@ -206,9 +213,7 @@ export const createStreamEvent = {
     type: 'usage',
     usage
   }),
-  stop: (
-    stop_reason: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete'
-  ): StopStreamEvent => ({
+  stop: (stop_reason: ProviderRoundStopReason): StopStreamEvent => ({
     type: 'stop',
     stop_reason
   }),

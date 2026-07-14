@@ -68,7 +68,7 @@ const mergeDeepChatConfig = (
       overrideConfig.imageGenerationModel ?? baseConfig.imageGenerationModel ?? null,
     defaultProjectPath: overrideConfig.defaultProjectPath ?? baseConfig.defaultProjectPath ?? null,
     systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
-    permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
+    permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode,
     disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
     enabledSkillNames: mergeNullableStringList(
       baseConfig.enabledSkillNames,

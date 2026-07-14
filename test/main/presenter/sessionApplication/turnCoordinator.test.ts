@@ -192,6 +192,43 @@ describe('SessionTurnCoordinator', () => {
     })
   })
 
+  it('canonicalizes structured live send and steer input at the application boundary', async () => {
+    const harness = createHarness({ hasMessages: true })
+    const file = { name: 'brief.md', path: '/repo/brief.md' }
+    const inlineItem = {
+      type: 'file' as const,
+      offset: 3,
+      fileName: file.name,
+      filePath: file.path
+    }
+
+    await harness.coordinator.sendMessage('s1', {
+      text: 'Send',
+      files: [file],
+      activeSkills: [' review ', 'review'],
+      inlineItems: [inlineItem]
+    })
+    await harness.coordinator.steerActiveTurn('s1', {
+      text: 'Steer',
+      files: [file],
+      activeSkills: [' review ', 'review'],
+      inlineItems: [inlineItem]
+    })
+
+    const canonicalInput = {
+      files: [file],
+      activeSkills: ['review'],
+      inlineItems: [inlineItem]
+    }
+    expect(harness.send).toHaveBeenCalledWith(
+      expect.objectContaining({ content: { text: 'Send', ...canonicalInput } })
+    )
+    expect(harness.pending.steerActiveTurn).toHaveBeenCalledWith({
+      text: 'Steer',
+      ...canonicalInput
+    })
+  })
+
   it.each([
     ['send', (coordinator: SessionTurnCoordinator) => coordinator.sendMessage('draft', 'Prompt')],
     [
@@ -351,6 +388,7 @@ describe('SessionTurnCoordinator', () => {
 
   it('starts the lifecycle initial turn without awaiting it and schedules title generation', () => {
     const harness = createHarness()
+    const content = { text: 'Initial', files: [], activeSkills: ['review'] }
     let resolveSend: (() => void) | undefined
     harness.send.mockReturnValue(
       new Promise((resolve) => {
@@ -361,7 +399,7 @@ describe('SessionTurnCoordinator', () => {
     expect(
       harness.coordinator.startInitialTurn({
         sessionId: 's1',
-        content: { text: 'Initial', files: [], activeSkills: [' review ', 'review'] },
+        content,
         projectDir: '/repo',
         initialTitle: 'Initial',
         fallbackProviderId: 'openai',
@@ -370,7 +408,7 @@ describe('SessionTurnCoordinator', () => {
     ).toBeUndefined()
 
     expect(harness.send).toHaveBeenCalledWith({
-      content: { text: 'Initial', files: [], activeSkills: ['review'] },
+      content,
       context: { projectDir: '/repo' },
       queue: { source: 'send', projectDir: '/repo' }
     })

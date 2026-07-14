@@ -541,7 +541,7 @@ function createMockSqlitePresenter() {
 function createMockCoreStream() {
   return async function* () {
     yield { type: 'text', content: 'Hello' }
-    yield { type: 'stop', stop_reason: 'end_turn' }
+    yield { type: 'stop', stop_reason: 'complete' }
   }
 }
 
@@ -5724,7 +5724,11 @@ describe('AgentRuntimePresenter', () => {
         projectDir: '/tmp/workspace'
       })
 
-      expect(queueSpy).toHaveBeenCalledWith('s1', 'Hello', { state: 'claimed' })
+      expect(queueSpy).toHaveBeenCalledWith(
+        's1',
+        { text: 'Hello', files: [] },
+        { state: 'claimed' }
+      )
       expect(processSpy).toHaveBeenCalledWith(
         's1',
         claimedRecord.payload,
@@ -5760,7 +5764,11 @@ describe('AgentRuntimePresenter', () => {
 
       const result = await agent.queuePendingInput('s1', 'Queued later', { source: 'queue' })
 
-      expect(queueSpy).toHaveBeenCalledWith('s1', 'Queued later', { state: 'pending' })
+      expect(queueSpy).toHaveBeenCalledWith(
+        's1',
+        { text: 'Queued later', files: [] },
+        { state: 'pending' }
+      )
       expect(processSpy).not.toHaveBeenCalled()
       expect(result).toBe(pendingRecord)
     })
@@ -5773,8 +5781,14 @@ describe('AgentRuntimePresenter', () => {
       ;(nanoid as ReturnType<typeof vi.fn>)
         .mockReturnValueOnce('queued-1')
         .mockReturnValueOnce('queued-2')
-      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'First queued')
-      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'Second queued')
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', {
+        text: 'First queued',
+        files: []
+      })
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', {
+        text: 'Second queued',
+        files: []
+      })
 
       let resolveStreamStarted: () => void = () => {}
       const streamStarted = new Promise<void>((resolve) => {
@@ -10148,17 +10162,6 @@ describe('AgentRuntimePresenter', () => {
       expect(mode).toBe('default')
     })
 
-    it('normalizes an unknown persisted permission mode to default', async () => {
-      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
-        id: 's2',
-        provider_id: 'openai',
-        model_id: 'gpt-4',
-        permission_mode: 'unknown'
-      })
-
-      await expect(agent.getPermissionMode('s2')).resolves.toBe('default')
-    })
-
     it('falls back to ask_user when auto-review returns invalid JSON', async () => {
       llmProvider.generateCompletionStandalone.mockResolvedValueOnce('not json')
 
@@ -10537,7 +10540,7 @@ describe('AgentRuntimePresenter', () => {
       }
     })
 
-    it('passes providerId when executing a deferred MCP tool call', async () => {
+    it('passes provider and hydrated permission mode to deferred MCP tool calls', async () => {
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
@@ -10554,7 +10557,11 @@ describe('AgentRuntimePresenter', () => {
         rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
       })
 
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'auto_approve'
+      })
 
       await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
@@ -10568,8 +10575,49 @@ describe('AgentRuntimePresenter', () => {
           providerId: 'openai'
         }),
         expect.objectContaining({
+          permissionMode: 'auto_approve',
           signal: expect.any(Object)
         })
+      )
+    })
+
+    it('uses the latest permission mode when deferred tool preparation is still running', async () => {
+      const toolDefinitions = deferred<any[]>()
+      toolPresenter.getAllToolDefinitions.mockReturnValueOnce(toolDefinitions.promise)
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: 'tool result',
+        rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
+      })
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+
+      const execution = (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'echo',
+        params: '{}'
+      })
+      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalled())
+      await agent.setPermissionMode('s1', 'default')
+      toolDefinitions.resolve([
+        {
+          type: 'function',
+          function: {
+            name: 'echo',
+            description: 'Echo tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test-server', icons: '', description: '' }
+        }
+      ])
+      await execution
+
+      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({ permissionMode: 'default' })
       )
     })
 

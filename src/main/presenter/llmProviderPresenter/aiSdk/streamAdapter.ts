@@ -18,26 +18,6 @@ function resolveSafeTextLength(buffer: string): number {
   return buffer.length
 }
 
-function mapFinishReason(
-  reason: string | undefined
-): 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' {
-  switch (reason) {
-    case 'tool-calls':
-    case 'tool_calls':
-    case 'tool-call':
-    case 'tool_use':
-      return 'tool_use'
-    case 'length':
-      return 'max_tokens'
-    case 'error':
-      return 'error'
-    case 'stop':
-      return 'stop_sequence'
-    default:
-      return 'complete'
-  }
-}
-
 function toUsageEvent(usage: {
   inputTokens?: number
   outputTokens?: number
@@ -226,16 +206,48 @@ export async function* adaptAiSdkStream(
         break
       }
 
-      case 'finish':
+      case 'finish': {
         if (!options.supportsNativeTools) {
           yield* emitLegacyTextBuffer(true)
         }
         yield toUsageEvent(part.totalUsage)
-        yield createStreamEvent.stop(
-          !options.supportsNativeTools && legacyToolUseDetected
-            ? 'tool_use'
-            : mapFinishReason(part.finishReason)
-        )
+        if (!options.supportsNativeTools && legacyToolUseDetected && part.finishReason === 'stop') {
+          yield createStreamEvent.stop('tool_use')
+          break
+        }
+        switch (part.finishReason) {
+          case 'stop':
+            yield createStreamEvent.stop('complete')
+            break
+          case 'length':
+            yield createStreamEvent.stop('max_tokens')
+            break
+          case 'tool-calls':
+            yield createStreamEvent.stop('tool_use')
+            break
+          case 'content-filter':
+            yield createStreamEvent.error(
+              'Provider stopped the response because of content filtering.'
+            )
+            yield createStreamEvent.stop('error')
+            break
+          case 'error':
+            yield createStreamEvent.error('Provider stopped the response because of an error.')
+            yield createStreamEvent.stop('error')
+            break
+          case 'other':
+            yield createStreamEvent.error(
+              `Provider stopped the response for an unspecified reason${part.rawFinishReason ? `: ${part.rawFinishReason}` : '.'}`
+            )
+            yield createStreamEvent.stop('error')
+            break
+        }
+        break
+      }
+
+      case 'abort':
+        yield createStreamEvent.error(part.reason?.trim() || 'Provider stream aborted.')
+        yield createStreamEvent.stop('error')
         break
 
       case 'error':

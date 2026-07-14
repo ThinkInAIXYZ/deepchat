@@ -31,7 +31,7 @@ import {
   AcpProcessManager,
   AcpSessionManager,
   AcpSessionPersistence,
-  mapAcpPromptStopReason,
+  createAcpPromptTerminalEvents,
   AcpMessageFormatter,
   type AcpProcessHandle,
   type AcpSessionRecord
@@ -1159,7 +1159,7 @@ export class AcpProvider extends BaseLLMProvider {
           completedAt: completedTurn.completedAt ?? Date.now()
         })
       }
-      queue.push(createStreamEvent.stop(mapAcpPromptStopReason(response.stopReason)))
+      createAcpPromptTerminalEvents(response.stopReason).forEach((event) => queue.push(event))
     } catch (error) {
       if (timeoutMs && error instanceof Error && error.name === 'AbortError') {
         try {

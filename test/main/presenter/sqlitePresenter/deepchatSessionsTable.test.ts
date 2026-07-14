@@ -184,7 +184,8 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     })
   })
 
-  it('normalizes invalid persisted permission modes on read', () => {
+  it('decodes persisted permission modes at the database boundary', () => {
+    let permissionMode: string | null = 'default'
     prepare.mockImplementation((sql: string) => {
       if (sql === 'SELECT * FROM deepchat_sessions WHERE id = ?') {
         return {
@@ -192,7 +193,7 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
             id: 's1',
             provider_id: 'openai',
             model_id: 'gpt-4',
-            permission_mode: 'unexpected'
+            permission_mode: permissionMode
           })
         }
       }
@@ -200,7 +201,16 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
       throw new Error(`Unexpected SQL: ${sql}`)
     })
 
-    expect(table.get('s1')?.permission_mode).toBe('full_access')
+    for (const [stored, expected] of [
+      ['default', 'default'],
+      ['auto_approve', 'auto_approve'],
+      ['full_access', 'full_access'],
+      ['unexpected', 'default'],
+      [null, 'default']
+    ] as const) {
+      permissionMode = stored
+      expect(table.get('s1')?.permission_mode).toBe(expected)
+    }
   })
 
   it('updates the memory cursor with a monotonic MAX guard (C2, AC-2.1)', () => {

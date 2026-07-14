@@ -76,10 +76,9 @@ describe('AgentRepository', () => {
       config: null
     })
     expect(repository.getDeepChatAgentConfig('broken-deepchat')).toBeNull()
-    expect(repository.resolveDeepChatAgentConfig('broken-deepchat')).toMatchObject({
-      systemPrompt: 'Builtin prompt',
-      permissionMode: 'full_access'
-    })
+    const resolvedConfig = repository.resolveDeepChatAgentConfig('broken-deepchat')
+    expect(resolvedConfig).toMatchObject({ systemPrompt: 'Builtin prompt' })
+    expect(resolvedConfig.permissionMode).toBeUndefined()
     expect(repository.listResolvedDeepChatAgentConfigs()).toEqual([
       expect.objectContaining({
         agentId: 'deepchat',

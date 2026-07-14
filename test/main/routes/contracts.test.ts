@@ -37,9 +37,11 @@ import {
   sessionsDeactivateRoute,
   sessionsGetActiveRoute,
   sessionsListRoute,
+  sessionsQueuePendingInputRoute,
   sessionsRestoreRoute,
   sessionsSetPermissionModeRoute,
   sessionsUpdateGenerationSettingsRoute,
+  sessionsUpdateQueuedInputRoute,
   systemOpenSettingsRoute,
   windowConsumePendingSettingsProviderInstallRoute,
   windowRequeuePendingSettingsProviderInstallRoute
@@ -1025,6 +1027,60 @@ describe('main kernel contracts', () => {
         files: [pdfAttachment]
       }
     })
+  })
+
+  it('validates pending input payload objects before dispatch', () => {
+    expect(
+      sessionsQueuePendingInputRoute.input.parse({
+        sessionId: 'session-1',
+        content: 'queued text'
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      content: 'queued text'
+    })
+
+    expect(
+      sessionsUpdateQueuedInputRoute.input.parse({
+        sessionId: 'session-1',
+        itemId: 'pending-1',
+        content: {
+          text: 'queued object',
+          files: [],
+          inlineItems: [{ type: 'skill', offset: 0, skillName: 'review' }]
+        }
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      itemId: 'pending-1',
+      content: {
+        text: 'queued object',
+        files: [],
+        inlineItems: [{ type: 'skill', offset: 0, skillName: 'review' }]
+      }
+    })
+
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: { files: [] }
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: { text: 'bad file', files: [{ name: 'missing path' }] }
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: {
+          text: 'bad inline item',
+          inlineItems: [{ type: 'skill', offset: -1, skillName: 'review' }]
+        }
+      }).success
+    ).toBe(false)
   })
 
   it('validates manual compaction route contracts', () => {

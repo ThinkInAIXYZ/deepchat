@@ -37,7 +37,7 @@ export interface AcpAgentSnapshot {
 export interface AcpAgentSessionHandle {
   readonly kind: 'acp'
   readonly sessionId: AppSessionId
-  send(content: string | SendMessageInput): Promise<MessageStartResult>
+  send(content: SendMessageInput): Promise<MessageStartResult>
   cancel(): Promise<void>
   snapshot(): Promise<AcpAgentSnapshot>
   waitForFirstTurnReady(options?: { timeoutMs?: number }): Promise<boolean>
@@ -111,18 +111,18 @@ export interface AcpPendingInputFacet {
   listPendingInputs(sessionId: AppSessionId): PendingSessionInputRecord[]
   queuePendingInput(
     sessionId: AppSessionId,
-    input: string | SendMessageInput,
+    input: SendMessageInput,
     options?: { state?: PendingSessionInputState }
   ): PendingSessionInputRecord
   queueSteerInput(
     sessionId: AppSessionId,
-    input: string | SendMessageInput,
+    input: SendMessageInput,
     options?: { mergeItemId?: string | null }
   ): PendingSessionInputRecord
   updateQueuedInput(
     sessionId: AppSessionId,
     itemId: string,
-    input: string | SendMessageInput
+    input: SendMessageInput
   ): PendingSessionInputRecord
   moveQueuedInput(
     sessionId: AppSessionId,
@@ -179,7 +179,7 @@ export interface AcpPromptResourcePort {
     agent: AcpAgentConfig
     scope: AcpInstanceScope
     workdir: string
-    content: string | SendMessageInput
+    content: SendMessageInput
     signal: AbortSignal
   }): Promise<AcpPromptResourceSnapshot>
 }
@@ -224,7 +224,10 @@ export interface AcpViewManifestInput {
 }
 
 export type AcpProjectionSettlement =
-  | { status: 'completed'; stopReason: 'complete' }
+  | {
+      status: 'completed'
+      stopReason: 'complete' | 'max_tokens' | 'max_turn_requests'
+    }
   | { status: 'error'; stopReason: 'error'; errorMessage: string }
   | { status: 'aborted'; stopReason: 'user_stop'; errorMessage: string }
 

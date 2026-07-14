@@ -68,8 +68,8 @@ interface RawDeepChatSessionRow extends Omit<DeepChatSessionRow, 'permission_mod
   permission_mode: string | null
 }
 
-function normalizePersistedPermissionMode(mode: string | null | undefined): PermissionMode {
-  return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+function decodePersistedPermissionMode(mode: string | null | undefined): PermissionMode {
+  return mode === 'default' || mode === 'auto_approve' || mode === 'full_access' ? mode : 'default'
 }
 
 export class DeepChatSessionsTable extends BaseTable {
@@ -330,7 +330,7 @@ export class DeepChatSessionsTable extends BaseTable {
     id: string,
     providerId: string,
     modelId: string,
-    permissionMode: PermissionMode = 'full_access',
+    permissionMode: PermissionMode,
     generationSettings?: Partial<DeepChatSessionGenerationSettings>
   ): void {
     this.db
@@ -394,7 +394,7 @@ export class DeepChatSessionsTable extends BaseTable {
     return row
       ? {
           ...row,
-          permission_mode: normalizePersistedPermissionMode(row.permission_mode)
+          permission_mode: decodePersistedPermissionMode(row.permission_mode)
         }
       : undefined
   }

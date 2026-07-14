@@ -54,18 +54,25 @@ describe('DeepChatAgentBackend', () => {
     const port = createPort()
     const handle = createDeepChatAgentBackendFixture(port).open(toAppSessionId('session'))
 
-    expect(await handle.send({ content: 'direct' })).toEqual({
+    expect(await handle.send({ content: { text: 'direct', files: [] } })).toEqual({
       requestId: 'request',
       messageId: 'message'
     })
     expect(
-      await handle.send({ content: 'queued', queue: { source: 'send', projectDir: '/tmp' } })
+      await handle.send({
+        content: { text: 'queued', files: [] },
+        queue: { source: 'send', projectDir: '/tmp' }
+      })
     ).toEqual({ requestId: null, messageId: null })
     expect(port.processMessage).toHaveBeenCalledTimes(1)
-    expect(port.queuePendingInput).toHaveBeenCalledWith('session', 'queued', {
-      source: 'send',
-      projectDir: '/tmp'
-    })
+    expect(port.queuePendingInput).toHaveBeenCalledWith(
+      'session',
+      { text: 'queued', files: [] },
+      {
+        source: 'send',
+        projectDir: '/tmp'
+      }
+    )
   })
 
   it('uses lightweight snapshots and delegates cancel and close exactly once', async () => {
@@ -93,8 +100,10 @@ describe('DeepChatAgentBackend', () => {
     await deepchat.transferSource.hasMessages(parent)
     await deepchat.transferSource.listPendingInputs(parent)
     await deepchat.transferTarget.setSessionAgentContext(parent, {
+      agentId: 'deepchat',
       providerId: 'openai',
-      modelId: 'model'
+      modelId: 'model',
+      permissionMode: 'full_access'
     })
     await deepchat.subagent.mergeTape(parent, child, { outcome: 'merged' })
     await deepchat.subagent.discardTape(parent, child, { outcome: 'discarded' })
@@ -107,8 +116,10 @@ describe('DeepChatAgentBackend', () => {
     expect(port.hasMessages).toHaveBeenCalledWith('parent')
     expect(port.listPendingInputs).toHaveBeenCalledWith('parent')
     expect(port.setSessionAgentContext).toHaveBeenCalledWith('parent', {
+      agentId: 'deepchat',
       providerId: 'openai',
-      modelId: 'model'
+      modelId: 'model',
+      permissionMode: 'full_access'
     })
     expect(port.mergeSubagentTape).toHaveBeenCalledWith('parent', 'child', {
       outcome: 'merged'

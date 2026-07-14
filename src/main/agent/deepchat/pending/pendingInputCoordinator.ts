@@ -8,30 +8,6 @@ import { DeepChatPendingInputStore } from './pendingInputStore'
 
 const MAX_ACTIVE_PENDING_INPUTS = 5
 
-function normalizeInput(input: string | SendMessageInput): SendMessageInput {
-  if (typeof input === 'string') {
-    return { text: input, files: [] }
-  }
-
-  const activeSkills = Array.isArray(input?.activeSkills)
-    ? Array.from(
-        new Set(
-          input.activeSkills
-            .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
-            .filter((skillName) => skillName.length > 0)
-        )
-      )
-    : []
-
-  const inlineItems = Array.isArray(input?.inlineItems) ? input.inlineItems : []
-  return {
-    text: typeof input?.text === 'string' ? input.text : '',
-    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : [],
-    ...(activeSkills.length > 0 ? { activeSkills } : {}),
-    ...(inlineItems.length > 0 ? { inlineItems } : {})
-  }
-}
-
 export class PendingInputCoordinator {
   private readonly store: DeepChatPendingInputStore
 
@@ -45,7 +21,7 @@ export class PendingInputCoordinator {
 
   queuePendingInput(
     sessionId: string,
-    input: string | SendMessageInput,
+    input: SendMessageInput,
     options?: {
       state?: PendingSessionInputState
     }
@@ -53,7 +29,7 @@ export class PendingInputCoordinator {
     this.ensureWithinLimit(sessionId)
     const record = this.store.createQueueInputWithState(
       sessionId,
-      normalizeInput(input),
+      input,
       options?.state ?? 'pending'
     )
     this.emitUpdated(sessionId)
@@ -62,16 +38,16 @@ export class PendingInputCoordinator {
 
   queueSteerInput(
     sessionId: string,
-    input: string | SendMessageInput,
+    input: SendMessageInput,
     options?: {
       mergeItemId?: string | null
     }
   ): PendingSessionInputRecord {
     let record: PendingSessionInputRecord
     if (options?.mergeItemId) {
-      record = this.store.appendSteerInput(options.mergeItemId, normalizeInput(input))
+      record = this.store.appendSteerInput(options.mergeItemId, input)
     } else {
-      record = this.store.createSteerInput(sessionId, normalizeInput(input))
+      record = this.store.createSteerInput(sessionId, input)
     }
     this.emitUpdated(sessionId)
     return record
@@ -80,10 +56,10 @@ export class PendingInputCoordinator {
   updateQueuedInput(
     sessionId: string,
     itemId: string,
-    input: string | SendMessageInput
+    input: SendMessageInput
   ): PendingSessionInputRecord {
     this.assertQueueInput(sessionId, itemId)
-    const record = this.store.updateQueueInput(itemId, normalizeInput(input))
+    const record = this.store.updateQueueInput(itemId, input)
     this.emitUpdated(sessionId)
     return record
   }

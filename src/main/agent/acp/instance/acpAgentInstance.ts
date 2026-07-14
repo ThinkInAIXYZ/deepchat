@@ -117,7 +117,7 @@ export class AcpAgentInstance
     })
   }
 
-  async send(content: string | SendMessageInput): Promise<MessageStartResult> {
+  async send(content: SendMessageInput): Promise<MessageStartResult> {
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
     if (this.active) throw new Error(`ACP session ${this.sessionId} is already generating`)
 

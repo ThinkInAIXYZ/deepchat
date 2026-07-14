@@ -14,7 +14,6 @@ import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAg
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { capAgentRequestMaxTokens, estimateToolReserveTokens } from './contextBudget'
 import { createUserChatMessage } from './contextBuilder'
-import { normalizeUserMessageInput } from './interactionProjection'
 import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { DeepChatSessionStore } from './sessionStore'
 import type { DeepChatMessageStore } from './messageStore'
@@ -96,8 +95,7 @@ export function createAcpCompatibilityDependencies(
           dependencies.getGenerationSettings(sessionId, resourceInstance),
           signal
         )
-        const normalizedInput = normalizeUserMessageInput(content)
-        resourceInstance.replaceRuntimeActivatedSkills(normalizedInput.activeSkills ?? [])
+        resourceInstance.replaceRuntimeActivatedSkills(content.activeSkills ?? [])
 
         let tools: MCPToolDefinition[] = []
         let systemPrompt = ''
@@ -142,19 +140,15 @@ export function createAcpCompatibilityDependencies(
         const summaryCursorOrderSeq =
           dependencies.sessionStore.getSummaryState(sessionId).summaryCursorOrderSeq
         return {
-          latestUserMessage: createUserChatMessage(normalizedInput, false, false),
+          latestUserMessage: createUserChatMessage(content, false, false),
           userContent: {
-            text: normalizedInput.text,
-            files: normalizedInput.files ?? [],
+            text: content.text,
+            files: content.files ?? [],
             links: [],
             search: false,
             think: false,
-            ...(normalizedInput.activeSkills?.length
-              ? { activeSkills: normalizedInput.activeSkills }
-              : {}),
-            ...(normalizedInput.inlineItems?.length
-              ? { inlineItems: normalizedInput.inlineItems }
-              : {})
+            ...(content.activeSkills?.length ? { activeSkills: content.activeSkills } : {}),
+            ...(content.inlineItems?.length ? { inlineItems: content.inlineItems } : {})
           },
           sections: {
             configured: systemPrompt,

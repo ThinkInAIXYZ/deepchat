@@ -36,6 +36,10 @@ import { buildTapeToolFactInputs } from './tapeFacts'
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 export const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
+export const INCOMPLETE_PROVIDER_STREAM_ERROR =
+  'Provider stream ended without a terminal stop event.'
+export const INCOMPLETE_TOOL_USE_ERROR =
+  'Provider requested tool use without a completed tool call.'
 const deepChatLoopEngine = new DeepChatLoopEngine()
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
@@ -117,7 +121,10 @@ function markUnexecutedToolCallsForLimit(state: StreamState): void {
 }
 
 export type ProviderTerminalDecision =
-  | { type: 'complete'; stopReason: 'complete' | 'max_tokens' | 'max_tool_calls' }
+  | {
+      type: 'complete'
+      stopReason: 'complete' | 'max_tokens' | 'max_turn_requests'
+    }
   | {
       type: 'error'
       error: string
@@ -126,7 +133,8 @@ export type ProviderTerminalDecision =
     }
 
 export function resolveProviderTerminalDecision(state: StreamState): ProviderTerminalDecision {
-  if (state.stopReason === 'error') {
+  const stopReason = state.stopReason
+  if (stopReason === 'error') {
     const streamErrorMessage = getLatestErrorMessage(state) ?? NO_MODEL_RESPONSE_ERROR
     if (isContextWindowErrorLike(streamErrorMessage)) {
       stripTrailingErrorBlock(state, streamErrorMessage)
@@ -144,6 +152,14 @@ export function resolveProviderTerminalDecision(state: StreamState): ProviderTer
       stopReason: 'provider_error'
     }
   }
+  if (stopReason === null) {
+    return {
+      type: 'error',
+      error: INCOMPLETE_PROVIDER_STREAM_ERROR,
+      source: 'provider',
+      stopReason: 'provider_error'
+    }
+  }
   if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
     return {
       type: 'error',
@@ -152,10 +168,21 @@ export function resolveProviderTerminalDecision(state: StreamState): ProviderTer
       stopReason: 'empty_response'
     }
   }
-  if (state.stopReason === 'max_tokens' || state.stopReason === 'max_tool_calls') {
-    return { type: 'complete', stopReason: state.stopReason }
+  switch (stopReason) {
+    case 'complete':
+    case 'max_tokens':
+    case 'max_turn_requests':
+      return { type: 'complete', stopReason }
+    case 'tool_use':
+      return {
+        type: 'error',
+        error: INCOMPLETE_TOOL_USE_ERROR,
+        source: 'provider',
+        stopReason: 'provider_error'
+      }
   }
-  return { type: 'complete', stopReason: 'complete' }
+  const unsupportedStopReason: never = stopReason
+  throw new Error(`Unsupported provider stop reason: ${String(unsupportedStopReason)}`)
 }
 
 function parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
@@ -536,7 +563,6 @@ function settleLoopOutcome(
     logger.info(
       `[ProcessStream] max tool calls reached (${outcome.attemptedToolCount} > ${outcome.limit}), stopping`
     )
-    state.stopReason = 'max_tool_calls'
     state.planTerminalReason = 'max_steps'
     markUnexecutedToolCallsForLimit(state)
   }
@@ -548,6 +574,21 @@ function settleLoopOutcome(
       status: 'aborted',
       stopReason: 'user_stop',
       errorMessage: USER_CANCELED_GENERATION_ERROR,
+      usage: buildUsageSnapshot(state)
+    }
+  }
+  if (outcome.type === 'max_tool_calls') {
+    stampRunOutcome(state, 'completed', 'max_tool_calls')
+    outputSink.complete({
+      runId: run.runId,
+      sessionId: run.sessionId,
+      messageId: run.messageId,
+      blocks: state.blocks,
+      metadata: { ...state.metadata }
+    })
+    return {
+      status: 'completed',
+      stopReason: 'max_tool_calls',
       usage: buildUsageSnapshot(state)
     }
   }
@@ -796,6 +837,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           )
 
           // Reset per-iteration accumulator state
+          state.stopReason = null
           state.completedToolCalls = []
           state.pendingToolCalls.clear()
 

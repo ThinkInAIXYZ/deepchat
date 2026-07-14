@@ -4,34 +4,12 @@ import type {
   PendingSessionInputState,
   SendMessageInput
 } from '@shared/types/agent-interface'
+import { SendMessageInputSchema } from '@shared/contracts/common'
+import { normalizeSendMessageInput } from '@/agent/shared/agentSessionNormalization'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { DeepChatPendingInputRow } from '@/presenter/sqlitePresenter/tables/deepchatPendingInputs'
 
 type InlineItem = NonNullable<SendMessageInput['inlineItems']>[number]
-
-function normalizeInput(input: string | SendMessageInput): SendMessageInput {
-  if (typeof input === 'string') {
-    return { text: input, files: [] }
-  }
-
-  const activeSkills = Array.isArray(input?.activeSkills)
-    ? Array.from(
-        new Set(
-          input.activeSkills
-            .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
-            .filter((skillName) => skillName.length > 0)
-        )
-      )
-    : []
-
-  const inlineItems = Array.isArray(input?.inlineItems) ? input.inlineItems : []
-  return {
-    text: typeof input?.text === 'string' ? input.text : '',
-    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : [],
-    ...(activeSkills.length > 0 ? { activeSkills } : {}),
-    ...(inlineItems.length > 0 ? { inlineItems } : {})
-  }
-}
 
 function shiftInlineItems(
   inlineItems: SendMessageInput['inlineItems'],
@@ -76,16 +54,15 @@ export class DeepChatPendingInputStore {
     return row ? this.toRecord(row) : null
   }
 
-  createQueueInput(sessionId: string, input: string | SendMessageInput): PendingSessionInputRecord {
+  createQueueInput(sessionId: string, input: SendMessageInput): PendingSessionInputRecord {
     return this.createQueueInputWithState(sessionId, input, 'pending')
   }
 
   createQueueInputWithState(
     sessionId: string,
-    input: string | SendMessageInput,
+    input: SendMessageInput,
     state: PendingSessionInputState
   ): PendingSessionInputRecord {
-    const normalized = normalizeInput(input)
     const id = nanoid()
     const nextQueueOrder = this.getNextQueueOrder(sessionId)
     const claimedAt = state === 'claimed' ? Date.now() : null
@@ -94,7 +71,7 @@ export class DeepChatPendingInputStore {
       sessionId,
       mode: 'queue',
       state,
-      payloadJson: JSON.stringify(normalized),
+      payloadJson: JSON.stringify(input),
       queueOrder: nextQueueOrder,
       claimedAt
     })
@@ -105,15 +82,14 @@ export class DeepChatPendingInputStore {
     return this.toRecord(row)
   }
 
-  createSteerInput(sessionId: string, input: string | SendMessageInput): PendingSessionInputRecord {
-    const normalized = normalizeInput(input)
+  createSteerInput(sessionId: string, input: SendMessageInput): PendingSessionInputRecord {
     const id = nanoid()
     this.sqlitePresenter.deepchatPendingInputsTable.insert({
       id,
       sessionId,
       mode: 'steer',
       state: 'pending',
-      payloadJson: JSON.stringify(normalized),
+      payloadJson: JSON.stringify(input),
       queueOrder: null,
       claimedAt: null
     })
@@ -124,7 +100,7 @@ export class DeepChatPendingInputStore {
     return this.toRecord(row)
   }
 
-  appendSteerInput(itemId: string, input: string | SendMessageInput): PendingSessionInputRecord {
+  appendSteerInput(itemId: string, input: SendMessageInput): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
     if (row.mode !== 'steer') {
       throw new Error(`Pending input ${itemId} is not a steer item.`)
@@ -133,8 +109,8 @@ export class DeepChatPendingInputStore {
       throw new Error(`Pending steer item ${itemId} is not editable.`)
     }
 
-    const existing = this.parsePayload(row.payload_json)
-    const next = normalizeInput(input)
+    const existing = this.decodePayload(row)
+    const next = input
     const existingText = existing.text.trim()
     const nextText = next.text.trim()
     const separator = existingText && nextText ? '\n\n' : ''
@@ -159,10 +135,10 @@ export class DeepChatPendingInputStore {
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
 
-  updateQueueInput(itemId: string, input: string | SendMessageInput): PendingSessionInputRecord {
+  updateQueueInput(itemId: string, input: SendMessageInput): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
     this.sqlitePresenter.deepchatPendingInputsTable.update(itemId, {
-      payload_json: JSON.stringify(normalizeInput(input))
+      payload_json: JSON.stringify(input)
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
@@ -393,7 +369,7 @@ export class DeepChatPendingInputStore {
       sessionId: row.session_id,
       mode: row.mode,
       state: row.state as PendingSessionInputState,
-      payload: this.parsePayload(row.payload_json),
+      payload: this.decodePayload(row),
       queueOrder: row.queue_order,
       claimedAt: row.claimed_at,
       consumedAt: row.consumed_at,
@@ -402,11 +378,19 @@ export class DeepChatPendingInputStore {
     }
   }
 
-  private parsePayload(raw: string): SendMessageInput {
+  private decodePayload(row: DeepChatPendingInputRow): SendMessageInput {
+    let parsed: unknown
     try {
-      return normalizeInput(JSON.parse(raw) as SendMessageInput)
+      parsed = JSON.parse(row.payload_json)
     } catch {
-      return normalizeInput(raw)
+      throw new Error(`Invalid pending input payload JSON: ${row.id}`)
     }
+
+    const result = SendMessageInputSchema.safeParse(parsed)
+    if (!result.success) {
+      throw new Error(`Invalid pending input payload shape: ${row.id}`)
+    }
+
+    return normalizeSendMessageInput(result.data)
   }
 }

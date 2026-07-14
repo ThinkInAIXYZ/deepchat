@@ -551,14 +551,13 @@ export function buildUserMessageContent(
 }
 
 export function createUserChatMessage(
-  input: string | SendMessageInput,
+  input: SendMessageInput,
   supportsVision: boolean,
   supportsAudioInput: boolean = false
 ): ChatMessage {
-  const normalizedInput = normalizeUserInput(input)
   return {
     role: 'user',
-    content: buildUserMessageContent(normalizedInput, supportsVision, supportsAudioInput, {
+    content: buildUserMessageContent(input, supportsVision, supportsAudioInput, {
       includeImageData: true,
       includeAudioData: true,
       includeFileContent: false
@@ -1094,9 +1093,11 @@ export function buildContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
+  const input =
+    typeof newUserContent === 'string' ? { text: newUserContent, files: [] } : newUserContent
   return buildContextWithMetadata(
     sessionId,
-    newUserContent,
+    input,
     systemPrompt,
     contextLength,
     reserveTokens,
@@ -1108,7 +1109,7 @@ export function buildContext(
 
 export function buildContextWithMetadata(
   sessionId: string,
-  newUserContent: string | SendMessageInput,
+  newUserContent: SendMessageInput,
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,

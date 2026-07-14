@@ -140,7 +140,7 @@ export class DeepChatSessionStore {
     id: string,
     providerId: string,
     modelId: string,
-    permissionMode: PermissionMode = 'full_access',
+    permissionMode: PermissionMode,
     generationSettings?: Partial<SessionGenerationSettings>
   ): void {
     this.sqlitePresenter.deepchatSessionsTable.create(

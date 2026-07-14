@@ -4,7 +4,7 @@ import type {
   PermissionMode,
   QuestionOption
 } from '@shared/types/agent-interface'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type { LLMCoreStreamEvent, ProviderRoundStopReason } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/presenter'
@@ -55,7 +55,7 @@ export interface StreamState {
     }
   >
   completedToolCalls: ToolCallResult[]
-  stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens' | 'max_tool_calls'
+  stopReason: ProviderRoundStopReason | null
   latestAgentPlanSnapshot?: AgentPlanSnapshot
   planTerminalReason?: AgentPlanTerminalReason
   roundUsage: {
@@ -245,7 +245,7 @@ export function createState(): StreamState {
     firstTokenTime: null,
     pendingToolCalls: new Map(),
     completedToolCalls: [],
-    stopReason: 'complete',
+    stopReason: null,
     roundUsage: null,
     providerRoundCount: 0,
     toolCallCount: 0,

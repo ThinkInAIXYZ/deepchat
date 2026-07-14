@@ -250,6 +250,32 @@ describe('ACP compatibility adapters', () => {
     )
   })
 
+  it.each([
+    ['max_tokens', 'max_tokens'],
+    ['max_turn_requests', 'max_turn_requests']
+  ] as const)('preserves the ACP %s stop reason through settlement', (stopReason, expected) => {
+    const harness = createProjectionHarness()
+    harness.adapter.applyEvents(harness.handle, [{ type: 'text', content: 'partial response' }])
+
+    expect(harness.adapter.complete(harness.handle, stopReason)).toEqual({
+      status: 'completed',
+      stopReason: expected
+    })
+  })
+
+  it.each([
+    ['refusal', 'ACP agent refused the prompt.'],
+    ['cancelled', 'ACP prompt was cancelled by the agent.']
+  ] as const)('surfaces ACP %s as an explicit provider error', (stopReason, errorMessage) => {
+    const harness = createProjectionHarness()
+
+    expect(harness.adapter.complete(harness.handle, stopReason)).toEqual({
+      status: 'error',
+      stopReason: 'error',
+      errorMessage
+    })
+  })
+
   it('persists ACP tool responses and appends a Tape tool result', () => {
     const harness = createProjectionHarness()
     const mapper = new AcpContentMapper()
