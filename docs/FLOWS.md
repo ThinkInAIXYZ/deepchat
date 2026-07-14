@@ -10,18 +10,18 @@ sequenceDiagram
     participant R as Renderer
     participant C as SessionClient/ChatClient
     participant Route as src/main/routes
-    participant F as AgentSessionPresenter
+    participant App as Lifecycle / Turn / Assignment / Projection
     participant S as AppSessionService
     participant M as AgentManager
     participant B as Typed Backend
 
     R->>C: create/send/restore
     C->>Route: window.deepchat.invoke(route)
-    Route->>F: createSession/restore/send/listMessagesPage
-    F->>S: create/bind/read app-session shell
-    F->>M: resolve executable descriptor/session handle
+    Route->>App: narrow lifecycle/turn/projection port
+    App->>S: create/bind/read app-session shell
+    App->>M: resolve executable descriptor/session handle
     M->>B: switch descriptor.kind and open handle
-    F->>B: initialize/send/snapshot
+    App->>B: initialize/send/snapshot
     B-->>R: existing message projection + chat.stream.* events
 ```
 
@@ -35,11 +35,14 @@ sequenceDiagram
 - `src/main/agent/manager/agentManager.ts`
 - `src/main/agent/manager/deepChatAgentBackend.ts`
 - `src/main/agent/manager/directAcpAgentBackend.ts`
+- `src/main/presenter/sessionApplication/`
 - `src/main/presenter/agentSessionPresenter/index.ts`
 
-`AgentSessionPresenter` 是 core session lifecycle/turn/assignment façade；agent kind resolution 和
-executable backend selection 只发生在 `AgentManager`。`new_sessions.session_kind` 仍表示
-`regular | subagent`，不决定 DeepChat/ACP backend。
+`SessionService` / `ChatService` 直接使用 consumer-owned coordinator ports。`AgentSessionPresenter` 只为
+兼容调用转发 core session methods；history、translation、export、usage、RTK、catalog 与 startup
+maintenance 直接进入各自 owner，不经过该 presenter。agent kind resolution 和 executable backend
+selection 只发生在 `AgentManager`。`new_sessions.session_kind` 仍表示 `regular | subagent`，不决定
+DeepChat/ACP backend。
 
 ## 2. DeepChat 消息处理主循环
 
@@ -124,13 +127,13 @@ sequenceDiagram
     participant R as Renderer messageStore
     participant S as SessionClient
     participant Route as SessionService
-    participant N as AgentSessionPresenter
+    participant P as SessionProjectionCoordinator
     participant DB as DeepChatMessageStore
 
     R->>S: restore(sessionId, limit=100)
     S->>Route: sessions.restore
-    Route->>N: restoreSession
-    N->>DB: listPageBySession
+    Route->>P: getSession + listMessagesPage
+    P->>DB: listPageBySession
     DB-->>R: latest page + nextCursor
     R->>S: listMessagesPage(cursor)
     S->>Route: sessions.listMessagesPage
@@ -151,7 +154,8 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Route["AgentSessionPresenter"] --> Manager["AgentManager"]
+    CompatFacade["AgentSessionPresenter<br/>compatibility forwarding"] --> App["Session application coordinator"]
+    App --> Manager["AgentManager"]
     Manager --> Kind{"descriptor.kind"}
     Kind -->|acp| Direct["DirectAcpSessionBackend"]
     Direct --> AcpRuntime["AcpAgentRuntime"]
@@ -233,20 +237,23 @@ sequenceDiagram
     participant Client as CronJobsClient
     participant Service as CronJobsService
     participant Utility as Scheduler utility
-    participant Agent as AgentSessionPresenter
+    participant Starter as Cron session starter
+    participant App as Lifecycle / Turn
+    participant Runtime as Agent runtime updates
     participant Remote as RemoteControlPresenter
 
     UI->>Client: list/upsert/toggle/runNow
     Client->>Service: cronJobs.* route
     Service->>Utility: reconcile enabled jobs
     Utility->>Service: RUN_DUE
-    Service->>Agent: create detached session and send task prompt
-    Agent-->>Service: run status and output updates
+    Service->>Starter: start run
+    Starter->>App: create detached session + send task prompt
+    Runtime-->>Service: DeepChatInternalSessionUpdate status/output/completion
     Service->>Remote: optional notification-only delivery
 ```
 
 Triggers 使用 cron 表达式。每次触发创建独立 detached session；Remote 投递只发送通知，不进入普通
-Remote 会话上下文。
+Remote 会话上下文。starter 在 composition root 接线，不依赖 route runtime 初始化。
 
 ## 10. Remote Control
 
@@ -259,7 +266,8 @@ flowchart LR
     WeChat["WeChat iLink"] --> Remote
     Remote --> Auth["channel auth / binding store"]
     Remote --> Runner["remote conversation runner"]
-    Runner --> Agent["AgentSessionPresenter"]
+    Runner --> Ports["Lifecycle / Turn / Assignment / Projection ports"]
+    Runner --> Generation["AgentManager generation port"]
 ```
 
 统一远程控制支持绑定、默认 agent、默认 workdir、`/sessions`、`/model`、状态输出、媒体/Markdown

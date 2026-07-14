@@ -90,8 +90,10 @@ function extractModuleSpecifiers(source) {
   const specifiers = new Set()
   const patterns = [
     /\bimport\s+(?:type\s+)?[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*['"]([^'"]+)['"]/g,
     /\bexport\s+[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
   ]
 
   for (const pattern of patterns) {

@@ -1491,6 +1491,15 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     })
   }
 
+  handoffResult(
+    sessionId: string,
+    name: string,
+    state: Record<string, unknown> = {},
+    meta: Record<string, unknown> = {}
+  ): TapeAnchorResult {
+    return this.toAnchorResult(this.handoff(sessionId, name, state, meta))
+  }
+
   createFork(parentSessionId: string, forkId: string = nanoid()): TapeForkHandle {
     const table = this.table
     if (!table) {

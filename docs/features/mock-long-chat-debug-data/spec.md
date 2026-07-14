@@ -11,7 +11,9 @@ Developers need a development-only control that creates a large realistic chat s
 - Clicking the button creates one regular chat session with 100 user messages and 100 assistant messages.
 - The created session uses the built-in `deepchat` agent, not a debug-only agent id.
 - Mock content is rewritten synthetic text, but can reuse the current database's message shapes and block types as samples.
-- Assistant messages include mixed short and long markdown plus supported block varieties such as content, reasoning, search, tool call, action, image, artifact thinking, plan, and error.
+- Assistant messages include mixed short and long markdown plus persisted block varieties such as
+  content, reasoning, search, tool call, action, image, artifact thinking, and error. Agent plans are
+  transient progress state and are not persisted into mock assistant history.
 - The inserted session appears in the session list without restarting the app.
 - The flow reports success or failure clearly to the developer.
 

@@ -280,6 +280,53 @@ describe('CronJobRunExecutor', () => {
     }
   })
 
+  it('releases concurrency queue runs without creating or delivering a session', async () => {
+    const job = {
+      id: 'job-queue',
+      name: 'Overlap queue',
+      agentId: 'agent-1',
+      runtime: {
+        maxDurationMs: 3_600_000,
+        maxTurns: 20,
+        concurrencyPolicy: 'queue'
+      }
+    } as CronJob
+    const queuedRun = {
+      id: 'run-queue',
+      jobId: job.id,
+      status: 'queued'
+    } as CronJobRun
+    const repository = {
+      claimRun: vi.fn(() => queuedRun),
+      getRun: vi.fn(() => queuedRun),
+      countActiveRunsByJob: vi.fn(() => 1),
+      releaseRunQueued: vi.fn(() => queuedRun),
+      markRunCancelled: vi.fn()
+    }
+    const sessionStarter = {
+      createSessionForRun: vi.fn(),
+      startSessionRun: vi.fn()
+    }
+    const deliveryRouter = {
+      deliver: vi.fn()
+    }
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never
+    )
+
+    try {
+      await expect(executor.execute({ runId: queuedRun.id, job })).resolves.toEqual(queuedRun)
+      expect(repository.releaseRunQueued).toHaveBeenCalledWith(queuedRun.id)
+      expect(repository.markRunCancelled).not.toHaveBeenCalled()
+      expect(sessionStarter.createSessionForRun).not.toHaveBeenCalled()
+      expect(deliveryRouter.deliver).not.toHaveBeenCalled()
+    } finally {
+      executor.dispose()
+    }
+  })
+
   it('captures remote delivery segments as run output', async () => {
     const now = Date.parse('2026-07-04T00:00:00.000Z')
     const job: CronJob = {
@@ -363,6 +410,20 @@ describe('CronJobRunExecutor', () => {
         sessionId: 'session-1',
         kind: 'blocks',
         messageId: 'message-1',
+        previewMarkdown: 'Preview answer',
+        responseMarkdown: 'Response answer',
+        waitingInteraction: null,
+        updatedAt: now
+      })
+      expect(repository.updateRunOutput).toHaveBeenLastCalledWith(runningRun.id, {
+        outputMessageId: 'message-1',
+        outputPreview: 'Response answer'
+      })
+
+      emitDeepChatInternalSessionUpdate({
+        sessionId: 'session-1',
+        kind: 'blocks',
+        messageId: 'message-1',
         previewMarkdown: 'Final answer',
         responseMarkdown: 'Fallback answer',
         deliverySegments: [
@@ -373,7 +434,13 @@ describe('CronJobRunExecutor', () => {
             sourceMessageId: 'message-1'
           },
           {
-            key: 'message-1:1:answer',
+            key: 'message-1:1:terminal',
+            kind: 'terminal',
+            text: 'Completed successfully',
+            sourceMessageId: 'message-1'
+          },
+          {
+            key: 'message-1:2:answer',
             kind: 'answer',
             text: 'Final answer',
             sourceMessageId: 'message-1'
@@ -385,7 +452,8 @@ describe('CronJobRunExecutor', () => {
 
       expect(repository.updateRunOutput).toHaveBeenLastCalledWith(runningRun.id, {
         outputMessageId: 'message-1',
-        outputPreview: 'Process\nread_file: "/tmp/a.md"\n\nAnswer\nFinal answer'
+        outputPreview:
+          'Process\nread_file: "/tmp/a.md"\n\nStatus\nCompleted successfully\n\nAnswer\nFinal answer'
       })
     } finally {
       executor.dispose()
@@ -997,6 +1065,13 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         waitingInteraction: null,
         updatedAt: Date.now()
       })
+      expect(new CronJobsRepositoryCtor(sqlitePresenter as never).getRun(result.run.id)).toEqual(
+        expect.objectContaining({
+          status: 'running',
+          outputMessageId: 'message-1',
+          outputPreview: 'Finished cron session'
+        })
+      )
       emitDeepChatInternalSessionUpdate({
         sessionId: `session-${result.run.id}`,
         kind: 'status',

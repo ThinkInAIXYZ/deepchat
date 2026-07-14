@@ -630,6 +630,148 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
   })
 
+  describe('Tool cancellation', () => {
+    const deferred = <T>() => {
+      let resolve!: (value: T) => void
+      let reject!: (reason?: unknown) => void
+      const promise = new Promise<T>((promiseResolve, promiseReject) => {
+        resolve = promiseResolve
+        reject = promiseReject
+      })
+      return { promise, resolve, reject }
+    }
+
+    const configureConnectedClient = (
+      sdkCallTool: ReturnType<typeof vi.fn>,
+      cachedTools: unknown[] = [{ name: 'cached-tool' }]
+    ) => {
+      const client = new McpClient('cancellable-server', { type: 'stdio' })
+      ;(client as any).client = { callTool: sdkCallTool }
+      ;(client as any).isConnected = true
+      ;(client as any).cachedTools = cachedTools
+      return client
+    }
+
+    it('rejects a pre-aborted call without invoking the SDK or session recovery', async () => {
+      const sdkCallTool = vi.fn()
+      const cachedTools = [{ name: 'cached-tool' }]
+      const client = configureConnectedClient(sdkCallTool, cachedTools)
+      const recoverySpy = vi.spyOn(client as any, 'checkAndHandleSessionError')
+      const abortController = new AbortController()
+      abortController.abort()
+
+      await expect(
+        client.callTool('echo', {}, { signal: abortController.signal })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+
+      expect(sdkCallTool).not.toHaveBeenCalled()
+      expect(recoverySpy).not.toHaveBeenCalled()
+      expect((client as any).cachedTools).toBe(cachedTools)
+    })
+
+    it('passes the signal to the SDK and skips recovery when an in-flight call aborts', async () => {
+      const sdkCallTool = vi.fn(
+        (_request: unknown, _schema: unknown, requestOptions?: { signal?: AbortSignal }) =>
+          new Promise((_, reject) => {
+            const signal = requestOptions?.signal
+            if (!signal) {
+              reject(new Error('Missing abort signal'))
+              return
+            }
+            if (signal.aborted) {
+              reject(signal.reason)
+              return
+            }
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+      const cachedTools = [{ name: 'cached-tool' }]
+      const client = configureConnectedClient(sdkCallTool, cachedTools)
+      const recoverySpy = vi.spyOn(client as any, 'checkAndHandleSessionError')
+      const abortController = new AbortController()
+
+      const callPromise = client.callTool('echo', { value: 1 }, { signal: abortController.signal })
+      await vi.waitFor(() => {
+        expect(sdkCallTool).toHaveBeenCalledWith(
+          { name: 'echo', arguments: { value: 1 } },
+          undefined,
+          { signal: abortController.signal }
+        )
+      })
+
+      abortController.abort()
+
+      await expect(callPromise).rejects.toMatchObject({ name: 'AbortError' })
+      expect(recoverySpy).not.toHaveBeenCalled()
+      expect((client as any).cachedTools).toBe(cachedTools)
+    })
+
+    it('rejects promptly when cancellation lands during connection setup', async () => {
+      const sdkCallTool = vi.fn()
+      const client = configureConnectedClient(sdkCallTool)
+      const connection = deferred<any>()
+      const connect = vi.spyOn(client, 'connect').mockReturnValue(connection.promise)
+      ;(client as any).isConnected = false
+      const abortController = new AbortController()
+
+      const callPromise = client.callTool('echo', {}, { signal: abortController.signal })
+      await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+
+      abortController.abort()
+
+      await expect(callPromise).rejects.toMatchObject({ name: 'AbortError' })
+      expect(sdkCallTool).not.toHaveBeenCalled()
+      connection.resolve('connected')
+    })
+
+    it('observes a connection failure that arrives after setup synchronously cancels', async () => {
+      const sdkCallTool = vi.fn()
+      const client = configureConnectedClient(sdkCallTool)
+      const connection = deferred<any>()
+      const abortController = new AbortController()
+      const lateError = new Error('late connection failure')
+      const unhandled = vi.fn()
+      const connect = vi.spyOn(client, 'connect').mockImplementation(() => {
+        abortController.abort()
+        return connection.promise
+      })
+      ;(client as any).isConnected = false
+
+      await expect(
+        client.callTool('echo', {}, { signal: abortController.signal })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+      expect(connect).toHaveBeenCalledOnce()
+      expect(sdkCallTool).not.toHaveBeenCalled()
+
+      process.on('unhandledRejection', unhandled)
+      try {
+        connection.reject(lateError)
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
+      } finally {
+        process.off('unhandledRejection', unhandled)
+      }
+    })
+
+    it('preserves session recovery and cache invalidation for non-abort failures', async () => {
+      const sdkError = new Error('MCP request failed')
+      const sdkCallTool = vi.fn().mockRejectedValue(sdkError)
+      const client = configureConnectedClient(sdkCallTool)
+      const recoverySpy = vi
+        .spyOn(client as any, 'checkAndHandleSessionError')
+        .mockResolvedValue(undefined)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      await expect(client.callTool('echo', {})).rejects.toBe(sdkError)
+
+      expect(sdkCallTool).toHaveBeenCalledTimes(1)
+      expect(recoverySpy).toHaveBeenCalledWith(sdkError)
+      expect((client as any).cachedTools).toBeNull()
+      consoleErrorSpy.mockRestore()
+    })
+  })
+
   describe('Sampling support', () => {
     it('should prepare sampling payload and chat messages from request params', () => {
       const client = new McpClient('server-one', {
@@ -805,7 +947,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         ],
         'model-42',
         undefined,
-        256
+        256,
+        { signal: undefined, swallowErrors: false }
       )
 
       expect(result).toEqual({
@@ -842,6 +985,89 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect(caughtError).toHaveProperty('code', ErrorCode.InvalidRequest)
 
       expect(mockGenerateCompletionStandalone).not.toHaveBeenCalled()
+    })
+
+    it('observes a late sampling decision failure after the request was cancelled', async () => {
+      let rejectDecision!: (reason?: unknown) => void
+      const decision = new Promise<never>((_, reject) => {
+        rejectDecision = reject
+      })
+      const client = new McpClient('code-reviewer', { type: 'stdio' })
+      const abortController = new AbortController()
+      const lateError = new Error('late sampling decision failure')
+      const unhandled = vi.fn()
+      mockHandleSamplingRequest.mockReturnValue(decision)
+      mockCancelSamplingRequest.mockResolvedValue(undefined)
+      abortController.abort()
+
+      await expect(
+        (client as any).handleSamplingCreateMessage(
+          {
+            params: {
+              messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }]
+            }
+          },
+          { requestId: 'rpc-cancelled', signal: abortController.signal }
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.RequestTimeout })
+      expect(mockCancelSamplingRequest).toHaveBeenCalledWith('rpc-cancelled', 'cancelled by server')
+
+      process.on('unhandledRejection', unhandled)
+      try {
+        rejectDecision(lateError)
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
+      } finally {
+        process.off('unhandledRejection', unhandled)
+      }
+    })
+
+    it('forwards cancellation through sampling generation without wrapping AbortError', async () => {
+      const client = new McpClient('code-reviewer', { type: 'stdio' })
+      const abortController = new AbortController()
+      mockHandleSamplingRequest.mockResolvedValue({
+        requestId: 'rpc-generation-cancelled',
+        approved: true,
+        providerId: 'provider-1',
+        modelId: 'model-42'
+      })
+      mockCancelSamplingRequest.mockResolvedValue(undefined)
+      mockGenerateCompletionStandalone.mockImplementation(
+        (...args: unknown[]) =>
+          new Promise((_, reject) => {
+            const options = args[5] as { signal?: AbortSignal } | undefined
+            options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+              once: true
+            })
+          })
+      )
+
+      const generating = (client as any).handleSamplingCreateMessage(
+        {
+          params: {
+            messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }]
+          }
+        },
+        { requestId: 'rpc-generation-cancelled', signal: abortController.signal }
+      )
+      await vi.waitFor(() => expect(mockGenerateCompletionStandalone).toHaveBeenCalledOnce())
+
+      abortController.abort()
+
+      await expect(generating).rejects.toMatchObject({ name: 'AbortError' })
+      expect(mockGenerateCompletionStandalone).toHaveBeenCalledWith(
+        'provider-1',
+        expect.any(Array),
+        'model-42',
+        undefined,
+        undefined,
+        { signal: abortController.signal, swallowErrors: false }
+      )
+      expect(mockCancelSamplingRequest).toHaveBeenCalledWith(
+        'rpc-generation-cancelled',
+        'cancelled by server'
+      )
     })
   })
 })

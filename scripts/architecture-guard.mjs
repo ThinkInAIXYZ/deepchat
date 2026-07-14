@@ -72,6 +72,61 @@ const AGENT_RUNTIME_PRESENTER_ROOT = path.join(
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
+const SESSION_APPLICATION_ROOT = path.join(ROOT, 'src/main/presenter/sessionApplication')
+const SESSION_APPLICATION_OWNER_PATHS = new Set(
+  [
+    'projectionCoordinator.ts',
+    'agentAssignmentPolicy.ts',
+    'agentAssignmentCoordinator.ts',
+    'turnCoordinator.ts',
+    'lifecycleCoordinator.ts',
+    'lifecycleDeletionTransaction.ts'
+  ].map((fileName) => path.resolve(SESSION_APPLICATION_ROOT, fileName))
+)
+const SESSION_APPLICATION_OWNER_NAMES = new Set([
+  'SessionProjectionCoordinator',
+  'SessionAgentAssignmentPolicy',
+  'SessionAgentAssignmentCoordinator',
+  'SessionTurnCoordinator',
+  'SessionLifecycleCoordinator',
+  'SessionDeletionTransaction'
+])
+const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
+  [
+    'src/main/routes/sessions/sessionService.ts',
+    'src/main/routes/chat/chatService.ts',
+    'src/main/routes/hotPathPorts.ts',
+    'src/main/presenter/remoteControlPresenter/index.ts',
+    'src/main/presenter/remoteControlPresenter/interface.ts',
+    'src/main/presenter/remoteControlPresenter/services/remoteConversationRunner.ts',
+    'src/main/presenter/cronJobs/runSessionStarter.ts',
+    'src/main/presenter/lifecyclePresenter/hooks/after-start/cronJobsStartHook.ts'
+  ].map((fileName) => path.resolve(ROOT, fileName))
+)
+const SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES = new Set([
+  'Presenter',
+  'IAgentSessionPresenter',
+  'AgentSharedDataPorts',
+  'SQLitePresenter'
+])
+const SESSION_COMBINED_FACADE_NAMES = new Set([
+  'SessionApplicationServices',
+  'SessionApplicationCoordinator'
+])
+const SESSION_FACADE_CAPABILITY_CATEGORIES = new Map([
+  ['SessionLifecyclePort', 'lifecycle'],
+  ['SessionLifecycleCoordinator', 'lifecycle'],
+  ['SessionTurnPort', 'turn'],
+  ['SessionTurnCoordinator', 'turn'],
+  ['SessionAgentAssignmentPort', 'assignment'],
+  ['SessionAgentAssignmentCoordinator', 'assignment'],
+  ['SessionProjectionCoordinator', 'projection'],
+  ['SessionProjectionReadPort', 'projection'],
+  ['SessionProjectionMutationPort', 'projection'],
+  ['SessionWindowProjectionPort', 'projection']
+])
+const SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN =
+  /(?:^|[/_.-])(?:history|export(?:er)?|usage(?:[-_.]?stats?)?|rtk|legacy[-_.]?import(?:er|s)?|import(?:er|s)?|migrations?|translation|catalog)(?:$|[/_.-])/
 const AGENT_SESSION_PRESENTER_PATH = path.join(
   ROOT,
   'src/main/presenter/agentSessionPresenter/index.ts'
@@ -256,6 +311,17 @@ function isUnder(targetPath, parentPath) {
   )
 }
 
+function isSessionMigratedConsumerPath(filePath) {
+  return SESSION_MIGRATED_CONSUMER_PATHS.has(path.resolve(filePath))
+}
+
+function isSessionApplicationOwnerPath(filePath) {
+  return (
+    SESSION_APPLICATION_OWNER_PATHS.has(path.resolve(filePath)) ||
+    path.basename(filePath).startsWith('__architecture_guard_session_coordinator_')
+  )
+}
+
 function isRendererQuarantineFile(filePath) {
   return RENDERER_QUARANTINE_ROOTS.some((quarantineRoot) => isUnder(filePath, quarantineRoot))
 }
@@ -320,6 +386,438 @@ function sourceFileForAst(source, filePath, scriptKind = ts.ScriptKind.TS) {
     true,
     scriptKind
   )
+}
+
+function importRecordsFromSourceFile(sourceFile) {
+  const records = []
+
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !statement.importClause ||
+      !ts.isStringLiteralLike(statement.moduleSpecifier)
+    ) {
+      continue
+    }
+
+    const specifier = statement.moduleSpecifier.text
+    if (statement.importClause.name) {
+      records.push({
+        specifier,
+        importedName: 'default',
+        localName: statement.importClause.name.text
+      })
+    }
+
+    const bindings = statement.importClause.namedBindings
+    if (bindings && ts.isNamespaceImport(bindings)) {
+      records.push({ specifier, importedName: '*', localName: bindings.name.text })
+      continue
+    }
+
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        records.push({
+          specifier,
+          importedName: element.propertyName?.text ?? element.name.text,
+          localName: element.name.text
+        })
+      }
+    }
+  }
+
+  return records
+}
+
+function findIdentifierNames(sourceFile, names) {
+  const found = new Set()
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && names.has(node.text)) found.add(node.text)
+    const member = accessMemberName(node)
+    if (member && names.has(member)) found.add(member)
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return found
+}
+
+function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
+  const constructions = new Map()
+
+  const lookup = (scope, name) => {
+    for (let current = scope; current; current = current.parent) {
+      if (current.bindings.has(name)) return current.bindings.get(name)
+    }
+    return SESSION_APPLICATION_OWNER_NAMES.has(name) ? name : null
+  }
+
+  const resolveOwner = (expression, scope) => {
+    const unwrapped = unwrapExpression(expression)
+    if (ts.isIdentifier(unwrapped)) return lookup(scope, unwrapped.text)
+
+    const owner = accessMemberName(unwrapped)
+    return owner && SESSION_APPLICATION_OWNER_NAMES.has(owner) ? owner : null
+  }
+
+  const addDeclaration = (scope, declarations, declaration) => {
+    if (!ts.isIdentifier(declaration.name)) return
+    scope.bindings.set(declaration.name.text, null)
+    if (declaration.initializer) declarations.push(declaration)
+  }
+
+  const directStatements = (node) =>
+    ts.isSourceFile(node) || ts.isBlock(node) || ts.isModuleBlock(node) ? node.statements : []
+
+  const visitScope = (node, parent) => {
+    const scope = { parent, bindings: new Map() }
+    const declarations = []
+
+    if (ts.isSourceFile(node)) {
+      for (const record of importRecords) {
+        scope.bindings.set(
+          record.localName,
+          SESSION_APPLICATION_OWNER_NAMES.has(record.importedName) ? record.importedName : null
+        )
+      }
+    }
+
+    if (ts.isFunctionLike(node)) {
+      for (const parameter of node.parameters) {
+        if (ts.isIdentifier(parameter.name)) scope.bindings.set(parameter.name.text, null)
+      }
+    }
+
+    for (const statement of directStatements(node)) {
+      if (
+        (ts.isFunctionDeclaration(statement) ||
+          ts.isClassDeclaration(statement) ||
+          ts.isEnumDeclaration(statement)) &&
+        statement.name
+      ) {
+        scope.bindings.set(statement.name.text, null)
+      }
+      if (
+        ts.isVariableStatement(statement) &&
+        (statement.declarationList.flags & ts.NodeFlags.BlockScoped) !== 0
+      ) {
+        for (const declaration of statement.declarationList.declarations) {
+          addDeclaration(scope, declarations, declaration)
+        }
+      }
+    }
+
+    if (ts.isSourceFile(node) || ts.isFunctionLike(node)) {
+      const collectVarDeclarations = (child) => {
+        if (child !== node && ts.isFunctionLike(child)) return
+        if (
+          ts.isVariableDeclarationList(child) &&
+          (child.flags & ts.NodeFlags.BlockScoped) === 0
+        ) {
+          for (const declaration of child.declarations) {
+            addDeclaration(scope, declarations, declaration)
+          }
+        }
+        ts.forEachChild(child, collectVarDeclarations)
+      }
+      collectVarDeclarations(node)
+    }
+
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const declaration of declarations) {
+        const owner = resolveOwner(declaration.initializer, scope)
+        if (owner && scope.bindings.get(declaration.name.text) !== owner) {
+          scope.bindings.set(declaration.name.text, owner)
+          changed = true
+        }
+      }
+    }
+
+    const visit = (child) => {
+      if (child !== node && (ts.isBlock(child) || ts.isFunctionLike(child))) {
+        visitScope(child, scope)
+        return
+      }
+      if (ts.isNewExpression(child)) {
+        const owner = resolveOwner(child.expression, scope)
+        if (owner) constructions.set(owner, (constructions.get(owner) ?? 0) + 1)
+      }
+      ts.forEachChild(child, visit)
+    }
+    ts.forEachChild(node, visit)
+  }
+
+  visitScope(sourceFile, null)
+  return constructions
+}
+
+function findCombinedSessionFacadeDeclarations(sourceFile, importRecords, includeExportedObjects) {
+  const namespaceImports = new Set(
+    importRecords
+      .filter((record) => record.importedName === '*')
+      .map((record) => record.localName)
+  )
+  const capabilities = new Map()
+  for (const record of importRecords) {
+    const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(record.importedName)
+    if (category) capabilities.set(record.localName, new Set([category]))
+  }
+
+  const typeAliases = []
+  const facades = []
+
+  const mergeCategories = (sets) => new Set(sets.flatMap((set) => [...set]))
+  const sameCategories = (left, right) =>
+    left.size === right.size && [...left].every((category) => right.has(category))
+
+  const qualifiedCategory = (node) => {
+    let namespace = null
+    let member = null
+    if (ts.isQualifiedName(node) && ts.isIdentifier(node.left)) {
+      namespace = node.left.text
+      member = node.right.text
+    } else if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
+      namespace = node.expression.text
+      member = node.name.text
+    }
+    if (!namespace || !namespaceImports.has(namespace)) return new Set()
+    const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(member)
+    return category ? new Set([category]) : new Set()
+  }
+
+  const referenceCategories = (node, bindings) => {
+    if (ts.isIdentifier(node)) {
+      const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(node.text)
+      return new Set(bindings.get(node.text) ?? (category ? [category] : []))
+    }
+    return qualifiedCategory(node)
+  }
+
+  const categoriesFor = (node) => {
+    if (ts.isUnionTypeNode(node)) {
+      const [first = new Set(), ...rest] = node.types.map(categoriesFor)
+      return new Set([...first].filter((category) => rest.every((set) => set.has(category))))
+    }
+    if (ts.isIntersectionTypeNode(node)) {
+      return mergeCategories(node.types.map(categoriesFor))
+    }
+    if (ts.isTypeReferenceNode(node)) {
+      return referenceCategories(node.typeName, capabilities)
+    }
+    if (ts.isExpressionWithTypeArguments(node)) {
+      return referenceCategories(node.expression, capabilities)
+    }
+
+    const categories = new Set()
+    ts.forEachChild(node, (child) => {
+      for (const category of categoriesFor(child)) categories.add(category)
+    })
+    return categories
+  }
+
+  const collectTypeAliases = (node) => {
+    if (ts.isTypeAliasDeclaration(node)) typeAliases.push(node)
+    ts.forEachChild(node, collectTypeAliases)
+  }
+  collectTypeAliases(sourceFile)
+  for (const alias of typeAliases) capabilities.set(alias.name.text, new Set())
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const alias of typeAliases) {
+      const next = categoriesFor(alias.type)
+      const current = capabilities.get(alias.name.text)
+      if (!sameCategories(next, current)) {
+        capabilities.set(alias.name.text, next)
+        changed = true
+      }
+    }
+  }
+
+  const propertyCategory = (name) => {
+    const normalized = name.replace(/^session/i, '').toLowerCase()
+    if (normalized === 'agentassignment') return 'assignment'
+    return ['lifecycle', 'turn', 'assignment', 'projection'].includes(normalized)
+      ? normalized
+      : null
+  }
+
+  const hasAllPropertyCategories = (object) =>
+    new Set(
+      object.properties
+        .map((property) => property.name && propertyNameText(property.name))
+        .map((name) => name && propertyCategory(name))
+        .filter(Boolean)
+    ).size === 4
+
+  const exportedObjects = []
+  if (includeExportedObjects) {
+    const localObjects = new Map()
+    for (const statement of sourceFile.statements) {
+      if (!ts.isVariableStatement(statement)) continue
+      const exported = statement.modifiers?.some(
+        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+      )
+      for (const declaration of statement.declarationList.declarations) {
+        const initializer = declaration.initializer && unwrapExpression(declaration.initializer)
+        if (
+          !ts.isIdentifier(declaration.name) ||
+          !initializer ||
+          !ts.isObjectLiteralExpression(initializer)
+        ) {
+          continue
+        }
+        localObjects.set(declaration.name.text, { object: initializer, type: declaration.type })
+        if (exported && hasAllPropertyCategories(initializer)) {
+          exportedObjects.push({
+            name: declaration.name.text,
+            object: initializer,
+            type: declaration.type
+          })
+        }
+      }
+    }
+
+    for (const statement of sourceFile.statements) {
+      if (
+        ts.isExportDeclaration(statement) &&
+        !statement.moduleSpecifier &&
+        statement.exportClause &&
+        ts.isNamedExports(statement.exportClause)
+      ) {
+        for (const element of statement.exportClause.elements) {
+          const localName = element.propertyName?.text ?? element.name.text
+          const local = localObjects.get(localName)
+          if (local && hasAllPropertyCategories(local.object)) {
+            exportedObjects.push({ name: element.name.text, ...local })
+          }
+        }
+      }
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+        const object = unwrapExpression(statement.expression)
+        if (ts.isObjectLiteralExpression(object) && hasAllPropertyCategories(object)) {
+          exportedObjects.push({ name: 'default', object, type: null })
+        }
+      }
+    }
+  }
+
+  if (exportedObjects.length > 0) {
+    const values = new Map()
+    for (const record of importRecords) {
+      const category = SESSION_FACADE_CAPABILITY_CATEGORIES.get(record.importedName)
+      if (category) values.set(record.localName, new Set([category]))
+    }
+
+    const expressionCategories = (node) => {
+      if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) {
+        return referenceCategories(node, values)
+      }
+      if (ts.isNewExpression(node)) return expressionCategories(node.expression)
+      if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
+        return mergeCategories([categoriesFor(node.type), expressionCategories(node.expression)])
+      }
+      if (ts.isParenthesizedExpression(node) || ts.isNonNullExpression(node)) {
+        return expressionCategories(node.expression)
+      }
+      return new Set()
+    }
+
+    const valueDeclarations = []
+    const collectValueDeclarations = (node) => {
+      if (
+        (ts.isVariableDeclaration(node) || ts.isParameter(node)) &&
+        ts.isIdentifier(node.name)
+      ) {
+        valueDeclarations.push(node)
+        values.set(node.name.text, new Set())
+      }
+      ts.forEachChild(node, collectValueDeclarations)
+    }
+    collectValueDeclarations(sourceFile)
+
+    changed = true
+    while (changed) {
+      changed = false
+      for (const declaration of valueDeclarations) {
+        const next = mergeCategories([
+          values.get(declaration.name.text),
+          declaration.type ? categoriesFor(declaration.type) : new Set(),
+          declaration.initializer ? expressionCategories(declaration.initializer) : new Set()
+        ])
+        const current = values.get(declaration.name.text)
+        if (!sameCategories(next, current)) {
+          values.set(declaration.name.text, next)
+          changed = true
+        }
+      }
+    }
+
+    const objectCategories = (object, declaredType) => {
+      const declaredProperties = new Map()
+      if (declaredType && ts.isTypeLiteralNode(declaredType)) {
+        for (const member of declaredType.members) {
+          const name = member.name && propertyNameText(member.name)
+          if (name && member.type) declaredProperties.set(name, categoriesFor(member.type))
+        }
+      }
+
+      const categories = new Set()
+      for (const property of object.properties) {
+        const name = property.name && propertyNameText(property.name)
+        const category = name && propertyCategory(name)
+        if (!category) continue
+
+        let evidence = new Set()
+        if (ts.isShorthandPropertyAssignment(property)) {
+          evidence = expressionCategories(property.name)
+        } else if (ts.isPropertyAssignment(property)) {
+          evidence = expressionCategories(property.initializer)
+        }
+        if (evidence.has(category) || declaredProperties.get(name)?.has(category)) {
+          categories.add(category)
+        }
+      }
+      return categories
+    }
+
+    for (const exported of exportedObjects) {
+      if (objectCategories(exported.object, exported.type).size === 4) {
+        facades.push(exported.name)
+      }
+    }
+  }
+
+  const visit = (node) => {
+    let name = null
+    let categories = new Set()
+    if (ts.isInterfaceDeclaration(node)) {
+      name = node.name.text
+      for (const child of [...(node.heritageClauses ?? []), ...node.members]) {
+        for (const category of categoriesFor(child)) categories.add(category)
+      }
+    } else if (ts.isTypeAliasDeclaration(node)) {
+      name = node.name.text
+      categories = capabilities.get(name)
+    } else if (ts.isClassDeclaration(node) && node.name) {
+      name = node.name.text
+      for (const child of node.heritageClauses ?? []) {
+        for (const category of categoriesFor(child)) categories.add(category)
+      }
+    }
+
+    if (name && categories.size === 4) facades.push(name)
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return facades
+}
+
+function isSessionPhaseOneForeignImport(value) {
+  const normalized = value.replaceAll(/([a-z\d])([A-Z])/g, '$1-$2').toLowerCase()
+  return SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN.test(normalized)
 }
 
 function findNamedClassDeclarations(sourceFile, className) {
@@ -427,7 +925,7 @@ function newMapSignature(property, sourceFile) {
   return initializer.typeArguments.map((node) => node.getText(sourceFile).replaceAll(/\s/g, ''))
 }
 
-function analyzeMemoryRuntimeCoordinatorStructure(source, filePath) {
+export function analyzeMemoryRuntimeCoordinatorStructure(source, filePath) {
   const sourceFile = sourceFileForAst(source, filePath)
   const classes = findNamedClassDeclarations(sourceFile, 'MemoryRuntimeCoordinator')
   if (classes.length === 0) {
@@ -1114,6 +1612,104 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
   for (const filePath of [...fileSet].sort()) {
     const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
+    const isMainSource = isUnder(filePath, MAIN_SOURCE_ROOT)
+
+    if (isMainSource) {
+      const sourceFile = sourceFileForAst(source, filePath)
+      const importRecords = importRecordsFromSourceFile(sourceFile)
+
+      if (isSessionMigratedConsumerPath(filePath)) {
+        const presenterDependencies = findIdentifierNames(
+          sourceFile,
+          new Set(['IAgentSessionPresenter', 'agentSessionPresenter'])
+        )
+        if (presenterDependencies.has('IAgentSessionPresenter')) {
+          violations.push(
+            `[session-consumer-presenter-type] ${relativePath(filePath)} must not use IAgentSessionPresenter`
+          )
+        }
+        if (presenterDependencies.has('agentSessionPresenter')) {
+          violations.push(
+            `[session-consumer-presenter-facade] ${relativePath(filePath)} must not use agentSessionPresenter`
+          )
+        }
+      }
+
+      const allowedOwnerConstructions =
+        path.resolve(filePath) === path.resolve(PRESENTER_ROOT_ENTRY) ? 1 : 0
+      for (const [owner, count] of findSessionApplicationOwnerConstructions(
+        sourceFile,
+        importRecords
+      )) {
+        if (count > allowedOwnerConstructions) {
+          violations.push(
+            `[session-application-duplicate-construction] ${relativePath(filePath)} constructs ${owner} ${count} times; expected <= ${allowedOwnerConstructions}`
+          )
+        }
+      }
+
+      const combinedFacades = findIdentifierNames(sourceFile, SESSION_COMBINED_FACADE_NAMES)
+      for (const facade of findCombinedSessionFacadeDeclarations(
+        sourceFile,
+        importRecords,
+        path.resolve(filePath) !== path.resolve(PRESENTER_ROOT_ENTRY)
+      )) {
+        combinedFacades.add(facade)
+      }
+      for (const facade of combinedFacades) {
+        violations.push(
+          `[session-application-combined-facade] ${relativePath(filePath)} contains ${facade}`
+        )
+      }
+
+      if (isSessionApplicationOwnerPath(filePath)) {
+        for (const specifier of specifiers) {
+          if (isSessionPhaseOneForeignImport(specifier)) {
+            violations.push(
+              `[session-coordinator-phase1-import] ${relativePath(filePath)} -> ${specifier}`
+            )
+          }
+        }
+      }
+
+      if (isUnder(filePath, SESSION_APPLICATION_ROOT)) {
+        const wholeDependencies = findIdentifierNames(
+          sourceFile,
+          SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES
+        )
+
+        for (const specifier of new Set(importRecords.map((record) => record.specifier))) {
+          const aggregateRecords = importRecords.filter(
+            (record) =>
+              record.specifier === specifier &&
+              (record.importedName === 'default' ||
+                record.importedName === '*' ||
+                record.importedName === 'presenter')
+          )
+          if (aggregateRecords.length === 0) continue
+
+          const resolved = await resolveImport(
+            specifier,
+            filePath,
+            MAIN_SOURCE_ROOT,
+            normalizedVirtualFiles
+          )
+          if (!resolved) continue
+          if (path.resolve(resolved) === path.resolve(PRESENTER_ROOT_ENTRY)) {
+            wholeDependencies.add('Presenter')
+          }
+          if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
+            wholeDependencies.add('SQLitePresenter')
+          }
+        }
+
+        for (const dependency of wholeDependencies) {
+          violations.push(
+            `[session-coordinator-whole-dependency] ${relativePath(filePath)} imports ${dependency}`
+          )
+        }
+      }
+    }
 
     if (path.resolve(filePath) === path.resolve(AGENT_SESSION_PRESENTER_PATH)) {
       const removedMethods = findNamedDeclarationMembers(

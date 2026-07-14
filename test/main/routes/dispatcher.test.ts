@@ -20,7 +20,6 @@ import type {
   ISkillSyncPresenter
 } from '@shared/presenter'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
-import type { CronJobRunSessionStarter } from '@/presenter/cronJobs'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
@@ -532,6 +531,76 @@ function createRuntime() {
     }),
     clearSessionPermissions: vi.fn()
   } as unknown as IAgentSessionPresenter
+
+  const sessionSnapshot = {
+    id: 'session-1',
+    agentId: 'deepchat',
+    title: 'Restored',
+    projectDir: '/workspace',
+    isPinned: false,
+    isDraft: false,
+    sessionKind: 'regular' as const,
+    parentSessionId: null,
+    subagentEnabled: false,
+    subagentMeta: null,
+    createdAt: 1,
+    updatedAt: 2,
+    status: 'idle' as const,
+    providerId: 'openai',
+    modelId: 'gpt-5.4'
+  }
+  const sessionLifecyclePort = {
+    createSession: vi.fn().mockResolvedValue({ ...sessionSnapshot, title: 'New Chat' })
+  }
+  const sessionProjectionPort = {
+    getSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    listSessions: vi.fn().mockResolvedValue([]),
+    listMessagesPage: vi.fn().mockResolvedValue({
+      messages: [
+        {
+          id: 'message-1',
+          sessionId: 'session-1',
+          orderSeq: 1,
+          role: 'user' as const,
+          content: '{"text":"hello"}',
+          status: 'sent' as const,
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      nextCursor: null,
+      hasMore: false
+    }),
+    activate: vi.fn().mockResolvedValue(undefined),
+    deactivate: vi.fn().mockResolvedValue(undefined),
+    getActive: vi.fn().mockResolvedValue(null),
+    getMessage: vi.fn().mockResolvedValue({
+      id: 'message-1',
+      sessionId: 'session-1',
+      orderSeq: 1,
+      role: 'user' as const,
+      content: '{"text":"hello"}',
+      status: 'sent' as const,
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 1,
+      updatedAt: 1
+    })
+  }
+  const sessionTurnPort = {
+    sendMessage: vi.fn().mockResolvedValue({
+      requestId: 'message-2',
+      messageId: 'message-2'
+    }),
+    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+    cancelGeneration: vi.fn().mockResolvedValue(undefined),
+    respondToolInteraction: vi.fn().mockResolvedValue({ resumed: true })
+  }
+  const sessionPermissionPort = {
+    clearSessionPermissions: vi.fn()
+  }
 
   let rateLimitConfig = {
     enabled: false,
@@ -1276,6 +1345,10 @@ function createRuntime() {
       llmProviderPresenter,
       acpProviderAdminPort,
       agentSessionPresenter,
+      sessionLifecyclePort,
+      sessionProjectionPort,
+      sessionTurnPort,
+      sessionPermissionPort,
       skillPresenter,
       skillSyncPresenter,
       exporter,
@@ -1303,6 +1376,10 @@ function createRuntime() {
     llmProviderPresenter,
     acpProviderAdminPort,
     agentSessionPresenter,
+    sessionLifecyclePort,
+    sessionProjectionPort,
+    sessionTurnPort,
+    sessionPermissionPort,
     skillPresenter,
     skillSyncPresenter,
     exporter,
@@ -1513,100 +1590,10 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('wires Cron Job run sessions with source metadata', async () => {
-    const { cronJobs, agentSessionPresenter } = createRuntime()
-    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
-      | CronJobRunSessionStarter
-      | undefined
+  it('does not wire the Cron session starter from route runtime construction', () => {
+    const { cronJobs } = createRuntime()
 
-    expect(starter).toBeDefined()
-    await starter!.createSessionForRun({
-      job: {
-        id: 'cron-1',
-        name: 'Morning job',
-        agentId: 'deepchat',
-        agentSnapshot: null,
-        modelPolicy: 'follow_agent',
-        permissionPolicy: 'follow_agent',
-        toolPolicy: 'follow_agent',
-        taskSystemInstruction: null
-      } as CronJob,
-      run: {
-        id: 'run-1',
-        scheduledAt: 123
-      } as CronJobRun
-    })
-
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentId: 'deepchat',
-        title: 'Morning job',
-        metadata: {
-          source: 'cron_job',
-          cronJobId: 'cron-1',
-          cronJobRunId: 'run-1',
-          scheduledAt: 123
-        }
-      })
-    )
-  })
-
-  it('routes ACP Cron Job prompts through the agent-session direct-routing facade', async () => {
-    const { cronJobs, configPresenter, agentSessionPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValue('acp')
-    vi.mocked(agentSessionPresenter.createDetachedSession).mockResolvedValue({
-      id: 'acp-session-1',
-      agentId: 'manual-acp',
-      title: 'ACP job',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'acp',
-      modelId: 'manual-acp'
-    })
-    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
-      | CronJobRunSessionStarter
-      | undefined
-    const job = {
-      id: 'cron-acp',
-      name: 'ACP job',
-      agentId: 'manual-acp',
-      agentSnapshot: null,
-      modelPolicy: 'follow_agent',
-      permissionPolicy: 'follow_agent',
-      toolPolicy: 'follow_agent',
-      taskSystemInstruction: null,
-      taskPrompt: 'Review the workspace',
-      runtime: { maxTurns: 7 }
-    } as CronJob
-    const run = { id: 'run-acp', scheduledAt: 123 } as CronJobRun
-
-    await expect(starter!.createSessionForRun({ job, run })).resolves.toEqual({
-      sessionId: 'acp-session-1'
-    })
-    await expect(
-      starter!.startSessionRun({ job, run, sessionId: 'acp-session-1' })
-    ).resolves.toEqual({ outputMessageId: 'message-2' })
-
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentId: 'manual-acp',
-        providerId: 'acp',
-        modelId: 'manual-acp'
-      })
-    )
-    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith(
-      'acp-session-1',
-      'Review the workspace',
-      { maxProviderRounds: 7 }
-    )
+    expect(cronJobs.setRunSessionStarter).not.toHaveBeenCalled()
   })
 
   it('reconciles Cron Jobs after agent mutation routes', async () => {
@@ -3648,7 +3635,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches session and chat routes with renderer context', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+    const { runtime, agentSessionPresenter, sessionLifecyclePort, sessionTurnPort } =
+      createRuntime()
 
     const createResult = await dispatchDeepchatRoute(
       runtime,
@@ -3663,7 +3651,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(agentSessionPresenter.createSession).toHaveBeenCalledWith(
+    expect(sessionLifecyclePort.createSession).toHaveBeenCalledWith(
       {
         agentId: 'deepchat',
         message: 'hello world'
@@ -3689,7 +3677,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+    expect(sessionTurnPort.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
 
     await dispatchDeepchatRoute(
       runtime,
@@ -3704,7 +3692,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(agentSessionPresenter.steerActiveTurn).toHaveBeenCalledWith(
+    expect(sessionTurnPort.steerActiveTurn).toHaveBeenCalledWith(
       'session-1',
       'refine the active answer'
     )
@@ -3868,7 +3856,7 @@ describe('dispatchDeepchatRoute', () => {
       configPresenter,
       llmProviderPresenter,
       acpProviderAdminPort,
-      agentSessionPresenter
+      sessionTurnPort
     } = createRuntime()
 
     const modelsResult = await dispatchDeepchatRoute(
@@ -4032,7 +4020,7 @@ describe('dispatchDeepchatRoute', () => {
       'codex-acp',
       '/repo'
     )
-    expect(agentSessionPresenter.respondToolInteraction).toHaveBeenCalledWith(
+    expect(sessionTurnPort.respondToolInteraction).toHaveBeenCalledWith(
       'session-1',
       'message-1',
       'tool-1',
@@ -4125,8 +4113,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('activates, deactivates, and reads the active session through typed routes', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
-    ;(agentSessionPresenter.getActiveSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    const { runtime, sessionProjectionPort } = createRuntime()
+    sessionProjectionPort.getActive.mockResolvedValueOnce({
       id: 'session-1',
       agentId: 'deepchat',
       title: 'Restored',
@@ -4176,9 +4164,9 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
-    expect(agentSessionPresenter.deactivateSession).toHaveBeenCalledWith(88)
-    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(88)
+    expect(sessionProjectionPort.activate).toHaveBeenCalledWith(88, 'session-1')
+    expect(sessionProjectionPort.deactivate).toHaveBeenCalledWith(88)
+    expect(sessionProjectionPort.getActive).toHaveBeenCalledWith(88)
     expect(activateResult).toEqual({ activated: true })
     expect(deactivateResult).toEqual({ deactivated: true })
     expect(activeResult).toEqual({
@@ -4189,7 +4177,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('resolves stopStream by requestId when sessionId is omitted', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+    const { runtime, sessionProjectionPort, sessionTurnPort, sessionPermissionPort } =
+      createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -4203,8 +4192,9 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(agentSessionPresenter.getMessage).toHaveBeenCalledWith('message-1')
-    expect(agentSessionPresenter.cancelGeneration).toHaveBeenCalledWith('session-1')
+    expect(sessionProjectionPort.getMessage).toHaveBeenCalledWith('message-1')
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(sessionTurnPort.cancelGeneration).toHaveBeenCalledWith('session-1')
     expect(result).toEqual({ stopped: true })
   })
 

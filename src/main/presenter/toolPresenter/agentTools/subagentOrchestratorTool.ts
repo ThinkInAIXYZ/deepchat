@@ -5,8 +5,13 @@ import type { DeepChatSubagentSlot } from '@shared/types/agent-interface'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolCallResult } from './agentToolManager'
 import type { AgentToolRuntimePort, ConversationSessionInfo } from '../runtimePorts'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
+const DEFAULT_RUN_TIMEOUT_MS = 300000
+const MIN_RUN_TIMEOUT_MS = 1000
+const MAX_RUN_TIMEOUT_MS = 1800000
+const MAX_ACTIVE_RUNS_PER_PARENT = 3
 const SUBAGENT_WORKDIR_RULE =
   'Every child session inherits the same working directory as the parent session.'
 const SUBAGENT_PROMPT_DESCRIPTION = [
@@ -29,7 +34,8 @@ export const subagentOrchestratorSchema = z
     tasks: z.array(subagentOrchestratorTaskSchema).min(1).max(5).optional(),
     background: z.boolean().default(false).optional(),
     runId: z.string().trim().min(1).optional(),
-    timeoutMs: z.number().int().min(0).max(300000).optional()
+    timeoutMs: z.number().int().min(0).max(300000).optional(),
+    runTimeoutMs: z.number().int().min(MIN_RUN_TIMEOUT_MS).max(MAX_RUN_TIMEOUT_MS).optional()
   })
   .superRefine((value, ctx) => {
     if (value.operation === 'run') {
@@ -91,9 +97,13 @@ type MutableTaskState = {
   resultSummary?: string
   runtimeStatus?: 'idle' | 'generating' | 'error'
   started: boolean
+  handoffSettled: boolean
   cancelRequested: boolean
   tapeFinalized: boolean
   tapeFinalizeError?: string
+  tapeFinalizePromise?: Promise<void>
+  cancellationPromise?: Promise<void>
+  cancellationSettled: boolean
   completion: {
     promise: Promise<void>
     resolve: () => void
@@ -110,8 +120,13 @@ type MutableRunState = {
   status: SubagentTerminalStatus
   createdAt: number
   updatedAt: number
+  runTimeoutMs: number
+  deadlineAt: number
   completion: Promise<void>
   abortController: AbortController
+  executionSettled: boolean
+  deadlineTimer?: ReturnType<typeof setTimeout>
+  cancellationReason?: string
   error?: string
 }
 
@@ -146,6 +161,20 @@ const summarizeResult = (value: string): string | undefined => {
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
+
+const awaitWithSubagentCancellation = async <T>(
+  promise: Promise<T>,
+  signal?: AbortSignal
+): Promise<T> => {
+  try {
+    return await awaitWithAbort(promise, signal)
+  } catch (error) {
+    if (signal?.aborted) {
+      throw new Error('subagent_orchestrator cancelled.')
+    }
+    throw error
+  }
+}
 
 const hasTapeFinalizeError = (tasks: MutableTaskState[]): boolean =>
   tasks.some((task) => Boolean(task.tapeFinalizeError?.trim()))
@@ -214,9 +243,18 @@ const buildHandoffMessage = (params: {
   task: MutableTaskState
   inheritedWorkspace: string | null
 }): string => {
-  const contract =
-    params.task.expectedOutput?.trim() ||
-    'Return a concise markdown result with your answer, key findings, and any important file paths or commands.'
+  const contract = [
+    'Return concise markdown with all of these sections:',
+    '## Result',
+    '## Evidence',
+    '## Changed Files',
+    '## Validation',
+    '## Unresolved',
+    'Use `None` as the section content when a section has no entries.'
+  ]
+  const additionalRequirements = params.task.expectedOutput?.trim()
+    ? ['', 'Additional Requirements:', params.task.expectedOutput.trim()]
+    : []
 
   return [
     '# Structured Handoff',
@@ -231,7 +269,8 @@ const buildHandoffMessage = (params: {
     params.task.prompt,
     '',
     'Output Contract:',
-    contract,
+    ...contract,
+    ...additionalRequirements,
     '',
     'Current Agent Working Directory:',
     params.inheritedWorkspace?.trim() || '(none)',
@@ -275,7 +314,7 @@ export class SubagentOrchestratorTool {
   }
 
   private updateRunStatus(run: MutableRunState): void {
-    run.status = this.resolveRunStatus(run.tasks)
+    run.status = run.cancellationReason ? 'cancelled' : this.resolveRunStatus(run.tasks)
     run.updatedAt = Date.now()
   }
 
@@ -288,6 +327,9 @@ export class SubagentOrchestratorTool {
       status: run.status,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
+      runTimeoutMs: run.runTimeoutMs,
+      deadlineAt: run.deadlineAt,
+      cancellationReason: run.cancellationReason,
       error: run.error,
       tasks: run.tasks.map((task) => ({
         taskId: task.taskId,
@@ -390,16 +432,127 @@ export class SubagentOrchestratorTool {
     }
   }
 
+  private markTaskCancelled(task: MutableTaskState, reason: string): void {
+    task.cancelRequested = true
+    task.status = 'cancelled'
+    task.resultSummary = task.resultSummary || reason
+    task.updatedAt = Date.now()
+    task.completion.resolve()
+  }
+
+  private isTaskCancellationRequested(
+    run: MutableRunState,
+    task: MutableTaskState,
+    parentSignal?: AbortSignal
+  ): boolean {
+    return (
+      parentSignal?.aborted === true || run.abortController.signal.aborted || task.cancelRequested
+    )
+  }
+
+  private requestTaskCancellation(
+    task: MutableTaskState,
+    forceNewRequest = false
+  ): Promise<void> | undefined {
+    const childSessionId = task.sessionId
+    if (!childSessionId) {
+      return undefined
+    }
+
+    if (task.cancellationPromise && !forceNewRequest) {
+      return task.cancellationPromise
+    }
+
+    const previousCancellation = task.cancellationPromise
+    const currentCancellation = (async () => {
+      try {
+        await this.runtimePort.cancelConversation(childSessionId)
+      } catch {
+        // Cancellation is best effort, but tape finalization must still observe its settlement.
+      }
+    })()
+
+    task.cancellationSettled = false
+    let combinedCancellation: Promise<void>
+    combinedCancellation = Promise.all(
+      previousCancellation ? [previousCancellation, currentCancellation] : [currentCancellation]
+    )
+      .then(() => undefined)
+      .finally(() => {
+        if (task.cancellationPromise === combinedCancellation) {
+          task.cancellationSettled = true
+        }
+      })
+    task.cancellationPromise = combinedCancellation
+    return combinedCancellation
+  }
+
+  private async cancelRun(run: MutableRunState, reason: string): Promise<void> {
+    run.abortController.abort()
+    if (!run.executionSettled) {
+      run.cancellationReason = run.cancellationReason || reason
+    }
+
+    const cancellationRequests: Promise<void>[] = []
+    for (const task of run.tasks) {
+      if (isTerminalStatus(task.status)) {
+        continue
+      }
+
+      this.markTaskCancelled(task, reason)
+
+      const cancellationRequest = this.requestTaskCancellation(task)
+      if (cancellationRequest) {
+        cancellationRequests.push(cancellationRequest)
+      }
+    }
+
+    this.updateRunStatus(run)
+    await Promise.all(cancellationRequests)
+  }
+
+  private async cancelAndFinalizeTask(params: {
+    run: MutableRunState
+    task: MutableTaskState
+    reason: string
+    forceNewCancellation?: boolean
+  }): Promise<void> {
+    const { run, task, reason, forceNewCancellation = false } = params
+    this.markTaskCancelled(task, reason)
+
+    const cancellationRequest = this.requestTaskCancellation(task, forceNewCancellation)
+    if (cancellationRequest) {
+      await cancellationRequest
+    }
+
+    await this.finalizeTaskTape({
+      parentSessionId: run.parentSessionId,
+      runId: run.runId,
+      task
+    })
+  }
+
   private async finalizeTaskTape(params: {
     parentSessionId: string
     runId: string
     task: MutableTaskState
   }): Promise<void> {
     const { parentSessionId, runId, task } = params
-    if (!task.sessionId || task.tapeFinalized) {
+    if (
+      !task.sessionId ||
+      task.tapeFinalized ||
+      (task.status === 'cancelled' &&
+        (!task.handoffSettled || (task.cancellationPromise && !task.cancellationSettled)))
+    ) {
       return
     }
 
+    if (task.tapeFinalizePromise) {
+      await task.tapeFinalizePromise
+      return
+    }
+
+    const childSessionId = task.sessionId
     const meta = {
       runId,
       taskId: task.taskId,
@@ -409,23 +562,29 @@ export class SubagentOrchestratorTool {
       resultSummary: task.resultSummary ?? null
     }
 
-    try {
-      if (task.status === 'completed') {
-        await this.runtimePort.mergeSubagentTape?.(parentSessionId, task.sessionId, meta)
-      } else {
-        await this.runtimePort.discardSubagentTape?.(parentSessionId, task.sessionId, meta)
+    task.tapeFinalizePromise = (async () => {
+      try {
+        if (task.status === 'completed') {
+          await this.runtimePort.mergeSubagentTape?.(parentSessionId, childSessionId, meta)
+        } else {
+          await this.runtimePort.discardSubagentTape?.(parentSessionId, childSessionId, meta)
+        }
+        task.tapeFinalized = true
+        task.tapeFinalizeError = undefined
+      } catch (error) {
+        task.tapeFinalizeError = errorMessage(error)
+        console.warn('[SubagentOrchestratorTool] Failed to finalize subagent tape fork:', {
+          parentSessionId,
+          childSessionId: task.sessionId,
+          status: task.status,
+          error
+        })
+      } finally {
+        task.tapeFinalizePromise = undefined
       }
-      task.tapeFinalized = true
-      task.tapeFinalizeError = undefined
-    } catch (error) {
-      task.tapeFinalizeError = errorMessage(error)
-      console.warn('[SubagentOrchestratorTool] Failed to finalize subagent tape fork:', {
-        parentSessionId,
-        childSessionId: task.sessionId,
-        status: task.status,
-        error
-      })
-    }
+    })()
+
+    await task.tapeFinalizePromise
   }
 
   private async retryPendingTapeFinalization(run: MutableRunState): Promise<void> {
@@ -438,11 +597,26 @@ export class SubagentOrchestratorTool {
         continue
       }
 
-      await this.finalizeTaskTape({
+      const finalization = {
         parentSessionId: run.parentSessionId,
         runId: run.runId,
         task
-      })
+      }
+
+      if (!run.executionSettled) {
+        if (task.status !== 'cancelled' || !task.cancellationSettled) {
+          continue
+        }
+
+        // Cancellation settlement makes discard safe, but a slow tape backend must not turn the
+        // run deadline into another unbounded wait for foreground or polling callers.
+        void this.finalizeTaskTape(finalization)
+          .then(() => this.updateRunStatus(run))
+          .catch(() => undefined)
+        continue
+      }
+
+      await this.finalizeTaskTape(finalization)
     }
 
     this.updateRunStatus(run)
@@ -479,23 +653,7 @@ export class SubagentOrchestratorTool {
     const run = this.getRunForSession(conversationId, args.runId)
 
     if (args.operation === 'kill') {
-      run.abortController.abort()
-      for (const task of run.tasks) {
-        if (isTerminalStatus(task.status)) {
-          continue
-        }
-
-        task.cancelRequested = true
-        task.status = 'cancelled'
-        task.resultSummary = task.resultSummary || 'Cancelled by parent session.'
-        task.updatedAt = Date.now()
-        task.completion.resolve()
-
-        if (task.sessionId) {
-          await this.runtimePort.cancelConversation(task.sessionId).catch(() => undefined)
-        }
-      }
-      this.updateRunStatus(run)
+      await this.cancelRun(run, 'Cancelled by parent session.')
       return this.buildRunProgressResult(run, 'Subagent run cancelled')
     }
 
@@ -531,19 +689,20 @@ export class SubagentOrchestratorTool {
     timeoutMs: number,
     signal?: AbortSignal
   ): Promise<void> {
+    if (signal?.aborted) {
+      throw new Error('subagent_orchestrator cancelled.')
+    }
+
     let abortListener: (() => void) | undefined
+    let timeout: ReturnType<typeof setTimeout> | undefined
     const pending = [
       run.completion,
       new Promise<void>((resolve) => {
-        setTimeout(resolve, timeoutMs)
+        timeout = setTimeout(resolve, timeoutMs)
       })
     ]
 
     if (signal) {
-      if (signal.aborted) {
-        throw new Error('subagent_orchestrator cancelled.')
-      }
-
       pending.push(
         new Promise<void>((_, reject) => {
           abortListener = () => {
@@ -557,6 +716,7 @@ export class SubagentOrchestratorTool {
     try {
       await Promise.race(pending)
     } finally {
+      if (timeout !== undefined) clearTimeout(timeout)
       if (signal && abortListener) {
         signal.removeEventListener('abort', abortListener)
       }
@@ -690,7 +850,7 @@ export class SubagentOrchestratorTool {
                   expectedOutput: {
                     type: 'string',
                     description:
-                      'Optional output contract for the child session, such as structure, scope, or formatting requirements.'
+                      'Optional requirements appended to the standard child output contract.'
                   }
                 },
                 required: ['slotId', 'title', 'prompt']
@@ -708,6 +868,13 @@ export class SubagentOrchestratorTool {
             timeoutMs: {
               type: 'number',
               description: 'Maximum wait time for operation=wait. Defaults to 60000.'
+            },
+            runTimeoutMs: {
+              type: 'number',
+              minimum: MIN_RUN_TIMEOUT_MS,
+              maximum: MAX_RUN_TIMEOUT_MS,
+              description:
+                'Maximum lifetime for operation=run, independent of wait timeout. Defaults to 300000.'
             }
           }
         }
@@ -734,7 +901,14 @@ export class SubagentOrchestratorTool {
       throw new Error('subagent_orchestrator requires a conversationId.')
     }
 
-    const parent = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+    if (options?.signal?.aborted) {
+      throw new Error('subagent_orchestrator cancelled.')
+    }
+
+    const parent = await awaitWithSubagentCancellation(
+      this.runtimePort.resolveConversationSessionInfo(conversationId),
+      options?.signal
+    )
     if (!parent) {
       throw new Error(`Conversation not found: ${conversationId}`)
     }
@@ -756,12 +930,27 @@ export class SubagentOrchestratorTool {
     const mode = args.mode ?? 'parallel'
     const taskSpecs = args.tasks ?? []
     const inheritedWorkspace =
-      (await this.runtimePort.resolveConversationWorkdir(parent.sessionId))?.trim() ||
+      (
+        await awaitWithSubagentCancellation(
+          this.runtimePort.resolveConversationWorkdir(parent.sessionId),
+          options?.signal
+        )
+      )?.trim() ||
       parent.projectDir?.trim() ||
       null
 
+    const activeRunCount = [...this.runs.values()].filter(
+      (run) => run.parentSessionId === conversationId && !isTerminalStatus(run.status)
+    ).length
+    if (activeRunCount >= MAX_ACTIVE_RUNS_PER_PARENT) {
+      throw new Error(
+        `A parent session can have at most ${MAX_ACTIVE_RUNS_PER_PARENT} active subagent runs.`
+      )
+    }
+
     const slotMap = new Map(parent.availableSubagentSlots.map((slot) => [slot.id, slot]))
     const now = Date.now()
+    const runTimeoutMs = args.runTimeoutMs ?? DEFAULT_RUN_TIMEOUT_MS
     const tasks = taskSpecs.map((task, index): MutableTaskState => {
       const slot = slotMap.get(task.slotId)
       if (!slot) {
@@ -790,8 +979,10 @@ export class SubagentOrchestratorTool {
         updatedAt: now,
         waitingInteraction: null,
         started: false,
+        handoffSettled: false,
         cancelRequested: false,
         tapeFinalized: false,
+        cancellationSettled: false,
         completion: createDeferred()
       }
     })
@@ -810,14 +1001,18 @@ export class SubagentOrchestratorTool {
       status: 'queued',
       createdAt: now,
       updatedAt: now,
+      runTimeoutMs,
+      deadlineAt: now + runTimeoutMs,
       completion: Promise.resolve(),
-      abortController
+      abortController,
+      executionSettled: false
     }
     this.runs.set(runId, run)
 
+    let lifecycleSettled = false
     const emitProgress = () => {
       this.updateRunStatus(run)
-      if (!options?.onProgress || run.background) {
+      if (lifecycleSettled || !options?.onProgress || run.background) {
         return
       }
 
@@ -894,33 +1089,38 @@ export class SubagentOrchestratorTool {
       emitProgress()
     })
 
+    let resolveParentCancellation: (() => void) | undefined
+    const parentCancellation = options?.signal
+      ? new Promise<void>((resolve) => {
+          resolveParentCancellation = resolve
+        })
+      : undefined
+    let parentCancellationObserved = false
     const abortListener = () => {
-      abortController.abort()
-      for (const task of tasks) {
-        if (isTerminalStatus(task.status)) {
-          continue
-        }
-
-        task.cancelRequested = true
-        task.updatedAt = Date.now()
-        updateTaskStatusFromRuntime(task)
-
-        if (task.sessionId) {
-          void this.runtimePort.cancelConversation(task.sessionId).catch(() => undefined)
-        }
-      }
-
-      emitProgress()
-    }
-
-    options?.signal?.addEventListener('abort', abortListener)
-
-    const runTask = async (task: MutableTaskState): Promise<void> => {
-      if (options?.signal?.aborted || abortController.signal.aborted) {
-        abortListener()
+      if (parentCancellationObserved) {
         return
       }
 
+      parentCancellationObserved = true
+      void this.cancelRun(run, 'Cancelled by parent session.')
+      emitProgress()
+      resolveParentCancellation?.()
+    }
+
+    options?.signal?.addEventListener('abort', abortListener, { once: true })
+    if (options?.signal?.aborted) {
+      abortListener()
+    }
+
+    const runTask = async (task: MutableTaskState): Promise<void> => {
+      if (options?.signal?.aborted) {
+        abortListener()
+      }
+      if (this.isTaskCancellationRequested(run, task, options?.signal)) {
+        return
+      }
+
+      let handoffAttempted = false
       try {
         const child = await this.runtimePort.createSubagentSession({
           parentSessionId: parent.sessionId,
@@ -946,17 +1146,12 @@ export class SubagentOrchestratorTool {
         task.updatedAt = Date.now()
         sessionTaskMap.set(child.sessionId, task)
 
-        if (options?.signal?.aborted || abortController.signal.aborted || task.cancelRequested) {
-          task.cancelRequested = true
-          task.updatedAt = Date.now()
-          task.status = 'cancelled'
-          task.resultSummary = task.resultSummary || 'Cancelled by parent session.'
-          maybeResolveTask(task)
-          await this.runtimePort.cancelConversation(child.sessionId).catch(() => undefined)
-          await this.finalizeTaskTape({
-            parentSessionId: parent.sessionId,
-            runId,
-            task
+        if (this.isTaskCancellationRequested(run, task, options?.signal)) {
+          task.handoffSettled = true
+          await this.cancelAndFinalizeTask({
+            run,
+            task,
+            reason: run.cancellationReason || 'Cancelled by parent session.'
           })
           emitProgress()
           return
@@ -971,7 +1166,24 @@ export class SubagentOrchestratorTool {
           task,
           inheritedWorkspace
         })
+        handoffAttempted = true
         await this.runtimePort.sendConversationMessage(child.sessionId, handoff)
+        task.handoffSettled = true
+
+        if (options?.signal?.aborted) {
+          abortListener()
+        }
+        if (this.isTaskCancellationRequested(run, task, options?.signal)) {
+          await this.cancelAndFinalizeTask({
+            run,
+            task,
+            reason: run.cancellationReason || 'Cancelled by parent session.',
+            forceNewCancellation: true
+          })
+          emitProgress()
+          return
+        }
+
         task.started = true
         task.updatedAt = Date.now()
         if (task.status === 'queued') {
@@ -980,6 +1192,7 @@ export class SubagentOrchestratorTool {
         emitProgress()
 
         await task.completion.promise
+        await task.cancellationPromise
         await this.finalizeTaskTape({
           parentSessionId: parent.sessionId,
           runId,
@@ -987,20 +1200,34 @@ export class SubagentOrchestratorTool {
         })
       } catch (error) {
         task.updatedAt = Date.now()
-        task.status = task.cancelRequested ? 'cancelled' : 'error'
-        task.resultSummary =
-          error instanceof Error ? error.message : 'Subagent session failed unexpectedly.'
-        maybeResolveTask(task)
-        await this.finalizeTaskTape({
-          parentSessionId: parent.sessionId,
-          runId,
-          task
-        })
+        task.handoffSettled = true
+        if (options?.signal?.aborted) {
+          abortListener()
+        }
+
+        if (this.isTaskCancellationRequested(run, task, options?.signal)) {
+          await this.cancelAndFinalizeTask({
+            run,
+            task,
+            reason: run.cancellationReason || 'Cancelled by parent session.',
+            forceNewCancellation: handoffAttempted
+          })
+        } else {
+          task.status = 'error'
+          task.resultSummary =
+            error instanceof Error ? error.message : 'Subagent session failed unexpectedly.'
+          maybeResolveTask(task)
+          await this.finalizeTaskTape({
+            parentSessionId: parent.sessionId,
+            runId,
+            task
+          })
+        }
         emitProgress()
       }
     }
 
-    const runCompletion = (async () => {
+    const execution = (async () => {
       emitProgress()
 
       try {
@@ -1009,7 +1236,6 @@ export class SubagentOrchestratorTool {
         } else {
           for (const task of tasks) {
             if (abortController.signal.aborted) {
-              abortListener()
               break
             }
             await runTask(task)
@@ -1026,14 +1252,35 @@ export class SubagentOrchestratorTool {
           task.updatedAt = Date.now()
           task.completion.resolve()
         }
-      } finally {
-        this.updateRunStatus(run)
-        emitProgress()
-        unsubscribe()
-        options?.signal?.removeEventListener('abort', abortListener)
-        this.pruneRuns()
       }
-    })()
+    })().finally(() => {
+      run.executionSettled = true
+    })
+
+    const deadline = new Promise<void>((resolve) => {
+      run.deadlineTimer = setTimeout(() => {
+        const reason = `Run deadline exceeded after ${run.runTimeoutMs}ms.`
+        void this.cancelRun(run, reason)
+        resolve()
+      }, run.runTimeoutMs)
+    })
+    const lifecycleEvents = [execution, deadline]
+    if (parentCancellation) {
+      lifecycleEvents.push(parentCancellation)
+    }
+    const runCompletion = Promise.race(lifecycleEvents).finally(() => {
+      if (run.deadlineTimer !== undefined) {
+        clearTimeout(run.deadlineTimer)
+        run.deadlineTimer = undefined
+      }
+      this.updateRunStatus(run)
+      emitProgress()
+      lifecycleSettled = true
+      unsubscribe()
+      options?.signal?.removeEventListener('abort', abortListener)
+      this.pruneRuns()
+    })
+
     run.completion = runCompletion
 
     void runCompletion.catch(() => undefined)

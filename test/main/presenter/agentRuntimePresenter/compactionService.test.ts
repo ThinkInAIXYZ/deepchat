@@ -771,6 +771,44 @@ describe('CompactionService', () => {
     expect(llmProviderPresenter.generateText).not.toHaveBeenCalled()
   })
 
+  it('does not persist a summary when cancellation arrives during the summary LLM call', async () => {
+    const { service, sessionStore, llmProviderPresenter } = createService()
+    const abortController = new AbortController()
+    let resolveSummary!: (value: { content: string }) => void
+    llmProviderPresenter.generateText.mockReturnValue(
+      new Promise<{ content: string }>((resolve) => {
+        resolveSummary = resolve
+      })
+    )
+
+    const compactionPromise = service.applyCompaction(
+      {
+        sessionId: 's1',
+        previousState: {
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
+        },
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['span to summarize'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          contextLength: 4096
+        },
+        reserveTokens: 512
+      },
+      abortController.signal
+    )
+    await vi.waitFor(() => expect(llmProviderPresenter.generateText).toHaveBeenCalled())
+
+    abortController.abort()
+    resolveSummary({ content: 'late generated summary' })
+
+    await expect(compactionPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sessionStore.compareAndSetSummaryState).not.toHaveBeenCalled()
+  })
+
   it('avoids direct oversized single-shot summarization when splitLargeBlock does not split', async () => {
     const { service } = createService()
     const generateSummaryTextSpy = vi

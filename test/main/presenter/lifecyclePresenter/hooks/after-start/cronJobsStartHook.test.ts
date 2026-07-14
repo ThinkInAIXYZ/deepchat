@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const presenterMocks = vi.hoisted(() => ({
-  start: vi.fn(),
-  getRuntime: vi.fn()
+  start: vi.fn()
 }))
 
 vi.mock('@/presenter', () => ({
@@ -10,8 +9,7 @@ vi.mock('@/presenter', () => ({
     cronJobs: {
       start: presenterMocks.start
     }
-  },
-  getMainKernelRouteRuntime: presenterMocks.getRuntime
+  }
 }))
 
 const { cronJobsStartHook } =
@@ -22,17 +20,9 @@ describe('cronJobsStartHook', () => {
     vi.clearAllMocks()
   })
 
-  it('primes route runtime before starting cron jobs', async () => {
-    const calls: string[] = []
-    presenterMocks.getRuntime.mockImplementation(() => {
-      calls.push('runtime')
-    })
-    presenterMocks.start.mockImplementation(() => {
-      calls.push('start')
-    })
-
+  it('starts cron jobs without priming the route runtime', async () => {
     await cronJobsStartHook.execute({} as never)
 
-    expect(calls).toEqual(['runtime', 'start'])
+    expect(presenterMocks.start).toHaveBeenCalledOnce()
   })
 })

@@ -140,6 +140,7 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   questionMultiple?: boolean
   questionCustom?: boolean
   questionResolution?: 'asked' | 'replied' | 'rejected'
+  questionFollowUpPending?: boolean
   answerText?: string
   answerMessageId?: string
   skillDraftAction?: string

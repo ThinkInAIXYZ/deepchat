@@ -2675,7 +2675,10 @@ export class RemoteControlPresenter {
     return new RemoteConversationRunner(
       {
         configPresenter: this.deps.configPresenter,
-        agentSessionPresenter: this.deps.agentSessionPresenter,
+        lifecycle: this.deps.lifecycle,
+        turn: this.deps.turn,
+        assignment: this.deps.assignment,
+        projection: this.deps.projection,
         filePresenter: this.deps.filePresenter,
         agentManager: this.deps.agentManager,
         windowPresenter: this.deps.windowPresenter,

@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
-import { presenter, getMainKernelRouteRuntime } from '@/presenter'
+import { presenter } from '@/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 
 export const cronJobsStartHook: LifecycleHook = {
@@ -11,15 +11,6 @@ export const cronJobsStartHook: LifecycleHook = {
   execute: async (_context: LifecycleContext) => {
     if (!presenter) {
       throw new Error('cronJobsStartHook: Presenter not initialized')
-    }
-
-    try {
-      getMainKernelRouteRuntime()
-    } catch (error) {
-      console.warn(
-        '[cronJobsStartHook] Failed to prime route runtime; cron jobs cannot create sessions until routes initialize:',
-        error
-      )
     }
 
     presenter.cronJobs.start()

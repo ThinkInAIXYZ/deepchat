@@ -20,6 +20,8 @@
     "test:memory": "pnpm run test:memory:scope && pnpm run test:memory:type && vitest --config vitest.config.memory.ts --run",
     "test:memory:eval": "vitest --config vitest.config.memory-eval.ts --run",
     "test:main:memory-perf": "vitest --config vitest.config.memory-perf.ts --run",
+    "test:agent:eval": "vitest run --config vitest.config.ts test/main/evals/nativeAgent/nativeAgentBehavior.eval.test.ts",
+    "test:main:native-sqlite": "cross-env DEEPCHAT_REQUIRE_NATIVE_SQLITE=1 vitest --config vitest.config.ts test/main/presenter/agentMemoryTable.test.ts test/main/presenter/agentRuntimePresenter/tapeService.test.ts test/main/presenter/memoryRetrieval.eval.test.ts",
     "test:renderer": "vitest --config vitest.config.renderer.ts test/renderer",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",

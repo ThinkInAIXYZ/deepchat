@@ -12,8 +12,8 @@ Renderer
   -> window.deepchat
   -> shared/contracts/routes + shared/contracts/events
   -> src/main/routes dispatcher
-  -> route services / presenter-backed ports
-  -> agentSessionPresenter / agentRuntimePresenter / toolPresenter / llmProviderPresenter
+  -> route services / consumer-owned narrow ports
+  -> sessionApplication coordinators / typed runtimes / retained resource presenters
 ```
 
 `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和

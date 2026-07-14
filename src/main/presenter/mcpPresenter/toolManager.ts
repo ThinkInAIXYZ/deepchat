@@ -18,14 +18,23 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
 
 type McpToolAccessContext = {
   enabledTools?: string[]
   enabledServerIds?: string[]
   agentId?: string
   conversationId?: string
+}
+
+type ActiveToolDefinitionsRefresh = {
+  completion: Promise<void>
+  settle: () => void
 }
 
 const normalizeStringList = (items?: string[]): string[] | undefined => {
@@ -55,6 +64,8 @@ export class ToolManager {
   private cachedToolDefinitions: MCPToolDefinition[] | null = null
   private toolNameToTargetMap: Map<string, { client: McpClient; originalName: string }> | null =
     null
+  private toolDefinitionsCacheGeneration = 0
+  private activeToolDefinitionsRefresh: ActiveToolDefinitionsRefresh | null = null
   // Session-scoped permission cache: conversationId -> Set of "serverName:permissionType"
   private sessionPermissions = new Map<string, Set<string>>()
 
@@ -67,12 +78,18 @@ export class ToolManager {
 
   private handleServerListUpdate = (): void => {
     console.info('MCP client list updated, clearing tool definitions cache and target map.')
+    this.toolDefinitionsCacheGeneration += 1
+    this.activeToolDefinitionsRefresh?.settle()
+    this.activeToolDefinitionsRefresh = null
     this.cachedToolDefinitions = null
     this.toolNameToTargetMap = null
   }
 
   private handleConfigChange = (): void => {
     console.info('MCP configuration changed, clearing cached data.')
+    this.toolDefinitionsCacheGeneration += 1
+    this.activeToolDefinitionsRefresh?.settle()
+    this.activeToolDefinitionsRefresh = null
     this.cachedToolDefinitions = null
     this.toolNameToTargetMap = null
   }
@@ -100,172 +117,214 @@ export class ToolManager {
   }
   // Get all tool definitions
   public async getAllToolDefinitions(
-    access?: string[] | McpToolAccessContext
+    access?: string[] | McpToolAccessContext,
+    options?: { signal?: AbortSignal }
   ): Promise<MCPToolDefinition[]> {
+    options?.signal?.throwIfAborted()
     const context = normalizeToolAccessContext(access)
-    if (this.cachedToolDefinitions !== null && this.cachedToolDefinitions.length > 0) {
+    if (this.cachedToolDefinitions !== null) {
       return this.filterToolDefinitionsByContext(this.cachedToolDefinitions, context)
     }
 
-    console.info('Fetching/refreshing tool definitions and target map...')
-    const clients = await this.serverManager.getRunningClients()
-    const results: MCPToolDefinition[] = []
-    // Initialize/clear the map before processing
-    if (this.toolNameToTargetMap) {
-      this.toolNameToTargetMap.clear() // Clear existing map
-    } else {
-      this.toolNameToTargetMap = new Map() // Initialize if null
+    const activeRefresh = this.activeToolDefinitionsRefresh
+    if (activeRefresh) {
+      await awaitWithAbort(activeRefresh.completion, options?.signal)
+      return await this.getAllToolDefinitions(access, options)
     }
 
-    if (!clients || clients.length === 0) {
-      console.warn('No running MCP clients found.')
-      this.cachedToolDefinitions = []
-      // Map is already cleared or initialized as empty
-      return this.cachedToolDefinitions
+    let resolveRefresh = () => {}
+    const refreshCompletion = new Promise<void>((resolve) => {
+      resolveRefresh = resolve
+    })
+    const refresh: ActiveToolDefinitionsRefresh = {
+      completion: refreshCompletion,
+      settle: () => resolveRefresh()
     }
+    this.activeToolDefinitionsRefresh = refresh
 
-    const toolNameToServerMap: Map<string, string> = new Map()
-    const toolsToRename: Map<string, Set<string>> = new Map()
+    try {
+      const refreshGeneration = this.toolDefinitionsCacheGeneration
+      console.info('Fetching/refreshing tool definitions and target map...')
+      const clients = await awaitWithAbort(this.serverManager.getRunningClients(), options?.signal)
+      const results: MCPToolDefinition[] = []
+      const nextToolNameToTargetMap = new Map<string, { client: McpClient; originalName: string }>()
 
-    // Pass 1: Detect conflicts
-    for (const client of clients) {
-      try {
-        const clientTools = await client.listTools()
-        this.serverManager.clearServerLastError(client.serverName)
-        if (!clientTools) continue
-
-        const currentServerRenames: Set<string> = toolsToRename.get(client.serverName) || new Set()
-
-        for (const tool of clientTools) {
-          if (toolNameToServerMap.has(tool.name)) {
-            const originalServerName = toolNameToServerMap.get(tool.name)!
-            if (originalServerName !== client.serverName) {
-              console.warn(
-                `Conflict detected for tool '${tool.name}' between server '${originalServerName}' and '${client.serverName}'. Marking for rename.`
-              )
-              // Mark original tool for rename
-              const originalServerRenames = toolsToRename.get(originalServerName) || new Set()
-              originalServerRenames.add(tool.name)
-              toolsToRename.set(originalServerName, originalServerRenames)
-              // Mark current tool for rename
-              currentServerRenames.add(tool.name)
-            }
-          } else {
-            toolNameToServerMap.set(tool.name, client.serverName)
+      if (!clients || clients.length === 0) {
+        console.warn('No running MCP clients found.')
+        options?.signal?.throwIfAborted()
+        if (refreshGeneration !== this.toolDefinitionsCacheGeneration) {
+          if (this.activeToolDefinitionsRefresh === refresh) {
+            this.activeToolDefinitionsRefresh = null
           }
+          return await this.getAllToolDefinitions(access, options)
         }
-        if (currentServerRenames.size > 0) {
-          toolsToRename.set(client.serverName, currentServerRenames)
-        }
-      } catch (error: unknown) {
-        // Log error and notify, but continue conflict detection with other clients
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        const serverName = client.serverName || 'Unknown server'
-        console.error(
-          `Pass 1 Error: Failed to get tool list from server '${serverName}':`,
-          errorMessage
-        )
-        this.serverManager.setServerLastError(serverName, errorMessage)
-        if (!this.isPluginOwnedClient(client)) {
-          // Send notification for normal MCP servers. Plugin-owned MCP errors are shown in
-          // plugin status surfaces instead of global toasts.
-          const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
-          const errorMessages = getErrorMessageLabels(locale)
-          const formattedMessage =
-            errorMessages.getMcpToolListErrorMessage
-              ?.replace('{serverName}', serverName)
-              .replace('{errorMessage}', errorMessage) ||
-            `Failed to get tool list from server '${serverName}': ${errorMessage}`
-          publishDeepchatEvent('notification.error', {
-            title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
-            message: formattedMessage,
-            id: `mcp-error-pass1-${serverName}-${Date.now()}`,
-            type: 'error'
-          })
-        }
-        continue // Continue to next client
+        this.cachedToolDefinitions = []
+        this.toolNameToTargetMap = nextToolNameToTargetMap
+        return this.cachedToolDefinitions
       }
-    }
 
-    // Pass 2: Build results with renaming AND populate the target map
-    for (const client of clients) {
-      try {
-        const clientTools = await client.listTools()
-        this.serverManager.clearServerLastError(client.serverName)
-        if (!clientTools) continue
+      const toolNameToServerMap: Map<string, string> = new Map()
+      const toolsToRename: Map<string, Set<string>> = new Map()
 
-        const renamesForThisServer = toolsToRename.get(client.serverName) || new Set()
+      // Pass 1: Detect conflicts
+      for (const client of clients) {
+        try {
+          const clientTools = await awaitWithAbort(client.listTools(), options?.signal)
+          this.serverManager.clearServerLastError(client.serverName)
+          if (!clientTools) continue
 
-        for (const tool of clientTools) {
-          let finalName = tool.name
-          let finalDescription = tool.description
-          const originalName = tool.name
+          const currentServerRenames: Set<string> =
+            toolsToRename.get(client.serverName) || new Set()
 
-          if (renamesForThisServer.has(originalName)) {
-            finalName = `${client.serverName}_${originalName}`
-            finalDescription = `[${client.serverName}] ${tool.description}`
-          }
-
-          // Validate the final name against the allowed pattern
-          const namePattern = /^[a-zA-Z0-9_-]+$/
-          if (!namePattern.test(finalName)) {
-            console.error(
-              `Generated tool name '${finalName}' is invalid. Skipping tool '${originalName}' from server '${client.serverName}'. Please ensure the tool name matches the allowed pattern: /^[a-zA-Z0-9_-]+$/`
-            )
-            continue // Skip adding this tool
-          }
-
-          const properties = tool.inputSchema.properties || {}
-          const toolProperties = { ...properties }
-          for (const key in toolProperties) {
-            if (!toolProperties[key].description) {
-              toolProperties[key].description = 'Params of ' + key
-            }
-          }
-
-          results.push({
-            type: 'function',
-            function: {
-              name: finalName,
-              description: finalDescription,
-              parameters: {
-                type: 'object',
-                properties: toolProperties,
-                required: Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : []
+          for (const tool of clientTools) {
+            if (toolNameToServerMap.has(tool.name)) {
+              const originalServerName = toolNameToServerMap.get(tool.name)!
+              if (originalServerName !== client.serverName) {
+                console.warn(
+                  `Conflict detected for tool '${tool.name}' between server '${originalServerName}' and '${client.serverName}'. Marking for rename.`
+                )
+                // Mark original tool for rename
+                const originalServerRenames = toolsToRename.get(originalServerName) || new Set()
+                originalServerRenames.add(tool.name)
+                toolsToRename.set(originalServerName, originalServerRenames)
+                // Mark current tool for rename
+                currentServerRenames.add(tool.name)
               }
-            },
-            server: {
-              name: client.serverName,
-              icons: client.serverConfig.icons as string,
-              description: client.serverConfig.descriptions as string
+            } else {
+              toolNameToServerMap.set(tool.name, client.serverName)
             }
-          })
-
-          // Populate the target map
-          if (this.toolNameToTargetMap) {
-            this.toolNameToTargetMap.set(finalName, { client: client, originalName: originalName })
           }
+          if (currentServerRenames.size > 0) {
+            toolsToRename.set(client.serverName, currentServerRenames)
+          }
+        } catch (error: unknown) {
+          if (options?.signal?.aborted) throw error
+          // Log error and notify, but continue conflict detection with other clients
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          const serverName = client.serverName || 'Unknown server'
+          console.error(
+            `Pass 1 Error: Failed to get tool list from server '${serverName}':`,
+            errorMessage
+          )
+          this.serverManager.setServerLastError(serverName, errorMessage)
+          if (!this.isPluginOwnedClient(client)) {
+            // Send notification for normal MCP servers. Plugin-owned MCP errors are shown in
+            // plugin status surfaces instead of global toasts.
+            const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
+            const errorMessages = getErrorMessageLabels(locale)
+            const formattedMessage =
+              errorMessages.getMcpToolListErrorMessage
+                ?.replace('{serverName}', serverName)
+                .replace('{errorMessage}', errorMessage) ||
+              `Failed to get tool list from server '${serverName}': ${errorMessage}`
+            publishDeepchatEvent('notification.error', {
+              title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
+              message: formattedMessage,
+              id: `mcp-error-pass1-${serverName}-${Date.now()}`,
+              type: 'error'
+            })
+          }
+          continue // Continue to next client
         }
-      } catch (error: unknown) {
-        // Log error but continue building results from other clients
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        const serverName = client.serverName || 'Unknown server'
-        console.error(
-          `Pass 2 Error: Error processing tools from server '${serverName}':`,
-          errorMessage
-        )
-        this.serverManager.setServerLastError(serverName, errorMessage)
-        // Maybe skip adding tools from this client if listTools fails here again,
-        // though it succeeded in Pass 1. Or rely on the notification from Pass 1.
-        continue // Continue to next client
+      }
+
+      // Pass 2: Build results with renaming AND populate the target map
+      for (const client of clients) {
+        try {
+          const clientTools = await awaitWithAbort(client.listTools(), options?.signal)
+          this.serverManager.clearServerLastError(client.serverName)
+          if (!clientTools) continue
+
+          const renamesForThisServer = toolsToRename.get(client.serverName) || new Set()
+
+          for (const tool of clientTools) {
+            let finalName = tool.name
+            let finalDescription = tool.description
+            const originalName = tool.name
+
+            if (renamesForThisServer.has(originalName)) {
+              finalName = `${client.serverName}_${originalName}`
+              finalDescription = `[${client.serverName}] ${tool.description}`
+            }
+
+            // Validate the final name against the allowed pattern
+            const namePattern = /^[a-zA-Z0-9_-]+$/
+            if (!namePattern.test(finalName)) {
+              console.error(
+                `Generated tool name '${finalName}' is invalid. Skipping tool '${originalName}' from server '${client.serverName}'. Please ensure the tool name matches the allowed pattern: /^[a-zA-Z0-9_-]+$/`
+              )
+              continue // Skip adding this tool
+            }
+
+            const properties = tool.inputSchema.properties || {}
+            const toolProperties = { ...properties }
+            for (const key in toolProperties) {
+              if (!toolProperties[key].description) {
+                toolProperties[key].description = 'Params of ' + key
+              }
+            }
+
+            results.push({
+              type: 'function',
+              function: {
+                name: finalName,
+                description: finalDescription,
+                parameters: {
+                  type: 'object',
+                  properties: toolProperties,
+                  required: Array.isArray(tool.inputSchema.required)
+                    ? tool.inputSchema.required
+                    : []
+                }
+              },
+              server: {
+                name: client.serverName,
+                icons: client.serverConfig.icons as string,
+                description: client.serverConfig.descriptions as string
+              }
+            })
+
+            // Populate the target map
+            nextToolNameToTargetMap.set(finalName, {
+              client,
+              originalName
+            })
+          }
+        } catch (error: unknown) {
+          if (options?.signal?.aborted) throw error
+          // Log error but continue building results from other clients
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          const serverName = client.serverName || 'Unknown server'
+          console.error(
+            `Pass 2 Error: Error processing tools from server '${serverName}':`,
+            errorMessage
+          )
+          this.serverManager.setServerLastError(serverName, errorMessage)
+          // Maybe skip adding tools from this client if listTools fails here again,
+          // though it succeeded in Pass 1. Or rely on the notification from Pass 1.
+          continue // Continue to next client
+        }
+      }
+
+      // Cache results and return
+      options?.signal?.throwIfAborted()
+      if (refreshGeneration !== this.toolDefinitionsCacheGeneration) {
+        if (this.activeToolDefinitionsRefresh === refresh) {
+          this.activeToolDefinitionsRefresh = null
+        }
+        return await this.getAllToolDefinitions(access, options)
+      }
+      this.cachedToolDefinitions = results
+      this.toolNameToTargetMap = nextToolNameToTargetMap
+      console.info(`Cached ${results.length} final tool definitions and populated target map.`)
+
+      return this.filterToolDefinitionsByContext(this.cachedToolDefinitions, context)
+    } finally {
+      refresh.settle()
+      if (this.activeToolDefinitionsRefresh === refresh) {
+        this.activeToolDefinitionsRefresh = null
       }
     }
-
-    // Cache results and return
-    this.cachedToolDefinitions = results
-    console.info(`Cached ${results.length} final tool definitions and populated target map.`)
-
-    return this.filterToolDefinitionsByContext(this.cachedToolDefinitions, context)
   }
 
   private filterToolDefinitionsByContext(
@@ -460,7 +519,9 @@ export class ToolManager {
    */
   async preCheckToolPermission(
     toolCall: MCPToolCall,
-    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'> & {
+      signal?: AbortSignal
+    }
   ): Promise<{
     needsPermission: true
     toolName: string
@@ -477,10 +538,15 @@ export class ToolManager {
       baseCommand?: string
     }
   } | null> {
+    access?.signal?.throwIfAborted()
     const finalName = toolCall.function.name
 
     // Ensure definitions and map are loaded/cached
-    await this.getAllToolDefinitions()
+    await awaitWithAbort(
+      this.getAllToolDefinitions(undefined, { signal: access?.signal }),
+      access?.signal
+    )
+    access?.signal?.throwIfAborted()
 
     if (!this.toolNameToTargetMap) {
       console.error('[ToolManager] Tool target map is not available for permission check.')
@@ -498,7 +564,8 @@ export class ToolManager {
     const toolServerName = targetInfo.client.serverName
 
     // Get server config to check auto-approve settings
-    const servers = await this.configPresenter.getMcpServers()
+    const servers = await awaitWithAbort(this.configPresenter.getMcpServers(), access?.signal)
+    access?.signal?.throwIfAborted()
     const serverConfig = servers[toolServerName]
     const accessContext = normalizeToolAccessContext({
       agentId: access?.agentId,
@@ -542,9 +609,12 @@ export class ToolManager {
 
   async callTool(
     toolCall: MCPToolCall,
-    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'>
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'> & {
+      signal?: AbortSignal
+    }
   ): Promise<MCPToolResponse> {
     try {
+      access?.signal?.throwIfAborted()
       const finalName = toolCall.function.name
       const argsString = toolCall.function.arguments
 
@@ -556,7 +626,11 @@ export class ToolManager {
       })
 
       // Ensure definitions and map are loaded/cached
-      await this.getAllToolDefinitions()
+      await awaitWithAbort(
+        this.getAllToolDefinitions(undefined, { signal: access?.signal }),
+        access?.signal
+      )
+      access?.signal?.throwIfAborted()
 
       if (!this.toolNameToTargetMap) {
         console.error('Tool target map is not available.')
@@ -592,12 +666,19 @@ export class ToolManager {
       // ACP agent-level MCP access control resolves from session context, not global chat mode.
       if (shouldResolveAcpContext && toolCall.conversationId) {
         try {
-          const acpContext = await this.resolveAcpSessionContext(toolCall.conversationId)
+          const acpContext = await awaitWithAbort(
+            this.resolveAcpSessionContext(toolCall.conversationId),
+            access?.signal
+          )
           if (acpContext?.providerId === 'acp' && acpContext.agentId) {
-            const acpAgents = await this.configPresenter.getAcpAgents()
+            const acpAgents = await awaitWithAbort(
+              this.configPresenter.getAcpAgents(),
+              access?.signal
+            )
             if (acpAgents.some((item) => item.id === acpContext.agentId)) {
-              const selections = await this.configPresenter.getAgentMcpSelections(
-                acpContext.agentId
+              const selections = await awaitWithAbort(
+                this.configPresenter.getAgentMcpSelections(acpContext.agentId),
+                access?.signal
               )
               if (!selections?.length || !selections.includes(toolServerName)) {
                 return {
@@ -609,12 +690,14 @@ export class ToolManager {
             }
           }
         } catch (error) {
+          if (access?.signal?.aborted || isAbortError(error)) throw error
           console.warn(
             '[ToolManager] Failed to resolve ACP agent context for MCP access control:',
             error
           )
         }
       }
+      access?.signal?.throwIfAborted()
 
       // Log the call details including original name
       console.info('[MCP] ToolManager calling tool', {
@@ -644,7 +727,8 @@ export class ToolManager {
       }
 
       // Get server configuration
-      const servers = await this.configPresenter.getMcpServers()
+      const servers = await awaitWithAbort(this.configPresenter.getMcpServers(), access?.signal)
+      access?.signal?.throwIfAborted()
       const serverConfig = servers[toolServerName]
       if (!serverConfig) {
         console.error(`Configuration for server '${toolServerName}' not found.`)
@@ -709,8 +793,10 @@ export class ToolManager {
         targetClient,
         serverConfig,
         originalName,
-        args || {}
+        args || {},
+        access?.signal
       )
+      access?.signal?.throwIfAborted()
       if (!preparedArgs.ok) {
         return {
           toolCallId: toolCall.id,
@@ -720,7 +806,10 @@ export class ToolManager {
       }
 
       // Call the tool on the target client using the ORIGINAL name
-      const result = await targetClient.callTool(originalName, preparedArgs.args)
+      const result = access?.signal
+        ? await targetClient.callTool(originalName, preparedArgs.args, { signal: access.signal })
+        : await targetClient.callTool(originalName, preparedArgs.args)
+      access?.signal?.throwIfAborted()
 
       // Format response
       let formattedContent: string | MCPContentItem[] = ''
@@ -757,6 +846,10 @@ export class ToolManager {
 
       return response
     } catch (error: unknown) {
+      if (access?.signal?.aborted || isAbortError(error)) {
+        throw error
+      }
+
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('Unhandled error during tool call:', error)
       return {
@@ -771,7 +864,8 @@ export class ToolManager {
     client: McpClient,
     serverConfig: MCPServerConfig,
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
     if (
       toolName !== 'launch_app' ||
@@ -781,12 +875,13 @@ export class ToolManager {
       return { ok: true, args }
     }
 
-    return await this.prepareCuaWindowsLaunchArgs(client, args)
+    return await this.prepareCuaWindowsLaunchArgs(client, args, signal)
   }
 
   private async prepareCuaWindowsLaunchArgs(
     client: McpClient,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
     const normalizedArgs = { ...args }
     const bundleId = this.readStringArg(normalizedArgs.bundle_id)
@@ -818,7 +913,7 @@ export class ToolManager {
       return { ok: true, args: normalizedArgs }
     }
 
-    const apps = await this.listCuaWindowsApps(client)
+    const apps = await this.listCuaWindowsApps(client, signal)
     if (!apps) {
       return {
         ok: false,
@@ -850,13 +945,19 @@ export class ToolManager {
   }
 
   private async listCuaWindowsApps(
-    client: McpClient
+    client: McpClient,
+    signal?: AbortSignal
   ): Promise<Array<Record<string, unknown>> | null> {
     try {
-      const result = (await client.callTool('list_apps', {})) as {
+      const result = (
+        signal
+          ? await client.callTool('list_apps', {}, { signal })
+          : await client.callTool('list_apps', {})
+      ) as {
         structuredContent?: unknown
         content?: unknown
       }
+      signal?.throwIfAborted()
       const structured = result.structuredContent
       if (
         structured &&
@@ -871,6 +972,7 @@ export class ToolManager {
         return parsed.apps as Array<Record<string, unknown>>
       }
     } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
       console.warn('[MCP] Failed to preflight CUA Windows launch target:', error)
     }
     return null

@@ -13,7 +13,6 @@ import type {
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
-  IAgentSessionPresenter,
   IFilePresenter,
   ITabPresenter,
   IWindowPresenter
@@ -48,6 +47,12 @@ import {
 } from './remoteBlockRenderer'
 import { RemoteBindingStore } from './remoteBindingStore'
 import { collectPendingInteraction } from './remoteInteraction'
+import type {
+  RemoteSessionAssignmentPort,
+  RemoteSessionLifecyclePort,
+  RemoteSessionProjectionPort,
+  RemoteSessionTurnPort
+} from '../interface'
 
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
@@ -425,7 +430,10 @@ export type RemoteOpenSessionResult =
 
 type RemoteConversationRunnerDeps = {
   configPresenter: IConfigPresenter
-  agentSessionPresenter: IAgentSessionPresenter
+  lifecycle: RemoteSessionLifecyclePort
+  turn: RemoteSessionTurnPort
+  assignment: RemoteSessionAssignmentPort
+  projection: RemoteSessionProjectionPort
   filePresenter?: IFilePresenter
   agentManager: AgentManagerGenerationPort
   windowPresenter: IWindowPresenter
@@ -459,7 +467,7 @@ export class RemoteConversationRunner {
       throw new Error('ACP remote agent requires a channel default directory.')
     }
 
-    const session = await this.deps.agentSessionPresenter.createDetachedSession({
+    const session = await this.deps.lifecycle.createDetachedSession({
       title: title?.trim() || 'New Chat',
       agentId,
       ...(projectDir ? { projectDir } : {}),
@@ -485,7 +493,7 @@ export class RemoteConversationRunner {
       return null
     }
 
-    const session = await this.deps.agentSessionPresenter.getSession(binding.sessionId)
+    const session = await this.deps.projection.getSession(binding.sessionId)
     if (!session) {
       this.bindingStore.clearBinding(endpointKey)
       return null
@@ -517,7 +525,7 @@ export class RemoteConversationRunner {
 
   async listSessions(endpointKey: string): Promise<SessionWithState[]> {
     const agentId = await this.resolveSessionListAgentId(endpointKey)
-    const sessions = await this.deps.agentSessionPresenter.getSessionList({
+    const sessions = await this.deps.projection.listSessions({
       agentId
     })
     const sorted = [...sessions]
@@ -545,7 +553,7 @@ export class RemoteConversationRunner {
       throw new Error('Session index is out of range.')
     }
 
-    const session = await this.deps.agentSessionPresenter.getSession(sessionId)
+    const session = await this.deps.projection.getSession(sessionId)
     if (!session) {
       throw new Error('Selected session no longer exists.')
     }
@@ -587,7 +595,7 @@ export class RemoteConversationRunner {
       throw new Error('No bound session. Send a message, /new, or /use first.')
     }
 
-    return await this.deps.agentSessionPresenter.setSessionModel(session.id, providerId, modelId)
+    return await this.deps.assignment.setSessionModel(session.id, providerId, modelId)
   }
 
   async listAvailableAgents(): Promise<TelegramAgentOption[]> {
@@ -661,7 +669,7 @@ export class RemoteConversationRunner {
     const session = await this.ensureBoundSession(endpointKey, bindingMeta, {
       requireCurrentDefaultAgent: true
     })
-    const beforeMessages = await this.deps.agentSessionPresenter.getMessages(session.id)
+    const beforeMessages = await this.deps.projection.getMessages(session.id)
     const lastOrderSeq = beforeMessages.at(-1)?.orderSeq ?? 0
     const previousActiveEventId =
       this.deps.agentManager.getActiveGeneration(toAppSessionId(session.id))?.eventId ?? null
@@ -675,7 +683,7 @@ export class RemoteConversationRunner {
     const text = input.text.trim() || (files.length > 0 ? 'Please use the attached files.' : '')
     const messageInput: string | SendMessageInput = files.length > 0 ? { text, files } : text
 
-    await this.deps.agentSessionPresenter.sendMessage(session.id, messageInput)
+    await this.deps.turn.sendMessage(session.id, messageInput)
 
     const seededMessage = await this.waitForAssistantMessage(session.id, lastOrderSeq, 800, {
       ignoreMessageId: previousActiveEventId
@@ -723,7 +731,7 @@ export class RemoteConversationRunner {
       throw new Error('No pending interaction was found.')
     }
 
-    const result = await this.deps.agentSessionPresenter.respondToolInteraction(
+    const result = await this.deps.turn.respondToolInteraction(
       session.id,
       interaction.messageId,
       interaction.toolCallId,
@@ -789,7 +797,7 @@ export class RemoteConversationRunner {
       }
     }
 
-    await this.deps.agentSessionPresenter.activateSession(window.webContents.id, session.id)
+    await this.deps.projection.activate(window.webContents.id, session.id)
     this.deps.windowPresenter.show(window.id, true)
     return {
       status: 'ok',
@@ -1092,7 +1100,7 @@ export class RemoteConversationRunner {
       ignoreMessageId: string | null
     }
   ): Promise<RemoteConversationSnapshot> {
-    const session = await this.deps.agentSessionPresenter.getSession(sessionId)
+    const session = await this.deps.projection.getSession(sessionId)
     if (!session) {
       this.bindingStore.clearBinding(endpointKey)
       return {
@@ -1204,12 +1212,8 @@ export class RemoteConversationRunner {
   }
 
   private async loadSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
-    if (typeof this.deps.agentSessionPresenter.getSearchResults !== 'function') {
-      return []
-    }
-
     try {
-      return await this.deps.agentSessionPresenter.getSearchResults(messageId, searchId)
+      return await this.deps.projection.getSearchResults(messageId, searchId)
     } catch (error) {
       console.warn('[RemoteConversationRunner] Failed to load search results:', {
         messageId,
@@ -1313,7 +1317,7 @@ export class RemoteConversationRunner {
     while (Date.now() < deadline) {
       const activeGeneration = this.deps.agentManager.getActiveGeneration(toAppSessionId(sessionId))
       if (activeGeneration?.eventId && activeGeneration.eventId !== options?.ignoreMessageId) {
-        const message = await this.deps.agentSessionPresenter.getMessage(activeGeneration.eventId)
+        const message = await this.deps.projection.getMessage(activeGeneration.eventId)
         if (message?.role === 'assistant') {
           return message
         }
@@ -1349,7 +1353,7 @@ export class RemoteConversationRunner {
         continue
       }
 
-      const message = await this.deps.agentSessionPresenter.getMessage(messageId)
+      const message = await this.deps.projection.getMessage(messageId)
       if (message?.role === 'assistant') {
         return message
       }
@@ -1367,7 +1371,7 @@ export class RemoteConversationRunner {
     afterOrderSeq: number,
     ignoreMessageId?: string | null
   ): Promise<ChatMessageRecord | null> {
-    const messages = await this.deps.agentSessionPresenter.getMessages(sessionId)
+    const messages = await this.deps.projection.getMessages(sessionId)
     const assistants = messages.filter(
       (message) =>
         message.role === 'assistant' &&
@@ -1400,7 +1404,7 @@ export class RemoteConversationRunner {
   private async getCurrentPendingInteractionDetails(
     sessionId: string
   ): Promise<PendingInteractionDetails | null> {
-    const messages = await this.deps.agentSessionPresenter.getMessages(sessionId)
+    const messages = await this.deps.projection.getMessages(sessionId)
     const assistants = [...messages]
       .filter((message) => message.role === 'assistant')
       .sort((left, right) => right.orderSeq - left.orderSeq)

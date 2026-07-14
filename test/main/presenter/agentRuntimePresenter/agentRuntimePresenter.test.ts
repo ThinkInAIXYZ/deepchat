@@ -253,6 +253,7 @@ function createMockSqlitePresenter() {
   const deepchatMessagesTable = {
     insert: vi.fn(),
     updateContent: vi.fn(),
+    updateMetadata: vi.fn(),
     updateStatus: vi.fn(),
     incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
@@ -1757,7 +1758,7 @@ describe('AgentRuntimePresenter', () => {
         's1',
         'openai',
         'gpt-4',
-        'full_access',
+        'default',
         expect.objectContaining({
           systemPrompt: 'You are a helpful assistant.',
           temperature: 0.7,
@@ -1771,7 +1772,7 @@ describe('AgentRuntimePresenter', () => {
         status: 'idle',
         providerId: 'openai',
         modelId: 'gpt-4',
-        permissionMode: 'full_access'
+        permissionMode: 'default'
       })
     })
 
@@ -1779,14 +1780,14 @@ describe('AgentRuntimePresenter', () => {
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
-        permissionMode: 'default'
+        permissionMode: 'full_access'
       })
 
       expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
         's1',
         'openai',
         'gpt-4',
-        'default',
+        'full_access',
         expect.objectContaining({
           systemPrompt: 'You are a helpful assistant.',
           temperature: 0.7,
@@ -1796,7 +1797,7 @@ describe('AgentRuntimePresenter', () => {
       )
 
       const state = await agent.getSessionState('s1')
-      expect(state?.permissionMode).toBe('default')
+      expect(state?.permissionMode).toBe('full_access')
     })
   })
 
@@ -1822,6 +1823,25 @@ describe('AgentRuntimePresenter', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access'
       })
+    })
+
+    it('projects pending interactions without caching a generating runtime state', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'full_access'
+      })
+      const hasPendingInteractions = vi
+        .spyOn(agent as any, 'hasPendingInteractions')
+        .mockReturnValue(true)
+
+      await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'generating' })
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
+
+      hasPendingInteractions.mockReturnValue(false)
+      await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'idle' })
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
     })
 
     it('returns null for unknown session', async () => {
@@ -4368,6 +4388,23 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('does not publish generation settings when persistence fails', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const previousSettings = instance.getGenerationSettings()
+      const invalidateSystemPromptCache = vi.spyOn(instance, 'invalidateSystemPromptCache')
+      sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+
+      await expect(
+        agent.updateGenerationSettings('s1', { systemPrompt: 'uncommitted prompt' })
+      ).rejects.toThrow('write failed')
+
+      expect(instance.getGenerationSettings()).toEqual(previousSettings)
+      expect(invalidateSystemPromptCache).not.toHaveBeenCalled()
+    })
+
     it('keeps image generation settings for OpenAI-compatible providers', async () => {
       configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'aihubmix' && modelId === 'gpt-image-2') {
@@ -4416,7 +4453,7 @@ describe('AgentRuntimePresenter', () => {
         's1',
         'aihubmix',
         'gpt-image-2',
-        'full_access',
+        'default',
         expect.objectContaining({
           imageGeneration: {
             size: '1024x1024',
@@ -4521,7 +4558,7 @@ describe('AgentRuntimePresenter', () => {
         's1',
         'openai',
         'gpt-4',
-        'full_access',
+        'default',
         expect.objectContaining({
           forceInterleavedThinkingCompat: true
         })
@@ -5019,6 +5056,63 @@ describe('AgentRuntimePresenter', () => {
       })
     })
 
+    it('publishes a model switch only after its transaction commits', async () => {
+      const transaction = vi.fn((fn: () => unknown) => () => fn())
+      sqlitePresenter.getDatabase.mockReturnValue({ transaction })
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const previousState = { ...getRuntimeState(agent, 's1') }
+      const previousSettings = instance.getGenerationSettings()
+      const invalidateSystemPromptCache = vi.spyOn(instance, 'invalidateSystemPromptCache')
+      const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
+      sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+
+      await expect(agent.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')).rejects.toThrow(
+        'write failed'
+      )
+
+      expect(transaction).toHaveBeenCalledOnce()
+      expect(getRuntimeState(agent, 's1')).toEqual(previousState)
+      expect(instance.getGenerationSettings()).toEqual(previousSettings)
+      expect(invalidateSystemPromptCache).not.toHaveBeenCalled()
+      expect(invalidateToolProfileCache).not.toHaveBeenCalled()
+    })
+
+    it('does not publish agent context when its transaction fails', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const previousState = { ...getRuntimeState(agent, 's1') }
+      const previousSettings = instance.getGenerationSettings()
+      const invalidateSystemPromptCache = vi.spyOn(instance, 'invalidateSystemPromptCache')
+      const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
+      sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+
+      await expect(
+        agent.setSessionAgentContext('s1', {
+          agentId: 'other-agent',
+          providerId: 'anthropic',
+          modelId: 'claude-3-5-sonnet',
+          projectDir: '/private/project',
+          permissionMode: 'full_access'
+        })
+      ).rejects.toThrow('write failed')
+
+      expect(getRuntimeState(agent, 's1')).toEqual(previousState)
+      expect(instance.getAgentId()).toBe('deepchat')
+      expect(instance.getProjectDir()).toBeNull()
+      expect(instance.getGenerationSettings()).toEqual(previousSettings)
+      expect(invalidateSystemPromptCache).not.toHaveBeenCalled()
+      expect(invalidateToolProfileCache).not.toHaveBeenCalled()
+    })
+
     it('drops unsupported reasoning and verbosity settings when switching models', async () => {
       configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'openai' && modelId === 'gpt-4o-mini') {
@@ -5136,12 +5230,181 @@ describe('AgentRuntimePresenter', () => {
       expect(state!.status).toBe('idle')
     })
 
-    it('finalizes the active assistant message on stop', async () => {
+    it.each([
+      {
+        interactionKind: 'question',
+        toolCallId: 'tc-question',
+        actionBlock: {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: 2,
+          content: 'Continue?',
+          tool_call: { id: 'tc-question', name: 'ask_question', params: '{}' },
+          extra: {
+            needsUserAction: true,
+            questionText: 'Continue?',
+            questionOptions: [{ label: 'Yes' }]
+          }
+        }
+      },
+      {
+        interactionKind: 'permission',
+        toolCallId: 'tc-permission',
+        actionBlock: {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          timestamp: 2,
+          content: 'Allow file write?',
+          tool_call: { id: 'tc-permission', name: 'write_file', params: '{}' },
+          extra: {
+            needsUserAction: true,
+            permissionType: 'write',
+            toolName: 'write_file',
+            serverName: 'agent-filesystem',
+            permissionRequest: JSON.stringify({
+              permissionType: 'write',
+              description: 'Allow file write?',
+              toolName: 'write_file',
+              serverName: 'agent-filesystem',
+              paths: ['output.txt']
+            })
+          }
+        }
+      }
+    ])(
+      'settles a paused $interactionKind interaction when generation is canceled',
+      async ({ interactionKind, toolCallId, actionBlock }) => {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        const expectedUsage = {
+          inputTokens: 7,
+          outputTokens: 5,
+          totalTokens: 12,
+          cachedInputTokens: 2,
+          cacheWriteInputTokens: 1
+        }
+        const accumulatedMetadata = {
+          runId: `paused-${interactionKind}-run`,
+          provider: 'openai',
+          model: 'gpt-4',
+          ...expectedUsage,
+          providerRounds: 3,
+          toolCalls: 4,
+          runOutcome: 'paused',
+          runStopReason: 'interaction'
+        }
+        const blocks: AssistantMessageBlock[] = [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: {
+              id: toolCallId,
+              name: actionBlock.tool_call.name,
+              params: '{}',
+              response: ''
+            }
+          },
+          actionBlock as AssistantMessageBlock
+        ]
+        const row: any = {
+          id: `paused-${interactionKind}-message`,
+          session_id: 's1',
+          order_seq: 2,
+          role: 'assistant',
+          content: JSON.stringify(blocks),
+          status: 'pending',
+          is_context_edge: 0,
+          metadata: JSON.stringify(accumulatedMetadata),
+          created_at: 1,
+          updated_at: 1
+        }
+        sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+          id === row.id ? row : undefined
+        )
+        sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mockImplementation(
+          (id: string, content: string, status: string, metadata?: string) => {
+            if (id !== row.id) return
+            row.content = content
+            row.status = status
+            if (metadata !== undefined) row.metadata = metadata
+          }
+        )
+
+        const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+        expect((agent as any).refreshPendingInteractionsFromStore('s1')).toBe(true)
+        expect(instance?.getPendingInteractions()).toHaveLength(1)
+        getRuntimeState(agent, 's1').status = 'generating'
+
+        await agent.cancelGeneration('s1')
+
+        const errorWrite =
+          sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+            (call) => call[0] === row.id && call[2] === 'error'
+          )
+        expect(errorWrite).toBeDefined()
+        const canceledBlocks = JSON.parse(errorWrite?.[1] ?? '[]')
+        expect(canceledBlocks.slice(0, 2)).toEqual([
+          expect.objectContaining({ type: 'tool_call', status: 'error' }),
+          expect.objectContaining({ type: 'action', status: 'error' })
+        ])
+        expect(canceledBlocks.at(-1)).toEqual(
+          expect.objectContaining({
+            type: 'error',
+            status: 'error',
+            content: 'common.error.userCanceledGeneration'
+          })
+        )
+        expect(JSON.parse(errorWrite?.[3] ?? '{}')).toMatchObject({
+          ...accumulatedMetadata,
+          runOutcome: 'aborted',
+          runStopReason: 'user_stop'
+        })
+        expect(instance?.getPendingInteractions()).toEqual([])
+        expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+
+        const stopCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
+          (call: any[]) => call[0] === 'Stop'
+        )
+        const sessionEndCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
+          (call: any[]) => call[0] === 'SessionEnd'
+        )
+        expect(stopCalls).toHaveLength(1)
+        expect(stopCalls[0][1]).toMatchObject({
+          conversationId: 's1',
+          stop: { reason: 'user_stop', userStop: true }
+        })
+        expect(sessionEndCalls).toHaveLength(1)
+        expect(sessionEndCalls[0][1]).toMatchObject({
+          conversationId: 's1',
+          usage: expectedUsage,
+          error: { message: 'common.error.userCanceledGeneration' }
+        })
+      }
+    )
+
+    it('does not duplicate stream-owned assistant finalization on stop', async () => {
       let resolveRun: ((value: any) => void) | null = null
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        () =>
+        (params: any) =>
           new Promise((resolve) => {
-            resolveRun = resolve
+            resolveRun = (value) => {
+              params.io.messageStore.setMessageError(
+                params.run.messageId,
+                [
+                  {
+                    type: 'error',
+                    content: 'common.error.userCanceledGeneration',
+                    status: 'error',
+                    timestamp: Date.now()
+                  }
+                ],
+                JSON.stringify({ runOutcome: 'aborted', runStopReason: 'user_stop' })
+              )
+              resolve(value)
+            }
           })
       )
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
@@ -5169,6 +5432,7 @@ describe('AgentRuntimePresenter', () => {
       })
       await processPromise
 
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledTimes(1)
       const [messageId, contentJson, status] =
         sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
       expect(messageId).toBe('mock-msg-id')
@@ -6784,6 +7048,34 @@ describe('AgentRuntimePresenter', () => {
       expect(getRuntimeState(agent, 's1').status).toBe('idle')
     })
 
+    it('cancels manual compaction while tool definitions are still loading', async () => {
+      const toolDefinitions = deferred<[]>()
+      const prepareForManualCompaction = vi.spyOn(
+        (agent as any).compactionService,
+        'prepareForManualCompaction'
+      )
+      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+        async () => await toolDefinitions.promise
+      )
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+
+      const compaction = agent.compactSession('s1')
+      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1))
+
+      await agent.cancelGeneration('s1')
+
+      await expect(compaction).rejects.toMatchObject({ name: 'AbortError' })
+      expect(prepareForManualCompaction).not.toHaveBeenCalled()
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
+    })
+
     it('does not let stale manual compaction reset replacement instance resources', async () => {
       const preparation = deferred<null>()
       vi.spyOn(
@@ -7007,8 +7299,9 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
     })
 
-    it('treats aborted compaction signals as cancellation even for non-abort errors', async () => {
+    it('normalizes a late compaction failure to AbortError after cancellation', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       sqlitePresenter.deepchatMessagesTable.delete.mockClear()
 
       const abortController = new AbortController()
@@ -7038,9 +7331,14 @@ describe('AgentRuntimePresenter', () => {
           },
           { signal: abortController.signal }
         )
-      ).rejects.toThrow('late failure')
+      ).rejects.toMatchObject({ name: 'AbortError' })
 
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+      expect(instance.getCompactionState()).toEqual({
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
       expectPublished('sessions.compaction.changed', {
         sessionId: 's1',
         status: 'idle',
@@ -7283,6 +7581,7 @@ describe('AgentRuntimePresenter', () => {
       orderSeq?: number
       status?: 'pending' | 'sent' | 'error'
       blocks?: unknown[]
+      metadata?: Record<string, unknown>
     }) => {
       const row = {
         id: overrides?.id ?? 'm1',
@@ -7292,7 +7591,7 @@ describe('AgentRuntimePresenter', () => {
         content: JSON.stringify(overrides?.blocks ?? []),
         status: overrides?.status ?? 'pending',
         is_context_edge: 0,
-        metadata: '{}',
+        metadata: JSON.stringify(overrides?.metadata ?? {}),
         created_at: Date.now(),
         updated_at: Date.now()
       }
@@ -7301,6 +7600,29 @@ describe('AgentRuntimePresenter', () => {
       )
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
       return row
+    }
+
+    const registerActiveInteractionRun = (
+      messageId: string,
+      blocks: AssistantMessageBlock[],
+      runId = `run-${messageId}`
+    ) => {
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const abortController = new AbortController()
+      const streamState = createState()
+      streamState.blocks = structuredClone(blocks)
+      const run = createLoopRun({
+        runId,
+        sessionId: toAppSessionId('s1'),
+        messageId,
+        abortController,
+        messages: [],
+        streamState,
+        resources: { toolDefinitions: [], activeSkillNames: [] }
+      })
+      instance.registerActiveGeneration(run)
+      getRuntimeState(agent, 's1').status = 'generating'
+      return { instance, run, abortController, streamState }
     }
 
     it('assembles resume context after compaction and preserves base-only round refresh', async () => {
@@ -7674,6 +7996,24 @@ describe('AgentRuntimePresenter', () => {
           timestamp: expect.any(Number)
         }
       ])
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('cancels resume while tool definitions are still loading', async () => {
+      const toolDefinitions = deferred<[]>()
+      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+        async () => await toolDefinitions.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({ blocks: [] })
+
+      const resume = (agent as any).resumeAssistantMessage('s1', 'm1', []) as Promise<boolean>
+      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1))
+
+      await agent.cancelGeneration('s1')
+
+      await expect(resume).resolves.toBe(false)
+      expect(processStream).not.toHaveBeenCalled()
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
@@ -8500,6 +8840,68 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
 
+    it('rejects deferred permission execution at the global tool-call cap', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        metadata: { toolCalls: 128 },
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                paths: ['a.txt']
+              })
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: true
+      })
+
+      expect(result).toEqual({ resumed: true })
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(
+        (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].initialAccounting
+      ).toEqual(expect.objectContaining({ toolCalls: 128 }))
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.at(-1)[1]
+      )
+      expect(updatedBlocks[0]).toEqual(
+        expect.objectContaining({
+          status: 'error',
+          tool_call: expect.objectContaining({
+            response: 'Tool call was not executed because the maximum tool-call limit was reached.'
+          })
+        })
+      )
+      expect(
+        sqlitePresenter.deepchatMessagesTable.updateMetadata.mock.calls.every(
+          ([, metadata]: [string, string]) => JSON.parse(metadata).toolCalls <= 128
+        )
+      ).toBe(true)
+    })
+
     it('fails loudly when a confirmed permission grant has no session permission port', async () => {
       const skillPresenter = getSkillPresenterMock()
       const agentWithoutPermissionPort = new AgentRuntimePresenter(
@@ -8850,7 +9252,7 @@ describe('AgentRuntimePresenter', () => {
 
     it('handles ACP permission grant through live provider resolver without deferred tool resume', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
-      makeAssistantRow({
+      const row = makeAssistantRow({
         blocks: [
           {
             type: 'tool_call',
@@ -8883,7 +9285,10 @@ describe('AgentRuntimePresenter', () => {
         ]
       })
 
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const { instance } = registerActiveInteractionRun(
+        'm1',
+        JSON.parse(row.content) as AssistantMessageBlock[]
+      )
       instance.registerActiveProviderPermission({
         requestId: 'acp-req-1',
         messageId: 'm1',
@@ -8949,6 +9354,8 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
       expect(instance.hasActiveProviderPermission('acp-req-1')).toBe(false)
+      expect(instance.getActiveGeneration()?.messageId).toBe('m1')
+      expect(getRuntimeState(agent, 's1').status).toBe('generating')
     })
 
     it('cancels only the target session live ACP permission resolvers', async () => {
@@ -8980,9 +9387,9 @@ describe('AgentRuntimePresenter', () => {
       expect(second.hasActiveProviderPermission('acp-req-2')).toBe(true)
     })
 
-    it('falls back to direct ACP permission resolve when live resolver is missing', async () => {
+    it('keeps a healthy matching run active when direct ACP permission resolve succeeds', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
-      makeAssistantRow({
+      const row = makeAssistantRow({
         blocks: [
           {
             type: 'tool_call',
@@ -9014,6 +9421,10 @@ describe('AgentRuntimePresenter', () => {
           }
         ]
       })
+      const { instance, streamState } = registerActiveInteractionRun(
+        'm1',
+        JSON.parse(row.content) as AssistantMessageBlock[]
+      )
 
       const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'permission',
@@ -9030,9 +9441,338 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].status).toBe('denied')
       expect(updatedBlocks[1].content).toBe('User denied the request.')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+      expect(streamState.blocks[1]).toEqual(
+        expect.objectContaining({
+          status: 'denied',
+          extra: expect.objectContaining({ needsUserAction: false })
+        })
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
+        'm1',
+        'pending'
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+      expect(instance.getActiveGeneration()?.messageId).toBe('m1')
+      expect(getRuntimeState(agent, 's1').status).toBe('generating')
+      expect(
+        hookDispatcher.dispatchEvent.mock.calls.filter(
+          ([event]) => event === 'Stop' || event === 'SessionEnd'
+        )
+      ).toHaveLength(0)
     })
 
-    it('clears stale ACP permission modals when the provider request no longer exists', async () => {
+    it('leaves settlement to an already-aborted matching ACP run', async () => {
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      const row = makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              providerId: 'acp',
+              permissionRequestId: 'acp-aborted-req',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'Need permission',
+                providerId: 'acp',
+                requestId: 'acp-aborted-req'
+              })
+            }
+          }
+        ]
+      })
+      const { instance, abortController } = registerActiveInteractionRun(
+        'm1',
+        JSON.parse(row.content) as AssistantMessageBlock[]
+      )
+      abortController.abort()
+
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+      ).resolves.toEqual({ resumed: false })
+
+      expect(llmProvider.resolveAgentPermission).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+      expect(instance.getActiveGeneration()?.runId).toBe('run-m1')
+      expect(
+        hookDispatcher.dispatchEvent.mock.calls.filter(
+          ([event]) => event === 'Stop' || event === 'SessionEnd'
+        )
+      ).toHaveLength(0)
+    })
+
+    it('fails an orphaned ACP permission closed without overwriting a newer run', async () => {
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      makeAssistantRow({
+        metadata: {
+          runId: 'old-run',
+          runOutcome: 'paused',
+          runStopReason: 'interaction',
+          inputTokens: 7,
+          outputTokens: 5,
+          totalTokens: 12
+        },
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              providerId: 'acp',
+              permissionRequestId: 'acp-orphan-req',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'Need permission',
+                providerId: 'acp',
+                requestId: 'acp-orphan-req'
+              })
+            }
+          }
+        ]
+      })
+      const { instance, abortController } = registerActiveInteractionRun(
+        'new-message',
+        [],
+        'new-run'
+      )
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: true
+      })
+
+      expect(result).toEqual({ resumed: false })
+      expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-orphan-req', false)
+      const errorWrite =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+          (call) => call[0] === 'm1' && call[2] === 'error'
+        )
+      expect(errorWrite).toBeDefined()
+      const terminalBlocks = JSON.parse(errorWrite?.[1] ?? '[]')
+      expect(terminalBlocks[0]).toEqual(
+        expect.objectContaining({
+          status: 'error',
+          tool_call: expect.objectContaining({
+            response: 'ACP permission request lost its active generation.'
+          })
+        })
+      )
+      expect(terminalBlocks[1]).toEqual(
+        expect.objectContaining({
+          status: 'error',
+          content: 'ACP permission request lost its active generation.',
+          extra: expect.objectContaining({ needsUserAction: false })
+        })
+      )
+      expect(JSON.parse(errorWrite?.[3] ?? '{}')).toEqual(
+        expect.objectContaining({
+          runId: 'old-run',
+          runOutcome: 'error',
+          runStopReason: 'provider_error',
+          totalTokens: 12
+        })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'Stop',
+        expect.objectContaining({
+          stop: expect.objectContaining({ reason: 'provider_error', userStop: false })
+        })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'SessionEnd',
+        expect.objectContaining({
+          usage: expect.objectContaining({ inputTokens: 7, outputTokens: 5, totalTokens: 12 }),
+          error: expect.objectContaining({
+            message: 'ACP permission request lost its active generation.'
+          })
+        })
+      )
+      expect(instance.getActiveGeneration()?.runId).toBe('new-run')
+      expect(instance.getAbortController()).toBe(abortController)
+      expect(abortController.signal.aborted).toBe(false)
+      expect(getRuntimeState(agent, 's1').status).toBe('generating')
+    })
+
+    it('does not overwrite an aborted orphan when ACP permission resolution arrives late', async () => {
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      const permissionResolution = deferred<void>()
+      llmProvider.resolveAgentPermission.mockReturnValueOnce(permissionResolution.promise)
+      makeAssistantRow({
+        metadata: {
+          runId: 'orphan-run',
+          inputTokens: 4,
+          outputTokens: 3,
+          totalTokens: 7,
+          runOutcome: 'paused',
+          runStopReason: 'interaction'
+        },
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc-late', name: 'Terminal', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc-late', name: 'Terminal', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              providerId: 'acp',
+              permissionRequestId: 'acp-late-req',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'Need permission',
+                providerId: 'acp',
+                requestId: 'acp-late-req'
+              })
+            }
+          }
+        ]
+      })
+
+      const response = agent.respondToolInteraction('s1', 'm1', 'tc-late', {
+        kind: 'permission',
+        granted: true
+      })
+      await vi.waitFor(() =>
+        expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-late-req', false)
+      )
+
+      await agent.cancelGeneration('s1')
+      await expect(response).resolves.toEqual({ resumed: false })
+
+      permissionResolution.resolve()
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      const terminalWrites =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.filter(
+          (call) => call[0] === 'm1' && call[2] === 'error'
+        )
+      expect(terminalWrites).toHaveLength(1)
+      expect(JSON.parse(terminalWrites[0][3])).toEqual(
+        expect.objectContaining({
+          runId: 'orphan-run',
+          runOutcome: 'aborted',
+          runStopReason: 'user_stop',
+          totalTokens: 7
+        })
+      )
+      expect(
+        hookDispatcher.dispatchEvent.mock.calls.filter(([event]) => event === 'Stop')
+      ).toHaveLength(1)
+      expect(
+        hookDispatcher.dispatchEvent.mock.calls.filter(([event]) => event === 'SessionEnd')
+      ).toHaveLength(1)
+      expect(getRuntimeState(agent, 's1').status).toBe('idle')
+    })
+
+    it('does not resolve a same-id ACP permission owned by another interaction', async () => {
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc-old', name: 'Terminal', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Old permission',
+            tool_call: { id: 'tc-old', name: 'Terminal', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              providerId: 'acp',
+              permissionRequestId: 'acp-shared-req',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'Old permission',
+                providerId: 'acp',
+                requestId: 'acp-shared-req'
+              })
+            }
+          }
+        ]
+      })
+      const { instance, abortController } = registerActiveInteractionRun(
+        'new-message',
+        [],
+        'new-run'
+      )
+      const resolveNewPermission = vi.fn().mockResolvedValue(undefined)
+      instance.registerActiveProviderPermission({
+        requestId: 'acp-shared-req',
+        messageId: 'new-message',
+        toolCallId: 'tc-new',
+        providerId: 'acp',
+        permissionType: 'command',
+        resolve: resolveNewPermission
+      })
+
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc-old', {
+          kind: 'permission',
+          granted: true
+        })
+      ).resolves.toEqual({ resumed: false })
+
+      expect(resolveNewPermission).not.toHaveBeenCalled()
+      expect(llmProvider.resolveAgentPermission).not.toHaveBeenCalled()
+      expect(instance.hasActiveProviderPermission('acp-shared-req')).toBe(true)
+      expect(instance.getActiveGeneration()?.runId).toBe('new-run')
+      expect(instance.getAbortController()).toBe(abortController)
+      expect(abortController.signal.aborted).toBe(false)
+      expect(getRuntimeState(agent, 's1').status).toBe('generating')
+      const errorWrite =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+          (call) => call[0] === 'm1' && call[2] === 'error'
+        )
+      expect(errorWrite).toBeDefined()
+      expect(JSON.parse(errorWrite?.[3] ?? '{}')).toEqual(
+        expect.objectContaining({
+          runOutcome: 'error',
+          runStopReason: 'provider_error'
+        })
+      )
+    })
+
+    it('terminalizes a stale unowned ACP permission as provider_error', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
       getRuntimeState(agent, 's1').status = 'generating'
       llmProvider.resolveAgentPermission.mockRejectedValueOnce(
@@ -9077,17 +9817,27 @@ describe('AgentRuntimePresenter', () => {
       })
 
       expect(result).toEqual({ resumed: false })
-      expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-stale-req', true)
+      expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-stale-req', false)
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
       expect(processStream).not.toHaveBeenCalled()
-      const updatedBlocks = JSON.parse(
-        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
-      )
-      expect(updatedBlocks[1].status).toBe('denied')
+      const errorWrite =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+          (call) => call[0] === 'm1' && call[2] === 'error'
+        )
+      expect(errorWrite).toBeDefined()
+      const updatedBlocks = JSON.parse(errorWrite?.[1] ?? '[]')
+      expect(updatedBlocks[0].status).toBe('error')
+      expect(updatedBlocks[0].tool_call.response).toBe('Permission request expired.')
+      expect(updatedBlocks[1].status).toBe('error')
       expect(updatedBlocks[1].content).toBe('Permission request expired.')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
-      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m1', 'sent')
-      expect(getRuntimeState(agent, 's1').status).toBe('idle')
+      expect(JSON.parse(errorWrite?.[3] ?? '{}')).toEqual(
+        expect.objectContaining({
+          runOutcome: 'error',
+          runStopReason: 'provider_error'
+        })
+      )
+      expect(getRuntimeState(agent, 's1').status).toBe('error')
     })
   })
 
@@ -9116,6 +9866,20 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('does not publish permission mode when persistence fails', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+      sqlitePresenter.deepchatSessionsTable.updatePermissionMode.mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+
+      await expect(agent.setPermissionMode('s1', 'default')).rejects.toThrow('write failed')
+      expect(getRuntimeState(agent, 's1').permissionMode).toBe('full_access')
+    })
+
     it('getPermissionMode falls back to db session row', async () => {
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',
@@ -9126,6 +9890,17 @@ describe('AgentRuntimePresenter', () => {
 
       const mode = await agent.getPermissionMode('s2')
       expect(mode).toBe('default')
+    })
+
+    it('normalizes an unknown persisted permission mode to default', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's2',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'unknown'
+      })
+
+      await expect(agent.getPermissionMode('s2')).resolves.toBe('default')
     })
 
     it('falls back to ask_user when auto-review returns invalid JSON', async () => {
@@ -9190,6 +9965,50 @@ describe('AgentRuntimePresenter', () => {
         expect.objectContaining({
           decision: 'ask_user',
           rationale: 'Auto-review action hash mismatch.'
+        })
+      )
+    })
+
+    it.each([
+      ['missing', undefined],
+      ['invalid', 'unknown']
+    ])('falls back to ask_user when auto-review risk level is %s', async (_label, riskLevel) => {
+      llmProvider.generateCompletionStandalone.mockImplementationOnce(
+        async (_provider, messages) => {
+          const prompt = String(messages[1]?.content ?? '')
+          const actionHash = prompt.match(/"actionHash": "([^"]+)"/)?.[1] ?? ''
+          return JSON.stringify({
+            actionHash,
+            decision: 'auto_allow',
+            riskLevel,
+            userAuthorization: 'high',
+            rationale: 'safe'
+          })
+        }
+      )
+
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'read',
+          toolArgs: '{"path":"/tmp/a.txt"}',
+          toolSource: 'agent',
+          reason: 'tool_call'
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          messages: [{ role: 'user', content: 'read /tmp/a.txt' }],
+          signal: new AbortController().signal
+        }
+      )
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          decision: 'ask_user',
+          rationale: 'Auto-review returned an invalid risk level.'
         })
       )
     })
@@ -9338,6 +10157,37 @@ describe('AgentRuntimePresenter', () => {
           responseText: "Tool 'exec' is disabled for the current session."
         })
       )
+    })
+
+    it('returns a deferred tool-local AbortError as a tool failure while the run is active', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'echo',
+            description: 'Echo tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test-server', icons: '', description: '' }
+        }
+      ])
+      const timeoutError = new Error('Model request timed out')
+      timeoutError.name = 'AbortError'
+      toolPresenter.callTool.mockRejectedValueOnce(timeoutError)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'echo',
+        params: '{}'
+      })
+
+      expect(result).toEqual({
+        responseText: 'Error: Model request timed out',
+        isError: true,
+        invoked: true
+      })
     })
 
     it('returns image previews from deferred tool execution', async () => {
@@ -9632,12 +10482,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.cancelGeneration('s1')
 
       expect(capturedSignal?.aborted).toBe(true)
-      await expect(executionPromise).resolves.toEqual(
-        expect.objectContaining({
-          isError: true,
-          responseText: 'Error: Aborted'
-        })
-      )
+      await expect(executionPromise).rejects.toMatchObject({ name: 'AbortError' })
       expect(
         agent.deepChatRuntime
           .getHydrated(toAppSessionId('s1'))

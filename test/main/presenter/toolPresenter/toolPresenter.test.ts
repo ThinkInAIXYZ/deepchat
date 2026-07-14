@@ -656,6 +656,106 @@ describe('ToolPresenter', () => {
     )
   })
 
+  it('forwards cancellation and stored access context to MCP permission pre-checks', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi
+        .fn()
+        .mockResolvedValue([buildToolDefinition('mcp_only', 'server-a')]),
+      callTool: vi.fn(),
+      preCheckToolPermission: vi.fn().mockResolvedValue(null)
+    } as any
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+    const abortController = new AbortController()
+    await toolPresenter.getAllToolDefinitions({
+      agentId: 'agent-1',
+      enabledMcpServerIds: ['server-a'],
+      chatMode: 'agent',
+      conversationId: 'session-1'
+    })
+    const request = {
+      id: 'permission-1',
+      type: 'function' as const,
+      function: { name: 'mcp_only', arguments: '{}' },
+      conversationId: 'session-1'
+    }
+
+    await toolPresenter.preCheckToolPermission(request, {
+      permissionMode: 'default',
+      signal: abortController.signal
+    })
+
+    expect(mcpPresenter.preCheckToolPermission).toHaveBeenCalledWith(request, {
+      agentId: 'agent-1',
+      enabledServerIds: ['server-a'],
+      signal: abortController.signal
+    })
+  })
+
+  it('observes a late agent permission failure after pre-check synchronously cancels', async () => {
+    let rejectPermission!: (reason?: unknown) => void
+    const permission = new Promise<never>((_, reject) => {
+      rejectPermission = reject
+    })
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+    const abortController = new AbortController()
+    const lateError = new Error('late permission failure')
+    const unhandled = vi.fn()
+    await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'permission-cancel-session'
+    })
+    const agentToolManager = (toolPresenter as any).agentToolManager
+    agentToolManager.preCheckToolPermission = vi.fn().mockImplementation(() => {
+      abortController.abort()
+      return permission
+    })
+
+    await expect(
+      toolPresenter.preCheckToolPermission(
+        {
+          id: 'permission-sync-cancel',
+          type: 'function',
+          function: { name: UPDATE_PLAN_TOOL_NAME, arguments: '{}' },
+          conversationId: 'permission-cancel-session'
+        },
+        { signal: abortController.signal }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(agentToolManager.preCheckToolPermission).toHaveBeenCalledTimes(1)
+
+    process.on('unhandledRejection', unhandled)
+    try {
+      rejectPermission(lateError)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
   it('preserves unrestricted MCP policy in stored conversation context', async () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi
@@ -675,6 +775,7 @@ describe('ToolPresenter', () => {
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
+    const abortController = new AbortController()
 
     await toolPresenter.getAllToolDefinitions({
       agentId: 'agent-1',
@@ -683,24 +784,28 @@ describe('ToolPresenter', () => {
       conversationId: 'session-unrestricted'
     })
 
-    await toolPresenter.callTool({
-      id: 'tool-1',
-      type: 'function',
-      function: {
-        name: 'mcp_only',
-        arguments: '{}'
-      },
-      server: {
-        name: 'open-server'
-      },
-      conversationId: 'session-unrestricted'
-    } as any)
+    await toolPresenter.callTool(
+      {
+        id: 'tool-1',
+        type: 'function',
+        function: {
+          name: 'mcp_only',
+          arguments: '{}'
+        },
+        server: {
+          name: 'open-server'
+        },
+        conversationId: 'session-unrestricted'
+      } as any,
+      { signal: abortController.signal }
+    )
 
     expect(mcpPresenter.callTool).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: 'session-unrestricted' }),
       expect.objectContaining({
         agentId: 'agent-1',
-        enabledServerIds: undefined
+        enabledServerIds: undefined,
+        signal: abortController.signal
       })
     )
   })

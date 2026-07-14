@@ -1,7 +1,7 @@
 # Session Boundary Cleanup
 
-> Status: approved for implementation  
-> Base: `dev@28e2a0e92`  
+> Status: implemented and merged in PR #1957
+> Base: `dev@28e2a0e92`
 > Branch: `codex/session-boundary-cleanup`
 
 ## Context

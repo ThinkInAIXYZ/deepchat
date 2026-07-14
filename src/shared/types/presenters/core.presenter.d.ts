@@ -1792,6 +1792,7 @@ export interface IMCPPresenter {
   preCheckToolPermission?(
     request: MCPToolCall,
     options?: {
+      signal?: AbortSignal
       agentId?: string
       enabledServerIds?: string[]
     }

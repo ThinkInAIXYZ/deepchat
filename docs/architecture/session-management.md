@@ -1,13 +1,15 @@
 # 会话管理架构详解
 
-当前会话管理分成四个明确边界：
+当前会话管理分成五个明确边界：
 
 - app-session shell：`AppSessionService` 管理 `new_sessions`、window binding 和 shared CRUD；
+- application coordination：四个 `sessionApplication` coordinator 分别拥有 Lifecycle、Turn、
+  AgentAssignment 和 Projection 不变量；
 - agent execution routing：`AgentManager` 按 executable descriptor kind 返回 typed handle；
 - route/application owners：typed session routes 直接组合 search、translation、export、usage、RTK 与 agent
   catalog owner；
-- core session façade：`AgentSessionPresenter` 只保留 session lifecycle、turn、assignment 与 shared
-  projection 编排。
+- compatibility forwarding：`AgentSessionPresenter` 保留尚未退休的 public surface，并把 core session 方法
+  转发到四个 coordinator，不拥有 application behavior。
 
 `SessionPresenter` 是旧 conversations/messages 的 compatibility/data façade，不在当前 agent execution
 链路中。
@@ -16,7 +18,8 @@
 
 | 组件 | 位置 | 当前职责 |
 | --- | --- | --- |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | core session façade；CRUD、draft、title、turn、transfer/subagent 与 shared projection |
+| Session application coordinators | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection application invariants |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | core session public compatibility forwarding；不拥有 application behavior |
 | Session route owners | `src/main/routes/sessions/` | history search、translation 与 typed route orchestration |
 | Session export | `src/main/presenter/exporter/agentSessionExporter.ts` | current agent-session export mapping and format dispatch |
 | Startup/maintenance owners | `src/main/presenter/startupMigrations/`, `usageStatsService.ts` | legacy import、session-data migrations、usage backfill/dashboard；RTK 由其 runtime service 自有 |
@@ -35,22 +38,22 @@
 ```mermaid
 sequenceDiagram
     participant R as Renderer
-    participant F as AgentSessionPresenter
+    participant SS as SessionService / ChatService
+    participant L as Lifecycle / Turn
+    participant A as Assignment / Projection
     participant S as AppSessionService
     participant M as AgentManager
     participant B as Typed Backend Handle
 
-    R->>F: createSession(input)
-    F->>M: resolveBackend(agentId)
-    M-->>F: strict descriptor + backend
-    F->>S: create app-session row
-    F->>B: initialize effective config/workdir
-    F->>S: bindWindow()
-    R->>F: sendMessage(sessionId)
-    F->>M: resolveSessionHandle(sessionId)
+    R->>SS: sessions.create / chat.sendMessage
+    SS->>L: createSession / sendMessage
+    L->>A: resolve assignment / update projection
+    L->>M: resolve backend or session handle
+    M-->>L: strict descriptor + typed handle
+    L->>S: create/update app-session row
+    L->>B: initialize or send
+    A->>S: bind/materialize/notify
     M->>S: read current agentId
-    M-->>F: DeepChatSessionHandle or DirectAcpSessionHandle
-    F->>B: send(input)
 ```
 
 `new_sessions.session_kind` 只表示 `regular | subagent`。DeepChat/ACP routing 只来自当前
@@ -98,7 +101,7 @@ manager cleanup both backend caches without hydration
   -> delete app-session row
 ```
 
-façade 最后调用 `AppSessionService.delete()` 才删除 `new_sessions` row；因此即使 backend close 已完成，app
+Lifecycle deletion transaction 最后调用 `AppSessionService.delete()` 才删除 `new_sessions` row；因此即使 backend close 已完成，app
 session shell 仍存在，直到 full delete 明确提交。这允许 missing/disabled/malformed agent row 的旧 session
 仍可删除。ACP -> DeepChat transfer 先完成 target validation和 ownership commit，再关闭旧 direct ACP
 runtime；ACP target 在 mutation 前拒绝。DeepChat +
@@ -108,8 +111,10 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 
 - Subagent 与普通 session 共享 app/message schema，用 `sessionKind`、`parentSessionId`、`subagentMeta`
   区分；child backend 仍由 manager 选择，父 session 通过 Tape merge/discard 接收结果。
-- Remote active-generation lookup/cancel 使用 `AgentManagerGenerationPort`，不扫描 presenter runtime maps。
-- Cron 每次执行创建 detached app session，再通过 façade/manager handle send；Remote delivery 只是通知。
+- Remote 通过四个 consumer-owned session ports 调用 coordinator；active-generation lookup/cancel 仍使用
+  `AgentManagerGenerationPort`，不扫描 presenter runtime maps。
+- Cron 的 composition-owned starter 通过 Lifecycle 创建 detached app session、通过 Turn send/cancel；
+  Remote delivery 只是通知，route runtime 不参与 starter 接线。
 
 ## `SessionPresenter` compatibility
 
@@ -121,8 +126,10 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 - tab/window close compatibility；
 - exporter 的旧消息格式化。
 
-当前 session create/send/cancel/tool interaction 从 `AgentSessionPresenter -> AgentManager -> typed backend`
-开始追踪；DeepChat state/loop 看 `agent/deepchat`，direct ACP 看 `agent/acp/instance`。
+当前 session create/send/cancel/tool interaction 从 `SessionService/ChatService -> sessionApplication
+coordinator -> AgentManager -> typed backend` 开始追踪。兼容调用可能先进入 `AgentSessionPresenter`，但其
+core session methods 只转发到同一 coordinator 实例。DeepChat state/loop 看 `agent/deepchat`，direct ACP
+看 `agent/acp/instance`。
 
 旧聊天数据导入由 `presenter/startupMigrations/legacyChatImportService.ts` 拥有；当前 agent-session export
 由 `presenter/exporter/agentSessionExporter.ts` 拥有。两者都不属于 `AgentSessionPresenter`。

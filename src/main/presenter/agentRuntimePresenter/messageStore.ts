@@ -214,9 +214,21 @@ export class DeepChatMessageStore {
     return messageId
   }
 
-  updateAssistantContent(messageId: string, blocks: AssistantMessageBlock[]): void {
+  updateAssistantContent(
+    messageId: string,
+    blocks: AssistantMessageBlock[],
+    metadata?: string
+  ): void {
     this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
     this.sqlitePresenter.deepchatMessagesTable.updateStatus(messageId, 'pending')
+    if (metadata !== undefined) {
+      this.updateAssistantMetadata(messageId, metadata)
+    }
+  }
+
+  updateAssistantMetadata(messageId: string, metadata: string): void {
+    this.sqlitePresenter.deepchatMessagesTable.updateMetadata(messageId, metadata)
+    this.persistUsageStats(messageId, metadata, 'live')
   }
 
   updateMessageStatus(messageId: string, status: 'pending' | 'sent' | 'error'): void {

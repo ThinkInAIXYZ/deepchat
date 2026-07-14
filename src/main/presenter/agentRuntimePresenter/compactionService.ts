@@ -9,6 +9,7 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { DeepChatMessageStore } from './messageStore'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
   DeepChatSessionStore,
   ReconstructionAnchorPromptState,
@@ -335,7 +336,10 @@ export class CompactionService {
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
-    const settings = await this.getCompactionSettings(params.sessionId)
+    const settings = await awaitWithAbort(
+      this.getCompactionSettings(params.sessionId),
+      params.signal
+    )
     throwIfAbortRequested(params.signal)
     if (!settings.enabled) {
       return null
@@ -380,7 +384,10 @@ export class CompactionService {
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
-    const settings = await this.getCompactionSettings(params.sessionId)
+    const settings = await awaitWithAbort(
+      this.getCompactionSettings(params.sessionId),
+      params.signal
+    )
     throwIfAbortRequested(params.signal)
     if (!settings.enabled) {
       return null
@@ -431,7 +438,10 @@ export class CompactionService {
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
-    const settings = await this.getCompactionSettings(params.sessionId)
+    const settings = await awaitWithAbort(
+      this.getCompactionSettings(params.sessionId),
+      params.signal
+    )
     throwIfAbortRequested(params.signal)
     if (!settings.enabled) {
       return null
@@ -502,6 +512,7 @@ export class CompactionService {
         reserveTokens: intent.reserveTokens,
         signal
       })
+      throwIfAbortRequested(signal)
       const summaryUpdatedAt = Date.now()
 
       const updatedState: SessionSummaryState = {
@@ -758,7 +769,10 @@ export class CompactionService {
   }): Promise<string> {
     throwIfAbortRequested(params.signal)
     const currentModel = params.currentModel
-    const assistantModel = await this.getAssistantModelSpec(params.sessionId, currentModel)
+    const assistantModel = await awaitWithAbort(
+      this.getAssistantModelSpec(params.sessionId, currentModel),
+      params.signal
+    )
     throwIfAbortRequested(params.signal)
     const previousSummaryTokens = approximateTokenSize(params.previousSummary || '')
     const blockTokens = params.summaryBlocks.reduce(
@@ -982,13 +996,17 @@ export class CompactionService {
       await this.llmProviderPresenter.executeWithRateLimit(model.providerId)
     }
     throwIfAbortRequested(signal)
-    const response = await this.llmProviderPresenter.generateText(
-      model.providerId,
-      prompt,
-      model.modelId,
-      0.2,
-      this.getSummaryOutputTokens(reserveTokens)
+    const response = await awaitWithAbort(
+      this.llmProviderPresenter.generateText(
+        model.providerId,
+        prompt,
+        model.modelId,
+        0.2,
+        this.getSummaryOutputTokens(reserveTokens)
+      ),
+      signal
     )
+    throwIfAbortRequested(signal)
     const summary = sanitizeSummaryContent(response.content || '')
     if (!summary) {
       throw new Error('Compaction summary generation returned empty content.')

@@ -167,7 +167,7 @@ describe('DeepChatAgentRuntime', () => {
     await expect(first.waitForFirstTurnReady()).resolves.toBe(true)
   })
 
-  it('owns pre-stream and active generation state without stale-run clears', () => {
+  it('reuses an owned preparation controller for the active generation', () => {
     const runtime = new DeepChatAgentRuntime(() => createDelegate())
     const instance = runtime.getOrHydrate(toAppSessionId('session'))
     const controller = new AbortController()
@@ -178,12 +178,45 @@ describe('DeepChatAgentRuntime', () => {
     const run = createRun('session', 'run-1', 'message-1', controller)
     const generation = instance.registerActiveGeneration(run)
     expect(generation).toBe(run)
+    expect(controller.signal.aborted).toBe(false)
     expect(instance.getActiveGeneration()).toBe(generation)
     expect(instance.clearActiveGeneration('stale-run')).toBe(false)
     expect(instance.isActiveRun('run-1')).toBe(true)
     expect(instance.clearActiveGeneration('run-1')).toBe(true)
     expect(instance.getActiveGeneration()).toBeUndefined()
     expect(instance.getAbortController()).toBeUndefined()
+  })
+
+  it('aborts the previous active generation before replacing it', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const instance = runtime.getOrHydrate(toAppSessionId('session'))
+    const firstController = new AbortController()
+    const replacementController = new AbortController()
+    const replacement = createRun('session', 'run-2', 'message-2', replacementController)
+
+    instance.registerActiveGeneration(createRun('session', 'run-1', 'message-1', firstController))
+    instance.registerActiveGeneration(replacement)
+
+    expect(firstController.signal.aborted).toBe(true)
+    expect(replacementController.signal.aborted).toBe(false)
+    expect(instance.getActiveGeneration()).toBe(replacement)
+    expect(instance.getAbortController()).toBe(replacementController)
+  })
+
+  it('aborts an owned preparation controller when a different active run replaces it', () => {
+    const runtime = new DeepChatAgentRuntime(() => createDelegate())
+    const instance = runtime.getOrHydrate(toAppSessionId('session'))
+    const preparationController = new AbortController()
+    const activeController = new AbortController()
+    const run = createRun('session', 'run-1', 'message-1', activeController)
+
+    instance.setAbortController(preparationController)
+    instance.registerActiveGeneration(run)
+
+    expect(preparationController.signal.aborted).toBe(true)
+    expect(activeController.signal.aborted).toBe(false)
+    expect(instance.getActiveGeneration()).toBe(run)
+    expect(instance.getAbortController()).toBe(activeController)
   })
 
   it('aborts pre-stream work immediately but retains an active run until settlement', () => {

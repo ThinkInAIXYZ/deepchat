@@ -136,6 +136,7 @@ export interface ProviderAttemptStreamPort {
     maxTokens: number
     tools: MCPToolDefinition[]
   }): AsyncGenerator<LLMCoreStreamEvent>
+  assertAvailable?(): void
   beforeStream(): void
 }
 
@@ -378,6 +379,7 @@ export class DeepChatContextCoordinator {
 
     try {
       providerAttemptLoop: for (;;) {
+        input.provider.assertAvailable?.()
         const strictProviderOverflowRetry = strictProviderOverflowRetryPending
         strictProviderOverflowRetryPending = false
         const { providerMessages, providerMaxTokens } = await prepareProviderAttempt({
@@ -417,11 +419,13 @@ export class DeepChatContextCoordinator {
                 preflightContextRecoveryAttempted ||
                 input.run.providerRecovery.contextOverflowHandoffAttempted
               ) {
+                input.provider.assertAvailable?.()
                 if (!scheduleStrictProviderOverflowRetry()) {
                   throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
                 }
                 continue providerAttemptLoop
               }
+              input.provider.assertAvailable?.()
               await recoverProviderContextOverflow(providerMessages, providerMaxTokens)
               continue providerAttemptLoop
             }
@@ -445,11 +449,13 @@ export class DeepChatContextCoordinator {
               preflightContextRecoveryAttempted ||
               input.run.providerRecovery.contextOverflowHandoffAttempted
             ) {
+              input.provider.assertAvailable?.()
               if (!scheduleStrictProviderOverflowRetry()) {
                 throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
               }
               continue providerAttemptLoop
             }
+            input.provider.assertAvailable?.()
             await recoverProviderContextOverflow(providerMessages, providerMaxTokens)
             continue providerAttemptLoop
           }

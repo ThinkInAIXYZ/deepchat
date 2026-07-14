@@ -1,11 +1,12 @@
-import type { SendMessageInput } from '@shared/types/agent-interface'
 import type {
-  MessageRepository,
-  ProviderCatalogPort,
-  ProviderExecutionPort,
-  SessionPermissionPort,
-  SessionRepository
-} from '../hotPathPorts'
+  ChatMessageRecord,
+  MessageStartResult,
+  SendMessageInput,
+  SessionWithState,
+  ToolInteractionResponse,
+  ToolInteractionResult
+} from '@shared/types/agent-interface'
+import type { ProviderCatalogPort, SessionPermissionPort } from '@/presenter/runtimePorts'
 import type { Scheduler } from '../scheduler'
 
 const CHAT_LOOKUP_TIMEOUT_MS = 5_000
@@ -13,16 +14,32 @@ const CHAT_SEND_TIMEOUT_MS = 30 * 60 * 1_000
 const CHAT_STOP_TIMEOUT_MS = 5_000
 const CHAT_INTERACTION_TIMEOUT_MS = CHAT_SEND_TIMEOUT_MS
 
+export interface ChatServiceTurnPort {
+  sendMessage(sessionId: string, content: string | SendMessageInput): Promise<MessageStartResult>
+  steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
+  cancelGeneration(sessionId: string): Promise<void>
+  respondToolInteraction(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    response: ToolInteractionResponse
+  ): Promise<ToolInteractionResult>
+}
+
+export interface ChatServiceProjectionPort {
+  getSession(sessionId: string): Promise<SessionWithState | null>
+  getMessage(messageId: string): Promise<ChatMessageRecord | null>
+}
+
 export class ChatService {
   private readonly activeControllers = new Map<string, AbortController>()
 
   constructor(
     private readonly deps: {
-      sessionRepository: SessionRepository
-      messageRepository: MessageRepository
-      providerExecutionPort: ProviderExecutionPort
-      providerCatalogPort: ProviderCatalogPort
-      sessionPermissionPort: SessionPermissionPort
+      turn: ChatServiceTurnPort
+      projection: ChatServiceProjectionPort
+      providerCatalogPort: Pick<ProviderCatalogPort, 'getAgentType'>
+      sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
       scheduler: Scheduler
     }
   ) {}
@@ -44,7 +61,7 @@ export class ChatService {
 
     try {
       const session = await this.deps.scheduler.timeout({
-        task: this.deps.sessionRepository.get(sessionId),
+        task: this.deps.projection.getSession(sessionId),
         ms: CHAT_LOOKUP_TIMEOUT_MS,
         reason: `chat.sendMessage:${sessionId}:session`
       })
@@ -64,7 +81,7 @@ export class ChatService {
       }
 
       const result = await this.deps.scheduler.timeout({
-        task: this.deps.providerExecutionPort.sendMessage(sessionId, content),
+        task: this.deps.turn.sendMessage(sessionId, content),
         ms: CHAT_SEND_TIMEOUT_MS,
         reason: `chat.sendMessage:${sessionId}`,
         signal: controller.signal
@@ -79,7 +96,7 @@ export class ChatService {
       if (error instanceof Error && error.name === 'TimeoutError') {
         const cleanupResults = await Promise.allSettled([
           Promise.resolve(this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)),
-          this.deps.providerExecutionPort.cancelGeneration(sessionId)
+          this.deps.turn.cancelGeneration(sessionId)
         ])
         const clearPermissionsResult = cleanupResults[0]
         if (clearPermissionsResult?.status === 'rejected') {
@@ -109,7 +126,7 @@ export class ChatService {
     content: string | SendMessageInput
   ): Promise<{ accepted: true }> {
     const session = await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.get(sessionId),
+      task: this.deps.projection.getSession(sessionId),
       ms: CHAT_LOOKUP_TIMEOUT_MS,
       reason: `chat.steerActiveTurn:${sessionId}:session`
     })
@@ -119,7 +136,7 @@ export class ChatService {
     }
 
     await this.deps.scheduler.timeout({
-      task: this.deps.providerExecutionPort.steerActiveTurn(sessionId, content),
+      task: this.deps.turn.steerActiveTurn(sessionId, content),
       ms: CHAT_SEND_TIMEOUT_MS,
       reason: `chat.steerActiveTurn:${sessionId}`
     })
@@ -135,7 +152,7 @@ export class ChatService {
 
     if (!targetSessionId && input.requestId) {
       const message = await this.deps.scheduler.timeout({
-        task: this.deps.messageRepository.get(input.requestId),
+        task: this.deps.projection.getMessage(input.requestId),
         ms: CHAT_LOOKUP_TIMEOUT_MS,
         reason: `chat.stopStream:${input.requestId}:message`
       })
@@ -157,9 +174,7 @@ export class ChatService {
         Promise.resolve().then(() =>
           this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
         ),
-        Promise.resolve().then(() =>
-          this.deps.providerExecutionPort.cancelGeneration(targetSessionId)
-        )
+        Promise.resolve().then(() => this.deps.turn.cancelGeneration(targetSessionId))
       ]).then((results) => {
         const clearPermissionsResult = results[0]
         if (clearPermissionsResult?.status === 'rejected') {
@@ -188,7 +203,7 @@ export class ChatService {
     sessionId: string
     messageId: string
     toolCallId: string
-    response: Parameters<ProviderExecutionPort['respondToolInteraction']>[3]
+    response: ToolInteractionResponse
   }): Promise<{
     accepted: true
     resumed?: boolean
@@ -196,7 +211,7 @@ export class ChatService {
     handledInline?: boolean
   }> {
     const result = await this.deps.scheduler.timeout({
-      task: this.deps.providerExecutionPort.respondToolInteraction(
+      task: this.deps.turn.respondToolInteraction(
         input.sessionId,
         input.messageId,
         input.toolCallId,

@@ -1,6 +1,6 @@
 import { enterProviderRound, type LoopRun } from './loopRun'
 
-const MAX_TOOL_CALLS = 128
+export const MAX_TOOL_CALLS = 128
 
 export type ProviderRoundOutcome<TToolBatch, THalted> =
   | { type: 'terminal' }
@@ -20,6 +20,7 @@ export type DeepChatLoopOutcome<THalted> =
 
 export interface DeepChatLoopDependencies<TStreamState, TToolBatch, THalted> {
   maxProviderRounds?: number
+  initialExecutedToolCount?: number
   consumeProviderRound(input: {
     run: LoopRun<TStreamState>
     providerRound: number
@@ -74,7 +75,11 @@ export class DeepChatLoopEngine {
       Number.isInteger(dependencies.maxProviderRounds) && dependencies.maxProviderRounds! > 0
         ? dependencies.maxProviderRounds!
         : Number.POSITIVE_INFINITY
-    let executedToolCount = 0
+    let executedToolCount =
+      Number.isInteger(dependencies.initialExecutedToolCount) &&
+      dependencies.initialExecutedToolCount! > 0
+        ? dependencies.initialExecutedToolCount!
+        : 0
 
     while (true) {
       const providerRound = enterProviderRound(run)

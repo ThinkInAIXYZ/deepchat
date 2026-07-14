@@ -8,20 +8,68 @@ import { AgentManager } from '@/agent/manager/agentManager'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { RemoteConversationRunner } from '@/presenter/remoteControlPresenter/services/remoteConversationRunner'
+import type {
+  RemoteSessionAssignmentPort,
+  RemoteSessionLifecyclePort,
+  RemoteSessionProjectionPort,
+  RemoteSessionTurnPort
+} from '@/presenter/remoteControlPresenter/interface'
+import type { SessionWithState } from '@shared/types/agent-interface'
 
-const createSession = (overrides: Record<string, unknown> = {}) => ({
+const createSession = (overrides: Partial<SessionWithState> = {}): SessionWithState => ({
   id: 'session-1',
   agentId: 'deepchat',
   title: 'Remote Session',
   projectDir: null,
   isPinned: false,
   isDraft: false,
+  sessionKind: 'regular',
+  subagentEnabled: false,
   createdAt: 1,
   updatedAt: 1,
   status: 'idle',
   providerId: 'openai',
   modelId: 'gpt-5',
   ...overrides
+})
+
+type RemoteSessionPorts = {
+  lifecycle: RemoteSessionLifecyclePort
+  turn: RemoteSessionTurnPort
+  assignment: RemoteSessionAssignmentPort
+  projection: RemoteSessionProjectionPort
+}
+
+const createRemoteSessionPorts = (
+  overrides: {
+    lifecycle?: Partial<RemoteSessionLifecyclePort>
+    turn?: Partial<RemoteSessionTurnPort>
+    assignment?: Partial<RemoteSessionAssignmentPort>
+    projection?: Partial<RemoteSessionProjectionPort>
+  } = {}
+): RemoteSessionPorts => ({
+  lifecycle: {
+    createDetachedSession: vi.fn(async () => createSession()),
+    ...overrides.lifecycle
+  },
+  turn: {
+    sendMessage: vi.fn(async () => ({ requestId: null, messageId: null })),
+    respondToolInteraction: vi.fn(async () => ({})),
+    ...overrides.turn
+  },
+  assignment: {
+    setSessionModel: vi.fn(async () => createSession()),
+    ...overrides.assignment
+  },
+  projection: {
+    getSession: vi.fn(async () => null),
+    listSessions: vi.fn(async () => []),
+    getMessages: vi.fn(async () => []),
+    getMessage: vi.fn(async () => null),
+    getSearchResults: vi.fn(async () => []),
+    activate: vi.fn(async () => undefined),
+    ...overrides.projection
+  }
 })
 
 const createConfigPresenter = (overrides: Record<string, unknown> = {}) => ({
@@ -82,16 +130,18 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(
-            createSession({
-              agentId: descriptor.id,
-              providerId: 'acp',
-              modelId: descriptor.id,
-              status: 'generating'
-            })
-          )
-        } as any,
+        ...createRemoteSessionPorts({
+          projection: {
+            getSession: vi.fn().mockResolvedValue(
+              createSession({
+                agentId: descriptor.id,
+                providerId: 'acp',
+                modelId: descriptor.id,
+                status: 'generating'
+              })
+            )
+          }
+        }),
         agentManager: manager,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -113,11 +163,13 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          createDetachedSession: vi
-            .fn()
-            .mockResolvedValue(createSession({ agentId: 'deepchat-alt' }))
-        } as any,
+        ...createRemoteSessionPorts({
+          lifecycle: {
+            createDetachedSession: vi
+              .fn()
+              .mockResolvedValue(createSession({ agentId: 'deepchat-alt' }))
+          }
+        }),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -133,29 +185,31 @@ describe('RemoteConversationRunner', () => {
   })
 
   it('creates a new bound session after the default agent changes', async () => {
-    const agentSessionPresenter = {
-      createDetachedSession: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-new',
-          agentId: 'deepchat-new'
+    const sessionPorts = createRemoteSessionPorts({
+      lifecycle: {
+        createDetachedSession: vi.fn().mockResolvedValue(
+          createSession({
+            id: 'session-new',
+            agentId: 'deepchat-new'
+          })
+        )
+      },
+      projection: {
+        getSession: vi.fn().mockResolvedValue(
+          createSession({
+            id: 'session-legacy',
+            agentId: 'deepchat-legacy'
+          })
+        ),
+        getMessage: vi.fn().mockResolvedValue({
+          id: 'msg-1',
+          role: 'assistant',
+          content: 'hello from legacy',
+          status: 'success',
+          orderSeq: 2
         })
-      ),
-      getSession: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-legacy',
-          agentId: 'deepchat-legacy'
-        })
-      ),
-      getMessages: vi.fn().mockResolvedValue([]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue({
-        id: 'msg-1',
-        role: 'assistant',
-        content: 'hello from legacy',
-        status: 'success',
-        orderSeq: 2
-      })
-    }
+      }
+    })
     const bindingStore = {
       getBinding: vi.fn().mockReturnValue({
         sessionId: 'session-legacy',
@@ -175,7 +229,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: agentManager as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -187,8 +241,8 @@ describe('RemoteConversationRunner', () => {
     const execution = await runner.sendText('telegram:100:0', 'hello')
 
     expect(execution.sessionId).toBe('session-new')
-    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-new', 'hello')
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith({
+    expect(sessionPorts.turn.sendMessage).toHaveBeenCalledWith('session-new', 'hello')
+    expect(sessionPorts.lifecycle.createDetachedSession).toHaveBeenCalledWith({
       title: 'New Chat',
       agentId: 'deepchat-new'
     })
@@ -207,12 +261,11 @@ describe('RemoteConversationRunner', () => {
       id: 'session-bound',
       projectDir: workspace
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi.fn().mockResolvedValue([]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(null)
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session)
+      }
+    })
     const filePresenter = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         ...preparedFile,
@@ -223,7 +276,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         filePresenter: filePresenter as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
@@ -262,7 +315,7 @@ describe('RemoteConversationRunner', () => {
     expect(preparedPath).toContain('telegram-message-1')
     expect(path.basename(preparedPath)).toBe('note-1.txt')
     await expect(fs.readFile(preparedPath, 'utf8')).resolves.toBe('hello file')
-    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {
+    expect(sessionPorts.turn.sendMessage).toHaveBeenCalledWith('session-bound', {
       text: 'read this',
       files: [
         expect.objectContaining({
@@ -284,12 +337,11 @@ describe('RemoteConversationRunner', () => {
       id: 'session-bound',
       projectDir: workspace
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi.fn().mockResolvedValue([]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(null)
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session)
+      }
+    })
     const filePresenter = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         name: path.basename(filePath),
@@ -305,7 +357,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         filePresenter: filePresenter as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
@@ -353,7 +405,7 @@ describe('RemoteConversationRunner', () => {
     await expect(fs.readFile(firstPath, 'utf8')).resolves.toBe('first file')
     await expect(fs.readFile(secondPath, 'utf8')).resolves.toBe('second file')
 
-    const sentInput = agentSessionPresenter.sendMessage.mock.calls[0][1] as {
+    const sentInput = vi.mocked(sessionPorts.turn.sendMessage).mock.calls[0][1] as {
       files: Array<{
         name: string
         path: string
@@ -385,12 +437,11 @@ describe('RemoteConversationRunner', () => {
       id: 'session-bound',
       projectDir: workspace
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi.fn().mockResolvedValue([]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(null)
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session)
+      }
+    })
     const filePresenter = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         ...preparedFile,
@@ -401,7 +452,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         filePresenter: filePresenter as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
@@ -451,7 +502,7 @@ describe('RemoteConversationRunner', () => {
       expect(preparedPath).toContain('telegram-message-2')
       expect(path.basename(preparedPath)).toBe('note-1.txt')
       await expect(fs.readFile(preparedPath, 'utf8')).resolves.toBe('hello file')
-      expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {
+      expect(sessionPorts.turn.sendMessage).toHaveBeenCalledWith('session-bound', {
         text: 'read this',
         files: [
           expect.objectContaining({
@@ -478,16 +529,15 @@ describe('RemoteConversationRunner', () => {
       id: 'session-bound',
       projectDir: workspace
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi.fn().mockResolvedValue([]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(null)
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session)
+      }
+    })
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -526,7 +576,7 @@ describe('RemoteConversationRunner', () => {
           ]
         })
       ).rejects.toThrow('All attachments failed validation/download.')
-      expect(agentSessionPresenter.sendMessage).not.toHaveBeenCalled()
+      expect(sessionPorts.turn.sendMessage).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledTimes(2)
     } finally {
       warnSpy.mockRestore()
@@ -558,12 +608,11 @@ describe('RemoteConversationRunner', () => {
       id: 'session-bound',
       projectDir: workspace
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi.fn().mockResolvedValue([]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(null)
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session)
+      }
+    })
     const filePresenter = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         ...preparedFile,
@@ -574,7 +623,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         filePresenter: filePresenter as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
@@ -621,7 +670,7 @@ describe('RemoteConversationRunner', () => {
       }
     )
     await expect(fs.readFile(preparedPath)).resolves.toEqual(plainContent)
-    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {
+    expect(sessionPorts.turn.sendMessage).toHaveBeenCalledWith('session-bound', {
       text: 'read this image',
       files: [
         expect.objectContaining({
@@ -745,17 +794,17 @@ describe('RemoteConversationRunner', () => {
       id: 'session-bound',
       projectDir: workspace
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(assistantMessage),
-      getSearchResults: vi.fn().mockResolvedValue([])
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session),
+        getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
+        getMessage: vi.fn().mockResolvedValue(assistantMessage)
+      }
+    })
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -840,17 +889,17 @@ describe('RemoteConversationRunner', () => {
       id: 'session-bound',
       projectDir: null
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(assistantMessage),
-      getSearchResults: vi.fn().mockResolvedValue([])
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session),
+        getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
+        getMessage: vi.fn().mockResolvedValue(assistantMessage)
+      }
+    })
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -887,26 +936,28 @@ describe('RemoteConversationRunner', () => {
   })
 
   it('lists recent sessions for the currently bound agent before falling back to default agent', async () => {
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-bound',
-          agentId: 'deepchat-bound'
-        })
-      ),
-      getSessionList: vi.fn().mockResolvedValue([
-        createSession({
-          id: 'session-a',
-          agentId: 'deepchat-bound',
-          updatedAt: 5
-        }),
-        createSession({
-          id: 'session-b',
-          agentId: 'deepchat-bound',
-          updatedAt: 10
-        })
-      ])
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(
+          createSession({
+            id: 'session-bound',
+            agentId: 'deepchat-bound'
+          })
+        ),
+        listSessions: vi.fn().mockResolvedValue([
+          createSession({
+            id: 'session-a',
+            agentId: 'deepchat-bound',
+            updatedAt: 5
+          }),
+          createSession({
+            id: 'session-b',
+            agentId: 'deepchat-bound',
+            updatedAt: 10
+          })
+        ])
+      }
+    })
     const bindingStore = {
       getBinding: vi.fn().mockReturnValue({
         sessionId: 'session-bound',
@@ -917,7 +968,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -928,7 +979,7 @@ describe('RemoteConversationRunner', () => {
 
     const sessions = await runner.listSessions('telegram:100:0')
 
-    expect(agentSessionPresenter.getSessionList).toHaveBeenCalledWith({
+    expect(sessionPorts.projection.listSessions).toHaveBeenCalledWith({
       agentId: 'deepchat-bound'
     })
     expect(sessions.map((session) => session.id)).toEqual(['session-b', 'session-a'])
@@ -939,26 +990,30 @@ describe('RemoteConversationRunner', () => {
   })
 
   it('delegates remote model switching to the bound session', async () => {
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-bound',
-          agentId: 'deepchat-bound'
-        })
-      ),
-      setSessionModel: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-bound',
-          agentId: 'deepchat-bound',
-          providerId: 'anthropic',
-          modelId: 'claude-3-5-sonnet'
-        })
-      )
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(
+          createSession({
+            id: 'session-bound',
+            agentId: 'deepchat-bound'
+          })
+        )
+      },
+      assignment: {
+        setSessionModel: vi.fn().mockResolvedValue(
+          createSession({
+            id: 'session-bound',
+            agentId: 'deepchat-bound',
+            providerId: 'anthropic',
+            modelId: 'claude-3-5-sonnet'
+          })
+        )
+      }
+    })
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -974,7 +1029,7 @@ describe('RemoteConversationRunner', () => {
 
     const updated = await runner.setSessionModel('telegram:100:0', 'anthropic', 'claude-3-5-sonnet')
 
-    expect(agentSessionPresenter.setSessionModel).toHaveBeenCalledWith(
+    expect(sessionPorts.assignment.setSessionModel).toHaveBeenCalledWith(
       'session-bound',
       'anthropic',
       'claude-3-5-sonnet'
@@ -987,9 +1042,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          getSession: vi.fn()
-        } as any,
+        ...createRemoteSessionPorts(),
         agentManager: {} as any,
         windowPresenter: {
           getAllWindows: vi.fn(),
@@ -1013,16 +1066,18 @@ describe('RemoteConversationRunner', () => {
   })
 
   it('returns windowNotFound when /open cannot resolve a desktop chat window', async () => {
-    const activateSession = vi.fn()
+    const activate = vi.fn()
     const createAppWindow = vi.fn().mockResolvedValue(null)
     const show = vi.fn()
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(createSession()),
-          activateSession
-        } as any,
+        ...createRemoteSessionPorts({
+          projection: {
+            getSession: vi.fn().mockResolvedValue(createSession()),
+            activate
+          }
+        }),
         agentManager: {} as any,
         windowPresenter: {
           getAllWindows: vi.fn().mockReturnValue([]),
@@ -1047,7 +1102,7 @@ describe('RemoteConversationRunner', () => {
     await expect(runner.open('telegram:100:0')).resolves.toEqual({
       status: 'windowNotFound'
     })
-    expect(activateSession).not.toHaveBeenCalled()
+    expect(activate).not.toHaveBeenCalled()
     expect(show).not.toHaveBeenCalled()
     expect(createAppWindow).toHaveBeenCalledWith({
       initialRoute: 'chat'
@@ -1056,7 +1111,7 @@ describe('RemoteConversationRunner', () => {
 
   it('returns ok and activates the bound session when /open resolves a chat window', async () => {
     const session = createSession()
-    const activateSession = vi.fn().mockResolvedValue(undefined)
+    const activate = vi.fn().mockResolvedValue(undefined)
     const show = vi.fn()
     const chatWindow = {
       id: 7,
@@ -1068,10 +1123,12 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(session),
-          activateSession
-        } as any,
+        ...createRemoteSessionPorts({
+          projection: {
+            getSession: vi.fn().mockResolvedValue(session),
+            activate
+          }
+        }),
         agentManager: {} as any,
         windowPresenter: {
           getAllWindows: vi.fn().mockReturnValue([chatWindow]),
@@ -1097,8 +1154,90 @@ describe('RemoteConversationRunner', () => {
       status: 'ok',
       session
     })
-    expect(activateSession).toHaveBeenCalledWith(70, 'session-1')
+    expect(activate).toHaveBeenCalledWith(70, 'session-1')
     expect(show).toHaveBeenCalledWith(7, true)
+  })
+
+  it('reports the bound active event as the remote generation status', async () => {
+    const session = createSession({ status: 'generating' })
+    const getBinding = vi
+      .fn()
+      .mockReturnValueOnce(null)
+      .mockReturnValue({ sessionId: 'session-1', updatedAt: 1 })
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        ...createRemoteSessionPorts({
+          projection: {
+            getSession: vi.fn().mockResolvedValue(session)
+          }
+        }),
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue({
+            eventId: 'manager-event',
+            runId: 'manager-run'
+          })
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        getBinding,
+        getActiveEvent: vi.fn().mockReturnValue('bound-event')
+      } as any
+    )
+
+    await expect(runner.getStatus('telegram:100:0')).resolves.toEqual({
+      session: null,
+      activeEventId: null,
+      isGenerating: false,
+      pendingInteraction: null
+    })
+    await expect(runner.getStatus('telegram:100:0')).resolves.toEqual({
+      session,
+      activeEventId: 'bound-event',
+      isGenerating: true,
+      pendingInteraction: null
+    })
+  })
+
+  it('clears deleted bindings and returns the fixed missing-session output', async () => {
+    const clearBinding = vi.fn()
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        ...createRemoteSessionPorts(),
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      { clearBinding } as any
+    )
+
+    await expect(
+      (runner as any).getConversationSnapshot('telegram:100:0', 'deleted-session', {
+        afterOrderSeq: 0,
+        preferredMessageId: null,
+        ignoreMessageId: null
+      })
+    ).resolves.toEqual({
+      messageId: null,
+      text: 'The bound session no longer exists.',
+      traceText: '',
+      deliverySegments: [],
+      statusText: '',
+      finalText: 'The bound session no longer exists.',
+      draftText: '',
+      renderBlocks: [],
+      fullText: 'The bound session no longer exists.',
+      completed: true,
+      pendingInteraction: null
+    })
+    expect(clearBinding).toHaveBeenCalledWith('telegram:100:0')
   })
 
   it('does not fall back to the previous active assistant event while waiting for a new reply', async () => {
@@ -1117,23 +1256,23 @@ describe('RemoteConversationRunner', () => {
       orderSeq: 2
     }
 
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
-      getMessages: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            id: 'user-1',
-            role: 'user',
-            content: 'hello',
-            status: 'success',
-            orderSeq: 1
-          }
-        ])
-        .mockResolvedValue([oldAssistantMessage]),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      getMessage: vi.fn().mockResolvedValue(null)
-    }
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(session),
+        getMessages: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: 'user-1',
+              role: 'user',
+              content: 'hello',
+              status: 'success',
+              orderSeq: 1
+            }
+          ])
+          .mockResolvedValue([oldAssistantMessage])
+      }
+    })
     const bindingStore = {
       getBinding: vi.fn().mockReturnValue({
         sessionId: 'session-legacy',
@@ -1156,7 +1295,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: agentManager as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1195,52 +1334,55 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(createSession()),
-          sendMessage: vi.fn().mockResolvedValue(undefined),
-          getMessages: vi.fn().mockResolvedValue([
-            {
-              id: 'assistant-1',
-              role: 'assistant',
-              orderSeq: 2,
-              content: JSON.stringify([
-                {
-                  type: 'content',
-                  content: 'Need approval before continuing.',
-                  status: 'success',
-                  timestamp: 1
-                },
-                {
-                  type: 'action',
-                  action_type: 'tool_call_permission',
-                  content: 'Permission requested',
-                  status: 'pending',
-                  timestamp: 2,
-                  tool_call: {
-                    id: 'tool-1',
-                    name: 'shell_command',
-                    params: '{"command":"git push"}'
+        ...createRemoteSessionPorts({
+          projection: {
+            getSession: vi.fn().mockResolvedValue(createSession()),
+            getMessages: vi.fn().mockResolvedValue([
+              {
+                id: 'assistant-1',
+                role: 'assistant',
+                orderSeq: 2,
+                content: JSON.stringify([
+                  {
+                    type: 'content',
+                    content: 'Need approval before continuing.',
+                    status: 'success',
+                    timestamp: 1
                   },
-                  extra: {
-                    needsUserAction: true,
-                    permissionType: 'command',
-                    permissionRequest: JSON.stringify({
+                  {
+                    type: 'action',
+                    action_type: 'tool_call_permission',
+                    content: 'Permission requested',
+                    status: 'pending',
+                    timestamp: 2,
+                    tool_call: {
+                      id: 'tool-1',
+                      name: 'shell_command',
+                      params: '{"command":"git push"}'
+                    },
+                    extra: {
+                      needsUserAction: true,
                       permissionType: 'command',
-                      description: 'Run git push',
-                      command: 'git push',
-                      commandInfo: {
+                      permissionRequest: JSON.stringify({
+                        permissionType: 'command',
+                        description: 'Run git push',
                         command: 'git push',
-                        riskLevel: 'high',
-                        suggestion: 'Confirm before pushing.'
-                      }
-                    })
+                        commandInfo: {
+                          command: 'git push',
+                          riskLevel: 'high',
+                          suggestion: 'Confirm before pushing.'
+                        }
+                      })
+                    }
                   }
-                }
-              ])
-            }
-          ])
+                ])
+              }
+            ])
+          }
+        }),
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
-        agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
         resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
@@ -1249,11 +1391,12 @@ describe('RemoteConversationRunner', () => {
         getBinding: vi.fn().mockReturnValue({
           sessionId: 'session-1',
           updatedAt: 1
-        })
+        }),
+        getActiveEvent: vi.fn().mockReturnValue(null)
       } as any
     )
 
-    await expect(runner.getPendingInteraction('telegram:100:0')).resolves.toEqual({
+    const pendingInteraction = {
       type: 'permission',
       messageId: 'assistant-1',
       toolCallId: 'tool-1',
@@ -1270,6 +1413,16 @@ describe('RemoteConversationRunner', () => {
           suggestion: 'Confirm before pushing.'
         }
       }
+    }
+
+    await expect(runner.getPendingInteraction('telegram:100:0')).resolves.toEqual(
+      pendingInteraction
+    )
+    await expect(runner.getStatus('telegram:100:0')).resolves.toEqual({
+      session: createSession(),
+      activeEventId: null,
+      isGenerating: false,
+      pendingInteraction
     })
   })
 
@@ -1277,10 +1430,26 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(createSession()),
-          getMessages: vi.fn().mockResolvedValue([
-            {
+        ...createRemoteSessionPorts({
+          projection: {
+            getSession: vi.fn().mockResolvedValue(createSession()),
+            getMessages: vi.fn().mockResolvedValue([
+              {
+                id: 'assistant-1',
+                role: 'assistant',
+                orderSeq: 2,
+                status: 'pending',
+                content: JSON.stringify([
+                  {
+                    type: 'reasoning_content',
+                    content: 'Thinking now',
+                    status: 'pending',
+                    timestamp: 1
+                  }
+                ])
+              }
+            ]),
+            getMessage: vi.fn().mockResolvedValue({
               id: 'assistant-1',
               role: 'assistant',
               orderSeq: 2,
@@ -1293,23 +1462,9 @@ describe('RemoteConversationRunner', () => {
                   timestamp: 1
                 }
               ])
-            }
-          ]),
-          getMessage: vi.fn().mockResolvedValue({
-            id: 'assistant-1',
-            role: 'assistant',
-            orderSeq: 2,
-            status: 'pending',
-            content: JSON.stringify([
-              {
-                type: 'reasoning_content',
-                content: 'Thinking now',
-                status: 'pending',
-                timestamp: 1
-              }
-            ])
-          })
-        } as any,
+            })
+          }
+        }),
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue({
             eventId: 'assistant-1',
@@ -1341,6 +1496,69 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot.completed).toBe(false)
   })
 
+  it('falls back to an empty stored-search result when projection lookup fails', async () => {
+    const searchError = new Error('search store unavailable')
+    const getSearchResults = vi.fn().mockRejectedValue(searchError)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        ...createRemoteSessionPorts({
+          projection: {
+            getSession: vi.fn().mockResolvedValue(createSession()),
+            getMessage: vi.fn().mockResolvedValue({
+              id: 'assistant-search',
+              role: 'assistant',
+              orderSeq: 2,
+              status: 'success',
+              content: JSON.stringify([
+                {
+                  id: 'search-1',
+                  type: 'search',
+                  content: '',
+                  status: 'success',
+                  timestamp: 1,
+                  extra: { searchId: 'stored-search', label: 'web_search' }
+                }
+              ])
+            }),
+            getSearchResults
+          }
+        }),
+        agentManager: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        rememberActiveEvent: vi.fn(),
+        clearActiveEvent: vi.fn()
+      } as any
+    )
+
+    const snapshot = await (runner as any).getConversationSnapshot('telegram:100:0', 'session-1', {
+      afterOrderSeq: 0,
+      preferredMessageId: 'assistant-search',
+      ignoreMessageId: null
+    })
+
+    expect(getSearchResults).toHaveBeenCalledWith('assistant-search', 'stored-search')
+    expect(snapshot.renderBlocks).toEqual([
+      expect.objectContaining({
+        kind: 'search',
+        text: expect.stringContaining('No stored search results were found.')
+      })
+    ])
+    expect(snapshot.completed).toBe(true)
+    expect(warn).toHaveBeenCalledWith(
+      '[RemoteConversationRunner] Failed to load search results:',
+      expect.objectContaining({ error: searchError })
+    )
+    warn.mockRestore()
+  })
+
   it('creates a follow-up execution after responding to a pending interaction', async () => {
     const getMessage = vi.fn().mockResolvedValue({
       id: 'assistant-2',
@@ -1356,62 +1574,66 @@ describe('RemoteConversationRunner', () => {
         }
       ])
     })
-    const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(createSession()),
-      getMessages: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            id: 'assistant-2',
-            role: 'assistant',
-            orderSeq: 5,
-            content: JSON.stringify([
-              {
-                type: 'action',
-                action_type: 'tool_call_permission',
-                content: 'Permission requested',
-                status: 'pending',
-                timestamp: 1,
-                tool_call: {
-                  id: 'tool-2',
-                  name: 'shell_command',
-                  params: '{"command":"git push"}'
-                },
-                extra: {
-                  needsUserAction: true,
-                  permissionType: 'command',
-                  permissionRequest: JSON.stringify({
+    const sessionPorts = createRemoteSessionPorts({
+      projection: {
+        getSession: vi.fn().mockResolvedValue(createSession()),
+        getMessages: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: 'assistant-2',
+              role: 'assistant',
+              orderSeq: 5,
+              content: JSON.stringify([
+                {
+                  type: 'action',
+                  action_type: 'tool_call_permission',
+                  content: 'Permission requested',
+                  status: 'pending',
+                  timestamp: 1,
+                  tool_call: {
+                    id: 'tool-2',
+                    name: 'shell_command',
+                    params: '{"command":"git push"}'
+                  },
+                  extra: {
+                    needsUserAction: true,
                     permissionType: 'command',
-                    description: 'Run git push',
-                    command: 'git push'
-                  })
+                    permissionRequest: JSON.stringify({
+                      permissionType: 'command',
+                      description: 'Run git push',
+                      command: 'git push'
+                    })
+                  }
                 }
-              }
-            ])
-          }
-        ])
-        .mockResolvedValue([
-          {
-            id: 'assistant-2',
-            role: 'assistant',
-            orderSeq: 5,
-            status: 'success',
-            content: JSON.stringify([
-              {
-                type: 'content',
-                content: 'Push completed.',
-                status: 'success',
-                timestamp: 2
-              }
-            ])
-          }
-        ]),
-      respondToolInteraction: vi.fn().mockResolvedValue({
-        resumed: true,
-        waitingForUserMessage: false
-      }),
-      getMessage
-    }
+              ])
+            }
+          ])
+          .mockResolvedValue([
+            {
+              id: 'assistant-2',
+              role: 'assistant',
+              orderSeq: 5,
+              status: 'success',
+              content: JSON.stringify([
+                {
+                  type: 'content',
+                  content: 'Push completed.',
+                  status: 'success',
+                  timestamp: 2
+                }
+              ])
+            }
+          ]),
+        getMessage
+      },
+      turn: {
+        respondToolInteraction: vi.fn().mockResolvedValue({
+          resumed: true,
+          waitingForUserMessage: false
+        })
+      }
+    })
     const bindingStore = {
       getBinding: vi.fn().mockReturnValue({
         sessionId: 'session-1',
@@ -1423,7 +1645,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: agentSessionPresenter as any,
+        ...sessionPorts,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -1439,7 +1661,7 @@ describe('RemoteConversationRunner', () => {
       granted: true
     })
 
-    expect(agentSessionPresenter.respondToolInteraction).toHaveBeenCalledWith(
+    expect(sessionPorts.turn.respondToolInteraction).toHaveBeenCalledWith(
       'session-1',
       'assistant-2',
       'tool-2',
@@ -1492,9 +1714,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter({
           getDefaultProjectPath: vi.fn(() => '/workspaces/remote')
         }) as any,
-        agentSessionPresenter: {
-          createDetachedSession
-        } as any,
+        ...createRemoteSessionPorts({ lifecycle: { createDetachedSession } }),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1523,7 +1743,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter({
           getDefaultProjectPath: vi.fn(() => '/workspaces/global')
         }) as any,
-        agentSessionPresenter: {} as any,
+        ...createRemoteSessionPorts(),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1543,7 +1763,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter({
           getDefaultProjectPath: vi.fn(() => '/workspaces/global')
         }) as any,
-        agentSessionPresenter: {} as any,
+        ...createRemoteSessionPorts(),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1561,9 +1781,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
-        agentSessionPresenter: {
-          createDetachedSession: vi.fn()
-        } as any,
+        ...createRemoteSessionPorts(),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1590,7 +1808,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: configPresenter as any,
-        agentSessionPresenter: {} as any,
+        ...createRemoteSessionPorts(),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1621,9 +1839,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: configPresenter as any,
-        agentSessionPresenter: {
-          createDetachedSession
-        } as any,
+        ...createRemoteSessionPorts({ lifecycle: { createDetachedSession } }),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1653,7 +1869,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: configPresenter as any,
-        agentSessionPresenter: {} as any,
+        ...createRemoteSessionPorts(),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,
@@ -1679,9 +1895,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: configPresenter as any,
-        agentSessionPresenter: {
-          createDetachedSession: vi.fn()
-        } as any,
+        ...createRemoteSessionPorts(),
         agentManager: {} as any,
         windowPresenter: {} as any,
         tabPresenter: {} as any,

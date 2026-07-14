@@ -12,9 +12,10 @@ flowchart LR
     Bridge --> Contracts["shared/contracts routes + events"]
     Contracts --> Routes["src/main/routes dispatcher"]
     Routes --> SessionOwners["explicit session owners<br/>search / translation / export / usage / catalog"]
-    Routes --> Ports["core session/chat services + narrow ports"]
-    Ports --> SessionFacade["AgentSessionPresenter<br/>core session façade"]
-    SessionFacade --> Manager["AgentManager<br/>descriptor.kind router"]
+    Routes --> Services["SessionService / ChatService"]
+    Services --> Coordinators["Lifecycle / Turn / Assignment / Projection"]
+    Compat["AgentSessionPresenter<br/>compatibility forwarding"] --> Coordinators
+    Coordinators --> Manager["AgentManager<br/>descriptor.kind router"]
     Manager --> DeepBackend["typed DeepChat backend"]
     Manager --> AcpBackend["direct ACP backend"]
     DeepBackend --> DeepRuntime["DeepChatAgentRuntime"]
@@ -35,9 +36,13 @@ flowchart LR
 - `kind=acp` 使用 direct ACP backend 和外部 ACP protocol loop，不进入 `DeepChatLoopEngine`。
 - `kind=deepchat + providerId=acp` 仍是受支持的兼容组合：session 走 DeepChat backend/loop，provider
   选择才进入 `AcpProvider` adapter。
-- `AgentSessionPresenter` 是 core session façade，保留 session CRUD、title、turn、transfer/subagent 与
-  shared projection 编排。history、translation、export、usage、RTK、catalog 和 startup migrations 由
-  typed routes/lifecycle hooks 直接组合各自 owner。
+- 四个 `sessionApplication` coordinator 拥有 core session lifecycle、turn、assignment 和 projection；
+  Session/Chat routes、Remote 和 Cron 通过 consumer-owned narrow ports 使用同一组实例。
+- `AgentSessionPresenter` 仅保留 compatibility forwarding，把兼容调用转发到同一组 coordinator；不再拥有
+  core session policy/state，也不再拥有 history、translation、export、usage、RTK、catalog 或 startup
+  migration behavior。
+- history、translation、export、usage、RTK、catalog 和 startup migrations 由 typed routes/lifecycle
+  hooks 直接组合各自 owner。
 - `AgentRuntimePresenter` 仍初始化 `DeepChatAgentRuntime`，并保留 DeepChat state/delegate、message、Tape、
   prompt/tool/provider adapter wiring；它不再实现 unified agent interface，也不负责 ACP runtime 构造。
 
@@ -55,7 +60,8 @@ flowchart LR
 | DeepChat loop | `src/main/agent/deepchat/loop/` | `LoopRun`、provider/tool round state machine、fixed awaited commits与窄 ports |
 | DeepChat Memory adapter | `src/main/agent/deepchat/memory/` | sole runtime coordinator、prompt contributor、background ingestion observer |
 | ACP runtime | `src/main/agent/acp/` | catalog、launch、client/process/session/protocol、direct instance/runtime |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | core session lifecycle/turn/assignment façade与 shared projection operations |
+| session application | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection coordinators 与窄 dependency ports |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | core session public compatibility forwarding；不拥有 application behavior |
 | session boundary owners | `src/main/routes/sessions/`, `src/main/presenter/exporter/agentSessionExporter.ts`, `src/main/presenter/usageStatsService.ts` | history、translation、current export、usage dashboard/backfill |
 | startup maintenance | `src/main/presenter/startupMigrations/` | default legacy import and stateless session-data migrations |
 | shared session policies | `src/main/agent/shared/` | available-agent catalog and assistant-model selection |
@@ -63,8 +69,8 @@ flowchart LR
 | `ToolPresenter` | `src/main/presenter/toolPresenter/` | MCP/local tool 聚合、collision policy、权限预检查、调用路由 |
 | `MemoryPresenter` | `src/main/presenter/memoryPresenter/` | Memory rows、retrieval、write、vector、maintenance kernel |
 | `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider/model runtime和 DeepChat ACP-provider compatibility adapter |
-| `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | remote channel control，generation control 走 manager port |
-| `CronJobsService` | `src/main/presenter/cronJobs/` | detached session run、cron 调度和 Remote 投递 |
+| `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | remote channel control；session 操作走四个 narrow ports，generation control 走 manager port |
+| `CronJobsService` | `src/main/presenter/cronJobs/` | detached session run、composition-owned starter、cron 调度和 Remote 投递 |
 
 ## Agent runtime 分层
 
@@ -132,6 +138,8 @@ fresh resume run。外部 hook notifications 仍是 non-blocking observer。
 - 同一 guard 保持 Memory unique owner/structure、causal observation read-only 和 renderer typed boundary。
 - 同一 guard 阻止 removed session-boundary methods/interface declarations、foreign owner imports，以及五个
   startup hook 中的 presenter dependency、unsafe cast 和 optional task probe 回流。
+- 同一 guard 阻止 Session/Chat、Remote、Cron 等 migrated consumer 重新依赖 session presenter、重复构造
+  coordinator、coordinator 反向导入 session-boundary owner，以及引入 combined session application façade。
 - `scripts/agent-cleanup-guard.mjs` 覆盖 `src/main/agent/**` 与 retained presenter/tool/skill hot paths，防止旧
   agent/session presenter import 回流。
 

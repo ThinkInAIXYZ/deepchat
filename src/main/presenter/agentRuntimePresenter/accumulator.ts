@@ -3,6 +3,26 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { StreamState } from './types'
 
+export function commitRoundUsage(state: StreamState): void {
+  const roundUsage = state.roundUsage
+  if (!roundUsage) {
+    return
+  }
+
+  state.metadata.inputTokens = (state.metadata.inputTokens ?? 0) + roundUsage.inputTokens
+  state.metadata.outputTokens = (state.metadata.outputTokens ?? 0) + roundUsage.outputTokens
+  state.metadata.totalTokens = (state.metadata.totalTokens ?? 0) + roundUsage.totalTokens
+  if (typeof roundUsage.cachedInputTokens === 'number') {
+    state.metadata.cachedInputTokens =
+      (state.metadata.cachedInputTokens ?? 0) + roundUsage.cachedInputTokens
+  }
+  if (typeof roundUsage.cacheWriteInputTokens === 'number') {
+    state.metadata.cacheWriteInputTokens =
+      (state.metadata.cacheWriteInputTokens ?? 0) + roundUsage.cacheWriteInputTokens
+  }
+  state.roundUsage = null
+}
+
 export function finalizeTrailingPendingNarrativeBlocks(blocks: AssistantMessageBlock[]): boolean {
   const last = blocks[blocks.length - 1]
   if (
@@ -221,15 +241,23 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       break
     }
     case 'usage': {
-      state.metadata.inputTokens = event.usage.prompt_tokens
-      state.metadata.outputTokens = event.usage.completion_tokens
-      state.metadata.totalTokens = event.usage.total_tokens
-      state.metadata.cachedInputTokens = event.usage.cached_tokens
-      state.metadata.cacheWriteInputTokens = event.usage.cache_write_tokens
+      // Providers may emit more than one cumulative usage snapshot for a request. Keep only the
+      // latest snapshot for this provider round; processStream commits it once before the next round.
+      state.roundUsage = {
+        inputTokens: event.usage.prompt_tokens,
+        outputTokens: event.usage.completion_tokens,
+        totalTokens: event.usage.total_tokens,
+        cachedInputTokens: event.usage.cached_tokens,
+        cacheWriteInputTokens: event.usage.cache_write_tokens
+      }
       break
     }
     case 'stop': {
-      state.stopReason = mapStopReason(event.stop_reason)
+      // Keep an explicit stream error terminal reason even if the provider later emits a
+      // generic complete stop after the error event.
+      if (state.stopReason !== 'error') {
+        state.stopReason = mapStopReason(event.stop_reason)
+      }
       break
     }
     case 'error': {

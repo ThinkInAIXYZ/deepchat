@@ -1766,7 +1766,7 @@ describe('dispatch', () => {
 
       expect(toolPresenter.preCheckToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-write' }),
-        { permissionMode: 'full_access' }
+        { permissionMode: 'full_access', signal: io.abortSignal }
       )
       expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2320,10 +2320,10 @@ describe('dispatch', () => {
       expect(block!.status).toBe('error')
     })
 
-    it('stops on abort', async () => {
+    it('commits a returned parallel result before stopping on abort', async () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
-      const tools = [makeTool('tool_a'), makeTool('tool_b')]
+      const tools = [makeAgentTool('read')]
       const toolPresenter = createMockToolPresenter()
 
       // Abort after first tool call
@@ -2337,23 +2337,24 @@ describe('dispatch', () => {
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc1', name: 'tool_a', params: '{}', response: '' }
+        tool_call: { id: 'tc1', name: 'read', params: '{"path":"a"}', response: '' }
       })
       state.blocks.push({
         type: 'tool_call',
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc2', name: 'tool_b', params: '{}', response: '' }
+        tool_call: { id: 'tc2', name: 'read', params: '{"path":"b"}', response: '' }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'tool_a', arguments: '{}' },
-        { id: 'tc2', name: 'tool_b', arguments: '{}' }
+        { id: 'tc1', name: 'read', arguments: '{"path":"a"}' },
+        { id: 'tc2', name: 'read', arguments: '{"path":"b"}' }
       ]
 
-      const executed = await executeTools(
+      const conversation: any[] = []
+      const executing = executeTools(
         state,
-        [],
+        conversation,
         0,
         tools,
         toolPresenter,
@@ -2365,9 +2366,138 @@ describe('dispatch', () => {
         1024
       )
 
-      // Only first tool should have been called
-      expect(executed.executed).toBe(1)
+      await expect(executing).resolves.toMatchObject({ type: 'completed', executed: 1 })
       expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(conversation).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'tool', tool_call_id: 'tc1', content: 'ok' })
+        ])
+      )
+      expect(state.blocks.find((block) => block.tool_call?.id === 'tc1')).toMatchObject({
+        status: 'success',
+        tool_call: { response: 'ok' }
+      })
+      expect(state.blocks.find((block) => block.tool_call?.id === 'tc2')).toMatchObject({
+        status: 'pending',
+        tool_call: { response: '' }
+      })
+    })
+
+    it('stages CanceledError from a parallel read batch when the run remains active', async () => {
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = createMockToolPresenter()
+      const canceledError = new Error('Canceled')
+      canceledError.name = 'CanceledError'
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(canceledError)
+        .mockResolvedValueOnce({
+          content: 'second result',
+          rawData: { toolCallId: 'tc2', content: 'second result', isError: false }
+        })
+
+      state.blocks.push(
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: { id: 'tc1', name: 'read', params: '{"path":"a"}', response: '' }
+        },
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: { id: 'tc2', name: 'read', params: '{"path":"b"}', response: '' }
+        }
+      )
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'read', arguments: '{"path":"a"}' },
+        { id: 'tc2', name: 'read', arguments: '{"path":"b"}' }
+      ]
+      const conversation: any[] = []
+
+      await expect(
+        executeTools(
+          state,
+          conversation,
+          0,
+          tools,
+          toolPresenter,
+          'gpt-4',
+          io,
+          'full_access',
+          new ToolOutputGuard(),
+          32000,
+          1024
+        )
+      ).resolves.toMatchObject({ type: 'completed', executed: 2 })
+      expect(conversation).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            role: 'tool',
+            tool_call_id: 'tc1',
+            content: 'Error: Canceled'
+          }),
+          expect.objectContaining({
+            role: 'tool',
+            tool_call_id: 'tc2',
+            content: 'second result'
+          })
+        ])
+      )
+      expect(state.blocks.find((block) => block.tool_call?.id === 'tc1')).toMatchObject({
+        status: 'error',
+        tool_call: { response: 'Error: Canceled' }
+      })
+    })
+
+    it('commits the raw result when cancellation wins during asynchronous normalization', async () => {
+      const abortController = new AbortController()
+      const abortIo = createIo({ abortSignal: abortController.signal })
+      const tools = [makeTool('tool_a')]
+      const toolPresenter = createMockToolPresenter({ tool_a: 'raw result' })
+      const conversation: any[] = []
+      const resultNormalizer = vi.fn(async () => {
+        abortController.abort()
+        return 'normalized result'
+      })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'tool_a', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'tool_a', arguments: '{}' }]
+
+      await expect(
+        executeTools(
+          state,
+          conversation,
+          0,
+          tools,
+          toolPresenter,
+          'gpt-4',
+          abortIo,
+          'full_access',
+          new ToolOutputGuard(),
+          32000,
+          1024,
+          { resultNormalizer }
+        )
+      ).resolves.toMatchObject({ type: 'completed', executed: 1 })
+      expect(resultNormalizer).toHaveBeenCalledOnce()
+      expect(conversation).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'tool', tool_call_id: 'tc1', content: 'raw result' })
+        ])
+      )
+      expect(state.blocks[0]).toMatchObject({
+        status: 'success',
+        tool_call: { response: 'raw result' }
+      })
     })
 
     it('flushes to renderer and DB after each tool execution', async () => {

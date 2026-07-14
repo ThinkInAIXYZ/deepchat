@@ -32,6 +32,16 @@ vi.mock('@/presenter', () => ({
 
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 describe('ToolManager', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>
 
@@ -366,6 +376,308 @@ describe('ToolManager', () => {
     ).toBe(false)
   })
 
+  it('forwards the caller abort signal to the selected MCP client', async () => {
+    const client = createClient('open-server')
+    client.callTool.mockImplementation(
+      (_name: string, _args: Record<string, unknown>, options?: { signal?: AbortSignal }) =>
+        new Promise((_, reject) => {
+          const signal = options?.signal
+          if (!signal) {
+            reject(new Error('Missing abort signal'))
+            return
+          }
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const configPresenter = createConfigPresenter('open-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+    const abortController = new AbortController()
+
+    const callPromise = manager.callTool(
+      {
+        id: 'tool-cancellable',
+        type: 'function',
+        function: {
+          name: 'echo',
+          arguments: '{}'
+        },
+        conversationId: 'conv-cancellable',
+        providerId: 'openai'
+      },
+      { signal: abortController.signal }
+    )
+
+    await vi.waitFor(() => {
+      expect(client.callTool).toHaveBeenCalledWith('echo', {}, { signal: abortController.signal })
+    })
+    abortController.abort()
+
+    await expect(callPromise).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('rejects promptly when cancellation lands during tool-definition refresh', async () => {
+    const client = createClient('open-server')
+    const configPresenter = createConfigPresenter('open-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+    const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
+    const loadDefinitions = vi
+      .spyOn(manager, 'getAllToolDefinitions')
+      .mockReturnValue(definitions.promise)
+    const abortController = new AbortController()
+
+    const callPromise = manager.callTool(
+      {
+        id: 'tool-preflight-cancel',
+        type: 'function',
+        function: { name: 'echo', arguments: '{}' },
+        conversationId: 'conv-preflight-cancel',
+        providerId: 'openai'
+      },
+      { signal: abortController.signal }
+    )
+    await vi.waitFor(() => expect(loadDefinitions).toHaveBeenCalledOnce())
+
+    abortController.abort()
+
+    await expect(callPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(client.callTool).not.toHaveBeenCalled()
+    definitions.resolve([])
+  })
+
+  it('does not commit tool definitions after their refresh is cancelled', async () => {
+    const client = createClient('stale-server')
+    const tools = deferred<Awaited<ReturnType<typeof client.listTools>>>()
+    client.listTools.mockReturnValue(tools.promise)
+    const manager = new ToolManager(
+      createConfigPresenter('stale-server') as never,
+      createServerManager([client]) as never
+    )
+    const abortController = new AbortController()
+
+    const refresh = manager.getAllToolDefinitions(undefined, {
+      signal: abortController.signal
+    })
+    await vi.waitFor(() => expect(client.listTools).toHaveBeenCalledOnce())
+
+    abortController.abort()
+
+    await expect(refresh).rejects.toMatchObject({ name: 'AbortError' })
+    tools.resolve([
+      {
+        name: 'stale_tool',
+        description: 'Stale tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect((manager as any).cachedToolDefinitions).toBeNull()
+    expect((manager as any).toolNameToTargetMap).toBeNull()
+  })
+
+  it('discards a refresh superseded by a configuration cache clear', async () => {
+    const staleClient = createClient('stale-server')
+    const currentClient = createClient('current-server', [
+      {
+        name: 'current_tool',
+        description: 'Current tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    const staleTools = deferred<Awaited<ReturnType<typeof staleClient.listTools>>>()
+    staleClient.listTools.mockReturnValueOnce(staleTools.promise).mockResolvedValueOnce([
+      {
+        name: 'stale_tool',
+        description: 'Stale tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    const serverManager = createServerManager([staleClient])
+    const manager = new ToolManager(
+      createConfigPresenter('current-server') as never,
+      serverManager as never
+    )
+
+    const refresh = manager.getAllToolDefinitions()
+    await vi.waitFor(() => expect(staleClient.listTools).toHaveBeenCalledOnce())
+    ;(manager as any).handleConfigChange()
+    serverManager.getRunningClients.mockResolvedValue([currentClient])
+    staleTools.resolve([
+      {
+        name: 'stale_tool',
+        description: 'Stale tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+
+    const definitions = await refresh
+
+    expect(definitions.map((definition) => definition.function.name)).toEqual(['current_tool'])
+    expect((manager as any).toolNameToTargetMap.has('current_tool')).toBe(true)
+    expect((manager as any).toolNameToTargetMap.has('stale_tool')).toBe(false)
+  })
+
+  it('wakes refresh waiters when configuration invalidates a blocked refresh', async () => {
+    const staleClient = createClient('stale-server')
+    const currentClient = createClient('current-server', [
+      {
+        name: 'current_tool',
+        description: 'Current tool',
+        inputSchema: { properties: {}, required: [] }
+      }
+    ])
+    const staleTools = deferred<Awaited<ReturnType<typeof staleClient.listTools>>>()
+    staleClient.listTools.mockReturnValue(staleTools.promise)
+    const serverManager = createServerManager([staleClient])
+    const manager = new ToolManager(
+      createConfigPresenter('current-server') as never,
+      serverManager as never
+    )
+
+    const blockedRefresh = manager.getAllToolDefinitions()
+    await vi.waitFor(() => expect(staleClient.listTools).toHaveBeenCalledOnce())
+    const waitingRefresh = manager.getAllToolDefinitions()
+
+    serverManager.getRunningClients.mockResolvedValue([currentClient])
+    ;(manager as any).handleConfigChange()
+
+    await expect(waitingRefresh).resolves.toEqual([
+      expect.objectContaining({ function: expect.objectContaining({ name: 'current_tool' }) })
+    ])
+    expect(currentClient.listTools).toHaveBeenCalled()
+
+    staleTools.resolve([])
+    await expect(blockedRefresh).resolves.toEqual([
+      expect.objectContaining({ function: expect.objectContaining({ name: 'current_tool' }) })
+    ])
+  })
+
+  it('observes a definition failure after refresh synchronously cancels the call', async () => {
+    const client = createClient('open-server')
+    const manager = new ToolManager(
+      createConfigPresenter('open-server') as never,
+      createServerManager([client]) as never
+    )
+    const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
+    const abortController = new AbortController()
+    const lateError = new Error('late definition failure')
+    const unhandled = vi.fn()
+    vi.spyOn(manager, 'getAllToolDefinitions').mockImplementation(() => {
+      abortController.abort()
+      return definitions.promise
+    })
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'tool-sync-cancel',
+          type: 'function',
+          function: { name: 'echo', arguments: '{}' },
+          providerId: 'openai'
+        },
+        { signal: abortController.signal }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(client.callTool).not.toHaveBeenCalled()
+
+    process.on('unhandledRejection', unhandled)
+    try {
+      definitions.reject(lateError)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
+  it('does not start tool-definition refresh for a pre-cancelled call', async () => {
+    const client = createClient('open-server')
+    const manager = new ToolManager(
+      createConfigPresenter('open-server') as never,
+      createServerManager([client]) as never
+    )
+    const loadDefinitions = vi.spyOn(manager, 'getAllToolDefinitions')
+    const abortController = new AbortController()
+    abortController.abort()
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'tool-pre-cancelled',
+          type: 'function',
+          function: { name: 'echo', arguments: '{}' },
+          providerId: 'openai'
+        },
+        { signal: abortController.signal }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(loadDefinitions).not.toHaveBeenCalled()
+    expect(client.callTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects permission pre-check promptly during tool-definition refresh', async () => {
+    const client = createClient('open-server')
+    const manager = new ToolManager(
+      createConfigPresenter('open-server') as never,
+      createServerManager([client]) as never
+    )
+    const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
+    const loadDefinitions = vi
+      .spyOn(manager, 'getAllToolDefinitions')
+      .mockReturnValue(definitions.promise)
+    const abortController = new AbortController()
+
+    const checking = manager.preCheckToolPermission(
+      {
+        id: 'permission-preflight-cancel',
+        type: 'function',
+        function: { name: 'echo', arguments: '{}' }
+      },
+      { signal: abortController.signal }
+    )
+    await vi.waitFor(() => expect(loadDefinitions).toHaveBeenCalledOnce())
+
+    abortController.abort()
+
+    await expect(checking).rejects.toMatchObject({ name: 'AbortError' })
+    definitions.resolve([])
+  })
+
+  it('rejects permission pre-check promptly while server config is loading', async () => {
+    const client = createClient('open-server')
+    const configPresenter = createConfigPresenter('open-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+    await manager.getAllToolDefinitions()
+    const servers = deferred<Awaited<ReturnType<typeof configPresenter.getMcpServers>>>()
+    configPresenter.getMcpServers.mockReturnValue(servers.promise)
+    const abortController = new AbortController()
+
+    const checking = manager.preCheckToolPermission(
+      {
+        id: 'permission-config-cancel',
+        type: 'function',
+        function: { name: 'echo', arguments: '{}' }
+      },
+      { signal: abortController.signal }
+    )
+    await vi.waitFor(() => expect(configPresenter.getMcpServers).toHaveBeenCalledOnce())
+
+    abortController.abort()
+
+    await expect(checking).rejects.toMatchObject({ name: 'AbortError' })
+    servers.resolve({ 'open-server': { autoApprove: ['all'] } })
+  })
+
   it('skips ACP selection gating for non-ACP sessions', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
@@ -457,6 +769,45 @@ describe('ToolManager', () => {
 
     expect(prepared.error).toContain("Windows app target 'com.apple.TextEdit' was not found")
     expect(client.callTool).toHaveBeenCalledWith('list_apps', {})
+  })
+
+  it('forwards and preserves cancellation from the CUA Windows preflight helper', async () => {
+    const client = createClient('cua-driver', [], {
+      source: 'plugin',
+      ownerPluginId: 'com.deepchat.plugins.cua'
+    })
+    client.callTool.mockImplementation(
+      (_name: string, _args: Record<string, unknown>, options?: { signal?: AbortSignal }) =>
+        new Promise((_, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+            once: true
+          })
+        })
+    )
+    const manager = new ToolManager(
+      createConfigPresenter('cua-driver') as never,
+      createServerManager([client]) as never
+    )
+    const abortController = new AbortController()
+
+    const preparing = (manager as any).prepareCuaWindowsLaunchArgs(
+      client,
+      { bundle_id: 'com.apple.TextEdit' },
+      abortController.signal
+    )
+    await vi.waitFor(() =>
+      expect(client.callTool).toHaveBeenCalledWith(
+        'list_apps',
+        {},
+        {
+          signal: abortController.signal
+        }
+      )
+    )
+
+    abortController.abort()
+
+    await expect(preparing).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('treats missing provider hint as a fallback to new session resolution', async () => {

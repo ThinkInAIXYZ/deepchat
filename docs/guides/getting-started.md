@@ -42,8 +42,9 @@ Renderer
   -> window.deepchat
   -> shared/contracts/routes + shared/contracts/events
   -> src/main/routes/*
-  -> presenter-backed hot path ports
-  -> agentSessionPresenter / agentRuntimePresenter / toolPresenter / llmProviderPresenter
+  -> SessionService / ChatService consumer-owned ports
+  -> sessionApplication coordinators
+  -> AgentManager / typed backend / retained resource presenters
 ```
 
 如果你在旧提交里看到 `AgentPresenter`、`startStreamCompletion`、`agentLoopHandler`，
@@ -61,13 +62,16 @@ Renderer
 src/
 ├── main/
 │   ├── presenter/
-│   │   ├── agentSessionPresenter/        # 当前会话入口
-│   │   ├── agentRuntimePresenter/   # 当前聊天 runtime
-│   │   ├── toolPresenter/            # 工具路由
-│   │   │   └── agentTools/           # 本地 agent tools
-│   │   ├── llmProviderPresenter/     # provider 管理与 ACP provider adapter
-│   │   ├── mcpPresenter/             # MCP tools/runtime
-│   │   ├── sessionPresenter/         # legacy 数据兼容层
+│   │   ├── sessionApplication/           # core session application owners
+│   │   ├── agentSessionPresenter/        # core session compatibility forwarding only
+│   │   ├── exporter/                     # current agent-session export owner
+│   │   ├── startupMigrations/            # legacy import and session-data migrations
+│   │   ├── agentRuntimePresenter/        # 当前聊天 runtime
+│   │   ├── toolPresenter/                # 工具路由
+│   │   │   └── agentTools/               # 本地 agent tools
+│   │   ├── llmProviderPresenter/         # provider 管理与 ACP provider adapter
+│   │   ├── mcpPresenter/                 # MCP tools/runtime
+│   │   ├── sessionPresenter/             # legacy 数据兼容层
 │   │   └── ...
 │   ├── agent/
 │   │   ├── acp/                      # ACP catalog/client/runtime owner
@@ -90,9 +94,10 @@ src/
 5. `src/main/routes/index.ts`
 6. `src/main/routes/sessions/sessionService.ts`
 7. `src/main/routes/chat/chatService.ts`
-8. `src/main/routes/providers/providerService.ts`
-9. `src/main/presenter/agentSessionPresenter/index.ts`
-10. `src/main/presenter/agentRuntimePresenter/index.ts`
+8. `src/main/presenter/sessionApplication/`
+9. `src/main/routes/providers/providerService.ts`
+10. `src/main/presenter/agentSessionPresenter/index.ts`
+11. `src/main/presenter/agentRuntimePresenter/index.ts`
 
 ## 常见开发任务
 
@@ -100,7 +105,9 @@ src/
 
 优先看：
 
-- `src/main/presenter/agentSessionPresenter/index.ts`
+- `src/main/routes/chat/chatService.ts`
+- `src/main/presenter/sessionApplication/turnCoordinator.ts`
+- `src/main/agent/manager/agentManager.ts`
 - `src/main/presenter/agentRuntimePresenter/process.ts`
 - `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 

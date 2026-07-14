@@ -4,7 +4,6 @@ import type {
   MessagePageCursor,
   SessionWithState
 } from '@shared/types/agent-interface'
-import type { MessageRepository, SessionListFilters, SessionRepository } from '../hotPathPorts'
 import type { Scheduler } from '../scheduler'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
@@ -15,11 +14,34 @@ export type SessionRouteContext = {
   windowId: number | null
 }
 
+export type SessionListFilters = {
+  agentId?: string
+  projectDir?: string
+  includeSubagents?: boolean
+  parentSessionId?: string
+}
+
+export interface SessionServiceLifecyclePort {
+  createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+}
+
+export interface SessionServiceProjectionPort {
+  getSession(sessionId: string): Promise<SessionWithState | null>
+  listSessions(filters?: SessionListFilters): Promise<SessionWithState[]>
+  listMessagesPage(
+    sessionId: string,
+    options?: { limit?: number; cursor?: MessagePageCursor | null }
+  ): Promise<ChatMessagePageResult>
+  activate(webContentsId: number, sessionId: string): Promise<void>
+  deactivate(webContentsId: number): Promise<void>
+  getActive(webContentsId: number): Promise<SessionWithState | null>
+}
+
 export class SessionService {
   constructor(
     private readonly deps: {
-      sessionRepository: SessionRepository
-      messageRepository: MessageRepository
+      lifecycle: SessionServiceLifecyclePort
+      projection: SessionServiceProjectionPort
       scheduler: Scheduler
     }
   ) {}
@@ -29,7 +51,7 @@ export class SessionService {
     context: SessionRouteContext
   ): Promise<SessionWithState> {
     return await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.create(input, context.webContentsId),
+      task: this.deps.lifecycle.createSession(input, context.webContentsId),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.create'
     })
@@ -47,7 +69,7 @@ export class SessionService {
     const session = await this.deps.scheduler.retry({
       task: async () =>
         await this.deps.scheduler.timeout({
-          task: this.deps.sessionRepository.get(sessionId),
+          task: this.deps.projection.getSession(sessionId),
           ms: SESSION_OPERATION_TIMEOUT_MS,
           reason: `sessions.restore:${sessionId}:session`
         }),
@@ -67,7 +89,7 @@ export class SessionService {
     }
 
     const page = await this.deps.scheduler.timeout({
-      task: this.deps.messageRepository.listPageBySession(sessionId, {
+      task: this.deps.projection.listMessagesPage(sessionId, {
         limit: effectiveLimit
       }),
       ms: SESSION_OPERATION_TIMEOUT_MS,
@@ -88,7 +110,7 @@ export class SessionService {
     }
   ): Promise<ChatMessagePageResult> {
     return await this.deps.scheduler.timeout({
-      task: this.deps.messageRepository.listPageBySession(sessionId, options),
+      task: this.deps.projection.listMessagesPage(sessionId, options),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: `sessions.listMessagesPage:${sessionId}`
     })
@@ -96,7 +118,7 @@ export class SessionService {
 
   async listSessions(filters?: SessionListFilters) {
     return await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.list(filters),
+      task: this.deps.projection.listSessions(filters),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.list'
     })
@@ -104,7 +126,7 @@ export class SessionService {
 
   async activateSession(context: SessionRouteContext, sessionId: string): Promise<void> {
     await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.activate(context.webContentsId, sessionId),
+      task: this.deps.projection.activate(context.webContentsId, sessionId),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: `sessions.activate:${sessionId}`
     })
@@ -112,7 +134,7 @@ export class SessionService {
 
   async deactivateSession(context: SessionRouteContext): Promise<void> {
     await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.deactivate(context.webContentsId),
+      task: this.deps.projection.deactivate(context.webContentsId),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.deactivate'
     })
@@ -120,7 +142,7 @@ export class SessionService {
 
   async getActiveSession(context: SessionRouteContext): Promise<SessionWithState | null> {
     return await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.getActive(context.webContentsId),
+      task: this.deps.projection.getActive(context.webContentsId),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.getActive'
     })

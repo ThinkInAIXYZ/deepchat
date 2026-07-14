@@ -403,7 +403,11 @@ import {
 } from '@shared/contracts/routes/memory.routes'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { buildEffectiveTapeView } from '../presenter/agentRuntimePresenter/tapeEffectiveView'
-import { ChatService } from './chat/chatService'
+import {
+  ChatService,
+  type ChatServiceProjectionPort,
+  type ChatServiceTurnPort
+} from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import { createPresenterHotPathPorts } from './hotPathPorts'
 import { dispatchModelRoute } from './models/modelRouteHandler'
@@ -420,7 +424,11 @@ import { ProviderImportService } from './providers/providerImportService'
 import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
-import { SessionService } from './sessions/sessionService'
+import {
+  SessionService,
+  type SessionServiceLifecyclePort,
+  type SessionServiceProjectionPort
+} from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
@@ -432,7 +440,7 @@ import type { AgentMemoryAuditRow } from '@/presenter/memoryPresenter/domain/aud
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { CronJobsService } from '@/presenter/cronJobs'
-import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
+import type { AcpProviderAdminPort, SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 import type { UsageStatsService } from '@/presenter/usageStatsService'
 import type { SessionHistorySearch } from './sessions/sessionHistorySearch'
@@ -732,6 +740,10 @@ export function createMainKernelRouteRuntime(deps: {
   llmProviderPresenter: ILlmProviderPresenter
   acpProviderAdminPort: AcpProviderAdminPort
   agentSessionPresenter: IAgentSessionPresenter
+  sessionLifecyclePort: SessionServiceLifecyclePort
+  sessionProjectionPort: SessionServiceProjectionPort & ChatServiceProjectionPort
+  sessionTurnPort: ChatServiceTurnPort
+  sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   exporter: IConversationExporter
@@ -765,109 +777,21 @@ export function createMainKernelRouteRuntime(deps: {
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
-    agentSessionPresenter: deps.agentSessionPresenter as IAgentSessionPresenter & {
-      clearSessionPermissions: (sessionId: string) => void | Promise<void>
-    },
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter
   })
 
   const sessionService = new SessionService({
-    sessionRepository: hotPathPorts.sessionRepository,
-    messageRepository: hotPathPorts.messageRepository,
+    lifecycle: deps.sessionLifecyclePort,
+    projection: deps.sessionProjectionPort,
     scheduler
   })
   const chatService = new ChatService({
-    sessionRepository: hotPathPorts.sessionRepository,
-    messageRepository: hotPathPorts.messageRepository,
-    providerExecutionPort: hotPathPorts.providerExecutionPort,
+    turn: deps.sessionTurnPort,
+    projection: deps.sessionProjectionPort,
     providerCatalogPort: hotPathPorts.providerCatalogPort,
-    sessionPermissionPort: hotPathPorts.sessionPermissionPort,
+    sessionPermissionPort: deps.sessionPermissionPort,
     scheduler
-  })
-
-  deps.cronJobs.setRunSessionStarter({
-    async createSessionForRun({ job, run }) {
-      if (!job.agentId) {
-        throw new Error('Cron job requires an enabled agent.')
-      }
-      console.info('[CronJobs] Resolving agent for session:', {
-        jobId: job.id,
-        runId: run.id,
-        agentId: job.agentId
-      })
-      const agentType = await deps.configPresenter.getAgentType(job.agentId)
-      const snapshotConfig = job.agentSnapshot?.config as
-        | {
-            defaultModelPreset?: { providerId?: string; modelId?: string } | null
-            permissionMode?: 'default' | 'auto_approve' | 'full_access'
-            disabledAgentTools?: string[]
-            subagentEnabled?: boolean
-            systemPrompt?: string
-          }
-        | null
-        | undefined
-      const modelPreset =
-        agentType === 'deepchat' && job.modelPolicy === 'pin_current'
-          ? snapshotConfig?.defaultModelPreset
-          : null
-      const systemPrompt = job.taskSystemInstruction?.trim() || snapshotConfig?.systemPrompt
-
-      const session = await deps.agentSessionPresenter.createDetachedSession({
-        agentId: job.agentId,
-        title: job.name,
-        ...(agentType === 'acp' ? { providerId: 'acp', modelId: job.agentId } : {}),
-        ...(modelPreset?.providerId ? { providerId: modelPreset.providerId } : {}),
-        ...(modelPreset?.modelId ? { modelId: modelPreset.modelId } : {}),
-        ...(job.permissionPolicy === 'snapshot' && snapshotConfig?.permissionMode
-          ? { permissionMode: snapshotConfig.permissionMode }
-          : {}),
-        ...(job.toolPolicy === 'snapshot' && snapshotConfig?.disabledAgentTools
-          ? { disabledAgentTools: snapshotConfig.disabledAgentTools }
-          : {}),
-        ...(snapshotConfig?.subagentEnabled !== undefined
-          ? { subagentEnabled: snapshotConfig.subagentEnabled }
-          : {}),
-        ...(systemPrompt ? { generationSettings: { systemPrompt } } : {}),
-        metadata: {
-          source: 'cron_job',
-          cronJobId: job.id,
-          cronJobRunId: run.id,
-          scheduledAt: run.scheduledAt
-        }
-      })
-      console.info('[CronJobs] Detached session created:', {
-        jobId: job.id,
-        runId: run.id,
-        sessionId: session.id,
-        agentType
-      })
-      return { sessionId: session.id }
-    },
-    async startSessionRun({ job, sessionId }) {
-      if (!job.taskPrompt.trim()) {
-        throw new Error('Cron job task prompt is empty.')
-      }
-      console.info('[CronJobs] Sending task prompt to session:', {
-        jobId: job.id,
-        sessionId,
-        promptLength: job.taskPrompt.length
-      })
-      const result = await deps.agentSessionPresenter.sendMessage(sessionId, job.taskPrompt, {
-        maxProviderRounds: job.runtime.maxTurns
-      })
-      console.info('[CronJobs] Task prompt accepted by session:', {
-        jobId: job.id,
-        sessionId,
-        outputMessageId: result.messageId ?? null
-      })
-      return {
-        outputMessageId: result.messageId ?? null
-      }
-    },
-    async cancelSessionRun({ sessionId }) {
-      await deps.agentSessionPresenter.cancelGeneration(sessionId)
-    }
   })
 
   return {

@@ -66,16 +66,23 @@ import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
-import { CronJobsService } from './cronJobs'
+import { CronJobsService, createCronJobRunSessionStarter } from './cronJobs'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentSessionPresenter } from './agentSessionPresenter'
+import { SessionProjectionCoordinator } from './sessionApplication/projectionCoordinator'
+import { SessionAgentAssignmentPolicy } from './sessionApplication/agentAssignmentPolicy'
+import { SessionAgentAssignmentCoordinator } from './sessionApplication/agentAssignmentCoordinator'
+import { SessionDeletionTransaction } from './sessionApplication/lifecycleDeletionTransaction'
+import { SessionTurnCoordinator } from './sessionApplication/turnCoordinator'
+import { SessionLifecycleCoordinator } from './sessionApplication/lifecycleCoordinator'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
@@ -167,6 +174,13 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  sessionProjectionCoordinator: SessionProjectionCoordinator
+  sessionAgentAssignmentPolicy: SessionAgentAssignmentPolicy
+  sessionAgentAssignmentCoordinator: SessionAgentAssignmentCoordinator
+  sessionTurnCoordinator: SessionTurnCoordinator
+  sessionLifecycleCoordinator: SessionLifecycleCoordinator
+  sessionDeletionTransaction: SessionDeletionTransaction
+  sessionPermissionPort: SessionPermissionPort
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
   memoryPresenter: MemoryPresenter
@@ -590,6 +604,7 @@ export class Presenter implements IPresenter {
         }
       }
     }
+    this.sessionPermissionPort = sessionPermissionPort
     // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
     const memoryDbDir = path.join(dbDir, 'AgentMemory')
     MemoryVectorStore.recoverQuarantinedStores(memoryDbDir)
@@ -748,6 +763,175 @@ export class Presenter implements IPresenter {
         }
       })
     })
+    this.sessionProjectionCoordinator = new SessionProjectionCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        getAgentKind: (agentId) => this.agentManager.resolveBackend(agentId).kind,
+        snapshot: async (sessionId, options) =>
+          await this.agentManager
+            .resolveSessionHandle(toAppSessionId(sessionId))
+            .handle.snapshot(options),
+        waitForFirstTurnReady: async (sessionId, options) =>
+          await this.agentManager
+            .resolveSessionHandle(toAppSessionId(sessionId))
+            .handle.waitForFirstTurnReady(options)
+      },
+      transcript: agentSharedData.transcript,
+      tape: agentSharedData.tape,
+      messages: sqlitePresenter.deepchatMessagesTable,
+      searchResults: sqlitePresenter.deepchatMessageSearchResultsTable,
+      traces: sqlitePresenter.deepchatMessageTracesTable,
+      titles: this.llmproviderPresenter,
+      agentConfig: {
+        getAssistantModel: async (agentId) => {
+          const selection = await resolveAssistantModelSelection(
+            {
+              agentManager: this.agentManager,
+              configPresenter: this.configPresenter
+            },
+            agentId,
+            '',
+            ''
+          )
+          return selection.providerId && selection.modelId ? selection : null
+        }
+      },
+      events: {
+        publish: (payload) => publishDeepchatEvent('sessions.updated', payload)
+      },
+      ui: sessionUiPort
+    })
+    this.sessionAgentAssignmentPolicy = new SessionAgentAssignmentPolicy(
+      {
+        resolveAgent: (agentId) => {
+          const descriptor = this.agentManager.resolveBackend(agentId).descriptor
+          return { id: descriptor.id, kind: descriptor.kind }
+        }
+      },
+      {
+        getDefaultModel: () => this.configPresenter.getDefaultModel(),
+        getDefaultProjectPath: () => this.configPresenter.getDefaultProjectPath(),
+        resolveDeepChatAgentConfig: async (agentId) =>
+          await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+      }
+    )
+    const clearNewAgentSessionSkills = this.skillPresenter.clearNewAgentSessionSkills
+    if (!clearNewAgentSessionSkills) {
+      throw new Error('Skill presenter must provide session skill cleanup.')
+    }
+    this.sessionDeletionTransaction = new SessionDeletionTransaction({
+      sessions: appSessionService,
+      runtime: {
+        cleanupSessionBackends: async (sessionId) =>
+          await this.agentManager.cleanupSessionBackends(sessionId)
+      },
+      state: agentSharedData.sessionState,
+      permissions: sessionPermissionPort,
+      skills: {
+        clearNewAgentSessionSkills: async (sessionId) =>
+          await clearNewAgentSessionSkills.call(this.skillPresenter, sessionId)
+      },
+      projection: this.sessionProjectionCoordinator
+    })
+    this.sessionAgentAssignmentCoordinator = new SessionAgentAssignmentCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        getSessionAgentKind: (sessionId) =>
+          this.agentManager.resolveSessionBackend(sessionId).descriptor.kind,
+        resolveSession: (sessionId) => this.agentManager.resolveSessionHandle(sessionId),
+        resolveTransferSource: (sessionId) => this.agentManager.resolveTransferSource(sessionId),
+        resolveDeepChatTransferTarget: (agentId) =>
+          this.agentManager.resolveDeepChatTransferTarget(agentId),
+        resolveSubagentFacet: (sessionId) => this.agentManager.resolveSubagentFacet(sessionId)
+      },
+      policy: this.sessionAgentAssignmentPolicy,
+      projection: this.sessionProjectionCoordinator,
+      deletion: this.sessionDeletionTransaction,
+      environment: {
+        syncPath: (projectDir) => sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
+      },
+      acp: this.acpAsLlmProviderSessionControl
+    })
+    this.sessionTurnCoordinator = new SessionTurnCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        resolveSession: (sessionId) => {
+          const { handle } = this.agentManager.resolveSessionHandle(sessionId)
+          const turn = {
+            pending: handle.pending,
+            toolInteractions: handle.toolInteractions,
+            send: (input: Parameters<typeof handle.send>[0]) => handle.send(input),
+            cancel: () => handle.cancel(),
+            snapshot: () => handle.snapshot()
+          }
+          return handle.kind === 'deepchat'
+            ? {
+                ...turn,
+                kind: handle.kind,
+                compaction: {
+                  getState: () => handle.deepchat.getCompactionState(),
+                  compact: () => handle.deepchat.compact()
+                }
+              }
+            : { ...turn, kind: handle.kind }
+        }
+      },
+      transcript: {
+        hasMessages: (sessionId) => agentSharedData.transcript.hasMessages(sessionId),
+        clearMessages: (sessionId) => agentSharedData.transcriptMutation.clearMessages(sessionId),
+        prepareRetryMessage: (sessionId, messageId) =>
+          agentSharedData.transcriptMutation.prepareRetryMessage(sessionId, messageId),
+        deleteMessage: (sessionId, messageId) =>
+          agentSharedData.transcriptMutation.deleteMessage(sessionId, messageId),
+        editUserMessage: (sessionId, messageId, text) =>
+          agentSharedData.transcriptMutation.editUserMessage(sessionId, messageId, text)
+      },
+      workdir: this.sessionAgentAssignmentCoordinator,
+      projection: this.sessionProjectionCoordinator
+    })
+    this.sessionLifecycleCoordinator = new SessionLifecycleCoordinator({
+      sessions: appSessionService,
+      runtime: {
+        resolveSession: (sessionId) => {
+          const { handle } = this.agentManager.resolveSessionHandle(sessionId)
+          return {
+            kind: handle.kind,
+            initialize: (config) => handle.lifecycle.initialize(config),
+            isInitialized: () => handle.lifecycle.isInitialized(),
+            snapshot: () => handle.snapshot(),
+            getGenerationSettings: () => handle.settings.getGenerationSettings(),
+            setPermissionMode: (mode) => handle.settings.setPermissionMode(mode),
+            close: () => handle.close()
+          }
+        }
+      },
+      transcript: {
+        hasMessages: (sessionId) => agentSharedData.transcript.hasMessages(sessionId),
+        forkSessionFromMessage: (sourceSessionId, targetSessionId, targetMessageId) =>
+          agentSharedData.transcriptMutation.forkSessionFromMessage(
+            sourceSessionId,
+            targetSessionId,
+            targetMessageId
+          )
+      },
+      skills: {
+        setActiveSkills: async (sessionId, activeSkills) => {
+          await this.skillPresenter.setActiveSkills(sessionId, activeSkills)
+        }
+      },
+      assignmentPolicy: this.sessionAgentAssignmentPolicy,
+      workdir: this.sessionAgentAssignmentCoordinator,
+      initialTurn: this.sessionTurnCoordinator,
+      projection: this.sessionProjectionCoordinator,
+      deletion: this.sessionDeletionTransaction
+    })
+    this.cronJobs.setRunSessionStarter(
+      createCronJobRunSessionStarter({
+        lifecycle: this.sessionLifecycleCoordinator,
+        turn: this.sessionTurnCoordinator,
+        agentCatalog: this.configPresenter
+      })
+    )
     this.sessionHistorySearch = new SessionHistorySearch(sqlitePresenter, appSessionService)
     this.agentSessionExportService = new AgentSessionExportService({
       agentManager: this.agentManager,
@@ -761,17 +945,12 @@ export class Presenter implements IPresenter {
       llmProviderPresenter: this.llmproviderPresenter
     })
     this.agentSessionPresenter = new AgentSessionPresenter(
-      this.agentManager,
-      appSessionService,
-      this.llmproviderPresenter as unknown as ILlmProviderPresenter,
-      this.configPresenter,
-      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
-      agentSharedData,
-      this.skillPresenter,
+      this.sessionProjectionCoordinator,
+      this.sessionLifecycleCoordinator,
+      this.sessionAgentAssignmentCoordinator,
+      this.sessionTurnCoordinator,
       {
-        acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
-        sessionPermissionPort,
-        sessionUiPort
+        sessionPermissionPort
       }
     )
     this.projectPresenter = new ProjectPresenter(
@@ -781,7 +960,10 @@ export class Presenter implements IPresenter {
     )
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
-      agentSessionPresenter: this.agentSessionPresenter,
+      lifecycle: this.sessionLifecycleCoordinator,
+      turn: this.sessionTurnCoordinator,
+      assignment: this.sessionAgentAssignmentCoordinator,
+      projection: this.sessionProjectionCoordinator,
       filePresenter: this.filePresenter,
       agentManager: this.agentManager,
       windowPresenter: this.windowPresenter,
@@ -1186,6 +1368,10 @@ const buildMainKernelRouteRuntime = () =>
     llmProviderPresenter: presenter.llmproviderPresenter,
     acpProviderAdminPort: presenter.acpProviderAdminPort,
     agentSessionPresenter: presenter.agentSessionPresenter,
+    sessionLifecyclePort: presenter.sessionLifecycleCoordinator,
+    sessionProjectionPort: presenter.sessionProjectionCoordinator,
+    sessionTurnPort: presenter.sessionTurnCoordinator,
+    sessionPermissionPort: presenter.sessionPermissionPort,
     skillPresenter: presenter.skillPresenter,
     skillSyncPresenter: presenter.skillSyncPresenter,
     exporter: presenter.exporter,

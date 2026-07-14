@@ -19,6 +19,7 @@ function createMockSqlitePresenter() {
       insert: vi.fn(),
       updateContent: vi.fn(),
       updateStatus: vi.fn(),
+      updateMetadata: vi.fn(),
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
       hasBySession: vi.fn().mockReturnValue(false),
@@ -201,6 +202,64 @@ describe('DeepChatMessageStore', () => {
         'pending'
       )
       expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
+    })
+
+    it('persists run metadata while keeping an interaction-paused message pending', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        role: 'assistant',
+        created_at: 1000,
+        updated_at: 2000
+      })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        provider_id: 'openai',
+        model_id: 'gpt-4o'
+      })
+      const blocks = [
+        {
+          type: 'content' as const,
+          content: 'partial',
+          status: 'success' as const,
+          timestamp: 1000
+        }
+      ]
+      const metadata = '{"runOutcome":"paused","inputTokens":10,"outputTokens":2,"totalTokens":12}'
+
+      store.updateAssistantContent('m1', blocks, metadata)
+
+      expect(sqlitePresenter.deepchatMessagesTable.updateMetadata).toHaveBeenCalledWith(
+        'm1',
+        metadata
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
+        'm1',
+        'pending'
+      )
+      expect(sqlitePresenter.deepchatUsageStatsTable.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageId: 'm1',
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          source: 'live'
+        })
+      )
+    })
+  })
+
+  describe('updateAssistantMetadata', () => {
+    it('persists accounting without rewriting assistant blocks or status', () => {
+      const metadata = '{"runOutcome":"paused","toolCalls":4}'
+
+      store.updateAssistantMetadata('m1', metadata)
+
+      expect(sqlitePresenter.deepchatMessagesTable.updateMetadata).toHaveBeenCalledWith(
+        'm1',
+        metadata
+      )
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).not.toHaveBeenCalled()
     })
   })
 

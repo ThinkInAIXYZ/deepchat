@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
+import { accumulate, commitRoundUsage } from '@/presenter/agentRuntimePresenter/accumulator'
 import { createState } from '@/presenter/agentRuntimePresenter/types'
 import type { StreamState } from '@/presenter/agentRuntimePresenter/types'
 
@@ -266,6 +266,14 @@ describe('accumulate', () => {
       }
     })
 
+    expect(state.roundUsage).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      cachedInputTokens: 3,
+      cacheWriteInputTokens: 2
+    })
+    commitRoundUsage(state)
     expect(state.metadata.inputTokens).toBe(10)
     expect(state.metadata.outputTokens).toBe(5)
     expect(state.metadata.totalTokens).toBe(15)

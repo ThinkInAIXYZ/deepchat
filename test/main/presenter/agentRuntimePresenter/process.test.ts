@@ -101,6 +101,26 @@ function createMockToolPresenter(responses: Record<string, string> = {}): IToolP
   } as unknown as IToolPresenter
 }
 
+function createPostCallPermissionToolPresenter(): IToolPresenter {
+  const toolPresenter = createMockToolPresenter()
+  ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
+    content: 'permission required',
+    rawData: {
+      content: 'permission required',
+      isError: true,
+      requiresPermission: true,
+      permissionRequest: {
+        permissionType: 'write',
+        description: 'Need permission to write the file',
+        toolName: 'action',
+        serverName: 'test-server',
+        paths: ['output.txt']
+      }
+    }
+  })
+  return toolPresenter
+}
+
 function makeStreamEvents(...events: LLMCoreStreamEvent[]): LLMCoreStreamEvent[] {
   return events
 }
@@ -510,6 +530,135 @@ describe('processStream', () => {
       expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
+    it('accounts for executed tools before pausing a mixed tool batch', async () => {
+      const coreStream = vi.fn(async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'action-1',
+          tool_call_name: 'action'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'action-1',
+          tool_call_arguments_complete: '{}'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'question-1',
+          tool_call_name: 'deepchat_question'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'question-1',
+          tool_call_arguments_complete: JSON.stringify({
+            question: 'Continue?',
+            options: [{ label: 'Yes' }, { label: 'No' }]
+          })
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      }) as unknown as ProcessParams['coreStream']
+      const toolPresenter = createMockToolPresenter({ action: 'ok' })
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolExecution: createToolExecutionPort(toolPresenter),
+          tools: [makeTool('action'), makeTool('deepchat_question')]
+        })
+      )
+
+      expect(result).toMatchObject({
+        status: 'paused',
+        pendingInteractions: [expect.objectContaining({ toolCallId: 'question-1' })]
+      })
+      expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+      const finalPauseCall = messageStore.updateAssistantContent.mock.calls.findLast(
+        (call) => typeof call[2] === 'string'
+      )
+      expect(finalPauseCall).toBeDefined()
+      expect(JSON.parse(finalPauseCall?.[2])).toMatchObject({
+        providerRounds: 1,
+        toolCalls: 1,
+        runOutcome: 'paused',
+        runStopReason: 'interaction'
+      })
+    })
+
+    it('counts a post-call permission tool before persisting pause', async () => {
+      const toolPresenter = createPostCallPermissionToolPresenter()
+
+      const result = await processStream(
+        createParams({
+          coreStream: createToolRoundStream('action'),
+          toolExecution: createToolExecutionPort(toolPresenter),
+          tools: [makeTool('action')],
+          permissionMode: 'default'
+        })
+      )
+
+      expect(result).toMatchObject({
+        status: 'paused',
+        pendingInteractions: [expect.objectContaining({ origin: 'post-call-permission' })]
+      })
+      expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+      const finalPauseCall = messageStore.updateAssistantContent.mock.calls.findLast(
+        (call) => typeof call[2] === 'string'
+      )
+      expect(finalPauseCall).toBeDefined()
+      expect(JSON.parse(finalPauseCall?.[2])).toMatchObject({
+        providerRounds: 1,
+        toolCalls: 1,
+        runOutcome: 'paused',
+        runStopReason: 'interaction'
+      })
+    })
+
+    it('enforces the global tool-call cap after a post-call permission pause', async () => {
+      const pausedToolPresenter = createPostCallPermissionToolPresenter()
+
+      const pausedResult = await processStream(
+        createParams({
+          coreStream: createToolRoundStream('action'),
+          toolExecution: createToolExecutionPort(pausedToolPresenter),
+          tools: [makeTool('action')],
+          permissionMode: 'default',
+          initialAccounting: { providerRounds: 0, toolCalls: 127 }
+        })
+      )
+
+      expect(pausedResult).toMatchObject({ status: 'paused' })
+      const finalPauseCall = messageStore.updateAssistantContent.mock.calls.findLast(
+        (call) => typeof call[2] === 'string'
+      )
+      expect(finalPauseCall).toBeDefined()
+      const pausedMetadata = JSON.parse(finalPauseCall?.[2])
+      expect(pausedMetadata).toMatchObject({
+        toolCalls: 128,
+        runOutcome: 'paused',
+        runStopReason: 'interaction'
+      })
+
+      const resumedToolPresenter = createMockToolPresenter({ action: 'should not run' })
+      const resumedResult = await processStream(
+        createParams({
+          coreStream: createToolRoundStream('action'),
+          toolExecution: createToolExecutionPort(resumedToolPresenter),
+          tools: [makeTool('action')],
+          initialAccounting: pausedMetadata
+        })
+      )
+
+      expect(resumedResult).toMatchObject({ status: 'completed', stopReason: 'max_tool_calls' })
+      expect(resumedToolPresenter.callTool).not.toHaveBeenCalled()
+      expect(
+        JSON.parse(messageStore.finalizeAssistantMessage.mock.calls.at(-1)?.[2])
+      ).toMatchObject({
+        toolCalls: 128,
+        runOutcome: 'completed',
+        runStopReason: 'max_tool_calls'
+      })
+    })
+
     it('settles a thrown provider error without a tool Tape snapshot', async () => {
       const order: string[] = []
       observeCommitOrder(order)
@@ -605,7 +754,7 @@ describe('processStream', () => {
         })
       )
 
-      expect(result).toMatchObject({ status: 'completed', stopReason: 'complete' })
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'max_tool_calls' })
       expect(order).toEqual([
         'renderer:update',
         'message:update',
@@ -679,6 +828,57 @@ describe('processStream', () => {
 
       expect(result.status).toBe('aborted')
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
+      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps a tool-local AbortError as a tool failure while the run remains active', async () => {
+      let providerRound = 0
+      const coreStream = vi.fn(() => {
+        providerRound += 1
+        if (providerRound === 1) {
+          return (async function* () {
+            yield {
+              type: 'tool_call_start',
+              tool_call_id: 'tc1',
+              tool_call_name: 'action'
+            } as LLMCoreStreamEvent
+            yield {
+              type: 'tool_call_end',
+              tool_call_id: 'tc1',
+              tool_call_arguments_complete: '{}'
+            } as LLMCoreStreamEvent
+            yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+          })()
+        }
+        return (async function* () {
+          yield { type: 'text', content: 'Recovered' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }) as unknown as ProcessParams['coreStream']
+      const timeoutError = new Error('Model request timed out')
+      timeoutError.name = 'AbortError'
+      const toolPresenter = createMockToolPresenter()
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(timeoutError)
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          toolExecution: createToolExecutionPort(toolPresenter),
+          tools: [makeTool('action')]
+        })
+      )
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'complete' })
+      expect(messageStore.setMessageError).not.toHaveBeenCalled()
+      expect(messageStore.finalizeAssistantMessage.mock.calls.at(-1)?.[1]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool_call',
+            status: 'error',
+            tool_call: expect.objectContaining({ response: 'Error: Model request timed out' })
+          })
+        ])
+      )
       expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
@@ -820,10 +1020,20 @@ describe('processStream', () => {
     await promise
   })
 
-  it('treats AbortError thrown before the first event as aborted without writing an error block', async () => {
+  it('persists usage and aborted metadata when the provider throws AbortError', async () => {
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'usage',
+        usage: {
+          prompt_tokens: 11,
+          completion_tokens: 7,
+          total_tokens: 18,
+          cached_tokens: 3,
+          cache_write_tokens: 2
+        }
+      } as LLMCoreStreamEvent
       throw abortError
     }) as unknown as ProcessParams['coreStream']
 
@@ -837,12 +1047,300 @@ describe('processStream', () => {
       stopReason: 'user_stop',
       errorMessage: 'common.error.userCanceledGeneration'
     })
-    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(result.usage).toEqual({
+      inputTokens: 11,
+      outputTokens: 7,
+      totalTokens: 18,
+      cachedInputTokens: 3,
+      cacheWriteInputTokens: 2
+    })
+    expect(messageStore.setMessageError).toHaveBeenCalledOnce()
+    const metadata = JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])
+    expect(metadata).toMatchObject({
+      runOutcome: 'aborted',
+      runStopReason: 'user_stop',
+      inputTokens: 11,
+      outputTokens: 7,
+      totalTokens: 18,
+      cachedInputTokens: 3,
+      cacheWriteInputTokens: 2,
+      providerRounds: 1,
+      toolCalls: 0
+    })
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-    expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
-      'chat.stream.failed',
-      expect.anything()
+    expectDeepchatEvent('chat.stream.failed', {
+      requestId: 'req-1',
+      sessionId: 's1',
+      messageId: 'm1',
+      error: 'common.error.userCanceledGeneration'
+    })
+  })
+
+  it('accounts for a tool that started before result normalization was aborted', async () => {
+    const abortController = new AbortController()
+    const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'tool_call_start',
+        tool_call_id: 'tc-aborted',
+        tool_call_name: 'action'
+      } as LLMCoreStreamEvent
+      yield {
+        type: 'tool_call_end',
+        tool_call_id: 'tc-aborted',
+        tool_call_arguments_complete: '{}'
+      } as LLMCoreStreamEvent
+      yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+    const toolPresenter = createMockToolPresenter({ action: 'raw result' })
+    const toolResults = createToolResultPort({
+      outputGuard: new ToolOutputGuard(),
+      normalize: async () => {
+        abortController.abort()
+        return 'normalized result'
+      }
+    })
+
+    const result = await processStream(
+      createParams({
+        abortController,
+        coreStream,
+        toolExecution: createToolExecutionPort(toolPresenter),
+        toolResults,
+        tools: [makeTool('action')]
+      })
     )
+
+    expect(result).toMatchObject({ status: 'aborted', stopReason: 'user_stop' })
+    expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+    expect(JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])).toMatchObject({
+      providerRounds: 1,
+      toolCalls: 1,
+      runOutcome: 'aborted',
+      runStopReason: 'user_stop'
+    })
+  })
+
+  it('accumulates resumed accounting across provider and tool rounds', async () => {
+    let callCount = 0
+    const coreStream = vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        return (async function* () {
+          yield {
+            type: 'usage',
+            usage: {
+              prompt_tokens: 2,
+              completion_tokens: 3,
+              total_tokens: 5,
+              cached_tokens: 1,
+              cache_write_tokens: 2
+            }
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc-resumed',
+            tool_call_name: 'action'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc-resumed',
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+
+      return (async function* () {
+        yield {
+          type: 'usage',
+          usage: {
+            prompt_tokens: 4,
+            completion_tokens: 5,
+            total_tokens: 9,
+            cached_tokens: 2,
+            cache_write_tokens: 3
+          }
+        } as LLMCoreStreamEvent
+        yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+    const toolPresenter = createMockToolPresenter({ action: 'ok' })
+
+    const result = await processStream(
+      createParams({
+        coreStream,
+        toolExecution: createToolExecutionPort(toolPresenter),
+        tools: [makeTool('action')],
+        initialAccounting: {
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30,
+          cachedInputTokens: 3,
+          cacheWriteInputTokens: 4,
+          providerRounds: 2,
+          toolCalls: 3,
+          generationTime: 1000,
+          firstTokenTime: 100
+        }
+      })
+    )
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      usage: {
+        inputTokens: 16,
+        outputTokens: 28,
+        totalTokens: 44,
+        cachedInputTokens: 6,
+        cacheWriteInputTokens: 9
+      }
+    })
+    expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+    const metadata = JSON.parse(messageStore.finalizeAssistantMessage.mock.calls.at(-1)?.[2])
+    expect(metadata).toMatchObject({
+      inputTokens: 16,
+      outputTokens: 28,
+      totalTokens: 44,
+      cachedInputTokens: 6,
+      cacheWriteInputTokens: 9,
+      providerRounds: 4,
+      toolCalls: 4,
+      generationTime: 1000,
+      firstTokenTime: 100,
+      tokensPerSecond: 28,
+      runOutcome: 'completed',
+      runStopReason: 'complete'
+    })
+  })
+
+  it('caps provider attempts reported by coreStream before starting another request', async () => {
+    const providerAttempts = vi.fn()
+    const coreStream = vi.fn(function (...args: Parameters<ProcessParams['coreStream']>) {
+      const onProviderRequestStart = args[6]
+      onProviderRequestStart?.()
+      providerAttempts()
+      onProviderRequestStart?.()
+      providerAttempts()
+      return (async function* () {
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(
+      createParams({
+        coreStream,
+        coreStreamReportsProviderStart: true,
+        maxProviderRounds: 1
+      })
+    )
+
+    expect(result).toMatchObject({
+      status: 'error',
+      stopReason: 'max_turns',
+      errorMessage: 'Maximum agent turns exceeded (1).'
+    })
+    expect(coreStream).toHaveBeenCalledOnce()
+    expect(providerAttempts).toHaveBeenCalledOnce()
+    const metadata = JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])
+    expect(metadata).toMatchObject({
+      providerRounds: 1,
+      toolCalls: 0,
+      runOutcome: 'error',
+      runStopReason: 'max_turns'
+    })
+  })
+
+  it('does not enter coreStream when resumed provider accounting already reached the cap', async () => {
+    const coreStream = vi.fn(async function* () {
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(
+      createParams({
+        coreStream,
+        coreStreamReportsProviderStart: true,
+        initialAccounting: { providerRounds: 1, toolCalls: 0 },
+        maxProviderRounds: 1
+      })
+    )
+
+    expect(result).toMatchObject({
+      status: 'error',
+      stopReason: 'max_turns',
+      errorMessage: 'Maximum agent turns exceeded (1).'
+    })
+    expect(coreStream).not.toHaveBeenCalled()
+    expect(JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])).toMatchObject({
+      providerRounds: 1,
+      toolCalls: 0,
+      runOutcome: 'error',
+      runStopReason: 'max_turns'
+    })
+  })
+
+  it('restores the persisted provider-round cap after an interaction pause', async () => {
+    const pauseCoreStream = vi.fn(async function* () {
+      yield {
+        type: 'tool_call_start',
+        tool_call_id: 'question-provider-cap',
+        tool_call_name: 'deepchat_question'
+      } as LLMCoreStreamEvent
+      yield {
+        type: 'tool_call_end',
+        tool_call_id: 'question-provider-cap',
+        tool_call_arguments_complete: JSON.stringify({
+          question: 'Continue?',
+          options: [{ label: 'Yes' }, { label: 'No' }]
+        })
+      } as LLMCoreStreamEvent
+      yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+
+    const pausedResult = await processStream(
+      createParams({
+        coreStream: pauseCoreStream,
+        tools: [makeTool('deepchat_question')],
+        maxProviderRounds: 1
+      })
+    )
+
+    expect(pausedResult).toMatchObject({ status: 'paused' })
+    const finalPauseCall = messageStore.updateAssistantContent.mock.calls.findLast(
+      (call) => typeof call[2] === 'string'
+    )
+    expect(finalPauseCall).toBeDefined()
+    const pausedMetadata = JSON.parse(finalPauseCall?.[2])
+    expect(pausedMetadata).toMatchObject({
+      maxProviderRounds: 1,
+      providerRounds: 1,
+      runOutcome: 'paused',
+      runStopReason: 'interaction'
+    })
+
+    const resumedCoreStream = vi.fn(async function* () {
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+    const resumedResult = await processStream(
+      createParams({
+        coreStream: resumedCoreStream,
+        coreStreamReportsProviderStart: true,
+        initialAccounting: pausedMetadata
+      })
+    )
+
+    expect(resumedResult).toMatchObject({
+      status: 'error',
+      stopReason: 'max_turns',
+      errorMessage: 'Maximum agent turns exceeded (1).'
+    })
+    expect(resumedCoreStream).not.toHaveBeenCalled()
+    expect(JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])).toMatchObject({
+      maxProviderRounds: 1,
+      providerRounds: 1,
+      runOutcome: 'error',
+      runStopReason: 'max_turns'
+    })
   })
 
   it('single tool call → loop once, finalize', async () => {
@@ -1775,8 +2273,24 @@ describe('processStream', () => {
       errorMessage: 'common.error.userCanceledGeneration'
     })
     expect(messageStore.updateAssistantContent).not.toHaveBeenCalled()
-    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.setMessageError).toHaveBeenCalledWith(
+      'm1',
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          content: 'common.error.userCanceledGeneration',
+          status: 'error'
+        })
+      ]),
+      expect.any(String)
+    )
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    expect(JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])).toMatchObject({
+      runOutcome: 'aborted',
+      runStopReason: 'user_stop',
+      providerRounds: 1,
+      toolCalls: 0
+    })
     expectDeepchatEvent('chat.plan.updated', {
       sessionId: 's1',
       messageId: 'm1',
@@ -1805,18 +2319,23 @@ describe('processStream', () => {
       stopReason: 'user_stop',
       errorMessage: 'common.error.userCanceledGeneration'
     })
-    expect(messageStore.setMessageError).not.toHaveBeenCalled()
-    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-    expect(messageStore.updateAssistantContent).toHaveBeenLastCalledWith(
+    expect(messageStore.setMessageError).toHaveBeenCalledWith(
       'm1',
       expect.arrayContaining([
         expect.objectContaining({
           type: 'content',
           content: 'Partial answer',
           status: 'success'
+        }),
+        expect.objectContaining({
+          type: 'error',
+          content: 'common.error.userCanceledGeneration',
+          status: 'error'
         })
-      ])
+      ]),
+      expect.any(String)
     )
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
     expectDeepchatEvent('chat.plan.updated', {
       sessionId: 's1',
       messageId: 'm1',
@@ -1973,15 +2492,16 @@ describe('processStream', () => {
 
     const promise = processStream(params)
     await vi.runAllTimersAsync()
-    await promise
+    const result = await promise
 
-    // Error event is accumulated into blocks, stop_reason becomes 'error'.
-    // Since stop_reason != 'tool_use', it breaks out and calls finalize.
-    // The error block was already accumulated by the accumulator.
-    // finalize marks remaining pending blocks as success.
-    // This matches the v2 behavior where error events from the stream
-    // still lead to finalization (blocks contain the error block).
-    expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
+    // Generic provider error events finalize as errors (not success-shaped complete).
+    expect(result).toMatchObject({
+      status: 'error',
+      stopReason: 'provider_error',
+      errorMessage: 'Rate limit exceeded'
+    })
+    expect(messageStore.setMessageError).toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
   })
 
   it('context window error event is finalized as an error', async () => {
