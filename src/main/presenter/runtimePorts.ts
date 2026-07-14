@@ -57,6 +57,10 @@ export interface AcpProviderAdminPort {
 
 export interface SessionPermissionPort {
   clearSessionPermissions(sessionId: string): void
+  /**
+   * Copy session-scoped permission approvals from parent to child (subagent inheritance).
+   */
+  cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
   approvePermission(sessionId: string, permission: SessionPermissionRequest): Promise<void>
 }
 

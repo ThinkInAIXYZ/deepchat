@@ -235,15 +235,14 @@ export class AcpContentMapper {
 
     this.emitToolCallStartIfNeeded(state, payload)
 
+    // Tool progress is narrative only. Never emit tool_call_permission action blocks here —
+    // those are reserved for real session/request_permission interactions.
     const shouldEmitReasoning =
       update.sessionUpdate === 'tool_call' || (status && status !== previousStatus)
     if (shouldEmitReasoning) {
       const reasoningText = this.buildToolCallReasoning(state.toolName, status)
       if (reasoningText) {
         payload.events.push(createStreamEvent.reasoning(reasoningText))
-        payload.blocks.push(
-          this.createBlock('action', reasoningText, { action_type: 'tool_call_permission' })
-        )
       }
     }
 

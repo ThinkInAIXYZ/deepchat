@@ -84,15 +84,16 @@ describe('SessionDeletionTransaction', () => {
     expect(harness.dependencies.projection.forgetStatus).toHaveBeenNthCalledWith(2, ['parent'])
   })
 
-  it('preserves backend cleanup error precedence over shared-state cleanup', async () => {
+  it('still deletes the session row after partial backend/state cleanup failures', async () => {
     const harness = createHarness()
     harness.records.delete('child')
     const backendError = new Error('backend failed')
     harness.dependencies.runtime.cleanupSessionBackends.mockRejectedValue(backendError)
     harness.dependencies.state.destroySession.mockRejectedValue(new Error('state failed'))
 
-    await expect(harness.transaction.deleteSessionTree('parent')).rejects.toBe(backendError)
+    await expect(harness.transaction.deleteSessionTree('parent')).resolves.toEqual(['parent'])
     expect(harness.dependencies.state.destroySession).toHaveBeenCalledWith('parent')
-    expect(harness.dependencies.sessions.delete).not.toHaveBeenCalled()
+    expect(harness.dependencies.sessions.delete).toHaveBeenCalledWith('parent')
+    expect(harness.dependencies.permissions.clearSessionPermissions).toHaveBeenCalledWith('parent')
   })
 })

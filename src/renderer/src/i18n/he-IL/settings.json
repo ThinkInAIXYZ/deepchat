@@ -2979,6 +2979,9 @@
     "cuaDescription": "תוסף ComputerUse של DeepChat שמיושם על בסיס הפרויקט trycua/cua.",
     "acpUnavailableTitle": "תוספים אינם זמינים לסוכני ACP",
     "acpUnavailableDescription": "סוכני ACP מנהלים כלים והרחבות בסביבת הריצה שלהם. יש לבחור סוכן DeepChat כדי להשתמש בתוספים.",
-    "agentScopeUnsupported": "הרחבות ברמת הסוכן זמינות רק לסוכני DeepChat."
+    "agentScopeUnsupported": "הרחבות ברמת הסוכן זמינות רק לסוכני DeepChat.",
+    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
+    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
+    "currentAgentFallback": "current agent"
   }
 }

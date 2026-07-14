@@ -2979,6 +2979,9 @@
     "cuaDescription": "trycua/cua プロジェクトをベースに DeepChat が実装した ComputerUse プラグインです。",
     "acpUnavailableTitle": "ACP エージェントではプラグインを利用できません",
     "acpUnavailableDescription": "ACP エージェントは独自のランタイムでツールと拡張機能を管理します。プラグインを使用するには DeepChat エージェントを選択してください。",
-    "agentScopeUnsupported": "エージェント単位の拡張機能は DeepChat エージェントでのみ利用できます。"
+    "agentScopeUnsupported": "エージェント単位の拡張機能は DeepChat エージェントでのみ利用できます。",
+    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
+    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
+    "currentAgentFallback": "current agent"
   }
 }

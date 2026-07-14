@@ -40,6 +40,13 @@ describe('AcpContentMapper tool call handling', () => {
       })
     )
 
+    expect(
+      start.blocks.some(
+        (block) => block.type === 'action' && block.action_type === 'tool_call_permission'
+      )
+    ).toBe(false)
+    expect(start.events.some((event) => event.type === 'reasoning')).toBe(true)
+
     const startEvent = start.events.find((event) => event.type === 'tool_call_start')
     expect(startEvent).toMatchObject({
       type: 'tool_call_start',

@@ -558,6 +558,11 @@ export interface SessionDeletionPermissionPort {
   clearSessionPermissions(sessionId: string): void
 }
 
+export interface SessionLifecyclePermissionPort {
+  clearSessionPermissions(sessionId: string): void
+  cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
+}
+
 export interface SessionDeletionSkillPort {
   clearNewAgentSessionSkills(sessionId: string): Promise<void>
 }

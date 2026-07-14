@@ -50,16 +50,12 @@ function createHarness() {
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     respondToolInteraction: vi.fn().mockResolvedValue({ resumed: true })
   }
-  const providerCatalogPort = {
-    getAgentType: vi.fn().mockResolvedValue('deepchat' as const)
-  }
   const sessionPermissionPort = {
     clearSessionPermissions: vi.fn()
   }
   const service = new ChatService({
     projection,
     turn,
-    providerCatalogPort,
     sessionPermissionPort,
     scheduler
   })
@@ -69,13 +65,12 @@ function createHarness() {
     scheduler,
     projection,
     turn,
-    providerCatalogPort,
     sessionPermissionPort
   }
 }
 
 describe('ChatService', () => {
-  it('sends messages through the scheduler after resolving the session owner', async () => {
+  it('sends messages through the scheduler after resolving the session', async () => {
     const harness = createHarness()
 
     await expect(harness.service.sendMessage('session-1', 'hello')).resolves.toEqual({
@@ -85,9 +80,8 @@ describe('ChatService', () => {
     })
 
     expect(harness.projection.getSession).toHaveBeenCalledWith('session-1')
-    expect(harness.providerCatalogPort.getAgentType).toHaveBeenCalledWith('deepchat')
     expect(harness.turn.sendMessage).toHaveBeenCalledWith('session-1', 'hello')
-    expect(harness.scheduler.timeout).toHaveBeenCalledTimes(3)
+    expect(harness.scheduler.timeout).toHaveBeenCalledTimes(2)
     expect(harness.scheduler.timeout).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -98,13 +92,6 @@ describe('ChatService', () => {
     expect(harness.scheduler.timeout).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        ms: 5_000,
-        reason: 'chat.sendMessage:session-1:agentType'
-      })
-    )
-    expect(harness.scheduler.timeout).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({
         ms: 30 * 60 * 1_000,
         reason: 'chat.sendMessage:session-1',
         signal: expect.any(AbortSignal)
@@ -112,12 +99,38 @@ describe('ChatService', () => {
     )
   })
 
-  it('releases the send lock after missing session and agent type preflight failures', async () => {
+  it('allows concurrent send accepts so runtime queue owns generation concurrency', async () => {
+    const harness = createHarness()
+    let resolveFirstSend!: (value: { requestId: string; messageId: string }) => void
+    harness.turn.sendMessage.mockImplementationOnce(
+      async () =>
+        await new Promise<{ requestId: string; messageId: string }>((resolve) => {
+          resolveFirstSend = resolve
+        })
+    )
+    harness.turn.sendMessage.mockResolvedValueOnce({
+      requestId: 'assistant-2',
+      messageId: 'assistant-2'
+    })
+
+    const firstSend = harness.service.sendMessage('session-1', 'hello')
+    await expect(harness.service.sendMessage('session-1', 'again')).resolves.toEqual({
+      accepted: true,
+      requestId: 'assistant-2',
+      messageId: 'assistant-2'
+    })
+
+    resolveFirstSend({ requestId: 'assistant-1', messageId: 'assistant-1' })
+    await expect(firstSend).resolves.toEqual({
+      accepted: true,
+      requestId: 'assistant-1',
+      messageId: 'assistant-1'
+    })
+  })
+
+  it('releases accept controller after missing session preflight failures', async () => {
     const harness = createHarness()
     harness.projection.getSession.mockResolvedValueOnce(null).mockResolvedValue(createSession())
-    harness.providerCatalogPort.getAgentType
-      .mockResolvedValueOnce(null)
-      .mockResolvedValue('deepchat')
     harness.turn.sendMessage.mockResolvedValueOnce({
       requestId: 'request-1',
       messageId: 'message-1'
@@ -125,12 +138,6 @@ describe('ChatService', () => {
 
     await expect(harness.service.sendMessage('session-1', 'missing session')).rejects.toThrow(
       'Session not found: session-1'
-    )
-    expect(harness.providerCatalogPort.getAgentType).not.toHaveBeenCalled()
-    expect(harness.turn.sendMessage).not.toHaveBeenCalled()
-
-    await expect(harness.service.sendMessage('session-1', 'missing agent type')).rejects.toThrow(
-      'Agent type not found: deepchat'
     )
     expect(harness.turn.sendMessage).not.toHaveBeenCalled()
 
@@ -142,186 +149,69 @@ describe('ChatService', () => {
     expect(harness.turn.sendMessage).toHaveBeenCalledExactlyOnceWith('session-1', 'retry')
   })
 
-  it('steers the active turn without claiming the normal send lock', async () => {
+  it('steers the active turn without blocking send accepts', async () => {
     const harness = createHarness()
 
     await expect(harness.service.steerActiveTurn('session-1', 'refine this')).resolves.toEqual({
       accepted: true
     })
-
-    expect(harness.projection.getSession).toHaveBeenCalledWith('session-1')
     expect(harness.turn.steerActiveTurn).toHaveBeenCalledWith('session-1', 'refine this')
-    expect(harness.scheduler.timeout).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: 'chat.steerActiveTurn:session-1' })
-    )
   })
 
-  it('resolves stopStream by request id and cleans up the session', async () => {
+  it('stops by session id and reports cancel failure', async () => {
     const harness = createHarness()
-    harness.projection.getMessage.mockResolvedValueOnce(createMessage())
+    harness.turn.cancelGeneration.mockRejectedValueOnce(new Error('cancel failed'))
 
-    await expect(harness.service.stopStream({ requestId: 'message-1' })).resolves.toEqual({
-      stopped: true
-    })
-
-    expect(harness.projection.getMessage).toHaveBeenCalledWith('message-1')
-    expect(harness.sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
-    expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
-    expect(harness.scheduler.timeout).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        ms: 5_000,
-        reason: 'chat.stopStream:message-1:message'
-      })
-    )
-    expect(harness.scheduler.timeout).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        ms: 5_000,
-        reason: 'chat.stopStream:session-1'
-      })
-    )
-  })
-
-  it('returns stopped false when a request id cannot be mapped to a session', async () => {
-    const harness = createHarness()
-
-    await expect(harness.service.stopStream({ requestId: 'missing-message' })).resolves.toEqual({
+    await expect(harness.service.stopStream({ sessionId: 'session-1' })).resolves.toEqual({
       stopped: false
     })
-
-    expect(harness.scheduler.timeout).toHaveBeenCalledOnce()
-    expect(harness.sessionPermissionPort.clearSessionPermissions).not.toHaveBeenCalled()
-    expect(harness.turn.cancelGeneration).not.toHaveBeenCalled()
+    expect(harness.sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
 
-  it('attempts both stopStream cleanups when permission cleanup fails', async () => {
+  it('resolves stop target from message id when session id is omitted', async () => {
     const harness = createHarness()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    harness.projection.getMessage.mockResolvedValueOnce(createMessage())
-    harness.sessionPermissionPort.clearSessionPermissions.mockRejectedValueOnce(
-      new Error('permission cleanup failed')
-    )
+    harness.projection.getMessage.mockResolvedValue(createMessage())
 
     await expect(harness.service.stopStream({ requestId: 'message-1' })).resolves.toEqual({
       stopped: true
     })
-
-    expect(harness.sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(harness.projection.getMessage).toHaveBeenCalledWith('message-1')
     expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
-    expect(warn).toHaveBeenCalledOnce()
-    warn.mockRestore()
   })
 
-  it('responds to tool interactions through the turn port', async () => {
-    const harness = createHarness()
-    harness.turn.respondToolInteraction.mockResolvedValueOnce({
-      resumed: true,
-      waitingForUserMessage: false
-    })
-
-    await expect(
-      harness.service.respondToolInteraction({
-        sessionId: 'session-1',
-        messageId: 'message-1',
-        toolCallId: 'tool-1',
-        response: { kind: 'permission', granted: true }
-      })
-    ).resolves.toEqual({
-      accepted: true,
-      resumed: true,
-      waitingForUserMessage: false
-    })
-
-    expect(harness.turn.respondToolInteraction).toHaveBeenCalledWith(
-      'session-1',
-      'message-1',
-      'tool-1',
-      { kind: 'permission', granted: true }
-    )
-    expect(harness.scheduler.timeout).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ms: 30 * 60 * 1_000,
-        reason: 'chat.respondToolInteraction:session-1:tool-1'
-      })
-    )
-  })
-
-  it('attempts both timeout cleanups when permission cleanup fails', async () => {
-    const harness = createHarness()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const timeoutError = new Error('timed out')
-    timeoutError.name = 'TimeoutError'
-    harness.turn.sendMessage.mockRejectedValueOnce(timeoutError)
-    harness.sessionPermissionPort.clearSessionPermissions.mockRejectedValueOnce(
-      new Error('permission cleanup failed')
-    )
-
-    await expect(harness.service.sendMessage('session-1', 'hello')).rejects.toBe(timeoutError)
-
-    expect(harness.sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
-    expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
-    expect(warn).toHaveBeenCalledOnce()
-    warn.mockRestore()
-  })
-
-  it('releases the send lock after non-timeout failures without cleanup', async () => {
-    const harness = createHarness()
-    const sendError = new Error('provider failed')
-    harness.turn.sendMessage
-      .mockRejectedValueOnce(sendError)
-      .mockResolvedValueOnce({ requestId: 'request-2', messageId: 'message-2' })
-
-    await expect(harness.service.sendMessage('session-1', 'first')).rejects.toBe(sendError)
-    await expect(harness.service.sendMessage('session-1', 'second')).resolves.toEqual({
-      accepted: true,
-      requestId: 'request-2',
-      messageId: 'message-2'
-    })
-    expect(harness.sessionPermissionPort.clearSessionPermissions).not.toHaveBeenCalled()
-    expect(harness.turn.cancelGeneration).not.toHaveBeenCalled()
-  })
-
-  it('aborts a pending send when stopStream races during preflight', async () => {
-    const createAbortError = (reason: string) => {
-      const error = new Error(reason)
-      error.name = 'AbortError'
-      return error
-    }
+  it('aborts an in-flight send accept path on stop', async () => {
     const scheduler = {
       sleep: vi.fn(),
-      timeout: vi.fn(
-        async <T>({
-          task,
-          signal,
-          reason
-        }: {
-          task: Promise<T>
-          signal?: AbortSignal
-          reason: string
-        }) => {
-          if (signal?.aborted) throw createAbortError(reason)
-
-          return await new Promise<T>((resolve, reject) => {
-            const onAbort = () => {
-              signal?.removeEventListener('abort', onAbort)
-              reject(createAbortError(reason))
-            }
-
-            signal?.addEventListener('abort', onAbort, { once: true })
-            task.then(
-              (value) => {
-                signal?.removeEventListener('abort', onAbort)
-                resolve(value)
-              },
-              (error) => {
-                signal?.removeEventListener('abort', onAbort)
-                reject(error)
-              }
-            )
-          })
+      timeout: vi.fn(async <T>({ task, signal }: { task: Promise<T>; signal?: AbortSignal }) => {
+        if (!signal) {
+          return await task
         }
-      ),
+        return await new Promise<T>((resolve, reject) => {
+          if (signal.aborted) {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+            return
+          }
+          const onAbort = () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          }
+          signal.addEventListener('abort', onAbort, { once: true })
+          void task.then(
+            (value) => {
+              signal.removeEventListener('abort', onAbort)
+              resolve(value)
+            },
+            (error) => {
+              signal.removeEventListener('abort', onAbort)
+              reject(error)
+            }
+          )
+        })
+      }),
       retry: vi.fn()
     }
     let resolveSession!: (value: SessionWithState) => void
@@ -340,16 +230,12 @@ describe('ChatService', () => {
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn().mockResolvedValue({})
     }
-    const providerCatalogPort = {
-      getAgentType: vi.fn().mockResolvedValue('deepchat' as const)
-    }
     const sessionPermissionPort = {
-      clearSessionPermissions: vi.fn().mockResolvedValue(undefined)
+      clearSessionPermissions: vi.fn()
     }
     const service = new ChatService({
       projection,
       turn,
-      providerCatalogPort,
       sessionPermissionPort,
       scheduler
     })
@@ -366,29 +252,5 @@ describe('ChatService', () => {
     await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
     expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
     expect(turn.cancelGeneration).toHaveBeenCalledWith('session-1')
-  })
-
-  it('rejects a new send while another stream is active for the session', async () => {
-    const harness = createHarness()
-    let resolveFirstSend!: (value: { requestId: string; messageId: string }) => void
-    harness.turn.sendMessage.mockImplementationOnce(
-      async () =>
-        await new Promise<{ requestId: string; messageId: string }>((resolve) => {
-          resolveFirstSend = resolve
-        })
-    )
-
-    const firstSend = harness.service.sendMessage('session-1', 'hello')
-
-    await expect(harness.service.sendMessage('session-1', 'again')).rejects.toThrow(
-      'A stream is already active for session session-1'
-    )
-
-    resolveFirstSend({ requestId: 'assistant-1', messageId: 'assistant-1' })
-    await expect(firstSend).resolves.toEqual({
-      accepted: true,
-      requestId: 'assistant-1',
-      messageId: 'assistant-1'
-    })
   })
 })

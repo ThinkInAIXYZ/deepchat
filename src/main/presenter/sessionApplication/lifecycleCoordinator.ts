@@ -20,6 +20,7 @@ import type {
   SessionLifecycleRuntimePort,
   SessionLifecycleSkillPort,
   SessionLifecycleStorePort,
+  SessionLifecyclePermissionPort,
   SessionLifecycleSubagentInput,
   SessionLifecycleTranscriptPort
 } from './ports'
@@ -36,6 +37,7 @@ export interface SessionLifecycleCoordinatorDependencies {
   initialTurn: SessionInitialTurnPort
   projection: SessionLifecycleProjectionPort
   deletion: SessionLifecycleDeletionPort
+  permissions?: SessionLifecyclePermissionPort
 }
 
 export class SessionLifecycleCoordinator implements SessionLifecyclePort {
@@ -257,6 +259,8 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
         if (runtimeConfig.activeSkills.length > 0) {
           await this.dependencies.skills.setActiveSkills(sessionId, runtimeConfig.activeSkills)
         }
+        // Inherit parent session approvals so child does not re-prompt for already-trusted work.
+        this.dependencies.permissions?.cloneSessionPermissions?.(parentSessionId, sessionId)
         if (!this.dependencies.sessions.get(sessionId)) {
           throw new Error(`Subagent session not found after creation: ${sessionId}`)
         }

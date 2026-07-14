@@ -2970,6 +2970,9 @@
     "cuaDescription": "Plugin ComputerUse DeepChat yang diimplementasikan berdasarkan proyek trycua/cua.",
     "acpUnavailableTitle": "Plugin tidak tersedia untuk agen ACP",
     "acpUnavailableDescription": "Agen ACP mengelola alat dan ekstensi di lingkungan runtime mereka sendiri. Pilih agen DeepChat untuk menggunakan plugin.",
-    "agentScopeUnsupported": "Ekstensi khusus agen hanya tersedia untuk agen DeepChat."
+    "agentScopeUnsupported": "Ekstensi khusus agen hanya tersedia untuk agen DeepChat.",
+    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
+    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
+    "currentAgentFallback": "current agent"
   }
 }

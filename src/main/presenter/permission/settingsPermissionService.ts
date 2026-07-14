@@ -46,6 +46,19 @@ export class SettingsPermissionService {
     this.oneTimeApprovals.delete(conversationId)
   }
 
+  cloneConversation(sourceConversationId: string, targetConversationId: string): void {
+    const sourceId = sourceConversationId?.trim()
+    const targetId = targetConversationId?.trim()
+    if (!sourceId || !targetId || sourceId === targetId) return
+    const source = this.sessionApprovals.get(sourceId)
+    if (!source || source.size === 0) return
+    const target = this.sessionApprovals.get(targetId) ?? new Set<string>()
+    for (const toolName of source) {
+      target.add(toolName)
+    }
+    this.sessionApprovals.set(targetId, target)
+  }
+
   clearAll(): void {
     this.sessionApprovals.clear()
     this.oneTimeApprovals.clear()

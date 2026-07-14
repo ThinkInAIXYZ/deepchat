@@ -2970,6 +2970,9 @@
     "cuaDescription": "Wtyczka ComputerUse DeepChat zaimplementowana na podstawie projektu trycua/cua.",
     "acpUnavailableTitle": "Wtyczki nie są dostępne dla agentów ACP",
     "acpUnavailableDescription": "Agenci ACP zarządzają narzędziami i rozszerzeniami we własnym środowisku uruchomieniowym. Wybierz agenta DeepChat, aby korzystać z wtyczek.",
-    "agentScopeUnsupported": "Rozszerzenia na poziomie agenta są dostępne tylko dla agentów DeepChat."
+    "agentScopeUnsupported": "Rozszerzenia na poziomie agenta są dostępne tylko dla agentów DeepChat.",
+    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
+    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
+    "currentAgentFallback": "current agent"
   }
 }

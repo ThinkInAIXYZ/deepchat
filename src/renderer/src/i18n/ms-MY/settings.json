@@ -2970,6 +2970,9 @@
     "cuaDescription": "Plugin ComputerUse DeepChat yang dilaksanakan berdasarkan projek trycua/cua.",
     "acpUnavailableTitle": "Pemalam tidak tersedia untuk ejen ACP",
     "acpUnavailableDescription": "Ejen ACP mengurus alat dan sambungan dalam persekitaran masa jalan mereka sendiri. Pilih ejen DeepChat untuk menggunakan pemalam.",
-    "agentScopeUnsupported": "Sambungan khusus ejen hanya tersedia untuk ejen DeepChat."
+    "agentScopeUnsupported": "Sambungan khusus ejen hanya tersedia untuk ejen DeepChat.",
+    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
+    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
+    "currentAgentFallback": "current agent"
   }
 }

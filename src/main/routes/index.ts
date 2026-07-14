@@ -789,7 +789,6 @@ export function createMainKernelRouteRuntime(deps: {
   const chatService = new ChatService({
     turn: deps.sessionTurnPort,
     projection: deps.sessionProjectionPort,
-    providerCatalogPort: hotPathPorts.providerCatalogPort,
     sessionPermissionPort: deps.sessionPermissionPort,
     scheduler
   })

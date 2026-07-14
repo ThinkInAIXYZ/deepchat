@@ -2979,6 +2979,9 @@
     "cuaDescription": "Плагин ComputerUse от DeepChat, реализованный на базе проекта trycua/cua.",
     "acpUnavailableTitle": "Плагины недоступны для агентов ACP",
     "acpUnavailableDescription": "Агенты ACP управляют инструментами и расширениями в собственной среде выполнения. Выберите агента DeepChat, чтобы использовать плагины.",
-    "agentScopeUnsupported": "Расширения на уровне агента доступны только агентам DeepChat."
+    "agentScopeUnsupported": "Расширения на уровне агента доступны только агентам DeepChat.",
+    "scopeGlobalPlugins": "This page is app-global: official plugin install/enable/process state is shared by every DeepChat agent.",
+    "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
+    "currentAgentFallback": "current agent"
   }
 }

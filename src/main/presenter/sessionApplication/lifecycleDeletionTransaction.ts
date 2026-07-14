@@ -36,24 +36,42 @@ export class SessionDeletionTransaction implements SessionLifecycleDeletionPort 
       }
     }
 
-    let backendCleanupError: unknown
+    // Best-effort staged cleanup: never leave a zombie session row when later stages still work.
+    const stageErrors: Array<{ stage: string; error: unknown }> = []
     try {
       await this.dependencies.runtime.cleanupSessionBackends(toAppSessionId(sessionId))
     } catch (error) {
-      backendCleanupError = error
+      stageErrors.push({ stage: 'backend', error })
+      console.warn(`[SessionDeletionTransaction] backend cleanup failed for ${sessionId}:`, error)
     }
     try {
       await this.dependencies.state.destroySession(sessionId)
     } catch (error) {
-      if (!backendCleanupError) throw error
+      stageErrors.push({ stage: 'state', error })
+      console.warn(`[SessionDeletionTransaction] state destroy failed for ${sessionId}:`, error)
     }
-    if (backendCleanupError) throw backendCleanupError
 
-    this.dependencies.permissions.clearSessionPermissions(sessionId)
-    await this.dependencies.skills.clearNewAgentSessionSkills(sessionId)
+    try {
+      this.dependencies.permissions.clearSessionPermissions(sessionId)
+    } catch (error) {
+      stageErrors.push({ stage: 'permissions', error })
+    }
+    try {
+      await this.dependencies.skills.clearNewAgentSessionSkills(sessionId)
+    } catch (error) {
+      stageErrors.push({ stage: 'skills', error })
+    }
+
     this.dependencies.sessions.delete(sessionId)
     this.dependencies.projection.forgetStatus([sessionId])
     deletedSessionIds.push(sessionId)
+
+    if (stageErrors.length > 0) {
+      console.warn(
+        `[SessionDeletionTransaction] completed delete for ${sessionId} with partial failures:`,
+        stageErrors.map((entry) => entry.stage).join(', ')
+      )
+    }
     return deletedSessionIds
   }
 }

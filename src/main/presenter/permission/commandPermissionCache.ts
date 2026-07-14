@@ -32,6 +32,22 @@ export class CommandPermissionCache {
     this.onceCache.delete(conversationId)
   }
 
+  /**
+   * Copy session-scoped approvals only (not one-shot). Used for parent → subagent inheritance.
+   */
+  cloneConversation(sourceConversationId: string, targetConversationId: string): void {
+    const sourceId = sourceConversationId?.trim()
+    const targetId = targetConversationId?.trim()
+    if (!sourceId || !targetId || sourceId === targetId) return
+    const source = this.sessionCache.get(sourceId)
+    if (!source || source.size === 0) return
+    const target = this.sessionCache.get(targetId) ?? new Set<string>()
+    for (const signature of source) {
+      target.add(signature)
+    }
+    this.sessionCache.set(targetId, target)
+  }
+
   clearAll(): void {
     this.sessionCache.clear()
     this.onceCache.clear()

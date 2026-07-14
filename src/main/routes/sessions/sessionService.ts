@@ -7,6 +7,9 @@ import type {
 import type { Scheduler } from '../scheduler'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
+/** ACP process hydrate/prepare can exceed the generic read timeout. */
+const SESSION_CREATE_TIMEOUT_MS = 60_000
+const SESSION_LIST_TIMEOUT_MS = 15_000
 const DEFAULT_RESTORE_MESSAGE_LIMIT = 100
 
 export type SessionRouteContext = {
@@ -52,7 +55,7 @@ export class SessionService {
   ): Promise<SessionWithState> {
     return await this.deps.scheduler.timeout({
       task: this.deps.lifecycle.createSession(input, context.webContentsId),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
+      ms: SESSION_CREATE_TIMEOUT_MS,
       reason: 'sessions.create'
     })
   }
@@ -119,7 +122,7 @@ export class SessionService {
   async listSessions(filters?: SessionListFilters) {
     return await this.deps.scheduler.timeout({
       task: this.deps.projection.listSessions(filters),
-      ms: SESSION_OPERATION_TIMEOUT_MS,
+      ms: SESSION_LIST_TIMEOUT_MS,
       reason: 'sessions.list'
     })
   }

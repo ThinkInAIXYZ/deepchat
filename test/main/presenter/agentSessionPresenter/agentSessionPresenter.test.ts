@@ -3522,7 +3522,7 @@ describe('AgentSessionPresenter', () => {
       )
     })
 
-    it('preserves runtime cleanup errors after shared cleanup without deleting the app row', async () => {
+    it('still deletes the app row when runtime cleanup fails', async () => {
       const cleanupError = new Error('runtime cleanup failed')
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -3535,14 +3535,14 @@ describe('AgentSessionPresenter', () => {
       })
       agentManager.cleanupSessionBackends.mockRejectedValueOnce(cleanupError)
 
-      await expect(presenter.deleteSession('s1')).rejects.toBe(cleanupError)
+      await expect(presenter.deleteSession('s1')).resolves.toBeUndefined()
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledExactlyOnceWith('s1')
-      expect(skillPresenter.clearNewAgentSessionSkills).not.toHaveBeenCalled()
-      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
+      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
     })
 
-    it('prefers backend cleanup errors when shared cleanup also fails', async () => {
+    it('still removes the session row when backend and shared cleanup both fail', async () => {
       const backendError = new Error('backend cleanup failed')
       const sharedError = new Error('shared cleanup failed')
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
@@ -3557,15 +3557,14 @@ describe('AgentSessionPresenter', () => {
       agentManager.cleanupSessionBackends.mockRejectedValueOnce(backendError)
       deepChatAgent.destroySession.mockRejectedValueOnce(sharedError)
 
-      await expect(presenter.deleteSession('s1')).rejects.toBe(backendError)
+      await expect(presenter.deleteSession('s1')).resolves.toBeUndefined()
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledExactlyOnceWith('s1')
-      expect(skillPresenter.clearNewAgentSessionSkills).not.toHaveBeenCalled()
-      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
-      expect(publishDeepchatEvent).not.toHaveBeenCalled()
+      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
     })
 
-    it('propagates shared cleanup failure when backend cleanup succeeds', async () => {
+    it('still removes the session row when shared cleanup fails after backend cleanup', async () => {
       const sharedError = new Error('shared cleanup failed')
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -3578,12 +3577,11 @@ describe('AgentSessionPresenter', () => {
       })
       deepChatAgent.destroySession.mockRejectedValueOnce(sharedError)
 
-      await expect(presenter.deleteSession('s1')).rejects.toBe(sharedError)
+      await expect(presenter.deleteSession('s1')).resolves.toBeUndefined()
 
       expect(agentManager.cleanupSessionBackends).toHaveBeenCalledExactlyOnceWith('s1')
-      expect(skillPresenter.clearNewAgentSessionSkills).not.toHaveBeenCalled()
-      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
-      expect(publishDeepchatEvent).not.toHaveBeenCalled()
+      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
     })
   })
 

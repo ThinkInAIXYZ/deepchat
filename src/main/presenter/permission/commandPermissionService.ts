@@ -98,6 +98,10 @@ export class CommandPermissionService {
     this.cache.clearConversation(conversationId)
   }
 
+  cloneConversation(sourceConversationId: string, targetConversationId: string): void {
+    this.cache.cloneConversation(sourceConversationId, targetConversationId)
+  }
+
   clearAll(): void {
     this.cache.clearAll()
   }

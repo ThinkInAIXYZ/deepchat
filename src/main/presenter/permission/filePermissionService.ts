@@ -58,6 +58,22 @@ export class FilePermissionService {
     this.approvals.delete(conversationId)
   }
 
+  /**
+   * Copy remembered path approvals from one conversation to another (e.g. parent → subagent).
+   */
+  cloneConversation(sourceConversationId: string, targetConversationId: string): void {
+    const sourceId = sourceConversationId?.trim()
+    const targetId = targetConversationId?.trim()
+    if (!sourceId || !targetId || sourceId === targetId) return
+    const source = this.approvals.get(sourceId)
+    if (!source || source.size === 0) return
+    const target = this.approvals.get(targetId) ?? new Map<string, FilePermissionLevel>()
+    for (const [filePath, permissionType] of source.entries()) {
+      target.set(filePath, this.mergePermission(target.get(filePath), permissionType))
+    }
+    this.approvals.set(targetId, target)
+  }
+
   clearAll(): void {
     this.approvals.clear()
   }

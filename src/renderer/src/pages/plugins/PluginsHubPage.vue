@@ -20,6 +20,12 @@
             </RouterLink>
           </nav>
         </div>
+        <p
+          data-testid="plugins-hub-scope-banner"
+          class="mt-2 text-xs leading-5 text-muted-foreground"
+        >
+          {{ scopeBannerText }}
+        </p>
       </div>
 
       <div class="min-h-0 flex-1">
@@ -91,6 +97,18 @@ const activeTab = computed(() => {
     return 'mcp'
   }
   return 'plugins'
+})
+
+const selectedAgentName = computed(() => {
+  const agent = agentStore.selectedAgent
+  return agent?.name?.trim() || t('settings.pluginsHub.currentAgentFallback')
+})
+
+const scopeBannerText = computed(() => {
+  if (activeTab.value === 'plugins') {
+    return t('settings.pluginsHub.scopeGlobalPlugins')
+  }
+  return t('settings.pluginsHub.scopeCurrentAgent', { agent: selectedAgentName.value })
 })
 
 const isAcpAgent = computed(() => {

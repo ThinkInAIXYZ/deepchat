@@ -565,6 +565,11 @@ export class Presenter implements IPresenter {
         this.filePermissionService.clearConversation(sessionId)
         this.settingsPermissionService.clearConversation(sessionId)
       },
+      cloneSessionPermissions: (sourceSessionId, targetSessionId) => {
+        this.commandPermissionService.cloneConversation(sourceSessionId, targetSessionId)
+        this.filePermissionService.cloneConversation(sourceSessionId, targetSessionId)
+        this.settingsPermissionService.cloneConversation(sourceSessionId, targetSessionId)
+      },
       approvePermission: async (sessionId, permission) => {
         const permissionType = permission.permissionType
         const serverName = permission.serverName || ''
@@ -923,7 +928,8 @@ export class Presenter implements IPresenter {
       workdir: this.sessionAgentAssignmentCoordinator,
       initialTurn: this.sessionTurnCoordinator,
       projection: this.sessionProjectionCoordinator,
-      deletion: this.sessionDeletionTransaction
+      deletion: this.sessionDeletionTransaction,
+      permissions: sessionPermissionPort
     })
     this.cronJobs.setRunSessionStarter(
       createCronJobRunSessionStarter({

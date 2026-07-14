@@ -16,7 +16,8 @@ const SUBAGENT_WORKDIR_RULE =
   'Every child session inherits the same working directory as the parent session.'
 const SUBAGENT_PROMPT_DESCRIPTION = [
   'Describe only the delegated subtask itself.',
-  'The child session uses the same working directory as the parent session.'
+  'The child session uses the same working directory as the parent session.',
+  'When a child waits for permission or a question, open that child sessionId from progress to respond.'
 ].join(' ')
 
 export const subagentOrchestratorTaskSchema = z.object({
@@ -191,6 +192,16 @@ const renderProgressMarkdown = (
     lines.push(`- Status: ${task.status}`)
     if (task.sessionId) {
       lines.push(`- Session: \`${task.sessionId}\``)
+    }
+    if (task.status === 'waiting_permission' || task.status === 'waiting_question') {
+      lines.push(
+        `- Action required: open child session \`${task.sessionId ?? 'pending'}\` to respond (${task.status === 'waiting_permission' ? 'permission' : 'question'}).`
+      )
+      if (task.waitingInteraction) {
+        lines.push(
+          `- Waiting: ${task.waitingInteraction.type} · message \`${task.waitingInteraction.messageId}\` · tool \`${task.waitingInteraction.toolCallId}\``
+        )
+      }
     }
     if (task.tapeFinalizeError?.trim()) {
       lines.push(`- Tape Finalization: failed: ${task.tapeFinalizeError}`)

@@ -2979,6 +2979,9 @@
     "cuaDescription": "DeepChat 基於 trycua/cua 專案實作的 ComputerUse 插件",
     "acpUnavailableTitle": "ACP Agent 無法使用外掛程式",
     "acpUnavailableDescription": "ACP Agent 透過自己的執行環境管理工具與擴充功能。請選擇 DeepChat Agent 後再使用外掛程式。",
-    "agentScopeUnsupported": "Agent 層級的擴充功能僅適用於 DeepChat Agent。"
+    "agentScopeUnsupported": "Agent 層級的擴充功能僅適用於 DeepChat Agent。",
+    "scopeGlobalPlugins": "当前页为应用全局：官方插件的安装、启用与进程对所有 DeepChat Agent 共享。",
+    "scopeCurrentAgent": "当前页为 Agent 策略：仅影响「{agent}」可用的 Skills / MCP，不会全局禁用资源。",
+    "currentAgentFallback": "当前 Agent"
   }
 }
