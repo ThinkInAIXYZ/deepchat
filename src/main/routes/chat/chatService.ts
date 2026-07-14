@@ -26,6 +26,13 @@ export interface ChatServiceTurnPort {
   ): Promise<ToolInteractionResult>
 }
 
+export interface ChatRespondToolInteractionInput {
+  sessionId: string
+  messageId: string
+  toolCallId: string
+  response: ToolInteractionResponse
+}
+
 export interface ChatServiceProjectionPort {
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
@@ -174,17 +181,27 @@ export class ChatService {
     return { stopped: !cancelFailed }
   }
 
-  async respondToolInteraction(
-    sessionId: string,
-    messageId: string,
-    toolCallId: string,
-    response: ToolInteractionResponse
-  ): Promise<ToolInteractionResult> {
-    return await this.deps.scheduler.timeout({
-      task: this.deps.turn.respondToolInteraction(sessionId, messageId, toolCallId, response),
+  async respondToolInteraction(input: ChatRespondToolInteractionInput): Promise<{
+    accepted: true
+    resumed?: boolean
+    waitingForUserMessage?: boolean
+    handledInline?: boolean
+  }> {
+    const result = await this.deps.scheduler.timeout({
+      task: this.deps.turn.respondToolInteraction(
+        input.sessionId,
+        input.messageId,
+        input.toolCallId,
+        input.response
+      ),
       ms: CHAT_INTERACTION_TIMEOUT_MS,
-      reason: `chat.respondToolInteraction:${sessionId}:${toolCallId}`
+      reason: `chat.respondToolInteraction:${input.sessionId}:${input.toolCallId}`
     })
+
+    return {
+      accepted: true,
+      ...result
+    }
   }
 
   private async bestEffortCancel(sessionId: string, reason: string): Promise<void> {
