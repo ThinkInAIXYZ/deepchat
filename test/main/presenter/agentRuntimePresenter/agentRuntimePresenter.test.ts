@@ -76,6 +76,7 @@ vi.mock('@/presenter', () => ({
     skillPresenter: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
+      setActiveSkills: vi.fn().mockImplementation(async (_id: string, skills: string[]) => skills),
       loadSkillContent: vi.fn().mockResolvedValue(null),
       viewDraftSkill: vi.fn(),
       installDraftSkill: vi.fn(),
@@ -172,6 +173,7 @@ function getSkillPresenterMock() {
   return presenter.skillPresenter as {
     getMetadataList: ReturnType<typeof vi.fn>
     getActiveSkills: ReturnType<typeof vi.fn>
+    setActiveSkills: ReturnType<typeof vi.fn>
     loadSkillContent: ReturnType<typeof vi.fn>
     viewDraftSkill: ReturnType<typeof vi.fn>
     installDraftSkill: ReturnType<typeof vi.fn>
@@ -724,6 +726,9 @@ describe('AgentRuntimePresenter', () => {
     const skillPresenter = getSkillPresenterMock()
     skillPresenter.getMetadataList.mockResolvedValue([])
     skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.setActiveSkills.mockImplementation(
+      async (_id: string, skills: string[]) => skills
+    )
     skillPresenter.loadSkillContent.mockResolvedValue(null)
     skillPresenter.viewDraftSkill.mockResolvedValue({ success: false, action: 'view', draftId: '' })
     skillPresenter.installDraftSkill.mockResolvedValue({
@@ -3158,7 +3163,7 @@ describe('AgentRuntimePresenter', () => {
       expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
     })
 
-    it('omits historical MCP and plugin policies from session tool discovery', async () => {
+    it('enforces agent MCP allow-list and omits historical plugin policies from tool discovery', async () => {
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
         enabledMcpServerIds: [],
         enabledSkillNames: ['skill-a']
@@ -3168,7 +3173,21 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const toolContext = toolPresenter.getAllToolDefinitions.mock.calls[0][0]
-      expect(toolContext).not.toHaveProperty('enabledMcpServerIds')
+      expect(toolContext.enabledMcpServerIds).toEqual([])
+      expect(toolContext).not.toHaveProperty('enabledPluginIds')
+    })
+
+    it('passes non-empty agent MCP allow-list into session tool discovery', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        enabledMcpServerIds: ['server-x', 'server-y'],
+        enabledSkillNames: null
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const toolContext = toolPresenter.getAllToolDefinitions.mock.calls[0][0]
+      expect(toolContext.enabledMcpServerIds).toEqual(['server-x', 'server-y'])
       expect(toolContext).not.toHaveProperty('enabledPluginIds')
     })
 
@@ -5111,6 +5130,42 @@ describe('AgentRuntimePresenter', () => {
       expect(instance.getGenerationSettings()).toEqual(previousSettings)
       expect(invalidateSystemPromptCache).not.toHaveBeenCalled()
       expect(invalidateToolProfileCache).not.toHaveBeenCalled()
+    })
+
+    it('clears permissions and refilters active skills when rebinding host agent', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a', 'skill-b', 'skill-c'])
+      configPresenter.resolveDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
+        if (agentId === 'strict-agent') {
+          return {
+            enabledSkillNames: ['skill-b'],
+            enabledMcpServerIds: []
+          }
+        }
+        return {
+          enabledSkillNames: null,
+          enabledMcpServerIds: null
+        }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      instance.replaceRuntimeActivatedSkills(['runtime-skill'])
+      const clearAgentPlanState = vi.spyOn(toolPresenter, 'clearAgentPlanState')
+
+      await agent.setSessionAgentContext('s1', {
+        agentId: 'strict-agent',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        projectDir: '/workspace',
+        permissionMode: 'default'
+      })
+
+      expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('s1')
+      expect(clearAgentPlanState).toHaveBeenCalledWith('s1')
+      expect(instance.getRuntimeActivatedSkills()).toEqual([])
+      expect(instance.getAgentId()).toBe('strict-agent')
+      expect(skillPresenter.setActiveSkills).toHaveBeenCalledWith('s1', ['skill-b'])
     })
 
     it('drops unsupported reasoning and verbosity settings when switching models', async () => {

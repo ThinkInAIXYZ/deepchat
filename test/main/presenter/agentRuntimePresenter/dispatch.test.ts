@@ -1345,6 +1345,72 @@ describe('dispatch', () => {
       expect(result.executed).toBe(1)
     })
 
+    it('does not stage success when full_access tool still requires permission after grant', async () => {
+      const tools = [makeAgentTool('write')]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async () => ({
+          content: 'permission required',
+          rawData: {
+            content: 'permission required',
+            isError: true,
+            requiresPermission: true,
+            permissionRequest: {
+              permissionType: 'write',
+              description: 'Need write permission',
+              paths: ['/tmp/secret.txt']
+            }
+          }
+        }))
+      } as unknown as IToolPresenter
+      const autoGrantPermission = vi.fn().mockResolvedValue(undefined)
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/secret.txt"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-write', name: 'write', arguments: '{"path":"/tmp/secret.txt"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        { autoGrantPermission }
+      )
+
+      expect(result.type).toBe('paused')
+      if (result.type !== 'paused') throw new Error('Expected paused tool batch')
+      expect(autoGrantPermission).toHaveBeenCalled()
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(result.interactions).toEqual([
+        expect.objectContaining({
+          origin: 'post-call-permission',
+          toolCallId: 'tc-write'
+        })
+      ])
+      // Permission payload must not be committed as a successful tool response body.
+      expect(state.blocks[0].tool_call?.response ?? '').not.toContain('permission required')
+      expect(result.executionState.committedResultCallIds).not.toContain('tc-write')
+    })
+
     it('reviews command-runner Agent tool calls even without path args', async () => {
       const hooks = {
         onPermissionRequest: vi.fn(),

@@ -21,6 +21,8 @@ global. Keep plugin availability global for DeepChat agents and unavailable for 
 2. Each DeepChat agent can independently configure its available normal MCP server set.
 3. Switching DeepChat agents updates Skills and MCP enablement from that agent's policy.
 4. Runtime prompt, skill tools, MCP definitions, and MCP calls use the session agent's policy.
+   DeepChat runtime passes resolved `enabledMcpServerIds` into tool catalog, fingerprint, and MCP
+   call/pre-check paths (plugin-owned MCP remains globally available when the plugin is enabled).
 5. Existing global skill installation/import and MCP server definitions remain global resources.
 6. Existing users retain compatible behavior: the built-in `deepchat` agent defaults to globally
    available Skills and MCP servers; other DeepChat agents inherit its policy.

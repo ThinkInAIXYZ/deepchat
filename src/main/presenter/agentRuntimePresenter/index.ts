@@ -244,6 +244,7 @@ type ResumeBudgetToolCall = {
 
 type AgentExtensionPolicy = {
   enabledSkillNames?: string[] | null
+  enabledMcpServerIds?: string[] | null
 }
 
 type PackageJsonManifest = {
@@ -706,6 +707,7 @@ export class AgentRuntimePresenter {
     ISkillPresenter,
     | 'getMetadataList'
     | 'getActiveSkills'
+    | 'setActiveSkills'
     | 'loadSkillContent'
     | 'viewDraftSkill'
     | 'installDraftSkill'
@@ -731,6 +733,7 @@ export class AgentRuntimePresenter {
         ISkillPresenter,
         | 'getMetadataList'
         | 'getActiveSkills'
+        | 'setActiveSkills'
         | 'loadSkillContent'
         | 'viewDraftSkill'
         | 'installDraftSkill'
@@ -2932,6 +2935,11 @@ export class AgentRuntimePresenter {
     instance.setAgentId(nextAgentId)
     instance.setProjectDir(this.normalizeProjectDir(config.projectDir))
     instance.setGenerationSettings(sanitizedGenerationSettings)
+    // Transfer/rebind is a host-agent security boundary: drop prior approvals, plan, and skill pins.
+    this.sessionPermissionPort?.clearSessionPermissions(sessionId)
+    this.toolPresenter?.clearAgentPlanState?.(sessionId)
+    instance.replaceRuntimeActivatedSkills([])
+    await this.refilterActiveSkillsForAgentPolicy(sessionId, nextAgentId, instance)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }
@@ -4201,6 +4209,12 @@ export class AgentRuntimePresenter {
           getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
           getEnabledSkillNames: () =>
             this.normalizeNullablePolicyList(streamExtensionPolicy.enabledSkillNames),
+          getEnabledMcpServerIds: () =>
+            this.normalizeNullablePolicyList(streamExtensionPolicy.enabledMcpServerIds),
+          getAgentId: () =>
+            resourceInstance.getAgentId()?.trim() ||
+            this.getSessionAgentId(sessionId) ||
+            'deepchat',
           activateSkill: async (skillName) => {
             const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
             if (this.filterSkillNamesByPolicy([skillName], policy).length === 0) {
@@ -7193,11 +7207,22 @@ export class AgentRuntimePresenter {
         deferredAbortSignal
       )
       this.throwIfAbortRequested(deferredAbortSignal)
+      const deferredPermissionMode = normalizePermissionMode(
+        this.getDeepChatRuntimeState(sessionId)?.permissionMode
+      )
+      const deferredActiveSkillNames = await awaitWithAbort(
+        this.resolveActiveSkillNamesForToolProfile(sessionId),
+        deferredAbortSignal
+      )
+      this.throwIfAbortRequested(deferredAbortSignal)
       invoked = true
       onToolCallStarted?.()
       const result = await this.toolExecutionPort.execute(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
+        permissionMode: deferredPermissionMode,
+        activeSkillNames: deferredActiveSkillNames,
         enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
+        enabledMcpServerIds: this.toToolDefinitionMcpServerIds(extensionPolicy.enabledMcpServerIds),
         onProgress: (update) => {
           if (
             update.kind !== 'subagent_orchestrator' ||
@@ -7366,6 +7391,7 @@ export class AgentRuntimePresenter {
           resourceInstance
         )
         this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
+        const enabledMcpServerIds = this.toToolDefinitionMcpServerIds(policy.enabledMcpServerIds)
 
         return {
           profile: profile.kind,
@@ -7377,7 +7403,8 @@ export class AgentRuntimePresenter {
             chatMode: 'agent',
             conversationId: sessionId,
             agentWorkspacePath: projectDir,
-            activeSkillNames: effectiveActiveSkillNames
+            activeSkillNames: effectiveActiveSkillNames,
+            ...(enabledMcpServerIds === undefined ? {} : { enabledMcpServerIds })
           }
         }
       },
@@ -7445,6 +7472,7 @@ export class AgentRuntimePresenter {
           left.localeCompare(right)
         ),
         enabledSkillNames: this.normalizeNullablePolicyList(policy.enabledSkillNames),
+        enabledMcpServerIds: this.normalizeNullablePolicyList(policy.enabledMcpServerIds),
         skillsEnabled,
         activeSkillNames
       })
@@ -7487,7 +7515,8 @@ export class AgentRuntimePresenter {
     try {
       const config = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
       return {
-        enabledSkillNames: config.enabledSkillNames
+        enabledSkillNames: config.enabledSkillNames,
+        enabledMcpServerIds: config.enabledMcpServerIds
       }
     } catch (error) {
       console.warn(
@@ -7495,6 +7524,44 @@ export class AgentRuntimePresenter {
         error
       )
       return {}
+    }
+  }
+
+  private toToolDefinitionMcpServerIds(value?: string[] | null): string[] | undefined {
+    if (value === null || value === undefined) {
+      return undefined
+    }
+    return this.normalizeSkillNames(value)
+  }
+
+  private async refilterActiveSkillsForAgentPolicy(
+    sessionId: string,
+    agentId: string,
+    resourceInstance?: DeepChatAgentInstance
+  ): Promise<void> {
+    if (!this.skillPresenter?.getActiveSkills || !this.skillPresenter?.setActiveSkills) {
+      return
+    }
+    try {
+      // Prefer explicit target agent config so rebind does not depend on session row timing.
+      const targetConfig =
+        typeof this.configPresenter.resolveDeepChatAgentConfig === 'function'
+          ? await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+          : null
+      const policy: AgentExtensionPolicy = targetConfig
+        ? {
+            enabledSkillNames: targetConfig.enabledSkillNames,
+            enabledMcpServerIds: targetConfig.enabledMcpServerIds
+          }
+        : await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
+      const current = await this.skillPresenter.getActiveSkills(sessionId)
+      const allowed = this.filterSkillNamesByPolicy(current, policy)
+      await this.skillPresenter.setActiveSkills(sessionId, allowed)
+    } catch (error) {
+      console.warn(
+        `[DeepChatAgent] Failed to refilter active skills after agent rebind for session ${sessionId}:`,
+        error
+      )
     }
   }
 

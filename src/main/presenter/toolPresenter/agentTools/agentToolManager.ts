@@ -1260,8 +1260,9 @@ export class AgentToolManager {
       ordered.push(resolved)
     }
 
+    // Only trust the call-scoped workspace path. Do not merge the manager's last
+    // syncContext workspace — that leaks across concurrent multi-agent sessions.
     addPath(workspacePath)
-    addPath(this.agentWorkspacePath)
 
     if (conversationId && includeSkillRoots) {
       const activeSkillRoots = await this.resolveActiveSkillRoots(
