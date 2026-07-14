@@ -746,7 +746,7 @@ export const lucideIconCollection = {
       parent: 'circle-x'
     }
   },
-  lastModified: 1779346445,
+  lastModified: 1778908382,
   width: 24,
   height: 24
 } as const

@@ -61,7 +61,6 @@
   "perf": [
     "test/main/performance/memory/maintenanceScale.perf.ts",
     "test/main/performance/memory/messageHistoryTraceScale.perf.ts",
-    "test/main/performance/memory/memoryBaseline.perf.ts",
     "test/main/performance/memory/recallScale.perf.ts",
     "test/main/performance/memory/tapeScale.perf.ts",
     "test/main/performance/memory/workloadBounds.perf.ts"

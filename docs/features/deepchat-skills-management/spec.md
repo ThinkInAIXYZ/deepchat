@@ -563,6 +563,8 @@ Import preview:
 - No built-in Git commit, pull, or push.
 - No marketplace search or command-copy Discover tab.
 - No project-level agent link/adopt.
+- No custom agent skills-directory management.
+- No destructive overwrite/keep strategies for adoption conflicts.
 - No conversion of single-file prompt formats into linked folder-format skills during adoption.
 - No cloud sync.
 - No separate Install tab; install flows start from the top add menu.

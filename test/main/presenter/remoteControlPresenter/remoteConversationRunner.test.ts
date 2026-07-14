@@ -47,30 +47,39 @@ const createRemoteSessionPorts = (
     assignment?: Partial<RemoteSessionAssignmentPort>
     projection?: Partial<RemoteSessionProjectionPort>
   } = {}
-): RemoteSessionPorts => ({
-  lifecycle: {
-    createDetachedSession: vi.fn(async () => createSession()),
-    ...overrides.lifecycle
-  },
-  turn: {
-    sendMessage: vi.fn(async () => ({ requestId: null, messageId: null })),
-    respondToolInteraction: vi.fn(async () => ({})),
-    ...overrides.turn
-  },
-  assignment: {
-    setSessionModel: vi.fn(async () => createSession()),
-    ...overrides.assignment
-  },
-  projection: {
-    getSession: vi.fn(async () => null),
-    listSessions: vi.fn(async () => []),
-    getMessages: vi.fn(async () => []),
-    getMessage: vi.fn(async () => null),
-    getSearchResults: vi.fn(async () => []),
-    activate: vi.fn(async () => undefined),
-    ...overrides.projection
+): RemoteSessionPorts => {
+  const assistantMessage = {
+    id: 'assistant-default',
+    role: 'assistant' as const,
+    orderSeq: 1,
+    status: 'success',
+    content: '[]'
   }
-})
+  return {
+    lifecycle: {
+      createDetachedSession: vi.fn(async () => createSession()),
+      ...overrides.lifecycle
+    },
+    turn: {
+      sendMessage: vi.fn(async () => ({ requestId: null, messageId: null })),
+      respondToolInteraction: vi.fn(async () => ({})),
+      ...overrides.turn
+    },
+    assignment: {
+      setSessionModel: vi.fn(async () => createSession()),
+      ...overrides.assignment
+    },
+    projection: {
+      getSession: vi.fn(async () => null),
+      listSessions: vi.fn(async () => []),
+      getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
+      getMessage: vi.fn(async () => null),
+      getSearchResults: vi.fn(async () => []),
+      activate: vi.fn(async () => undefined),
+      ...overrides.projection
+    }
+  }
+}
 
 const createConfigPresenter = (overrides: Record<string, unknown> = {}) => ({
   getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),

@@ -24,8 +24,7 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 9. `src/main/presenter/sessionApplication/`
 10. `src/main/routes/providers/providerService.ts`
 11. `src/main/routes/hotPathPorts.ts`
-12. `src/main/presenter/agentSessionPresenter/index.ts`
-13. `src/main/presenter/agentRuntimePresenter/index.ts`
+12. `src/main/presenter/agentRuntimePresenter/index.ts`
 
 ## 按边界找代码
 
@@ -81,8 +80,10 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
 | session application entry | `src/main/presenter/sessionApplication/` | core session transaction/policy/projection owners |
-| compatibility session façade | `src/main/presenter/agentSessionPresenter/index.ts` | core session public compatibility forwarding only |
-| message runtime entry | `src/main/presenter/agentRuntimePresenter/index.ts` | `processMessage()`、暂停恢复、stream 生命周期 |
+| message runtime façade | `src/main/presenter/agentRuntimePresenter/index.ts` | public API、composition wiring、compatibility seams |
+| turn lifecycle | `src/main/presenter/agentRuntimePresenter/turnCoordinator.ts` | initial/resume pre-stream lifecycle |
+| provider/tool loop runner | `src/main/presenter/agentRuntimePresenter/deepChatLoopRunner.ts` | provider attempts、context recovery、manifest、rate gate |
+| paused interaction lifecycle | `src/main/presenter/agentRuntimePresenter/interactionCoordinator.ts` | ordered decision settlement and fresh resume |
 | 主循环 | `src/main/presenter/agentRuntimePresenter/process.ts` | stream + tool loop |
 | 工具调度 | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | tool call / paused interaction |
 | 流式 echo | `src/main/presenter/agentRuntimePresenter/echo.ts` | typed `chat.stream.*` 事件与增量回显 |
@@ -124,7 +125,6 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 | --- | --- |
 | `renderer/api/*Client` | migrated renderer boundary 的一线入口 |
 | `src/main/routes/*` | migrated settings/session/chat/provider path 的 active owner |
-| `agentSessionPresenter` | core session public compatibility forwarding；不拥有 search/export/usage/startup/catalog，也不是 migrated renderer 的直连入口 |
 | `agentRuntimePresenter` | 当前聊天 runtime 与持久化 owner |
 | `SessionPresenter` | legacy conversation 兼容层，不是 migrated chat 主链路 |
 | `agentPresenter` | 已退休；只应出现在旧提交或已删除的历史 spec 里 |

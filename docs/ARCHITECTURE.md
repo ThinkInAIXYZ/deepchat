@@ -14,7 +14,6 @@ flowchart LR
     Routes --> SessionOwners["explicit session owners<br/>search / translation / export / usage / catalog"]
     Routes --> Services["SessionService / ChatService"]
     Services --> Coordinators["Lifecycle / Turn / Assignment / Projection"]
-    Compat["AgentSessionPresenter<br/>compatibility forwarding"] --> Coordinators
     Coordinators --> Manager["AgentManager<br/>descriptor.kind router"]
     Manager --> DeepBackend["typed DeepChat backend"]
     Manager --> AcpBackend["direct ACP backend"]
@@ -38,9 +37,8 @@ flowchart LR
   选择才进入 `AcpProvider` adapter。
 - 四个 `sessionApplication` coordinator 拥有 core session lifecycle、turn、assignment 和 projection；
   Session/Chat routes、Remote 和 Cron 通过 consumer-owned narrow ports 使用同一组实例。
-- `AgentSessionPresenter` 仅保留 compatibility forwarding，把兼容调用转发到同一组 coordinator；不再拥有
-  core session policy/state，也不再拥有 history、translation、export、usage、RTK、catalog 或 startup
-  migration behavior。
+- `AgentSessionPresenter` 与 `IAgentSessionPresenter` 已退休；main routes、Remote、Cron、Tool、MCP 与
+  Floating 直接依赖 consumer-owned coordinator ports。
 - history、translation、export、usage、RTK、catalog 和 startup migrations 由 typed routes/lifecycle
   hooks 直接组合各自 owner。
 - `AgentRuntimePresenter` 仍初始化 `DeepChatAgentRuntime`，并保留 DeepChat state/delegate、message、Tape、
@@ -61,7 +59,6 @@ flowchart LR
 | DeepChat Memory adapter | `src/main/agent/deepchat/memory/` | sole runtime coordinator、prompt contributor、background ingestion observer |
 | ACP runtime | `src/main/agent/acp/` | catalog、launch、client/process/session/protocol、direct instance/runtime |
 | session application | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection coordinators 与窄 dependency ports |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | core session public compatibility forwarding；不拥有 application behavior |
 | session boundary owners | `src/main/routes/sessions/`, `src/main/presenter/exporter/agentSessionExporter.ts`, `src/main/presenter/usageStatsService.ts` | history、translation、current export、usage dashboard/backfill |
 | startup maintenance | `src/main/presenter/startupMigrations/` | default legacy import and stateless session-data migrations |
 | shared session policies | `src/main/agent/shared/` | available-agent catalog and assistant-model selection |

@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.10-beta.1 (2026-07-14)
+## v1.1.0-beta.1 (2026-07-14)
 - Added Grok OAuth device login and DaoXE provider support
 - Reworked the agent runtime and session boundaries to improve isolation and lifecycle handling
 - Improved Agent Memory vector storage, embedding reindex recovery, and bounded workload reliability

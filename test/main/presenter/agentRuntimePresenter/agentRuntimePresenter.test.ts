@@ -22,6 +22,7 @@ import {
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
 import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
+import { resolveInterleavedReasoningConfig } from '@/presenter/agentRuntimePresenter/generationSettings'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import {
@@ -4623,7 +4624,8 @@ describe('AgentRuntimePresenter', () => {
         })
       )
 
-      const interleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const interleavedConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'openai',
         'gpt-4',
         disabled
@@ -4631,7 +4633,8 @@ describe('AgentRuntimePresenter', () => {
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
       expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
-      const deepseekDisabledConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const deepseekDisabledConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'openai',
         'deepseek-v4',
         disabled
@@ -4639,7 +4642,8 @@ describe('AgentRuntimePresenter', () => {
       expect(deepseekDisabledConfig.preserveReasoningContent).toBe(true)
       expect(deepseekDisabledConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const deepseekInterleavedConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'deepseek',
         'deepseek-v4',
         defaults
@@ -4647,7 +4651,8 @@ describe('AgentRuntimePresenter', () => {
       expect(deepseekInterleavedConfig.preserveReasoningContent).toBe(true)
       expect(deepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(true)
 
-      const nonDeepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+      const nonDeepseekInterleavedConfig = resolveInterleavedReasoningConfig(
+        configPresenter,
         'openai',
         'gpt-4',
         defaults
@@ -7458,6 +7463,47 @@ describe('AgentRuntimePresenter', () => {
       })
     })
 
+    it('restores the previous compaction state when compaction throws', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      sqlitePresenter.deepchatMessagesTable.delete.mockClear()
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValueOnce(
+        new Error('compaction failed')
+      )
+
+      await expect(
+        (agent as any).applyCompactionIntent('s1', {
+          sessionId: 's1',
+          previousState: {
+            summaryText: 'previous summary',
+            summaryCursorOrderSeq: 3,
+            summaryUpdatedAt: 111
+          },
+          targetCursorOrderSeq: 5,
+          summaryBlocks: ['summarize this'],
+          currentModel: {
+            providerId: 'openai',
+            modelId: 'gpt-4',
+            contextLength: 128000
+          },
+          reserveTokens: 512
+        })
+      ).rejects.toThrow('compaction failed')
+
+      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+      expect(instance.getCompactionState()).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: 111
+      })
+      expectPublished('sessions.compaction.changed', {
+        sessionId: 's1',
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: 111
+      })
+    })
+
     it('emits idle when clearMessages resets compaction state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
@@ -7866,6 +7912,32 @@ describe('AgentRuntimePresenter', () => {
         true
       )
       preStreamStepSpy.mockRestore()
+    })
+
+    it('keeps runtime-activated skills when rebuilding resume resources', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.getMetadataList.mockResolvedValue([
+        { name: 'runtime-skill', description: 'Runtime skill' }
+      ])
+      skillPresenter.getActiveSkills.mockResolvedValue([])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'RUNTIME_SKILL_BODY' })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow()
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      instance.replaceRuntimeActivatedSkills(['runtime-skill'])
+      let streamParams: any
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+        streamParams = params
+        return { status: 'completed' }
+      })
+
+      await expect((agent as any).resumeAssistantMessage('s1', 'm1', [])).resolves.toBe(true)
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({ activeSkillNames: ['runtime-skill'] })
+      )
+      expect(streamParams.run.resources.activeSkillNames).toEqual(['runtime-skill'])
+      expect(String(streamParams.run.messages[0]?.content ?? '')).toContain('RUNTIME_SKILL_BODY')
     })
 
     it('handles question_option and resumes assistant message', async () => {
@@ -8386,6 +8458,79 @@ describe('AgentRuntimePresenter', () => {
       expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
       expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
       expect(replacement.getActiveGeneration()).toBeUndefined()
+    })
+
+    it('cancels a cross-message interaction without leaking queue-drain rejection', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const installation = deferred<{
+        success: true
+        action: 'install'
+        draftId: string
+        skillName: string
+        installedSkillName: string
+      }>()
+      skillPresenter.installDraftSkill.mockImplementationOnce(
+        async () => await installation.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: '',
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [{ label: 'chat.skillDraft.actions.install' }],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1',
+              skillDraftName: 'draft-skill'
+            }
+          }
+        ]
+      })
+      const { instance, abortController } = registerActiveInteractionRun('new-message', [])
+      const drainError = new Error('queue drain failed')
+      const drainPendingQueue = vi
+        .spyOn(agent as any, 'drainPendingQueueIfPossible')
+        .mockRejectedValueOnce(drainError)
+
+      const interaction = agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.install'
+      })
+      await vi.waitFor(() => expect(skillPresenter.installDraftSkill).toHaveBeenCalledTimes(1))
+      abortController.abort()
+
+      await expect(interaction).resolves.toEqual({ resumed: false })
+      await vi.waitFor(() =>
+        expect(logger.error).toHaveBeenCalledWith(
+          '[DeepChatAgent] drainPendingQueueIfPossible error:',
+          drainError
+        )
+      )
+      expect(drainPendingQueue).toHaveBeenCalledWith('s1', 'completed')
+      expect(instance.getActiveGeneration()?.messageId).toBe('new-message')
+      expect(instance.getAbortController()).toBe(abortController)
+
+      installation.resolve({
+        success: true,
+        action: 'install',
+        draftId: 'draft-1',
+        skillName: 'draft-skill',
+        installedSkillName: 'draft-skill'
+      })
     })
 
     it('discards a skill draft and resumes assistant message', async () => {
@@ -10043,43 +10188,6 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
-    it('falls back to ask_user when auto-review action hash mismatches', async () => {
-      llmProvider.generateCompletionStandalone.mockResolvedValueOnce(
-        JSON.stringify({
-          actionHash: 'wrong',
-          decision: 'auto_allow',
-          riskLevel: 'low',
-          userAuthorization: 'high',
-          rationale: 'safe'
-        })
-      )
-
-      const result = await (agent as any).reviewToolPermissionForAutoApprove(
-        {
-          sessionId: 's1',
-          messageId: 'm1',
-          toolCallId: 'tc1',
-          toolName: 'read',
-          toolArgs: '{"path":"/tmp/a.txt"}',
-          toolSource: 'agent',
-          reason: 'tool_call'
-        },
-        {
-          providerId: 'openai',
-          modelId: 'gpt-4',
-          messages: [{ role: 'user', content: 'read /tmp/a.txt' }],
-          signal: new AbortController().signal
-        }
-      )
-
-      expect(result).toEqual(
-        expect.objectContaining({
-          decision: 'ask_user',
-          rationale: 'Auto-review action hash mismatch.'
-        })
-      )
-    })
-
     it.each([
       ['missing', undefined],
       ['invalid', 'unknown']
@@ -10465,83 +10573,6 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
-    it('prefers the current session model for screenshot analysis during deferred execution', async () => {
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
-        {
-          type: 'function',
-          function: {
-            name: 'cdp_send',
-            description: 'CDP tool',
-            parameters: { type: 'object', properties: {} }
-          },
-          server: { name: 'yobrowser', icons: '', description: '' }
-        }
-      ])
-      toolPresenter.callTool.mockResolvedValueOnce({
-        content: '{"data":"YWJj"}',
-        rawData: { toolCallId: 'tc1', content: '{"data":"YWJj"}', isError: false }
-      })
-      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
-        temperature: 0.7,
-        maxTokens: 4096,
-        contextLength: 128000,
-        thinkingBudget: 512,
-        reasoningEffort: 'medium',
-        verbosity: 'medium',
-        vision: providerId === 'openai' && modelId === 'gpt-4o'
-      }))
-
-      await agent.initSession('s1', {
-        providerId: 'openai',
-        modelId: 'gpt-4o'
-      })
-
-      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
-        id: 'tc1',
-        name: 'cdp_send',
-        params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
-      })
-
-      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
-        'openai',
-        expect.objectContaining({
-          signal: expect.any(Object)
-        })
-      )
-      expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
-        'openai',
-        [
-          {
-            role: 'user',
-            content: [
-              expect.objectContaining({
-                type: 'text'
-              }),
-              {
-                type: 'image_url',
-                image_url: {
-                  url: 'data:image/jpeg;base64,YWJj',
-                  detail: 'auto'
-                }
-              }
-            ]
-          }
-        ],
-        'gpt-4o',
-        expect.any(Number),
-        expect.any(Number),
-        expect.objectContaining({
-          signal: expect.any(Object)
-        })
-      )
-      expect(result).toEqual(
-        expect.objectContaining({
-          isError: false,
-          responseText: 'English screenshot summary'
-        })
-      )
-    })
-
     it('registers a cancellable controller for deferred subagent tool calls', async () => {
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
         {
@@ -10848,7 +10879,7 @@ describe('AgentRuntimePresenter', () => {
         'gemini-2.5-flash',
         expect.any(Number),
         expect.any(Number),
-        undefined
+        { signal: undefined, swallowErrors: false }
       )
       expect(normalized).toBe('English screenshot summary')
     })

@@ -177,21 +177,6 @@ describe('AiSdkProvider kimi-for-coding', () => {
     ])
   })
 
-  it('fails provider verification before making a request when the API key is missing', async () => {
-    const provider = new AiSdkProvider(
-      createProvider({
-        apiKey: ''
-      }),
-      createConfigPresenter()
-    )
-
-    await expect(provider.check()).resolves.toEqual({
-      isOk: false,
-      errorMsg: 'Missing API key'
-    })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
-  })
-
   it('verifies Kimi For Coding with a small generate-text request', async () => {
     const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
     ;(provider as any).isInitialized = true

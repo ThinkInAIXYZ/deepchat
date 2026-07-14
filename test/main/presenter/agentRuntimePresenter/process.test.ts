@@ -279,28 +279,6 @@ describe('processStream', () => {
     }) as unknown as ProcessParams['coreStream']
   }
 
-  it('no tools → single stream, finalize', async () => {
-    const params = createParams()
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(params.coreStream).toHaveBeenCalledTimes(1)
-    expect(params.run.providerRoundCount).toBe(1)
-    expect(params.run.requestSeq).toBe(0)
-    expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
-    const finalMetadata = JSON.parse(
-      (messageStore.finalizeAssistantMessage as ReturnType<typeof vi.fn>).mock.calls[0][2]
-    )
-    expect(finalMetadata.provider).toBe('openai')
-    expect(finalMetadata.model).toBe('gpt-4')
-    expectDeepchatEvent('chat.stream.completed', {
-      sessionId: 's1',
-      messageId: 'm1',
-      requestId: 'req-1'
-    })
-  })
-
   describe('fixed lifecycle commits', () => {
     const TOOL_ROUND_COMMIT_ORDER = [
       'renderer:update',
@@ -345,9 +323,13 @@ describe('processStream', () => {
         yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
       }) as unknown as ProcessParams['coreStream']
 
-      const result = await processStream(createParams({ coreStream }))
+      const params = createParams({ coreStream })
+      const result = await processStream(params)
 
       expect(result.status).toBe('completed')
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(params.run.providerRoundCount).toBe(1)
+      expect(params.run.requestSeq).toBe(0)
       expect(order).toEqual([
         'renderer:update',
         'message:update',
@@ -358,6 +340,15 @@ describe('processStream', () => {
         'renderer:complete'
       ])
       expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(JSON.parse(messageStore.finalizeAssistantMessage.mock.calls[0][2])).toMatchObject({
+        provider: 'openai',
+        model: 'gpt-4'
+      })
+      expectDeepchatEvent('chat.stream.completed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1'
+      })
     })
 
     it('keeps the legacy error fallback inside one settlement stage invocation', async () => {
@@ -677,7 +668,15 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:error'
       ])
+      expect(messageStore.setMessageError).toHaveBeenCalled()
+      expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
       expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expectDeepchatEvent('chat.stream.failed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        error: 'Connection lost'
+      })
     })
 
     it('settles an in-stream abort without a tool Tape snapshot', async () => {
@@ -700,7 +699,17 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:error'
       ])
+      expect(abortController.signal.aborted).toBe(true)
+      const abortMetadata = JSON.parse(messageStore.setMessageError.mock.calls[0][2])
+      expect(abortMetadata).toMatchObject({ provider: 'openai', model: 'gpt-4' })
+      expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
       expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expectDeepchatEvent('chat.stream.failed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        error: 'common.error.userCanceledGeneration'
+      })
     })
 
     it('persists the executed batch before a max-provider-round terminal error', async () => {
@@ -783,7 +792,10 @@ describe('processStream', () => {
       )
 
       expect(result.status).toBe('error')
+      expect(result.terminalError).toContain('remaining context window is too small')
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(messageStore.setMessageError).toHaveBeenCalled()
       expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
@@ -828,6 +840,9 @@ describe('processStream', () => {
 
       expect(result.status).toBe('aborted')
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(messageStore.setMessageError).toHaveBeenCalled()
+      expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
       expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
@@ -1518,43 +1533,6 @@ describe('processStream', () => {
     warning.mockRestore()
   })
 
-  it('stops before exceeding max provider rounds', async () => {
-    const coreStream = vi.fn(function () {
-      return (async function* () {
-        yield {
-          type: 'tool_call_start',
-          tool_call_id: 'tc1',
-          tool_call_name: 'get_weather'
-        } as LLMCoreStreamEvent
-        yield {
-          type: 'tool_call_end',
-          tool_call_id: 'tc1',
-          tool_call_arguments_complete: '{}'
-        } as LLMCoreStreamEvent
-        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-      })()
-    }) as unknown as ProcessParams['coreStream']
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('get_weather')],
-      maxProviderRounds: 1
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    const result = await promise
-
-    expect(result).toMatchObject({
-      status: 'error',
-      stopReason: 'max_turns',
-      errorMessage: 'Maximum agent turns exceeded (1).'
-    })
-    expect(coreStream).toHaveBeenCalledTimes(1)
-    expect(params.run.providerRoundCount).toBe(2)
-  })
-
   it('signals first provider round after flushing without blocking tool loop', async () => {
     const order: string[] = []
     let callCount = 0
@@ -2021,48 +1999,6 @@ describe('processStream', () => {
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
   })
 
-  it('multi-turn tool loop', async () => {
-    let callCount = 0
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
-
-    const coreStream = vi.fn(function () {
-      callCount++
-      if (callCount <= 2) {
-        return (async function* () {
-          yield {
-            type: 'tool_call_start',
-            tool_call_id: `tc${callCount}`,
-            tool_call_name: 'get_weather'
-          } as LLMCoreStreamEvent
-          yield {
-            type: 'tool_call_end',
-            tool_call_id: `tc${callCount}`,
-            tool_call_arguments_complete: `{"round":${callCount}}`
-          } as LLMCoreStreamEvent
-          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-        })()
-      } else {
-        return (async function* () {
-          yield { type: 'text', content: 'Final answer' } as LLMCoreStreamEvent
-          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
-        })()
-      }
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('get_weather')]
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(coreStream).toHaveBeenCalledTimes(3)
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
-  })
-
   it('passes reasoning_content back after each interleaved tool-call loop', async () => {
     let callCount = 0
     const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
@@ -2126,43 +2062,6 @@ describe('processStream', () => {
       'Think 1',
       'Think 2'
     ])
-  })
-
-  it('max tool calls limit', async () => {
-    let callCount = 0
-    const toolPresenter = createMockToolPresenter({ action: 'done' })
-
-    const coreStream = vi.fn(function () {
-      callCount++
-      return (async function* () {
-        yield {
-          type: 'tool_call_start',
-          tool_call_id: `tc${callCount}`,
-          tool_call_name: 'action'
-        } as LLMCoreStreamEvent
-        yield {
-          type: 'tool_call_end',
-          tool_call_id: `tc${callCount}`,
-          tool_call_arguments_complete: '{}'
-        } as LLMCoreStreamEvent
-        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-      })()
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('action')]
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(
-      (toolPresenter.callTool as ReturnType<typeof vi.fn>).mock.calls.length
-    ).toBeLessThanOrEqual(128)
-    expect((coreStream as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(129)
   })
 
   it('completes a plan-only stream without writing an error or plan block', async () => {
@@ -2237,7 +2136,8 @@ describe('processStream', () => {
     const params = createParams({
       coreStream,
       toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('action')]
+      tools: [makeTool('action')],
+      initialAccounting: { providerRounds: 0, toolCalls: 128 }
     })
 
     const promise = processStream(params)
@@ -2343,46 +2243,6 @@ describe('processStream', () => {
     })
   })
 
-  it('abort during stream', async () => {
-    const abortController = new AbortController()
-
-    const coreStream = vi.fn(function () {
-      return (async function* () {
-        yield { type: 'text', content: 'First' } as LLMCoreStreamEvent
-        abortController.abort()
-        yield { type: 'text', content: 'Second' } as LLMCoreStreamEvent
-      })()
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({
-      coreStream,
-      abortController
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(params.run.abortController).toBe(abortController)
-    expect(params.run.abortController.signal.aborted).toBe(true)
-    expect(messageStore.setMessageError).toHaveBeenCalledWith(
-      'm1',
-      expect.any(Array),
-      expect.any(String)
-    )
-    const abortMetadata = JSON.parse(
-      (messageStore.setMessageError as ReturnType<typeof vi.fn>).mock.calls[0][2]
-    )
-    expect(abortMetadata.provider).toBe('openai')
-    expect(abortMetadata.model).toBe('gpt-4')
-    expectDeepchatEvent('chat.stream.failed', {
-      sessionId: 's1',
-      messageId: 'm1',
-      requestId: 'req-1',
-      error: 'common.error.userCanceledGeneration'
-    })
-  })
-
   it('does not finalize user-cancel twice when the message is already cancelled', async () => {
     const abortController = new AbortController()
     const coreStream = vi.fn(function () {
@@ -2432,56 +2292,6 @@ describe('processStream', () => {
     )
   })
 
-  it('abort during tool execution', async () => {
-    const abortController = new AbortController()
-    let callCount = 0
-    const toolPresenter = createMockToolPresenter()
-
-    ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
-      abortController.abort()
-      return { content: 'ok', rawData: { toolCallId: 'tc1', content: 'ok', isError: false } }
-    })
-
-    const coreStream = vi.fn(function () {
-      callCount++
-      if (callCount === 1) {
-        return (async function* () {
-          yield {
-            type: 'tool_call_start',
-            tool_call_id: 'tc1',
-            tool_call_name: 'action'
-          } as LLMCoreStreamEvent
-          yield {
-            type: 'tool_call_end',
-            tool_call_id: 'tc1',
-            tool_call_arguments_complete: '{}'
-          } as LLMCoreStreamEvent
-          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-        })()
-      } else {
-        return (async function* () {
-          yield { type: 'text', content: 'Should not reach' } as LLMCoreStreamEvent
-          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
-        })()
-      }
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('action')],
-      abortController
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
-    expect(messageStore.setMessageError).toHaveBeenCalled()
-    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-  })
-
   it('stream error event → finalizeError', async () => {
     const coreStream = vi.fn(function* () {
       yield { type: 'text', content: 'Partial' } as LLMCoreStreamEvent
@@ -2520,65 +2330,5 @@ describe('processStream', () => {
 
     expect(messageStore.setMessageError).toHaveBeenCalled()
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-  })
-
-  it('terminal tool output failure stops before the next provider call', async () => {
-    const coreStream = vi.fn(function () {
-      return (async function* () {
-        yield {
-          type: 'tool_call_start',
-          tool_call_id: 'tc1',
-          tool_call_name: 'cdp_send'
-        } as LLMCoreStreamEvent
-        yield {
-          type: 'tool_call_end',
-          tool_call_id: 'tc1',
-          tool_call_arguments_complete: '{"method":"Page.captureScreenshot"}'
-        } as LLMCoreStreamEvent
-        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
-      })()
-    }) as unknown as ProcessParams['coreStream']
-
-    const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-    const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
-    const params = createParams({
-      coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
-      tools: [makeTool('cdp_send')],
-      modelConfig: { contextLength: 1 } as any,
-      maxTokens: 1
-    })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    const result = await promise
-
-    expect(result.status).toBe('error')
-    expect(result.terminalError).toContain('remaining context window is too small')
-    expect(coreStream).toHaveBeenCalledTimes(1)
-    expect(messageStore.setMessageError).toHaveBeenCalled()
-  })
-
-  it('stream exception → catch finalizeError', async () => {
-    const coreStream = vi.fn(function () {
-      return (async function* () {
-        yield { type: 'text', content: 'Start' } as LLMCoreStreamEvent
-        throw new Error('Connection lost')
-      })()
-    }) as unknown as ProcessParams['coreStream']
-
-    const params = createParams({ coreStream })
-
-    const promise = processStream(params)
-    await vi.runAllTimersAsync()
-    await promise
-
-    expect(messageStore.setMessageError).toHaveBeenCalled()
-    expectDeepchatEvent('chat.stream.failed', {
-      sessionId: 's1',
-      messageId: 'm1',
-      requestId: 'req-1',
-      error: 'Connection lost'
-    })
   })
 })

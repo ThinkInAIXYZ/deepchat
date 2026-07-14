@@ -36,13 +36,11 @@ sequenceDiagram
 - `src/main/agent/manager/deepChatAgentBackend.ts`
 - `src/main/agent/manager/directAcpAgentBackend.ts`
 - `src/main/presenter/sessionApplication/`
-- `src/main/presenter/agentSessionPresenter/index.ts`
 
-`SessionService` / `ChatService` 直接使用 consumer-owned coordinator ports。`AgentSessionPresenter` 只为
-兼容调用转发 core session methods；history、translation、export、usage、RTK、catalog 与 startup
-maintenance 直接进入各自 owner，不经过该 presenter。agent kind resolution 和 executable backend
-selection 只发生在 `AgentManager`。`new_sessions.session_kind` 仍表示 `regular | subagent`，不决定
-DeepChat/ACP backend。
+`SessionService` / `ChatService` 直接使用 consumer-owned coordinator ports；原 aggregate session
+presenter 已退休。history、translation、export、usage、RTK、catalog 与 startup maintenance 直接进入
+各自 owner。agent kind resolution 和 executable backend selection 只发生在 `AgentManager`。
+`new_sessions.session_kind` 仍表示 `regular | subagent`，不决定 DeepChat/ACP backend。
 
 ## 2. DeepChat 消息处理主循环
 
@@ -147,14 +145,14 @@ sequenceDiagram
 - `deepchat_assistant_blocks` 存 assistant block 增量。
 - `deepchat_search_documents` / `_fts` 存历史搜索索引。
 
-`sessions.searchHistory` 不经过 `AgentSessionPresenter`；typed route 直接调用
+`sessions.searchHistory` 由 typed route 直接调用
 `src/main/routes/sessions/sessionHistorySearch.ts`，由该 owner 保持 FTS、LIKE 与 legacy SQL fallback。
 
 ## 5. ACP direct backend 与 provider compatibility
 
 ```mermaid
 flowchart TD
-    CompatFacade["AgentSessionPresenter<br/>compatibility forwarding"] --> App["Session application coordinator"]
+    Entry["Routes / Remote / Cron"] --> App["Session application coordinators"]
     App --> Manager["AgentManager"]
     Manager --> Kind{"descriptor.kind"}
     Kind -->|acp| Direct["DirectAcpSessionBackend"]
@@ -200,7 +198,7 @@ Spotlight 默认由 `CommandOrControl+P` 打开，混排 recent sessions、agent
 
 ## 7. Startup Maintenance
 
-五个 lifecycle startup hooks 只负责调度，不经 `AgentSessionPresenter`：legacy import 调用
+五个 lifecycle startup hooks 只负责调度：legacy import 调用
 `LegacyChatImportService`，usage backfill 调用 `UsageStatsService`，两类 session-data cleanup 调用 stateless
 startup migration functions，RTK health 调用 RTK runtime service。task id、priority、resource 与持久状态 key
 保持稳定。

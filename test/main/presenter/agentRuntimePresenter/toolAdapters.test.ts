@@ -7,6 +7,7 @@ import {
   createToolCatalogPort,
   createToolExecutionPort,
   createToolResultPort,
+  normalizeToolResultContent,
   type ToolCatalogCacheEntry
 } from '@/presenter/agentRuntimePresenter/toolAdapters'
 
@@ -262,5 +263,57 @@ describe('DeepChat tool adapters', () => {
     })
     expect(prepareToolOutput).toHaveBeenCalledTimes(1)
     expect(fitToolBatchOutputs).toHaveBeenCalledTimes(1)
+  })
+
+  it('normalizes a screenshot through the resolved session vision model', async () => {
+    const executeWithRateLimit = vi.fn().mockResolvedValue(undefined)
+    const generateCompletionStandalone = vi.fn().mockResolvedValue('Visible browser page')
+    const result = await normalizeToolResultContent(
+      {
+        configPresenter: {
+          getModelConfig: vi.fn(() => ({ vision: true, temperature: 0.1, maxTokens: 500 })),
+          isKnownModel: vi.fn(() => true)
+        } as any,
+        llmProviderPresenter: {
+          executeWithRateLimit,
+          generateCompletionStandalone
+        } as any,
+        getAbortSignal: () => undefined,
+        getSessionModel: () => ({
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          agentId: 'deepchat'
+        })
+      },
+      {
+        sessionId: 'session-1',
+        toolCallId: 'call-1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}',
+        content: '{"data":"YWJj"}',
+        isError: false
+      }
+    )
+
+    expect(result).toBe('Visible browser page')
+    expect(executeWithRateLimit).toHaveBeenCalledWith('openai', { signal: undefined })
+    expect(generateCompletionStandalone).toHaveBeenCalledWith(
+      'openai',
+      [
+        expect.objectContaining({
+          role: 'user',
+          content: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'image_url',
+              image_url: expect.objectContaining({ url: 'data:image/jpeg;base64,YWJj' })
+            })
+          ])
+        })
+      ],
+      'gpt-4o',
+      0.1,
+      500,
+      { signal: undefined, swallowErrors: false }
+    )
   })
 })

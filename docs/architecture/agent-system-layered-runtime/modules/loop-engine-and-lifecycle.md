@@ -4,6 +4,12 @@
 > 仍可按兼容合同选择 ACP。下文 stage/type 伪代码表达生命周期合同；当前 concrete API 以实施进度和
 > `src/main/agent/deepchat/loop/` 为准。
 
+> Current ownership: `TurnCoordinator` owns initial/resume preparation,
+> `DeepChatLoopRunner` owns provider-attempt execution and context-pressure recovery, and
+> `DeepChatLoopEngine` remains the inner provider-round/tool-batch decision engine. The presenter is
+> the composition root and compatibility façade; session/run state remains in
+> `DeepChatAgentInstance`/`LoopRun`.
+>
 > Implementation progress: ASLR-050 introduced the per-turn `LoopRun` and narrow provider, tool,
 > Tape, output, and context port contracts. That slice left the legacy `processStream` control flow
 > unchanged while moving provider-round state, provider-attempt sequencing, and recovery flags into

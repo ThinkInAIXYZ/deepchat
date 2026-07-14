@@ -120,6 +120,7 @@ describe('AI SDK runtime', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -1125,6 +1126,7 @@ describe('AI SDK runtime', () => {
   })
 
   it('does not inject unsupported Seedance duration from prompt text', async () => {
+    vi.useFakeTimers()
     const videoBytes = Uint8Array.from([0, 1, 2, 3])
     const expectedBase64 = Buffer.from(videoBytes).toString('base64')
     const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
@@ -1187,20 +1189,25 @@ describe('AI SDK runtime', () => {
       })
     } as any
 
-    const events = []
-    for await (const event of runAiSdkCoreStream(
-      context,
-      [{ role: 'user', content: '生成 马斯克 喝酒的视频 2s' }],
-      'doubao-seedance-2-0-fast-260128',
-      {
-        apiEndpoint: 'video'
-      } as any,
-      0.7,
-      1024,
-      []
-    )) {
-      events.push(event)
-    }
+    const eventsPromise = (async () => {
+      const events = []
+      for await (const event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: '生成 马斯克 喝酒的视频 2s' }],
+        'doubao-seedance-2-0-fast-260128',
+        {
+          apiEndpoint: 'video'
+        } as any,
+        0.7,
+        1024,
+        []
+      )) {
+        events.push(event)
+      }
+      return events
+    })()
+    await vi.advanceTimersByTimeAsync(3_000)
+    const events = await eventsPromise
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://aihubmix.com/v1/videos')
 
@@ -1229,6 +1236,7 @@ describe('AI SDK runtime', () => {
   })
 
   it('derives supported Seedance duration from prompt text', async () => {
+    vi.useFakeTimers()
     const videoBytes = Uint8Array.from([0, 1, 2, 3])
     const expectedBase64 = Buffer.from(videoBytes).toString('base64')
     const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
@@ -1291,20 +1299,25 @@ describe('AI SDK runtime', () => {
       })
     } as any
 
-    const events = []
-    for await (const event of runAiSdkCoreStream(
-      context,
-      [{ role: 'user', content: '生成 马斯克 喝酒的视频 5s' }],
-      'doubao-seedance-2-0-fast-260128',
-      {
-        apiEndpoint: 'video'
-      } as any,
-      0.7,
-      1024,
-      []
-    )) {
-      events.push(event)
-    }
+    const eventsPromise = (async () => {
+      const events = []
+      for await (const event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: '生成 马斯克 喝酒的视频 5s' }],
+        'doubao-seedance-2-0-fast-260128',
+        {
+          apiEndpoint: 'video'
+        } as any,
+        0.7,
+        1024,
+        []
+      )) {
+        events.push(event)
+      }
+      return events
+    })()
+    await vi.advanceTimersByTimeAsync(3_000)
+    const events = await eventsPromise
 
     const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
     const payload = JSON.parse(String(requestInit.body)) as Record<string, unknown>

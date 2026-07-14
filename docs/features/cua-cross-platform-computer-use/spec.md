@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for implementation planning.
+Implemented; CI target validation remains pending.
 
 ## Background
 
