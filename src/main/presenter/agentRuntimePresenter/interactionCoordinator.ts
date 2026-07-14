@@ -6,6 +6,7 @@ import type {
   ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { ISkillPresenter } from '@shared/presenter'
+import logger from '@shared/logger'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { SessionPermissionPort } from '../runtimePorts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
@@ -146,12 +147,12 @@ export class InteractionCoordinator {
     let interactionAbortController: AbortController | null = null
     let interactionAbortSignal: AbortSignal | undefined
     try {
-      if (interactionOwnedByActiveRun && interactionOwnerRun.abortController.signal.aborted) {
-        return { resumed: false }
-      }
-      if (interactionOwnedByActiveRun) {
+      if (interactionOwnerRun) {
+        if (interactionOwnedByActiveRun && interactionOwnerRun.abortController.signal.aborted) {
+          return { resumed: false }
+        }
         interactionAbortSignal = interactionOwnerRun.abortController.signal
-      } else if (!interactionOwnerRun) {
+      } else {
         interactionAbortController = this.ports.ensureSessionAbortController(sessionId)
         interactionAbortSignal = interactionAbortController.signal
       }
@@ -518,7 +519,9 @@ export class InteractionCoordinator {
           undefined,
           JSON.stringify(stampTerminalMetadata(accounting, 'aborted', 'user_stop'))
         )
-        void this.ports.drainPendingQueueIfPossible(sessionId, 'completed')
+        void this.ports.drainPendingQueueIfPossible(sessionId, 'completed').catch((drainError) => {
+          logger.error('[DeepChatAgent] drainPendingQueueIfPossible error:', drainError)
+        })
         return { resumed: false }
       }
       throw error

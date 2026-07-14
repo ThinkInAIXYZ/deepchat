@@ -56,12 +56,13 @@ responsibilities from the class, not move the entire class behind a new name.
 
 ## Outcome
 
-- `agentRuntimePresenter/index.ts`: 8,167 → 4,905 lines.
-- `AgentRuntimePresenter`: 211 → 135 methods.
+- The initial policy-extraction checkpoint reduced `agentRuntimePresenter/index.ts` from 8,167 to
+  4,905 lines and `AgentRuntimePresenter` from 211 to 135 methods. That checkpoint did not yet meet
+  the final 3,200-line / 130-method criteria.
 - Generation policy, prompt/resource assembly, permission review, tool normalization, interaction
   projection, session settings, tool resolution, deferred execution, ACP compatibility, compaction
   projection, and provider permission settlement now have focused owners with explicit dependencies.
-- `scripts/agent-cleanup-guard.mjs` rejects growth beyond 3,200 lines.
 - Follow-up [runtime lifecycle ownership](../deepchat-runtime-lifecycle-owners/spec.md) moved the
   initial/resume turn, provider/tool loop, and paused-interaction control flows behind three explicit
-  owners and reduced the presenter boundary to 2,604 lines / 122 methods.
+  owners, reduced the presenter boundary to 2,604 lines / 122 methods, and adopted the 3,200-line
+  architecture guard, completing the acceptance criteria.

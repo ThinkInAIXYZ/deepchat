@@ -8404,6 +8404,79 @@ describe('AgentRuntimePresenter', () => {
       expect(replacement.getActiveGeneration()).toBeUndefined()
     })
 
+    it('cancels a cross-message interaction without leaking queue-drain rejection', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const installation = deferred<{
+        success: true
+        action: 'install'
+        draftId: string
+        skillName: string
+        installedSkillName: string
+      }>()
+      skillPresenter.installDraftSkill.mockImplementationOnce(
+        async () => await installation.promise
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: '',
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [{ label: 'chat.skillDraft.actions.install' }],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1',
+              skillDraftName: 'draft-skill'
+            }
+          }
+        ]
+      })
+      const { instance, abortController } = registerActiveInteractionRun('new-message', [])
+      const drainError = new Error('queue drain failed')
+      const drainPendingQueue = vi
+        .spyOn(agent as any, 'drainPendingQueueIfPossible')
+        .mockRejectedValueOnce(drainError)
+
+      const interaction = agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.install'
+      })
+      await vi.waitFor(() => expect(skillPresenter.installDraftSkill).toHaveBeenCalledTimes(1))
+      abortController.abort()
+
+      await expect(interaction).resolves.toEqual({ resumed: false })
+      await vi.waitFor(() =>
+        expect(logger.error).toHaveBeenCalledWith(
+          '[DeepChatAgent] drainPendingQueueIfPossible error:',
+          drainError
+        )
+      )
+      expect(drainPendingQueue).toHaveBeenCalledWith('s1', 'completed')
+      expect(instance.getActiveGeneration()?.messageId).toBe('new-message')
+      expect(instance.getAbortController()).toBe(abortController)
+
+      installation.resolve({
+        success: true,
+        action: 'install',
+        draftId: 'draft-1',
+        skillName: 'draft-skill',
+        installedSkillName: 'draft-skill'
+      })
+    })
+
     it('discards a skill draft and resumes assistant message', async () => {
       const skillPresenter = getSkillPresenterMock()
       skillPresenter.discardDraftSkill.mockResolvedValue({
