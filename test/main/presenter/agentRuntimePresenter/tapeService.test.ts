@@ -3628,7 +3628,7 @@ describe('DeepChatTapeService', () => {
         messageTable.createTable()
         traceTable.createTable()
         sessionTable.createTable()
-        sessionTable.create('s1', 'openai', 'gpt-4o')
+        sessionTable.create('s1', 'openai', 'gpt-4o', 'full_access')
         sessionTable.updateMemoryCursorOrderSeq('s1', 3)
 
         appendObservationIsolationFacts(tapeTable)

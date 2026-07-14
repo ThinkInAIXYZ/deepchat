@@ -17,8 +17,8 @@ application layer, while runtime ports should operate on one canonical object sh
 
 Pending queue and update ports now use the same canonical object below the application boundary.
 The store serializes that object directly; persisted payloads are decoded with
-`SendMessageInputSchema`, and invalid JSON or shape is reported as corrupt storage instead of being
-reinterpreted as user text.
+`SendMessageInputSchema`. Invalid JSON or shape is reported as corrupt storage and degrades to the
+raw payload as user text so one damaged record cannot block the pending queue.
 
 ## Goal
 
@@ -53,7 +53,8 @@ session create input
 4. `AgentSessionSendInput.content` and the live steer facets use `SendMessageInput`, not
    `string | SendMessageInput`.
 5. Pending queue and update facets below the application boundary also use `SendMessageInput`.
-6. Pending storage accepts only canonical objects and rejects invalid persisted JSON or shape.
+6. Pending storage accepts only canonical objects. Invalid persisted JSON or shape is logged and
+   degrades to raw user text so queue processing remains continuous.
 7. DeepChat turn execution and ACP prompt resource resolution receive `SendMessageInput` directly.
 8. Context construction does not normalize the current live user input. Persisted history decoding
    remains separate and unchanged.
@@ -94,8 +95,9 @@ session create input
   internal runtime ports remain canonical.
 - Narrow pending queue and update operations after the companion persistence-decoder work proved the
   supported stored format and removed write-side coercion.
-- Decode persisted pending payloads with `SendMessageInputSchema`; do not provide a raw-text fallback
-  because the table has only ever stored JSON objects.
+- Decode persisted pending payloads with `SendMessageInputSchema`; on failure, report the integrity
+  error and preserve the raw payload as user text because conversation continuity takes precedence
+  over reconstructing optional structure.
 - GitHub issue synchronization is not part of this work.
 
 ## Open Questions

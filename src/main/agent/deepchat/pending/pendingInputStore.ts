@@ -5,7 +5,6 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import { SendMessageInputSchema } from '@shared/contracts/common'
-import { normalizeSendMessageInput } from '@/agent/shared/agentSessionNormalization'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { DeepChatPendingInputRow } from '@/presenter/sqlitePresenter/tables/deepchatPendingInputs'
 
@@ -382,15 +381,23 @@ export class DeepChatPendingInputStore {
     let parsed: unknown
     try {
       parsed = JSON.parse(row.payload_json)
-    } catch {
-      throw new Error(`Invalid pending input payload JSON: ${row.id}`)
+    } catch (error) {
+      console.error(
+        `[DeepChatPendingInputStore] Invalid pending input payload JSON: ${row.id}`,
+        error
+      )
+      return { text: row.payload_json, files: [] }
     }
 
     const result = SendMessageInputSchema.safeParse(parsed)
     if (!result.success) {
-      throw new Error(`Invalid pending input payload shape: ${row.id}`)
+      console.error(
+        `[DeepChatPendingInputStore] Invalid pending input payload shape: ${row.id}`,
+        result.error
+      )
+      return { text: row.payload_json, files: [] }
     }
 
-    return normalizeSendMessageInput(result.data)
+    return result.data
   }
 }

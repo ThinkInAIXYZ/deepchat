@@ -158,13 +158,20 @@ describe('DeepChatPendingInputStore', () => {
     ['invalid JSON', 'not-json', 'JSON'],
     ['JSON string', JSON.stringify('legacy text'), 'shape'],
     ['invalid object', JSON.stringify({ files: [] }), 'shape']
-  ])('rejects %s instead of converting it to user text', (_label, payloadJson, errorKind) => {
+  ])('degrades %s to raw text without blocking the queue', (_label, payloadJson, errorKind) => {
     const row = createQueueRow('corrupt-1', 'session-1', 1, 'pending')
     row.payload_json = payloadJson
     const { store } = createStore([row])
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    expect(() => store.getInput('corrupt-1')).toThrow(
-      `Invalid pending input payload ${errorKind}: corrupt-1`
-    )
+    try {
+      expect(store.getInput('corrupt-1')?.payload).toEqual({ text: payloadJson, files: [] })
+      expect(consoleError).toHaveBeenCalledWith(
+        `[DeepChatPendingInputStore] Invalid pending input payload ${errorKind}: corrupt-1`,
+        expect.anything()
+      )
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 })
