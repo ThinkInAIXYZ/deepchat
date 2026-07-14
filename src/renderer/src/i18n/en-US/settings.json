@@ -2880,6 +2880,8 @@
       "weightHint": "Non-negative ranking weight. Default: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Vector index rebuild did not finish: {reason}. Memory content was not lost; keyword recall is currently active.",
+      "reindexInternalReason": "The local embedding pipeline could not complete the rebuild.",
       "tabMemories": "Memories",
       "tabPersona": "Persona",
       "tabDiagnostics": "Diagnostics",

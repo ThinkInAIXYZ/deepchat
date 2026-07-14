@@ -2866,6 +2866,8 @@
       "weightHint": "Peso di ranking non negativo. Predefinito: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "La ricostruzione dell’indice vettoriale non è stata completata: {reason}. Nessun contenuto della memoria è andato perso; al momento viene usato il recupero per parole chiave.",
+      "reindexInternalReason": "La pipeline locale degli embedding non ha potuto completare la ricostruzione.",
       "tabMemories": "Memorie",
       "tabPersona": "Profilo",
       "tabDiagnostics": "Diagnostica",

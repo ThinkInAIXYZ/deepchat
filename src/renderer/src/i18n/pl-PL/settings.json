@@ -2866,6 +2866,8 @@
       "weightHint": "Nieujemna waga rankingu. Domyślnie: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Przebudowa indeksu wektorowego nie została ukończona: {reason}. Zawartość pamięci nie została utracona; obecnie używane jest wyszukiwanie według słów kluczowych.",
+      "reindexInternalReason": "Lokalny potok osadzania nie mógł ukończyć przebudowy.",
       "tabMemories": "Pamięć",
       "tabPersona": "Profil",
       "tabDiagnostics": "Diagnostyka",

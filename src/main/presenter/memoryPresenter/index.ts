@@ -306,6 +306,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         }),
       resetAgentStore: (agentId) => this.vectorStore.resetAgentStore(agentId),
       isReindexing: (agentId) => this.embedding.isReindexing(agentId),
+      getLastReindex: (agentId) => this.embedding.getLastReindex(agentId),
       reindexEmbeddings: (agentId, force) => this.reindexEmbeddings(agentId, force),
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
@@ -583,10 +584,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
   async clearMemoriesWithCleanup(agentId: string): Promise<MemoryClearResult> {
     try {
       const cleared = await this.management.clearMemories(agentId)
+      this.embedding.abandonAgent(agentId)
       this.diagnostics.cleanupAgent(agentId)
       return cleared
     } catch (error) {
       if (error instanceof VectorStoreQuarantineMarkerError) {
+        this.embedding.abandonAgent(agentId)
         this.diagnostics.cleanupAgent(agentId)
       }
       throw error

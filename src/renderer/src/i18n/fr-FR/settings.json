@@ -2875,6 +2875,8 @@
       "weightHint": "Poids de classement non négatif. Par défaut : {default}."
     },
     "redesign": {
+      "reindexIncomplete": "La reconstruction de l’index vectoriel n’a pas abouti : {reason}. Aucun contenu de mémoire n’a été perdu ; la recherche par mots-clés est actuellement utilisée.",
+      "reindexInternalReason": "Le pipeline local d’embeddings n’a pas pu terminer la reconstruction.",
       "tabMemories": "Mémoires",
       "tabPersona": "Profil",
       "tabDiagnostics": "Diagnostic",

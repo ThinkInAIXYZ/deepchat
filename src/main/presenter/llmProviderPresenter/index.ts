@@ -872,8 +872,13 @@ export class LLMProviderPresenter
    * @param texts 文本数组
    * @returns embedding 数组
    */
-  async getEmbeddings(providerId: string, modelId: string, texts: string[]): Promise<number[][]> {
-    return this.embeddingManager.getEmbeddings(providerId, modelId, texts)
+  async getEmbeddings(
+    providerId: string,
+    modelId: string,
+    texts: string[],
+    signal?: AbortSignal
+  ): Promise<number[][]> {
+    return this.embeddingManager.getEmbeddings(providerId, modelId, texts, signal)
   }
 
   /**
@@ -884,9 +889,10 @@ export class LLMProviderPresenter
    */
   async getDimensions(
     providerId: string,
-    modelId: string
+    modelId: string,
+    signal?: AbortSignal
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }> {
-    return this.embeddingManager.getDimensions(providerId, modelId)
+    return this.embeddingManager.getDimensions(providerId, modelId, signal)
   }
 
   async syncModelScopeMcpServers(

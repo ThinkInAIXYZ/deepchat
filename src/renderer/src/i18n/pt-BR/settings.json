@@ -2875,6 +2875,8 @@
       "weightHint": "Peso de ranqueamento não negativo. Padrão: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "A reconstrução do índice vetorial não foi concluída: {reason}. Nenhum conteúdo da memória foi perdido; no momento, a recuperação por palavras-chave está sendo usada.",
+      "reindexInternalReason": "O pipeline local de embeddings não conseguiu concluir a reconstrução.",
       "tabMemories": "Memórias",
       "tabPersona": "Perfil",
       "tabDiagnostics": "Diagnóstico",

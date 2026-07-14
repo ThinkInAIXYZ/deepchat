@@ -89,7 +89,29 @@ export const MemoryStatusSchema = z.object({
   conflictCount: NonnegativeCountSchema,
   personaDraftCount: NonnegativeCountSchema,
   personaVersionCount: NonnegativeCountSchema,
-  reindexing: z.boolean().optional()
+  reindexing: z.boolean().optional(),
+  lastReindex: z
+    .object({
+      outcome: z.enum(['completed', 'blocked', 'aborted']),
+      finishedAt: z.number(),
+      lastError: z
+        .object({
+          message: z.string(),
+          retryable: z.boolean(),
+          code: z
+            .enum([
+              'agent-unavailable',
+              'embedding-model-changed',
+              'embedding-invalid',
+              'vector-store-unavailable',
+              'pending-restart',
+              'drain-stalled'
+            ])
+            .optional()
+        })
+        .nullable()
+    })
+    .optional()
 })
 
 export const MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT = 200

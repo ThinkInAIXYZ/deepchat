@@ -137,6 +137,7 @@ export class ManagementService {
       ) => Promise<DeleteVectorResult>
       resetAgentStore: (agentId: string) => Promise<VectorStoreCleanupDisposition>
       isReindexing: (agentId: string) => boolean
+      getLastReindex: (agentId: string) => MemoryStatus['lastReindex']
       reindexEmbeddings: (agentId: string, force?: boolean) => Promise<void>
       syncWorkingMemoryAfterMutation: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
@@ -700,7 +701,8 @@ export class ManagementService {
       conflictCount: this.ports.repository.countConflictPairs(agentId),
       personaDraftCount: personaCounts.draft,
       personaVersionCount: personaCounts.total,
-      reindexing: this.ports.isReindexing(agentId)
+      reindexing: this.ports.isReindexing(agentId),
+      lastReindex: this.ports.getLastReindex(agentId)
     }
   }
 }

@@ -8,10 +8,15 @@ interface EmbeddingManagerOptions {
 export class EmbeddingManager {
   constructor(private readonly options: EmbeddingManagerOptions) {}
 
-  async getEmbeddings(providerId: string, modelId: string, texts: string[]): Promise<number[][]> {
+  async getEmbeddings(
+    providerId: string,
+    modelId: string,
+    texts: string[],
+    signal?: AbortSignal
+  ): Promise<number[][]> {
     try {
       const provider = this.options.getProviderInstance(providerId)
-      return await provider.getEmbeddings(modelId, texts)
+      return await provider.getEmbeddings(modelId, texts, signal)
     } catch (error) {
       console.error(`Embedding failed for providerId: ${providerId}, modelId: ${modelId}:`, error)
 
@@ -28,12 +33,16 @@ export class EmbeddingManager {
 
   async getDimensions(
     providerId: string,
-    modelId: string
+    modelId: string,
+    signal?: AbortSignal
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }> {
     try {
       const provider = this.options.getProviderInstance(providerId)
-      return { data: await provider.getDimensions(modelId) }
+      return { data: await provider.getDimensions(modelId, signal) }
     } catch (error) {
+      if (signal?.aborted) {
+        throw error
+      }
       console.error(`Failed to get embedding dimensions for model ${modelId}:`, error)
       return {
         data: {

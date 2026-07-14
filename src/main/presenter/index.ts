@@ -635,10 +635,10 @@ export class Presenter implements IPresenter {
           ),
       executeWithRateLimit: (providerId, options) =>
         this.llmproviderPresenter.executeWithRateLimit(providerId, { signal: options.signal }),
-      getEmbeddings: (providerId, modelId, texts) =>
-        this.llmproviderPresenter.getEmbeddings(providerId, modelId, texts),
-      getDimensions: (providerId, modelId) =>
-        this.llmproviderPresenter.getDimensions(providerId, modelId),
+      getEmbeddings: (providerId, modelId, texts, signal) =>
+        this.llmproviderPresenter.getEmbeddings(providerId, modelId, texts, signal),
+      getDimensions: (providerId, modelId, signal) =>
+        this.llmproviderPresenter.getDimensions(providerId, modelId, signal),
       generateText: async (providerId, modelId, prompt) =>
         (await this.llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ??
         '',

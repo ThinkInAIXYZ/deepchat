@@ -398,6 +398,29 @@ export interface MemoryStatus {
   personaDraftCount: number
   personaVersionCount: number
   reindexing?: boolean
+  lastReindex?: MemoryReindexResult
+}
+
+export type MemoryReindexOutcome = 'completed' | 'blocked' | 'aborted'
+
+export type MemoryReindexErrorCode =
+  | 'agent-unavailable'
+  | 'embedding-model-changed'
+  | 'embedding-invalid'
+  | 'vector-store-unavailable'
+  | 'pending-restart'
+  | 'drain-stalled'
+
+export interface MemoryReindexError {
+  message: string
+  retryable: boolean
+  code?: MemoryReindexErrorCode
+}
+
+export interface MemoryReindexResult {
+  outcome: MemoryReindexOutcome
+  finishedAt: number
+  lastError: MemoryReindexError | null
 }
 
 export interface MemoryUpdateContext {

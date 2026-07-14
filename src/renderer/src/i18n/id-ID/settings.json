@@ -2866,6 +2866,8 @@
       "weightHint": "Bobot peringkat non-negatif. Default: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Pembuatan ulang indeks vektor belum selesai: {reason}. Konten memori tidak hilang; pengambilan berbasis kata kunci sedang digunakan.",
+      "reindexInternalReason": "Pipeline embedding lokal tidak dapat menyelesaikan pembuatan ulang.",
       "tabMemories": "Memori",
       "tabPersona": "Profil",
       "tabDiagnostics": "Diagnostik",

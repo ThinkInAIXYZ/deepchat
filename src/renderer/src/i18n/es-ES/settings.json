@@ -2866,6 +2866,8 @@
       "weightHint": "Peso de clasificación no negativo. Predeterminado: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "La reconstrucción del índice vectorial no se completó: {reason}. No se perdió contenido de la memoria; actualmente se usa la recuperación por palabras clave.",
+      "reindexInternalReason": "La canalización local de embeddings no pudo completar la reconstrucción.",
       "tabMemories": "Memorias",
       "tabPersona": "Perfil",
       "tabDiagnostics": "Diagnóstico",

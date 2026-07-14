@@ -1151,15 +1151,20 @@ export class AiSdkProvider extends BaseLLMProvider {
     return response
   }
 
-  public async runEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
+  public async runEmbeddings(
+    modelId: string,
+    texts: string[],
+    signal?: AbortSignal
+  ): Promise<number[][]> {
     const { context } = this.buildRuntimeContext(modelId)
-    return runAiSdkEmbeddings(context, modelId, texts)
+    return runAiSdkEmbeddings(context, modelId, texts, signal)
   }
 
   private async runEmbeddingsWithDecision(
     modelId: string,
     texts: string[],
-    decision: RouteDecision
+    decision: RouteDecision,
+    signal?: AbortSignal
   ): Promise<number[][]> {
     const runtimeProvider = this.getRuntimeProvider(decision)
     const defaultHeaders = {
@@ -1185,10 +1190,10 @@ export class AiSdkProvider extends BaseLLMProvider {
         runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
     }
 
-    return runAiSdkEmbeddings(context, modelId, texts)
+    return runAiSdkEmbeddings(context, modelId, texts, signal)
   }
 
-  public async runDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
+  public async runDimensions(modelId: string, signal?: AbortSignal): Promise<LLM_EMBEDDING_ATTRS> {
     if (modelId === 'text-embedding-3-small' || modelId === 'text-embedding-ada-002') {
       return {
         dimensions: 1536,
@@ -1204,33 +1209,41 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     try {
-      const embeddings = await this.runEmbeddings(modelId, [EMBEDDING_TEST_KEY])
+      const embeddings = await this.runEmbeddings(modelId, [EMBEDDING_TEST_KEY], signal)
       return {
         dimensions: embeddings[0].length,
         normalized: isNormalized(embeddings[0])
       }
     } catch (error) {
+      if (signal?.aborted) {
+        throw error
+      }
       console.error(`[AiSdkProvider] Failed to get dimensions for model ${modelId}:`, error)
       const { context } = this.buildRuntimeContext(modelId)
-      return runAiSdkDimensions(context, modelId)
+      return runAiSdkDimensions(context, modelId, signal)
     }
   }
 
   private async runDimensionsWithDecision(
     modelId: string,
-    decision: RouteDecision
+    decision: RouteDecision,
+    signal?: AbortSignal
   ): Promise<LLM_EMBEDDING_ATTRS> {
     try {
       const embeddings = await this.runEmbeddingsWithDecision(
         modelId,
         [EMBEDDING_TEST_KEY],
-        decision
+        decision,
+        signal
       )
       return {
         dimensions: embeddings[0].length,
         normalized: isNormalized(embeddings[0])
       }
     } catch (error) {
+      if (signal?.aborted) {
+        throw error
+      }
       console.error(`[AiSdkProvider] Failed to get dimensions for model ${modelId}:`, error)
       const runtimeProvider = this.getRuntimeProvider(decision)
       const defaultHeaders = {
@@ -1255,7 +1268,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         shouldUseImageGeneration: (_runtimeModelId, runtimeModelConfig) =>
           runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
       }
-      return runAiSdkDimensions(context, modelId)
+      return runAiSdkDimensions(context, modelId, signal)
     }
   }
 
@@ -2673,52 +2686,65 @@ export class AiSdkProvider extends BaseLLMProvider {
     return this.definition.embeddingStrategy ?? 'none'
   }
 
-  public async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
+  public async getEmbeddings(
+    modelId: string,
+    texts: string[],
+    signal?: AbortSignal
+  ): Promise<number[][]> {
     switch (this.getEmbeddingStrategy()) {
       case 'openai':
       case 'google':
-        return this.runEmbeddings(modelId, texts)
+        return this.runEmbeddings(modelId, texts, signal)
       case 'new-api': {
-        return this.runEmbeddingsWithDecision(modelId, texts, {
-          providerKind: 'openai-compatible',
-          providerPatch: {
-            apiType: 'openai-completions',
-            baseUrl: `${this.getNormalizedNewApiHost()}/v1`,
-            capabilityProviderId: this.resolveNewApiRuntimeCapabilityProviderId(modelId, 'openai')
-          }
-        })
+        return this.runEmbeddingsWithDecision(
+          modelId,
+          texts,
+          {
+            providerKind: 'openai-compatible',
+            providerPatch: {
+              apiType: 'openai-completions',
+              baseUrl: `${this.getNormalizedNewApiHost()}/v1`,
+              capabilityProviderId: this.resolveNewApiRuntimeCapabilityProviderId(modelId, 'openai')
+            }
+          },
+          signal
+        )
       }
       case 'zenmux':
         if (modelId.trim().toLowerCase().startsWith('anthropic/')) {
           throw new Error(`Embeddings not supported for Anthropic models: ${modelId}`)
         }
-        return this.runEmbeddings(modelId, texts)
+        return this.runEmbeddings(modelId, texts, signal)
       case 'none':
       default:
         throw new Error('embedding is not supported by this provider')
     }
   }
 
-  public async getDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
+  public async getDimensions(modelId: string, signal?: AbortSignal): Promise<LLM_EMBEDDING_ATTRS> {
     switch (this.getEmbeddingStrategy()) {
       case 'openai':
       case 'google':
-        return this.runDimensions(modelId)
+        return this.runDimensions(modelId, signal)
       case 'new-api': {
-        return this.runDimensionsWithDecision(modelId, {
-          providerKind: 'openai-compatible',
-          providerPatch: {
-            apiType: 'openai-completions',
-            baseUrl: `${this.getNormalizedNewApiHost()}/v1`,
-            capabilityProviderId: this.resolveNewApiRuntimeCapabilityProviderId(modelId, 'openai')
-          }
-        })
+        return this.runDimensionsWithDecision(
+          modelId,
+          {
+            providerKind: 'openai-compatible',
+            providerPatch: {
+              apiType: 'openai-completions',
+              baseUrl: `${this.getNormalizedNewApiHost()}/v1`,
+              capabilityProviderId: this.resolveNewApiRuntimeCapabilityProviderId(modelId, 'openai')
+            }
+          },
+          signal
+        )
       }
       case 'zenmux':
         if (modelId.trim().toLowerCase().startsWith('anthropic/')) {
           throw new Error(`Embeddings not supported for Anthropic models: ${modelId}`)
         }
-        return this.runDimensions(modelId)
+        return this.runDimensions(modelId, signal)
       case 'none':
       default:
         throw new Error('embedding is not supported by this provider')

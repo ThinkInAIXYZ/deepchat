@@ -278,10 +278,16 @@ export interface ILlmProviderPresenter {
   showOllamaModelInfo(providerId: string, modelName: string): Promise<ShowResponse>
   listOllamaRunningModels(providerId: string): Promise<OllamaModel[]>
   pullOllamaModels(providerId: string, modelName: string): Promise<boolean>
-  getEmbeddings(providerId: string, modelId: string, texts: string[]): Promise<number[][]>
+  getEmbeddings(
+    providerId: string,
+    modelId: string,
+    texts: string[],
+    signal?: AbortSignal
+  ): Promise<number[][]>
   getDimensions(
     providerId: string,
-    modelId: string
+    modelId: string,
+    signal?: AbortSignal
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
   updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number): void
   getProviderRateLimitStatus(providerId: string): {

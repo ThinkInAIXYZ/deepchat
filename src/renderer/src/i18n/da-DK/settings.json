@@ -2875,6 +2875,8 @@
       "weightHint": "Ikke-negativ rangeringsvægt. Standard: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Genopbygningen af vektorindekset blev ikke fuldført: {reason}. Hukommelsesindholdet er ikke gået tabt; søgning med nøgleord bruges i øjeblikket.",
+      "reindexInternalReason": "Den lokale embedding-pipeline kunne ikke fuldføre genopbygningen.",
       "tabMemories": "Hukommelser",
       "tabPersona": "Personprofil",
       "tabDiagnostics": "Diagnostik",

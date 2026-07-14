@@ -2875,6 +2875,8 @@
       "weightHint": "負でないランキング重み。デフォルト: {default}。"
     },
     "redesign": {
+      "reindexIncomplete": "ベクトルインデックスの再構築が完了しませんでした：{reason}。メモリの内容は失われていません。現在はキーワード検索を使用しています。",
+      "reindexInternalReason": "ローカルの埋め込み処理パイプラインで再構築を完了できませんでした。",
       "tabMemories": "メモリ",
       "tabPersona": "ペルソナ",
       "tabDiagnostics": "診断",

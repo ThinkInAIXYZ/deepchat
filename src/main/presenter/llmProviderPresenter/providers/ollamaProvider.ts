@@ -726,11 +726,11 @@ export class OllamaProvider extends BaseLLMProvider {
     )
   }
 
-  async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
-    return runAiSdkEmbeddings(this.getAiSdkRuntimeContext(), modelId, texts)
+  async getEmbeddings(modelId: string, texts: string[], signal?: AbortSignal): Promise<number[][]> {
+    return runAiSdkEmbeddings(this.getAiSdkRuntimeContext(), modelId, texts, signal)
   }
 
-  async getDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
-    return runAiSdkDimensions(this.getAiSdkRuntimeContext(), modelId)
+  async getDimensions(modelId: string, signal?: AbortSignal): Promise<LLM_EMBEDDING_ATTRS> {
+    return runAiSdkDimensions(this.getAiSdkRuntimeContext(), modelId, signal)
   }
 }

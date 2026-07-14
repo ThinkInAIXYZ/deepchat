@@ -34,6 +34,33 @@ describe('MemoryPresenter management', () => {
     expect(store.vectors.size).toBe(0)
   })
 
+  it('clearMemories clears the latest reindex result', async () => {
+    const repo = createFakeRepository()
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async () => {
+        throw new Error('embedding service unavailable')
+      },
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'pending',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'clear failed rebuild',
+      status: 'pending_embedding'
+    })
+
+    await presenter.reindexEmbeddings('a', true)
+    expect(presenter.getStatus('a').lastReindex?.outcome).toBe('blocked')
+
+    await presenter.clearMemories('a')
+
+    expect(presenter.getStatus('a').lastReindex).toBeUndefined()
+  })
+
   it('reports pending restart when quarantined vector files cannot be touched safely', async () => {
     const repo = createFakeRepository()
     repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis' })

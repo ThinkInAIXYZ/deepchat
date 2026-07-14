@@ -47,6 +47,19 @@ const baseStatus: MemoryStatusDto = {
   reindexing: false
 }
 
+const failedReindexStatus: MemoryStatusDto = {
+  ...baseStatus,
+  pendingEmbedding: 2,
+  lastReindex: {
+    outcome: 'blocked',
+    finishedAt: 1,
+    lastError: {
+      message: 'embedding service unavailable',
+      retryable: true
+    }
+  }
+}
+
 const baseHealth = createEmptyMemoryHealth(200)
 
 const basePreview: MemoryArchiveCandidateLifecyclePreview = {
@@ -273,6 +286,82 @@ describe('MemoryDiagnosticsPanel', () => {
     await flushPromises()
     expect(reindexButton(wrapper).attributes('disabled')).toBeUndefined()
 
+    wrapper.unmount()
+  })
+
+  it('shows a persistent failed-reindex banner with the sanitized reason and retry action', async () => {
+    const message =
+      'Vector index rebuild did not finish: {reason}. Memory content was not lost; keyword recall is currently active.'
+    const { wrapper, memoryClient } = await setup(failedReindexStatus, {
+      messages: { 'settings.memory.redesign.reindexIncomplete': message }
+    })
+
+    const banner = wrapper.get('[data-testid="reindex-failure-banner"]')
+    expect(banner.text()).toContain('embedding service unavailable')
+    expect(banner.text()).toContain('Memory content was not lost')
+    expect(banner.text()).toContain('keyword recall is currently active')
+
+    await banner.get('button').trigger('click')
+    await flushPromises()
+    expect(memoryClient.reindex).toHaveBeenCalledWith('deepchat')
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('localizes internal reindex failures instead of rendering backend control-flow text', async () => {
+    const status: MemoryStatusDto = {
+      ...failedReindexStatus,
+      lastReindex: {
+        outcome: 'blocked',
+        finishedAt: 1,
+        lastError: {
+          message: '[Memory] embedding provider returned invalid vectors',
+          retryable: true,
+          code: 'embedding-invalid'
+        }
+      }
+    }
+    const { wrapper } = await setup(status, {
+      messages: {
+        'settings.memory.redesign.reindexIncomplete': 'Rebuild failed: {reason}',
+        'settings.memory.redesign.reindexInternalReason': 'Localized internal reason'
+      }
+    })
+
+    const banner = wrapper.get('[data-testid="reindex-failure-banner"]')
+    expect(banner.text()).toContain('Localized internal reason')
+    expect(banner.text()).not.toContain('embedding provider returned invalid vectors')
+    wrapper.unmount()
+  })
+
+  it('hides old reindex results while running and after a successful rebuild', async () => {
+    const { wrapper } = await setup({ ...failedReindexStatus, reindexing: true })
+
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
+
+    await wrapper.setProps({
+      status: {
+        ...baseStatus,
+        lastReindex: {
+          outcome: 'completed',
+          finishedAt: 2,
+          lastError: null
+        }
+      }
+    })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not carry a reindex failure banner across an agent switch', async () => {
+    const { wrapper } = await setup(failedReindexStatus)
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(true)
+
+    await wrapper.setProps({ agentId: 'other-agent', status: null })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

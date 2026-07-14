@@ -4,12 +4,21 @@ const {
   mockGenerateImage,
   mockGenerateText,
   mockStreamText,
+  mockEmbedMany,
+  mockWrapEmbeddingModel,
   mockCreateAiSdkProviderContext,
   mockCacheImage
 } = vi.hoisted(() => ({
   mockGenerateImage: vi.fn(),
   mockGenerateText: vi.fn(),
   mockStreamText: vi.fn(),
+  mockEmbedMany: vi.fn(),
+  mockWrapEmbeddingModel: vi.fn(
+    ({ model, middleware }: { model: Record<string, unknown>; middleware: any }) => ({
+      ...model,
+      maxEmbeddingsPerCall: middleware.overrideMaxEmbeddingsPerCall({ model })
+    })
+  ),
   mockCreateAiSdkProviderContext: vi.fn(),
   mockCacheImage: vi.fn()
 }))
@@ -19,7 +28,8 @@ vi.mock('ai', () => ({
   generateImage: mockGenerateImage,
   generateText: mockGenerateText,
   streamText: mockStreamText,
-  embedMany: vi.fn()
+  embedMany: mockEmbedMany,
+  wrapEmbeddingModel: mockWrapEmbeddingModel
 }))
 
 vi.mock('@/presenter', () => ({
@@ -49,9 +59,13 @@ vi.mock('@/presenter/llmProviderPresenter/aiSdk/providerFactory', () => ({
 
 import {
   runAiSdkCoreStream,
+  runAiSdkDimensions,
+  runAiSdkEmbeddings,
   runAiSdkGenerateText
 } from '@/presenter/llmProviderPresenter/aiSdk/runtime'
 import { modelCapabilities } from '@/presenter/configPresenter/modelCapabilities'
+import { APICallError } from '@ai-sdk/provider'
+import { clearLearnedEmbeddingBatchLimits } from '@/presenter/llmProviderPresenter/aiSdk/embeddingBatchLimits'
 
 describe('AI SDK runtime', () => {
   const createTextRuntimeContext = (overrides: Record<string, unknown> = {}) =>
@@ -68,10 +82,12 @@ describe('AI SDK runtime', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    clearLearnedEmbeddingBatchLimits()
     mockCreateAiSdkProviderContext.mockReturnValue({
       providerOptionsKey: 'openai',
       apiType: 'openai_chat',
       model: {},
+      embeddingModel: {},
       imageModel: {},
       endpoint: 'https://image.example.com'
     })
@@ -98,10 +114,216 @@ describe('AI SDK runtime', () => {
       ]
     })
     mockCacheImage.mockResolvedValue('cached://image')
+    mockEmbedMany.mockImplementation(async ({ values }: { values: string[] }) => ({
+      embeddings: values.map((value) => [Number(value) || 1])
+    }))
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  const createBatchError = (message: string) =>
+    new APICallError({
+      message,
+      url: 'https://example.com/embeddings',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+
+  it('applies the static batch limit, bounded parallelism, and abort signal', async () => {
+    const controller = new AbortController()
+    const texts = Array.from({ length: 50 }, (_, index) => String(index + 1))
+
+    const embeddings = await runAiSdkEmbeddings(
+      createTextRuntimeContext({ provider: { id: 'new-api' } }),
+      'dashscope/text-embedding-v4',
+      texts,
+      controller.signal
+    )
+
+    expect(mockWrapEmbeddingModel).toHaveBeenCalledTimes(1)
+    expect(mockEmbedMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: texts,
+        maxParallelCalls: 2,
+        abortSignal: controller.signal,
+        model: expect.objectContaining({ maxEmbeddingsPerCall: 10 })
+      })
+    )
+    expect(embeddings).toHaveLength(50)
+  })
+
+  it('learns a parsed batch limit and retries the full input only once', async () => {
+    mockEmbedMany
+      .mockRejectedValueOnce(createBatchError('batch size should not be larger than 10'))
+      .mockImplementationOnce(async ({ values }: { values: string[] }) => ({
+        embeddings: values.map((value) => [Number(value)])
+      }))
+    const texts = Array.from({ length: 50 }, (_, index) => String(index + 1))
+
+    const embeddings = await runAiSdkEmbeddings(
+      createTextRuntimeContext({ provider: { id: 'new-api' } }),
+      'custom-embedding-model',
+      texts
+    )
+
+    expect(mockEmbedMany).toHaveBeenCalledTimes(2)
+    expect(mockEmbedMany.mock.calls[1]?.[0]).toMatchObject({
+      values: texts,
+      maxParallelCalls: 2,
+      model: { maxEmbeddingsPerCall: 10 }
+    })
+    expect(embeddings[49]).toEqual([50])
+  })
+
+  it('halves serial probes and reuses the successful first slice in order', async () => {
+    const batchError = createBatchError('batch size exceeds the allowed input count')
+    mockEmbedMany
+      .mockRejectedValueOnce(batchError)
+      .mockRejectedValueOnce(batchError)
+      .mockRejectedValueOnce(batchError)
+      .mockImplementationOnce(async ({ values }: { values: string[] }) => ({
+        embeddings: values.map((value) => [Number(value)])
+      }))
+      .mockImplementationOnce(async ({ values }: { values: string[] }) => ({
+        embeddings: values.map((value) => [Number(value)])
+      }))
+    const texts = Array.from({ length: 50 }, (_, index) => String(index + 1))
+
+    const embeddings = await runAiSdkEmbeddings(
+      createTextRuntimeContext({ provider: { id: 'new-api' } }),
+      'custom-embedding-model',
+      texts
+    )
+
+    expect(mockEmbedMany.mock.calls.map(([request]) => request.values.length)).toEqual([
+      50, 25, 12, 6, 44
+    ])
+    expect(mockEmbedMany.mock.calls.slice(1).map(([request]) => request.maxParallelCalls)).toEqual([
+      2, 2, 2, 2
+    ])
+    expect(embeddings).toEqual(texts.map((value) => [Number(value)]))
+  })
+
+  it('does not restart probing after the successful first slice is reused', async () => {
+    const initialError = createBatchError('batch size exceeds the allowed input count')
+    const remainingError = createBatchError('batch size still exceeds the allowed input count')
+    mockEmbedMany
+      .mockRejectedValueOnce(initialError)
+      .mockImplementationOnce(async ({ values }: { values: string[] }) => ({
+        embeddings: values.map((value) => [Number(value)])
+      }))
+      .mockRejectedValueOnce(remainingError)
+    const texts = Array.from({ length: 50 }, (_, index) => String(index + 1))
+
+    await expect(
+      runAiSdkEmbeddings(
+        createTextRuntimeContext({ provider: { id: 'new-api' } }),
+        'custom-embedding-model',
+        texts
+      )
+    ).rejects.toBe(remainingError)
+    expect(mockEmbedMany.mock.calls.map(([request]) => request.values.length)).toEqual([50, 25, 25])
+  })
+
+  it('does not split token errors that mention batch size', async () => {
+    const error = createBatchError('batch size is invalid because the token context length exceeds')
+    mockEmbedMany.mockRejectedValueOnce(error)
+
+    await expect(
+      runAiSdkEmbeddings(
+        createTextRuntimeContext({ provider: { id: 'new-api' } }),
+        'custom-embedding-model',
+        ['one', 'two']
+      )
+    ).rejects.toBe(error)
+    expect(mockEmbedMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not split per-input content length errors', async () => {
+    const error = createBatchError(
+      'inputs[0] content size exceeds the maximum allowed length of 8192 characters'
+    )
+    mockEmbedMany.mockRejectedValueOnce(error)
+
+    await expect(
+      runAiSdkEmbeddings(
+        createTextRuntimeContext({ provider: { id: 'new-api' } }),
+        'custom-embedding-model',
+        ['one', 'two']
+      )
+    ).rejects.toBe(error)
+    expect(mockEmbedMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not parse a batch limit from a max-prefixed model name', async () => {
+    const error = createBatchError('batch size exceeds the maximum for model embedding-max10-v4')
+    mockEmbedMany
+      .mockRejectedValueOnce(error)
+      .mockImplementationOnce(async ({ values }: { values: string[] }) => ({
+        embeddings: values.map((value) => [Number(value)])
+      }))
+      .mockImplementationOnce(async ({ values }: { values: string[] }) => ({
+        embeddings: values.map((value) => [Number(value)])
+      }))
+    const texts = Array.from({ length: 50 }, (_, index) => String(index + 1))
+
+    await expect(
+      runAiSdkEmbeddings(
+        createTextRuntimeContext({ provider: { id: 'new-api' } }),
+        'custom-embedding-model',
+        texts
+      )
+    ).resolves.toEqual(texts.map((value) => [Number(value)]))
+    expect(mockEmbedMany.mock.calls.map(([request]) => request.values.length)).toEqual([50, 25, 25])
+  })
+
+  it('does not retry a parsed batch limit more than once', async () => {
+    const initialError = createBatchError('batch size should not be larger than 10')
+    const retryError = createBatchError('batch size should not be larger than 10')
+    mockEmbedMany.mockRejectedValueOnce(initialError).mockRejectedValueOnce(retryError)
+
+    await expect(
+      runAiSdkEmbeddings(
+        createTextRuntimeContext({ provider: { id: 'new-api' } }),
+        'custom-embedding-model',
+        Array.from({ length: 50 }, (_, index) => String(index + 1))
+      )
+    ).rejects.toBe(retryError)
+    expect(mockEmbedMany).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops retries and learning when the signal is aborted', async () => {
+    const controller = new AbortController()
+    mockEmbedMany.mockImplementationOnce(async () => {
+      controller.abort(new Error('cancelled'))
+      throw createBatchError('batch size exceeds the allowed input count')
+    })
+
+    await expect(
+      runAiSdkEmbeddings(
+        createTextRuntimeContext({ provider: { id: 'new-api' } }),
+        'custom-embedding-model',
+        ['one', 'two'],
+        controller.signal
+      )
+    ).rejects.toThrow('cancelled')
+    expect(mockEmbedMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards the abort signal through dimension probing', async () => {
+    const controller = new AbortController()
+
+    await runAiSdkDimensions(
+      createTextRuntimeContext({ provider: { id: 'new-api' } }),
+      'custom-embedding-model',
+      controller.signal
+    )
+
+    expect(mockEmbedMany).toHaveBeenCalledWith(
+      expect.objectContaining({ abortSignal: controller.signal, maxParallelCalls: 2 })
+    )
   })
 
   it('promotes leading system messages to the top-level instructions option for generateText', async () => {

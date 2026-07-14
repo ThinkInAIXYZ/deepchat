@@ -2866,6 +2866,8 @@
       "weightHint": "Trọng số xếp hạng không âm. Mặc định: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Quá trình xây dựng lại chỉ mục vectơ chưa hoàn tất: {reason}. Nội dung bộ nhớ không bị mất; hiện hệ thống đang sử dụng truy xuất theo từ khóa.",
+      "reindexInternalReason": "Quy trình embedding cục bộ không thể hoàn tất việc xây dựng lại.",
       "tabMemories": "Bộ nhớ",
       "tabPersona": "Chân dung",
       "tabDiagnostics": "Chẩn đoán",

@@ -1,5 +1,13 @@
-import { embedMany, generateId, generateImage, generateText, streamText } from 'ai'
+import {
+  embedMany,
+  generateId,
+  generateImage,
+  generateText,
+  streamText,
+  wrapEmbeddingModel
+} from 'ai'
 import type { JSONValue, ModelMessage } from 'ai'
+import { APICallError } from '@ai-sdk/provider'
 import type {
   ChatMessage,
   IConfigPresenter,
@@ -48,6 +56,11 @@ import {
   normalizeGeminiBaseUrl
 } from './providerFactory'
 import { adaptAiSdkStream } from './streamAdapter'
+import {
+  learnEmbeddingBatchLimit,
+  refreshLearnedEmbeddingBatchLimit,
+  resolveEmbeddingBatchLimit
+} from './embeddingBatchLimits'
 
 type ImageGenerationProviderPayload = Record<string, JSONValue>
 type ImageGenerationRequestOptions = {
@@ -1483,8 +1496,13 @@ export async function* runAiSdkCoreStream(
 export async function runAiSdkEmbeddings(
   context: AiSdkRuntimeContext,
   modelId: string,
-  texts: string[]
+  texts: string[],
+  signal?: AbortSignal
 ): Promise<number[][]> {
+  if (texts.length === 0) {
+    return []
+  }
+
   const providerContext = createAiSdkProviderContext({
     providerKind: context.providerKind,
     provider: context.provider,
@@ -1499,21 +1517,168 @@ export async function runAiSdkEmbeddings(
     throw new Error(`embedding is not supported by provider ${context.provider.id}`)
   }
 
-  const result = await embedMany({
-    model: providerContext.embeddingModel,
-    values: texts
-  })
+  const runRequest = async (values: string[], limit?: number): Promise<number[][]> => {
+    signal?.throwIfAborted()
+    const model = limit
+      ? wrapEmbeddingModel({
+          model: providerContext.embeddingModel!,
+          middleware: {
+            overrideMaxEmbeddingsPerCall: () => limit
+          }
+        })
+      : providerContext.embeddingModel!
+    const result = await embedMany({
+      model,
+      values,
+      maxParallelCalls: 2,
+      abortSignal: signal
+    })
+    return result.embeddings
+  }
 
-  return result.embeddings
+  const getErrorText = (error: APICallError): string => {
+    let serializedData = ''
+    try {
+      serializedData = error.data === undefined ? '' : JSON.stringify(error.data)
+    } catch {
+      serializedData = ''
+    }
+    return [error.message, error.responseBody, serializedData].filter(Boolean).join(' ')
+  }
+
+  const isBatchSizeError = (error: unknown): error is APICallError => {
+    if (!APICallError.isInstance(error) || error.statusCode !== 400) {
+      return false
+    }
+
+    const message = getErrorText(error)
+    if (
+      /\b(?:token|tokens|context(?:[\s_-]*(?:length|window))?|(?:input|text|content|document|sequence)[\s_-]*(?:length|size)|(?:length|size)\s+of\s+(?:an?\s+)?(?:input|text|content|document|sequence)|(?:input|text|content|document|sequence)\s+(?:is\s+)?too\s+long|characters?|bytes?)\b/i.test(
+        message
+      ) ||
+      /\bper[\s_-]+(?:input|text|content|document|item)\b/i.test(message)
+    ) {
+      return false
+    }
+
+    return (
+      /\bbatch[\s_-]*size\b/i.test(message) ||
+      /\btoo many\s+(?:inputs?|texts?|items?|contents?|documents?)\b/i.test(message) ||
+      /\b(?:inputs?|texts?|items?|contents?|documents?)\b[\s_-]+(?:count|number|quantity)\b.{0,80}\b(?:maximum|max|limit|larger|exceed|allow)/i.test(
+        message
+      ) ||
+      /\b(?:count|number|quantity)\s+of\s+(?:inputs?|texts?|items?|contents?|documents?)\b.{0,80}\b(?:maximum|max|limit|larger|exceed|allow)/i.test(
+        message
+      ) ||
+      /\b(?:maximum|max|limit)\s+(?:allowed\s+)?(?:count|number|quantity)\s+of\s+(?:inputs?|texts?|items?|contents?|documents?)\b/i.test(
+        message
+      )
+    )
+  }
+
+  const parseBatchLimit = (error: APICallError): number | undefined => {
+    const message = getErrorText(error)
+    const patterns = [
+      /\bshould not be larger than\s+(\d+)\b/i,
+      /\b(?:at most|up to|no more than)\s+(\d+)\b/i,
+      /\b(?:maximum|max)\b(?:\s+(?:allowed|batch(?:\s+size)?|count|number|size)){0,3}\s*(?:is|of|:|=)?\s*(\d+)\b/i,
+      /\b(?:maximum|max)\s+(?:allowed\s+)?(?:count|number|quantity)\s+of\s+(?:inputs?|texts?|items?|contents?|documents?)\s*(?:is|:|=)?\s*(\d+)\b/i,
+      /\blimit(?:ed)?\s*(?:is|:|=|to)?\s*(\d+)\b/i,
+      /\b(\d+)\s+(?:inputs?|texts?|items?|contents?|documents?)\b/i
+    ]
+
+    for (const pattern of patterns) {
+      const parsed = Number(pattern.exec(message)?.[1])
+      if (Number.isSafeInteger(parsed) && parsed > 0) {
+        return parsed
+      }
+    }
+    return undefined
+  }
+
+  const initialLimit = resolveEmbeddingBatchLimit(context.provider.id, modelId)
+  const nativeLimit = providerContext.embeddingModel.maxEmbeddingsPerCall
+  const attemptedLimit = Math.min(
+    texts.length,
+    initialLimit ??
+      (typeof nativeLimit === 'number' && nativeLimit > 0 ? nativeLimit : texts.length)
+  )
+
+  try {
+    const embeddings = await runRequest(texts, initialLimit)
+    signal?.throwIfAborted()
+    refreshLearnedEmbeddingBatchLimit(context.provider.id, modelId)
+    return embeddings
+  } catch (error) {
+    if (!isBatchSizeError(error)) {
+      throw error
+    }
+
+    const initialError = error
+    signal?.throwIfAborted()
+    const parsedLimit = parseBatchLimit(error)
+    if (parsedLimit !== undefined && parsedLimit < attemptedLimit) {
+      learnEmbeddingBatchLimit(context.provider.id, modelId, parsedLimit, attemptedLimit)
+      signal?.throwIfAborted()
+      const embeddings = await runRequest(
+        texts,
+        resolveEmbeddingBatchLimit(context.provider.id, modelId)
+      )
+      signal?.throwIfAborted()
+      refreshLearnedEmbeddingBatchLimit(context.provider.id, modelId)
+      return embeddings
+    }
+
+    let probeSize = Math.floor(attemptedLimit / 2)
+    while (probeSize >= 1) {
+      signal?.throwIfAborted()
+      let firstEmbeddings: number[][]
+      try {
+        firstEmbeddings = await runRequest(texts.slice(0, probeSize), probeSize)
+      } catch (probeError) {
+        if (!isBatchSizeError(probeError)) {
+          throw probeError
+        }
+        if (probeSize === 1) {
+          throw initialError
+        }
+        probeSize = Math.max(1, Math.floor(probeSize / 2))
+        continue
+      }
+
+      signal?.throwIfAborted()
+      learnEmbeddingBatchLimit(context.provider.id, modelId, probeSize, attemptedLimit)
+
+      if (probeSize === texts.length) {
+        refreshLearnedEmbeddingBatchLimit(context.provider.id, modelId)
+        return firstEmbeddings
+      }
+
+      signal?.throwIfAborted()
+      const remainingEmbeddings = await runRequest(
+        texts.slice(probeSize),
+        resolveEmbeddingBatchLimit(context.provider.id, modelId)
+      )
+      signal?.throwIfAborted()
+      refreshLearnedEmbeddingBatchLimit(context.provider.id, modelId)
+      return [...firstEmbeddings, ...remainingEmbeddings]
+    }
+
+    throw initialError
+  }
 }
 
 export async function runAiSdkDimensions(
   context: AiSdkRuntimeContext,
-  modelId: string
+  modelId: string,
+  signal?: AbortSignal
 ): Promise<LLM_EMBEDDING_ATTRS> {
-  const embeddings = await runAiSdkEmbeddings(context, modelId, [
-    EMBEDDING_TEST_KEY || generateId()
-  ])
+  const embeddings = await runAiSdkEmbeddings(
+    context,
+    modelId,
+    [EMBEDDING_TEST_KEY || generateId()],
+    signal
+  )
   return {
     dimensions: embeddings[0].length,
     normalized: isNormalized(embeddings[0])

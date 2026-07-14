@@ -2866,6 +2866,8 @@
       "weightHint": "Nicht-negative Ranking-Gewichtung. Standard: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Der Neuaufbau des Vektorindex wurde nicht abgeschlossen: {reason}. Es sind keine Erinnerungsinhalte verloren gegangen; derzeit wird die Schlüsselwortsuche verwendet.",
+      "reindexInternalReason": "Die lokale Embedding-Pipeline konnte den Neuaufbau nicht abschließen.",
       "tabMemories": "Erinnerungen",
       "tabPersona": "Profil",
       "tabDiagnostics": "Diagnose",

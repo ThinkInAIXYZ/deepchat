@@ -648,6 +648,10 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     expect(repo.getById(id!)?.status).toBe('embedded')
     expect(repo.getById(id!)?.embedding_model).toBe('p:m2')
     expect(createVectorStore).toHaveBeenCalledTimes(2)
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'completed',
+      lastError: null
+    })
   })
 
   it('stops provider and vector work when quarantined reindex cleanup is pending restart', async () => {
@@ -701,6 +705,12 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     expect(markVectorStoreQuarantined).toHaveBeenCalledTimes(1)
     expect(onMemoryChanged).toHaveBeenCalledTimes(1)
     expect(onMemoryChanged).toHaveBeenCalledWith('a', 'reindex')
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'blocked',
+      lastError: {
+        retryable: false
+      }
+    })
   })
 
   it('routes fatal coverage verification through manager quarantine exactly once', async () => {
@@ -911,11 +921,250 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     serviceDown = true
     await presenter.reindexEmbeddings('a')
     expect(repo.listByAgent('a')[0]?.status).toBe('pending_embedding')
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'blocked',
+      lastError: {
+        message: 'embedding service down',
+        retryable: true
+      }
+    })
 
     // Service recovers; the next backfill (as recall would trigger) re-drains the leftover.
     serviceDown = false
     await presenter.backfillEmbeddings('a')
     expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
+
+    await presenter.reindexEmbeddings('a')
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'completed',
+      lastError: null
+    })
+  })
+
+  it('completes an FTS-only rebuild without opening a vector store', async () => {
+    const repo = createFakeRepository()
+    const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => ({ memoryEnabled: true }),
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'keyword only' }], { agentId: 'a' })
+
+    await presenter.reindexEmbeddings('a', true)
+
+    expect(repo.listByAgent('a')[0]?.status).toBe('fts_only')
+    expect(createVectorStore).not.toHaveBeenCalled()
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'completed',
+      lastError: null
+    })
+  })
+
+  it('retries a batch whose rows all changed revision while embeddings were in flight', async () => {
+    const repo = createFakeRepository()
+    let releaseFirstEmbedding!: () => void
+    let markFirstEmbeddingStarted!: () => void
+    const firstEmbeddingStarted = new Promise<void>((resolve) => {
+      markFirstEmbeddingStarted = resolve
+    })
+    let embeddingCalls = 0
+    const getEmbeddings = vi.fn(async (_providerId: string, _modelId: string, texts: string[]) => {
+      embeddingCalls += 1
+      if (embeddingCalls === 1) {
+        return new Promise<number[][]>((resolve) => {
+          releaseFirstEmbedding = () => resolve(texts.map((text) => textToVector(text)))
+          markFirstEmbeddingStarted()
+        })
+      }
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'pending',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'before edit',
+      status: 'pending_embedding'
+    })
+
+    const reindex = presenter.reindexEmbeddings('a', true)
+    await firstEmbeddingStarted
+    const row = repo.getById('pending')!
+    repo.rows.set('pending', {
+      ...row,
+      content: 'after edit',
+      decision_revision: row.decision_revision + 1
+    })
+    releaseFirstEmbedding()
+    await reindex
+
+    expect(getEmbeddings).toHaveBeenCalledTimes(2)
+    expect(getEmbeddings.mock.calls[1]?.[2]).toEqual(['after edit'])
+    expect(repo.getById('pending')?.embedding_model).toBe('p:m')
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'completed',
+      lastError: null
+    })
+  })
+
+  it('starts a fresh rebuild when the embedding model changes during the drain', async () => {
+    const repo = createFakeRepository()
+    let config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm1' }
+    }
+    let releaseEmbedding!: () => void
+    let markStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+    let embeddingCalls = 0
+    const getEmbeddings = vi.fn(async (_providerId: string, _modelId: string, texts: string[]) => {
+      embeddingCalls += 1
+      if (embeddingCalls === 1) {
+        return new Promise<number[][]>((resolve) => {
+          releaseEmbedding = () => resolve(texts.map((text) => textToVector(text)))
+          markStarted()
+        })
+      }
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'pending',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'model switch',
+      status: 'pending_embedding'
+    })
+
+    const reindex = presenter.reindexEmbeddings('a', true)
+    await started
+    config = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm2' }
+    }
+    releaseEmbedding()
+    await reindex
+
+    await waitForMemoryCondition(
+      () =>
+        presenter.getStatus('a').reindexing !== true &&
+        presenter.getStatus('a').lastReindex?.outcome === 'completed',
+      'new-model rebuild did not complete'
+    )
+    expect(getEmbeddings.mock.calls.map((call) => call[1])).toEqual(['m1', 'm2'])
+    expect(repo.getById('pending')?.embedding_model).toBe('p:m2')
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'completed',
+      lastError: null
+    })
+  })
+
+  it('blocks an empty rebuild when warm finishes without a ready certificate', async () => {
+    const unusableStore: IMemoryVectorStore = {
+      upsert: async () => {},
+      query: async () => [],
+      queryByMemoryId: async () => [],
+      deleteByMemoryIds: async () => {},
+      listMemoryIds: async () => [],
+      close: async () => {},
+      isUsable: () => false
+    }
+    const presenter = new MemoryPresenter({
+      repository: createFakeRepository(),
+      resolveAgentConfig: () => enabledConfig,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => unusableStore,
+      resetVectorStore: async () => undefined
+    })
+
+    await presenter.reindexEmbeddings('a', true)
+
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'blocked',
+      lastError: {
+        message: '[Memory] vector store is unusable',
+        code: 'vector-store-unavailable'
+      }
+    })
+  })
+
+  it('reports the current warm early-return reason instead of an earlier failure', async () => {
+    const getDimensions = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('old dimension failure'))
+      .mockImplementation(embeddingDimensions)
+    const presenter = new MemoryPresenter({
+      repository: createFakeRepository(),
+      resolveAgentConfig: () => enabledConfig,
+      getDimensions,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+
+    await presenter.reindexEmbeddings('a')
+    expect(presenter.getStatus('a').lastReindex?.lastError?.message).toBe('old dimension failure')
+
+    memoryRuntimeForTests(presenter).vectorStoreService.stopAdmission()
+    await presenter.reindexEmbeddings('a')
+
+    expect(presenter.getStatus('a').lastReindex).toMatchObject({
+      outcome: 'blocked',
+      lastError: {
+        message: '[Memory] vector store recall is unavailable',
+        code: 'vector-store-unavailable'
+      }
+    })
+  })
+
+  it('does not restore a reindex result after the agent pipeline was abandoned', async () => {
+    const repo = createFakeRepository()
+    let releaseEmbedding!: () => void
+    let markStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_providerId, _modelId, texts) =>
+        new Promise<number[][]>((resolve) => {
+          releaseEmbedding = () => resolve(texts.map((text) => textToVector(text)))
+          markStarted()
+        }),
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'pending',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'abandoned rebuild',
+      status: 'pending_embedding'
+    })
+
+    const reindex = presenter.reindexEmbeddings('a', true)
+    await started
+    memoryRuntimeForTests(presenter).embeddingService.abandonAgent('a')
+    releaseEmbedding()
+    await reindex
+
+    expect(presenter.getStatus('a').lastReindex).toBeUndefined()
   })
 
   it('never vectorizes persona rows during reindex/backfill (P2)', async () => {

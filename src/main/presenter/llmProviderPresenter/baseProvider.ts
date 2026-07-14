@@ -734,7 +734,11 @@ ${this.convertToolsToXml(tools)}
    * @returns embedding 数组，每个元素为 number[]
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public async getEmbeddings(_modelId: string, _texts: string[]): Promise<number[][]> {
+  public async getEmbeddings(
+    _modelId: string,
+    _texts: string[],
+    _signal?: AbortSignal
+  ): Promise<number[][]> {
     throw new Error('embedding is not supported by this provider')
   }
 
@@ -753,7 +757,10 @@ ${this.convertToolsToXml(tools)}
    * @param _modelId 模型ID
    * @returns 嵌入向量的维度
    */
-  public async getDimensions(_modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
+  public async getDimensions(
+    _modelId: string,
+    _signal?: AbortSignal
+  ): Promise<LLM_EMBEDDING_ATTRS> {
     throw new Error('embedding is not supported by this provider')
   }
 

@@ -25,6 +25,34 @@
       </div>
     </div>
 
+    <div
+      v-if="showReindexFailure"
+      role="alert"
+      data-testid="reindex-failure-banner"
+      class="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="flex min-w-0 gap-2">
+        <Icon icon="lucide:triangle-alert" class="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+        <p class="text-xs leading-5 text-foreground">
+          {{
+            t('settings.memory.redesign.reindexIncomplete', {
+              reason: reindexFailureReason
+            })
+          }}
+        </p>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        class="h-8 shrink-0 text-xs"
+        :disabled="reindexing"
+        @click="reindex"
+      >
+        <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
+        {{ t('settings.deepchatAgents.memoryManager.health.reindex') }}
+      </Button>
+    </div>
+
     <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
       {{ t('common.loading') }}
     </div>
@@ -345,6 +373,20 @@ let statusEpoch = 0
 let pendingStartEpoch: number | null = null
 
 const reindexing = computed(() => reindexPending.value || props.status?.reindexing === true)
+const showReindexFailure = computed(
+  () =>
+    !reindexing.value &&
+    props.status?.lastReindex !== undefined &&
+    props.status.lastReindex.outcome !== 'completed'
+)
+const reindexFailureReason = computed(() => {
+  const error = props.status?.lastReindex?.lastError
+  if (!error?.code) return error?.message ?? t('settings.memory.redesign.reindexInternalReason')
+  if (error.code === 'pending-restart') {
+    return t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+  }
+  return t('settings.memory.redesign.reindexInternalReason')
+})
 const recallDiagnostics = computed(() => health.value?.runtime.agent.retrieval.recall)
 const recallLatencyP50 = computed(() => recallDiagnostics.value?.latencyMs.total.p50 ?? '—')
 const recallLatencyP95 = computed(() => recallDiagnostics.value?.latencyMs.total.p95 ?? '—')

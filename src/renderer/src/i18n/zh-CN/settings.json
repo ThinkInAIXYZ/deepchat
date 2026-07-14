@@ -2879,6 +2879,8 @@
       "weightHint": "非负排序权重。默认：{default}。"
     },
     "redesign": {
+      "reindexIncomplete": "向量索引重建未完成：{reason}。记忆内容未丢失，当前使用关键词召回。",
+      "reindexInternalReason": "本地向量处理流程未能完成本次重建。",
       "tabMemories": "记忆",
       "tabPersona": "人格",
       "tabDiagnostics": "诊断",

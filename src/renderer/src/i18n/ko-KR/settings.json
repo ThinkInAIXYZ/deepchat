@@ -2875,6 +2875,8 @@
       "weightHint": "음수가 아닌 순위 가중치. 기본값: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "벡터 인덱스 재구축이 완료되지 않았습니다: {reason}. 메모리 내용은 손실되지 않았으며 현재 키워드 검색을 사용하고 있습니다.",
+      "reindexInternalReason": "로컬 임베딩 파이프라인이 재구축을 완료하지 못했습니다.",
       "tabMemories": "메모리",
       "tabPersona": "페르소나",
       "tabDiagnostics": "진단",

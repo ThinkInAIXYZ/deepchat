@@ -2866,6 +2866,8 @@
       "weightHint": "Berat penarafan tidak negatif. Lalai: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Pembinaan semula indeks vektor tidak selesai: {reason}. Kandungan memori tidak hilang; pengambilan berasaskan kata kunci sedang digunakan.",
+      "reindexInternalReason": "Saluran pemprosesan pembenaman setempat tidak dapat menyelesaikan pembinaan semula.",
       "tabMemories": "Memori",
       "tabPersona": "Profil",
       "tabDiagnostics": "Diagnostik",

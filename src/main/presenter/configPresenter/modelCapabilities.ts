@@ -71,7 +71,7 @@ const normalizeDottedProviderUnprefixedModelId = (value: string | undefined): st
   return modelSegmentIndex > 0 ? segments.slice(modelSegmentIndex).join('.') : normalizedModelId
 }
 
-const normalizeCapabilityModelId = (value: string | undefined): string =>
+export const normalizeCapabilityModelId = (value: string | undefined): string =>
   normalizeDottedProviderUnprefixedModelId(value)
     .replace(/[_:\s]+/g, '-')
     .replace(/(\d)\.(?=\d)/g, '$1-')
