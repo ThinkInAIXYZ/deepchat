@@ -100,6 +100,7 @@ import type {
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/deepChatAgentRepository'
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryPromptContributor } from '@/agent/deepchat/memory/memoryPromptContributor'
@@ -2916,32 +2917,42 @@ export class AgentRuntimePresenter {
       nextModelId,
       config.generationSettings ?? {}
     )
+    const isAgentReassignment =
+      (this.getSessionAgentId(sessionId) ?? BUILTIN_DEEPCHAT_AGENT_ID) !== nextAgentId
+    try {
+      if (isAgentReassignment) {
+        await this.memoryCoordinator.beginSessionAgentReassignment(sessionId)
+      }
+      this.sessionStore.updateSessionConfiguration(
+        sessionId,
+        nextProviderId,
+        nextModelId,
+        this.buildPersistedGenerationSettingsReplacement(sanitizedGenerationSettings),
+        permissionMode
+      )
 
-    this.sessionStore.updateSessionConfiguration(
-      sessionId,
-      nextProviderId,
-      nextModelId,
-      this.buildPersistedGenerationSettingsReplacement(sanitizedGenerationSettings),
-      permissionMode
-    )
-
-    const instance = this.getDeepChatInstance(sessionId)
-    instance.setRuntimeState({
-      status: state?.status ?? 'idle',
-      providerId: nextProviderId,
-      modelId: nextModelId,
-      permissionMode
-    })
-    instance.setAgentId(nextAgentId)
-    instance.setProjectDir(this.normalizeProjectDir(config.projectDir))
-    instance.setGenerationSettings(sanitizedGenerationSettings)
-    // Transfer/rebind is a host-agent security boundary: drop prior approvals, plan, and skill pins.
-    this.sessionPermissionPort?.clearSessionPermissions(sessionId)
-    this.toolPresenter?.clearAgentPlanState?.(sessionId)
-    instance.replaceRuntimeActivatedSkills([])
-    await this.refilterActiveSkillsForAgentPolicy(sessionId, nextAgentId, instance)
-    this.invalidateSystemPromptCache(sessionId)
-    this.invalidateToolProfileCache(sessionId)
+      const instance = this.getDeepChatInstance(sessionId)
+      instance.setRuntimeState({
+        status: state?.status ?? 'idle',
+        providerId: nextProviderId,
+        modelId: nextModelId,
+        permissionMode
+      })
+      instance.setAgentId(nextAgentId)
+      instance.setProjectDir(this.normalizeProjectDir(config.projectDir))
+      instance.setGenerationSettings(sanitizedGenerationSettings)
+      // Transfer/rebind is a host-agent security boundary: drop prior approvals, plan, and skill pins.
+      this.sessionPermissionPort?.clearSessionPermissions(sessionId)
+      this.toolPresenter?.clearAgentPlanState?.(sessionId)
+      instance.replaceRuntimeActivatedSkills([])
+      await this.refilterActiveSkillsForAgentPolicy(sessionId, nextAgentId, instance)
+      this.invalidateSystemPromptCache(sessionId)
+      this.invalidateToolProfileCache(sessionId)
+    } finally {
+      if (isAgentReassignment) {
+        this.memoryCoordinator.finishSessionAgentReassignment(sessionId)
+      }
+    }
   }
 
   async setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {

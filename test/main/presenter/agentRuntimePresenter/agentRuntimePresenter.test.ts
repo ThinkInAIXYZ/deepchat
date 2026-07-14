@@ -5158,6 +5158,36 @@ describe('AgentRuntimePresenter', () => {
       expect(invalidateToolProfileCache).not.toHaveBeenCalled()
     })
 
+    it('waits for old-Agent memory persistence before publishing a new Agent identity', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const coordinator = getMemoryCoordinator()
+      const drain = deferred<void>()
+      const beginReassignment = vi
+        .spyOn(coordinator, 'beginSessionAgentReassignment')
+        .mockReturnValue(drain.promise)
+      const finishReassignment = vi
+        .spyOn(coordinator, 'finishSessionAgentReassignment')
+        .mockImplementation(() => undefined)
+
+      const update = agent.setSessionAgentContext('s1', {
+        agentId: 'other-agent',
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        projectDir: '/private/project',
+        permissionMode: 'full_access'
+      })
+      await vi.waitFor(() => expect(beginReassignment).toHaveBeenCalledWith('s1'))
+
+      expect(instance.getAgentId()).toBe('deepchat')
+      expect(finishReassignment).not.toHaveBeenCalled()
+      drain.resolve(undefined)
+      await update
+
+      expect(instance.getAgentId()).toBe('other-agent')
+      expect(finishReassignment).toHaveBeenCalledWith('s1')
+    })
+
     it('clears permissions and refilters active skills when rebinding host agent', async () => {
       const skillPresenter = getSkillPresenterMock()
       skillPresenter.getActiveSkills.mockResolvedValue(['skill-a', 'skill-b', 'skill-c'])

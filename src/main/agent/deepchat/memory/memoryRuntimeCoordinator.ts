@@ -84,6 +84,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   private readonly extractionQueue = new Map<number, { sessionId: string; queuedAt: number }>()
   private nextExtractionQueueId = 0
   private readonly extractionEpochs = new Map<string, number>()
+  private readonly agentReassignmentDepthBySession = new Map<string, number>()
   private readonly ingestionProjectionRetryAfter = new Map<string, number>()
   private readonly injectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
   private acceptingIngestion = true
@@ -112,6 +113,24 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   finishSessionDestroy(sessionId: string): void {
     this.clearProjectionRetry(sessionId)
     this.clearInjectionAccessForSession(sessionId)
+  }
+
+  async beginSessionAgentReassignment(sessionId: string): Promise<void> {
+    this.agentReassignmentDepthBySession.set(
+      sessionId,
+      (this.agentReassignmentDepthBySession.get(sessionId) ?? 0) + 1
+    )
+    this.bumpSessionEpoch(sessionId)
+    await this.waitForSession(sessionId)
+  }
+
+  finishSessionAgentReassignment(sessionId: string): void {
+    const depth = this.agentReassignmentDepthBySession.get(sessionId) ?? 0
+    if (depth <= 1) {
+      this.agentReassignmentDepthBySession.delete(sessionId)
+      return
+    }
+    this.agentReassignmentDepthBySession.set(sessionId, depth - 1)
   }
 
   clearProjectionRetry(sessionId: string): void {
@@ -295,7 +314,15 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     expectedEpoch?: number,
     expectedExecutionToken?: MemoryExecutionToken
   ): void {
-    if (!this.acceptingIngestion || !this.memoryPort) return
+    if (
+      !this.acceptingIngestion ||
+      !this.memoryPort ||
+      this.agentReassignmentDepthBySession.has(sessionId)
+    ) {
+      return
+    }
+    const admissionEpoch = this.ensureSessionEpoch(sessionId)
+    if (expectedEpoch !== undefined && admissionEpoch !== expectedEpoch) return
     const agentId = this.resolveSessionAgentId(sessionId)
     const executionToken = expectedExecutionToken ?? this.memoryPort.captureExecutionToken(agentId)
     if (
@@ -313,9 +340,8 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       try {
         if (admissionGeneration !== this.ingestionAdmissionGeneration) return
         if (!this.canContinueExecution(sessionId, executionToken)) return
-        const currentEpoch = this.ensureSessionEpoch(sessionId)
-        if (expectedEpoch !== undefined && currentEpoch !== expectedEpoch) return
-        await task(expectedEpoch ?? currentEpoch, executionToken)
+        if (!this.isSessionEpochCurrent(sessionId, admissionEpoch)) return
+        await task(admissionEpoch, executionToken)
       } finally {
         this.extractionQueue.delete(queueId)
         this.observeExtractionQueue()

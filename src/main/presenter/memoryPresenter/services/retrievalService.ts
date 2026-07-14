@@ -13,7 +13,7 @@ import {
   resolveRetrieval
 } from '../core/scoring'
 import { withSoftDeadline } from '../core/asyncDeadline'
-import { isMemoryProviderAbortError } from '../core/providerCancellation'
+import { isMemoryProviderCancellationError } from '../core/providerCancellation'
 import {
   buildRecallKeywordQuery,
   extractRecallKeywordCandidates,
@@ -123,7 +123,7 @@ function vectorStoreDegradation(
 
 function isStaleExecutionCancellation(error: unknown, isDisposed: boolean): boolean {
   return (
-    isMemoryProviderAbortError(error) ||
+    isMemoryProviderCancellationError(error) ||
     (isDisposed && error instanceof VectorStoreLeaseUnavailableError && error.reason === 'stopped')
   )
 }

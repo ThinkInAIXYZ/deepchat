@@ -9,7 +9,7 @@ import type { MemoryUpdateReason } from '@shared/contracts/events/memory.events'
 
 import type { MemoryModelRef, MemoryUpdateContext } from './domain/types'
 import {
-  memoryEmbeddingFingerprint,
+  memoryEmbeddingStorageFingerprint,
   memoryExecutionConfigFingerprint,
   type MemoryExecutionConfigObservation,
   type MemoryExecutionToken
@@ -39,7 +39,7 @@ export interface MemoryRuntimeContextOptions {
 }
 
 export function embeddingFingerprint(providerId: string, modelId: string): string {
-  return memoryEmbeddingFingerprint({ providerId, modelId })
+  return memoryEmbeddingStorageFingerprint({ providerId, modelId })
 }
 
 export function isUniqueConstraintError(error: unknown): boolean {

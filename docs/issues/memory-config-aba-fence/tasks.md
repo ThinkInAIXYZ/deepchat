@@ -33,6 +33,8 @@ Artifacts: [Specification](./spec.md) · [Implementation plan](./plan.md)
 - [x] Fence recall and search results plus access accounting.
 - [x] Preserve real retrieval errors while discarding only classified stale cancellation.
 - [x] Remove redundant same-tick fence checks while retaining post-await validation.
+- [x] Bind ordinary queue work to the session epoch captured at admission.
+- [x] Drain old-Agent extraction persistence before publishing a reassigned Agent identity.
 
 ## 4. Review Hardening
 
@@ -43,14 +45,19 @@ Artifacts: [Specification](./spec.md) · [Implementation plan](./plan.md)
 - [x] Remove the obsolete architecture-guard method name.
 - [x] Reset the installed Memory test port between test cases.
 - [x] Reuse the shared deferred-test helper.
+- [x] Make execution embedding identity collision-free without changing persisted fingerprints.
+- [x] Separate provider cancellation, deadline, and capacity classifications.
+- [x] Dispose the builtin-maintenance presenter fixture on assertion failures.
 
 ## 5. Tests and Documentation
 
 - [x] Cover enabled and embedding ABA transitions in runtime-context tests.
 - [x] Cover deferred extraction returning no rows or events after ABA.
 - [x] Cover queued work, continuations, fresh admission, and Agent identity changes.
+- [x] Cover admission-time session epochs and reassignment persistence draining.
 - [x] Cover inherited builtin changes, explicit overrides, first observation, and full enumeration.
 - [x] Cover stale recall, search, injection, error propagation, and lifecycle disposal.
+- [x] Cover separator-containing identities and stale capacity-error propagation.
 - [x] Update the maintained Agent Memory architecture contract.
 - [x] Split the issue SDD into `spec.md`, `plan.md`, and `tasks.md` as requested.
 
@@ -91,6 +98,19 @@ pnpm test: 529 test files passed, 15 skipped, 1 unrelated renderer file failed;
 git diff --check: passed.
 ```
 
-The three repository-wide failures are confined to the unchanged
+CodeRabbit follow-up validation:
+
+```text
+Focused review regressions: 7 test files passed; 388 tests passed.
+pnpm run test:main -- --run: 363 test files passed, 15 skipped;
+4183 tests passed, 196 skipped.
+pnpm run format: passed.
+pnpm run i18n: passed.
+pnpm run lint: passed, including the Memory architecture guard.
+pnpm run typecheck: passed for node and web.
+git diff --check: passed.
+```
+
+The earlier full repository run's three failures are confined to the unchanged
 `test/renderer/components/SpotlightOverlay.test.ts`, which mounts the component without an active
 Pinia. No Memory test failed in the final repository run.

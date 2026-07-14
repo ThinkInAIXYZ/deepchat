@@ -400,13 +400,14 @@ the same session chain. Triage and extraction receive the exact same complete ch
 tail slice. `parseTriageDecision` skips only on an explicit `SKIP` without `KEEP`; a thrown triage call remains
 fail-open. A successful SKIP consumes only that chunk's committable message boundary.
 
-Queue admission also binds the resolved Agent identity and its current execution token. The token is checked
-when the task starts and after each asynchronous extraction response. Cursor and Tape-anchor commits form the
-immediately following synchronous segment, so no configuration callback can interleave between validation and
-those writes. Continuation tasks inherit the original token; a configuration transition or session Agent change
-makes the queued work stale without advancing its cursor, writing an anchor, or automatically re-enqueuing it.
-A later normal admission captures a fresh token and scans from the retained cursor to the then-current tail.
-Ordinary tasks still resolve the session epoch at start, while continuations retain their expected session epoch.
+Queue admission also binds the resolved Agent identity, session epoch, and current execution token. The epoch
+and token are checked when the task starts and after each asynchronous extraction response. Cursor and
+Tape-anchor commits form the immediately following synchronous segment, so no configuration callback can
+interleave between validation and those writes. Continuation tasks inherit the original token and admission
+epoch; a configuration transition or session Agent change makes queued work stale without advancing its cursor,
+writing an anchor, or automatically re-enqueuing it. Before a session publishes a reassigned Agent identity, new
+ingestion is paused, the session epoch advances, and the prior extraction chain drains. A later normal admission
+captures fresh identities and scans from the retained cursor to the then-current tail.
 
 **Extraction.** For each complete chunk the model returns at most **8** raw candidates (enforced both in the
 prompt and as a hard parse cap), each `{category, content, importance}`. Parsing is tolerant
@@ -768,7 +769,12 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   transition—including A-to-B-to-A—advances once. All such paths abort the Agent's provider work, so late
   completions cannot recreate cleared data or cross a configuration boundary. Agent cleanup removes the observed
   configuration snapshot but retains the advanced epoch, preventing a previously captured fence from becoming
-  valid after state recreation.
+  valid after state recreation. Execution identity encodes provider/model as a collision-free tuple; the
+  colon-delimited persisted `embedding_model` fingerprint remains unchanged for compatibility.
+- **Provider control-flow classification.** Gateway cancellation, deadline, and capacity rejection retain their
+  existing `AbortError` surface but carry distinct internal codes. Retrieval suppresses only an explicitly tagged
+  cancellation after its execution fence becomes stale; deadlines, capacity rejection, and unrelated errors keep
+  their normal propagation or degradation behavior.
 - **Embedding-drain config guard.** A background embedding drain captures the embedding identity it started
   with; before writing vectors, and before a reindex reset, it re-checks the agent's current `memoryEmbedding`
   fingerprint and discards the batch if the config changed mid-flight, so a stale drain can never write

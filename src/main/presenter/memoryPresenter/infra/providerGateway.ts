@@ -5,7 +5,11 @@ import type {
   MemoryProviderGatewayPort,
   MemoryProviderPurpose
 } from '../ports'
-import { createMemoryProviderAbortError } from '../core/providerCancellation'
+import {
+  createMemoryProviderCancellationError,
+  createMemoryProviderCapacityError,
+  createMemoryProviderDeadlineError
+} from '../core/providerCancellation'
 
 const DEADLINE_MS: Record<MemoryProviderPurpose, number> = {
   'query-embedding': 800,
@@ -91,7 +95,9 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
     operation: (signal: AbortSignal) => Promise<T>
   ): Promise<T> {
     if (this.stopped) {
-      return Promise.reject(createMemoryProviderAbortError('[Memory] provider gateway disposed'))
+      return Promise.reject(
+        createMemoryProviderCancellationError('[Memory] provider gateway disposed')
+      )
     }
     const controller = new AbortController()
     const generation = this.generationByAgent.get(agentId) ?? 0
@@ -167,7 +173,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
           controller.signal.aborted ||
           (this.generationByAgent.get(agentId) ?? 0) !== generation
         ) {
-          throw createMemoryProviderAbortError('[Memory] provider request aborted')
+          throw createMemoryProviderCancellationError('[Memory] provider request aborted')
         }
         throw error
       })
@@ -180,7 +186,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
         deadlineRecorded = true
         this.deps.diagnostics?.recordProviderRaceEvent('deadline')
         reject(
-          createMemoryProviderAbortError(`[Memory] ${purpose} deadline exceeded (${deadline}ms)`)
+          createMemoryProviderDeadlineError(`[Memory] ${purpose} deadline exceeded (${deadline}ms)`)
         )
         controller.abort()
       }, deadline)
@@ -194,7 +200,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
             abortedRecorded = true
             this.deps.diagnostics?.recordProviderRaceEvent('aborted')
           }
-          reject(createMemoryProviderAbortError('[Memory] provider request aborted'))
+          reject(createMemoryProviderCancellationError('[Memory] provider request aborted'))
         },
         { once: true }
       )
@@ -215,7 +221,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       signal.aborted ||
       (this.generationByAgent.get(agentId) ?? 0) !== generation
     ) {
-      throw createMemoryProviderAbortError('[Memory] provider request aborted')
+      throw createMemoryProviderCancellationError('[Memory] provider request aborted')
     }
   }
 
@@ -225,7 +231,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       count >= MAX_UNSETTLED_REQUESTS_PER_KEY ||
       this.unsettledTotal >= MAX_UNSETTLED_REQUESTS_GLOBAL
     ) {
-      throw createMemoryProviderAbortError('[Memory] provider request capacity exhausted')
+      throw createMemoryProviderCapacityError('[Memory] provider request capacity exhausted')
     }
     this.unsettledByKey.set(key, count + 1)
     this.unsettledTotal += 1

@@ -518,7 +518,7 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(queued).not.toHaveBeenCalled()
   })
 
-  it('resolves epochs when queued tasks start and fences continuations by expected epoch', async () => {
+  it('binds ordinary and continuation session epochs at queue admission', async () => {
     const { coordinator } = createHarness()
     const first = deferred()
     const observed: Array<string | number> = []
@@ -544,7 +544,51 @@ describe('MemoryRuntimeCoordinator', () => {
     first.resolve()
     await coordinator.waitForSession('s1')
 
-    expect(observed).toEqual(['first', 0, 'next', 1])
+    expect(observed).toEqual(['first', 0])
+  })
+
+  it('drains old-Agent persistence before a session Agent reassignment', async () => {
+    const { coordinator, deps, port } = createHarness()
+    const persistence = deferred<{ ok: true; createdIds: string[] }>()
+    const chunk = {
+      text: 'User: Remember Redis.',
+      sourceEntryIds: [1],
+      cursorCommitOrderSeq: 1,
+      coveredThroughOrderSeq: 1,
+      fragments: [{ orderSeq: 1, entryId: 1, fragmentIndex: 0, isFinalFragment: true }]
+    }
+    port.extractAndStore.mockImplementationOnce(() => persistence.promise)
+    coordinator.enqueueSessionExtraction('s1', async (epoch, executionToken) => {
+      await coordinator.runExtractionChunks(
+        's1',
+        { chunks: [chunk], reason: 'fallback' },
+        epoch,
+        executionToken
+      )
+    })
+    await vi.waitFor(() => expect(port.extractAndStore).toHaveBeenCalledOnce())
+
+    let drained = false
+    const reassignment = coordinator.beginSessionAgentReassignment('s1').then(() => {
+      drained = true
+    })
+    const blockedAdmission = vi.fn()
+    coordinator.enqueueSessionExtraction('s1', async () => blockedAdmission())
+    await tick()
+
+    expect(drained).toBe(false)
+    expect(blockedAdmission).not.toHaveBeenCalled()
+    persistence.resolve({ ok: true, createdIds: ['late'] })
+    await reassignment
+
+    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+    coordinator.finishSessionAgentReassignment('s1')
+
+    const freshAdmission = vi.fn()
+    coordinator.enqueueSessionExtraction('s1', async () => freshAdmission())
+    await coordinator.waitForSession('s1')
+    expect(freshAdmission).toHaveBeenCalledOnce()
   })
 
   it('clears destroyed-session queue diagnostics immediately', async () => {

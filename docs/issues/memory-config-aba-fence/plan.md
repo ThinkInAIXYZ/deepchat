@@ -26,7 +26,9 @@ in-flight completion semantics.
 Operation-fence capture in `MemoryRuntimeContext` is an O(1) state read. Presenter admission and
 configuration notifications resolve the effective Agent config once and synchronize both runtime
 execution identity and vector-store embedding identity together. Shared identity helpers normalize
-embedding extraction and fingerprint encoding so the two stores cannot drift.
+embedding extraction and fingerprint encoding so the two stores cannot drift. In-memory execution
+identity uses a collision-free provider/model tuple; the existing colon-delimited SQLite
+`embedding_model` value remains unchanged for storage compatibility.
 
 The first observation seeds the fingerprint without advancing the epoch. Each later effective
 identity transition advances it exactly once and aborts Agent-scoped provider requests.
@@ -44,13 +46,18 @@ execution states, and maintenance scheduling runs regardless of synchronization 
 ### Queue Admission Boundary
 
 `MemoryRuntimePort` carries a typed `{ agentId, generation }` execution token. Extraction work binds
-the current session Agent identity and token when it enters the queue. The token is checked before
-execution and after each asynchronous extraction response. Continuations retain the original token
-and expected session epoch.
+the current session Agent identity, session epoch, and token when it enters the queue. Both ordinary
+tasks and continuations retain that admission epoch, while continuations also retain the original
+execution token.
 
 Cursor and Tape-anchor writes occur in the same synchronous JavaScript segment as the immediately
 preceding validation, so no redundant same-tick fence checks are required. A stale task performs no
 commit and schedules no continuation; a later normal admission scans again from the retained cursor.
+
+Session Agent reassignment temporarily blocks new ingestion for the session, advances its session
+epoch, and drains the existing extraction chain before publishing the new Agent identity. Admission
+resumes in a `finally` path after the transfer attempt, so old-Agent persistence cannot complete
+under a newly published identity.
 
 ### Retrieval and Injection Boundary
 
@@ -59,10 +66,11 @@ results cannot be returned, recorded as access, appended to the prompt, or writt
 
 Cancellation handling distinguishes control-flow cancellation from real failures:
 
+- provider cancellation, deadline, and capacity use distinct internal error codes;
 - tagged Memory provider cancellation is discarded only when the execution fence is stale;
 - a vector lease explicitly stopped during presenter disposal is treated as lifecycle cancellation;
-- ordinary `AbortError`, storage failures, and quarantined vector stores preserve their existing
-  propagation or degradation behavior.
+- deadlines, capacity rejection, ordinary `AbortError`, storage failures, and quarantined vector
+  stores preserve their existing propagation or degradation behavior.
 
 ## Affected Components
 
@@ -122,11 +130,15 @@ Cancellation handling distinguishes control-flow cancellation from real failures
 - Use deferred extraction and retrieval responses to reproduce enabled ABA.
 - Verify queued stale work, stale continuations, and changed session Agent identity do not execute or
   commit.
+- Verify ordinary queue work retains its admission epoch and Agent reassignment drains old-Agent
+  persistence before identity publication.
 - Verify fresh post-transition admissions execute normally.
 - Verify stale recall/search/injection results produce no response, access accounting, prompt
   content, or Tape side effect.
 - Verify real retrieval failures still propagate while tagged stale cancellation and disposal are
   safely discarded.
+- Verify separator-containing execution identities do not collide while persisted fingerprints stay
+  compatible, and provider capacity rejection is not suppressed as stale cancellation.
 
 ### Repository Validation
 

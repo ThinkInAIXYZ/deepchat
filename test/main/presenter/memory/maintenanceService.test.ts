@@ -1231,12 +1231,13 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
   })
 
   it('runs builtin maintenance even when managed config enumeration fails', async () => {
+    let presenter: MemoryPresenter | undefined
     vi.useFakeTimers()
     try {
       const repo = createFakeRepository()
       repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
       let modelId = 'model-a'
-      const presenter = new MemoryPresenter({
+      presenter = new MemoryPresenter({
         repository: repo,
         resolveAgentConfig: () => ({
           memoryEnabled: true,
@@ -1259,6 +1260,7 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
 
       expect(passSpy).toHaveBeenCalledWith('agent-a')
     } finally {
+      await presenter?.dispose()
       vi.useRealTimers()
     }
   })

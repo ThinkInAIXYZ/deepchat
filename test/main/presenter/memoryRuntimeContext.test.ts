@@ -194,6 +194,20 @@ describe('MemoryRuntimeContext execution epoch', () => {
     expect(abortAgent).toHaveBeenCalledTimes(2)
   })
 
+  it('distinguishes embedding identities containing separator characters', () => {
+    const first = { providerId: 'provider:region', modelId: 'model' }
+    const second = { providerId: 'provider', modelId: 'region:model' }
+    const { ctx, abortAgent, setConfig } = makeMutableContext(enabledConfig(first))
+
+    expect(ctx.noteAgentExecutionConfig('agent-a', enabledConfig(first))).toBe('seeded')
+    const original = ctx.captureOperationFence('agent-a')
+    setConfig(enabledConfig(second))
+    expect(ctx.noteAgentExecutionConfig('agent-a', enabledConfig(second))).toBe('changed')
+
+    expect(ctx.captureOperationFence('agent-a').generation).toBe(original.generation + 1)
+    expect(abortAgent).toHaveBeenCalledOnce()
+  })
+
   it('captures an existing execution epoch without resolving configuration', () => {
     const resolveAgentConfig = vi.fn(() => enabledConfig())
     const ctx = new MemoryRuntimeContext({

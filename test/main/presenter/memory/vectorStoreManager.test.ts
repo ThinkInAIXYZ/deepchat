@@ -68,6 +68,36 @@ afterEach(() => {
 })
 
 describe('VectorStoreManager certificate generations', () => {
+  it('distinguishes config identities containing separator characters', async () => {
+    let config = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'provider:region', modelId: 'model' }
+    } as DeepChatAgentConfig
+    const policy = { resolveAgentConfig: () => config }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const manager = new VectorStoreManager({
+      ctx,
+      policy,
+      repository: {} as MemoryEmbeddingRepositoryPort,
+      vectorStoreFactory: {
+        createVectorStore: async () => createStore(),
+        resetVectorStore: async () => undefined,
+        markVectorStoreQuarantined: () => undefined
+      }
+    })
+    const first = { providerId: 'provider:region', modelId: 'model' }
+    const second = { providerId: 'provider', modelId: 'region:model' }
+
+    expect(manager.noteEmbeddingConfig('agent', first)).toBe(false)
+    config = { memoryEnabled: true, memoryEmbedding: second } as DeepChatAgentConfig
+    expect(manager.noteEmbeddingConfig('agent', second)).toBe(true)
+
+    await manager.closeAllStores()
+  })
+
   it('rejects a stale config lease epoch and only certifies the new identity', async () => {
     let config = {
       memoryEnabled: true,

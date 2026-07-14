@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryProviderGateway } from '@/presenter/memoryPresenter/infra/providerGateway'
+import {
+  MEMORY_PROVIDER_CANCELLATION_CODE,
+  MEMORY_PROVIDER_CAPACITY_CODE,
+  MEMORY_PROVIDER_DEADLINE_CODE
+} from '@/presenter/memoryPresenter/core/providerCancellation'
 import type { MemoryProviderGatewayDeps } from '@/presenter/memoryPresenter/ports'
 import { createMemoryDiagnosticsProbe } from './memory/serviceHarness'
 
@@ -73,6 +78,7 @@ describe('MemoryProviderGateway', () => {
       const request = gateway.getEmbeddings('agent', 'p', 'm', ['query'], 'query-embedding')
       const assertion = expect(request).rejects.toMatchObject({
         name: 'AbortError',
+        code: MEMORY_PROVIDER_DEADLINE_CODE,
         message: '[Memory] query-embedding deadline exceeded (800ms)'
       })
 
@@ -92,7 +98,10 @@ describe('MemoryProviderGateway', () => {
 
     gateway.abortAll()
 
-    await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(request).rejects.toMatchObject({
+      name: 'AbortError',
+      code: MEMORY_PROVIDER_CANCELLATION_CODE
+    })
   })
 
   it('does not admit a queued request that resolves after abort', async () => {
@@ -252,7 +261,7 @@ describe('MemoryProviderGateway', () => {
 
     await expect(
       gateway.generateText('agent', 'p', 'm', 'three', 'decision')
-    ).rejects.toMatchObject({ name: 'AbortError' })
+    ).rejects.toMatchObject({ name: 'AbortError', code: MEMORY_PROVIDER_CAPACITY_CODE })
     expect(deps.generateText).toHaveBeenCalledTimes(2)
     expect(diagnostics.recordProviderAdmissionDecision).toHaveBeenCalledWith('capacityRejected')
 
@@ -272,7 +281,7 @@ describe('MemoryProviderGateway', () => {
 
     await expect(
       gateway.generateText('agent-overflow', 'p', 'm', 'prompt', 'decision')
-    ).rejects.toMatchObject({ name: 'AbortError' })
+    ).rejects.toMatchObject({ name: 'AbortError', code: MEMORY_PROVIDER_CAPACITY_CODE })
     expect(deps.generateText).toHaveBeenCalledTimes(64)
 
     gateway.abortAll()

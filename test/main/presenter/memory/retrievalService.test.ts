@@ -11,6 +11,7 @@ import {
   resolveRetrieval,
   retrievalScore
 } from '@/presenter/memoryPresenter/core/scoring'
+import { createMemoryProviderCapacityError } from '@/presenter/memoryPresenter/core/providerCancellation'
 import { FTS_SIMILARITY_BASELINE } from '@/presenter/memoryPresenter/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { enabledConfig, makePresenter, textToVector } from '../fakes/memoryFakes'
@@ -362,6 +363,30 @@ describe('MemoryPresenter recall + injection', () => {
     const { presenter, repo } = makePresenter(config)
     const failure = new Error('storage unavailable')
     failure.name = 'AbortError'
+    vi.spyOn(repo, 'searchWithStrategy').mockImplementation(() => {
+      memoryEnabled = false
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+      memoryEnabled = true
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+      throw failure
+    })
+
+    await expect(presenter.recall('a', 'redis')).rejects.toBe(failure)
+    await presenter.dispose()
+  })
+
+  it('rethrows provider capacity rejection when the operation fence becomes stale', async () => {
+    let memoryEnabled = true
+    const config = {
+      get memoryEnabled() {
+        return memoryEnabled
+      },
+      memoryEmbedding: null
+    } as DeepChatAgentConfig
+    const { presenter, repo } = makePresenter(config)
+    const failure = createMemoryProviderCapacityError(
+      '[Memory] provider request capacity exhausted'
+    )
     vi.spyOn(repo, 'searchWithStrategy').mockImplementation(() => {
       memoryEnabled = false
       presenter.onAgentMemoryMaintenanceConfigChanged('a')

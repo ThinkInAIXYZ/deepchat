@@ -22,6 +22,13 @@ export function memoryEmbeddingFingerprint(embedding: MemoryModelRef): string
 export function memoryEmbeddingFingerprint(embedding: null): null
 export function memoryEmbeddingFingerprint(embedding: MemoryModelRef | null): string | null
 export function memoryEmbeddingFingerprint(embedding: MemoryModelRef | null): string | null {
+  return embedding ? JSON.stringify([embedding.providerId, embedding.modelId]) : null
+}
+
+export function memoryEmbeddingStorageFingerprint(embedding: MemoryModelRef): string
+export function memoryEmbeddingStorageFingerprint(embedding: null): null
+export function memoryEmbeddingStorageFingerprint(embedding: MemoryModelRef | null): string | null
+export function memoryEmbeddingStorageFingerprint(embedding: MemoryModelRef | null): string | null {
   return embedding ? `${embedding.providerId}:${embedding.modelId}` : null
 }
 

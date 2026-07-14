@@ -84,15 +84,23 @@ stored a session epoch but not the resolved Agent identity or its memory executi
 
 - `MemoryRuntimePort` exposes a typed `{ agentId, generation }` execution token capture/validation
   contract.
-- Extraction queue admission binds the current session Agent identity and execution token.
+- Extraction queue admission binds the current session Agent identity, session epoch, and execution
+  token.
 - A task validates its token before starting and after each asynchronous extraction response. The
   cursor and Tape-anchor commits follow in the same synchronous JavaScript segment.
-- Continuations retain the original execution token. Ordinary tasks continue to resolve the session
-  epoch at start; continuations retain their expected session epoch.
+- Ordinary tasks and continuations retain the session epoch captured at admission. Continuations
+  also retain the original execution token.
 - A session Agent identity change makes queued work stale.
+- Before publishing a new session Agent identity, admission for that session is paused, its session
+  epoch is advanced, and the old extraction chain is drained. No old-Agent persistence can cross
+  the identity publication boundary.
 - Stale work does not advance the cursor, write an anchor, or enqueue another continuation.
 - Injection, recall, and search validate the same execution boundary across their awaits and before
   returning results or recording access.
+- Execution identities use collision-free tuple encoding even when provider or model identifiers
+  contain separators. Existing persisted embedding fingerprints retain their legacy encoding.
+- Provider cancellation, deadline, and capacity failures use distinct internal classifications;
+  only true lifecycle/configuration cancellation is eligible for stale-fence suppression.
 
 ## Non-Goals
 
@@ -117,9 +125,12 @@ stored a session epoch but not the resolved Agent identity or its memory executi
 - Queued stale extraction and stale continuations do not run or commit; a fresh post-transition
   admission runs normally.
 - A session Agent change drops work admitted for the previous Agent.
+- A session Agent reassignment waits for old-Agent persistence before publishing the new identity.
 - An inheriting custom Agent is invalidated by relevant builtin changes, while an Agent with an
   effective explicit override is not.
 - Stale recall and search return no results or access accounting, and stale injection cannot enter
   the prompt or Tape.
+- Separator-containing embedding identities do not collide, and stale capacity/deadline failures
+  remain observable rather than being classified as cancellation.
 - Focused regressions, formatting, i18n checks, lint and architecture guards, and node/web typechecks
   pass. Any unrelated full-suite failure is recorded in `tasks.md`.
