@@ -659,6 +659,103 @@ export class AgentRuntimePresenter {
     }
   }
 
+  private async prepareTurnResources(input: {
+    sessionId: string
+    messageId?: string | null
+    instance: DeepChatAgentInstance
+    signal: AbortSignal
+    projectDir: string | null
+    runtimeActivatedSkillNames?: string[]
+  }) {
+    const { sessionId, messageId, instance, signal, projectDir } = input
+    const state = instance.getRuntimeState()
+    if (!state) throw new Error(`Session ${sessionId} not found`)
+
+    this.throwIfAbortRequested(signal)
+    const generationSettings = await this.runPreStreamStep(
+      { sessionId, messageId, step: 'generation-settings', signal },
+      () => awaitWithAbort(this.getEffectiveSessionGenerationSettings(sessionId, instance), signal)
+    )
+    const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+    const useContextBudget = this.shouldUseDeepChatContextBudget(
+      state.providerId,
+      modelConfig,
+      state.modelId
+    )
+    this.throwIfAbortRequested(signal)
+    const interleavedReasoning = resolveInterleavedReasoningConfig(
+      this.configPresenter,
+      state.providerId,
+      state.modelId,
+      generationSettings
+    )
+    const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
+      state.providerId,
+      generationSettings.contextLength,
+      modelConfig,
+      state.modelId
+    )
+    const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
+    if (input.runtimeActivatedSkillNames) {
+      instance.replaceRuntimeActivatedSkills(input.runtimeActivatedSkillNames)
+    }
+    const sessionActiveSkillNames = await this.runPreStreamStep(
+      { sessionId, messageId, step: 'active-skills', signal },
+      () =>
+        awaitWithAbort(
+          this.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, instance),
+          signal
+        )
+    )
+    this.throwIfStaleDeepChatInstance(sessionId, instance)
+    const activeSkillNames = input.runtimeActivatedSkillNames
+      ? resolveEffectiveActiveSkillNames(sessionActiveSkillNames, instance)
+      : sessionActiveSkillNames
+    const tools = await this.runPreStreamStep(
+      { sessionId, messageId, step: 'tool-definitions', signal },
+      () =>
+        awaitWithAbort(
+          this.toolResolver.loadToolDefinitionsForSession(
+            sessionId,
+            projectDir,
+            activeSkillNames,
+            instance
+          ),
+          signal
+        )
+    )
+    const toolReserveTokens = estimateToolReserveTokens(tools)
+    this.throwIfAbortRequested(signal)
+    const basePromptAssembler = this.createBasePromptAssembler(instance)
+    const baseSystemPrompt = await this.runPreStreamStep(
+      { sessionId, messageId, step: 'system-prompt', signal },
+      () =>
+        awaitWithAbort(
+          basePromptAssembler.assemble({
+            sessionId: toAppSessionId(sessionId),
+            configuredPrompt: generationSettings.systemPrompt,
+            toolDefinitions: tools,
+            activeSkillNames
+          }),
+          signal
+        )
+    )
+    this.throwIfAbortRequested(signal)
+
+    return {
+      generationSettings,
+      useContextBudget,
+      interleavedReasoning,
+      contextBudgetLength,
+      maxTokens,
+      activeSkillNames,
+      tools,
+      toolReserveTokens,
+      basePromptAssembler,
+      baseSystemPrompt
+    }
+  }
+
   private isCurrentDeepChatInstance(
     sessionId: string,
     expectedInstance: DeepChatAgentInstance
@@ -1068,99 +1165,25 @@ export class AgentRuntimePresenter {
 
     try {
       const preStreamStartedAt = Date.now()
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const generationSettings = await this.runPreStreamStep(
-        {
-          sessionId,
-          messageId: userMessageId,
-          step: 'generation-settings',
-          signal: preStreamAbortSignal
-        },
-        () =>
-          awaitWithAbort(
-            this.getEffectiveSessionGenerationSettings(sessionId, instance),
-            preStreamAbortSignal
-          )
-      )
-      const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-      const useContextBudget = this.shouldUseDeepChatContextBudget(
-        state.providerId,
-        modelConfig,
-        state.modelId
-      )
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const interleavedReasoning = resolveInterleavedReasoningConfig(
-        this.configPresenter,
-        state.providerId,
-        state.modelId,
-        generationSettings
-      )
-      const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
-        state.providerId,
-        generationSettings.contextLength,
-        modelConfig,
-        state.modelId
-      )
-      const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
-      instance.replaceRuntimeActivatedSkills(normalizedInput.activeSkills ?? [])
-      const sessionActiveSkillNames = await this.runPreStreamStep(
-        {
-          sessionId,
-          messageId: userMessageId,
-          step: 'active-skills',
-          signal: preStreamAbortSignal
-        },
-        () =>
-          awaitWithAbort(
-            this.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, instance),
-            preStreamAbortSignal
-          )
-      )
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const effectiveActiveSkillNames = resolveEffectiveActiveSkillNames(
-        sessionActiveSkillNames,
-        instance
-      )
-      const tools = await this.runPreStreamStep(
-        {
-          sessionId,
-          messageId: userMessageId,
-          step: 'tool-definitions',
-          signal: preStreamAbortSignal
-        },
-        () =>
-          awaitWithAbort(
-            this.toolResolver.loadToolDefinitionsForSession(
-              sessionId,
-              projectDir,
-              effectiveActiveSkillNames,
-              instance
-            ),
-            preStreamAbortSignal
-          )
-      )
-      const toolReserveTokens = estimateToolReserveTokens(tools)
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const basePromptAssembler = this.createBasePromptAssembler(instance)
-      const baseSystemPrompt = await this.runPreStreamStep(
-        {
-          sessionId,
-          messageId: userMessageId,
-          step: 'system-prompt',
-          signal: preStreamAbortSignal
-        },
-        () =>
-          awaitWithAbort(
-            basePromptAssembler.assemble({
-              sessionId: toAppSessionId(sessionId),
-              configuredPrompt: generationSettings.systemPrompt,
-              toolDefinitions: tools,
-              activeSkillNames: effectiveActiveSkillNames
-            }),
-            preStreamAbortSignal
-          )
-      )
-      this.throwIfAbortRequested(preStreamAbortSignal)
+      const {
+        generationSettings,
+        useContextBudget,
+        interleavedReasoning,
+        contextBudgetLength,
+        maxTokens,
+        activeSkillNames: effectiveActiveSkillNames,
+        tools,
+        toolReserveTokens,
+        basePromptAssembler,
+        baseSystemPrompt
+      } = await this.prepareTurnResources({
+        sessionId,
+        messageId: userMessageId,
+        instance,
+        signal: preStreamAbortSignal,
+        projectDir,
+        runtimeActivatedSkillNames: normalizedInput.activeSkills ?? []
+      })
       const userContent: UserMessageContent = {
         text: normalizedInput.text,
         files: normalizedInput.files || [],
@@ -4006,79 +4029,25 @@ export class AgentRuntimePresenter {
       preStreamAbortController = this.ensureSessionAbortController(sessionId)
       preStreamAbortSignal = preStreamAbortController.signal
       const preStreamStartedAt = Date.now()
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const generationSettings = await this.runPreStreamStep(
-        {
-          sessionId,
-          messageId,
-          step: 'generation-settings',
-          signal: preStreamAbortSignal
-        },
-        () =>
-          awaitWithAbort(
-            this.getEffectiveSessionGenerationSettings(sessionId, instance),
-            preStreamAbortSignal
-          )
-      )
-      const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-      const useContextBudget = this.shouldUseDeepChatContextBudget(
-        state.providerId,
-        modelConfig,
-        state.modelId
-      )
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const interleavedReasoning = resolveInterleavedReasoningConfig(
-        this.configPresenter,
-        state.providerId,
-        state.modelId,
-        generationSettings
-      )
-      const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
-        state.providerId,
-        generationSettings.contextLength,
-        modelConfig,
-        state.modelId
-      )
-      const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
+      const supportsVision = this.supportsVision(state.providerId, state.modelId)
+      const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
       const projectDir = this.resolveProjectDir(sessionId, undefined, instance)
-      const activeSkillNames = await this.runPreStreamStep(
-        { sessionId, messageId, step: 'active-skills', signal: preStreamAbortSignal },
-        () =>
-          awaitWithAbort(
-            this.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, instance),
-            preStreamAbortSignal
-          )
-      )
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const tools = await this.runPreStreamStep(
-        { sessionId, messageId, step: 'tool-definitions', signal: preStreamAbortSignal },
-        () =>
-          awaitWithAbort(
-            this.toolResolver.loadToolDefinitionsForSession(
-              sessionId,
-              projectDir,
-              activeSkillNames,
-              instance
-            ),
-            preStreamAbortSignal
-          )
-      )
-      const toolReserveTokens = estimateToolReserveTokens(tools)
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const baseSystemPrompt = await this.runPreStreamStep(
-        { sessionId, messageId, step: 'system-prompt', signal: preStreamAbortSignal },
-        () =>
-          awaitWithAbort(
-            this.createBasePromptAssembler(instance).assemble({
-              sessionId: toAppSessionId(sessionId),
-              configuredPrompt: generationSettings.systemPrompt,
-              toolDefinitions: tools,
-              activeSkillNames
-            }),
-            preStreamAbortSignal
-          )
-      )
-      this.throwIfAbortRequested(preStreamAbortSignal)
+      const {
+        generationSettings,
+        useContextBudget,
+        interleavedReasoning,
+        contextBudgetLength,
+        maxTokens,
+        tools,
+        toolReserveTokens,
+        baseSystemPrompt
+      } = await this.prepareTurnResources({
+        sessionId,
+        messageId,
+        instance,
+        signal: preStreamAbortSignal,
+        projectDir
+      })
       let resumeTargetOrderSeq: number | undefined
       const preparedInput = await this.inputPreparationCoordinator.prepareExisting({
         ensureHistory: () =>
@@ -4114,8 +4083,8 @@ export class AgentRuntimePresenter {
                 contextLength: generationSettings.contextLength,
                 reserveTokens: maxTokens,
                 extraReserveTokens: toolReserveTokens,
-                supportsVision: this.supportsVision(state.providerId, state.modelId),
-                supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
+                supportsVision,
+                supportsAudioInput,
                 preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
                 preserveEmptyInterleavedReasoning:
                   interleavedReasoning.preserveEmptyReasoningContent === true,
@@ -4182,12 +4151,12 @@ export class AgentRuntimePresenter {
             contextLength: contextBudgetLength,
             reserveTokens: maxTokens,
             messageStore: this.messageStore,
-            supportsVision: this.supportsVision(state.providerId, state.modelId),
+            supportsVision,
             historyRecords: preparedInput.history,
             options: {
               summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
               fallbackProtectedTurnCount: 1,
-              supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
+              supportsAudioInput,
               extraReserveTokens: toolReserveTokens,
               preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
               preserveEmptyInterleavedReasoning:
@@ -4296,8 +4265,8 @@ export class AgentRuntimePresenter {
             policyVersion: resumeContextBuild.policyVersion,
             selection: buildTapeViewSelection(resumeContextBuild.metadata),
             summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-            supportsVision: this.supportsVision(state.providerId, state.modelId),
-            supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
+            supportsVision,
+            supportsAudioInput,
             traceDebugEnabled:
               this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
           },

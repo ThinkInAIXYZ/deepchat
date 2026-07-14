@@ -62,3 +62,5 @@ responsibilities from the class, not move the entire class behind a new name.
   projection, session settings, tool resolution, deferred execution, ACP compatibility, compaction
   projection, and provider permission settlement now have focused owners with explicit dependencies.
 - `scripts/agent-cleanup-guard.mjs` rejects growth beyond 5,000 lines.
+- Follow-up [turn preparation deduplication](../agent-turn-preparation-deduplication/spec.md) reduced
+  the current boundary further to 4,874 lines / 136 methods without adding a runtime entity.

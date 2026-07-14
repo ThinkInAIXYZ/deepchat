@@ -47,7 +47,8 @@ state/delegate 与 adapter wiring，不再构成 generic agent runtime。
 后续的 [Agent Runtime Presenter Thinning](../agent-runtime-presenter-thinning/spec.md) 又把 generation、
 prompt/resource、permission review、tool adaptation、interaction projection、session settings、ACP
 compatibility 与 compaction/provider-permission coordination 移到 focused owner；presenter boundary
-现为 4,905 行 / 135 methods，并由 5,000 行 architecture guard 约束。
+经 [turn preparation deduplication](../agent-turn-preparation-deduplication/spec.md) 后现为 4,874 行 /
+136 methods，并由 5,000 行 architecture guard 约束。
 current docs、architecture guards 与 baseline generator
 已在 `ASLR-091` 收敛；`ASLR-092` 已完成 canonical baseline write、全量
 main/renderer/Memory/native/build/E2E gates 与最终契约 diff。

@@ -49,3 +49,5 @@ names, prompt section order, tool ordering, and cancellation semantics remain un
 
 The presenter boundary is 4,905 lines and 135 methods. The focused runtime presenter suite passes
 605 tests with 19 skipped; format, i18n, lint, architecture guards, and node/web type checks pass.
+The follow-up shared turn preparation refactor leaves the current boundary at 4,874 lines and 136
+methods while reducing duplicated production code.
