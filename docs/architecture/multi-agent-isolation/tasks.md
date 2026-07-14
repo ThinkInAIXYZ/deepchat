@@ -7,3 +7,4 @@
 - [x] Reset permissions / skills / plan on `setSessionAgentContext`
 - [x] Block permission-retry success leak; align deferred tool options
 - [x] Update tests and run format / i18n / lint / focused vitest
+- [x] Phase 1: subagent target host policy isolation

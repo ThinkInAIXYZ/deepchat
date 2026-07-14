@@ -169,9 +169,11 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     resolveSubagentAssignment: vi.fn(
       async (input: {
         agentId: string
+        parentAgentId?: string | null
         targetAgentId?: string | null
         providerId: string
         modelId: string
+        permissionMode?: DeepChatSessionState['permissionMode']
         generationSettings?: Partial<SessionGenerationSettings>
         disabledAgentTools?: string[]
         activeSkills?: string[]
@@ -180,6 +182,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         targetAgentId: input.targetAgentId ?? null,
         providerId: input.providerId,
         modelId: input.modelId,
+        permissionMode: input.permissionMode ?? 'full_access',
         generationSettings: input.generationSettings,
         disabledAgentTools: input.disabledAgentTools ?? [],
         activeSkills: input.activeSkills ?? []

@@ -213,10 +213,12 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
     const projectDir = input.projectDir?.trim() || null
     const runtimeConfig = await this.dependencies.assignmentPolicy.resolveSubagentAssignment({
       agentId,
+      parentAgentId: input.parentAgentId,
       targetAgentId: input.targetAgentId,
       projectDir,
       providerId: input.providerId,
       modelId: input.modelId,
+      permissionMode: input.permissionMode,
       generationSettings: input.generationSettings,
       disabledAgentTools: input.disabledAgentTools,
       activeSkills: input.activeSkills
@@ -249,7 +251,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
           providerId: runtimeConfig.providerId,
           modelId: runtimeConfig.modelId,
           projectDir,
-          permissionMode: input.permissionMode,
+          permissionMode: runtimeConfig.permissionMode,
           generationSettings: runtimeConfig.generationSettings
         })
         if (runtimeConfig.activeSkills.length > 0) {

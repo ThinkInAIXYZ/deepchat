@@ -175,7 +175,8 @@ describe('SubagentOrchestratorTool', () => {
     expect(resolveConversationWorkdir).toHaveBeenCalledWith(parentSession.sessionId)
     expect(createSubagentSession).toHaveBeenCalledWith(
       expect.objectContaining({
-        projectDir: resolvedWorkdir
+        projectDir: resolvedWorkdir,
+        parentAgentId: parentSession.agentId
       })
     )
     expect(handoffMessage).toContain('Current Agent Working Directory:')

@@ -109,6 +109,7 @@ export class SessionAgentAssignmentPolicy implements SessionAssignmentPolicyPort
         targetAgentId: input.targetAgentId?.trim() ? descriptor.id : null,
         providerId: 'acp',
         modelId: descriptor.id,
+        permissionMode: normalizePermissionMode(input.permissionMode),
         generationSettings: { systemPrompt: '' },
         disabledAgentTools: [],
         activeSkills: []
@@ -117,14 +118,46 @@ export class SessionAgentAssignmentPolicy implements SessionAssignmentPolicyPort
 
     this.assertAcpSessionHasWorkdir(input.providerId, input.projectDir)
 
+    const parentAgentId = input.parentAgentId?.trim() || null
+    const isCrossAgent = Boolean(parentAgentId && parentAgentId !== descriptor.id)
+    const targetAgentId = input.targetAgentId?.trim() ? descriptor.id : null
+
+    if (!isCrossAgent) {
+      return {
+        agentId: descriptor.id,
+        targetAgentId,
+        providerId: input.providerId,
+        modelId: input.modelId,
+        permissionMode: normalizePermissionMode(input.permissionMode),
+        generationSettings: input.generationSettings,
+        disabledAgentTools: normalizeDisabledAgentTools(input.disabledAgentTools),
+        activeSkills: normalizeActiveSkills(input.activeSkills)
+      }
+    }
+
+    // Cross-agent child: keep parent workdir/model, apply target host security policy.
+    const agentConfig = await this.config.resolveDeepChatAgentConfig(descriptor.id)
+    const parentGeneration = input.generationSettings ?? {}
+    const generationSettings = this.mergeDefaultGenerationSettings(agentConfig, {
+      ...parentGeneration,
+      systemPrompt:
+        typeof agentConfig?.systemPrompt === 'string'
+          ? agentConfig.systemPrompt
+          : parentGeneration.systemPrompt
+    })
+
     return {
       agentId: descriptor.id,
-      targetAgentId: input.targetAgentId?.trim() ? descriptor.id : null,
+      targetAgentId,
       providerId: input.providerId,
       modelId: input.modelId,
-      generationSettings: input.generationSettings,
-      disabledAgentTools: normalizeDisabledAgentTools(input.disabledAgentTools),
-      activeSkills: normalizeActiveSkills(input.activeSkills)
+      permissionMode: normalizePermissionMode(agentConfig?.permissionMode),
+      generationSettings,
+      disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools),
+      activeSkills: this.filterSkillsByAllowList(
+        normalizeActiveSkills(input.activeSkills),
+        agentConfig?.enabledSkillNames
+      )
     }
   }
 
@@ -198,5 +231,17 @@ export class SessionAgentAssignmentPolicy implements SessionAssignmentPolicyPort
     if (typeof config?.systemPrompt === 'string') defaults.systemPrompt = config.systemPrompt
     const merged = { ...defaults, ...overrides }
     return Object.keys(merged).length > 0 ? merged : undefined
+  }
+
+  private filterSkillsByAllowList(skills: string[], allowList?: string[] | null): string[] {
+    if (allowList === null || allowList === undefined) {
+      return skills
+    }
+    const allowed = new Set(
+      allowList
+        .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
+        .filter((skillName) => skillName.length > 0)
+    )
+    return skills.filter((skillName) => allowed.has(skillName))
   }
 }

@@ -56,6 +56,7 @@ export interface ConversationSessionInfo {
 export interface CreateSubagentSessionInput {
   parentSessionId: string
   agentId: string
+  parentAgentId?: string | null
   slotId: string
   displayName: string
   targetAgentId?: string | null

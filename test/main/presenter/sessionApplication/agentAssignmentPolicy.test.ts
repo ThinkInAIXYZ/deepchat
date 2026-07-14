@@ -124,6 +124,7 @@ describe('SessionAgentAssignmentPolicy', () => {
         projectDir: '/repo',
         providerId: 'openai',
         modelId: 'gpt-4',
+        permissionMode: 'full_access',
         activeSkills: ['ignored']
       })
     ).resolves.toEqual({
@@ -131,6 +132,7 @@ describe('SessionAgentAssignmentPolicy', () => {
       targetAgentId: 'claude-acp',
       providerId: 'acp',
       modelId: 'claude-acp',
+      permissionMode: 'full_access',
       generationSettings: { systemPrompt: '' },
       disabledAgentTools: [],
       activeSkills: []
@@ -139,6 +141,72 @@ describe('SessionAgentAssignmentPolicy', () => {
     await expect(policy.resolveTransferTarget('claude-acp', null)).rejects.toThrow(
       'Conversation history cannot be moved to ACP agents.'
     )
+  })
+
+  it('inherits parent surface for self-target DeepChat subagents', async () => {
+    const { policy } = createHarness()
+
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'deepchat',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'deepchat',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default',
+        generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
+        disabledAgentTools: ['exec'],
+        activeSkills: ['skill-a', 'skill-b']
+      })
+    ).resolves.toEqual({
+      agentId: 'deepchat',
+      targetAgentId: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      permissionMode: 'default',
+      generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
+      disabledAgentTools: ['exec'],
+      activeSkills: ['skill-a', 'skill-b']
+    })
+  })
+
+  it('applies target host policy for cross-agent DeepChat subagents', async () => {
+    const { policy, configs } = createHarness()
+    configs.set('reviewer', {
+      defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-review' },
+      permissionMode: 'default',
+      systemPrompt: 'Reviewer prompt',
+      disabledAgentTools: ['write', 'exec'],
+      enabledSkillNames: ['skill-b']
+    })
+
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'reviewer',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access',
+        generationSettings: { systemPrompt: 'parent prompt', temperature: 0.4 },
+        disabledAgentTools: [],
+        activeSkills: ['skill-a', 'skill-b', 'skill-c']
+      })
+    ).resolves.toEqual({
+      agentId: 'reviewer',
+      targetAgentId: 'reviewer',
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      permissionMode: 'default',
+      generationSettings: {
+        systemPrompt: 'Reviewer prompt',
+        temperature: 0.4
+      },
+      disabledAgentTools: ['exec', 'write'],
+      activeSkills: ['skill-b']
+    })
   })
 
   it('rejects DeepChat transfer targets backed by ACP defaults', async () => {

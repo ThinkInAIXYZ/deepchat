@@ -1125,6 +1125,7 @@ export class SubagentOrchestratorTool {
         const child = await this.runtimePort.createSubagentSession({
           parentSessionId: parent.sessionId,
           agentId: task.targetAgentId || parent.agentId,
+          parentAgentId: parent.agentId,
           slotId: task.slotId,
           displayName: task.targetAgentName,
           targetAgentId: task.targetAgentId,
