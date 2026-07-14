@@ -1,5 +1,8 @@
 # Session Application Coordinators — Tasks
 
+> Historical stage-2 checklist. Presenter retirement is tracked in
+> `docs/architecture/retire-agent-session-presenter/`.
+
 ## SDD and Inventory
 
 - [x] Audit Lifecycle, Turn, AgentAssignment, and Projection methods, state, dependencies, and tests.

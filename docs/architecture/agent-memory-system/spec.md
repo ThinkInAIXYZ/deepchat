@@ -697,8 +697,8 @@ flowchart TD
 - **`tape_context`** expands specific entry ids with a bounded window (before/after default 2, clamp ≤ 20),
   an entry cap (default 50), and byte budgets (per-entry default 2048 / max 8192; total default 16384 / max
   65536), UTF-8-safe truncated. Tape tools are DeepChat-agent-only and `tape_context` is advertised only when
-  the tool-runtime port exposes `getTapeContext` (wired to `AgentSessionPresenter`, not the memory kernel; in
-  practice always present).
+  the tool-runtime port exposes `getTapeContext` (wired directly to `SessionProjectionCoordinator`, not the
+  memory kernel; in practice always present).
 - The whole projection/search layer is fail-open: any error degrades to a coarser search over the effective
   tape rather than throwing (the one exception is an unparseable time boundary, which is reported).
 

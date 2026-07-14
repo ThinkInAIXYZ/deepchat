@@ -4,6 +4,9 @@
 
 已实现。
 
+> Historical implementation note: the boolean history checks now belong to the Lifecycle and Turn
+> coordinators. `AgentSessionPresenter` and its main-process interface were retired in stage 3.
+
 ## 问题
 
 发送消息前，`AgentSessionPresenter` 只需要知道会话里“有没有消息”，但当前会读取并组装

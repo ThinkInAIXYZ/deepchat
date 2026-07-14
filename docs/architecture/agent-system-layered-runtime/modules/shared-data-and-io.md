@@ -103,8 +103,8 @@ backend kind 每次由 `agent_id -> AgentDescriptor` 解析。backend 不能复�
 
 ### ASLR-072 shared data ports
 
-production switch 没有把 shared data methods 塞进 `AgentManager`。`AgentSessionPresenter` 与 direct ACP
-backend 通过四个独立 facet 访问现有 owner：
+production switch 没有把 shared data methods 塞进 `AgentManager`。session application coordinators 与
+direct ACP backend 通过四个独立 facet 访问现有 owner：
 
 ```ts
 interface AgentSharedDataPorts {

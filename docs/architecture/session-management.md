@@ -1,6 +1,6 @@
 # 会话管理架构详解
 
-当前会话管理分成五个明确边界：
+当前会话管理分成四个明确边界：
 
 - app-session shell：`AppSessionService` 管理 `new_sessions`、window binding 和 shared CRUD；
 - application coordination：四个 `sessionApplication` coordinator 分别拥有 Lifecycle、Turn、
@@ -8,8 +8,9 @@
 - agent execution routing：`AgentManager` 按 executable descriptor kind 返回 typed handle；
 - route/application owners：typed session routes 直接组合 search、translation、export、usage、RTK 与 agent
   catalog owner；
-- compatibility forwarding：`AgentSessionPresenter` 保留尚未退休的 public surface，并把 core session 方法
-  转发到四个 coordinator，不拥有 application behavior。
+
+`AgentSessionPresenter` 和 main-process `IAgentSessionPresenter` 已退休。Composition root 与 main route
+runtime 直接暴露四个分离的 coordinator port，不存在 aggregate session façade。
 
 `SessionPresenter` 是旧 conversations/messages 的 compatibility/data façade，不在当前 agent execution
 链路中。
@@ -19,7 +20,6 @@
 | 组件 | 位置 | 当前职责 |
 | --- | --- | --- |
 | Session application coordinators | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection application invariants |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | core session public compatibility forwarding；不拥有 application behavior |
 | Session route owners | `src/main/routes/sessions/` | history search、translation 与 typed route orchestration |
 | Session export | `src/main/presenter/exporter/agentSessionExporter.ts` | current agent-session export mapping and format dispatch |
 | Startup/maintenance owners | `src/main/presenter/startupMigrations/`, `usageStatsService.ts` | legacy import、session-data migrations、usage backfill/dashboard；RTK 由其 runtime service 自有 |
@@ -127,9 +127,9 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 - exporter 的旧消息格式化。
 
 当前 session create/send/cancel/tool interaction 从 `SessionService/ChatService -> sessionApplication
-coordinator -> AgentManager -> typed backend` 开始追踪。兼容调用可能先进入 `AgentSessionPresenter`，但其
-core session methods 只转发到同一 coordinator 实例。DeepChat state/loop 看 `agent/deepchat`，direct ACP
-看 `agent/acp/instance`。
+coordinator -> AgentManager -> typed backend` 开始追踪。Main route runtime、Tool、MCP、Floating 与 hooks
+也直接接到同一组 composition-owned coordinator。DeepChat state/loop 看 `agent/deepchat`，direct ACP 看
+`agent/acp/instance`。
 
 旧聊天数据导入由 `presenter/startupMigrations/legacyChatImportService.ts` 拥有；当前 agent-session export
-由 `presenter/exporter/agentSessionExporter.ts` 拥有。两者都不属于 `AgentSessionPresenter`。
+由 `presenter/exporter/agentSessionExporter.ts` 拥有。两者都不属于 session application coordinator。

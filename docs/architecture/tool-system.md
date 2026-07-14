@@ -100,7 +100,7 @@ port 负责提供：
 - conversation workdir 解析
 - 已批准路径查询
 - settings approval 消费
-- `agentSessionPresenter` 会话上下文桥接
+- Lifecycle / Turn / AgentAssignment / Projection session ports
 
 ## FFF Search
 
