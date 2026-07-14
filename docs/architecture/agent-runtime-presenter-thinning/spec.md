@@ -64,3 +64,6 @@ responsibilities from the class, not move the entire class behind a new name.
 - `scripts/agent-cleanup-guard.mjs` rejects growth beyond 5,000 lines.
 - Follow-up [turn preparation deduplication](../agent-turn-preparation-deduplication/spec.md) reduced
   the current boundary further to 4,874 lines / 136 methods without adding a runtime entity.
+- Follow-up [runtime lifecycle ownership](../deepchat-runtime-lifecycle-owners/spec.md) moved the
+  initial/resume turn, provider/tool loop, and paused-interaction control flows behind three explicit
+  owners and reduced the presenter boundary to 2,604 lines / 122 methods.

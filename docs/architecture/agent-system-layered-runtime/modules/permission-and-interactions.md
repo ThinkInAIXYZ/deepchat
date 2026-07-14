@@ -4,6 +4,10 @@
 > notification observer 已由 ASLR-057 隔离；ASLR-070..073 已接入 direct ACP permission continuation。
 > 两者共享 decision UI，不共享 continuation 实现；下文类型是合同伪代码。
 
+> Current ownership: `InteractionCoordinator.respond()` performs ordered DeepChat interaction
+> settlement and calls the single `TurnCoordinator.resume()` boundary only after the final pending
+> interaction. `DeepChatAgentInstance` remains the batch/interaction state owner.
+
 ## 1. 模块目的
 
 本模块把“等待用户决定”建模为明确 gate/interaction，而不是散落 callback。DeepChat tool permission、

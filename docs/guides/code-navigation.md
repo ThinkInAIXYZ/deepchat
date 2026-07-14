@@ -82,7 +82,10 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 | --- | --- | --- |
 | session application entry | `src/main/presenter/sessionApplication/` | core session transaction/policy/projection owners |
 | compatibility session façade | `src/main/presenter/agentSessionPresenter/index.ts` | core session public compatibility forwarding only |
-| message runtime entry | `src/main/presenter/agentRuntimePresenter/index.ts` | `processMessage()`、暂停恢复、stream 生命周期 |
+| message runtime façade | `src/main/presenter/agentRuntimePresenter/index.ts` | public API、composition wiring、compatibility seams |
+| turn lifecycle | `src/main/presenter/agentRuntimePresenter/turnCoordinator.ts` | initial/resume pre-stream lifecycle |
+| provider/tool loop runner | `src/main/presenter/agentRuntimePresenter/deepChatLoopRunner.ts` | provider attempts、context recovery、manifest、rate gate |
+| paused interaction lifecycle | `src/main/presenter/agentRuntimePresenter/interactionCoordinator.ts` | ordered decision settlement and fresh resume |
 | 主循环 | `src/main/presenter/agentRuntimePresenter/process.ts` | stream + tool loop |
 | 工具调度 | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | tool call / paused interaction |
 | 流式 echo | `src/main/presenter/agentRuntimePresenter/echo.ts` | typed `chat.stream.*` 事件与增量回显 |

@@ -14,7 +14,6 @@ import type {
   MessageMetadata,
   MessagePageCursor,
   MessageStartResult,
-  PendingInputEnqueueSource,
   PendingSessionInputRecord,
   PermissionMode,
   QueuePendingInputOptions,
@@ -23,8 +22,7 @@ import type {
   SessionAgentContextUpdate,
   SessionGenerationSettings,
   ToolInteractionResponse,
-  ToolInteractionResult,
-  UserMessageContent
+  ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -36,30 +34,21 @@ import type {
   IConfigPresenter,
   ILlmProviderPresenter,
   ISkillPresenter,
-  ModelConfig,
-  RateLimitQueueSnapshot
+  ModelConfig
 } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import { getReasoningEffectiveEnabledForProvider } from '@shared/types/model-db'
 import { ApiEndpointType, ModelType } from '@shared/model'
-import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
-import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
-import {
-  buildSystemPromptWithSkills,
-  filterSkillNamesByPolicy,
-  resolveEffectiveActiveSkillNames
-} from '@/agent/deepchat/resources/systemPromptBuilder'
-import { createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
-import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
+import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
+import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
+import { DeepChatLoopRunner, type DeepChatLoopRunInput } from './deepChatLoopRunner'
 import type {
   BasePromptAssembler,
   PostCompactionPromptAssembler,
@@ -75,25 +64,9 @@ import type {
   DeepChatAgentInstanceDelegate
 } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { ContextBuildMetadata } from './contextBuilder'
+import { capAgentRequestMaxTokens, estimateToolReserveTokens } from './contextBudget'
 import {
-  buildTapeChatView,
-  buildTapeResumeView,
-  getTapeContextHistoryRecords
-} from './tapeViewAssembler'
-import {
-  capAgentRequestMaxTokens,
-  AGENT_CONTEXT_SAFETY_MARGIN_TOKENS,
-  buildRequestContextBudgetDiagnostics,
-  buildRequestContextOverflowErrorMessage,
-  estimateToolReserveTokens,
-  fitRequestMessagesToContextWindow,
-  preflightRequestContext
-} from './contextBudget'
-import {
-  getReasoningPortrait,
   mapPersistedGenerationPatch,
-  resolveCapabilityProviderId,
   resolveInterleavedReasoningConfig,
   sanitizeGenerationSettings,
   type PersistedSessionGenerationRow
@@ -104,36 +77,19 @@ import {
   CompactionService,
   type CompactionIntent
 } from './compactionService'
-import { buildPersistableMessageTracePayload } from './messageTracePayload'
-import {
-  AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES,
-  reviewAutoApproveToolPermission
-} from './toolPermissionReviewer'
+import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
 import { DeepChatTapeService } from './tapeService'
-import {
-  buildExcludedRefs,
-  buildIncludedRefs,
-  buildRequestRefs,
-  createTapeViewManifest,
-  resolveTapeViewManifestPolicy,
-  type TapeViewContextSelection
-} from './tapeViewManifest'
 import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
 import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInputStore'
-import { MAX_TOOL_CALLS_SKIPPED_ERROR, processStream } from './process'
-import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { MemoryRuntimePort } from '../memoryPresenter/injection'
 import type {
-  InterleavedReasoningConfig,
-  PendingToolInteraction,
   ProcessResult,
   StreamState,
   ToolPermissionReviewRequest,
   ToolPermissionReviewResult
 } from './types'
-import { createState } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
 import {
   createToolExecutionPort,
@@ -145,18 +101,14 @@ import { DeferredToolExecutor, type DeferredToolExecutionResult } from './deferr
 import { normalizePermissionMode, SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import { ProviderPermissionCoordinator } from './providerPermissionCoordinator'
+import { InteractionCoordinator, type ResumeBudgetToolCall } from './interactionCoordinator'
 import {
-  buildUsageFromMetadata,
-  incrementToolCallAccounting,
-  stampTerminalMetadata
-} from './runtimeMetadata'
-import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
-import type {
-  DeepChatTapeViewPolicy,
-  DeepChatTapeViewManifestRecord,
-  DeepChatTapeViewTaskType,
-  DeepChatTapeViewTokenBudget
-} from '@shared/types/tape-view-manifest'
+  TurnCoordinator,
+  type ProcessPendingInputSource,
+  type TurnStartContext
+} from './turnCoordinator'
+import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
+import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type { NewSessionHookNotificationObserver } from '../hooksNotifications/newSessionBridge'
 import type {
   AcpAsLlmProviderPermissionPort,
@@ -174,91 +126,19 @@ import {
   emitDeepChatInternalSessionUpdate,
   extractWaitingInteraction
 } from './internalSessionEvents'
-import {
-  insertBlocksAfterToolCall,
-  prepareToolImagePreviewPresentation
-} from './imageGenerationBlocks'
-import { isContextWindowErrorLike } from './contextWindowError'
 import type { AcpAgentInstanceDependencyFactory, AcpPendingInputFacet } from '@/agent/acp/instance'
 import { createAcpCompatibilityDependencies } from './acpCompatibilityDependencies'
 import {
   buildEditedUserContent,
-  buildSkillDraftToolResponse,
   collectPendingInteractionEntries,
   extractUserMessageInput,
-  hasQuestionFollowUpIntent,
-  isSkillDraftConfirmationBlock,
-  markPermissionResolved,
-  markQuestionResolved,
   normalizeUserMessageInput,
   parseAssistantBlocks,
-  parsePermissionPayload,
   reconcilePendingInteractionEntries,
   replacePendingInteractions,
-  resolveSkillDraftChoice,
-  SKILL_DRAFT_ACTION_LABELS,
-  SKILL_DRAFT_STATUS_BY_CHOICE,
-  updateSkillDraftQuestionOptions,
-  updateSkillDraftToolCallResponse,
-  updateToolCallResponse,
   type PendingInteractionEntry
 } from './interactionProjection'
 
-type ProcessPendingInputSource = PendingInputEnqueueSource | 'steer'
-
-type PendingTapeViewContext = {
-  taskType: DeepChatTapeViewTaskType
-  policy: DeepChatTapeViewPolicy
-  policyVersion?: number | null
-  selection: TapeViewContextSelection
-  summaryCursorOrderSeq: number
-  supportsVision: boolean
-  supportsAudioInput: boolean
-  traceDebugEnabled: boolean
-}
-
-type ResumeBudgetToolCall = {
-  id: string
-  name: string
-  offloadPath?: string
-}
-
-const PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP = 8_192
-
-function getProviderOverflowRetryExtraReserve(contextLength: number): number {
-  if (!Number.isFinite(contextLength) || contextLength <= 0) {
-    return 0
-  }
-  return Math.max(
-    AGENT_CONTEXT_SAFETY_MARGIN_TOKENS,
-    Math.min(Math.floor(contextLength * 0.1), PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP)
-  )
-}
-
-function getProviderOverflowRetryMaxTokens(maxTokens: number): number {
-  const normalized = Number.isFinite(maxTokens) ? Math.floor(maxTokens) : 1
-  return Math.max(1, Math.min(normalized, Math.floor(normalized / 2) || 1))
-}
-
-function isFirstProviderContextOverflowEvent(event: LLMCoreStreamEvent): boolean {
-  return event.type === 'error' && isContextWindowErrorLike(event.error_message)
-}
-
-function buildProviderContextOverflowAfterRecoveryErrorMessage(
-  preflight: ReturnType<typeof preflightRequestContext>
-): string {
-  const diagnostics = buildRequestContextBudgetDiagnostics(preflight)
-  const formatTokenCount = (value: number): string =>
-    Number.isFinite(value) ? String(Math.floor(value)) : 'unknown'
-
-  return [
-    'The provider still reported a context overflow after DeepChat compacted or trimmed the request.',
-    `DeepChat local estimate: usable context ${formatTokenCount(diagnostics.usableContextLength)} tokens, estimated input ${formatTokenCount(diagnostics.inputTokens)} tokens, tool schemas ${formatTokenCount(diagnostics.toolReserveTokens)} tokens, requested output ${formatTokenCount(diagnostics.requestedMaxTokens)} tokens, effective output ${formatTokenCount(diagnostics.effectiveMaxTokens)} tokens, remaining output room ${formatTokenCount(diagnostics.remainingOutputTokens)} tokens.`,
-    'The provider may count tokens, system prompts, or tool schemas differently. Try shortening the latest input or attachments, reducing active tools, skills, or system prompt content, lowering max output tokens, or increasing context length.'
-  ].join(' ')
-}
-
-const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const PRE_STREAM_SLOW_STEP_MS = 500
 export const PRE_STREAM_STUCK_WARN_MS = 5_000
 export const PRE_STREAM_STUCK_ESCALATION_MS = 30_000
@@ -292,19 +172,6 @@ const createStaleDeepChatInstanceError = (sessionId: string): Error => {
   return error
 }
 
-function buildTapeViewSelection(
-  metadata: ContextBuildMetadata,
-  newUserMessageId?: string | null
-): TapeViewContextSelection {
-  return {
-    includedRecords: metadata.includedRecords,
-    excludedRecords: metadata.excludedRecords,
-    summaryCursor: metadata.summaryCursor,
-    includesSystemPrompt: metadata.includesSystemPrompt,
-    newUserMessageId
-  }
-}
-
 export class AgentRuntimePresenter {
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly configPresenter: IConfigPresenter
@@ -327,6 +194,9 @@ export class AgentRuntimePresenter {
   private readonly toolExecutionPort: ToolExecutionPort | null
   private readonly toolResultPort: ToolResultPort
   private readonly deferredToolExecutor: DeferredToolExecutor
+  private readonly loopRunner: DeepChatLoopRunner
+  private readonly turnCoordinator: TurnCoordinator
+  private readonly interactionCoordinator: InteractionCoordinator
   private readonly hookNotificationObserver?: NewSessionHookNotificationObserver
   private readonly providerCatalogPort: Pick<
     ProviderCatalogPort,
@@ -349,7 +219,6 @@ export class AgentRuntimePresenter {
     | 'installDraftSkill'
     | 'discardDraftSkill'
   >
-  private nextRunSequence = 0
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
   constructor(
@@ -542,6 +411,143 @@ export class AgentRuntimePresenter {
       getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
       updateSubagentProgress: (...args) => this.updateSubagentToolCallProgress(...args)
     })
+    this.loopRunner = new DeepChatLoopRunner({
+      llmProviderPresenter: this.llmProviderPresenter,
+      configPresenter: this.configPresenter,
+      sessionStore: this.sessionStore,
+      messageStore: this.messageStore,
+      tapeService: this.tapeService,
+      pendingInputCoordinator: this.pendingInputCoordinator,
+      toolResolver: this.toolResolver,
+      providerPermissionCoordinator: this.providerPermissionCoordinator,
+      compactionService: this.compactionService,
+      inputPreparationCoordinator: this.inputPreparationCoordinator,
+      contextCoordinator: this.contextCoordinator,
+      memoryCoordinator: this.memoryCoordinator,
+      memoryIngestionObserver: this.memoryIngestionObserver,
+      postCompactionPromptAssembler: this.postCompactionPromptAssembler,
+      toolExecutionPort: this.toolExecutionPort,
+      toolResultPort: this.toolResultPort,
+      cacheImage: this.cacheImage,
+      getDeepChatInstance: (sessionId) => this.getDeepChatInstance(sessionId),
+      getEffectiveSessionGenerationSettings: async (sessionId, instance) =>
+        await this.getEffectiveSessionGenerationSettings(sessionId, instance),
+      createBasePromptAssembler: (instance) => this.createBasePromptAssembler(instance),
+      ensureSessionAbortController: (sessionId) => this.ensureSessionAbortController(sessionId),
+      throwIfStaleDeepChatInstance: (sessionId, instance) =>
+        this.throwIfStaleDeepChatInstance(sessionId, instance),
+      throwIfAbortRequested: (signal) => this.throwIfAbortRequested(signal),
+      resolveDeepChatContextBudgetLength: (...args) =>
+        this.resolveDeepChatContextBudgetLength(...args),
+      shouldBypassDeepChatContextBudget: (...args) =>
+        this.shouldBypassDeepChatContextBudget(...args),
+      supportsVision: (providerId, modelId) => this.supportsVision(providerId, modelId),
+      supportsAudioInput: (providerId, modelId) => this.supportsAudioInput(providerId, modelId),
+      registerActiveGeneration: (sessionId, run, instance) =>
+        this.registerActiveGeneration(sessionId, run, instance),
+      clearActiveGeneration: (sessionId, runId) => this.clearActiveGeneration(sessionId, runId),
+      isActiveRun: (sessionId, runId) => this.isActiveRun(sessionId, runId),
+      markFirstTurnReady: (sessionId) => this.markFirstTurnReady(sessionId),
+      getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
+      requireSessionPermissionPort: () => this.requireSessionPermissionPort(),
+      reviewToolPermission: async (request, context) =>
+        await this.reviewToolPermissionForAutoApprove(request, context),
+      dispatchHook: (event, context) => this.dispatchHook(event, context),
+      applyCompactionIntent: async (sessionId, intent, options, instance) =>
+        await this.applyCompactionIntent(sessionId, intent, options, instance)
+    })
+    this.turnCoordinator = new TurnCoordinator({
+      configPresenter: this.configPresenter,
+      toolPresenter: this.toolPresenter,
+      sessionStore: this.sessionStore,
+      messageStore: this.messageStore,
+      tapeService: this.tapeService,
+      pendingInputCoordinator: this.pendingInputCoordinator,
+      toolResolver: this.toolResolver,
+      compactionService: this.compactionService,
+      compactionRuntimeCoordinator: this.compactionRuntimeCoordinator,
+      inputPreparationCoordinator: this.inputPreparationCoordinator,
+      contextCoordinator: this.contextCoordinator,
+      memoryCoordinator: this.memoryCoordinator,
+      memoryIngestionObserver: this.memoryIngestionObserver,
+      postCompactionPromptAssembler: this.postCompactionPromptAssembler,
+      toolOutputGuard: this.toolOutputGuard,
+      getDeepChatInstance: (sessionId) => this.getDeepChatInstance(sessionId),
+      getHydratedDeepChatInstance: (sessionId) => this.getHydratedDeepChatInstance(sessionId),
+      getRuntimeState: (sessionId) => this.getDeepChatRuntimeState(sessionId),
+      hasPendingInteractions: (sessionId) => this.hasPendingInteractions(sessionId),
+      supportsVision: (providerId, modelId) => this.supportsVision(providerId, modelId),
+      supportsAudioInput: (providerId, modelId) => this.supportsAudioInput(providerId, modelId),
+      resolveProjectDir: (sessionId, projectDir, instance) =>
+        this.resolveProjectDir(sessionId, projectDir, instance),
+      setSessionStatus: (sessionId, status) => this.setSessionStatus(sessionId, status),
+      setSessionStatusForInstance: (sessionId, instance, status) =>
+        this.setSessionStatusForInstance(sessionId, instance, status),
+      ensureSessionAbortController: (sessionId) => this.ensureSessionAbortController(sessionId),
+      clearSessionAbortController: (sessionId, controller) =>
+        this.clearSessionAbortController(sessionId, controller),
+      throwIfAbortRequested: (signal) => this.throwIfAbortRequested(signal),
+      throwIfStaleDeepChatInstance: (sessionId, instance) =>
+        this.throwIfStaleDeepChatInstance(sessionId, instance),
+      isStaleDeepChatInstanceError: (error) => this.isStaleDeepChatInstanceError(error),
+      isAbortError: (error) => this.isAbortError(error),
+      getEffectiveSessionGenerationSettings: async (sessionId, instance) =>
+        await this.getEffectiveSessionGenerationSettings(sessionId, instance),
+      shouldUseDeepChatContextBudget: (...args) => this.shouldUseDeepChatContextBudget(...args),
+      resolveDeepChatContextBudgetLength: (...args) =>
+        this.resolveDeepChatContextBudgetLength(...args),
+      createBasePromptAssembler: (instance) => this.createBasePromptAssembler(instance),
+      runPreStreamStep: async (input, operation) => await this.runPreStreamStep(input, operation),
+      runSynchronousPreStreamStep: (sessionId, step, operation) =>
+        this.runSynchronousPreStreamStep(sessionId, step, operation),
+      logSlowPreStreamStep: (sessionId, step, startedAt) =>
+        this.logSlowPreStreamStep(sessionId, step, startedAt),
+      startPreStreamProviderBoundaryWatchdog: (input, preStreamStartedAt) =>
+        this.startPreStreamProviderBoundaryWatchdog(input, preStreamStartedAt),
+      runStreamForMessage: async (args) => await this.runStreamForMessage(args),
+      emitMessageRefresh: (sessionId, messageId) => this.emitMessageRefresh(sessionId, messageId),
+      resolveStreamRequestId: (sessionId, messageId) =>
+        this.resolveStreamRequestId(sessionId, messageId),
+      dispatchHook: (event, context) => this.dispatchHook(event, context),
+      dispatchTerminalHooks: (sessionId, state, result) =>
+        this.dispatchTerminalHooks(sessionId, state, result),
+      applyProcessResultStatus: (sessionId, result, runId) =>
+        this.applyProcessResultStatus(sessionId, result, runId),
+      clearActiveGeneration: (sessionId, runId) => this.clearActiveGeneration(sessionId, runId),
+      settleAbortedTurn: (sessionId, messageId, runId, metadata) =>
+        this.settleAbortedTurn(sessionId, messageId, runId, metadata),
+      drainPendingQueueIfPossible: async (sessionId, reason) =>
+        await this.drainPendingQueueIfPossible(sessionId, reason)
+    })
+    this.interactionCoordinator = new InteractionCoordinator({
+      messageStore: this.messageStore,
+      providerPermissionCoordinator: this.providerPermissionCoordinator,
+      skillPresenter: this.skillPresenter,
+      getDeepChatInstance: (sessionId) => this.getDeepChatInstance(sessionId),
+      getRuntimeState: (sessionId) => this.getDeepChatRuntimeState(sessionId),
+      ensureSessionAbortController: (sessionId) => this.ensureSessionAbortController(sessionId),
+      clearSessionAbortController: (sessionId, controller) =>
+        this.clearSessionAbortController(sessionId, controller),
+      throwIfAbortRequested: (signal) => this.throwIfAbortRequested(signal),
+      isAbortError: (error) => this.isAbortError(error),
+      isCurrentInstance: (sessionId, instance) =>
+        this.isCurrentDeepChatInstance(sessionId, instance),
+      resolveProjectDir: (sessionId) => this.resolveProjectDir(sessionId),
+      requireSessionPermissionPort: () => this.requireSessionPermissionPort(),
+      executeDeferredToolCall: async (...args) => await this.executeDeferredToolCall(...args),
+      emitMessageRefresh: (sessionId, messageId) => this.emitMessageRefresh(sessionId, messageId),
+      resolveStreamRequestId: (sessionId, messageId) =>
+        this.resolveStreamRequestId(sessionId, messageId),
+      setSessionStatus: (sessionId, status) => this.setSessionStatus(sessionId, status),
+      dispatchHook: (event, context) => this.dispatchHook(event, context),
+      dispatchTerminalHooks: (sessionId, state, result) =>
+        this.dispatchTerminalHooks(sessionId, state, result),
+      settleAbortedTurn: (sessionId, messageId, runId, metadata) =>
+        this.settleAbortedTurn(sessionId, messageId, runId, metadata),
+      drainPendingQueueIfPossible: async (sessionId, reason) =>
+        await this.drainPendingQueueIfPossible(sessionId, reason),
+      resumeAssistantMessage: async (...args) => await this.resumeAssistantMessage(...args)
+    })
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
       logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
@@ -574,7 +580,7 @@ export class AgentRuntimePresenter {
         tapeService: this.tapeService,
         toolResolver: this.toolResolver,
         appendViewManifest: (manifest) => {
-          this.appendTapeViewManifest({
+          this.loopRunner.appendTapeViewManifest({
             sessionId: manifest.sessionId,
             messageId: manifest.messageId,
             requestSeq: manifest.requestSeq,
@@ -606,9 +612,9 @@ export class AgentRuntimePresenter {
             instance
           ),
         emitRateLimitWaitingMessage: (sessionId, messageId, requestId, snapshot) =>
-          this.emitRateLimitWaitingMessage(sessionId, messageId, requestId, snapshot),
+          this.loopRunner.emitRateLimitWaitingMessage(sessionId, messageId, requestId, snapshot),
         clearRateLimitWaitingMessage: (sessionId, messageId, requestId) =>
-          this.clearRateLimitWaitingMessage(sessionId, messageId, requestId),
+          this.loopRunner.clearRateLimitWaitingMessage(sessionId, messageId, requestId),
         dispatchHook: (event, context) => this.dispatchHook(event, context)
       },
       input
@@ -656,103 +662,6 @@ export class AgentRuntimePresenter {
           [...input.activeSkillNames],
           expectedInstance
         )
-    }
-  }
-
-  private async prepareTurnResources(input: {
-    sessionId: string
-    messageId?: string | null
-    instance: DeepChatAgentInstance
-    signal: AbortSignal
-    projectDir: string | null
-    runtimeActivatedSkillNames?: string[]
-  }) {
-    const { sessionId, messageId, instance, signal, projectDir } = input
-    const state = instance.getRuntimeState()
-    if (!state) throw new Error(`Session ${sessionId} not found`)
-
-    this.throwIfAbortRequested(signal)
-    const generationSettings = await this.runPreStreamStep(
-      { sessionId, messageId, step: 'generation-settings', signal },
-      () => awaitWithAbort(this.getEffectiveSessionGenerationSettings(sessionId, instance), signal)
-    )
-    const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-    const useContextBudget = this.shouldUseDeepChatContextBudget(
-      state.providerId,
-      modelConfig,
-      state.modelId
-    )
-    this.throwIfAbortRequested(signal)
-    const interleavedReasoning = resolveInterleavedReasoningConfig(
-      this.configPresenter,
-      state.providerId,
-      state.modelId,
-      generationSettings
-    )
-    const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
-      state.providerId,
-      generationSettings.contextLength,
-      modelConfig,
-      state.modelId
-    )
-    const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
-    if (input.runtimeActivatedSkillNames) {
-      instance.replaceRuntimeActivatedSkills(input.runtimeActivatedSkillNames)
-    }
-    const sessionActiveSkillNames = await this.runPreStreamStep(
-      { sessionId, messageId, step: 'active-skills', signal },
-      () =>
-        awaitWithAbort(
-          this.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, instance),
-          signal
-        )
-    )
-    this.throwIfStaleDeepChatInstance(sessionId, instance)
-    const activeSkillNames = input.runtimeActivatedSkillNames
-      ? resolveEffectiveActiveSkillNames(sessionActiveSkillNames, instance)
-      : sessionActiveSkillNames
-    const tools = await this.runPreStreamStep(
-      { sessionId, messageId, step: 'tool-definitions', signal },
-      () =>
-        awaitWithAbort(
-          this.toolResolver.loadToolDefinitionsForSession(
-            sessionId,
-            projectDir,
-            activeSkillNames,
-            instance
-          ),
-          signal
-        )
-    )
-    const toolReserveTokens = estimateToolReserveTokens(tools)
-    this.throwIfAbortRequested(signal)
-    const basePromptAssembler = this.createBasePromptAssembler(instance)
-    const baseSystemPrompt = await this.runPreStreamStep(
-      { sessionId, messageId, step: 'system-prompt', signal },
-      () =>
-        awaitWithAbort(
-          basePromptAssembler.assemble({
-            sessionId: toAppSessionId(sessionId),
-            configuredPrompt: generationSettings.systemPrompt,
-            toolDefinitions: tools,
-            activeSkillNames
-          }),
-          signal
-        )
-    )
-    this.throwIfAbortRequested(signal)
-
-    return {
-      generationSettings,
-      useContextBudget,
-      interleavedReasoning,
-      contextBudgetLength,
-      maxTokens,
-      activeSkillNames,
-      tools,
-      toolReserveTokens,
-      basePromptAssembler,
-      baseSystemPrompt
     }
   }
 
@@ -1127,508 +1036,10 @@ export class AgentRuntimePresenter {
   async processMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    context?: {
-      projectDir?: string | null
-      emitRefreshBeforeStream?: boolean
-      pendingQueueItemId?: string
-      pendingQueueItemSource?: ProcessPendingInputSource
-      maxProviderRounds?: number
-    }
+    context?: TurnStartContext
   ): Promise<MessageStartResult> {
-    const instance = this.getHydratedDeepChatInstance(sessionId)
-    if (!instance) throw new Error(`Session ${sessionId} not found`)
-    const state = instance.getRuntimeState()
-    if (!state) throw new Error(`Session ${sessionId} not found`)
-    if (this.hasPendingInteractions(sessionId)) {
-      throw new Error('Pending tool interactions must be resolved before sending a new message.')
-    }
-
-    const normalizedInput = normalizeUserMessageInput(content)
-    if (!normalizedInput.text.trim() && (normalizedInput.files?.length ?? 0) === 0) {
-      throw new Error('Message cannot be empty.')
-    }
-    const supportsVision = this.supportsVision(state.providerId, state.modelId)
-    const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
-    const projectDir = this.resolveProjectDir(sessionId, context?.projectDir, instance)
-    logger.info(
-      `[DeepChatAgent] processMessage session=${sessionId} promptLength=${normalizedInput.text.length} fileCount=${normalizedInput.files?.length ?? 0} hasProjectDir=${projectDir !== null}`
-    )
-
-    this.setSessionStatus(sessionId, 'generating')
-    const preStreamAbortController = this.ensureSessionAbortController(sessionId)
-    const preStreamAbortSignal = preStreamAbortController.signal
-    const pendingInputSource: ProcessPendingInputSource = context?.pendingQueueItemSource ?? 'send'
-    let consumedPendingQueueItem = false
-    let userMessageId: string | null = null
-    let assistantMessageId: string | null = null
-    let streamRunId: string | undefined
-
-    try {
-      const preStreamStartedAt = Date.now()
-      const {
-        generationSettings,
-        useContextBudget,
-        interleavedReasoning,
-        contextBudgetLength,
-        maxTokens,
-        activeSkillNames: effectiveActiveSkillNames,
-        tools,
-        toolReserveTokens,
-        basePromptAssembler,
-        baseSystemPrompt
-      } = await this.prepareTurnResources({
-        sessionId,
-        messageId: userMessageId,
-        instance,
-        signal: preStreamAbortSignal,
-        projectDir,
-        runtimeActivatedSkillNames: normalizedInput.activeSkills ?? []
-      })
-      const userContent: UserMessageContent = {
-        text: normalizedInput.text,
-        files: normalizedInput.files || [],
-        links: [],
-        search: false,
-        think: false,
-        ...(normalizedInput.activeSkills?.length
-          ? { activeSkills: normalizedInput.activeSkills }
-          : {}),
-        ...(normalizedInput.inlineItems?.length ? { inlineItems: normalizedInput.inlineItems } : {})
-      }
-
-      const preparedInput = await this.inputPreparationCoordinator.prepareInitial({
-        ensureHistory: () =>
-          this.runSynchronousPreStreamStep(sessionId, 'tape-ready', () =>
-            getTapeContextHistoryRecords(
-              this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
-            )
-          ),
-        prepareIntent: async (historyRecords) => {
-          if (!useContextBudget) {
-            return null
-          }
-          return await this.runPreStreamStep(
-            {
-              sessionId,
-              messageId: userMessageId,
-              step: 'compaction-prepare',
-              signal: preStreamAbortSignal
-            },
-            () =>
-              this.compactionService.prepareForNextUserTurn({
-                sessionId,
-                providerId: state.providerId,
-                modelId: state.modelId,
-                systemPrompt: baseSystemPrompt,
-                contextLength: generationSettings.contextLength,
-                reserveTokens: maxTokens,
-                extraReserveTokens: toolReserveTokens,
-                supportsVision,
-                supportsAudioInput,
-                preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-                preserveEmptyInterleavedReasoning:
-                  interleavedReasoning.preserveEmptyReasoningContent === true,
-                newUserContent: normalizedInput,
-                historyRecords,
-                signal: preStreamAbortSignal
-              })
-          )
-        },
-        createCompactionProjection: (intent) =>
-          this.messageStore.createCompactionMessage(
-            sessionId,
-            this.messageStore.getNextOrderSeq(sessionId),
-            'compacting',
-            intent.previousState.summaryUpdatedAt
-          ),
-        appendUserFact: () =>
-          this.runSynchronousPreStreamStep(sessionId, 'user-message-create', () =>
-            this.messageStore.createUserMessage(
-              sessionId,
-              this.messageStore.getNextOrderSeq(sessionId),
-              userContent
-            )
-          ),
-        beginCompaction: (intent) => {
-          this.compactionRuntimeCoordinator.emit(
-            sessionId,
-            {
-              status: 'compacting',
-              cursorOrderSeq: intent.targetCursorOrderSeq,
-              summaryUpdatedAt: intent.previousState.summaryUpdatedAt
-            },
-            instance
-          )
-        },
-        applyCompaction: async (intent, compactionMessageId) =>
-          await this.runPreStreamStep(
-            {
-              sessionId,
-              messageId: userMessageId,
-              step: 'compaction-apply',
-              signal: preStreamAbortSignal
-            },
-            () =>
-              this.applyCompactionIntent(
-                sessionId,
-                intent,
-                {
-                  compactionMessageId,
-                  startedExternally: true,
-                  signal: preStreamAbortSignal
-                },
-                instance
-              )
-          ),
-        readSummary: () => this.sessionStore.getSummaryState(sessionId),
-        afterCompactionApplyReturned: (intent) =>
-          this.memoryIngestionObserver.afterCompactionApplyReturned({
-            session: instance.getMemorySessionHandle(),
-            origin: 'initial',
-            targetCursorOrderSeq: intent.targetCursorOrderSeq
-          }),
-        checkpoints: {
-          assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
-        }
-      })
-      const historyRecords = preparedInput.history
-      const summaryState = preparedInput.summary
-      userMessageId = preparedInput.userMessageId
-      if (!userMessageId) {
-        throw new Error('Failed to create user message.')
-      }
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      this.emitMessageRefresh(sessionId, userMessageId)
-
-      this.dispatchHook('UserPromptSubmit', {
-        sessionId,
-        messageId: userMessageId,
-        promptPreview: normalizedInput.text,
-        providerId: state.providerId,
-        modelId: state.modelId,
-        projectDir
-      })
-
-      const preparedContext = await this.contextCoordinator.assemble({
-        assemblePostCompactionPrompt: async () => {
-          return await this.runPreStreamStep(
-            {
-              sessionId,
-              messageId: userMessageId,
-              step: 'memory-injection',
-              signal: preStreamAbortSignal
-            },
-            () =>
-              awaitWithAbort(
-                this.postCompactionPromptAssembler.assemble({
-                  memorySession: instance.getMemorySessionHandle(),
-                  basePrompt: baseSystemPrompt,
-                  summaryText: summaryState.summaryText,
-                  reconstructionAnchor:
-                    this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-                  memoryQuery: normalizedInput.text,
-                  memoryMessageId: userMessageId
-                }),
-                preStreamAbortSignal
-              )
-          )
-        },
-        buildView: (systemPrompt) => {
-          const contextBuildStartedAt = Date.now()
-          const contextBuild = buildTapeChatView({
-            sessionId,
-            newUserContent: normalizedInput,
-            systemPrompt,
-            contextLength: contextBudgetLength,
-            reserveTokens: maxTokens,
-            messageStore: this.messageStore,
-            supportsVision,
-            historyRecords,
-            options: {
-              summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-              supportsAudioInput,
-              extraReserveTokens: toolReserveTokens,
-              preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-              preserveEmptyInterleavedReasoning:
-                interleavedReasoning.preserveEmptyReasoningContent === true
-            }
-          })
-          this.logSlowPreStreamStep(sessionId, 'context-build', contextBuildStartedAt)
-          return contextBuild
-        },
-        assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
-      })
-      const contextBuild = preparedContext.view
-      const messages = contextBuild.messages
-
-      const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      assistantMessageId = this.runSynchronousPreStreamStep(
-        sessionId,
-        'assistant-message-create',
-        () => this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
-      )
-      this.toolPresenter?.clearAgentPlanState?.(sessionId)
-      this.throwIfAbortRequested(preStreamAbortSignal)
-
-      if (context?.pendingQueueItemId && pendingInputSource === 'send') {
-        this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
-        consumedPendingQueueItem = true
-      }
-
-      if (context?.emitRefreshBeforeStream) {
-        this.emitMessageRefresh(sessionId, assistantMessageId)
-      }
-
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const providerBoundary = this.startPreStreamProviderBoundaryWatchdog(
-        {
-          sessionId,
-          messageId: assistantMessageId,
-          step: 'pre-stream-provider-start',
-          signal: preStreamAbortSignal
-        },
-        preStreamStartedAt
-      )
-      let streamResult: { runId: string; result: ProcessResult }
-      try {
-        streamResult = await this.runStreamForMessage({
-          sessionId,
-          messageId: assistantMessageId,
-          messages,
-          projectDir,
-          promptPreview: normalizedInput.text,
-          tools,
-          baseSystemPrompt,
-          resourceInstance: instance,
-          abortController: preStreamAbortController,
-          maxProviderRounds: context?.maxProviderRounds,
-          refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
-            const refreshedBasePrompt = await basePromptAssembler.assemble({
-              sessionId: toAppSessionId(sessionId),
-              configuredPrompt: generationSettings.systemPrompt,
-              toolDefinitions: refreshedTools,
-              activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames
-            })
-            return await this.postCompactionPromptAssembler.assemble({
-              memorySession: instance.getMemorySessionHandle(),
-              basePrompt: refreshedBasePrompt,
-              summaryText: summaryState.summaryText,
-              reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-              memoryQuery: normalizedInput.text,
-              memoryMessageId: userMessageId
-            })
-          },
-          interleavedReasoning,
-          viewContext: {
-            taskType: 'chat',
-            policy: contextBuild.policyId,
-            policyVersion: contextBuild.policyVersion,
-            selection: buildTapeViewSelection(contextBuild.metadata, userMessageId),
-            summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-            supportsVision,
-            supportsAudioInput,
-            traceDebugEnabled:
-              this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
-          },
-          onBeforeProviderStream: providerBoundary.complete,
-          onRunRegistered: (runId) => {
-            streamRunId = runId
-          }
-        })
-      } finally {
-        providerBoundary.cancel()
-      }
-      const { runId, result } = streamResult
-      streamRunId = runId
-      if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
-        if (pendingInputSource === 'queue' || pendingInputSource === 'steer') {
-          // An aborted queue/steer turn keeps its partial output and is consumed (not rolled back),
-          // so the queue advances to the next item instead of re-running this one. Only genuine
-          // errors roll the claim back to the waiting lane.
-          if (
-            result.status === 'completed' ||
-            result.status === 'paused' ||
-            result.status === 'aborted'
-          ) {
-            this.consumeClaimedPendingInput(
-              sessionId,
-              context.pendingQueueItemId,
-              pendingInputSource
-            )
-            consumedPendingQueueItem = true
-          } else {
-            this.rollbackClaimedPendingInputTurn(
-              sessionId,
-              context.pendingQueueItemId,
-              pendingInputSource,
-              userMessageId,
-              instance
-            )
-            consumedPendingQueueItem = true
-          }
-        } else {
-          this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
-          consumedPendingQueueItem = true
-        }
-      }
-      try {
-        this.applyProcessResultStatus(sessionId, result, runId)
-      } finally {
-        this.clearActiveGeneration(sessionId, runId)
-      }
-      if (result?.status === 'completed') {
-        void this.drainPendingQueueIfPossible(sessionId, 'completed')
-      } else if (result?.status === 'aborted') {
-        // processStream owns terminal persistence once streaming starts. The lifecycle layer only
-        // projects hooks/status and advances queued input after the returned abort.
-        void this.drainPendingQueueIfPossible(sessionId, 'completed')
-      }
-      if (result) {
-        this.memoryIngestionObserver.afterTurnSettled({
-          session: instance.getMemorySessionHandle(),
-          origin: 'initial',
-          outcome: { kind: 'returned', status: result.status }
-        })
-      }
-      return {
-        requestId: assistantMessageId,
-        messageId: assistantMessageId
-      }
-    } catch (err) {
-      this.memoryIngestionObserver.afterTurnSettled({
-        session: instance.getMemorySessionHandle(),
-        origin: 'initial',
-        outcome: { kind: 'thrown', error: err }
-      })
-      if (this.isStaleDeepChatInstanceError(err)) {
-        return {
-          requestId: assistantMessageId,
-          messageId: assistantMessageId
-        }
-      }
-      console.error('[DeepChatAgent] processMessage error:', err)
-      const aborted = this.isAbortError(err) || preStreamAbortSignal.aborted
-      if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
-        try {
-          if (pendingInputSource === 'queue' || pendingInputSource === 'steer') {
-            // Abort keeps the partial turn and consumes the claim so the queue advances; only genuine
-            // errors roll the claim back to the waiting lane.
-            if (aborted) {
-              this.consumeClaimedPendingInput(
-                sessionId,
-                context.pendingQueueItemId,
-                pendingInputSource
-              )
-            } else {
-              this.rollbackClaimedPendingInputTurn(
-                sessionId,
-                context.pendingQueueItemId,
-                pendingInputSource,
-                userMessageId,
-                instance
-              )
-            }
-          } else {
-            this.releaseClaimedPendingInput(
-              sessionId,
-              context.pendingQueueItemId,
-              pendingInputSource
-            )
-          }
-          consumedPendingQueueItem = true
-        } catch (releaseError) {
-          console.warn('[DeepChatAgent] failed to release claimed queue input:', releaseError)
-        }
-      }
-      if (aborted) {
-        if (userMessageId) {
-          this.emitMessageRefresh(sessionId, userMessageId)
-        }
-        this.clearSessionAbortController(sessionId, preStreamAbortController)
-        const abortMetadata = stampTerminalMetadata(
-          {
-            ...(streamRunId ? { runId: streamRunId } : {}),
-            provider: state.providerId,
-            model: state.modelId,
-            providerRounds: 0,
-            toolCalls: 0
-          },
-          'aborted',
-          'user_stop'
-        )
-        this.settleAbortedTurn(
-          sessionId,
-          assistantMessageId,
-          streamRunId,
-          JSON.stringify(abortMetadata)
-        )
-        // Stop/steer: continue the queue automatically with the next item (steer items first).
-        void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        return {
-          requestId: assistantMessageId,
-          messageId: assistantMessageId
-        }
-      }
-      const errorMessage = err instanceof Error ? err.message : String(err)
-      const stopReason = isContextWindowErrorLike(err) ? 'context_window' : 'pre_stream_error'
-      const terminalMetadata = stampTerminalMetadata(
-        {
-          ...(streamRunId ? { runId: streamRunId } : {}),
-          provider: state.providerId,
-          model: state.modelId,
-          providerRounds: 0,
-          toolCalls: 0
-        },
-        'error',
-        stopReason
-      )
-      if (assistantMessageId) {
-        const existingAssistant = this.messageStore.getMessage(assistantMessageId)
-        const blocks = buildTerminalErrorBlocks(
-          existingAssistant ? parseAssistantBlocks(existingAssistant.content) : [],
-          errorMessage
-        )
-        this.messageStore.setMessageError(
-          assistantMessageId,
-          blocks,
-          JSON.stringify(terminalMetadata)
-        )
-        this.emitMessageRefresh(sessionId, assistantMessageId)
-        publishDeepchatEvent('chat.stream.failed', {
-          requestId: this.resolveStreamRequestId(sessionId, assistantMessageId),
-          sessionId,
-          messageId: assistantMessageId,
-          failedAt: Date.now(),
-          error: errorMessage
-        })
-      }
-      this.dispatchHook('Stop', {
-        sessionId,
-        providerId: state.providerId,
-        modelId: state.modelId,
-        projectDir,
-        stop: { reason: stopReason, userStop: false }
-      })
-      this.dispatchHook('SessionEnd', {
-        sessionId,
-        providerId: state.providerId,
-        modelId: state.modelId,
-        projectDir,
-        usage: buildUsageFromMetadata(terminalMetadata) ?? null,
-        error: { message: errorMessage }
-      })
-      this.setSessionStatus(sessionId, 'error')
-      return {
-        requestId: assistantMessageId,
-        messageId: assistantMessageId
-      }
-    } finally {
-      this.clearSessionAbortController(sessionId, preStreamAbortController)
-      instance.replaceRuntimeActivatedSkills([])
-    }
+    return await this.turnCoordinator.start(sessionId, content, context)
   }
-
   private logSlowPreStreamStep(sessionId: string, step: string, startedAt: number): void {
     const elapsed = Date.now() - startedAt
     if (elapsed < PRE_STREAM_SLOW_STEP_MS) {
@@ -1734,497 +1145,14 @@ export class AgentRuntimePresenter {
     }
   }
 
-  private async handleSkillDraftInteraction(
-    sessionId: string,
-    instance: DeepChatAgentInstance,
-    blocks: AssistantMessageBlock[],
-    actionBlock: AssistantMessageBlock,
-    toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
-    response: Exclude<ToolInteractionResponse, { kind: 'permission' }>
-  ): Promise<{ keepPending: boolean; waitingForUserMessage: boolean; handledInline?: boolean }> {
-    if (!this.skillPresenter) {
-      throw new Error('Skill presenter is not available.')
-    }
-
-    if (response.kind === 'question_other') {
-      throw new Error('Custom skill draft responses are not supported.')
-    }
-
-    const answerText =
-      response.kind === 'question_option' ? response.optionLabel : response.answerText
-    const choice = resolveSkillDraftChoice(answerText)
-    if (!choice) {
-      throw new Error('Unknown skill draft action.')
-    }
-
-    const draftId = String(actionBlock.extra?.skillDraftId ?? '').trim()
-    if (!draftId) {
-      throw new Error('Skill draft id is missing.')
-    }
-
-    if (choice === 'view') {
-      const result = await this.skillPresenter.viewDraftSkill(sessionId, draftId)
-      if (!result.success) {
-        const error = result.error || 'Unknown error'
-        actionBlock.extra = {
-          ...actionBlock.extra,
-          skillDraftStatus: 'error',
-          skillDraftError: error
-        }
-        updateSkillDraftToolCallResponse(
-          blocks,
-          toolCall.id!,
-          buildSkillDraftToolResponse({ success: false, action: 'view', draftId, error }),
-          true
-        )
-        markQuestionResolved(actionBlock, SKILL_DRAFT_ACTION_LABELS.view)
-        return { keepPending: false, waitingForUserMessage: false }
-      }
-
-      const responseText = buildSkillDraftToolResponse({
-        success: true,
-        action: 'view',
-        draftId,
-        skillName: result.skillName
-      })
-      actionBlock.status = 'pending'
-      const currentExtra = actionBlock.extra ?? {}
-      actionBlock.extra = {
-        ...currentExtra,
-        needsUserAction: true,
-        questionResolution: 'asked',
-        skillDraftStatus: 'viewed',
-        skillDraftName: result.skillName ?? currentExtra.skillDraftName,
-        skillDraftPreview: result.content ?? ''
-      }
-      updateSkillDraftQuestionOptions(actionBlock, true)
-      updateSkillDraftToolCallResponse(blocks, toolCall.id!, responseText, false)
-      return { keepPending: true, waitingForUserMessage: false, handledInline: true }
-    }
-
-    const result =
-      choice === 'install'
-        ? await this.skillPresenter.installDraftSkill(sessionId, draftId)
-        : await this.skillPresenter.discardDraftSkill(sessionId, draftId)
-
-    const responseText = buildSkillDraftToolResponse({
-      success: result.success,
-      action: result.action,
-      draftId,
-      skillName: result.skillName,
-      installedSkillName: result.installedSkillName,
-      error: result.error
-    })
-
-    const error = result.error || 'Unknown error'
-    actionBlock.extra = {
-      ...actionBlock.extra,
-      skillDraftStatus: result.success ? SKILL_DRAFT_STATUS_BY_CHOICE[choice] : 'error',
-      ...(result.success ? {} : { skillDraftError: error })
-    }
-    markQuestionResolved(actionBlock, SKILL_DRAFT_ACTION_LABELS[choice])
-    updateSkillDraftToolCallResponse(blocks, toolCall.id!, responseText, !result.success)
-
-    if (choice === 'install' && result.success) {
-      instance.invalidateResourceCaches()
-    }
-
-    return { keepPending: false, waitingForUserMessage: false }
-  }
-
   async respondToolInteraction(
     sessionId: string,
     messageId: string,
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult> {
-    const instance = this.getDeepChatInstance(sessionId)
-    if (!instance.tryLockInteraction(messageId, toolCallId)) {
-      return { resumed: false }
-    }
-
-    const interactionOwnerRun = instance.getActiveGeneration()
-    const interactionOwnedByActiveRun = interactionOwnerRun?.messageId === messageId
-    let interactionAbortController: AbortController | null = null
-    let interactionAbortSignal: AbortSignal | undefined
-    try {
-      if (interactionOwnedByActiveRun && interactionOwnerRun.abortController.signal.aborted) {
-        return { resumed: false }
-      }
-      if (interactionOwnedByActiveRun) {
-        interactionAbortSignal = interactionOwnerRun.abortController.signal
-      } else if (!interactionOwnerRun) {
-        interactionAbortController = this.ensureSessionAbortController(sessionId)
-        interactionAbortSignal = interactionAbortController.signal
-      }
-      this.throwIfAbortRequested(interactionAbortSignal)
-      const message = await this.messageStore.getMessage(messageId)
-      if (!message || message.role !== 'assistant') {
-        throw new Error(`Assistant message not found: ${messageId}`)
-      }
-      if (message.sessionId !== sessionId) {
-        throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
-      }
-
-      const blocks = parseAssistantBlocks(message.content)
-      const pendingEntries = reconcilePendingInteractionEntries(
-        instance,
-        collectPendingInteractionEntries(messageId, blocks)
-      )
-      replacePendingInteractions(instance, pendingEntries)
-      if (pendingEntries.length === 0) {
-        throw new Error('No pending interaction found in target message.')
-      }
-
-      const firstPendingInteraction = instance.getFirstPendingInteraction()
-      const currentEntry = pendingEntries[0]
-      if (
-        firstPendingInteraction?.messageId !== messageId ||
-        firstPendingInteraction.toolCallId !== toolCallId
-      ) {
-        throw new Error('Interaction queue out of order. Please handle the first pending item.')
-      }
-
-      let waitingForUserMessage = false
-      let resumeBudgetToolCall: ResumeBudgetToolCall | null = null
-      let emitResolvedToolHook: (() => void) | null = null
-      let resumeAccounting = parseMessageMetadata(message.metadata)
-      let accountingChanged = false
-      const actionBlock = blocks[currentEntry.blockIndex]
-      const toolCall = actionBlock.tool_call
-      if (!toolCall?.id) {
-        throw new Error('Invalid action block without tool call id.')
-      }
-
-      if (actionBlock.action_type === 'question_request') {
-        if (response.kind === 'permission') {
-          throw new Error('Invalid response kind for question interaction.')
-        }
-
-        if (isSkillDraftConfirmationBlock(actionBlock)) {
-          const result = await awaitWithAbort(
-            this.handleSkillDraftInteraction(
-              sessionId,
-              instance,
-              blocks,
-              actionBlock,
-              toolCall,
-              response
-            ),
-            interactionAbortSignal
-          )
-          if (!this.isCurrentDeepChatInstance(sessionId, instance)) {
-            return { resumed: false }
-          }
-          waitingForUserMessage = result.waitingForUserMessage
-          if (result.keepPending) {
-            this.messageStore.updateAssistantContent(messageId, blocks)
-            this.emitMessageRefresh(sessionId, messageId)
-            this.messageStore.updateMessageStatus(messageId, 'pending')
-            this.setSessionStatus(sessionId, 'generating')
-            return { resumed: false, handledInline: result.handledInline === true }
-          }
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
-        } else if (response.kind === 'question_other') {
-          const deferredResult = 'User chose to answer with a follow-up message.'
-          markQuestionResolved(actionBlock, '', true)
-          updateToolCallResponse(blocks, toolCall.id, deferredResult, false)
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
-          waitingForUserMessage = true
-        } else {
-          const answerText =
-            response.kind === 'question_option' ? response.optionLabel : response.answerText
-          const normalizedAnswer = answerText.trim()
-          if (!normalizedAnswer) {
-            throw new Error('Answer cannot be empty.')
-          }
-          markQuestionResolved(actionBlock, normalizedAnswer)
-          updateToolCallResponse(blocks, toolCall.id, normalizedAnswer, false)
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
-        }
-      } else if (actionBlock.action_type === 'tool_call_permission') {
-        if (response.kind !== 'permission') {
-          throw new Error('Invalid response kind for permission interaction.')
-        }
-        const permissionPayload = parsePermissionPayload(actionBlock)
-        const permissionType = permissionPayload?.permissionType ?? 'write'
-        const requestId = permissionPayload?.requestId?.trim()
-        const providerId = permissionPayload?.providerId?.trim()
-        if (providerId === 'acp' && requestId) {
-          await awaitWithAbort(
-            this.providerPermissionCoordinator.resolve({
-              sessionId,
-              messageId,
-              toolCallId: toolCall.id,
-              requestId,
-              permissionType,
-              granted: response.granted,
-              ownerRun: interactionOwnerRun,
-              signal: interactionAbortSignal
-            }),
-            interactionAbortSignal
-          )
-          return { resumed: false }
-        }
-        const state = this.getDeepChatRuntimeState(sessionId)
-        const projectDir = this.resolveProjectDir(sessionId)
-        let shouldDispatchResolvedToolHook = false
-
-        if (response.granted) {
-          markPermissionResolved(actionBlock, true, permissionType)
-          await awaitWithAbort(
-            this.grantPermissionForPayload(sessionId, permissionPayload, toolCall),
-            interactionAbortSignal
-          )
-          const nextToolCallAccounting = incrementToolCallAccounting(resumeAccounting)
-          let deferredToolCallCounted = false
-          const markDeferredToolCallStarted = () => {
-            if (deferredToolCallCounted) {
-              return
-            }
-            deferredToolCallCounted = true
-            resumeAccounting = nextToolCallAccounting
-            accountingChanged = true
-            this.messageStore.updateAssistantMetadata(messageId, JSON.stringify(resumeAccounting))
-          }
-          let execution: DeferredToolExecutionResult
-          if ((nextToolCallAccounting.toolCalls ?? 0) > MAX_TOOL_CALLS) {
-            execution = {
-              responseText: MAX_TOOL_CALLS_SKIPPED_ERROR,
-              isError: true
-            }
-          } else {
-            this.dispatchHook('PreToolUse', {
-              sessionId,
-              messageId,
-              providerId: state?.providerId,
-              modelId: state?.modelId,
-              projectDir,
-              tool: {
-                callId: toolCall.id,
-                name: toolCall.name,
-                params: toolCall.params
-              }
-            })
-            execution = await this.executeDeferredToolCall(
-              sessionId,
-              messageId,
-              toolCall,
-              markDeferredToolCallStarted
-            )
-            if ((execution.invoked || execution.terminalError) && !deferredToolCallCounted) {
-              markDeferredToolCallStarted()
-            }
-          }
-          if (execution.invoked) {
-            instance.advancePendingToolBatch({ invokedCallId: toolCall.id })
-          }
-          if (execution.terminalError) {
-            const terminalMetadata = stampTerminalMetadata(resumeAccounting, 'error', 'tool_error')
-            instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
-            this.dispatchHook('PostToolUseFailure', {
-              sessionId,
-              messageId,
-              providerId: state?.providerId,
-              modelId: state?.modelId,
-              projectDir,
-              tool: {
-                callId: toolCall.id,
-                name: toolCall.name,
-                params: toolCall.params,
-                error: execution.terminalError
-              }
-            })
-            updateToolCallResponse(blocks, toolCall.id, execution.terminalError, true)
-            this.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
-            this.emitMessageRefresh(sessionId, messageId)
-            publishDeepchatEvent('chat.stream.failed', {
-              requestId: this.resolveStreamRequestId(sessionId, messageId),
-              sessionId,
-              messageId,
-              failedAt: Date.now(),
-              error: execution.terminalError
-            })
-            this.dispatchHook('Stop', {
-              sessionId,
-              messageId,
-              providerId: state?.providerId,
-              modelId: state?.modelId,
-              projectDir,
-              stop: { reason: 'tool_error', userStop: false }
-            })
-            this.dispatchHook('SessionEnd', {
-              sessionId,
-              messageId,
-              providerId: state?.providerId,
-              modelId: state?.modelId,
-              projectDir,
-              usage: buildUsageFromMetadata(terminalMetadata) ?? null,
-              error: { message: execution.terminalError }
-            })
-            this.setSessionStatus(sessionId, 'error')
-            replacePendingInteractions(
-              instance,
-              reconcilePendingInteractionEntries(
-                instance,
-                collectPendingInteractionEntries(messageId, blocks)
-              )
-            )
-            return { resumed: false }
-          }
-          const imagePresentation = prepareToolImagePreviewPresentation({
-            toolCallId: toolCall.id,
-            toolName: toolCall.name || '',
-            toolSource: execution.toolSource,
-            serverName: execution.serverName,
-            isError: execution.isError,
-            imagePreviews: execution.imagePreviews
-          })
-
-          updateToolCallResponse(blocks, toolCall.id, execution.responseText, execution.isError, {
-            rtkApplied: execution.rtkApplied,
-            rtkMode: execution.rtkMode,
-            rtkFallbackReason: execution.rtkFallbackReason,
-            imagePreviews: imagePresentation.toolBlockImagePreviews
-          })
-          insertBlocksAfterToolCall(blocks, toolCall.id, imagePresentation.promotedBlocks)
-          resumeBudgetToolCall = {
-            id: toolCall.id,
-            name: toolCall.name || '',
-            offloadPath: execution.offloadPath
-          }
-
-          if (execution.requiresPermission && execution.permissionRequest) {
-            instance.transitionPendingInteractionOrigin(
-              messageId,
-              toolCall.id,
-              'post-call-permission'
-            )
-            this.dispatchHook('PermissionRequest', {
-              sessionId,
-              messageId,
-              providerId: state?.providerId,
-              modelId: state?.modelId,
-              projectDir,
-              permission: execution.permissionRequest,
-              tool: {
-                callId: toolCall.id,
-                name: toolCall.name,
-                params: toolCall.params
-              }
-            })
-            actionBlock.status = 'pending'
-            actionBlock.content = execution.permissionRequest.description
-            actionBlock.extra = {
-              ...actionBlock.extra,
-              needsUserAction: true,
-              permissionType: execution.permissionRequest.permissionType,
-              permissionRequest: JSON.stringify(execution.permissionRequest)
-            }
-          } else {
-            instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
-            shouldDispatchResolvedToolHook = true
-          }
-        } else {
-          markPermissionResolved(actionBlock, false, permissionType)
-          updateToolCallResponse(blocks, toolCall.id, 'User denied the request.', true)
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
-          shouldDispatchResolvedToolHook = true
-        }
-
-        emitResolvedToolHook = shouldDispatchResolvedToolHook
-          ? () => {
-              this.dispatchResolvedToolHook({
-                sessionId,
-                messageId,
-                providerId: state?.providerId,
-                modelId: state?.modelId,
-                projectDir,
-                blocks,
-                toolCall
-              })
-            }
-          : null
-      } else {
-        throw new Error(`Unsupported action type: ${actionBlock.action_type}`)
-      }
-
-      const remainingPending = reconcilePendingInteractionEntries(
-        instance,
-        collectPendingInteractionEntries(messageId, blocks)
-      )
-      const awaitsUserFollowUp = waitingForUserMessage || hasQuestionFollowUpIntent(blocks)
-      const finishesForUserFollowUp = awaitsUserFollowUp && remainingPending.length === 0
-      const persistedMetadata = finishesForUserFollowUp
-        ? stampTerminalMetadata(resumeAccounting, 'completed', 'user_follow_up')
-        : resumeAccounting
-      this.messageStore.updateAssistantContent(
-        messageId,
-        blocks,
-        finishesForUserFollowUp || accountingChanged ? JSON.stringify(persistedMetadata) : undefined
-      )
-      replacePendingInteractions(instance, remainingPending)
-      this.emitMessageRefresh(sessionId, messageId)
-
-      if (remainingPending.length > 0) {
-        emitResolvedToolHook?.()
-        this.messageStore.updateMessageStatus(messageId, 'pending')
-        this.setSessionStatus(sessionId, 'generating')
-        return { resumed: false }
-      }
-
-      if (awaitsUserFollowUp) {
-        emitResolvedToolHook?.()
-        this.messageStore.updateMessageStatus(messageId, 'sent')
-        this.dispatchTerminalHooks(sessionId, this.getDeepChatRuntimeState(sessionId), {
-          status: 'completed',
-          stopReason: 'user_follow_up',
-          usage: buildUsageFromMetadata(persistedMetadata)
-        })
-        this.setSessionStatus(sessionId, 'idle')
-        return { resumed: false, waitingForUserMessage: true }
-      }
-
-      this.clearSessionAbortController(sessionId, interactionAbortController ?? undefined)
-      const resumed = await this.resumeAssistantMessage(
-        sessionId,
-        messageId,
-        blocks,
-        resumeBudgetToolCall,
-        resumeAccounting
-      )
-      emitResolvedToolHook?.()
-      return { resumed }
-    } catch (error) {
-      if (this.isAbortError(error) || interactionAbortSignal?.aborted) {
-        if (interactionOwnedByActiveRun) {
-          return { resumed: false }
-        }
-        const accounting = parseMessageMetadata(
-          this.messageStore.getMessage(messageId)?.metadata ?? '{}'
-        )
-        if (interactionAbortController) {
-          this.clearSessionAbortController(sessionId, interactionAbortController)
-        }
-        instance.replacePendingInteractions([])
-        this.settleAbortedTurn(
-          sessionId,
-          messageId,
-          undefined,
-          JSON.stringify(stampTerminalMetadata(accounting, 'aborted', 'user_stop'))
-        )
-        void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        return { resumed: false }
-      }
-      throw error
-    } finally {
-      if (interactionAbortController) {
-        this.clearSessionAbortController(sessionId, interactionAbortController)
-      }
-      instance.unlockInteraction(messageId, toolCallId)
-    }
+    return await this.interactionCoordinator.respond(sessionId, messageId, toolCallId, response)
   }
-
   async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void> {
     await this.sessionSettingsCoordinator.setPermissionMode(sessionId, mode)
   }
@@ -2625,43 +1553,6 @@ export class AgentRuntimePresenter {
       meta: parseJsonObject(row.meta_json),
       createdAt: row.created_at
     }
-  }
-
-  private dispatchResolvedToolHook(params: {
-    sessionId: string
-    messageId: string
-    providerId?: string
-    modelId?: string
-    projectDir?: string | null
-    blocks: AssistantMessageBlock[]
-    toolCall: NonNullable<AssistantMessageBlock['tool_call']>
-  }): void {
-    const resolvedBlock = params.blocks.find(
-      (block) => block.type === 'tool_call' && block.tool_call?.id === params.toolCall.id
-    )
-    const responseText = resolvedBlock?.tool_call?.response ?? ''
-    const isError = resolvedBlock?.status === 'error'
-
-    this.dispatchHook(isError ? 'PostToolUseFailure' : 'PostToolUse', {
-      sessionId: params.sessionId,
-      messageId: params.messageId,
-      providerId: params.providerId,
-      modelId: params.modelId,
-      projectDir: params.projectDir,
-      tool: isError
-        ? {
-            callId: params.toolCall.id,
-            name: params.toolCall.name,
-            params: params.toolCall.params,
-            error: responseText
-          }
-        : {
-            callId: params.toolCall.id,
-            name: params.toolCall.name,
-            params: params.toolCall.params,
-            response: responseText
-          }
-    })
   }
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
@@ -3083,635 +1974,40 @@ export class AgentRuntimePresenter {
     this.compactionRuntimeCoordinator.reset(targetSessionId, targetInstance)
   }
 
-  private async runStreamForMessage(args: {
-    sessionId: string
-    messageId: string
-    messages: ChatMessage[]
-    projectDir: string | null
-    resourceInstance?: DeepChatAgentInstance
-    tools?: MCPToolDefinition[]
-    baseSystemPrompt?: string
-    initialBlocks?: AssistantMessageBlock[]
-    initialAccounting?: MessageMetadata
-    promptPreview?: string
-    interleavedReasoning?: InterleavedReasoningConfig
-    viewContext?: PendingTapeViewContext
-    refreshSystemPrompt?: (
-      activeSkillNames: string[] | undefined,
-      toolDefinitions: MCPToolDefinition[]
-    ) => Promise<string>
-    maxProviderRounds?: number
-    onBeforeProviderStream?: () => void
-    onRunRegistered?: (runId: string) => void
-    abortController?: AbortController
-  }): Promise<{ runId: string; result: ProcessResult }> {
-    const {
+  private async runStreamForMessage(
+    args: DeepChatLoopRunInput
+  ): Promise<{ runId: string; result: ProcessResult }> {
+    return await this.loopRunner.run(args)
+  }
+
+  rollbackClaimedPendingInputTurn(
+    sessionId: string,
+    pendingQueueItemId: string,
+    pendingInputSource: ProcessPendingInputSource,
+    userMessageId: string | null,
+    expectedInstance?: DeepChatAgentInstance
+  ): void {
+    this.turnCoordinator.rollbackClaimedPendingInputTurn(
+      sessionId,
+      pendingQueueItemId,
+      pendingInputSource,
+      userMessageId,
+      expectedInstance
+    )
+  }
+
+  private async executeDeferredToolCall(
+    sessionId: string,
+    messageId: string,
+    toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
+    onToolCallStarted?: () => void
+  ): Promise<DeferredToolExecutionResult> {
+    return await this.deferredToolExecutor.execute(
       sessionId,
       messageId,
-      messages,
-      projectDir,
-      resourceInstance: providedResourceInstance,
-      tools: providedTools,
-      baseSystemPrompt,
-      initialBlocks,
-      initialAccounting,
-      promptPreview,
-      interleavedReasoning: providedInterleavedReasoning,
-      viewContext,
-      refreshSystemPrompt,
-      maxProviderRounds,
-      onBeforeProviderStream,
-      onRunRegistered,
-      abortController: providedAbortController
-    } = args
-    const resourceInstance = providedResourceInstance ?? this.getDeepChatInstance(sessionId)
-    this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-    const abortController = providedAbortController ?? this.ensureSessionAbortController(sessionId)
-    const abortSignal = abortController.signal
-    this.throwIfAbortRequested(abortSignal)
-    const state = resourceInstance.getRuntimeState()
-    if (!state) {
-      throw new Error(`Session ${sessionId} not found`)
-    }
-    if (messages.length === 0) {
-      throw new Error('Request was not sent because the prompt is empty.')
-    }
-
-    const provider = (
-      this.llmProviderPresenter as unknown as {
-        getProviderInstance: (id: string) => {
-          coreStream: (
-            messages: ChatMessage[],
-            modelId: string,
-            modelConfig: ModelConfig,
-            temperature: number,
-            maxTokens: number,
-            tools: import('@shared/types/core/mcp').MCPToolDefinition[]
-          ) => AsyncGenerator<import('@shared/types/core/llm-events').LLMCoreStreamEvent>
-        }
-      }
-    ).getProviderInstance(state.providerId)
-
-    const generationSettings = await awaitWithAbort(
-      this.getEffectiveSessionGenerationSettings(sessionId, resourceInstance),
-      abortSignal
+      toolCall,
+      onToolCallStarted
     )
-    const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-    const interleavedReasoning =
-      providedInterleavedReasoning ??
-      resolveInterleavedReasoningConfig(
-        this.configPresenter,
-        state.providerId,
-        state.modelId,
-        generationSettings
-      )
-    const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
-      state.providerId,
-      generationSettings.contextLength,
-      baseModelConfig,
-      state.modelId
-    )
-    const capabilityProviderId = resolveCapabilityProviderId(
-      this.configPresenter,
-      state.providerId,
-      state.modelId
-    )
-    const reasoningPortrait = getReasoningPortrait(
-      this.configPresenter,
-      state.providerId,
-      state.modelId
-    )
-    const modelConfig: ModelConfig = {
-      ...baseModelConfig,
-      temperature: generationSettings.temperature,
-      topP: generationSettings.topP,
-      contextLength: generationSettings.contextLength,
-      maxTokens: capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength),
-      timeout: generationSettings.timeout,
-      thinkingBudget: generationSettings.thinkingBudget,
-      reasoningEffort: generationSettings.reasoningEffort,
-      reasoningVisibility: generationSettings.reasoningVisibility,
-      verbosity: generationSettings.verbosity,
-      imageGeneration: generationSettings.imageGeneration,
-      videoGeneration: generationSettings.videoGeneration,
-      reasoning: getReasoningEffectiveEnabledForProvider(capabilityProviderId, reasoningPortrait, {
-        reasoning: baseModelConfig.reasoning,
-        reasoningEffort: generationSettings.reasoningEffort ?? baseModelConfig.reasoningEffort
-      }),
-      conversationId: sessionId
-    }
-
-    const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
-    const llmProviderPresenter = this.llmProviderPresenter
-    const shouldBypassContextBudget = this.shouldBypassDeepChatContextBudget.bind(this)
-    const recoverContextPressure = this.recoverRequestContextPressure.bind(this)
-    const contextCoordinator = this.contextCoordinator
-    const persistMessageTrace = this.persistMessageTrace.bind(this)
-    const appendTapeViewManifest = this.appendTapeViewManifest.bind(this)
-    const initialRequestSeq = Math.max(
-      this.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0,
-      this.messageStore.getMaxMessageTraceRequestSeq(messageId)
-    )
-
-    const temperature = generationSettings.temperature
-    const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
-
-    const streamSessionActiveSkillNames = await awaitWithAbort(
-      this.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance),
-      abortSignal
-    )
-    this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-    const streamExtensionPolicy = await awaitWithAbort(
-      this.toolResolver.resolveAgentExtensionPolicy(sessionId, resourceInstance),
-      abortSignal
-    )
-    this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-    const getEffectiveRuntimeSkillNames = (baseSkillNames = streamSessionActiveSkillNames) =>
-      resolveEffectiveActiveSkillNames(baseSkillNames, resourceInstance)
-    const toolCatalog = this.toolResolver.createSessionToolCatalogPort(
-      sessionId,
-      projectDir,
-      resourceInstance
-    )
-    const tools =
-      providedTools ??
-      (await awaitWithAbort(
-        toolCatalog.resolve({ activeSkillNames: getEffectiveRuntimeSkillNames() }),
-        abortSignal
-      ))
-    this.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
-    const supportsVision = this.supportsVision(state.providerId, state.modelId)
-    const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
-
-    abortController.signal.throwIfAborted()
-    const loopRun = createLoopRun<StreamState>({
-      runId: `${sessionId}:${++this.nextRunSequence}`,
-      sessionId: toAppSessionId(sessionId),
-      messageId,
-      abortController,
-      messages,
-      streamState: createState(),
-      resources: {
-        toolDefinitions: tools,
-        activeSkillNames: getEffectiveRuntimeSkillNames()
-      },
-      initialRequestSeq
-    })
-    const activeGeneration = this.registerActiveGeneration(sessionId, loopRun, resourceInstance)
-    onRunRegistered?.(activeGeneration.runId)
-    if (traceEnabled) {
-      const traceAwareConfig = modelConfig as ModelConfig & {
-        requestTraceContext?: {
-          enabled: boolean
-          persist: (payload: ProviderRequestTracePayload) => Promise<void>
-        }
-      }
-      traceAwareConfig.requestTraceContext = {
-        enabled: true,
-        persist: async (payload: ProviderRequestTracePayload) => {
-          persistMessageTrace({
-            sessionId,
-            messageId,
-            providerId: state.providerId,
-            modelId: state.modelId,
-            payload,
-            requestSeq: loopRun.requestSeq
-          })
-        }
-      }
-    }
-    const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
-    const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
-    const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
-    let crossedPreStreamBoundary = false
-    const crossPreStreamBoundary = () => {
-      if (crossedPreStreamBoundary) return
-      crossedPreStreamBoundary = true
-      onBeforeProviderStream?.()
-    }
-
-    try {
-      this.dispatchHook('SessionStart', {
-        sessionId,
-        messageId,
-        promptPreview,
-        providerId: state.providerId,
-        modelId: state.modelId,
-        projectDir
-      })
-
-      let reviewConversationMessages = messages
-      const result = await processStream({
-        run: loopRun,
-        onConversationMessagesChange: (nextMessages) => {
-          reviewConversationMessages = nextMessages
-        },
-        maxProviderRounds,
-        toolCatalog,
-        refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
-          if (refreshSystemPrompt) {
-            return await refreshSystemPrompt(
-              getEffectiveRuntimeSkillNames(activeSkillNames),
-              refreshedTools
-            )
-          }
-          return await this.createBasePromptAssembler(resourceInstance).assemble({
-            sessionId: toAppSessionId(sessionId),
-            configuredPrompt: generationSettings.systemPrompt,
-            toolDefinitions: refreshedTools,
-            activeSkillNames: getEffectiveRuntimeSkillNames(activeSkillNames)
-          })
-        },
-        toolExecution: this.toolExecutionPort,
-        toolResults: this.toolResultPort,
-        coreStream: async function* (
-          requestMessages,
-          requestModelId,
-          requestModelConfig,
-          requestTemperature,
-          requestMaxTokens,
-          requestTools,
-          onProviderRequestStart,
-          assertProviderRequestAvailable
-        ) {
-          const requestBypassesContextBudget = shouldBypassContextBudget(
-            state.providerId,
-            requestModelConfig,
-            requestModelId
-          )
-          const isTtsRequest = isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
-          const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
-          let queuedForRateLimit = false
-          yield* contextCoordinator.streamProviderAttempts({
-            run: loopRun,
-            requestMessages,
-            modelId: requestModelId,
-            modelConfig: requestModelConfig,
-            temperature: requestTemperature,
-            maxTokens: requestMaxTokens,
-            tools: effectiveRequestTools,
-            bypassContextBudget: requestBypassesContextBudget,
-            fallbackContextLength: contextBudgetLength,
-            supportsVision,
-            supportsAudioInput,
-            traceDebugEnabled: traceEnabled,
-            viewContext,
-            budget: {
-              estimateToolReserveTokens,
-              preflight: ({ messages, tools, requestedMaxTokens }) =>
-                preflightRequestContext({
-                  messages,
-                  tools,
-                  contextLength: requestModelConfig.contextLength,
-                  requestedMaxTokens
-                }),
-              fitStrictRetry: ({ messages, reserveTokens }) =>
-                fitRequestMessagesToContextWindow({
-                  messages,
-                  contextLength: requestModelConfig.contextLength,
-                  reserveTokens,
-                  minimumProtectedTailCount: 0
-                }),
-              getStrictRetryMaxTokens: getProviderOverflowRetryMaxTokens,
-              getStrictRetryExtraReserve: () =>
-                getProviderOverflowRetryExtraReserve(requestModelConfig.contextLength),
-              buildOverflowError: (preflight) =>
-                new Error(buildRequestContextOverflowErrorMessage(preflight)),
-              buildOverflowAfterRecoveryError: (preflight) =>
-                new Error(buildProviderContextOverflowAfterRecoveryErrorMessage(preflight))
-            },
-            recovery: {
-              recover: async ({ requestMessages, requestedMaxTokens, tools }) =>
-                await recoverContextPressure({
-                  sessionId,
-                  providerId: state.providerId,
-                  modelId: requestModelId,
-                  requestMessages,
-                  baseSystemPrompt,
-                  contextLength: requestModelConfig.contextLength,
-                  requestedMaxTokens,
-                  tools,
-                  supportsVision,
-                  supportsAudioInput,
-                  interleavedReasoning,
-                  minimumProtectedTailCount: 0,
-                  signal: abortController.signal,
-                  expectedInstance: resourceInstance
-                })
-            },
-            manifest: {
-              resolvePolicy: resolveTapeViewManifestPolicy,
-              append: (manifest) =>
-                appendTapeViewManifest({
-                  sessionId,
-                  messageId,
-                  ...manifest,
-                  providerId: state.providerId,
-                  modelId: requestModelId
-                }),
-              onAppendError: (error) =>
-                logger.warn(
-                  `[DeepChatAgent] Failed to persist tape view manifest: ${
-                    error instanceof Error ? error.message : String(error)
-                  }`
-                )
-            },
-            rateGate: {
-              beforeWait: crossPreStreamBoundary,
-              wait: async (signal) => {
-                await llmProviderPresenter.executeWithRateLimit(state.providerId, {
-                  signal,
-                  onQueued: (snapshot) => {
-                    queuedForRateLimit = true
-                    emitRateLimitWaitingMessage(
-                      sessionId,
-                      rateLimitMessageId,
-                      activeGeneration.runId,
-                      snapshot
-                    )
-                  }
-                })
-              },
-              clearWaiting: () => {
-                if (!queuedForRateLimit) {
-                  return
-                }
-                clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
-                queuedForRateLimit = false
-              }
-            },
-            provider: {
-              assertAvailable: assertProviderRequestAvailable,
-              stream: ({ messages, modelId, modelConfig, temperature, maxTokens, tools }) =>
-                provider.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools),
-              beforeStream: () => {
-                onProviderRequestStart?.()
-                crossPreStreamBoundary()
-              }
-            },
-            isContextOverflowEvent: isFirstProviderContextOverflowEvent,
-            isContextOverflowError: isContextWindowErrorLike,
-            createAbortError
-          })
-        },
-        coreStreamReportsProviderStart: true,
-        providerId: state.providerId,
-        modelId: state.modelId,
-        modelConfig,
-        temperature,
-        maxTokens,
-        interleavedReasoning,
-        permissionMode: state.permissionMode,
-        initialBlocks,
-        initialAccounting,
-        onFirstProviderRoundReady: () => {
-          if (
-            !abortController.signal.aborted &&
-            this.isActiveRun(sessionId, activeGeneration.runId)
-          ) {
-            this.markFirstTurnReady(sessionId)
-          }
-        },
-        shouldYieldForPendingInput: () =>
-          Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
-        notificationObserver: {
-          notify: (notification) => {
-            this.dispatchHook(notification.event, {
-              sessionId,
-              messageId,
-              providerId: state.providerId,
-              modelId: state.modelId,
-              projectDir,
-              tool: { ...notification.tool },
-              permission:
-                notification.event === 'PermissionRequest' ? { ...notification.permission } : null
-            })
-          }
-        },
-        controls: {
-          getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
-          getEnabledSkillNames: () =>
-            this.toolResolver.normalizeNullablePolicyList(streamExtensionPolicy.enabledSkillNames),
-          getEnabledMcpServerIds: () =>
-            this.toolResolver.normalizeNullablePolicyList(
-              streamExtensionPolicy.enabledMcpServerIds
-            ),
-          getAgentId: () =>
-            resourceInstance.getAgentId()?.trim() ||
-            this.getSessionAgentId(sessionId) ||
-            'deepchat',
-          activateSkill: async (skillName) => {
-            const policy = await this.toolResolver.resolveAgentExtensionPolicy(
-              sessionId,
-              resourceInstance
-            )
-            if (filterSkillNamesByPolicy([skillName], policy).length === 0) {
-              return getEffectiveRuntimeSkillNames()
-            }
-            resourceInstance.activateRuntimeSkill(skillName)
-            return getEffectiveRuntimeSkillNames()
-          },
-          onStreamingProviderPermission: (permission, tool, commitDecision) => {
-            this.providerPermissionCoordinator.register(
-              sessionId,
-              messageId,
-              permission,
-              tool,
-              commitDecision
-            )
-          },
-          autoGrantPermission: async (permission) => {
-            await this.requireSessionPermissionPort().approvePermission(sessionId, permission)
-          },
-          reviewToolPermission: async (request) =>
-            await this.reviewToolPermissionForAutoApprove(request, {
-              providerId: state.providerId,
-              modelId: state.modelId,
-              messages: reviewConversationMessages.slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES),
-              signal: abortController.signal
-            }),
-          cacheImage: this.cacheImage
-        },
-        diagnostics: {
-          onInterleavedReasoningGap: (gap) => {
-            console.warn(
-              `[DeepChatAgent] Interleaved reasoning gap detected for ${gap.providerId}/${gap.modelId}. Update provider DB metadata at ${gap.providerDbSourceUrl}.`
-            )
-            if (!traceEnabled) {
-              return
-            }
-            persistMessageTrace({
-              sessionId,
-              messageId,
-              providerId: state.providerId,
-              modelId: state.modelId,
-              requestSeq: 0,
-              payload: {
-                endpoint: 'deepchat://interleaved-reasoning-gap',
-                headers: {},
-                body: gap
-              }
-            })
-          }
-        },
-        io: {
-          messageStore: this.messageStore,
-          tapeRecorder: this.tapeService
-        }
-      })
-      return {
-        runId: activeGeneration.runId,
-        result
-      }
-    } catch (error) {
-      this.clearActiveGeneration(sessionId, activeGeneration.runId)
-      throw error
-    }
-  }
-
-  private appendTapeViewManifest(params: {
-    sessionId: string
-    messageId: string
-    requestSeq: number
-    taskType: DeepChatTapeViewTaskType
-    policy: DeepChatTapeViewPolicy
-    policyVersion?: number | null
-    messages: ChatMessage[]
-    tools: MCPToolDefinition[]
-    tokenBudget: Omit<DeepChatTapeViewTokenBudget, 'estimatedPromptTokens'>
-    providerId: string
-    modelId: string
-    selection?: TapeViewContextSelection
-    summaryCursorOrderSeq: number
-    supportsVision: boolean
-    supportsAudioInput: boolean
-    traceDebugEnabled: boolean
-  }): void {
-    const sourceMaps = this.tapeService.getViewManifestSourceMaps(
-      params.sessionId,
-      params.messageId
-    )
-    const manifest = createTapeViewManifest({
-      sessionId: params.sessionId,
-      messageId: params.messageId,
-      requestSeq: params.requestSeq,
-      taskType: params.taskType,
-      policy: params.policy,
-      policyVersion: params.policyVersion ?? null,
-      messages: params.messages,
-      tools: params.tools,
-      latestEntryId: sourceMaps.latestEntryId,
-      anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
-      reconstructionAnchorEntryId: sourceMaps.reconstructionAnchorEntryId,
-      included: params.selection
-        ? buildIncludedRefs(params.selection, sourceMaps)
-        : buildRequestRefs(params.messages, sourceMaps),
-      excluded: params.selection ? buildExcludedRefs(params.selection, sourceMaps) : [],
-      summaryCursor: params.selection?.summaryCursor,
-      tokenBudget: params.tokenBudget,
-      providerId: params.providerId,
-      modelId: params.modelId,
-      summaryCursorOrderSeq: params.summaryCursorOrderSeq,
-      supportsVision: params.supportsVision,
-      supportsAudioInput: params.supportsAudioInput,
-      traceDebugEnabled: params.traceDebugEnabled
-    })
-    this.tapeService.appendViewManifest(manifest)
-  }
-
-  private async recoverRequestContextPressure(params: {
-    sessionId: string
-    providerId: string
-    modelId: string
-    requestMessages: ChatMessage[]
-    baseSystemPrompt?: string
-    contextLength: number
-    requestedMaxTokens: number
-    tools: MCPToolDefinition[]
-    supportsVision: boolean
-    supportsAudioInput: boolean
-    interleavedReasoning: InterleavedReasoningConfig
-    minimumProtectedTailCount: number
-    signal: AbortSignal
-    expectedInstance: DeepChatAgentInstance
-  }): Promise<{ messages: ChatMessage[]; systemPrompt?: string; summaryCursorOrderSeq?: number }> {
-    const toolReserveTokens = estimateToolReserveTokens(params.tools)
-    return await this.contextCoordinator.recoverFromPressure<SessionSummaryState>({
-      requestMessages: params.requestMessages,
-      baseSystemPrompt: params.baseSystemPrompt,
-      requestedMaxTokens: params.requestedMaxTokens,
-      toolReserveTokens,
-      minimumProtectedTailCount: params.minimumProtectedTailCount,
-      prepareCompaction: async (systemPrompt) => {
-        const prepared = await this.inputPreparationCoordinator.prepareExisting({
-          ensureHistory: () =>
-            this.tapeService.ensureSessionTapeReady(params.sessionId, this.messageStore)
-              .historyRecords,
-          prepareIntent: async (historyRecords) =>
-            await this.compactionService.prepareForContextPressureRecovery({
-              sessionId: params.sessionId,
-              providerId: params.providerId,
-              modelId: params.modelId,
-              systemPrompt,
-              contextLength: params.contextLength,
-              reserveTokens: params.requestedMaxTokens,
-              extraReserveTokens: toolReserveTokens,
-              supportsVision: params.supportsVision,
-              supportsAudioInput: params.supportsAudioInput,
-              preserveInterleavedReasoning: params.interleavedReasoning.preserveReasoningContent,
-              preserveEmptyInterleavedReasoning:
-                params.interleavedReasoning.preserveEmptyReasoningContent === true,
-              projectedMessages: this.withoutLeadingSystemMessage(params.requestMessages),
-              historyRecords,
-              signal: params.signal
-            }),
-          applyCompaction: async (intent) =>
-            await this.applyCompactionIntent(
-              params.sessionId,
-              intent,
-              { signal: params.signal },
-              params.expectedInstance
-            ),
-          readSummary: () => this.sessionStore.getSummaryState(params.sessionId),
-          afterCompactionApplyReturned: (intent) =>
-            this.memoryIngestionObserver.afterCompactionApplyReturned({
-              session: params.expectedInstance.getMemorySessionHandle(),
-              origin: 'context-pressure',
-              targetCursorOrderSeq: intent.targetCursorOrderSeq
-            }),
-          checkpoints: {
-            assertCurrent: () =>
-              this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
-          }
-        })
-        return prepared.intent ? { applied: true, summary: prepared.summary } : { applied: false }
-      },
-      assemblePostCompactionPrompt: async (summaryState, systemPrompt) =>
-        await this.postCompactionPromptAssembler.assemble({
-          memorySession: params.expectedInstance.getMemorySessionHandle(),
-          basePrompt: systemPrompt,
-          summaryText: summaryState.summaryText,
-          reconstructionAnchor: this.sessionStore.getReconstructionAnchorPromptState(
-            params.sessionId
-          ),
-          memoryQuery: this.memoryCoordinator.getLatestUserQuery(params.sessionId),
-          memoryMessageId: null
-        }),
-      getSummaryCursorOrderSeq: (summaryState) => summaryState.summaryCursorOrderSeq,
-      fit: ({ messages, reserveTokens, minimumProtectedTailCount }) =>
-        fitRequestMessagesToContextWindow({
-          messages,
-          contextLength: params.contextLength,
-          reserveTokens,
-          minimumProtectedTailCount
-        }),
-      assertCurrent: () =>
-        this.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
-    })
-  }
-
-  private withoutLeadingSystemMessage(messages: ChatMessage[]): ChatMessage[] {
-    return messages[0]?.role === 'system' ? messages.slice(1) : messages
   }
 
   private async drainPendingQueueIfPossible(
@@ -3822,51 +2118,6 @@ export class AgentRuntimePresenter {
     return reason === 'enqueue' && status === 'error'
   }
 
-  private rollbackClaimedPendingInputTurn(
-    sessionId: string,
-    pendingQueueItemId: string,
-    pendingInputSource: ProcessPendingInputSource,
-    userMessageId: string | null,
-    expectedInstance = this.getDeepChatInstance(sessionId)
-  ): void {
-    this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
-    const userMessage = userMessageId ? this.messageStore.getMessage(userMessageId) : null
-    if (userMessage) {
-      this.compactionRuntimeCoordinator.invalidateIfNeeded(
-        sessionId,
-        userMessage.orderSeq,
-        expectedInstance
-      )
-      this.memoryCoordinator.invalidateFromOrderSeq(sessionId, userMessage.orderSeq)
-      this.messageStore.deleteFromOrderSeq(sessionId, userMessage.orderSeq)
-    }
-    this.releaseClaimedPendingInput(sessionId, pendingQueueItemId, pendingInputSource)
-  }
-
-  private consumeClaimedPendingInput(
-    sessionId: string,
-    pendingInputId: string,
-    pendingInputSource: ProcessPendingInputSource
-  ): void {
-    if (pendingInputSource === 'steer') {
-      this.pendingInputCoordinator.consumeSteerInput(sessionId, pendingInputId)
-      return
-    }
-    this.pendingInputCoordinator.consumeQueuedInput(sessionId, pendingInputId)
-  }
-
-  private releaseClaimedPendingInput(
-    sessionId: string,
-    pendingInputId: string,
-    pendingInputSource: ProcessPendingInputSource
-  ): void {
-    if (pendingInputSource === 'steer') {
-      this.pendingInputCoordinator.releaseClaimedInput(sessionId, pendingInputId)
-      return
-    }
-    this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, pendingInputId)
-  }
-
   private registerActiveGeneration(
     sessionId: string,
     run: LoopRun<StreamState>,
@@ -3884,57 +2135,6 @@ export class AgentRuntimePresenter {
 
   private isActiveRun(sessionId: string, runId: string): boolean {
     return this.getHydratedDeepChatInstance(sessionId)?.isActiveRun(runId) ?? false
-  }
-
-  private buildRateLimitStreamMessageId(runId: string): string {
-    return `${RATE_LIMIT_STREAM_MESSAGE_PREFIX}${runId}`
-  }
-
-  private emitRateLimitWaitingMessage(
-    sessionId: string,
-    messageId: string,
-    requestId: string,
-    snapshot: RateLimitQueueSnapshot
-  ): void {
-    const block: AssistantMessageBlock = {
-      type: 'action',
-      action_type: 'rate_limit',
-      content: '',
-      status: 'pending',
-      timestamp: Date.now(),
-      extra: {
-        providerId: snapshot.providerId,
-        qpsLimit: snapshot.qpsLimit,
-        currentQps: snapshot.currentQps,
-        queueLength: snapshot.queueLength,
-        estimatedWaitTime: snapshot.estimatedWaitTime
-      }
-    }
-    const renderedBlocks = cloneBlocksForRenderer([block])
-
-    publishDeepchatEvent('chat.stream.updated', {
-      kind: 'snapshot',
-      requestId,
-      sessionId,
-      messageId,
-      updatedAt: Date.now(),
-      blocks: renderedBlocks
-    })
-  }
-
-  private clearRateLimitWaitingMessage(
-    sessionId: string,
-    messageId: string,
-    requestId: string
-  ): void {
-    publishDeepchatEvent('chat.stream.updated', {
-      kind: 'snapshot',
-      requestId,
-      sessionId,
-      messageId,
-      updatedAt: Date.now(),
-      blocks: []
-    })
   }
 
   private resolveStreamRequestId(sessionId: string, messageId: string): string {
@@ -4007,351 +2207,14 @@ export class AgentRuntimePresenter {
     budgetToolCall?: ResumeBudgetToolCall | null,
     initialAccounting?: MessageMetadata
   ): Promise<boolean> {
-    const instance = this.getDeepChatInstance(sessionId)
-    if (!instance.tryBeginResume(messageId)) {
-      return false
-    }
-    let preStreamAbortController: AbortController | null = null
-    let preStreamAbortSignal: AbortSignal | undefined
-    let streamRunId: string | undefined
-    const resumeAccounting =
-      initialAccounting ??
-      parseMessageMetadata(this.messageStore.getMessage(messageId)?.metadata ?? '{}')
-
-    try {
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const state = instance.getRuntimeState()
-      if (!state) {
-        throw new Error(`Session ${sessionId} not found`)
-      }
-
-      this.setSessionStatusForInstance(sessionId, instance, 'generating')
-      preStreamAbortController = this.ensureSessionAbortController(sessionId)
-      preStreamAbortSignal = preStreamAbortController.signal
-      const preStreamStartedAt = Date.now()
-      const supportsVision = this.supportsVision(state.providerId, state.modelId)
-      const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
-      const projectDir = this.resolveProjectDir(sessionId, undefined, instance)
-      const {
-        generationSettings,
-        useContextBudget,
-        interleavedReasoning,
-        contextBudgetLength,
-        maxTokens,
-        tools,
-        toolReserveTokens,
-        baseSystemPrompt
-      } = await this.prepareTurnResources({
-        sessionId,
-        messageId,
-        instance,
-        signal: preStreamAbortSignal,
-        projectDir
-      })
-      let resumeTargetOrderSeq: number | undefined
-      const preparedInput = await this.inputPreparationCoordinator.prepareExisting({
-        ensureHistory: () =>
-          this.runSynchronousPreStreamStep(
-            sessionId,
-            'tape-ready',
-            () =>
-              this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
-          ),
-        refreshHistory: () =>
-          this.runSynchronousPreStreamStep(
-            sessionId,
-            'tape-ready',
-            () =>
-              this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore).historyRecords
-          ),
-        prepareIntent: async (historyRecords) => {
-          resumeTargetOrderSeq =
-            historyRecords.find((record) => record.id === messageId)?.orderSeq ??
-            this.messageStore.getMessage(messageId)?.orderSeq
-          if (!useContextBudget) {
-            return null
-          }
-          return await this.runPreStreamStep(
-            { sessionId, messageId, step: 'compaction-prepare', signal: preStreamAbortSignal },
-            () =>
-              this.compactionService.prepareForResumeTurn({
-                sessionId,
-                messageId,
-                providerId: state.providerId,
-                modelId: state.modelId,
-                systemPrompt: baseSystemPrompt,
-                contextLength: generationSettings.contextLength,
-                reserveTokens: maxTokens,
-                extraReserveTokens: toolReserveTokens,
-                supportsVision,
-                supportsAudioInput,
-                preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-                preserveEmptyInterleavedReasoning:
-                  interleavedReasoning.preserveEmptyReasoningContent === true,
-                historyRecords,
-                signal: preStreamAbortSignal
-              })
-          )
-        },
-        applyCompaction: async (intent) =>
-          await this.runPreStreamStep(
-            {
-              sessionId,
-              messageId,
-              step: 'compaction-apply',
-              signal: preStreamAbortSignal
-            },
-            () =>
-              this.applyCompactionIntent(
-                sessionId,
-                intent,
-                {
-                  compactionMessageOrderSeq: resumeTargetOrderSeq,
-                  shiftMessagesFromCompactionOrderSeq: resumeTargetOrderSeq !== undefined,
-                  signal: preStreamAbortSignal
-                },
-                instance
-              )
-          ),
-        readSummary: () => this.sessionStore.getSummaryState(sessionId),
-        checkpoints: {
-          assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance),
-          beforeHistoryRefresh: () => {
-            this.throwIfStaleDeepChatInstance(sessionId, instance)
-            this.throwIfAbortRequested(preStreamAbortSignal)
-          }
-        }
-      })
-      const summaryState = preparedInput.summary
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      const preparedContext = await this.contextCoordinator.assemble({
-        assemblePostCompactionPrompt: async () =>
-          await this.runPreStreamStep(
-            { sessionId, messageId, step: 'memory-injection', signal: preStreamAbortSignal },
-            () =>
-              awaitWithAbort(
-                this.postCompactionPromptAssembler.assemble({
-                  memorySession: instance.getMemorySessionHandle(),
-                  basePrompt: baseSystemPrompt,
-                  summaryText: summaryState.summaryText,
-                  reconstructionAnchor:
-                    this.sessionStore.getReconstructionAnchorPromptState(sessionId),
-                  memoryQuery: this.memoryCoordinator.getLatestUserQuery(sessionId),
-                  memoryMessageId: messageId
-                }),
-                preStreamAbortSignal
-              )
-          ),
-        buildView: (systemPrompt) => {
-          const contextBuildStartedAt = Date.now()
-          const contextBuild = buildTapeResumeView({
-            sessionId,
-            assistantMessageId: messageId,
-            systemPrompt,
-            contextLength: contextBudgetLength,
-            reserveTokens: maxTokens,
-            messageStore: this.messageStore,
-            supportsVision,
-            historyRecords: preparedInput.history,
-            options: {
-              summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-              fallbackProtectedTurnCount: 1,
-              supportsAudioInput,
-              extraReserveTokens: toolReserveTokens,
-              preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-              preserveEmptyInterleavedReasoning:
-                interleavedReasoning.preserveEmptyReasoningContent === true
-            }
-          })
-          this.logSlowPreStreamStep(sessionId, 'context-build', contextBuildStartedAt)
-          return contextBuild
-        },
-        assertCurrent: () => this.throwIfStaleDeepChatInstance(sessionId, instance)
-      })
-      const resumeContextBuild = preparedContext.view
-      let resumeContext = resumeContextBuild.messages
-      if (budgetToolCall?.id && budgetToolCall.name && useContextBudget) {
-        const resumeBudget = this.fitResumeBudgetForToolCall({
-          resumeContext,
-          toolDefinitions: tools,
-          contextLength: generationSettings.contextLength,
-          maxTokens,
-          toolCallId: budgetToolCall.id,
-          toolName: budgetToolCall.name
-        })
-
-        if (resumeBudget?.kind === 'tool_error') {
-          await this.runPreStreamStep({ sessionId, messageId, step: 'tool-output-cleanup' }, () =>
-            this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
-          )
-          this.throwIfStaleDeepChatInstance(sessionId, instance)
-          updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
-          this.messageStore.updateAssistantContent(messageId, initialBlocks)
-          this.emitMessageRefresh(sessionId, messageId)
-          resumeContext = this.toolOutputGuard.replaceToolMessageContent(
-            resumeContext,
-            budgetToolCall.id,
-            resumeBudget.message
-          )
-        } else if (resumeBudget?.kind === 'terminal_error') {
-          await this.runPreStreamStep({ sessionId, messageId, step: 'tool-output-cleanup' }, () =>
-            this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
-          )
-          this.throwIfStaleDeepChatInstance(sessionId, instance)
-          updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
-          const terminalMetadata = stampTerminalMetadata(
-            resumeAccounting,
-            'error',
-            'context_window'
-          )
-          this.messageStore.setMessageError(
-            messageId,
-            initialBlocks,
-            JSON.stringify(terminalMetadata)
-          )
-          this.emitMessageRefresh(sessionId, messageId)
-          publishDeepchatEvent('chat.stream.failed', {
-            requestId: this.resolveStreamRequestId(sessionId, messageId),
-            sessionId,
-            messageId,
-            failedAt: Date.now(),
-            error: resumeBudget.message
-          })
-          this.dispatchTerminalHooks(sessionId, state, {
-            status: 'error',
-            stopReason: 'context_window',
-            errorMessage: resumeBudget.message,
-            usage: buildUsageFromMetadata(terminalMetadata)
-          })
-          this.setSessionStatus(sessionId, 'error')
-          this.memoryIngestionObserver.afterTurnSettled({
-            session: instance.getMemorySessionHandle(),
-            origin: 'resume',
-            outcome: { kind: 'returned', status: 'error' }
-          })
-          return false
-        }
-      }
-
-      this.throwIfAbortRequested(preStreamAbortSignal)
-      this.throwIfStaleDeepChatInstance(sessionId, instance)
-      const providerBoundary = this.startPreStreamProviderBoundaryWatchdog(
-        {
-          sessionId,
-          messageId,
-          step: 'pre-stream-provider-start',
-          signal: preStreamAbortSignal
-        },
-        preStreamStartedAt
-      )
-      let streamResult: { runId: string; result: ProcessResult }
-      try {
-        streamResult = await this.runStreamForMessage({
-          sessionId,
-          messageId,
-          messages: resumeContext,
-          projectDir,
-          resourceInstance: instance,
-          abortController: preStreamAbortController,
-          tools,
-          baseSystemPrompt,
-          initialBlocks,
-          initialAccounting: resumeAccounting,
-          maxProviderRounds: resumeAccounting.maxProviderRounds,
-          interleavedReasoning,
-          viewContext: {
-            taskType: 'resume',
-            policy: resumeContextBuild.policyId,
-            policyVersion: resumeContextBuild.policyVersion,
-            selection: buildTapeViewSelection(resumeContextBuild.metadata),
-            summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-            supportsVision,
-            supportsAudioInput,
-            traceDebugEnabled:
-              this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
-          },
-          onBeforeProviderStream: providerBoundary.complete,
-          onRunRegistered: (runId) => {
-            streamRunId = runId
-          }
-        })
-      } finally {
-        providerBoundary.cancel()
-      }
-      const { runId, result } = streamResult
-      streamRunId = runId
-      try {
-        this.applyProcessResultStatus(sessionId, result, runId)
-      } finally {
-        this.clearActiveGeneration(sessionId, runId)
-      }
-      if (result?.status === 'completed' || result?.status === 'aborted') {
-        void this.drainPendingQueueIfPossible(sessionId, 'completed')
-      }
-      if (result) {
-        this.memoryIngestionObserver.afterTurnSettled({
-          session: instance.getMemorySessionHandle(),
-          origin: 'resume',
-          outcome: { kind: 'returned', status: result.status }
-        })
-      }
-      return true
-    } catch (error) {
-      this.memoryIngestionObserver.afterTurnSettled({
-        session: instance.getMemorySessionHandle(),
-        origin: 'resume',
-        outcome: { kind: 'thrown', error }
-      })
-      if (this.isStaleDeepChatInstanceError(error)) {
-        return false
-      }
-      console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
-      if (this.isAbortError(error) || preStreamAbortSignal?.aborted) {
-        this.clearSessionAbortController(sessionId, preStreamAbortController ?? undefined)
-        this.settleAbortedTurn(
-          sessionId,
-          messageId,
-          streamRunId,
-          JSON.stringify(
-            stampTerminalMetadata(resumeAccounting, 'aborted', 'user_stop', streamRunId)
-          )
-        )
-        // Stop/steer: continue the queue automatically with the next item (steer items first).
-        void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        return false
-      }
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const stopReason = isContextWindowErrorLike(error) ? 'context_window' : 'pre_stream_error'
-      const terminalMetadata = stampTerminalMetadata(
-        resumeAccounting,
-        'error',
-        stopReason,
-        streamRunId
-      )
-      const blocks = buildTerminalErrorBlocks(initialBlocks, errorMessage)
-      this.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
-      this.emitMessageRefresh(sessionId, messageId)
-      publishDeepchatEvent('chat.stream.failed', {
-        requestId: this.resolveStreamRequestId(sessionId, messageId),
-        sessionId,
-        messageId,
-        failedAt: Date.now(),
-        error: errorMessage
-      })
-      this.dispatchTerminalHooks(sessionId, this.getDeepChatRuntimeState(sessionId), {
-        status: 'error',
-        stopReason,
-        errorMessage,
-        usage: buildUsageFromMetadata(terminalMetadata)
-      })
-      this.setSessionStatus(sessionId, 'error')
-      throw error
-    } finally {
-      this.clearSessionAbortController(sessionId, preStreamAbortController ?? undefined)
-      instance.finishResume(messageId)
-    }
+    return await this.turnCoordinator.resume(
+      sessionId,
+      messageId,
+      initialBlocks,
+      budgetToolCall,
+      initialAccounting
+    )
   }
-
   private async buildSystemPromptWithSkills(
     sessionId: string,
     basePrompt: string,
@@ -4432,31 +2295,6 @@ export class AgentRuntimePresenter {
     this.throwIfStaleDeepChatInstance(sessionId, expectedInstance)
     expectedInstance.setGenerationSettings(sanitized)
     return { ...sanitized }
-  }
-
-  private persistMessageTrace(args: {
-    sessionId: string
-    messageId: string
-    providerId: string
-    modelId: string
-    payload: ProviderRequestTracePayload
-    requestSeq?: number
-  }): void {
-    const { sessionId, messageId, providerId, modelId, payload, requestSeq } = args
-    const persistable = buildPersistableMessageTracePayload(payload)
-
-    this.messageStore.insertMessageTrace({
-      id: nanoid(),
-      sessionId,
-      messageId,
-      providerId,
-      modelId,
-      endpoint: persistable.endpoint,
-      headersJson: persistable.headersJson,
-      bodyJson: persistable.bodyJson,
-      truncated: persistable.truncated,
-      requestSeq
-    })
   }
 
   private async ensureSessionReadyForPendingInputMutation(sessionId: string): Promise<void> {
@@ -4543,114 +2381,6 @@ export class AgentRuntimePresenter {
     } catch (error) {
       console.warn('[DeepChatAgent] Failed to persist subagent tool progress:', error)
     }
-  }
-
-  private async grantPermissionForPayload(
-    sessionId: string,
-    payload: PendingToolInteraction['permission'] | undefined,
-    toolCall: NonNullable<AssistantMessageBlock['tool_call']>
-  ): Promise<void> {
-    if (!payload) return
-
-    const sessionPermissionPort = this.requireSessionPermissionPort()
-    const permissionType = payload.permissionType
-    const serverName = payload.serverName || toolCall.server_name || ''
-    const toolName = payload.toolName || toolCall.name || ''
-
-    if (permissionType === 'command') {
-      const command = payload.command || payload.commandInfo?.command || ''
-      const signature = payload.commandSignature || payload.commandInfo?.signature || command
-      if (signature) {
-        await sessionPermissionPort.approvePermission(sessionId, {
-          permissionType: 'command',
-          command,
-          commandSignature: signature,
-          commandInfo: payload.commandInfo
-        })
-      }
-      return
-    }
-
-    if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
-      await sessionPermissionPort.approvePermission(sessionId, {
-        permissionType:
-          permissionType === 'read' || permissionType === 'write' || permissionType === 'all'
-            ? permissionType
-            : 'write',
-        serverName,
-        toolName,
-        paths: payload.paths
-      })
-      return
-    }
-
-    if (serverName === 'deepchat-settings' && toolName) {
-      await sessionPermissionPort.approvePermission(sessionId, {
-        permissionType: 'write',
-        serverName,
-        toolName
-      })
-      return
-    }
-
-    if (
-      serverName &&
-      (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
-    ) {
-      await sessionPermissionPort.approvePermission(sessionId, {
-        permissionType,
-        serverName,
-        toolName
-      })
-    }
-  }
-
-  private async executeDeferredToolCall(
-    sessionId: string,
-    messageId: string,
-    toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
-    onToolCallStarted?: () => void
-  ): Promise<DeferredToolExecutionResult> {
-    return await this.deferredToolExecutor.execute(
-      sessionId,
-      messageId,
-      toolCall,
-      onToolCallStarted
-    )
-  }
-
-  private fitResumeBudgetForToolCall(params: {
-    resumeContext: ChatMessage[]
-    toolDefinitions: MCPToolDefinition[]
-    contextLength: number
-    maxTokens: number
-    toolCallId: string
-    toolName: string
-  }) {
-    if (
-      this.toolOutputGuard.hasContextBudget({
-        conversationMessages: params.resumeContext,
-        toolDefinitions: params.toolDefinitions,
-        contextLength: params.contextLength,
-        maxTokens: params.maxTokens
-      })
-    ) {
-      return null
-    }
-
-    return this.toolOutputGuard.fitToolError({
-      conversationMessages: params.resumeContext,
-      toolDefinitions: params.toolDefinitions,
-      contextLength: params.contextLength,
-      maxTokens: params.maxTokens,
-      toolCallId: params.toolCallId,
-      toolName: params.toolName,
-      errorMessage: this.toolOutputGuard.buildContextOverflowMessage(
-        params.toolCallId,
-        params.toolName
-      ),
-      mode: 'replace'
-    })
   }
 
   private async normalizeToolResultContent(params: {

@@ -58,3 +58,6 @@ initial-turn and resume compaction/context flows.
   production TypeScript by 31 lines.
 - `AgentRuntimePresenter` remains the only changed production source file; no new runtime entity or
   dependency was added.
+- The later [runtime lifecycle ownership](../deepchat-runtime-lifecycle-owners/spec.md) refactor
+  retained this shared preparation sequence inside `TurnCoordinator` while moving both callers out
+  of the presenter.

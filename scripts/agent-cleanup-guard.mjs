@@ -47,7 +47,7 @@ const AGENT_RUNTIME_PRESENTER_FILE = path.join(
   ROOT,
   'src/main/presenter/agentRuntimePresenter/index.ts'
 )
-const AGENT_RUNTIME_PRESENTER_MAX_LINES = 5_000
+const AGENT_RUNTIME_PRESENTER_MAX_LINES = 3_200
 
 const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionManager',
