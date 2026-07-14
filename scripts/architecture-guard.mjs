@@ -1561,14 +1561,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     const source = await readSource(filePath)
     const specifiers = extractModuleSpecifiers(source)
     const isMainSource = isUnder(filePath, MAIN_SOURCE_ROOT)
-
-    if (
+    const scansRetiredSessionFacade =
       isMainSource ||
       isUnder(filePath, SHARED_SOURCE_ROOT) ||
       isUnder(filePath, REGULAR_MAIN_TEST_ROOT)
-    ) {
+    const sourceFile = scansRetiredSessionFacade ? sourceFileForAst(source, filePath) : null
+
+    if (scansRetiredSessionFacade) {
       const retiredFacadeNames = findIdentifierNames(
-        sourceFileForAst(source, filePath),
+        sourceFile,
         RETIRED_SESSION_FACADE_NAMES
       )
       for (const name of retiredFacadeNames) {
@@ -1579,7 +1580,6 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     }
 
     if (isMainSource) {
-      const sourceFile = sourceFileForAst(source, filePath)
       const importRecords = importRecordsFromSourceFile(sourceFile)
 
       if (isSessionMigratedConsumerPath(filePath)) {
@@ -1731,7 +1731,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     if (isUnder(filePath, MAIN_SOURCE_ROOT)) {
       if (source.includes('MemoryRuntimeCoordinator')) {
         const coordinatorClasses = findNamedClassDeclarations(
-          sourceFileForAst(source, filePath),
+          sourceFile,
           'MemoryRuntimeCoordinator'
         )
         memoryCoordinatorOwners.push(

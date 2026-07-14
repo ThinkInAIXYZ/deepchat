@@ -532,8 +532,8 @@ export class Presenter implements IPresenter {
 
     // Initialize new agent architecture presenters first (needed by hooksNotifications)
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getSession: async () => null,
-      getMessage: async () => null
+      getSession: (sessionId) => this.sessionProjectionCoordinator.getSession(sessionId),
+      getMessage: (messageId) => this.sessionProjectionCoordinator.getMessage(messageId)
     })
     this.cronJobs = new CronJobsService({
       sqlitePresenter: this.sqlitePresenter as unknown as SQLitePresenter,
@@ -957,12 +957,6 @@ export class Presenter implements IPresenter {
     })
     this.remoteControlPresenter = this.#remoteControlPresenter
     this.cronJobs.setRemoteDeliveryPort(this.#remoteControlPresenter)
-
-    // Update hooks notifications with the composition-owned projection.
-    this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getSession: (sessionId) => this.sessionProjectionCoordinator.getSession(sessionId),
-      getMessage: (messageId) => this.sessionProjectionCoordinator.getMessage(messageId)
-    })
 
     this.setupEventBus()
   }
