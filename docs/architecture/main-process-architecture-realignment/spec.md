@@ -141,6 +141,9 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-028 | Skill 是进程级能力模块；它负责 Skill 文件、目录扫描、缓存、Plugin 贡献和有效性校验，Session 仍负责长期保存每个 Session 的 Skill 选择。 | 已确定 |
 | D-029 | 外部工具扫描、导入和导出属于 Skill 模块内部的同步功能，不作为与 Skill 并列的顶层模块。 | 已确定 |
 | D-030 | Plugin 通过必需的直接调用登记和撤销 Skill 贡献；Agent、Tool 和 Routes 只接收各自需要的 Skill 操作。 | 已确定 |
+| D-031 | Plugin 负责可信 package、安装状态和能力登记，不接管 MCP、Skill 或 Tool 的实际运行状态。 | 已确定 |
+| D-032 | Plugin settings `BrowserWindow` 归 Desktop 所有；Plugin 只通过明确接口请求打开或关闭已校验的 settings 页面。 | 已确定 |
+| D-033 | Plugin 启动先撤销同 owner 的旧登记再完整登记 manifest 能力；App 在普通 MCP 启动前启动 Plugin，在 MCP shutdown 前停止 Plugin-owned server。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 

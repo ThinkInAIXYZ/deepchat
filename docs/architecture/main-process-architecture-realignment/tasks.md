@@ -111,7 +111,7 @@
 - [x] 设计 Tool catalog/execution/permission 的职责。
 - [x] 设计 MCP server 生命周期和 Tool 配合方式。
 - [x] 设计 Skill 文件、同步和 Session 选择规则，见 [Skill 模块边界](./skill.md)。
-- [ ] 设计 Plugin package 生命周期和能力登记。
+- [x] 设计 Plugin package 生命周期和能力登记，见 [Plugin 模块边界](./plugin.md)。
 - [ ] 设计 Memory 存储、runtime 和后台写入。
 - [ ] 设计 Knowledge 索引和检索。
 - [ ] 设计 Workspace、file 和 watcher。
