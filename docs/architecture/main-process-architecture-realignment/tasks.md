@@ -226,6 +226,8 @@
   转交 pending input 的入口，以及 ACP 缺少该接口时继续运行的分支。
 - [x] 把共享 `AcpRuntimeOwner` 的创建和 shutdown 移给 Agent ACP/App composition；Provider 只接收
   owner 供旧 `AcpProvider` 兼容路径使用，并删除 optional MCP registry 和普通 Provider 的无用依赖。
+- [x] App shutdown 明确停止 Provider runtime；清理全部已创建的 Provider 实例，并拒绝 shutdown
+  后再创建运行实例。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

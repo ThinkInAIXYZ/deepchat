@@ -1243,6 +1243,7 @@ export async function createMainProcessControl(dependencies: {
         `[Main] Memory ingestion drain timed out with ${memoryIngestionDrainOutcome.pendingSessions.length} pending session(s); late writes remain fenced.`
       )
     }
+    await runDestroyStep('providerRuntime.shutdown', () => llmProviderPresenter.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('sqlitePresenter.close', () => sqlitePresenter.close())
     shortcutPresenter.destroy()

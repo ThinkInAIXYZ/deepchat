@@ -291,6 +291,18 @@ describe('LLMProviderPresenter Integration Tests', () => {
 
       expect(providerInstance).toBeInstanceOf(AiSdkProvider)
     })
+
+    it('cleans provider instances once and rejects new runtime work after shutdown', async () => {
+      llmProviderPresenter.getProviderInstance('mock-openai-api')
+
+      await llmProviderPresenter.shutdown()
+      await llmProviderPresenter.shutdown()
+
+      expect(llmProviderPresenter.getExistingProviderInstance('mock-openai-api')).toBeUndefined()
+      expect(() => llmProviderPresenter.getProviderInstance('mock-openai-api')).toThrow(
+        '[Provider] Runtime is closed'
+      )
+    })
   })
 
   describe('Model Management', () => {

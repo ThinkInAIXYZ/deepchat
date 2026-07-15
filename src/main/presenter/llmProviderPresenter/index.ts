@@ -136,6 +136,7 @@ export class LLMProviderPresenter
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpRuntimeOwner: AcpRuntimeOwner
   private readonly acpSessionPersistence: AcpSessionPersistence
+  private shutdownPromise?: Promise<void>
 
   constructor(
     configPresenter: IConfigPresenter,
@@ -234,6 +235,15 @@ export class LLMProviderPresenter
 
   public getExistingProviderInstance(providerId: string): BaseLLMProvider | undefined {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.shutdownPromise) return await this.shutdownPromise
+    this.shutdownPromise = (async () => {
+      await this.stopAllStreams()
+      this.providerInstanceManager.shutdown()
+    })()
+    return await this.shutdownPromise
   }
 
   async clearAcpSession(conversationId: string): Promise<void> {

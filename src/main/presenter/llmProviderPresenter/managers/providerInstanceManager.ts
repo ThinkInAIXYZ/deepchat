@@ -24,6 +24,7 @@ interface ProviderInstanceManagerOptions {
 export class ProviderInstanceManager {
   private readonly providers: Map<string, LLM_PROVIDER> = new Map()
   private readonly providerInstances: Map<string, BaseLLMProvider> = new Map()
+  private closed = false
 
   constructor(private readonly options: ProviderInstanceManagerOptions) {}
 
@@ -90,6 +91,7 @@ export class ProviderInstanceManager {
   }
 
   getProviderInstance(providerId: string): BaseLLMProvider {
+    if (this.closed) throw new Error('[Provider] Runtime is closed')
     let instance = this.providerInstances.get(providerId)
     if (!instance) {
       const provider = this.getProviderById(providerId)
@@ -100,6 +102,14 @@ export class ProviderInstanceManager {
       this.providerInstances.set(providerId, instance)
     }
     return instance
+  }
+
+  shutdown(): void {
+    if (this.closed) return
+    this.closed = true
+    for (const providerId of this.providerInstances.keys()) {
+      this.cleanupProviderInstance(providerId)
+    }
   }
 
   private handleProviderAdd(change: ProviderChange): void {
