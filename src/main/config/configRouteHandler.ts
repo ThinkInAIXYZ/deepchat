@@ -100,6 +100,7 @@ import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
+import type { LoggingService } from '@/app/logging'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
@@ -108,6 +109,7 @@ export async function dispatchConfigRoute(
   updateSettings: UpdateSettings,
   desktopSettings: DesktopSettings,
   projectService: ProjectService,
+  logging: LoggingService,
   setFloatingButtonEnabled: (enabled: boolean) => void,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
@@ -210,7 +212,7 @@ export async function dispatchConfigRoute(
 
     case configOpenLoggingFolderRoute.name: {
       configOpenLoggingFolderRoute.input.parse(rawInput)
-      await configService.openLoggingFolder()
+      await logging.openFolder()
       return configOpenLoggingFolderRoute.output.parse({ opened: true })
     }
 

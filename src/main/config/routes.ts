@@ -23,6 +23,7 @@ import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
+import type { LoggingService } from '@/app/logging'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -42,6 +43,7 @@ export function createConfigRoutes(deps: {
   desktopSettings: DesktopSettings
   applyContentProtection(enabled: boolean): void
   projectService: ProjectService
+  logging: LoggingService
   setFloatingButtonEnabled(enabled: boolean): void
   testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
@@ -61,6 +63,7 @@ export function createConfigRoutes(deps: {
           deps.updateSettings,
           deps.desktopSettings,
           deps.projectService,
+          deps.logging,
           deps.setFloatingButtonEnabled,
           deps.testHookCommand,
           routeName,
@@ -81,7 +84,12 @@ export function createConfigRoutes(deps: {
   }
 
   const settings = createSettingsRouteHandler(
-    createSettingsRouteAdapter(deps.config, deps.desktopSettings, deps.applyContentProtection)
+    createSettingsRouteAdapter(
+      deps.config,
+      deps.desktopSettings,
+      deps.logging,
+      deps.applyContentProtection
+    )
   )
   entries.push(
     [settingsGetSnapshotRoute.name, async (rawInput) => settings.getSnapshot(rawInput)],

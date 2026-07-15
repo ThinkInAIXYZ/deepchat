@@ -54,6 +54,7 @@ import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { KnowledgeService } from '../knowledge'
 import { WorkspaceService } from '../workspace'
 import { FileWatcherService } from '../platform/fileWatcher'
+import { LoggingService } from './logging'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
@@ -297,6 +298,9 @@ export async function createMainProcessControl(dependencies: {
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
   devicePresenter = new DevicePresenter()
+  const loggingService = new LoggingService(dependencies.settingsStore, () =>
+    devicePresenter.restartApp()
+  )
   projectService = new ProjectService(sqlitePresenter, devicePresenter, dependencies.settingsStore)
   exporter = new ConversationExporterService({
     sqlitePresenter: sqlitePresenter,
@@ -997,7 +1001,6 @@ export async function createMainProcessControl(dependencies: {
     refreshFloatingLanguage: () => floatingButtonPresenter.refreshLanguage(),
     refreshTabLanguage: async () => await (tabPresenter as TabPresenter).refreshLanguage(),
     refreshFloatingTheme: async () => await floatingButtonPresenter.refreshTheme(),
-    restartApp: () => devicePresenter.restartApp(),
     applyProxyMode: (mode) => {
       proxyConfig.setProxyMode(mode as ProxyMode)
       void proxyConfig.resolveProxy().then((resolved) => {
@@ -1427,6 +1430,7 @@ export async function createMainProcessControl(dependencies: {
       applyContentProtection: (enabled) =>
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       projectService,
+      logging: loggingService,
       setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {

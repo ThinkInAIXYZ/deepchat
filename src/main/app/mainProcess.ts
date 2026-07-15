@@ -28,7 +28,7 @@ export async function startMainProcess(
     const settingsStore = createSettingsStore()
     const secretStore = new SecretStore(settingsStore)
     const configService = new ConfigService(settingsStore)
-    setLoggingEnabled(configService.getLoggingEnabled())
+    setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(configService.getProxyMode(), configService.getCustomProxyUrl())
 
     const databaseSecurityPresenter = new DatabaseSecurityPresenter()

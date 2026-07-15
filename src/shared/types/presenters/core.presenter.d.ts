@@ -469,10 +469,6 @@ export interface ConfigServicePort {
   setCodeFontFamily(fontFamily?: string | null): void
   resetFontSettings(): void
   getSystemFonts(): Promise<string[]>
-  // Logging settings
-  getLoggingEnabled(): boolean
-  setLoggingEnabled(enabled: boolean): void
-  openLoggingFolder(): void
   // Custom model management
   getCustomModels(providerId: string): MODEL_META[]
   setCustomModels(providerId: string, models: MODEL_META[]): void

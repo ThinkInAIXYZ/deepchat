@@ -27,7 +27,6 @@ function attachRuntimeEffects(
       refreshFloatingLanguage: vi.fn(),
       refreshTabLanguage: vi.fn(),
       refreshFloatingTheme: vi.fn(),
-      restartApp: vi.fn(),
       applyProxyMode: vi.fn(),
       applyCustomProxyUrl: vi.fn(),
       refreshAcpProviderAgents,

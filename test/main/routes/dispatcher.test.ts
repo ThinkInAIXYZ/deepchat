@@ -316,10 +316,6 @@ function createRuntime() {
     setCopyWithCotEnabled: vi.fn((value: boolean) => {
       settings.copyWithCotEnabled = value
     }),
-    getLoggingEnabled: vi.fn(() => settings.loggingEnabled),
-    setLoggingEnabled: vi.fn((value: boolean) => {
-      settings.loggingEnabled = value
-    }),
     getProxyMode: vi.fn(() => settings.proxyMode),
     setProxyMode: vi.fn((mode: 'system' | 'none' | 'custom') => {
       settings.proxyMode = mode
@@ -328,7 +324,6 @@ function createRuntime() {
     setCustomProxyUrl: vi.fn((url: string) => {
       settings.customProxyUrl = url
     }),
-    openLoggingFolder: vi.fn().mockResolvedValue(undefined),
     getSkillDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
     setSkillDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
       settings.skillDraftSuggestionsEnabled = enabled
@@ -920,6 +915,13 @@ function createRuntime() {
   }
   const applyContentProtection = vi.fn()
   const setFloatingButtonEnabled = vi.fn()
+  const loggingService = {
+    getEnabled: vi.fn(() => settings.loggingEnabled),
+    setEnabled: vi.fn((value: boolean) => {
+      settings.loggingEnabled = value
+    }),
+    openFolder: vi.fn().mockResolvedValue(undefined)
+  }
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,
     durationMs: 10,
@@ -1517,6 +1519,7 @@ function createRuntime() {
     desktopSettings: desktopSettings as never,
     applyContentProtection,
     projectService: projectPresenter as never,
+    logging: loggingService as never,
     setFloatingButtonEnabled,
     testHookCommand,
     recordActivity: (input) => {
@@ -1593,6 +1596,7 @@ function createRuntime() {
     updateSettings,
     desktopSettings,
     applyContentProtection,
+    loggingService,
     testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
@@ -2738,8 +2742,14 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('applies typed settings updates through their owners', async () => {
-    const { runtime, configService, desktopSettings, applyContentProtection, settings } =
-      createRuntime()
+    const {
+      runtime,
+      configService,
+      desktopSettings,
+      applyContentProtection,
+      loggingService,
+      settings
+    } = createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -2749,7 +2759,8 @@ describe('dispatchDeepchatRoute', () => {
           { key: 'fontSizeLevel', value: 4 },
           { key: 'privacyModeEnabled', value: true },
           { key: 'notificationsEnabled', value: false },
-          { key: 'contentProtectionEnabled', value: true }
+          { key: 'contentProtectionEnabled', value: true },
+          { key: 'loggingEnabled', value: true }
         ]
       },
       {
@@ -2763,23 +2774,27 @@ describe('dispatchDeepchatRoute', () => {
     expect(desktopSettings.setNotificationsEnabled).toHaveBeenCalledWith(false)
     expect(desktopSettings.setContentProtectionEnabled).toHaveBeenCalledWith(true)
     expect(applyContentProtection).toHaveBeenCalledWith(true)
+    expect(loggingService.setEnabled).toHaveBeenCalledWith(true)
     expect(settings.fontSizeLevel).toBe(4)
     expect(settings.privacyModeEnabled).toBe(true)
     expect(settings.notificationsEnabled).toBe(false)
     expect(settings.contentProtectionEnabled).toBe(true)
+    expect(settings.loggingEnabled).toBe(true)
     expect(result).toEqual({
       version: expect.any(Number),
       changedKeys: [
         'fontSizeLevel',
         'privacyModeEnabled',
         'notificationsEnabled',
-        'contentProtectionEnabled'
+        'contentProtectionEnabled',
+        'loggingEnabled'
       ],
       values: {
         fontSizeLevel: 4,
         privacyModeEnabled: true,
         notificationsEnabled: false,
-        contentProtectionEnabled: true
+        contentProtectionEnabled: true,
+        loggingEnabled: true
       }
     })
   })
@@ -3618,8 +3633,14 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches proxy, logging, update channel, skill draft, provider DB, and hook routes', async () => {
-    const { runtime, configService, hookSettings, updateSettings, testHookCommand } =
-      createRuntime()
+    const {
+      runtime,
+      configService,
+      loggingService,
+      hookSettings,
+      updateSettings,
+      testHookCommand
+    } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3736,7 +3757,7 @@ describe('dispatchDeepchatRoute', () => {
       mode: 'custom',
       customProxyUrl: 'http://127.0.0.1:7890'
     })
-    expect(configService.openLoggingFolder).toHaveBeenCalled()
+    expect(loggingService.openFolder).toHaveBeenCalled()
     expect(loggingResult).toEqual({
       opened: true
     })

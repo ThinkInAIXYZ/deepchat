@@ -211,6 +211,8 @@
   保存后直接调用 Window 应用内容保护，Config 不再持有 Desktop 行为。
 - [x] Floating Button 的开关和位置移入 Desktop；Floating Button 和 Config route 直接使用
   `DesktopSettings`，开关保存后由 route 直接应用，不再经过 Config runtime effect。
+- [x] 日志开关、日志目录和重启动作移给 App 的 `LoggingService`；App 启动直接从
+  `SettingsStore` 读取初值，Settings 和 Config route 不再经过 Config。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；

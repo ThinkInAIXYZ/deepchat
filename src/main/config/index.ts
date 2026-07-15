@@ -40,7 +40,7 @@ import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { isDeepStrictEqual } from 'node:util'
-import { app, nativeTheme, shell } from 'electron'
+import { app, nativeTheme } from 'electron'
 import fs from 'fs'
 import { McpConfHelper } from './mcpConfHelper'
 import { compare } from 'compare-versions'
@@ -493,7 +493,6 @@ export class ConfigService implements ConfigServicePort {
     refreshFloatingLanguage(): void
     refreshTabLanguage(): Promise<void>
     refreshFloatingTheme(): Promise<void>
-    restartApp(): void
     applyProxyMode(mode: string): void
     applyCustomProxyUrl(url: string): void
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
@@ -1971,24 +1970,6 @@ export class ConfigService implements ConfigServicePort {
     this.runtimeEffects.applyCustomProxyUrl(url)
   }
 
-  // Get log folder path
-  getLoggingFolderPath(): string {
-    return path.join(this.userDataPath, 'logs')
-  }
-
-  // Open log folder
-  async openLoggingFolder(): Promise<void> {
-    const loggingFolderPath = this.getLoggingFolderPath()
-
-    // If folder doesn't exist, create it first
-    if (!fs.existsSync(loggingFolderPath)) {
-      fs.mkdirSync(loggingFolderPath, { recursive: true })
-    }
-
-    // Open folder
-    await shell.openPath(loggingFolderPath)
-  }
-
   // Skills settings
   getSkillsEnabled(): boolean {
     return this.getSetting<boolean>('enableSkills') ?? true
@@ -2136,24 +2117,6 @@ export class ConfigService implements ConfigServicePort {
 
   setPrivacyModeEnabled(enabled: boolean): void {
     this.uiSettingsHelper.setPrivacyModeEnabled(enabled)
-  }
-
-  getLoggingEnabled(): boolean {
-    return this.getSetting<boolean>('loggingEnabled') ?? false
-  }
-
-  setLoggingEnabled(enabled: boolean): void {
-    this.setSetting('loggingEnabled', enabled)
-    publishDeepchatEvent('settings.changed', {
-      changedKeys: ['loggingEnabled'],
-      version: Date.now(),
-      values: {
-        loggingEnabled: Boolean(enabled)
-      }
-    })
-    setTimeout(() => {
-      this.runtimeEffects.restartApp()
-    }, 1000)
   }
 
   getCopyWithCotEnabled(): boolean {

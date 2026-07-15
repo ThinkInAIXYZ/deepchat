@@ -1,5 +1,6 @@
 import type { ConfigServicePort } from '@shared/presenter'
 import type { DesktopSettings } from '@/desktop/settings'
+import type { LoggingService } from '@/app/logging'
 import {
   SETTINGS_KEYS,
   type SettingsChange,
@@ -17,7 +18,8 @@ export interface SettingsRouteAdapter {
 
 export const readSettingsSnapshot = (
   configService: ConfigServicePort,
-  desktopSettings: DesktopSettings
+  desktopSettings: DesktopSettings,
+  logging: LoggingService
 ): SettingsSnapshotValues => ({
   fontSizeLevel: configService.getSetting<number>('fontSizeLevel') ?? 1,
   fontFamily: configService.getFontFamily() ?? '',
@@ -33,7 +35,7 @@ export const readSettingsSnapshot = (
   launchAtLoginEnabled: desktopSettings.getLaunchAtLoginEnabled(),
   traceDebugEnabled: configService.getSetting<boolean>('traceDebugEnabled') ?? false,
   copyWithCotEnabled: configService.getCopyWithCotEnabled(),
-  loggingEnabled: configService.getLoggingEnabled()
+  loggingEnabled: logging.getEnabled()
 })
 
 export const pickSettingsSnapshot = (
@@ -54,6 +56,7 @@ export const pickSettingsSnapshot = (
 export const applySettingChange = (
   configService: ConfigServicePort,
   desktopSettings: DesktopSettings,
+  logging: LoggingService,
   applyContentProtection: (enabled: boolean) => void,
   change: SettingsChange
 ): void => {
@@ -102,7 +105,7 @@ export const applySettingChange = (
       configService.setCopyWithCotEnabled(change.value)
       return
     case 'loggingEnabled':
-      configService.setLoggingEnabled(change.value)
+      logging.setEnabled(change.value)
       return
   }
 }
@@ -110,12 +113,13 @@ export const applySettingChange = (
 export function createSettingsRouteAdapter(
   configService: ConfigServicePort,
   desktopSettings: DesktopSettings,
+  logging: LoggingService,
   applyContentProtection: (enabled: boolean) => void
 ): SettingsRouteAdapter {
   return {
-    readSnapshot: () => readSettingsSnapshot(configService, desktopSettings),
+    readSnapshot: () => readSettingsSnapshot(configService, desktopSettings, logging),
     applyChange: (change) => {
-      applySettingChange(configService, desktopSettings, applyContentProtection, change)
+      applySettingChange(configService, desktopSettings, logging, applyContentProtection, change)
     },
     listSystemFonts: async () => await configService.getSystemFonts()
   }
