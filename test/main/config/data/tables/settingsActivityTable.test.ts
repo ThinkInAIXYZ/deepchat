@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule
-  ? await import('@/presenter/sqlitePresenter/tables/settingsActivity').catch(() => null)
+  ? await import('@/config/data/tables/settingsActivity').catch(() => null)
   : null
 
 const Database = sqliteModule?.default

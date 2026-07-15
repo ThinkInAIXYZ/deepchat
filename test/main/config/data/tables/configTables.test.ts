@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { LLM_PROVIDER, MCPServerConfig, MODEL_META } from '../../../src/shared/presenter'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const configTablesModule = sqliteModule
-  ? await import('../../../src/main/presenter/sqlitePresenter/tables/configTables')
-  : null
+const configTablesModule = sqliteModule ? await import('@/config/data/tables/configTables') : null
 
 const Database = sqliteModule?.default
 const ConfigTables = configTablesModule?.ConfigTables

@@ -1,4 +1,4 @@
-import type { ConfigTables } from '@/presenter/sqlitePresenter/tables/configTables'
+import type { ConfigTables } from '@/config/data/tables/configTables'
 import { AppSettingsDbBackedStore } from './configDbStores'
 import type { StoreLike } from './storeLike'
 

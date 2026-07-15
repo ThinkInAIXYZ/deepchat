@@ -1,6 +1,6 @@
 import type { LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
-import type { ConfigTables } from '../presenter/sqlitePresenter/tables/configTables'
-import { SHARED_AGENT_MCP_SELECTION_ID } from '../presenter/sqlitePresenter/tables/configTables'
+import type { ConfigTables } from './data/tables/configTables'
+import { SHARED_AGENT_MCP_SELECTION_ID } from './data/tables/configTables'
 import type { IModelStore } from './providerModelHelper'
 import type { StoreLike } from './storeLike'
 

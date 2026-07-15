@@ -279,14 +279,13 @@ vi.doMock('better-sqlite3-multiple-ciphers', () => ({
   Database: MockDatabase
 }))
 
-vi.doMock('../../../src/main/presenter/sqlitePresenter/tables/configTables', () => ({
+vi.doMock('../../../src/main/config/data/tables/configTables', () => ({
   ConfigTables: MockConfigTables
 }))
 
 const { default: Database } = await import('better-sqlite3-multiple-ciphers')
 const { SyncConfigImportService } = await import('../../../src/main/sync/configImportService')
-const { ConfigTables } =
-  await import('../../../src/main/presenter/sqlitePresenter/tables/configTables')
+const { ConfigTables } = await import('../../../src/main/config/data/tables/configTables')
 
 describe('SyncConfigImportService', () => {
   let tempDir: string

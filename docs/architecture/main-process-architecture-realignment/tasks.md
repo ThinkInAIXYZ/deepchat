@@ -299,6 +299,7 @@
 - [x] 把 Cron job、run、delivery table 移入 Scheduler；不保留 Presenter 旧路径。
 - [x] 把 Project、environment、environment preference table 和对应测试移入 Project；不保留
   Presenter 旧路径。
+- [x] 把 Config 和 settings activity table 及对应测试移入 Config；不保留 Presenter 旧路径。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
