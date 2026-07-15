@@ -156,7 +156,7 @@ describe('UpgradePresenter', () => {
     const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
     const checkSpy = vi.spyOn(presenter, 'checkUpdate').mockResolvedValue(undefined)
 
-    ;(presenter as any).handleAppFocus()
+    presenter.handleAppFocus()
 
     expect(checkSpy).not.toHaveBeenCalled()
     expect(electronUpdater.autoUpdater.checkForUpdates).not.toHaveBeenCalled()

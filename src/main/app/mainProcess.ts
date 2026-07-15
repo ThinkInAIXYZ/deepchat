@@ -1,8 +1,6 @@
 import { app, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import logger, { setLoggingEnabled } from '@shared/logger'
-import { eventBus } from '@/eventbus'
-import { WINDOW_EVENTS } from '@/events'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
@@ -190,7 +188,7 @@ function setupApplicationListeners(presenter: Presenter): void {
 
   app.on('browser-window-focus', () => {
     presenter.shortcutPresenter.registerShortcuts()
-    eventBus.sendToMain(WINDOW_EVENTS.APP_FOCUS)
+    presenter.upgradePresenter.handleAppFocus()
   })
 
   app.on('browser-window-blur', () => {

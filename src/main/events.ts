@@ -27,7 +27,6 @@ export const PROVIDER_DB_EVENTS = {
 // 窗口相关事件
 export const WINDOW_EVENTS = {
   READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
-  APP_FOCUS: 'app:focus',
   WINDOW_MAXIMIZED: 'window:maximized',
   WINDOW_UNMAXIMIZED: 'window:unmaximized',
   WINDOW_RESIZED: 'window:resized',

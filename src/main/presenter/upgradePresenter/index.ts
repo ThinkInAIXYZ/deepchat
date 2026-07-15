@@ -6,8 +6,6 @@ import {
   UpdateProgress,
   IConfigPresenter
 } from '@shared/presenter'
-import { eventBus } from '@/eventbus'
-import { WINDOW_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
@@ -266,9 +264,6 @@ export class UpgradePresenter implements IUpgradePresenter {
       this.markUpdateDownloaded(info)
     })
 
-    // 监听应用获得焦点事件
-    eventBus.on(WINDOW_EVENTS.APP_FOCUS, this.handleAppFocus.bind(this))
-
     // 应用启动时检查是否有未完成的更新
     this.checkPendingUpdate()
   }
@@ -381,7 +376,7 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   // 处理应用获得焦点事件
-  private handleAppFocus(): void {
+  handleAppFocus(): void {
     if (this._configPresenter.getPrivacyModeEnabled()) {
       return
     }
