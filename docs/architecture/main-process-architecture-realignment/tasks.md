@@ -113,7 +113,7 @@
 - [x] 设计 Skill 文件、同步和 Session 选择规则，见 [Skill 模块边界](./skill.md)。
 - [x] 设计 Plugin package 生命周期和能力登记，见 [Plugin 模块边界](./plugin.md)。
 - [x] 设计 Memory 存储、runtime 和后台写入，见 [Memory 模块边界](./memory.md)。
-- [ ] 设计 Knowledge 索引和检索。
+- [x] 设计 Knowledge 索引和检索，见 [Knowledge 模块边界](./knowledge.md)。
 - [ ] 设计 Workspace、file 和 watcher。
 - [ ] 确认没有新增汇总所有能力的总管理器。
 

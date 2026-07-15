@@ -147,6 +147,9 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-034 | Memory 负责长期记忆、检索、写入、向量索引和后台维护；`MemoryRuntimeCoordinator` 只负责每个 Session 的触发、排队、epoch 和 cursor 流程。 | 已确定 |
 | D-035 | Memory 未启用只由必需接口上的 `isEnabled()` 表示；Agent 运行中不移除 Memory 依赖，也不增加第二条无 Memory 运行路径。 | 已确定 |
 | D-036 | App shutdown 和 database maintenance 先启动 ingestion fence，再取消并停止 Memory，然后等待已接收任务，最后才停止 Provider 和 SQLite。 | 已确定 |
+| D-037 | Knowledge 唯一负责内置知识库的文件切片、任务、DuckDB 索引和检索；Config、File、Provider、MCP 和通信层只通过窄接口配合。 | 已确定 |
+| D-038 | `NowledgeMem` 是 Exporter 的外部提交目标，不并入内置 Knowledge。 | 已确定 |
+| D-039 | Knowledge 的 renderer 通知由 App 注入；Knowledge 不反向导入 Routes，也不用通知发起业务操作。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 
