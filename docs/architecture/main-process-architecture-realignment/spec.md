@@ -150,6 +150,10 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-037 | Knowledge 唯一负责内置知识库的文件切片、任务、DuckDB 索引和检索；Config、File、Provider、MCP 和通信层只通过窄接口配合。 | 已确定 |
 | D-038 | `NowledgeMem` 是 Exporter 的外部提交目标，不并入内置 Knowledge。 | 已确定 |
 | D-039 | Knowledge 的 renderer 通知由 App 注入；Knowledge 不反向导入 Routes，也不用通知发起业务操作。 | 已确定 |
+| D-040 | Workspace 负责目录访问范围、preview 授权、文件树、搜索、Git 状态和 Workspace watcher 租约；它不保存 Session 身份，也不接管通用 File 能力。 | 已确定 |
+| D-041 | File 负责 MIME、adapter、文件转换、临时文件、图片处理和 Knowledge 文件校验；共享类型移出 `core.presenter.d.ts`，调用方只依赖所需操作。 | 已确定 |
+| D-042 | App 只创建一个 `FileWatcherService` 并明确传给 Workspace 和 Skill；两者先释放 handle，App 再统一停止 watcher pool 和 utility process。 | 已确定 |
+| D-043 | 删除 watcher singleton getter、Workspace 的 workdir 内部别名和旧 Presenter 路径；route mode、typed event 和现有 watcher fallback 行为保持不变。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 
