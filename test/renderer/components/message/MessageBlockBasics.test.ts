@@ -196,8 +196,11 @@ describe('MessageBlock basics', () => {
       }
     })
 
-    await wrapper.find('.group').trigger('click')
+    const trigger = wrapper.get('button')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+    await trigger.trigger('click')
 
+    expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(wrapper.text()).toContain('common.error.requestFailed')
     expect(wrapper.text()).toContain('common.error.causeOfError')
     expect(wrapper.text()).toContain('common.error.error429')

@@ -454,6 +454,20 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
     expect(serverManagerMocks.refreshNpmRegistry).toHaveBeenCalledTimes(1)
   })
+
+  it('resolves installed source IDs with one config read', async () => {
+    const configPresenter = createConfigPresenter(true, false, {
+      context7: { source: 'mcprouter', sourceId: 'context7' },
+      context7Alias: { source: 'mcprouter', sourceId: 'context7' },
+      localFiles: { source: 'builtin', sourceId: 'filesystem' }
+    })
+    const presenter = new McpPresenter(configPresenter)
+
+    await expect(
+      presenter.listInstalledServerIds('mcprouter', ['context7', 'filesystem', 'missing'])
+    ).resolves.toEqual(['context7'])
+    expect(configPresenter.getMcpServers).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('McpPresenter sampling events', () => {

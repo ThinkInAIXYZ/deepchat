@@ -116,6 +116,7 @@ describe('main kernel contracts', () => {
         'mcp.router.getApiKey',
         'mcp.router.installServer',
         'mcp.router.isServerInstalled',
+        'mcp.router.listInstalledServerIds',
         'mcp.router.listServers',
         'mcp.router.setApiKey',
         'mcp.router.updateServersAuth',

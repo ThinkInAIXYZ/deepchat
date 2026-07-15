@@ -99,9 +99,44 @@ beforeEach(() => {
 
 afterEach(() => {
   selectSessionMock.mockReset()
+  vi.restoreAllMocks()
 })
 
 describe('MessageBlockToolCall', () => {
+  it('does not schedule detail cleanup for an initially collapsed tool', () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+
+    mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'read-1', name: 'read', response: 'file contents' }
+        })
+      }
+    })
+
+    expect(setTimeoutSpy.mock.calls.some(([, delay]) => delay === 240)).toBe(false)
+  })
+
+  it('exposes disclosure semantics and keeps the controlled details ID stable', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'read-1', name: 'read', response: 'file contents' }
+        })
+      }
+    })
+    const trigger = wrapper.get('[data-testid="tool-call-trigger"]')
+
+    expect(trigger.element.tagName).toBe('BUTTON')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+
+    await trigger.trigger('click')
+
+    const details = wrapper.get('[data-testid="tool-call-details"]')
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(trigger.attributes('aria-controls')).toBe(details.attributes('id'))
+  })
+
   it('renders reviewing status for auto approve review marker', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -153,7 +188,7 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     const codeBlock = wrapper.findComponent({ name: 'CodeBlockNode' })
     expect(codeBlock.exists()).toBe(true)
@@ -174,7 +209,7 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     expect(wrapper.findComponent({ name: 'CodeBlockNode' }).exists()).toBe(false)
     expect(wrapper.find('pre').text()).toContain('plain output')
@@ -205,7 +240,7 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-image-badge"]').text()).toContain('1')
     expect(wrapper.find('[data-testid="tool-call-image-preview"]').exists()).toBe(false)
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     const params = wrapper.get('[data-testid="tool-call-params"]')
     const response = wrapper.get('pre')
@@ -243,7 +278,7 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     expect(wrapper.get('[data-testid="tool-call-image-preview"] img').attributes('src')).toBe('')
   })

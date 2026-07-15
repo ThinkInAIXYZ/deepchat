@@ -196,4 +196,19 @@ describe('useMessageWindow', () => {
     window.clearMeasurements()
     expect(window.getEntry('message-0')?.bottom).toBe(initialEstimate)
   })
+
+  it('keeps a 200-message layout bounded through a streaming row replacement', () => {
+    const messages = ref(createMessages(200))
+    const start = performance.now()
+    const window = useMessageWindow({ messages })
+
+    expect(window.entries.value).toHaveLength(200)
+    expect(window.totalHeight.value).toBeGreaterThan(0)
+
+    messages.value = [...messages.value.slice(0, 199), createStreamingAssistant()]
+
+    expect(window.entries.value).toHaveLength(200)
+    expect(window.getEntry('assistant-real-1')).toBeDefined()
+    expect(performance.now() - start).toBeLessThan(100)
+  })
 })

@@ -640,6 +640,7 @@ function createRuntime() {
     getMcpRouterApiKey: vi.fn().mockResolvedValue('router-key'),
     setMcpRouterApiKey: vi.fn().mockResolvedValue(undefined),
     isServerInstalled: vi.fn().mockResolvedValue(false),
+    listInstalledServerIds: vi.fn().mockResolvedValue(['context7']),
     updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
   } as unknown as IMCPPresenter
   const remoteControlPresenter = {
@@ -3025,6 +3026,15 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
+    const installedIdsResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.listInstalledServerIds',
+      {
+        source: 'mcprouter',
+        sourceIds: ['context7', 'filesystem']
+      },
+      context
+    )
     const installResult = await dispatchDeepchatRoute(
       runtime,
       'mcp.router.installServer',
@@ -3039,6 +3049,10 @@ describe('dispatchDeepchatRoute', () => {
     expect(mcpPresenter.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
     expect(mcpPresenter.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
     expect(mcpPresenter.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
+    expect(mcpPresenter.listInstalledServerIds).toHaveBeenCalledWith('mcprouter', [
+      'context7',
+      'filesystem'
+    ])
     expect(mcpPresenter.installMcpRouterServer).toHaveBeenCalledWith('context7')
     expect(listResult).toEqual({
       servers: [
@@ -3052,6 +3066,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(saveResult).toEqual({ saved: true })
     expect(authResult).toEqual({ updated: true })
     expect(installedResult).toEqual({ installed: false })
+    expect(installedIdsResult).toEqual({ installedSourceIds: ['context7'] })
     expect(installResult).toEqual({ installed: true })
   })
 

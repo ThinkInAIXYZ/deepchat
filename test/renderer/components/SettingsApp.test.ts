@@ -275,7 +275,8 @@ describe('Settings App', () => {
   it('uses a resolved provider settings path in the sidebar', async () => {
     vi.resetModules()
 
-    const push = vi.fn().mockResolvedValue(undefined)
+    let resolvePush: (() => void) | undefined
+    const push = vi.fn(() => new Promise<void>((resolve) => (resolvePush = resolve)))
     const isReady = vi.fn().mockResolvedValue(undefined)
     const ipcOn = vi.fn()
     const ipcRemoveListener = vi.fn()
@@ -465,6 +466,11 @@ describe('Settings App', () => {
 
     expect(push).toHaveBeenCalledWith('/provider')
     expect(push).not.toHaveBeenCalledWith('/provider/:providerId?')
+    expect(providerSidebarItem.attributes('aria-busy')).toBe('true')
+
+    resolvePush?.()
+    await flushPromises()
+    expect(providerSidebarItem.attributes('aria-busy')).toBe('false')
   })
 
   it('navigates to the requested settings route when a navigate event arrives', async () => {

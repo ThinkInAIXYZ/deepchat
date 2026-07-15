@@ -753,6 +753,8 @@ describe('renderer api clients', () => {
               return { saved: true }
             case 'mcp.router.isServerInstalled':
               return { installed: false }
+            case 'mcp.router.listInstalledServerIds':
+              return { installedSourceIds: ['context7'] }
             case 'mcp.router.updateServersAuth':
               return { updated: true }
             case 'remoteControl.listChannels':
@@ -2519,6 +2521,10 @@ describe('renderer api clients', () => {
     await mcpClient.setMcpRouterApiKey('new-router-key')
     await mcpClient.updateMcpRouterServersAuth('new-router-key')
     const installed = await mcpClient.isServerInstalled('mcprouter', 'context7')
+    const installedIds = await mcpClient.listInstalledServerIds('mcprouter', [
+      'context7',
+      'filesystem'
+    ])
     const installResult = await mcpClient.installMcpRouterServer('context7')
 
     expect(listResult.servers).toEqual([
@@ -2529,6 +2535,7 @@ describe('renderer api clients', () => {
     ])
     expect(key).toBe('router-key')
     expect(installed).toBe(false)
+    expect(installedIds).toEqual(['context7'])
     expect(installResult).toBe(true)
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'mcp.router.listServers', {
       page: 1,
@@ -2545,7 +2552,11 @@ describe('renderer api clients', () => {
       source: 'mcprouter',
       sourceId: 'context7'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'mcp.router.installServer', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'mcp.router.listInstalledServerIds', {
+      source: 'mcprouter',
+      sourceIds: ['context7', 'filesystem']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'mcp.router.installServer', {
       serverKey: 'context7'
     })
   })
