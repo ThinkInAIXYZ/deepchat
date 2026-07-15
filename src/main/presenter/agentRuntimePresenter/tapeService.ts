@@ -318,6 +318,7 @@ function parseLegacyExternalTapeLinkSnapshot(
     !childSessionId ||
     forkId !== childSessionId ||
     row.source_id !== childSessionId ||
+    row.source_seq !== 0 ||
     row.provenance_key !== `fork:${row.session_id}:${childSessionId}:external-merge:event` ||
     typeof referencedEntryCount !== 'number' ||
     !Number.isSafeInteger(referencedEntryCount) ||

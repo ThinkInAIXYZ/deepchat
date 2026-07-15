@@ -843,6 +843,34 @@ describe('SubagentOrchestratorTool', () => {
     warnSpy.mockRestore()
   })
 
+  it('preserves the runtime port receiver while linking a finalized Tape', async () => {
+    const runtimePort = {
+      async linkSubagentTape(input: SubagentTapeLinkInput) {
+        expect(this).toBe(runtimePort)
+        return buildTapeLinkReceipt(input)
+      }
+    }
+    const tool = new SubagentOrchestratorTool(runtimePort as any)
+    const task = {
+      sessionId: 'child-session',
+      tapeFinalized: false,
+      taskId: 'task-review',
+      slotId: 'reviewer',
+      title: 'Review task',
+      status: 'completed',
+      resultSummary: 'Done'
+    }
+
+    await (tool as any).finalizeTaskTape({
+      parentSessionId: 'parent-session',
+      runId: 'run-1',
+      task
+    })
+
+    expect(task.tapeFinalized).toBe(true)
+    expect(task.tapeFinalizeError).toBeUndefined()
+  })
+
   it('keeps a subagent Tape unfinalized when the runtime has no link capability', async () => {
     const tool = new SubagentOrchestratorTool({} as any)
     const task = {

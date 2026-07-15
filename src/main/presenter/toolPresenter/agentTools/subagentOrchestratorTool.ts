@@ -565,7 +565,7 @@ export class SubagentOrchestratorTool {
     }
 
     const childSessionId = task.sessionId
-    const linkSubagentTape = this.runtimePort.linkSubagentTape
+    const linkSubagentTape = this.runtimePort.linkSubagentTape?.bind(this.runtimePort)
     if (!linkSubagentTape) {
       task.tapeFinalizeError = 'Subagent Tape link capability is unavailable.'
       return

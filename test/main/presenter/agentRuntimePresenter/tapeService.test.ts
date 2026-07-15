@@ -4930,10 +4930,12 @@ describe('DeepChatTapeService', () => {
     const { service } = createLinkedTapeService(table, [
       { id: 'parent', session_kind: 'regular', parent_session_id: null },
       { id: 'legacy-child', session_kind: 'subagent', parent_session_id: 'parent' },
+      { id: 'malformed-child', session_kind: 'subagent', parent_session_id: 'parent' },
       { id: 'discarded-child', session_kind: 'subagent', parent_session_id: 'parent' }
     ])
     table.ensureBootstrapAnchor('parent')
     table.ensureBootstrapAnchor('legacy-child')
+    table.ensureBootstrapAnchor('malformed-child')
     table.ensureBootstrapAnchor('discarded-child')
     table.appendEvent({
       sessionId: 'legacy-child',
@@ -4953,6 +4955,23 @@ describe('DeepChatTapeService', () => {
       }
     })
     table.appendEvent({
+      sessionId: 'malformed-child',
+      name: 'child/result',
+      data: { text: 'malformed legacy link needle' }
+    })
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'malformed-child', seq: 1 },
+      provenanceKey: 'fork:parent:malformed-child:external-merge:event',
+      data: {
+        forkId: 'malformed-child',
+        forkSessionId: 'malformed-child',
+        referencedEntryCount: 2,
+        status: 'completed'
+      }
+    })
+    table.appendEvent({
       sessionId: 'parent',
       name: 'fork/discard',
       source: { type: 'fork', id: 'discarded-child', seq: 0 },
@@ -4967,6 +4986,9 @@ describe('DeepChatTapeService', () => {
     expect(
       service.search('parent', 'legacy link needle', { scope: 'linked_subagents' })
     ).toMatchObject([{ sessionId: 'legacy-child', entryId: 2 }])
+    expect(
+      service.search('parent', 'malformed legacy link needle', { scope: 'linked_subagents' })
+    ).toEqual([])
     let error: unknown
     try {
       service.getContext('parent', [1], { sourceSessionId: 'discarded-child' })
