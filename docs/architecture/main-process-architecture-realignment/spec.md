@@ -138,6 +138,9 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-025 | regular、detached、Remote-bound 和 forked 共用 `regular` 生命周期；只有 subagent 使用独立 `sessionKind`。 | 已确定 |
 | D-026 | 删除旧 `SessionPresenter`、window/status cache 和 aggregate facade；Session 内部按 Lifecycle、Turn、Assignment、Query 分文件，但调用方只依赖所需操作。 | 已确定 |
 | D-027 | 每批实施先删除旧代码和旧引用，再写唯一的新实现；不保留运行时 fallback、兼容层或新旧双轨。 | 已确定 |
+| D-028 | Skill 是进程级能力模块；它负责 Skill 文件、目录扫描、缓存、Plugin 贡献和有效性校验，Session 仍负责长期保存每个 Session 的 Skill 选择。 | 已确定 |
+| D-029 | 外部工具扫描、导入和导出属于 Skill 模块内部的同步功能，不作为与 Skill 并列的顶层模块。 | 已确定 |
+| D-030 | Plugin 通过必需的直接调用登记和撤销 Skill 贡献；Agent、Tool 和 Routes 只接收各自需要的 Skill 操作。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 

@@ -110,7 +110,7 @@
 - [x] 设计 Provider/model 的职责和 runtime 生命周期。
 - [x] 设计 Tool catalog/execution/permission 的职责。
 - [x] 设计 MCP server 生命周期和 Tool 配合方式。
-- [ ] 设计 Skill 文件、同步和 Session 选择规则。
+- [x] 设计 Skill 文件、同步和 Session 选择规则，见 [Skill 模块边界](./skill.md)。
 - [ ] 设计 Plugin package 生命周期和能力登记。
 - [ ] 设计 Memory 存储、runtime 和后台写入。
 - [ ] 设计 Knowledge 索引和检索。
