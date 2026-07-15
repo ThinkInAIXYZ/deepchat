@@ -476,14 +476,6 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
   openSpotlight: () => {
     spotlightStore.openSpotlight()
   },
-  handleDataResetComplete: () => {
-    toast({
-      title: t('settings.data.resetCompleteDevTitle'),
-      description: t('settings.data.resetCompleteDevMessage'),
-      variant: 'default',
-      duration: 15000
-    })
-  },
   handleSystemNotificationClick: (msg) => {
     let sessionId: string | null = null
 

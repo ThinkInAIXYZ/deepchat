@@ -120,8 +120,6 @@
     "resetAllDesc": "Slet alle data, herunder chat, konfigurationer og cachefiler",
     "resetting": "Nulstiller...",
     "confirmReset": "Bekræft nulstilling",
-    "resetCompleteDevTitle": "Datanulstilling fuldført",
-    "resetCompleteDevMessage": "Genstart applikationen manuelt i udviklingstilstand. Stop den nuværende proces og kør pnpm run dev igen",
     "toast": {
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"

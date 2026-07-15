@@ -1621,7 +1621,6 @@ describe('main kernel contracts', () => {
         'acpTerminal.externalDependenciesRequired',
         'acpTerminal.output',
         'acpTerminal.started',
-        'appRuntime.dataResetCompleteDev',
         'appRuntime.guidedOnboardingStartRequested',
         'appRuntime.mcpInstallRequested',
         'appRuntime.shortcutRequested',

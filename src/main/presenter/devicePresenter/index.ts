@@ -6,28 +6,11 @@ import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import { app, dialog } from 'electron'
-import { is } from '@electron-toolkit/utils'
 import { svgSanitizer } from '../../lib/svgSanitizer'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { cacheImage } from '@/platform/imageCache'
 const execAsync = promisify(exec)
 
-type DeviceResetRuntime = {
-  closeSqlite?: () => void
-  destroyKnowledge?: () => Promise<void> | void
-}
-
 export class DevicePresenter implements IDevicePresenter {
-  private resetRuntime: DeviceResetRuntime | null = null
-
-  constructor(resetRuntime?: DeviceResetRuntime) {
-    this.resetRuntime = resetRuntime ?? null
-  }
-
-  setResetRuntime(resetRuntime: DeviceResetRuntime): void {
-    this.resetRuntime = resetRuntime
-  }
-
   static getDefaultHeaders(): Record<string, string> {
     const version = app.getVersion()
     return {
@@ -227,15 +210,6 @@ export class DevicePresenter implements IDevicePresenter {
         case 'chat': {
           // 删除聊天数据
           logger.info('Resetting chat data...')
-          try {
-            if (this.resetRuntime?.closeSqlite) {
-              this.resetRuntime.closeSqlite()
-              logger.info('SQLite database connection closed')
-            }
-            await new Promise((resolve) => setTimeout(resolve, 500))
-          } catch (closeError) {
-            console.warn('Error closing SQLite connection:', closeError)
-          }
           const appDbPath = path.join(userDataPath, 'app_db')
           const mainDbFile = path.join(appDbPath, 'agent.db')
           try {
@@ -262,15 +236,6 @@ export class DevicePresenter implements IDevicePresenter {
         case 'knowledge': {
           // 删除知识库数据
           logger.info('Resetting knowledge base data...')
-          try {
-            if (this.resetRuntime?.destroyKnowledge) {
-              await this.resetRuntime.destroyKnowledge()
-              logger.info('Knowledge database connections closed')
-            }
-            await new Promise((resolve) => setTimeout(resolve, 500))
-          } catch (closeError) {
-            console.warn('Error closing knowledge database connections:', closeError)
-          }
           const knowledgeDbPath = path.join(userDataPath, 'app_db', 'KnowledgeBase')
           logger.info('Removing knowledge base directory:', knowledgeDbPath)
           removeDirectory(knowledgeDbPath)
@@ -308,19 +273,6 @@ export class DevicePresenter implements IDevicePresenter {
         case 'all': {
           // 删除整个用户数据目录
           logger.info('Performing complete reset of user data...')
-          try {
-            if (this.resetRuntime?.closeSqlite) {
-              this.resetRuntime.closeSqlite()
-              logger.info('SQLite database connection closed')
-            }
-            if (this.resetRuntime?.destroyKnowledge) {
-              await this.resetRuntime.destroyKnowledge()
-              logger.info('Knowledge database connections closed')
-            }
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-          } catch (closeError) {
-            console.warn('Error closing database connections:', closeError)
-          }
           logger.info('Removing user data directory:', userDataPath)
           removeDirectory(userDataPath)
           break
@@ -339,12 +291,6 @@ export class DevicePresenter implements IDevicePresenter {
 
   private restartAppWithDelay(): void {
     try {
-      if (is.dev) {
-        logger.info('开发环境下数据重置完成，发送通知到渲染进程')
-        publishDeepchatEvent('appRuntime.dataResetCompleteDev', {})
-        return
-      }
-
       setTimeout(() => {
         app.relaunch()
         app.exit()

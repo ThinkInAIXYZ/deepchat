@@ -812,6 +812,9 @@ function createRuntime() {
     resetDataByType: vi.fn().mockResolvedValue(undefined),
     sanitizeSvgContent: vi.fn().mockResolvedValue('<svg />')
   } as unknown as IDevicePresenter
+  const appDataReset = {
+    resetDataByType: vi.fn().mockResolvedValue(undefined)
+  }
 
   const projectPresenter = {
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
@@ -1299,6 +1302,7 @@ function createRuntime() {
   return {
     settings,
     runtime: createMainKernelRouteRuntime({
+      appDataReset,
       configPresenter,
       llmProviderPresenter,
       acpProviderAdminPort,
@@ -1350,6 +1354,7 @@ function createRuntime() {
     sqlitePresenter,
     windowPresenter,
     devicePresenter,
+    appDataReset,
     projectPresenter,
     filePresenter,
     knowledgePresenter,
@@ -4350,8 +4355,14 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches phase3 device, project, file, and workspace routes', async () => {
-    const { runtime, devicePresenter, projectPresenter, filePresenter, workspacePresenter } =
-      createRuntime()
+    const {
+      runtime,
+      devicePresenter,
+      appDataReset,
+      projectPresenter,
+      filePresenter,
+      workspacePresenter
+    } = createRuntime()
 
     const appVersion = await dispatchDeepchatRoute(
       runtime,
@@ -4753,7 +4764,8 @@ describe('dispatchDeepchatRoute', () => {
     })
     expect(devicePresenter.restartApp).toHaveBeenCalledTimes(1)
     expect(restartResult).toEqual({ restarted: true })
-    expect(devicePresenter.resetDataByType).toHaveBeenCalledWith('chat')
+    expect(appDataReset.resetDataByType).toHaveBeenCalledWith('chat')
+    expect(devicePresenter.resetDataByType).not.toHaveBeenCalled()
     expect(resetDataResult).toEqual({ reset: true })
     expect(sanitizeResult).toEqual({ content: '<svg />' })
 

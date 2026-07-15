@@ -447,8 +447,6 @@
     "resetAllDesc": "Xóa tất cả dữ liệu bao gồm lịch sử trò chuyện, cấu hình và tệp bộ đệm",
     "resetting": "Đang đặt lại...",
     "confirmReset": "Xác nhận đặt lại",
-    "resetCompleteDevTitle": "Hoàn tất thiết lập lại dữ liệu",
-    "resetCompleteDevMessage": "Vui lòng khởi động lại ứng dụng theo cách thủ công ở chế độ phát triển. Dừng quá trình hiện tại và chạy lại pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Sao lưu thành công",
       "backupSuccessMessage": "Sao lưu dữ liệu thành công"

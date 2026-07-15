@@ -447,8 +447,6 @@
     "resetAllDesc": "Usuń wszystkie dane, w tym historię czatów, konfiguracje i pliki pamięci podręcznej",
     "resetting": "Resetuję...",
     "confirmReset": "Potwierdź reset",
-    "resetCompleteDevTitle": "Resetowanie danych zakończone",
-    "resetCompleteDevMessage": "Proszę ręcznie zrestartować aplikację w trybie programistycznym. Zatrzymaj bieżący proces i ponownie uruchom pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Kopia zapasowa powiodła się",
       "backupSuccessMessage": "Kopia zapasowa danych została utworzona pomyślnie"

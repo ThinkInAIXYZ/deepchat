@@ -1,6 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
-  appRuntimeDataResetCompleteDevEvent,
   appRuntimeGuidedOnboardingStartRequestedEvent,
   appRuntimeMcpInstallRequestedEvent,
   appRuntimeShortcutRequestedEvent,
@@ -47,10 +46,6 @@ export function createAppRuntimeClient(bridge: DeepchatBridge = getDeepchatBridg
     return bridge.on(appRuntimeShortcutRequestedEvent.name, listener)
   }
 
-  function onDataResetCompleteDev(listener: () => void) {
-    return bridge.on(appRuntimeDataResetCompleteDevEvent.name, () => listener())
-  }
-
   function onSystemNotificationClicked(
     listener: (payload: DeepchatEventPayload<'appRuntime.systemNotificationClicked'>) => void
   ) {
@@ -64,7 +59,6 @@ export function createAppRuntimeClient(bridge: DeepchatBridge = getDeepchatBridg
     onWindowFocused,
     onWindowBlurred,
     onShortcutRequested,
-    onDataResetCompleteDev,
     onSystemNotificationClicked
   }
 }

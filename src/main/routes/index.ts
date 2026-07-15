@@ -456,6 +456,7 @@ type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
 const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STATES)
 
 export type MainKernelRouteRuntime = {
+  appDataReset: MainKernelAppDataResetPort
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
   acpProviderAdminPort: AcpProviderAdminPort
@@ -499,6 +500,10 @@ export type MainKernelRouteRuntime = {
   sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
   agentSessionExportService: Pick<AgentSessionExportService, 'export'>
   sessionTranslation: Pick<SessionTranslation, 'translate'>
+}
+
+export interface MainKernelAppDataResetPort {
+  resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 }
 
 export type MainKernelSessionProjectionPort = SessionServiceProjectionPort &
@@ -762,6 +767,7 @@ function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, m
 }
 
 export function createMainKernelRouteRuntime(deps: {
+  appDataReset: MainKernelAppDataResetPort
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
   acpProviderAdminPort: AcpProviderAdminPort
@@ -822,6 +828,7 @@ export function createMainKernelRouteRuntime(deps: {
   })
 
   return {
+    appDataReset: deps.appDataReset,
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter,
     acpProviderAdminPort: deps.acpProviderAdminPort,
@@ -1714,7 +1721,7 @@ export async function dispatchDeepchatRoute(
 
     case deviceResetDataByTypeRoute.name: {
       const input = deviceResetDataByTypeRoute.input.parse(rawInput)
-      await runtime.devicePresenter.resetDataByType(input.resetType)
+      await runtime.appDataReset.resetDataByType(input.resetType)
       return deviceResetDataByTypeRoute.output.parse({ reset: true })
     }
 

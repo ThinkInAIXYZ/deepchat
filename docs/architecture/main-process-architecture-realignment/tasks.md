@@ -189,6 +189,7 @@
 - [x] 把 language 后续操作改成 Config 直接刷新 Desktop，并删除 `SETTING_CHANGED` main event。
 - [x] 把 Provider full、atomic 和 batch 更新改成 Config 直接调用 LLMProvider，并删除 `CONFIG_EVENTS`。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
+- [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

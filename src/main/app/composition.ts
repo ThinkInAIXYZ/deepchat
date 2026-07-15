@@ -293,10 +293,6 @@ export async function createMainProcessControl(dependencies: {
     (data) => devicePresenter.cacheImage(data)
   )
   deeplinkPresenter = new DeeplinkPresenter(windowPresenter, configPresenter, mcpPresenter)
-  devicePresenter.setResetRuntime({
-    closeSqlite: () => sqlitePresenter.close(),
-    destroyKnowledge: () => knowledgePresenter.destroy()
-  })
 
   // Initialize generic Workspace presenter (for all Agent modes)
   workspacePresenter = new WorkspacePresenter(filePresenter)
@@ -1288,6 +1284,9 @@ export async function createMainProcessControl(dependencies: {
 
   function registerRoutes(): void {
     const routeRuntime = createMainKernelRouteRuntime({
+      appDataReset: {
+        resetDataByType: (resetType) => resetApplicationData(resetType)
+      },
       configPresenter,
       llmProviderPresenter: llmproviderPresenter,
       acpProviderAdminPort,
@@ -1487,6 +1486,13 @@ export async function createMainProcessControl(dependencies: {
     } finally {
       trayPresenter.destroy()
     }
+  }
+
+  async function resetApplicationData(
+    resetType: 'chat' | 'knowledge' | 'config' | 'all'
+  ): Promise<void> {
+    await stop()
+    await devicePresenter.resetDataByType(resetType)
   }
 
   const control: MainProcessControl = {

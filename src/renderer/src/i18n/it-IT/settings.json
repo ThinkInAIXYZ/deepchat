@@ -447,8 +447,6 @@
     "resetAllDesc": "Elimina tutti i dati, inclusi cronologia chat, configurazioni e file cache",
     "resetting": "Ripristino...",
     "confirmReset": "Conferma ripristino",
-    "resetCompleteDevTitle": "Ripristino dati completato",
-    "resetCompleteDevMessage": "In ambiente di sviluppo riavvia manualmente l'app per vedere l'effetto. Ferma il processo corrente ed esegui di nuovo pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Backup riuscito",
       "backupSuccessMessage": "Dati salvati correttamente"

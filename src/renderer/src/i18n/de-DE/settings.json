@@ -447,8 +447,6 @@
     "resetAllDesc": "Alle Daten löschen, einschließlich Chatverlauf, Konfiguration und Cache-Dateien",
     "resetting": "Wird zurückgesetzt...",
     "confirmReset": "Zurücksetzen bestätigen",
-    "resetCompleteDevTitle": "Datenrücksetzung abgeschlossen",
-    "resetCompleteDevMessage": "Bitte starten Sie die App in der Entwicklungsumgebung manuell neu, um die Wirkung zu sehen. Stoppen Sie den aktuellen Prozess und führen Sie pnpm run dev erneut aus",
     "toast": {
       "backupSuccessTitle": "Sicherung erfolgreich",
       "backupSuccessMessage": "Daten erfolgreich gesichert"

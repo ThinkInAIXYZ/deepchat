@@ -2,16 +2,22 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import fs from 'fs'
 import { DevicePresenter } from '../../../src/main/presenter/devicePresenter/index'
 
-const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@electron-toolkit/utils', () => ({
-  is: {
-    dev: true
-  }
+const { appRelaunchMock, appExitMock } = vi.hoisted(() => ({
+  appRelaunchMock: vi.fn(),
+  appExitMock: vi.fn()
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
+vi.mock('electron', () => ({
+  app: {
+    getVersion: vi.fn(() => '0.2.3'),
+    getPath: vi.fn(() => '/mock/path'),
+    relaunch: appRelaunchMock,
+    exit: appExitMock
+  },
+  dialog: {
+    showMessageBoxSync: vi.fn(),
+    showOpenDialog: vi.fn()
+  }
 }))
 
 // Mock svgSanitizer (imported by DevicePresenter via @/lib/svgSanitizer)
@@ -25,7 +31,8 @@ describe('DevicePresenter', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    publishDeepchatEventMock.mockClear()
+    appRelaunchMock.mockClear()
+    appExitMock.mockClear()
   })
 
   describe('getDefaultHeaders', () => {
@@ -45,35 +52,30 @@ describe('DevicePresenter', () => {
   })
 
   describe('restartAppWithDelay', () => {
-    it('publishes a typed app runtime event in development', () => {
+    it('relaunches the process after data reset', async () => {
+      vi.useFakeTimers()
       const presenter = new DevicePresenter()
 
       ;(presenter as unknown as { restartAppWithDelay: () => void }).restartAppWithDelay()
+      await vi.advanceTimersByTimeAsync(1000)
 
-      expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
-      expect(publishDeepchatEventMock).toHaveBeenCalledWith('appRuntime.dataResetCompleteDev', {})
+      expect(appRelaunchMock).toHaveBeenCalledTimes(1)
+      expect(appExitMock).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('resetDataByType', () => {
-    it('uses injected reset runtime before resetting all data', async () => {
+    it('only removes data after the App owner has stopped runtime resources', async () => {
       vi.useFakeTimers()
       vi.spyOn(fs, 'existsSync').mockReturnValue(false)
-      const closeSqlite = vi.fn()
-      const destroyKnowledge = vi.fn()
-      const presenter = new DevicePresenter({
-        closeSqlite,
-        destroyKnowledge
-      })
+      const presenter = new DevicePresenter()
 
       const resetPromise = presenter.resetDataByType('all')
-      await Promise.resolve()
       await vi.advanceTimersByTimeAsync(1000)
       await resetPromise
 
-      expect(closeSqlite).toHaveBeenCalledTimes(1)
-      expect(destroyKnowledge).toHaveBeenCalledTimes(1)
-      expect(publishDeepchatEventMock).toHaveBeenCalledWith('appRuntime.dataResetCompleteDev', {})
+      expect(appRelaunchMock).toHaveBeenCalledTimes(1)
+      expect(appExitMock).toHaveBeenCalledTimes(1)
     })
   })
 })

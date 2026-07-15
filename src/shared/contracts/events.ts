@@ -8,7 +8,6 @@ import {
   acpTerminalStartedEvent
 } from './events/acp-terminal.events'
 import {
-  appRuntimeDataResetCompleteDevEvent,
   appRuntimeGuidedOnboardingStartRequestedEvent,
   appRuntimeMcpInstallRequestedEvent,
   appRuntimeShortcutRequestedEvent,
@@ -178,7 +177,6 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [appRuntimeWindowFocusedEvent.name]: appRuntimeWindowFocusedEvent,
   [appRuntimeWindowBlurredEvent.name]: appRuntimeWindowBlurredEvent,
   [appRuntimeShortcutRequestedEvent.name]: appRuntimeShortcutRequestedEvent,
-  [appRuntimeDataResetCompleteDevEvent.name]: appRuntimeDataResetCompleteDevEvent,
   [appRuntimeSystemNotificationClickedEvent.name]: appRuntimeSystemNotificationClickedEvent,
   [startupWorkloadChangedEvent.name]: startupWorkloadChangedEvent,
   [sessionsUpdatedEvent.name]: sessionsUpdatedEvent,
