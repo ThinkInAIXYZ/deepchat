@@ -15,7 +15,7 @@ vi.mock('../../../src/main/presenter/openaiCodexAuth', () => ({
   getGlobalOpenAICodexAuth: () => authState
 }))
 
-vi.mock('../../../src/main/presenter/proxyConfig', () => ({
+vi.mock('../../../src/main/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: proxyState.getProxyUrl
   }

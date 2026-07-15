@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { streamText } from 'ai'
 
-vi.mock('../../../src/main/presenter/proxyConfig', () => ({
+vi.mock('../../../src/main/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)
   }

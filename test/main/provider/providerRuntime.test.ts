@@ -73,7 +73,7 @@ vi.mock('@/presenter', () => ({
 }))
 
 // Mock proxy config
-vi.mock('@/presenter/proxyConfig', () => ({
+vi.mock('@/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)
   }

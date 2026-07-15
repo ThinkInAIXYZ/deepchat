@@ -51,7 +51,7 @@ import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../aiSdk/provider
 import { shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
 import { getGlobalXaiGrokAuth } from '../../presenter/xaiGrokAuth'
 import { isTrustedXaiApiEndpoint } from '../../presenter/xaiGrokAuth/constants'
-import { proxyConfig } from '../../presenter/proxyConfig'
+import { proxyConfig } from '../../platform/proxy'
 import {
   type AiSdkBehaviorPreset,
   type AiSdkCredentialStrategy,

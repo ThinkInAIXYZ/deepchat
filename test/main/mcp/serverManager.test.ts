@@ -19,7 +19,7 @@ const clientMocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@/presenter/proxyConfig', () => ({
+vi.mock('@/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn(() => '')
   }

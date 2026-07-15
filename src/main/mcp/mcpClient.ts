@@ -19,7 +19,7 @@ import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextpro
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import path from 'path'
 import { app } from 'electron'
-// import { NO_PROXY, proxyConfig } from '@/presenter/proxyConfig'
+// import { NO_PROXY, proxyConfig } from '@/platform/proxy'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'

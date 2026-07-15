@@ -14,7 +14,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
-import { proxyConfig } from '../../presenter/proxyConfig'
+import { proxyConfig } from '../../platform/proxy'
 import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
 import {
   buildOpenAICodexResponsesEndpoint,

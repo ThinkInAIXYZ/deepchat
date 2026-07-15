@@ -7,7 +7,7 @@ import {
   type McpConnectResult
 } from './mcpClient'
 import axios from 'axios'
-import { proxyConfig } from '@/presenter/proxyConfig'
+import { proxyConfig } from '@/platform/proxy'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { McpOAuthManager } from './mcpOAuthManager'

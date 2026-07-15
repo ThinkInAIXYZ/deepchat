@@ -11,7 +11,7 @@ import {
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider } from '../baseProvider'
-import { proxyConfig } from '../../presenter/proxyConfig'
+import { proxyConfig } from '../../platform/proxy'
 import { ProxyAgent } from 'undici'
 
 const DEFAULT_BASE_URL = 'https://dev.voice.ai'

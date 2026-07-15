@@ -49,7 +49,7 @@ import { mcpToolsToAISDKTools } from './toolMapper'
 import { mapMessagesToModelMessages } from './messageMapper'
 import { buildProviderOptions } from './providerOptionsMapper'
 import { ProxyAgent } from 'undici'
-import { proxyConfig } from '../../presenter/proxyConfig'
+import { proxyConfig } from '../../platform/proxy'
 import {
   type AiSdkProviderKind,
   createAiSdkProviderContext,

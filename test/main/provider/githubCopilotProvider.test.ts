@@ -3,7 +3,7 @@ import { GithubCopilotProvider } from '../../../src/main/provider/providers/gith
 import type { ConfigServicePort } from '../../../src/shared/presenter'
 import { getGlobalGitHubCopilotDeviceFlow } from '../../../src/main/presenter/githubCopilotDeviceFlow'
 
-vi.mock('../../../src/main/presenter/proxyConfig', () => ({
+vi.mock('../../../src/main/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)
   }

@@ -1,5 +1,5 @@
 import { ProxyAgent } from 'undici'
-import { proxyConfig } from '../presenter/proxyConfig'
+import { proxyConfig } from '../platform/proxy'
 import { getGlobalXaiGrokAuth } from '../presenter/xaiGrokAuth'
 import {
   XAI_GROK_API_BASE_URL,

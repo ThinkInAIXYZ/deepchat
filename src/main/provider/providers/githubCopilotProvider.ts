@@ -20,7 +20,7 @@ import {
 interface RequestInitWithAgent extends RequestInit {
   agent?: HttpsProxyAgent<string>
 }
-import { proxyConfig } from '../../presenter/proxyConfig'
+import { proxyConfig } from '../../platform/proxy'
 
 interface CopilotTokenResponse {
   token: string
