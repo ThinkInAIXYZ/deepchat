@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CommandPermissionCache, CommandPermissionService } from '@/presenter/permission'
+import { CommandPermissionCache, CommandPermissionService } from '@/tool/permission'
 
 describe('CommandPermissionService', () => {
   it('allows whitelisted commands without approval', () => {

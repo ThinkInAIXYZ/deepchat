@@ -3,7 +3,7 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolService } from '@/tool'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
 import { CronJobToolHandler, TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools'
-import { CommandPermissionService } from '@/presenter/permission'
+import { CommandPermissionService } from '@/tool/permission'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 

@@ -32,7 +32,7 @@ import {
   createAgentToolSuccessResult
 } from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
-import { CommandPermissionService } from '../presenter/permission'
+import { CommandPermissionService } from './permission'
 import { YO_BROWSER_TOOL_NAMES } from '../desktop/browser/YoBrowserToolDefinitions'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DesktopSettings } from '@/desktop/settings'

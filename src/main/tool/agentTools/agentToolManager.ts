@@ -55,11 +55,11 @@ import type { DesktopSettings } from '@/desktop/settings'
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
-} from '../../presenter/permission/commandPermissionService'
+} from '../permission/commandPermissionService'
 import {
   FilePermissionRequiredError,
   type FilePermissionLevel
-} from '../../presenter/permission/filePermissionService'
+} from '../permission/filePermissionService'
 
 export interface AgentToolCallResult {
   content: string

@@ -109,6 +109,7 @@
 
 - [x] 设计 Provider/model 的职责和 runtime 生命周期。
 - [x] 设计 Tool catalog/execution/permission 的职责。
+- [x] 把命令、文件和设置授权实现与测试移入 Tool，不再放在 Presenter 目录。
 - [x] 设计 MCP server 生命周期和 Tool 配合方式。
 - [x] 设计 Skill 文件、同步和 Session 选择规则，见 [Skill 模块边界](./skill.md)。
 - [x] 设计 Plugin package 生命周期和能力登记，见 [Plugin 模块边界](./plugin.md)。

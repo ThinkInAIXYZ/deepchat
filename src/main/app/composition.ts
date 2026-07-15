@@ -79,7 +79,7 @@ import {
   CommandPermissionService,
   FilePermissionService,
   SettingsPermissionService
-} from '../presenter/permission'
+} from '../tool/permission'
 import type { AgentToolRuntimePort } from '../tool/runtimePorts'
 
 import { ConversationExporterService } from '../exporter'

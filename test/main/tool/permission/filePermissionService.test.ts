@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import path from 'path'
-import { FilePermissionService } from '@/presenter/permission'
+import { FilePermissionService } from '@/tool/permission'
 
 describe('FilePermissionService', () => {
   it('keeps read approvals from granting write access', () => {
