@@ -165,6 +165,8 @@
   `IOAuthPresenter`。
 - [x] 把 Memory route 和 DTO 转换移到 `src/main/memory/routes.ts`，只注入 Memory service、
   Agent 类型查询和所需的两组数据查询，不再让总 route runtime 持有 `MemoryServicePort`。
+- [x] 把 window、browser、tab 和 shortcut route 移到 `src/main/desktop/routes.ts`，总 route
+  runtime 不再持有 Browser、Tab 和 Shortcut 模块。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 

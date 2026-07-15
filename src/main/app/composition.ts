@@ -57,6 +57,7 @@ import { createMcpRoutes } from '../mcp/routes'
 import { createRemoteRoutes } from '../remote/routes'
 import { createSchedulerRoutes } from '../scheduler/routes'
 import { createMemoryRoutes } from '../memory/routes'
+import { createDesktopRoutes } from '../desktop/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1338,6 +1339,12 @@ export async function createMainProcessControl(dependencies: {
       getTapeEntries: () => sqlitePresenter.deepchatTapeEntriesTable,
       getAuditEntries: () => sqlitePresenter.agentMemoryAuditTable
     })
+    const desktopRoutes = createDesktopRoutes({
+      windowPresenter,
+      shortcutPresenter,
+      browserPresenter: yoBrowserPresenter,
+      tabPresenter
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1388,7 +1395,8 @@ export async function createMainProcessControl(dependencies: {
         mcpRoutes,
         remoteRoutes,
         schedulerRoutes,
-        memoryRoutes
+        memoryRoutes,
+        desktopRoutes
       ],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
@@ -1397,7 +1405,6 @@ export async function createMainProcessControl(dependencies: {
       sessionAssignmentPort: sessionAssignment,
       sessionPermissionPort,
       exporter,
-      shortcutPresenter,
       syncPresenter,
       upgradePresenter,
       dialogPresenter,
@@ -1408,8 +1415,6 @@ export async function createMainProcessControl(dependencies: {
       fileService,
       knowledgeService,
       workspaceService,
-      yoBrowserPresenter,
-      tabPresenter,
       startupWorkloadCoordinator,
       databaseSecurityPresenter,
       reconcileSchedulerAfterAgentChange: async () => {

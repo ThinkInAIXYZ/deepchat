@@ -7,33 +7,19 @@ import type {
   FileServicePort,
   IProjectPresenter,
   ISQLitePresenter,
-  IShortcutPresenter,
   ISyncPresenter,
-  ITabPresenter,
   IUpgradePresenter,
   IWindowPresenter,
   WorkspaceServicePort,
-  IYoBrowserPresenter,
   CloudSyncResult
 } from '@shared/presenter'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
-import { DEV_EVENTS } from '../events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
   acpTerminalInputRoute,
   acpTerminalKillRoute,
-  browserAttachCurrentWindowRoute,
-  browserClearSandboxDataRoute,
-  browserDestroyRoute,
-  browserDetachRoute,
-  browserGetStatusRoute,
-  browserGoBackRoute,
-  browserGoForwardRoute,
-  browserLoadUrlRoute,
-  browserReloadRoute,
-  browserUpdateCurrentWindowBoundsRoute,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
@@ -177,9 +163,6 @@ import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
-  shortcutDestroyRoute,
-  shortcutRegisterRoute,
-  shortcutUnregisterRoute,
   startupGetBootstrapRoute,
   skillsListMetadataRoute,
   syncGetBackupStatusRoute,
@@ -193,8 +176,6 @@ import {
   syncUploadToCloudRoute,
   syncPullFromCloudRoute,
   systemOpenSettingsRoute,
-  tabCaptureCurrentAreaRoute,
-  tabStitchImagesWithWatermarkRoute,
   upgradeCheckRoute,
   upgradeClearMockRoute,
   upgradeGetStatusRoute,
@@ -202,19 +183,6 @@ import {
   upgradeOpenDownloadRoute,
   upgradeRestartToUpdateRoute,
   upgradeStartDownloadRoute,
-  windowCloseCurrentRoute,
-  windowCloseFloatingCurrentRoute,
-  windowCloseSettingsRoute,
-  windowConsumePendingSettingsProviderInstallRoute,
-  windowFocusMainRoute,
-  windowGetCurrentStateRoute,
-  windowGetRuntimeIdentityRoute,
-  windowMinimizeCurrentRoute,
-  windowNotifySettingsReadyRoute,
-  windowPreviewFileRoute,
-  windowRequeuePendingSettingsProviderInstallRoute,
-  windowStartGuidedOnboardingRoute,
-  windowToggleMaximizeCurrentRoute,
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,
   workspaceGetGitStatusRoute,
@@ -277,7 +245,6 @@ export type MainKernelRouteRuntime = {
   sessionTurnPort: SessionTurnPort
   sessionAssignmentPort: SessionAgentAssignmentPort
   exporter: IConversationExporter
-  shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
@@ -291,8 +258,6 @@ export type MainKernelRouteRuntime = {
   fileService: FileServicePort
   knowledgeService: KnowledgeServicePort
   workspaceService: WorkspaceServicePort
-  yoBrowserPresenter: IYoBrowserPresenter
-  tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -377,7 +342,6 @@ export function createMainKernelRouteRuntime(deps: {
   sessionAssignmentPort: SessionAgentAssignmentPort
   sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
   exporter: IConversationExporter
-  shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
@@ -388,8 +352,6 @@ export function createMainKernelRouteRuntime(deps: {
   fileService: FileServicePort
   knowledgeService: KnowledgeServicePort
   workspaceService: WorkspaceServicePort
-  yoBrowserPresenter: IYoBrowserPresenter
-  tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -425,7 +387,6 @@ export function createMainKernelRouteRuntime(deps: {
     sessionTurnPort: deps.sessionTurnPort,
     sessionAssignmentPort: deps.sessionAssignmentPort,
     exporter: deps.exporter,
-    shortcutPresenter: deps.shortcutPresenter,
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
     dialogPresenter: deps.dialogPresenter,
@@ -456,8 +417,6 @@ export function createMainKernelRouteRuntime(deps: {
     fileService: deps.fileService,
     knowledgeService: deps.knowledgeService,
     workspaceService: deps.workspaceService,
-    yoBrowserPresenter: deps.yoBrowserPresenter,
-    tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange,
@@ -478,30 +437,6 @@ const publishProjectEnvironmentsChanged = (
     path,
     version: Date.now()
   })
-}
-
-type WindowState = {
-  windowId: number | null
-  exists: boolean
-  isMaximized: boolean
-  isFullScreen: boolean
-  isFocused: boolean
-}
-
-function readCurrentWindowState(
-  runtime: MainKernelRouteRuntime,
-  context: RouteContext
-): WindowState {
-  const window = context.windowId != null ? BrowserWindow.fromId(context.windowId) : null
-  const exists = Boolean(window && !window.isDestroyed())
-
-  return {
-    windowId: context.windowId,
-    exists,
-    isMaximized: exists ? window!.isMaximized() : false,
-    isFullScreen: exists ? window!.isFullScreen() : false,
-    isFocused: exists ? runtime.windowPresenter.isMainWindowFocused(context.windowId!) : false
-  }
 }
 
 function recordSettingsActivity(
@@ -703,10 +638,6 @@ function recordConfigRouteActivity(
   }
 }
 
-async function readBrowserStatus(runtime: MainKernelRouteRuntime, sessionId: string) {
-  return await runtime.yoBrowserPresenter.getBrowserStatus(sessionId)
-}
-
 type StartupTrackedRouteTask = {
   target: 'main' | 'settings'
   visibleId:
@@ -903,130 +834,6 @@ export async function dispatchDeepchatRoute(
       acpTerminalKillRoute.input.parse(rawInput)
       killTerminal()
       return acpTerminalKillRoute.output.parse({ killed: true })
-    }
-
-    case shortcutRegisterRoute.name: {
-      shortcutRegisterRoute.input.parse(rawInput)
-      runtime.shortcutPresenter.registerShortcuts()
-      return shortcutRegisterRoute.output.parse({ registered: true })
-    }
-
-    case shortcutUnregisterRoute.name: {
-      shortcutUnregisterRoute.input.parse(rawInput)
-      runtime.shortcutPresenter.unregisterShortcuts()
-      return shortcutUnregisterRoute.output.parse({ unregistered: true })
-    }
-
-    case shortcutDestroyRoute.name: {
-      shortcutDestroyRoute.input.parse(rawInput)
-      runtime.shortcutPresenter.destroy()
-      return shortcutDestroyRoute.output.parse({ destroyed: true })
-    }
-
-    case windowGetCurrentStateRoute.name: {
-      windowGetCurrentStateRoute.input.parse(rawInput)
-      return windowGetCurrentStateRoute.output.parse({
-        state: readCurrentWindowState(runtime, context)
-      })
-    }
-
-    case windowGetRuntimeIdentityRoute.name: {
-      windowGetRuntimeIdentityRoute.input.parse(rawInput)
-      return windowGetRuntimeIdentityRoute.output.parse({
-        windowId: context.windowId,
-        webContentsId: context.webContentsId
-      })
-    }
-
-    case windowMinimizeCurrentRoute.name: {
-      windowMinimizeCurrentRoute.input.parse(rawInput)
-      if (context.windowId != null) {
-        runtime.windowPresenter.minimize(context.windowId)
-      }
-      return windowMinimizeCurrentRoute.output.parse({
-        state: readCurrentWindowState(runtime, context)
-      })
-    }
-
-    case windowToggleMaximizeCurrentRoute.name: {
-      windowToggleMaximizeCurrentRoute.input.parse(rawInput)
-      if (context.windowId != null) {
-        runtime.windowPresenter.maximize(context.windowId)
-      }
-      return windowToggleMaximizeCurrentRoute.output.parse({
-        state: readCurrentWindowState(runtime, context)
-      })
-    }
-
-    case windowCloseCurrentRoute.name: {
-      windowCloseCurrentRoute.input.parse(rawInput)
-      if (context.windowId != null) {
-        runtime.windowPresenter.close(context.windowId)
-        return windowCloseCurrentRoute.output.parse({ closed: true })
-      }
-      return windowCloseCurrentRoute.output.parse({ closed: false })
-    }
-
-    case windowCloseFloatingCurrentRoute.name: {
-      windowCloseFloatingCurrentRoute.input.parse(rawInput)
-      const floatingWindow = runtime.windowPresenter.getFloatingChatWindow()?.getWindow() ?? null
-      if (
-        floatingWindow &&
-        !floatingWindow.isDestroyed() &&
-        floatingWindow.webContents.id === context.webContentsId
-      ) {
-        runtime.windowPresenter.hide(floatingWindow.id)
-        return windowCloseFloatingCurrentRoute.output.parse({ closed: true })
-      }
-      return windowCloseFloatingCurrentRoute.output.parse({ closed: false })
-    }
-
-    case windowPreviewFileRoute.name: {
-      const input = windowPreviewFileRoute.input.parse(rawInput)
-      runtime.windowPresenter.previewFile(input.filePath)
-      return windowPreviewFileRoute.output.parse({ previewed: true })
-    }
-
-    case windowCloseSettingsRoute.name: {
-      windowCloseSettingsRoute.input.parse(rawInput)
-      const hadSettingsWindow = runtime.windowPresenter.getSettingsWindowId() != null
-      runtime.windowPresenter.closeSettingsWindow()
-      return windowCloseSettingsRoute.output.parse({ closed: hadSettingsWindow })
-    }
-
-    case windowFocusMainRoute.name: {
-      windowFocusMainRoute.input.parse(rawInput)
-      return windowFocusMainRoute.output.parse({
-        focused: runtime.windowPresenter.focusMainWindow()
-      })
-    }
-
-    case windowNotifySettingsReadyRoute.name: {
-      windowNotifySettingsReadyRoute.input.parse(rawInput)
-      runtime.windowPresenter.notifySettingsReady(context.webContentsId)
-      return windowNotifySettingsReadyRoute.output.parse({ notified: true })
-    }
-
-    case windowConsumePendingSettingsProviderInstallRoute.name: {
-      windowConsumePendingSettingsProviderInstallRoute.input.parse(rawInput)
-      return windowConsumePendingSettingsProviderInstallRoute.output.parse({
-        preview: runtime.windowPresenter.consumePendingSettingsProviderInstall()
-      })
-    }
-
-    case windowRequeuePendingSettingsProviderInstallRoute.name: {
-      const input = windowRequeuePendingSettingsProviderInstallRoute.input.parse(rawInput)
-      runtime.windowPresenter.setPendingSettingsProviderInstall(input.preview)
-      return windowRequeuePendingSettingsProviderInstallRoute.output.parse({ queued: true })
-    }
-
-    case windowStartGuidedOnboardingRoute.name: {
-      windowStartGuidedOnboardingRoute.input.parse(rawInput)
-      await runtime.windowPresenter.sendToAllWindows(DEV_EVENTS.START_GUIDED_ONBOARDING)
-      return windowStartGuidedOnboardingRoute.output.parse({
-        started: true,
-        focused: runtime.windowPresenter.focusMainWindow()
-      })
     }
 
     case deviceGetAppVersionRoute.name: {
@@ -1351,122 +1158,6 @@ export async function dispatchDeepchatRoute(
       const input = workspaceSearchFilesRoute.input.parse(rawInput)
       return workspaceSearchFilesRoute.output.parse({
         nodes: await runtime.workspaceService.searchFiles(input.workspacePath, input.query)
-      })
-    }
-
-    case browserGetStatusRoute.name: {
-      const input = browserGetStatusRoute.input.parse(rawInput)
-      return browserGetStatusRoute.output.parse({
-        status: await readBrowserStatus(runtime, input.sessionId)
-      })
-    }
-
-    case browserLoadUrlRoute.name: {
-      const input = browserLoadUrlRoute.input.parse(rawInput)
-      const browserPresenter = runtime.yoBrowserPresenter as IYoBrowserPresenter & {
-        loadUrl: (
-          sessionId: string,
-          url: string,
-          timeoutMs?: number,
-          hostWindowId?: number
-        ) => Promise<Awaited<ReturnType<IYoBrowserPresenter['getBrowserStatus']>>>
-      }
-
-      return browserLoadUrlRoute.output.parse({
-        status: await browserPresenter.loadUrl(
-          input.sessionId,
-          input.url,
-          input.timeoutMs,
-          context.windowId ?? undefined
-        )
-      })
-    }
-
-    case browserAttachCurrentWindowRoute.name: {
-      const input = browserAttachCurrentWindowRoute.input.parse(rawInput)
-      if (context.windowId == null) {
-        return browserAttachCurrentWindowRoute.output.parse({ attached: false })
-      }
-
-      return browserAttachCurrentWindowRoute.output.parse({
-        attached: await runtime.yoBrowserPresenter.attachSessionBrowser(
-          input.sessionId,
-          context.windowId
-        )
-      })
-    }
-
-    case browserUpdateCurrentWindowBoundsRoute.name: {
-      const input = browserUpdateCurrentWindowBoundsRoute.input.parse(rawInput)
-      if (context.windowId == null) {
-        return browserUpdateCurrentWindowBoundsRoute.output.parse({ updated: false })
-      }
-
-      await runtime.yoBrowserPresenter.updateSessionBrowserBounds(
-        input.sessionId,
-        context.windowId,
-        input.bounds,
-        input.visible
-      )
-      return browserUpdateCurrentWindowBoundsRoute.output.parse({ updated: true })
-    }
-
-    case browserDetachRoute.name: {
-      const input = browserDetachRoute.input.parse(rawInput)
-      await runtime.yoBrowserPresenter.detachSessionBrowser(input.sessionId)
-      return browserDetachRoute.output.parse({ detached: true })
-    }
-
-    case browserDestroyRoute.name: {
-      const input = browserDestroyRoute.input.parse(rawInput)
-      await runtime.yoBrowserPresenter.destroySessionBrowser(input.sessionId)
-      return browserDestroyRoute.output.parse({ destroyed: true })
-    }
-
-    case browserGoBackRoute.name: {
-      const input = browserGoBackRoute.input.parse(rawInput)
-      await runtime.yoBrowserPresenter.goBack(input.sessionId)
-      return browserGoBackRoute.output.parse({
-        status: await readBrowserStatus(runtime, input.sessionId)
-      })
-    }
-
-    case browserGoForwardRoute.name: {
-      const input = browserGoForwardRoute.input.parse(rawInput)
-      await runtime.yoBrowserPresenter.goForward(input.sessionId)
-      return browserGoForwardRoute.output.parse({
-        status: await readBrowserStatus(runtime, input.sessionId)
-      })
-    }
-
-    case browserReloadRoute.name: {
-      const input = browserReloadRoute.input.parse(rawInput)
-      await runtime.yoBrowserPresenter.reload(input.sessionId)
-      return browserReloadRoute.output.parse({
-        status: await readBrowserStatus(runtime, input.sessionId)
-      })
-    }
-
-    case browserClearSandboxDataRoute.name: {
-      browserClearSandboxDataRoute.input.parse(rawInput)
-      await runtime.yoBrowserPresenter.clearSandboxData()
-      return browserClearSandboxDataRoute.output.parse({ cleared: true })
-    }
-
-    case tabCaptureCurrentAreaRoute.name: {
-      const input = tabCaptureCurrentAreaRoute.input.parse(rawInput)
-      return tabCaptureCurrentAreaRoute.output.parse({
-        imageData: await runtime.tabPresenter.captureTabArea(context.webContentsId, input.rect)
-      })
-    }
-
-    case tabStitchImagesWithWatermarkRoute.name: {
-      const input = tabStitchImagesWithWatermarkRoute.input.parse(rawInput)
-      return tabStitchImagesWithWatermarkRoute.output.parse({
-        imageData: await runtime.tabPresenter.stitchImagesWithWatermark(
-          input.images,
-          input.watermark
-        )
       })
     }
 

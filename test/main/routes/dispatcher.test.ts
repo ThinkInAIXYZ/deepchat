@@ -36,6 +36,7 @@ import { createMcpRoutes } from '@/mcp/routes'
 import { createRemoteRoutes } from '@/remote/routes'
 import { createSchedulerRoutes } from '@/scheduler/routes'
 import { createMemoryRoutes } from '@/memory/routes'
+import { createDesktopRoutes } from '@/desktop/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1390,6 +1391,12 @@ function createRuntime() {
     getTapeEntries: () => (sqlitePresenter as any).deepchatTapeEntriesTable,
     getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
   })
+  const desktopRoutes = createDesktopRoutes({
+    windowPresenter,
+    shortcutPresenter,
+    browserPresenter: yoBrowserPresenter,
+    tabPresenter
+  })
 
   return {
     settings,
@@ -1406,7 +1413,8 @@ function createRuntime() {
           mcpRoutes,
           remoteRoutes,
           schedulerRoutes,
-          memoryRoutes
+          memoryRoutes,
+          desktopRoutes
         ],
         sessionLifecyclePort,
         sessionProjectionPort,
@@ -1415,7 +1423,6 @@ function createRuntime() {
         sessionAssignmentPort,
         sessionPermissionPort,
         exporter,
-        shortcutPresenter,
         sqlitePresenter,
         windowPresenter,
         devicePresenter,
@@ -1423,8 +1430,6 @@ function createRuntime() {
         fileService,
         knowledgeService,
         workspaceService,
-        yoBrowserPresenter,
-        tabPresenter,
         reconcileSchedulerAfterAgentChange: async () => {
           await cronJobs.reconcileScheduler('agent-change')
         },
