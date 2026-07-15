@@ -96,6 +96,7 @@ import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
+import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
@@ -265,7 +266,11 @@ export async function createMainProcessControl(dependencies: {
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
 
-  const agentRepository = new AgentRepository(sqlitePresenter as unknown as MainDatabase)
+  const sessionData = createSessionData(
+    sqlitePresenter,
+    () => new DeepChatMemoryIngestionProjectionTable(sqlitePresenter.getDatabase())
+  )
+  const agentRepository = new AgentRepository(sqlitePresenter, sessionData.database)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
     repository: agentRepository,
@@ -278,11 +283,39 @@ export async function createMainProcessControl(dependencies: {
       })
   })
   configService.setMainDatabase(sqlitePresenter)
-  const sessionData = createSessionData(sqlitePresenter)
-  appSessionService = new AppSessionService(sqlitePresenter)
-  sessionDataMigrationSQLite = concreteMainDatabase
-  legacyChatImportService = new LegacyChatImportService(concreteMainDatabase)
-  usageStatsService = new UsageStatsService(concreteMainDatabase, configService)
+  appSessionService = new AppSessionService(sqlitePresenter, sessionData.database)
+  sessionDataMigrationSQLite = {
+    get configTables() {
+      return concreteMainDatabase.configTables
+    },
+    getDatabase: () => sessionData.database.getDatabase(),
+    get newSessionsTable() {
+      return sessionData.database.newSessionsTable
+    },
+    get newSessionActiveSkillsTable() {
+      return sessionData.database.newSessionActiveSkillsTable
+    },
+    get newSessionDisabledAgentToolsTable() {
+      return sessionData.database.newSessionDisabledAgentToolsTable
+    },
+    get deepchatSearchDocumentsTable() {
+      return sessionData.database.deepchatSearchDocumentsTable
+    },
+    get deepchatUserMessagesTable() {
+      return sessionData.database.deepchatUserMessagesTable
+    },
+    get deepchatUserMessageFilesTable() {
+      return sessionData.database.deepchatUserMessageFilesTable
+    },
+    get deepchatUserMessageLinksTable() {
+      return sessionData.database.deepchatUserMessageLinksTable
+    },
+    get deepchatAssistantBlocksTable() {
+      return sessionData.database.deepchatAssistantBlocksTable
+    }
+  }
+  legacyChatImportService = new LegacyChatImportService(concreteMainDatabase, sessionData.database)
+  usageStatsService = new UsageStatsService(sessionData.database, configService)
   const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   const fontSettings = new FontSettings(dependencies.settingsStore)
   const skillSettings = new SkillSettings(dependencies.settingsStore)
@@ -328,9 +361,14 @@ export async function createMainProcessControl(dependencies: {
   const loggingService = new LoggingService(dependencies.settingsStore, () =>
     deviceService.restartApp()
   )
-  projectService = new ProjectService(sqlitePresenter, deviceService, dependencies.settingsStore)
+  projectService = new ProjectService(
+    sqlitePresenter,
+    sessionData.database,
+    deviceService,
+    dependencies.settingsStore
+  )
   exporter = new ConversationExporterService({
-    sqlitePresenter: sqlitePresenter,
+    sqlitePresenter: sessionData.database,
     settings: dependencies.settingsStore
   })
   const updateSettings = new UpdateSettings(dependencies.settingsStore)
@@ -374,7 +412,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.mcpSettings,
     dependencies.privacySettings,
     createInMemoryServerFactory({
-      sqlitePresenter,
+      sqlitePresenter: sessionData.database,
       sessions: appSessionService,
       transcript: sessionData.transcript,
       settings: sessionData.settings,
@@ -577,9 +615,9 @@ export async function createMainProcessControl(dependencies: {
   const skillSessionStatePort: SkillSessionStatePort = {
     hasNewSession: async (conversationId) => Boolean(await sessionQuery.getSession(conversationId)),
     getPersistedNewSessionSkills: (conversationId) =>
-      sqlitePresenter.newSessionsTable.getActiveSkills(conversationId),
+      sessionData.database.newSessionsTable.getActiveSkills(conversationId),
     setPersistedNewSessionSkills: (conversationId, skills) => {
-      sqlitePresenter.newSessionsTable.updateActiveSkills(conversationId, skills)
+      sessionData.database.newSessionsTable.updateActiveSkills(conversationId, skills)
       sqlitePresenter.newEnvironmentsTable.syncForSession(conversationId)
     },
     repairImportedLegacySessionSkills: async (conversationId) => {
@@ -753,7 +791,7 @@ export async function createMainProcessControl(dependencies: {
   deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
     providerRuntime as unknown as ProviderRuntimePort,
     configService,
-    sqlitePresenter,
+    sessionData.database,
     sessionData,
     toolService,
     {
@@ -763,6 +801,8 @@ export async function createMainProcessControl(dependencies: {
       acpAsLlmProviderPermission: acpAsLlmProviderPermission,
       sessionUiPort,
       memoryPort: memoryService,
+      getMemoryIngestionProjection: () =>
+        new DeepChatMemoryIngestionProjectionTable(sqlitePresenter.getDatabase()),
       cacheImage: (data) => deviceService.cacheImage(data),
       skillService: skillService,
       skillSettings,
@@ -833,9 +873,9 @@ export async function createMainProcessControl(dependencies: {
     },
     transcript: sessionData.transcript,
     tape: sessionData.tape,
-    messages: createLivePort(() => sqlitePresenter.deepchatMessagesTable),
-    searchResults: createLivePort(() => sqlitePresenter.deepchatMessageSearchResultsTable),
-    traces: createLivePort(() => sqlitePresenter.deepchatMessageTracesTable),
+    messages: createLivePort(() => sessionData.database.deepchatMessagesTable),
+    searchResults: createLivePort(() => sessionData.database.deepchatMessageSearchResultsTable),
+    traces: createLivePort(() => sessionData.database.deepchatMessageTracesTable),
     titles: providerRuntime,
     agentConfig: {
       getAssistantModel: async (agentId) => {
@@ -994,7 +1034,7 @@ export async function createMainProcessControl(dependencies: {
     deletion: sessionDeletion,
     permissions: sessionPermissionPort
   })
-  sessionHistorySearch = new SessionHistorySearch(sqlitePresenter, appSessionService)
+  sessionHistorySearch = new SessionHistorySearch(sessionData.database, appSessionService)
   agentSessionExportService = new AgentSessionExportService({
     agentManager: agentManager,
     appSessionService,
@@ -1382,7 +1422,7 @@ export async function createMainProcessControl(dependencies: {
     const memoryRoutes = createMemoryRoutes({
       memoryService,
       getAgentType: (agentId) => configService.getAgentType(agentId),
-      getTapeEntries: () => sqlitePresenter.deepchatTapeEntriesTable,
+      getTapeEntries: () => sessionData.database.deepchatTapeEntriesTable,
       getAuditEntries: () => sqlitePresenter.agentMemoryAuditTable
     })
     const desktopRoutes = createDesktopRoutes({

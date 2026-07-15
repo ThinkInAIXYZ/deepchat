@@ -50,7 +50,7 @@ describe('AgentRepository', () => {
       ],
       ['malformed-command', makeRow('malformed-command', 'acp', 'manual', '{broken-config')]
     ])
-    const repository = new AgentRepository({
+    const database = {
       agentsTable: {
         get: (id: string) => rows.get(id),
         list: (filters?: { agentType?: string; source?: string }) =>
@@ -60,7 +60,8 @@ describe('AgentRepository', () => {
               (!filters?.source || row.source === filters.source)
           )
       }
-    } as never)
+    } as never
+    const repository = new AgentRepository(database, database)
 
     expect(repository.listAgents().map((agent) => agent.id)).toEqual([
       'deepchat',
@@ -140,7 +141,7 @@ describe('AgentRepository', () => {
       ['registry-deepchat', makeRow('registry-deepchat', 'deepchat', 'registry')],
       ['builtin-acp', makeRow('builtin-acp', 'acp', 'builtin')]
     ])
-    const repository = new AgentRepository({
+    const database = {
       agentsTable: {
         get: (id: string) => rows.get(id),
         list: (filters?: { agentType?: string; source?: string }) =>
@@ -150,7 +151,8 @@ describe('AgentRepository', () => {
               (!filters?.source || row.source === filters.source)
           )
       }
-    } as never)
+    } as never
+    const repository = new AgentRepository(database, database)
 
     expect(repository.getAgent('registry-deepchat')).toMatchObject({
       type: 'deepchat',

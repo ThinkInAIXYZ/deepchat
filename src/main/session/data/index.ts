@@ -1,4 +1,4 @@
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import type { SessionTapePort } from './contracts'
 import { SessionPendingInputStore } from './pendingInputStore'
@@ -6,11 +6,21 @@ import { SessionPendingInputs } from './pendingInputs'
 import { SessionSettingsStore } from './settings'
 import { SessionTape } from './tape'
 import { SessionTranscript } from './transcript'
+import { SessionDatabase } from './database'
+import type { DeepChatTapeMutationProjection } from './tables/deepchatTapeEntries'
 
-export function createSessionData(sqlitePresenter: MainDatabase) {
-  const transcript = new SessionTranscript(sqlitePresenter)
-  const tapeStore = new SessionTape(sqlitePresenter)
-  const pendingInputStore = new SessionPendingInputStore(sqlitePresenter)
+export function createSessionData(
+  connection: DatabaseConnectionProvider,
+  getTapeMutationProjection?: () => DeepChatTapeMutationProjection
+) {
+  const database = new SessionDatabase(connection, getTapeMutationProjection)
+  return createSessionDataFromDatabase(database)
+}
+
+export function createSessionDataFromDatabase(database: SessionDatabase) {
+  const transcript = new SessionTranscript(database)
+  const tapeStore = new SessionTape(database)
+  const pendingInputStore = new SessionPendingInputStore(database)
   const ensureTape = (sessionId: string) => tapeStore.ensureSessionTapeReady(sessionId, transcript)
   const toTapeAnchor = (row: DeepChatTapeEntryRow) => ({
     sessionId: row.session_id,
@@ -64,7 +74,8 @@ export function createSessionData(sqlitePresenter: MainDatabase) {
   }
 
   return {
-    settings: new SessionSettingsStore(sqlitePresenter),
+    database,
+    settings: new SessionSettingsStore(database),
     transcript,
     tape,
     tapeStore,

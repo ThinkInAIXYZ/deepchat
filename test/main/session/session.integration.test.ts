@@ -535,9 +535,9 @@ function createDescriptorIndependentDeleteHarness(options: {
       delete: deleteSessionRow
     }
   } as any
-  const repository = new AgentRepository(sqliteWithAgents)
+  const repository = new AgentRepository(sqliteWithAgents, sqliteWithAgents as never)
   const resolveExecutableDescriptor = vi.spyOn(repository, 'resolveExecutableDescriptor')
-  const appSessionService = new AppSessionService(sqliteWithAgents)
+  const appSessionService = new AppSessionService(sqliteWithAgents, sqliteWithAgents as never)
   const deepchatImplementation = createMockDeepChatAgent()
   const directRuntimeCleanup = vi.fn().mockResolvedValue(undefined)
   const deleteDurableSession = vi.fn().mockResolvedValue(undefined)
@@ -715,7 +715,7 @@ describe('Session application coordinators', () => {
         await closeDirectAcpSession(sessionId)
       })
     }
-    const appSessionService = new AppSessionService(sqlitePresenter)
+    const appSessionService = new AppSessionService(sqlitePresenter, sqlitePresenter as never)
     const sharedData = {
       sessionState: deepChatAgent,
       transcript: deepChatAgent,
@@ -867,7 +867,7 @@ describe('Session application coordinators', () => {
         delete: (id: string) => sessions.delete(id)
       }
     } as any
-    const repository = new AgentRepository(sqliteWithAgents)
+    const repository = new AgentRepository(sqliteWithAgents, sqliteWithAgents as never)
     const deepchatImplementation = {
       ...createMockDeepChatAgent(),
       getSessionState: vi.fn().mockResolvedValue({ providerId: 'openai', modelId: 'gpt-4' }),
@@ -906,7 +906,7 @@ describe('Session application coordinators', () => {
         .fn()
         .mockResolvedValue({ requestId: 'deepchat-request', messageId: 'deepchat-message' })
     } as any
-    const appSessionService = new AppSessionService(sqliteWithAgents)
+    const appSessionService = new AppSessionService(sqliteWithAgents, sqliteWithAgents as never)
     const directAcpInstance = {
       snapshot: vi.fn().mockResolvedValue({ status: 'idle' }),
       getWorkdir: vi.fn().mockReturnValue('/tmp/acp'),

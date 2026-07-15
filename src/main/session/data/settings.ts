@@ -1,4 +1,4 @@
-import { MainDatabase } from '@/data/mainDatabase'
+import { SessionDatabase } from './database'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { DeepChatSessionSummaryRow } from '@/session/data/tables/deepchatSessions'
 import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
@@ -130,9 +130,9 @@ function summaryStatesEqual(left: SessionSummaryState, right: SessionSummaryStat
 }
 
 export class SessionSettingsStore {
-  private sqlitePresenter: MainDatabase
+  private sqlitePresenter: SessionDatabase
 
-  constructor(sqlitePresenter: MainDatabase) {
+  constructor(sqlitePresenter: SessionDatabase) {
     this.sqlitePresenter = sqlitePresenter
   }
 

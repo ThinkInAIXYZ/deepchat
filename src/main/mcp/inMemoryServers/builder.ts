@@ -10,7 +10,7 @@ import { AutoPromptingServer } from './autoPromptingServer'
 import { ConversationSearchServer } from './conversationSearchServer'
 import { BuiltinKnowledgeServer } from './builtinKnowledgeServer'
 import { AppleServer } from './appleServer'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore } from '@/session/data/settings'
@@ -24,7 +24,7 @@ export type InMemoryServerFactory = (
 ) => ReturnType<typeof buildInMemoryServer>
 
 type InMemoryServerDependencies = {
-  sqlitePresenter: MainDatabase
+  sqlitePresenter: SessionDatabase
   sessions: Pick<AppSessionService, 'get'>
   transcript: Pick<SessionTranscript, 'getMessages'>
   settings: Pick<SessionSettingsStore, 'get'>

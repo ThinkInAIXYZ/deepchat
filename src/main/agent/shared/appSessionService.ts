@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 import type { AppSessionId } from './agentSessionIds'
 import { toAppSessionId } from './agentSessionIds'
 import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
@@ -40,7 +41,10 @@ export interface AppSessionReadPort {
 }
 
 export class AppSessionService implements AppSessionReadPort {
-  constructor(private readonly sqlitePresenter: MainDatabase) {}
+  constructor(
+    private readonly sqlitePresenter: MainDatabase,
+    private readonly sessionDatabase: SessionDatabase
+  ) {}
 
   create(
     agentId: string,
@@ -57,7 +61,7 @@ export class AppSessionService implements AppSessionReadPort {
     }
   ): AppSessionId {
     const id = nanoid()
-    this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, {
+    this.sessionDatabase.newSessionsTable.create(id, agentId, title, projectDir, {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools,
       subagentEnabled: options?.subagentEnabled,
@@ -66,9 +70,9 @@ export class AppSessionService implements AppSessionReadPort {
       subagentMetaJson: options?.subagentMeta ? JSON.stringify(options.subagentMeta) : null
     })
     if (options?.metadata) {
-      this.sqlitePresenter.deepchatSessionMetadataTable.upsert(id, options.metadata)
+      this.sessionDatabase.deepchatSessionMetadataTable.upsert(id, options.metadata)
     }
-    this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
+    this.sessionDatabase.deepchatSearchDocumentsTable.upsert({
       documentKey: `session:${id}`,
       sessionId: id,
       documentKind: 'session',
@@ -81,13 +85,13 @@ export class AppSessionService implements AppSessionReadPort {
   }
 
   get(id: string): SessionRecord | null {
-    const row = this.sqlitePresenter.newSessionsTable.get(id)
+    const row = this.sessionDatabase.newSessionsTable.get(id)
     if (!row) return null
     return this.mapRowToRecord(row)
   }
 
   getMany(ids: string[]): SessionRecord[] {
-    return this.sqlitePresenter.newSessionsTable.getMany(ids).map((row) => this.mapRowToRecord(row))
+    return this.sessionDatabase.newSessionsTable.getMany(ids).map((row) => this.mapRowToRecord(row))
   }
 
   listPage(options?: {
@@ -101,7 +105,7 @@ export class AppSessionService implements AppSessionReadPort {
     nextCursor: SessionPageCursor | null
     hasMore: boolean
   } {
-    const page = this.sqlitePresenter.newSessionsTable.listPage({
+    const page = this.sessionDatabase.newSessionsTable.listPage({
       limit: options?.limit,
       cursor: options?.cursor as SessionListPageCursor | null | undefined,
       agentId: options?.agentId,
@@ -125,7 +129,7 @@ export class AppSessionService implements AppSessionReadPort {
     includeSubagents?: boolean
     parentSessionId?: string
   }): SessionRecord[] {
-    const rows = this.sqlitePresenter.newSessionsTable.list(filters)
+    const rows = this.sessionDatabase.newSessionsTable.list(filters)
     return rows.map((row) => this.mapRowToRecord(row))
   }
 
@@ -145,7 +149,7 @@ export class AppSessionService implements AppSessionReadPort {
       >
     >
   ): void {
-    const current = this.sqlitePresenter.newSessionsTable.get(id)
+    const current = this.sessionDatabase.newSessionsTable.get(id)
     if (!current) {
       return
     }
@@ -176,9 +180,9 @@ export class AppSessionService implements AppSessionReadPort {
     if (fields.subagentMeta !== undefined) {
       dbFields.subagent_meta_json = fields.subagentMeta ? JSON.stringify(fields.subagentMeta) : null
     }
-    this.sqlitePresenter.newSessionsTable.update(id, dbFields)
+    this.sessionDatabase.newSessionsTable.update(id, dbFields)
     if (fields.title !== undefined) {
-      this.sqlitePresenter.deepchatSearchDocumentsTable.refreshSessionTitle(id, fields.title)
+      this.sessionDatabase.deepchatSearchDocumentsTable.refreshSessionTitle(id, fields.title)
     }
 
     for (const path of this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)) {
@@ -192,30 +196,30 @@ export class AppSessionService implements AppSessionReadPort {
 
   delete(id: string): void {
     const affectedPaths = this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)
-    this.sqlitePresenter.deepchatSessionMetadataTable?.delete(id)
-    this.sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession(id)
-    this.sqlitePresenter.newSessionsTable.delete(id)
+    this.sessionDatabase.deepchatSessionMetadataTable?.delete(id)
+    this.sessionDatabase.deepchatSearchDocumentsTable.deleteBySession(id)
+    this.sessionDatabase.newSessionsTable.delete(id)
     for (const path of affectedPaths) {
       this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
     }
   }
 
   getDisabledAgentTools(id: string): string[] {
-    return this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(id)
+    return this.sessionDatabase.newSessionsTable.getDisabledAgentTools(id)
   }
 
   updateDisabledAgentTools(id: string, disabledAgentTools: string[]): void {
-    this.sqlitePresenter.newSessionsTable.updateDisabledAgentTools(id, disabledAgentTools)
+    this.sessionDatabase.newSessionsTable.updateDisabledAgentTools(id, disabledAgentTools)
     this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
   }
 
   updateAgentId(id: string, agentId: string): void {
-    const current = this.sqlitePresenter.newSessionsTable.get(id)
+    const current = this.sessionDatabase.newSessionsTable.get(id)
     if (!current || current.agent_id === agentId) {
       return
     }
 
-    this.sqlitePresenter.newSessionsTable.updateAgentId(id, agentId)
+    this.sessionDatabase.newSessionsTable.updateAgentId(id, agentId)
     this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
   }
 
@@ -233,7 +237,7 @@ export class AppSessionService implements AppSessionReadPort {
     created_at: number
     updated_at: number
   }): SessionRecord {
-    const metadata = this.sqlitePresenter.deepchatSessionMetadataTable?.get(row.id) ?? null
+    const metadata = this.sessionDatabase.deepchatSessionMetadataTable?.get(row.id) ?? null
     return {
       id: row.id,
       agentId: row.agent_id,

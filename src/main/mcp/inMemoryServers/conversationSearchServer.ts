@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { isSafeRegexPattern } from '@shared/regexValidator'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore } from '@/session/data/settings'
@@ -71,7 +71,7 @@ export class ConversationSearchServer {
   private server: Server
 
   constructor(
-    private readonly sqlitePresenter: MainDatabase,
+    private readonly sqlitePresenter: SessionDatabase,
     private readonly sessions: Pick<AppSessionService, 'get'>,
     private readonly transcript: Pick<SessionTranscript, 'getMessages'>,
     private readonly settings: Pick<SessionSettingsStore, 'get'>

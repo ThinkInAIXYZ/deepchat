@@ -3,6 +3,10 @@ import path from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { configureSQLiteConnection } from './connectionConfig'
 
+export interface DatabaseConnectionProvider {
+  getDatabase(): Database.Database
+}
+
 function ensureDatabaseDirectory(dbPath: string): void {
   const dbDir = path.dirname(dbPath)
   if (!fs.existsSync(dbDir)) {

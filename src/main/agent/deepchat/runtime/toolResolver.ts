@@ -2,7 +2,7 @@ import type { ConfigServicePort, SkillServicePort } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import type {
   DeepChatAgentInstance,
   DeepChatToolProfileKind
@@ -22,7 +22,7 @@ type ToolResolverSkillPort = Pick<SkillServicePort, 'getActiveSkills' | 'setActi
 export interface DeepChatToolResolverDependencies {
   configService: ConfigServicePort
   skillSettings: SkillSettingsPort
-  sqlitePresenter: MainDatabase
+  sqlitePresenter: SessionDatabase
   toolService: ToolServicePort
   skillService: ToolResolverSkillPort
   deepChatRuntime: DeepChatAgentRuntime

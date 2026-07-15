@@ -7,25 +7,26 @@ import type {
 import type { ConfigServicePort } from '@shared/presenter'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 export const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
 
-export type SessionDataMigrationSQLitePort = Pick<
-  MainDatabase,
-  | 'configTables'
-  | 'getDatabase'
-  | 'newSessionsTable'
-  | 'newSessionActiveSkillsTable'
-  | 'newSessionDisabledAgentToolsTable'
-  | 'deepchatSearchDocumentsTable'
-  | 'deepchatUserMessagesTable'
-  | 'deepchatUserMessageFilesTable'
-  | 'deepchatUserMessageLinksTable'
-  | 'deepchatAssistantBlocksTable'
->
+export type SessionDataMigrationSQLitePort = Pick<MainDatabase, 'configTables'> &
+  Pick<
+    SessionDatabase,
+    | 'getDatabase'
+    | 'newSessionsTable'
+    | 'newSessionActiveSkillsTable'
+    | 'newSessionDisabledAgentToolsTable'
+    | 'deepchatSearchDocumentsTable'
+    | 'deepchatUserMessagesTable'
+    | 'deepchatUserMessageFilesTable'
+    | 'deepchatUserMessageLinksTable'
+    | 'deepchatAssistantBlocksTable'
+  >
 
 type SessionDataMigrationDependencies = {
   sqlitePresenter: SessionDataMigrationSQLitePort

@@ -38,7 +38,7 @@ describe('AppSessionService', () => {
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    manager = new AppSessionService(sqlitePresenter)
+    manager = new AppSessionService(sqlitePresenter, sqlitePresenter)
   })
 
   describe('create', () => {

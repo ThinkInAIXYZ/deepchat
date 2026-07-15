@@ -12,6 +12,7 @@ import type { SearchResult } from '@shared/types/core/search'
 import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript } from '@/session/data/transcript'
+import { SessionDatabase } from '@/session/data/database'
 
 type LegacyRow = Record<string, unknown>
 
@@ -28,14 +29,20 @@ const DEFAULT_USER_CONTENT: UserMessageContent = {
 
 export class LegacyChatImportService {
   private readonly sqlitePresenter: MainDatabase
+  private readonly sessionDatabase: SessionDatabase
   private readonly messageStore: SessionTranscript
   private readonly sourceDbPath: string
   private runningPromise: Promise<LegacyImportStatus> | null = null
   private skillRepairPromise: Promise<void> | null = null
 
-  constructor(sqlitePresenter: MainDatabase, sourceDbPath?: string) {
+  constructor(
+    sqlitePresenter: MainDatabase,
+    sessionDatabase: SessionDatabase,
+    sourceDbPath?: string
+  ) {
     this.sqlitePresenter = sqlitePresenter
-    this.messageStore = new SessionTranscript(sqlitePresenter)
+    this.sessionDatabase = sessionDatabase
+    this.messageStore = new SessionTranscript(this.sessionDatabase)
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
   }
 
@@ -64,16 +71,16 @@ export class LegacyChatImportService {
   async repairImportedLegacySessionSkills(sessionId: string): Promise<string[]> {
     const normalizedSessionId = sessionId?.trim()
     if (!normalizedSessionId.startsWith('legacy-session-')) {
-      return this.sqlitePresenter.newSessionsTable.getActiveSkills(normalizedSessionId)
+      return this.sessionDatabase.newSessionsTable.getActiveSkills(normalizedSessionId)
     }
 
-    const currentSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(normalizedSessionId)
+    const currentSkills = this.sessionDatabase.newSessionsTable.getActiveSkills(normalizedSessionId)
     if (currentSkills.length > 0) {
       return currentSkills
     }
 
     await this.ensureImportedLegacySkillRepair()
-    return this.sqlitePresenter.newSessionsTable.getActiveSkills(normalizedSessionId)
+    return this.sessionDatabase.newSessionsTable.getActiveSkills(normalizedSessionId)
   }
 
   async importFromSourceDb(
@@ -397,8 +404,8 @@ export class LegacyChatImportService {
             acpWorkdirByConversationAndAgent.get(`${oldConversationId}::${agentId}`) ?? null
         }
 
-        if (!this.sqlitePresenter.newSessionsTable.get(sessionId)) {
-          this.sqlitePresenter.newSessionsTable.create(sessionId, agentId, title, projectDir, {
+        if (!this.sessionDatabase.newSessionsTable.get(sessionId)) {
+          this.sessionDatabase.newSessionsTable.create(sessionId, agentId, title, projectDir, {
             isPinned,
             isDraft: false,
             activeSkills: importedActiveSkills,
@@ -408,9 +415,9 @@ export class LegacyChatImportService {
           importedSessions += 1
         }
 
-        if (!this.sqlitePresenter.deepchatSessionsTable.get(sessionId)) {
+        if (!this.sessionDatabase.deepchatSessionsTable.get(sessionId)) {
           const reasoningEffort = this.pickString(conversation, ['reasoning_effort'])
-          this.sqlitePresenter.deepchatSessionsTable.create(
+          this.sessionDatabase.deepchatSessionsTable.create(
             sessionId,
             providerId,
             modelId,
@@ -475,7 +482,7 @@ export class LegacyChatImportService {
           oldToNewMessageId.set(selectedVariantId, messageId)
           messageToSession.set(messageId, sessionId)
 
-          if (this.sqlitePresenter.deepchatMessagesTable.get(messageId)) {
+          if (this.sessionDatabase.deepchatMessagesTable.get(messageId)) {
             nextOrderSeq += 1
             continue
           }
@@ -493,7 +500,7 @@ export class LegacyChatImportService {
             this.pickNumber(row, ['created_at']) ??
             Date.now()
 
-          this.sqlitePresenter.deepchatMessagesTable.insert({
+          this.sessionDatabase.deepchatMessagesTable.insert({
             id: messageId,
             sessionId,
             orderSeq: nextOrderSeq,
@@ -540,7 +547,7 @@ export class LegacyChatImportService {
             const raw = this.pickString(attachmentRow, ['content']) || ''
             const parsedResults = this.parseSearchResults(raw)
             for (const result of parsedResults) {
-              const inserted = this.sqlitePresenter.deepchatMessageSearchResultsTable.add({
+              const inserted = this.sessionDatabase.deepchatMessageSearchResultsTable.add({
                 sessionId: bindSessionId,
                 messageId,
                 searchId: result.searchId ?? null,
@@ -870,7 +877,7 @@ export class LegacyChatImportService {
 
   private async backfillImportedLegacySessionSkills(): Promise<number> {
     try {
-      const total = await this.sqlitePresenter.getConversationCount()
+      const total = await this.sessionDatabase.getConversationCount()
       if (total <= 0) {
         return 0
       }
@@ -880,7 +887,7 @@ export class LegacyChatImportService {
       let repairedSessions = 0
 
       for (let page = 1; page <= totalPages; page += 1) {
-        const { list } = await this.sqlitePresenter.getConversationList(page, pageSize)
+        const { list } = await this.sessionDatabase.getConversationList(page, pageSize)
         await this.sqlitePresenter.runTransaction(() => {
           for (const conversation of list) {
             const legacySkills = Array.isArray(conversation.settings?.activeSkills)
@@ -893,17 +900,17 @@ export class LegacyChatImportService {
             }
 
             const sessionId = this.toLegacySessionId(conversation.id)
-            const sessionRow = this.sqlitePresenter.newSessionsTable.get(sessionId)
+            const sessionRow = this.sessionDatabase.newSessionsTable.get(sessionId)
             if (!sessionRow) {
               continue
             }
 
-            const currentSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionId)
+            const currentSkills = this.sessionDatabase.newSessionsTable.getActiveSkills(sessionId)
             if (currentSkills.length > 0) {
               continue
             }
 
-            this.sqlitePresenter.newSessionsTable.updateActiveSkills(sessionId, legacySkills)
+            this.sessionDatabase.newSessionsTable.updateActiveSkills(sessionId, legacySkills)
             repairedSessions += 1
           }
         })

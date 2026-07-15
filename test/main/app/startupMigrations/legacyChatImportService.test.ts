@@ -118,7 +118,11 @@ describe('LegacyChatImportService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sqlitePresenter = createMockSqlitePresenter()
-    service = new LegacyChatImportService(sqlitePresenter as any, '/mock/legacy.db')
+    service = new LegacyChatImportService(
+      sqlitePresenter as any,
+      sqlitePresenter as any,
+      '/mock/legacy.db'
+    )
   })
 
   it('preserves active skills when importing fresh legacy sessions', async () => {

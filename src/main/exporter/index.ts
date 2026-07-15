@@ -6,7 +6,7 @@ import type {
   NowledgeMemConfig,
   SQLITE_MESSAGE
 } from '@shared/presenter'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import type {
   Message,
   UserMessageCodeBlock,
@@ -24,12 +24,12 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/
 import type { SettingsStore } from '@/config/settingsStore'
 
 interface ExporterDependencies {
-  sqlitePresenter: MainDatabase
+  sqlitePresenter: SessionDatabase
   settings: SettingsStore
 }
 
 export class ConversationExporterService implements IConversationExporter {
-  private readonly sqlitePresenter: MainDatabase
+  private readonly sqlitePresenter: SessionDatabase
   private readonly nowledgeMemClient: NowledgeMemClient
 
   constructor(deps: ExporterDependencies) {

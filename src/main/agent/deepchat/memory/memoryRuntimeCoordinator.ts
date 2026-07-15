@@ -43,7 +43,7 @@ interface MemoryAdmissionWindow {
   visibleTextChars: number
 }
 
-interface MemoryIngestionProjection {
+export interface MemoryIngestionProjection {
   readCurrentRange(
     sessionId: string,
     fromOrderSeqExclusive: number,

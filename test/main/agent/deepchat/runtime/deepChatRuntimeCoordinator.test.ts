@@ -56,7 +56,7 @@ const noopHookObserver: HookObserver = { notify: vi.fn() }
 import type { AcpAgentConfig } from '@shared/presenter'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
-import { createSessionData } from '@/session/data'
+import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
@@ -640,6 +640,7 @@ function createRuntimeDependencies(
     }
     resolveAgentPermission?: ReturnType<typeof vi.fn>
     traceSettings?: { isEnabled(): boolean }
+    getMemoryIngestionProjection?: () => any
   } = {}
 ) {
   return {
@@ -659,6 +660,8 @@ function createRuntimeDependencies(
     memoryPort: {
       isEnabled: vi.fn().mockReturnValue(false)
     } as any,
+    getMemoryIngestionProjection:
+      options.getMemoryIngestionProjection ?? (() => undefined as never),
     cacheImage: vi.fn(async (data: string) => data),
     skillService: options.skillService ?? getSkillServiceMock(),
     skillSettings: {
@@ -823,7 +826,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       approvePermission: vi.fn().mockResolvedValue(undefined)
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
-    sessionData = createSessionData(sqlitePresenter)
+    sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
     agent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configService,
@@ -834,6 +837,8 @@ describe('DeepChatRuntimeCoordinator', () => {
         skillService,
         sessionPermissionPort,
         resolveAgentPermission: llmProvider.resolveAgentPermission,
+        getMemoryIngestionProjection: () =>
+          sqlitePresenter.deepchatMemoryIngestionProjectionTable,
         traceSettings: {
           isEnabled: () => configService.getSetting('traceDebugEnabled') === true
         }
@@ -1772,7 +1777,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         llmProvider,
         configService,
         sqlitePresenter,
-        createSessionData(sqlitePresenter),
+        createSessionDataFromDatabase(sqlitePresenter as never),
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()
@@ -1821,7 +1826,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         llmProvider,
         configService,
         sqlitePresenter,
-        createSessionData(sqlitePresenter),
+        createSessionDataFromDatabase(sqlitePresenter as never),
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()
@@ -7577,7 +7582,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         llmProvider,
         configService,
         sqlitePresenter,
-        createSessionData(sqlitePresenter),
+        createSessionDataFromDatabase(sqlitePresenter as never),
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()

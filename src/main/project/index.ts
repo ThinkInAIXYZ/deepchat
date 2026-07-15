@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import type { DeviceServicePort } from '@shared/types/device'
 import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/types/agent-interface'
 import {
   DEFAULT_ENVIRONMENT_SORT_ORDER,
@@ -14,6 +15,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 export class ProjectService {
   private sqlitePresenter: MainDatabase
+  private sessionDatabase: SessionDatabase
   private deviceService: DeviceServicePort
   private settings: SettingsStore
   private readonly tempRoot: string
@@ -22,10 +24,12 @@ export class ProjectService {
 
   constructor(
     sqlitePresenter: MainDatabase,
+    sessionDatabase: SessionDatabase,
     deviceService: DeviceServicePort,
     settings: SettingsStore
   ) {
     this.sqlitePresenter = sqlitePresenter
+    this.sessionDatabase = sessionDatabase
     this.deviceService = deviceService
     this.settings = settings
     this.tempRoot = path.resolve(app.getPath('temp'))
@@ -125,7 +129,7 @@ export class ProjectService {
     }
 
     const clearedSessionIds = this.sqlitePresenter.getDatabase().transaction(() => {
-      const sessionIds = this.sqlitePresenter.newSessionsTable.clearProjectDir(normalizedPath)
+      const sessionIds = this.sessionDatabase.newSessionsTable.clearProjectDir(normalizedPath)
       this.sqlitePresenter.newProjectsTable.delete(normalizedPath)
       this.sqlitePresenter.newEnvironmentPreferencesTable.markRemoved(normalizedPath)
       this.sqlitePresenter.newEnvironmentsTable.syncPath(normalizedPath)

@@ -4,7 +4,7 @@ import type {
   PendingSessionInputState,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from './database'
 import type { DeepChatPendingInputRow } from '@/session/data/tables/deepchatPendingInputs'
 
 type InlineItem = NonNullable<SendMessageInput['inlineItems']>[number]
@@ -48,9 +48,9 @@ function shiftInlineItems(
 }
 
 export class SessionPendingInputStore {
-  private readonly sqlitePresenter: MainDatabase
+  private readonly sqlitePresenter: SessionDatabase
 
-  constructor(sqlitePresenter: MainDatabase) {
+  constructor(sqlitePresenter: SessionDatabase) {
     this.sqlitePresenter = sqlitePresenter
   }
 

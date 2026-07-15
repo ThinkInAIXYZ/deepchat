@@ -26,7 +26,7 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
@@ -39,7 +39,10 @@ import type {
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
+import {
+  MemoryRuntimeCoordinator,
+  type MemoryIngestionProjection
+} from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryPromptContributor } from '@/agent/deepchat/memory/memoryPromptContributor'
 import type {
@@ -169,6 +172,7 @@ export interface DeepChatRuntimeDependencies {
   acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   sessionUiPort: SessionUiPort
   memoryPort: MemoryRuntimePort
+  getMemoryIngestionProjection(): MemoryIngestionProjection
   cacheImage(data: string): Promise<string>
   skillService: DeepChatSkillPort
   skillSettings: SkillSettingsPort
@@ -178,7 +182,7 @@ export interface DeepChatRuntimeDependencies {
 export class DeepChatRuntimeCoordinator {
   private readonly providerRuntime: ProviderRuntimePort
   private readonly configService: ConfigServicePort
-  private readonly sqlitePresenter: MainDatabase
+  private readonly sqlitePresenter: SessionDatabase
   private readonly toolService: ToolServicePort
   private readonly sessionStore: SessionData['settings']
   private readonly messageStore: SessionData['transcript']
@@ -220,7 +224,7 @@ export class DeepChatRuntimeCoordinator {
   constructor(
     providerRuntime: ProviderRuntimePort,
     configService: ConfigServicePort,
-    sqlitePresenter: MainDatabase,
+    sqlitePresenter: SessionDatabase,
     sessionData: SessionData,
     toolService: ToolServicePort,
     runtimePorts: DeepChatRuntimeDependencies,
@@ -322,7 +326,7 @@ export class DeepChatRuntimeCoordinator {
       appendTapeAnchor: (input) => {
         this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor(input)
       },
-      getIngestionProjection: () => this.sqlitePresenter.deepchatMemoryIngestionProjectionTable
+      getIngestionProjection: runtimePorts.getMemoryIngestionProjection
     })
     this.memoryPromptContributor = this.memoryCoordinator
     this.memoryIngestionObserver = this.memoryCoordinator

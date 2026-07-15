@@ -51,6 +51,7 @@ import type { SchemaTableSpec } from '@/data/schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
 import { openSQLiteDatabase } from '@/data/databaseConnection'
 import { LegacyChatImportService } from '@/app/startupMigrations/legacyChatImportService'
+import { SessionDatabase } from '@/session/data/database'
 
 export { openSQLiteDatabase } from '@/data/databaseConnection'
 
@@ -680,7 +681,7 @@ export class MainDatabase {
     importedMessages: number
     importedSearchResults: number
   }> {
-    const service = new LegacyChatImportService(this)
+    const service = new LegacyChatImportService(this, new SessionDatabase(this))
     return await service.importFromSourceDb(sourceDbPath, mode)
   }
 

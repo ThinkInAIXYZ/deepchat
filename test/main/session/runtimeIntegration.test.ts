@@ -11,7 +11,7 @@ import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepCha
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
 import { createSessionQueryFixture } from './queryFixture'
 import { createSessionFixture } from './sessionFixture'
-import { createSessionData } from '@/session/data'
+import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 vi.mock('nanoid', () => {
@@ -691,6 +691,7 @@ function createRuntimeDependencies() {
     },
     sessionUiPort: { refreshSessionUi: vi.fn() },
     memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
+    getMemoryIngestionProjection: () => sqlitePresenter.deepchatMemoryIngestionProjectionTable,
     cacheImage: vi.fn(async (data: string) => data),
     skillSettings: {
       isEnabled: vi.fn(() => true),
@@ -767,7 +768,7 @@ describe('Integration: createSession end-to-end', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
     configService = createMockConfigService()
-    const sessionData = createSessionData(sqlitePresenter)
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
 
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
@@ -779,7 +780,7 @@ describe('Integration: createSession end-to-end', () => {
       noopHookObserver
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
-    const appSessionService = new AppSessionService(sqlitePresenter)
+    const appSessionService = new AppSessionService(sqlitePresenter, sqlitePresenter as never)
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
@@ -936,7 +937,7 @@ describe('Integration: ACP hook observer', () => {
     configService = createMockConfigService()
     configService.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
     hookDispatcher = { dispatchEvent: vi.fn() }
-    const sessionData = createSessionData(sqlitePresenter)
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
 
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
@@ -948,7 +949,7 @@ describe('Integration: ACP hook observer', () => {
       createHookObserver(hookDispatcher)
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
-    const appSessionService = new AppSessionService(sqlitePresenter)
+    const appSessionService = new AppSessionService(sqlitePresenter, sqlitePresenter as never)
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
@@ -1042,7 +1043,7 @@ describe('Integration: multi-turn context', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
     configService = createMockConfigService()
-    const sessionData = createSessionData(sqlitePresenter)
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
 
     deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
@@ -1054,7 +1055,7 @@ describe('Integration: multi-turn context', () => {
       noopHookObserver
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
-    const appSessionService = new AppSessionService(sqlitePresenter)
+    const appSessionService = new AppSessionService(sqlitePresenter, sqlitePresenter as never)
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
@@ -1651,7 +1652,7 @@ describe('Integration: crash recovery', () => {
       llmProvider,
       configService,
       sqlitePresenter,
-      createSessionData(sqlitePresenter),
+      createSessionDataFromDatabase(sqlitePresenter as never),
       createMockToolService(),
       createRuntimeDependencies(),
       noopHookObserver

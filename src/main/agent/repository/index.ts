@@ -26,14 +26,18 @@ import type {
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
 import type { MainDatabase } from '../../data/mainDatabase'
+import type { SessionDatabase } from '@/session/data/database'
 
 export class AgentRepository {
   private readonly deepchat: DeepChatAgentRepository
   private readonly acp: AcpAgentRepository
 
-  constructor(private readonly sqlitePresenter: MainDatabase) {
+  constructor(
+    private readonly sqlitePresenter: MainDatabase,
+    sessionDatabase: SessionDatabase
+  ) {
     const listSessionIdsByAgent = (agentId: string) =>
-      this.sqlitePresenter.newSessionsTable
+      sessionDatabase.newSessionsTable
         .list({ agentId, includeSubagents: true })
         .map((session) => toAppSessionId(session.id))
 
