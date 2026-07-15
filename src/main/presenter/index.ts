@@ -260,16 +260,6 @@ export class Presenter {
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
     })
-    this.mcpPresenter = new McpPresenter(
-      this.configPresenter,
-      createInMemoryServerFactory({
-        sqlitePresenter,
-        sessions: appSessionService,
-        transcript: sessionData.transcript,
-        settings: sessionData.settings
-      }),
-      (data) => this.devicePresenter.cacheImage(data)
-    )
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
@@ -289,6 +279,18 @@ export class Presenter {
       this.filePresenter,
       this.dialogPresenter,
       this.llmproviderPresenter
+    )
+    this.mcpPresenter = new McpPresenter(
+      this.configPresenter,
+      createInMemoryServerFactory({
+        sqlitePresenter,
+        sessions: appSessionService,
+        transcript: sessionData.transcript,
+        settings: sessionData.settings,
+        configPresenter: this.configPresenter,
+        knowledgePresenter: this.knowledgePresenter
+      }),
+      (data) => this.devicePresenter.cacheImage(data)
     )
     devicePresenter.setResetRuntime({
       closeSqlite: () => this.sqlitePresenter.close(),

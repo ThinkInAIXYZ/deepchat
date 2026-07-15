@@ -5,8 +5,8 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 551
-- Internal dependency edges: 1633
-- Cycles detected: 26
+- Internal dependency edges: 1630
+- Cycles detected: 23
 
 ### Top outgoing dependencies
 
@@ -38,11 +38,11 @@ Generated on 2026-07-15.
 - `presenter/memoryPresenter/types.ts`: 23
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
 - `presenter/memoryPresenter/ports.ts`: 20
-- `presenter/index.ts`: 18
 - `session/data/transcript.ts`: 18
 - `presenter/memoryPresenter/domain/types.ts`: 17
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
 - `presenter/agentRuntimePresenter/types.ts`: 15
+- `presenter/index.ts`: 15
 
 ### Cycle samples
 
@@ -59,13 +59,13 @@ Generated on 2026-07-15.
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/ollamaProvider.ts -> presenter/llmProviderPresenter/aiSdk/index.ts -> presenter/llmProviderPresenter/aiSdk/runtime.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/upgradePresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/deepResearchServer.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/autoPromptingServer.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/builtinKnowledgeServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/deeplinkPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/notificationPresenter.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/trayPresenter.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/oauthPresenter.ts -> presenter/index.ts`
+- `presenter/browser/YoBrowserPresenter.ts -> presenter/browser/YoBrowserToolHandler.ts -> presenter/browser/YoBrowserPresenter.ts`
+- `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/subagentOrchestratorTool.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
+- `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/agentTapeTools.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
 
 ## renderer-main
 

@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
-import { presenter } from '@/presenter'
+import type { IConfigPresenter } from '@shared/presenter'
 import { nanoid } from 'nanoid'
 
 // === Schema 定义 ===
@@ -167,8 +167,13 @@ export class DeepResearchServer {
   private readonly SESSION_TIMEOUT = 60 * 60 * 1000 // 会话超时时间：1 小时
   private readonly MAX_SESSIONS = 50 // 最大并发会话数
   private cleanupTimer: NodeJS.Timeout | null = null // 会话清理计时器
+  private readonly configPresenter: Pick<IConfigPresenter, 'getLanguage'>
 
-  constructor(env?: Record<string, unknown>) {
+  constructor(
+    env: Record<string, unknown> | undefined,
+    configPresenter: Pick<IConfigPresenter, 'getLanguage'>
+  ) {
+    this.configPresenter = configPresenter
     // 检查 Bocha API 密钥是否已提供
     const bochaApiKey = String(env?.BOCHA_API_KEY ?? '')
     if (!bochaApiKey) {
@@ -528,7 +533,7 @@ export class DeepResearchServer {
           : 0.5 // 若无反思，默认0.5
     }
 
-    const locale = presenter.configPresenter.getLanguage?.() || 'zh-CN' // 获取用户语言设置
+    const locale = this.configPresenter.getLanguage()
     const finalDocumentationPrompt =
       documentation_prompt ||
       `${DEFAULT_DOCUMENTATION_PROMPT}

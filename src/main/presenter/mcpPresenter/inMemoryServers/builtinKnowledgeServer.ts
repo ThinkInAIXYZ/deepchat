@@ -3,8 +3,13 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { BuiltinKnowledgeConfig, MCPTextContent, QueryResult } from '@shared/presenter'
-import { presenter } from '@/presenter'
+import {
+  BuiltinKnowledgeConfig,
+  type IConfigPresenter,
+  type IKnowledgePresenter,
+  MCPTextContent,
+  QueryResult
+} from '@shared/presenter'
 
 // Schema definitions
 const BuiltinKnowledgeSearchArgsSchema = z.object({
@@ -14,8 +19,15 @@ const BuiltinKnowledgeSearchArgsSchema = z.object({
 
 export class BuiltinKnowledgeServer {
   private server: Server
+  private readonly configPresenter: Pick<IConfigPresenter, 'getKnowledgeConfigs'>
+  private readonly knowledgePresenter: Pick<IKnowledgePresenter, 'similarityQuery'>
 
-  constructor() {
+  constructor(
+    configPresenter: Pick<IConfigPresenter, 'getKnowledgeConfigs'>,
+    knowledgePresenter: Pick<IKnowledgePresenter, 'similarityQuery'>
+  ) {
+    this.configPresenter = configPresenter
+    this.knowledgePresenter = knowledgePresenter
     this.server = new Server(
       {
         name: 'deepchat-inmemory/builtin-knowledge-server',
@@ -88,7 +100,7 @@ export class BuiltinKnowledgeServer {
   }
 
   private getEnabledConfigs(): BuiltinKnowledgeConfig[] {
-    return presenter.configPresenter.getKnowledgeConfigs().filter((config) => config.enabled)
+    return this.configPresenter.getKnowledgeConfigs().filter((config) => config.enabled)
   }
 
   private async performBuiltinKnowledgeSearch(
@@ -102,7 +114,7 @@ export class BuiltinKnowledgeServer {
     try {
       const id = config.id
       // similarityQuery(id, key)
-      const results = await presenter.knowledgePresenter.similarityQuery(id, query)
+      const results = await this.knowledgePresenter.similarityQuery(id, query)
       let resultText = `### 查询: ${query}\n\n`
       if (!results || results.length === 0) {
         resultText += '未找到相关结果。'

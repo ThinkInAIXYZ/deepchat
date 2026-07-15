@@ -11,17 +11,6 @@ vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: vi.fn()
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    configPresenter: {
-      getKnowledgeConfigs: mockGetKnowledgeConfigs
-    },
-    knowledgePresenter: {
-      similarityQuery: mockSimilarityQuery
-    }
-  }
-}))
-
 const createKnowledgeConfig = (id: string, enabled = true) => ({
   id,
   description: `Search ${id}`,
@@ -34,6 +23,12 @@ const createKnowledgeConfig = (id: string, enabled = true) => ({
   fragmentsNumber: 6,
   enabled
 })
+
+const createServer = () =>
+  new BuiltinKnowledgeServer(
+    { getKnowledgeConfigs: mockGetKnowledgeConfigs } as any,
+    { similarityQuery: mockSimilarityQuery } as any
+  )
 
 describe('BuiltinKnowledgeServer', () => {
   beforeEach(() => {
@@ -59,7 +54,7 @@ describe('BuiltinKnowledgeServer', () => {
   })
 
   it('starts without env configs', async () => {
-    new BuiltinKnowledgeServer()
+    createServer()
 
     const handler = serverInstances[0].handlers.get(ListToolsRequestSchema)
     await expect(handler?.()).resolves.toEqual({ tools: [] })
@@ -71,7 +66,7 @@ describe('BuiltinKnowledgeServer', () => {
       createKnowledgeConfig('knowledge-2', false),
       createKnowledgeConfig('knowledge-3', true)
     ])
-    new BuiltinKnowledgeServer()
+    createServer()
 
     const handler = serverInstances[0].handlers.get(ListToolsRequestSchema)
     const result = await handler?.()
@@ -100,7 +95,7 @@ describe('BuiltinKnowledgeServer', () => {
         distance: 0.2
       }
     ])
-    new BuiltinKnowledgeServer()
+    createServer()
 
     const handler = serverInstances[0].handlers.get(CallToolRequestSchema)
     const result = await handler?.({
