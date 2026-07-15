@@ -10,13 +10,13 @@ const fs = realFs
 const path = await vi.importActual<typeof import('path')>('path')
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const sqlitePresenterModule = sqliteModule
-  ? await import('../../../src/main/presenter/sqlitePresenter').catch(() => null)
+  ? await import('../../../src/main/data/mainDatabase').catch(() => null)
   : null
 const schemaCatalogModule = sqliteModule
   ? await import('../../../src/main/data/schemaCatalog').catch(() => null)
   : null
 const Database = sqliteModule?.default
-const SQLitePresenter = sqlitePresenterModule?.SQLitePresenter
+const MainDatabase = sqlitePresenterModule?.MainDatabase
 const getStartupSchemaCatalog = schemaCatalogModule?.getStartupSchemaCatalog
 const sqliteSkipReason = 'skipped: better-sqlite3-multiple-ciphers is unavailable'
 const requireNativeSqlite = process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1'
@@ -31,10 +31,10 @@ if (Database) {
   }
 }
 const DatabaseCtor = Database!
-const SQLitePresenterCtor = SQLitePresenter!
-const sqliteHarnessAvailable = sqliteAvailable && SQLitePresenter && getStartupSchemaCatalog
+const MainDatabaseCtor = MainDatabase!
+const sqliteHarnessAvailable = sqliteAvailable && MainDatabase && getStartupSchemaCatalog
 const sqliteHarnessSkipReason = sqliteAvailable
-  ? 'skipped: SQLitePresenter startup schema catalog is unavailable'
+  ? 'skipped: MainDatabase startup schema catalog is unavailable'
   : sqliteSkipReason
 const describeIfSqlite = sqliteHarnessAvailable
   ? describe
@@ -47,7 +47,7 @@ const describeIfSqlite = sqliteHarnessAvailable
         })
     : describe.skip
 
-describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
+describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
   const tempDirs: string[] = []
 
   afterEach(() => {
@@ -71,7 +71,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     const diagnosis = await presenter.diagnoseSchema()
     expect(diagnosis.issues.some((issue) => issue.kind === 'missing_table')).toBe(true)
 
@@ -132,7 +132,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -155,7 +155,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     tempDirs.push(tempDir)
 
     const dbPath = path.join(tempDir, 'agent.db')
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     const diagnosis = await presenter.diagnoseSchema(getStartupSchemaCatalog!())
     const latestSchemaVersion = presenter.getLatestSchemaVersion()
     presenter.close()
@@ -211,7 +211,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     tempDirs.push(tempDir)
 
     const dbPath = path.join(tempDir, 'agent.db')
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
 
     presenter.newSessionsTable.create('session-1', 'kimi-cli', 'Recovered session', null)
     presenter.deepchatSessionsTable.create('session-1', 'acp', 'kimi-cli')
@@ -253,7 +253,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     presenter.newSessionsTable.create('session-1', 'agent-1', 'Recovered session', null)
     presenter.close()
 
@@ -337,7 +337,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     const diagnosis = await presenter.diagnoseSchema()
     expect(diagnosis.issues.some((issue) => issue.name === 'subagent_enabled')).toBe(true)
 
@@ -432,7 +432,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -507,10 +507,10 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const firstPresenter = new SQLitePresenterCtor(dbPath)
+    const firstPresenter = new MainDatabaseCtor(dbPath)
     firstPresenter.close()
 
-    const secondPresenter = new SQLitePresenterCtor(dbPath)
+    const secondPresenter = new MainDatabaseCtor(dbPath)
     secondPresenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -547,7 +547,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     presenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
     presenter.close()
 
@@ -641,7 +641,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     presenter.deepchatSessionsTable.updateGenerationSettings('session-1', {
       forceInterleavedThinkingCompat: true
     })
@@ -724,7 +724,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     const diagnosis = await presenter.diagnoseSchema()
     expect(
       diagnosis.issues.some((issue) => issue.name === 'force_interleaved_thinking_compat')
@@ -813,7 +813,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     const diagnosis = await presenter.diagnoseSchema()
     expect(diagnosis.issues.some((issue) => issue.name === 'timeout_ms')).toBe(true)
 
@@ -881,7 +881,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -908,7 +908,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     tempDirs.push(tempDir)
 
     const dbPath = path.join(tempDir, 'agent.db')
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
 
     presenter.newSessionsTable.create(
       'parent-session',
@@ -994,7 +994,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     `)
     bootstrapDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -1040,14 +1040,14 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     tempDirs.push(tempDir)
 
     const dbPath = path.join(tempDir, 'agent.db')
-    const bootstrap = new SQLitePresenterCtor(dbPath)
+    const bootstrap = new MainDatabaseCtor(dbPath)
     bootstrap.close()
 
     const corruptDb = new DatabaseCtor(dbPath)
     corruptDb.exec('ALTER TABLE agent_memory DROP COLUMN category;')
     corruptDb.close()
 
-    const presenter = new SQLitePresenterCtor(dbPath)
+    const presenter = new MainDatabaseCtor(dbPath)
     const diagnosis = await presenter.diagnoseSchema()
     expect(
       diagnosis.issues.some((issue) => issue.kind === 'missing_column' && issue.name === 'category')

@@ -54,7 +54,7 @@
     "test/main/memory/memoryNativeMigration.test.ts",
     "test/main/memory/memoryVectorStoreV2Native.test.ts",
     "test/main/memory/memoryUpdateNative.test.ts",
-    "test/main/presenter/sqlitePresenter/deepchatMemoryIngestionProjection.test.ts"
+    "test/main/memory/deepchatMemoryIngestionProjection.test.ts"
   ],
   "eval": ["test/main/memory/memoryRetrieval.eval.test.ts"],
   "perf": [

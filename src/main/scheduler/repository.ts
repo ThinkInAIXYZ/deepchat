@@ -12,7 +12,7 @@ import {
 } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
-import type { SQLitePresenter } from '../presenter/sqlitePresenter'
+import type { MainDatabase } from '../data/mainDatabase'
 import type { CronJobDeliveryRow } from './data/tables/cronJobDeliveries'
 import type { CronJobRow } from './data/tables/cronJobs'
 import type { CronJobRunRow } from './data/tables/cronJobRuns'
@@ -27,7 +27,7 @@ export interface CronJobsSchedulerSnapshot {
 }
 
 export class CronJobsRepository {
-  constructor(private readonly sqlitePresenter: SQLitePresenter) {}
+  constructor(private readonly sqlitePresenter: MainDatabase) {}
 
   listJobs(): CronJob[] {
     return this.sqlitePresenter.cronJobsTable.list().map(toCronJob)

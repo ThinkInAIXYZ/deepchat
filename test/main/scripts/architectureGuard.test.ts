@@ -316,8 +316,8 @@ const SESSION_WHOLE_DEPENDENCY_FIXTURES = [
     localName: 'AppPresenter'
   },
   {
-    dependency: 'SQLitePresenter',
-    specifier: '../presenter/sqlitePresenter',
+    dependency: 'MainDatabase',
+    specifier: '../data/mainDatabase',
     localName: 'DatabasePresenter'
   }
 ].map(({ dependency, specifier, localName, filePath }) => ({
@@ -734,10 +734,10 @@ const virtualFiles = new Map<string, string>([
   [
     DOMAIN_FIXTURE,
     `
-      import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
+      import type { MainDatabase } from '../../data/mainDatabase'
       import type { ConfigService } from '../../config'
       import type { Stats } from 'node:fs'
-      export type Fixture = SQLitePresenter | ConfigService | Stats
+      export type Fixture = MainDatabase | ConfigService | Stats
     `
   ],
   [
@@ -745,7 +745,7 @@ const virtualFiles = new Map<string, string>([
     `
       import type { MemoryRuntimeContext } from '../context'
       import type { AgentMemoryRow } from '../../memory/data/tables/agentMemory'
-      import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
+      import type { MainDatabase } from '../../data/mainDatabase'
       import type { LegacyAgentMemoryStatus as LegacyStatus } from '@shared/types/agent-memory'
       import type * as MemoryTypes from '@shared/types/agent-memory'
       export type { LegacyAgentMemoryStatus } from '@shared/types/agent-memory'
@@ -756,7 +756,7 @@ const virtualFiles = new Map<string, string>([
       export const bracketStatus = row['status']
       export const { status } = row
       export const { status: structuredAlias } = row
-      export type Fixture = MemoryRuntimeContext | AgentMemoryRow | SQLitePresenter | LegacyStatus | NamespaceStatus | InlineStatus
+      export type Fixture = MemoryRuntimeContext | AgentMemoryRow | MainDatabase | LegacyStatus | NamespaceStatus | InlineStatus
     `
   ],
   [
@@ -879,8 +879,8 @@ const virtualFiles = new Map<string, string>([
       import type { LoopRun } from '../../deepchat/loop/loopRun'
       import type { MemoryService } from '../../../memory'
       import type { MainProcessControl } from '../../../app/composition'
-      import type { SQLitePresenter } from '../../../presenter/sqlitePresenter'
-      export type Fixture = LoopRun<unknown> | MemoryService | MainProcessControl | SQLitePresenter
+      import type { MainDatabase } from '../../../data/mainDatabase'
+      export type Fixture = LoopRun<unknown> | MemoryService | MainProcessControl | MainDatabase
     `
   ],
   [RETIRED_AGENT_RUNTIME_FIXTURE, retiredAgentRuntimeSource],
@@ -926,15 +926,14 @@ const virtualFiles = new Map<string, string>([
     DEEPCHAT_LOOP_IMPORT_FIXTURE,
     `
       import type { ConfigService } from '@/config'
-      import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+      import type { MainDatabase } from '@/data/mainDatabase'
       import type { AcpAgentInstance } from '@/agent/acp/instance'
-      import type { SessionService } from '@/routes/sessions/sessionService'
+      import '@/routes/index'
       import type { BrowserWindow } from 'electron'
       export type Fixture =
         | ConfigService
-        | SQLitePresenter
+        | MainDatabase
         | AcpAgentInstance
-        | SessionService
         | BrowserWindow
     `
   ],
@@ -1402,8 +1401,8 @@ describe('architecture guard', () => {
   it('blocks SQLite concrete imports through direct and barrel paths', () => {
     const fixtureViolations = forFile(violations, CORE_FIXTURE).join('\n')
     expect(fixtureViolations).toContain('[memory-domain-sqlite-concrete]')
-    expect(fixtureViolations).toContain('sqlitePresenter/tables/agentMemory.ts')
-    expect(fixtureViolations).toContain('sqlitePresenter/index.ts')
+    expect(fixtureViolations).toContain('memory/data/tables/agentMemory.ts')
+    expect(fixtureViolations).toContain('data/mainDatabase.ts')
     expect(fixtureViolations).toContain('[memory-canonical-state]')
     expect(fixtureViolations).toContain('must not import LegacyAgentMemoryStatus')
     expect(fixtureViolations).toContain('must not access AgentMemoryRow.status')
@@ -1456,9 +1455,8 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('found 1')
   })
 
-  it('keeps the DeepChat loop out of presenters, SQLite, routes, Electron, and ACP', () => {
+  it('keeps the DeepChat loop out of MainDatabase, routes, Electron, and ACP', () => {
     const fixtureViolations = forFile(violations, DEEPCHAT_LOOP_IMPORT_FIXTURE).join('\n')
-    expect(fixtureViolations).toContain('[deepchat-loop-presenter]')
     expect(fixtureViolations).toContain('[deepchat-loop-sqlite]')
     expect(fixtureViolations).toContain('[deepchat-loop-routes]')
     expect(fixtureViolations).toContain('[deepchat-loop-electron]')

@@ -6,7 +6,7 @@ import type {
 } from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { ConfigServicePort, SkillServicePort } from '@shared/presenter'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { SessionPermissionPort } from '@/session/contracts'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
@@ -21,7 +21,7 @@ export const createSessionFixture = (input: {
   agentManager: AgentManager
   appSessionService: AppSessionService
   configService: ConfigServicePort
-  sqlitePresenter: SQLitePresenter
+  sqlitePresenter: MainDatabase
   sharedData: {
     sessionState: SessionStatePort
     transcript: SessionTranscriptReadPort

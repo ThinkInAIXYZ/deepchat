@@ -13,7 +13,6 @@ import {
   FileServicePort,
   ProviderRuntimePort,
   IShortcutPresenter,
-  ISQLitePresenter,
   ITabPresenter,
   IConversationExporter,
   IWindowPresenter,
@@ -128,7 +127,7 @@ import { createPluginRoutes } from '../plugin/routes'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { AgentTraceSettings } from '../agent/traceSettings'
-import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
+import { ImportMode, type MainDatabase } from '../data/mainDatabase'
 import {
   DatabaseSecurityService,
   type DatabaseSecurityMigrationDatabasePort
@@ -197,7 +196,7 @@ export async function createMainProcessControl(dependencies: {
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
   mcpSettings: McpSettings
-  sqlitePresenter: ISQLitePresenter
+  sqlitePresenter: MainDatabase
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
@@ -208,8 +207,8 @@ export async function createMainProcessControl(dependencies: {
   const configService = dependencies.configService
   const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
-  const concreteSQLitePresenter = dependencies.sqlitePresenter as unknown as SQLitePresenter
-  const sqlitePresenter = concreteSQLitePresenter
+  const concreteMainDatabase = dependencies.sqlitePresenter as unknown as MainDatabase
+  const sqlitePresenter = concreteMainDatabase
   const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
   let acpProviderAdminPort: AcpProviderAdminPort
@@ -266,7 +265,7 @@ export async function createMainProcessControl(dependencies: {
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
 
-  const agentRepository = new AgentRepository(sqlitePresenter as unknown as SQLitePresenter)
+  const agentRepository = new AgentRepository(sqlitePresenter as unknown as MainDatabase)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
     repository: agentRepository,
@@ -278,12 +277,12 @@ export async function createMainProcessControl(dependencies: {
         values: { [key]: value }
       })
   })
-  configService.setSQLitePresenter(sqlitePresenter)
+  configService.setMainDatabase(sqlitePresenter)
   const sessionData = createSessionData(sqlitePresenter)
   appSessionService = new AppSessionService(sqlitePresenter)
-  sessionDataMigrationSQLite = concreteSQLitePresenter
-  legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
-  usageStatsService = new UsageStatsService(concreteSQLitePresenter, configService)
+  sessionDataMigrationSQLite = concreteMainDatabase
+  legacyChatImportService = new LegacyChatImportService(concreteMainDatabase)
+  usageStatsService = new UsageStatsService(concreteMainDatabase, configService)
   const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   const fontSettings = new FontSettings(dependencies.settingsStore)
   const skillSettings = new SkillSettings(dependencies.settingsStore)
@@ -1021,7 +1020,7 @@ export async function createMainProcessControl(dependencies: {
     tabPresenter: tabPresenter
   })
   cronJobs = new SchedulerService({
-    sqlitePresenter: sqlitePresenter as unknown as SQLitePresenter,
+    sqlitePresenter: sqlitePresenter as unknown as MainDatabase,
     configService: configService,
     runSessionStarter: createCronJobRunSessionStarter({
       lifecycle: sessionLifecycle,
@@ -1761,7 +1760,7 @@ export async function createMainProcessControl(dependencies: {
         reopen: () => reopenApplicationDatabase(),
         reopenWithPassword: (password) => {
           sqlitePresenter.reopenWithPassword(password)
-          configService.setSQLitePresenter(sqlitePresenter)
+          configService.setMainDatabase(sqlitePresenter)
         },
         isOpen: () => sqlitePresenter.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
@@ -1794,7 +1793,7 @@ export async function createMainProcessControl(dependencies: {
 
   function reopenApplicationDatabase(): void {
     sqlitePresenter.reopen()
-    configService.setSQLitePresenter(sqlitePresenter)
+    configService.setMainDatabase(sqlitePresenter)
   }
 
   async function suspendSessionRuntimes(): Promise<void> {

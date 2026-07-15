@@ -10,8 +10,7 @@ describe('sqlitePresenter error classification', () => {
   })
 
   it('keeps corruption errors classified as destructive', async () => {
-    const { isDestructiveDatabaseError } =
-      await import('../../../src/main/presenter/sqlitePresenter')
+    const { isDestructiveDatabaseError } = await import('../../../src/main/data/mainDatabase')
 
     expect(isDestructiveDatabaseError(new Error('database disk image is malformed'))).toBe(true)
     expect(isDestructiveDatabaseError(new Error('file is not a database'))).toBe(true)
@@ -20,8 +19,7 @@ describe('sqlitePresenter error classification', () => {
   })
 
   it('treats open failures as non-destructive', async () => {
-    const { isDestructiveDatabaseError } =
-      await import('../../../src/main/presenter/sqlitePresenter')
+    const { isDestructiveDatabaseError } = await import('../../../src/main/data/mainDatabase')
 
     expect(
       isDestructiveDatabaseError(new Error('SQLITE_CANTOPEN: unable to open database file'))

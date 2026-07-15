@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const sqlitePresenterModule = sqliteModule
-  ? await import('../../../../src/main/presenter/sqlitePresenter')
+  ? await import('../../../../src/main/data/mainDatabase')
   : null
 const sessionStoreModule = sqliteModule
   ? await import('../../../../src/main/session/data/settings')
   : null
 
 const Database = sqliteModule?.default
-const SQLitePresenter = sqlitePresenterModule?.SQLitePresenter
+const MainDatabase = sqlitePresenterModule?.MainDatabase
 const SessionSettingsStore = sessionStoreModule?.SessionSettingsStore
-const SQLitePresenterCtor = SQLitePresenter!
+const MainDatabaseCtor = MainDatabase!
 const SessionSettingsStoreCtor = SessionSettingsStore!
 
 let sqliteAvailable = false
@@ -29,7 +29,7 @@ const describeIfSqlite = sqliteAvailable ? describe : describe.skip
 
 describeIfSqlite('SessionSettingsStore tape summary state', () => {
   function createStore() {
-    const sqlitePresenter = new SQLitePresenterCtor(':memory:')
+    const sqlitePresenter = new MainDatabaseCtor(':memory:')
     const store = new SessionSettingsStoreCtor(sqlitePresenter)
     return { sqlitePresenter, store }
   }

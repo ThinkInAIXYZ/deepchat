@@ -3,7 +3,8 @@ import * as fs from 'fs'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
-import type { AcpSessionEntity, ISQLitePresenter } from '../../../../src/shared/types/presenters'
+import type { AcpSessionEntity } from '../../../../src/shared/types/presenters'
+import type { MainDatabase } from '../../../../src/main/data/mainDatabase'
 
 vi.mock('electron', () => ({
   app: {
@@ -28,7 +29,7 @@ describe('AcpSessionPersistence remote session sync', () => {
     const missingDir = path.join(homeDir, 'missing-workdir-for-acp-test')
     vi.mocked(app.getPath).mockReturnValue(homeDir)
 
-    const persistence = new AcpSessionPersistence({} as ISQLitePresenter)
+    const persistence = new AcpSessionPersistence({} as MainDatabase)
 
     expect(persistence.isWorkdirUsable(missingDir)).toBe(false)
     expect(persistence.resolveWorkdir(missingDir)).toBe(homeDir)
@@ -75,7 +76,7 @@ describe('AcpSessionPersistence remote session sync', () => {
           }
         }
       )
-    } as unknown as ISQLitePresenter
+    } as unknown as MainDatabase
     const persistence = new AcpSessionPersistence(sqlitePresenter)
     const input = {
       agentId: 'agent-1',
@@ -185,7 +186,7 @@ describe('AcpSessionPersistence remote session sync', () => {
           }
         }
       )
-    } as unknown as ISQLitePresenter
+    } as unknown as MainDatabase
     const persistence = new AcpSessionPersistence(sqlitePresenter)
     const input = {
       agentId: 'agent-1',
@@ -250,7 +251,7 @@ describe('AcpSessionPersistence remote session sync', () => {
         .fn()
         .mockRejectedValueOnce(new Error('UNIQUE constraint failed: acp_sessions.agent_id'))
         .mockResolvedValue(undefined)
-    } as unknown as ISQLitePresenter
+    } as unknown as MainDatabase
     const persistence = new AcpSessionPersistence(sqlitePresenter)
 
     const result = await persistence.syncRemoteSessions({
@@ -297,7 +298,7 @@ describe('AcpSessionPersistence remote session sync', () => {
       createConversation: vi.fn(async () => 'conv-failed'),
       deleteConversation: vi.fn().mockResolvedValue(undefined),
       upsertAcpSession: vi.fn().mockRejectedValue(saveError)
-    } as unknown as ISQLitePresenter
+    } as unknown as MainDatabase
     const persistence = new AcpSessionPersistence(sqlitePresenter)
 
     await expect(
@@ -380,7 +381,7 @@ describe('AcpSessionPersistence remote session sync', () => {
           }
         }
       )
-    } as unknown as ISQLitePresenter
+    } as unknown as MainDatabase
     const persistence = new AcpSessionPersistence(sqlitePresenter)
 
     const firstMerge = persistence.mergeMetadata('conv-1', 'agent-1', { first: true })
@@ -406,7 +407,7 @@ describe('AcpSessionPersistence remote session sync', () => {
       getAcpSessionByAgentAndSessionId: vi.fn(async () => null),
       createConversation: vi.fn(async () => 'conv-imported'),
       upsertAcpSession: vi.fn().mockResolvedValue(undefined)
-    } as unknown as ISQLitePresenter
+    } as unknown as MainDatabase
     const persistence = new AcpSessionPersistence(sqlitePresenter)
 
     try {

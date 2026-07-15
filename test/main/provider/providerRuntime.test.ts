@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
 import { ProviderRuntime } from '../../../src/main/provider/index'
 import { ConfigService } from '../../../src/main/config/index'
-import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
+import { LLM_PROVIDER, ChatMessage } from '../../../src/shared/presenter'
+import type { MainDatabase } from '../../../src/main/data/mainDatabase'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
@@ -89,7 +90,7 @@ vi.mock('../../../src/main/provider/aiSdk', () => ({
 describe('ProviderRuntime Integration Tests', () => {
   let providerRuntime: ProviderRuntime
   let mockConfigService: ConfigService
-  const mockSqlitePresenter: ISQLitePresenter = {
+  const mockSqlitePresenter: MainDatabase = {
     getAcpSession: vi.fn().mockResolvedValue(null),
     upsertAcpSession: vi.fn().mockResolvedValue(undefined),
     updateAcpSessionId: vi.fn().mockResolvedValue(undefined),
@@ -120,7 +121,7 @@ describe('ProviderRuntime Integration Tests', () => {
     getLastUserMessage: vi.fn(),
     getMainMessageByParentId: vi.fn(),
     deleteAllMessagesInConversation: vi.fn()
-  } as unknown as ISQLitePresenter
+  } as unknown as MainDatabase
 
   const createProviderRuntime = (configService: ConfigService) => {
     const persistence = new AcpSessionPersistence(mockSqlitePresenter)

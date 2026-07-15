@@ -14,7 +14,7 @@ import {
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { z } from 'zod'
-import type { SQLitePresenter } from '../presenter/sqlitePresenter'
+import type { MainDatabase } from '../data/mainDatabase'
 import { CronExpressionService } from './cronExpressionService'
 import { CronJobDeliveryRouter, type CronJobRemoteDeliveryPort } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
@@ -32,7 +32,7 @@ type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt'> & {
 }
 
 export interface SchedulerServiceDeps {
-  sqlitePresenter: SQLitePresenter
+  sqlitePresenter: MainDatabase
   runSessionStarter: CronJobRunSessionStarter
   remoteDeliveryPort: CronJobRemoteDeliveryPort
   configService?: Pick<ConfigServicePort, 'listAgents' | 'resolveDeepChatAgentConfig'>

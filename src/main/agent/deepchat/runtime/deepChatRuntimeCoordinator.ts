@@ -26,7 +26,7 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
@@ -178,7 +178,7 @@ export interface DeepChatRuntimeDependencies {
 export class DeepChatRuntimeCoordinator {
   private readonly providerRuntime: ProviderRuntimePort
   private readonly configService: ConfigServicePort
-  private readonly sqlitePresenter: SQLitePresenter
+  private readonly sqlitePresenter: MainDatabase
   private readonly toolService: ToolServicePort
   private readonly sessionStore: SessionData['settings']
   private readonly messageStore: SessionData['transcript']
@@ -220,7 +220,7 @@ export class DeepChatRuntimeCoordinator {
   constructor(
     providerRuntime: ProviderRuntimePort,
     configService: ConfigServicePort,
-    sqlitePresenter: SQLitePresenter,
+    sqlitePresenter: MainDatabase,
     sessionData: SessionData,
     toolService: ToolServicePort,
     runtimePorts: DeepChatRuntimeDependencies,

@@ -63,7 +63,7 @@ import {
 // recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a
 // reserved future layer with no read/write path yet.
 
-// Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
+// Global migration version shared across all tables (see MainDatabase.migrate). v32 backfilled
 // embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns; v34 adds the
 // persona lifecycle column; v35 adds conflict linkage; v37 adds agentic category; v41 adds
 // optimistic concurrency control for semantic decision writes; v42 normalizes lifecycle and

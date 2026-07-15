@@ -6,7 +6,7 @@ import type {
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import type { DeepChatMessageUsageCandidateRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 import {
@@ -26,7 +26,7 @@ export class UsageStatsService {
   private backfillPromise: Promise<void> | null = null
 
   constructor(
-    private readonly sqlitePresenter: SQLitePresenter,
+    private readonly sqlitePresenter: MainDatabase,
     private readonly configService: ConfigServicePort
   ) {}
 

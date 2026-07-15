@@ -4,7 +4,7 @@ import type { AppSessionService } from '@/agent/shared/appSessionService'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import { SessionQuery } from '@/session/query'
 
 export const createSessionQueryFixture = (input: {
@@ -12,7 +12,7 @@ export const createSessionQueryFixture = (input: {
   appSessionService: AppSessionService
   providerRuntime: ProviderRuntimePort
   configService: ConfigServicePort
-  sqlitePresenter: SQLitePresenter
+  sqlitePresenter: MainDatabase
   sharedData: {
     transcript: SessionTranscriptReadPort
     tape: SessionTapePort

@@ -1,4 +1,4 @@
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type {
   HistorySearchHit,
@@ -89,7 +89,7 @@ const scoreMessage = (row: SearchableMessageRow, query: string): number => {
 export class SessionHistorySearch {
   constructor(
     private readonly sqlitePresenter: Pick<
-      SQLitePresenter,
+      MainDatabase,
       'getDatabase' | 'deepchatSearchDocumentsTable'
     >,
     private readonly appSessionService: Pick<AppSessionService, 'get'>

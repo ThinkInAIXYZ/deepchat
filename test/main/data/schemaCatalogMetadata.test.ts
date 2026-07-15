@@ -11,7 +11,7 @@ const dataSourceDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../../src/main/data'
 )
-const legacyDatabaseSourceDir = path.resolve(dataSourceDir, '../presenter/sqlitePresenter')
+const legacyDatabaseSourceDir = path.resolve(dataSourceDir, '../data/mainDatabase')
 
 function readSource(sourceDir: string, relativePath: string): string {
   return fs.readFileSync(path.join(sourceDir, relativePath), 'utf8')

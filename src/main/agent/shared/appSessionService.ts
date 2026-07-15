@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import type { AppSessionId } from './agentSessionIds'
 import { toAppSessionId } from './agentSessionIds'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
@@ -40,7 +40,7 @@ export interface AppSessionReadPort {
 }
 
 export class AppSessionService implements AppSessionReadPort {
-  constructor(private readonly sqlitePresenter: SQLitePresenter) {}
+  constructor(private readonly sqlitePresenter: MainDatabase) {}
 
   create(
     agentId: string,

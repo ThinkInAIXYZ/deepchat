@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  ConfigServicePort,
-  ISQLitePresenter,
-  LLM_PROVIDER
-} from '../../../src/shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { MainDatabase } from '../../../src/main/data/mainDatabase'
 import { ProviderRuntime } from '../../../src/main/provider'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
@@ -115,7 +112,7 @@ const mockSqlitePresenter = {
   updateAcpSessionStatus: vi.fn().mockResolvedValue(undefined),
   deleteAcpSession: vi.fn().mockResolvedValue(undefined),
   deleteAcpSessions: vi.fn().mockResolvedValue(undefined)
-} as unknown as ISQLitePresenter
+} as unknown as MainDatabase
 
 const createProviderRuntime = (configService: ConfigServicePort) => {
   const persistence = new AcpSessionPersistence(mockSqlitePresenter)

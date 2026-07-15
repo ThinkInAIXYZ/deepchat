@@ -6,7 +6,6 @@ import { MessagesTable } from '@/session/data/tables/messages'
 import {
   DatabaseRepairReport,
   DatabaseSchemaDiagnosis,
-  ISQLitePresenter,
   SQLITE_MESSAGE,
   CONVERSATION,
   CONVERSATION_SETTINGS,
@@ -206,7 +205,7 @@ export enum ImportMode {
   OVERWRITE = 'overwrite' // 覆盖导入
 }
 
-export class SQLitePresenter implements ISQLitePresenter {
+export class MainDatabase {
   private db!: Database.Database
   private conversationsTable!: ConversationsTable
   private messagesTable!: MessagesTable
@@ -322,15 +321,13 @@ export class SQLitePresenter implements ISQLitePresenter {
     const openStart = performance.now()
     this.db = openSQLiteDatabase(this.dbPath, this.password)
     this.db.prepare('SELECT 1').get()
-    logger.info(
-      `SQLitePresenter: phase=open duration=${(performance.now() - openStart).toFixed(2)}ms`
-    )
+    logger.info(`MainDatabase: phase=open duration=${(performance.now() - openStart).toFixed(2)}ms`)
 
     const initTablesStart = performance.now()
     this.initTables()
     this.initVersionTable()
     logger.info(
-      `SQLitePresenter: phase=initTables duration=${(performance.now() - initTablesStart).toFixed(2)}ms`
+      `MainDatabase: phase=initTables duration=${(performance.now() - initTablesStart).toFixed(2)}ms`
     )
 
     const migrateStart = performance.now()
@@ -339,7 +336,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       backupBeforeLegacyBridgeRecovery: () => this.createDatabaseBackup('memory-state-repair')
     })
     logger.info(
-      `SQLitePresenter: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
+      `MainDatabase: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
     )
   }
 

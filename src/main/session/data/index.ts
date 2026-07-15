@@ -1,4 +1,4 @@
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import type { SessionTapePort } from './contracts'
 import { SessionPendingInputStore } from './pendingInputStore'
@@ -7,7 +7,7 @@ import { SessionSettingsStore } from './settings'
 import { SessionTape } from './tape'
 import { SessionTranscript } from './transcript'
 
-export function createSessionData(sqlitePresenter: SQLitePresenter) {
+export function createSessionData(sqlitePresenter: MainDatabase) {
   const transcript = new SessionTranscript(sqlitePresenter)
   const tapeStore = new SessionTape(sqlitePresenter)
   const pendingInputStore = new SessionPendingInputStore(sqlitePresenter)

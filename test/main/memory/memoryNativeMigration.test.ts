@@ -6,18 +6,16 @@ import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 
-const presenterModule = Database
-  ? await import('@/presenter/sqlitePresenter').catch(() => null)
-  : null
+const presenterModule = Database ? await import('@/data/mainDatabase').catch(() => null) : null
 const importerModule = Database ? await import('@/sync/dataImporter').catch(() => null) : null
 
-const SQLitePresenter = presenterModule?.SQLitePresenter
+const MainDatabase = presenterModule?.MainDatabase
 const DataImporter = importerModule?.DataImporter
 const DatabaseCtor = Database!
-const SQLitePresenterCtor = SQLitePresenter!
+const MainDatabaseCtor = MainDatabase!
 const DataImporterCtor = DataImporter!
 const describeIfNative = nativeSqliteDescribeIf(
-  Boolean(SQLitePresenter && DataImporter),
+  Boolean(MainDatabase && DataImporter),
   'Native SQLite presenter or importer is unavailable'
 )
 
@@ -66,7 +64,7 @@ function seedReadyEmbedding(
 describeIfNative('Memory native SQLite migration', () => {
   it('creates the fresh v42 schema with canonical memory state and reopens idempotently', () => {
     withTemporaryDatabase((databasePath) => {
-      const first = new SQLitePresenterCtor(databasePath)
+      const first = new MainDatabaseCtor(databasePath)
       const db = first.getDatabase()
       const columns = db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{ name: string }>
       expect(columns.some((column) => column.name === 'decision_revision')).toBe(true)
@@ -87,7 +85,7 @@ describeIfNative('Memory native SQLite migration', () => {
       ).toEqual({ present: 1 })
       first.close()
 
-      const reopened = new SQLitePresenterCtor(databasePath)
+      const reopened = new MainDatabaseCtor(databasePath)
       expect(reopened.getLatestSchemaVersion()).toBeGreaterThanOrEqual(42)
       reopened.close()
     })
@@ -95,7 +93,7 @@ describeIfNative('Memory native SQLite migration', () => {
 
   it('repairs missing or stale bridge definitions only when canonical shadow is consistent', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       seeded.agentMemoryTable.insert({
         id: 'consistent',
         agentId: 'a',
@@ -113,7 +111,7 @@ describeIfNative('Memory native SQLite migration', () => {
       `)
       broken.close()
 
-      const repaired = new SQLitePresenterCtor(databasePath)
+      const repaired = new MainDatabaseCtor(databasePath)
       const db = repaired.getDatabase()
       const triggers = db
         .prepare(
@@ -135,7 +133,7 @@ describeIfNative('Memory native SQLite migration', () => {
 
   it('backs up and repairs mismatches before replacing a missing bridge', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       seeded.agentMemoryTable.insert({
         id: 'mismatch',
         agentId: 'a',
@@ -162,7 +160,7 @@ describeIfNative('Memory native SQLite migration', () => {
       broken.exec("UPDATE agent_memory SET status = 'fts_only' WHERE id = 'internal-mismatch'")
       broken.close()
 
-      const repaired = new SQLitePresenterCtor(databasePath)
+      const repaired = new MainDatabaseCtor(databasePath)
       expect(
         repaired
           .getDatabase()
@@ -197,7 +195,7 @@ describeIfNative('Memory native SQLite migration', () => {
 
   it('rolls targeted bridge recovery back after creating its safety backup', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       seeded.agentMemoryTable.insert({
         id: 'rollback-mismatch',
         agentId: 'a',
@@ -212,7 +210,7 @@ describeIfNative('Memory native SQLite migration', () => {
       broken.exec("UPDATE agent_memory SET status = 'error' WHERE id = 'rollback-mismatch'")
       broken.close()
 
-      expect(() => new SQLitePresenterCtor(databasePath)).toThrow(/name is occupied by table/)
+      expect(() => new MainDatabaseCtor(databasePath)).toThrow(/name is occupied by table/)
 
       const rolledBack = new DatabaseCtor(databasePath)
       expect(
@@ -246,7 +244,7 @@ describeIfNative('Memory native SQLite migration', () => {
 
   it('rolls back v42 columns and version when bridge finalization fails', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       seeded.close()
 
       const legacy = new DatabaseCtor(databasePath)
@@ -258,7 +256,7 @@ describeIfNative('Memory native SQLite migration', () => {
       legacy.exec('CREATE TABLE agent_memory_legacy_status_bridge_ai (id INTEGER)')
       legacy.close()
 
-      expect(() => new SQLitePresenterCtor(databasePath)).toThrow()
+      expect(() => new MainDatabaseCtor(databasePath)).toThrow()
 
       const rolledBack = new DatabaseCtor(databasePath)
       const columns = rolledBack.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
@@ -278,7 +276,7 @@ describeIfNative('Memory native SQLite migration', () => {
     const sourcePath = join(directory, 'source.db')
     const targetPath = join(directory, 'target.db')
     try {
-      const source = new SQLitePresenterCtor(sourcePath)
+      const source = new MainDatabaseCtor(sourcePath)
       source.agentMemoryTable.insert({
         id: 'imported-memory',
         agentId: 'a',
@@ -287,7 +285,7 @@ describeIfNative('Memory native SQLite migration', () => {
       })
       source.close()
 
-      const target = new SQLitePresenterCtor(targetPath)
+      const target = new MainDatabaseCtor(targetPath)
       target.agentMemoryTable.insert({
         id: 'existing-memory',
         agentId: 'a',
@@ -306,7 +304,7 @@ describeIfNative('Memory native SQLite migration', () => {
       await importer.importData()
       importer.close()
 
-      const reopened = new SQLitePresenterCtor(targetPath)
+      const reopened = new MainDatabaseCtor(targetPath)
       const result = reopened.agentMemoryTable.searchWithStrategy('a', 'imported', 10)
       expect(result.strategy).toBe('fts-only')
       expect(result.rows.map((row) => row.id)).toContain('imported-memory')
@@ -321,7 +319,7 @@ describeIfNative('Memory native SQLite migration', () => {
     try {
       for (const variant of ['normal', 'partial', 'dirty'] as const) {
         const databasePath = join(directory, `${variant}.db`)
-        const seeded = new SQLitePresenterCtor(databasePath)
+        const seeded = new MainDatabaseCtor(databasePath)
         seeded.agentMemoryTable.insert({
           id: 'authoritative',
           agentId: 'a',
@@ -350,7 +348,7 @@ describeIfNative('Memory native SQLite migration', () => {
         legacy.exec('INSERT INTO schema_versions (version, applied_at) VALUES (41, 1)')
         legacy.close()
 
-        const migrated = new SQLitePresenterCtor(databasePath)
+        const migrated = new MainDatabaseCtor(databasePath)
         const sentinel = migrated
           .getDatabase()
           .prepare("SELECT rowid FROM agent_memory_fts WHERE agent_memory_fts MATCH 'sentinel'")
@@ -366,7 +364,7 @@ describeIfNative('Memory native SQLite migration', () => {
 
   it('migrates a v41 database that predates FTS policy metadata', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       seeded.agentMemoryTable.insert({
         id: 'pre-fts-meta',
         agentId: 'a',
@@ -385,7 +383,7 @@ describeIfNative('Memory native SQLite migration', () => {
       legacy.exec('INSERT INTO schema_versions (version, applied_at) VALUES (41, 1)')
       legacy.close()
 
-      const migrated = new SQLitePresenterCtor(databasePath)
+      const migrated = new MainDatabaseCtor(databasePath)
       expect(migrated.getLatestSchemaVersion()).toBe(42)
       expect(migrated.agentMemoryTable.search('a', 'metadata').map((row) => row.id)).toEqual([
         'pre-fts-meta'
@@ -431,7 +429,7 @@ describeIfNative('Memory native SQLite migration', () => {
       for (const testCase of cases) {
         const sourcePath = join(directory, `${testCase.name}-source.db`)
         const targetPath = join(directory, `${testCase.name}-target.db`)
-        const source = new SQLitePresenterCtor(sourcePath)
+        const source = new MainDatabaseCtor(sourcePath)
         source.agentMemoryTable.insert({
           id: testCase.name,
           agentId: 'a',
@@ -457,7 +455,7 @@ describeIfNative('Memory native SQLite migration', () => {
         }
         sourceDb.close()
 
-        const target = new SQLitePresenterCtor(targetPath)
+        const target = new MainDatabaseCtor(targetPath)
         target.close()
         const importer = new DataImporterCtor(sourcePath, targetPath)
         await importer.importData()
@@ -489,7 +487,7 @@ describeIfNative('Memory native SQLite migration', () => {
     const targetPath = join(directory, 'target.db')
     const canonicalTargetPath = join(directory, 'canonical-target.db')
     try {
-      const source = new SQLitePresenterCtor(sourcePath)
+      const source = new MainDatabaseCtor(sourcePath)
       source.agentMemoryTable.insert({
         id: 'valid',
         agentId: 'a',
@@ -508,7 +506,7 @@ describeIfNative('Memory native SQLite migration', () => {
       sourceDb.exec("UPDATE agent_memory SET status = 'invalid' WHERE id = 'invalid'")
       sourceDb.close()
 
-      const target = new SQLitePresenterCtor(targetPath)
+      const target = new MainDatabaseCtor(targetPath)
       target.close()
       const importer = new DataImporterCtor(sourcePath, targetPath)
       const legacySummary = await importer.importData()
@@ -532,7 +530,7 @@ describeIfNative('Memory native SQLite migration', () => {
       )
       malformedCanonical.close()
 
-      const canonicalTarget = new SQLitePresenterCtor(canonicalTargetPath)
+      const canonicalTarget = new MainDatabaseCtor(canonicalTargetPath)
       canonicalTarget.close()
       const canonicalImporter = new DataImporterCtor(sourcePath, canonicalTargetPath)
       const canonicalSummary = await canonicalImporter.importData()
@@ -610,7 +608,7 @@ describeIfNative('Memory native SQLite migration', () => {
   for (const version of [34, 37, 38, 40, 41]) {
     it(`migrates schema version ${version} through v41 to v42 and preserves legacy rows`, () => {
       withTemporaryDatabase((databasePath) => {
-        const seeded = new SQLitePresenterCtor(databasePath)
+        const seeded = new MainDatabaseCtor(databasePath)
         seeded
           .getDatabase()
           .prepare(
@@ -644,7 +642,7 @@ describeIfNative('Memory native SQLite migration', () => {
           .run(version, 1)
         legacy.close()
 
-        const migrated = new SQLitePresenterCtor(databasePath)
+        const migrated = new MainDatabaseCtor(databasePath)
         const db = migrated.getDatabase()
         expect(
           db
@@ -679,7 +677,7 @@ describeIfNative('Memory native SQLite migration', () => {
         expect(columns.some((column) => column.name === 'conflict_with')).toBe(true)
         migrated.close()
 
-        const reopened = new SQLitePresenterCtor(databasePath)
+        const reopened = new MainDatabaseCtor(databasePath)
         expect(
           reopened
             .getDatabase()
@@ -693,7 +691,7 @@ describeIfNative('Memory native SQLite migration', () => {
 
   it('tolerantly normalizes unknown v41 status by kind and embedding-ref completeness', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       for (const [id, kind] of [
         ['user-ready', 'semantic'],
         ['user-pending', 'semantic'],
@@ -718,7 +716,7 @@ describeIfNative('Memory native SQLite migration', () => {
       legacy.exec('INSERT INTO schema_versions (version, applied_at) VALUES (41, 1)')
       legacy.close()
 
-      const migrated = new SQLitePresenterCtor(databasePath)
+      const migrated = new MainDatabaseCtor(databasePath)
       expect(
         migrated
           .getDatabase()
@@ -761,7 +759,7 @@ describeIfNative('Memory native SQLite migration', () => {
     withTemporaryDatabase((databasePath) => {
       for (const variant of ['lifecycle-only', 'embedding-only', 'both-present'] as const) {
         const variantPath = `${databasePath}-${variant}`
-        const seeded = new SQLitePresenterCtor(variantPath)
+        const seeded = new MainDatabaseCtor(variantPath)
         seeded.agentMemoryTable.insert({
           id: variant,
           agentId: 'a',
@@ -792,7 +790,7 @@ describeIfNative('Memory native SQLite migration', () => {
         partial.exec('INSERT INTO schema_versions (version, applied_at) VALUES (41, 1)')
         partial.close()
 
-        const migrated = new SQLitePresenterCtor(variantPath)
+        const migrated = new MainDatabaseCtor(variantPath)
         expect(
           migrated
             .getDatabase()
@@ -815,7 +813,7 @@ describeIfNative('Memory native SQLite migration', () => {
 
   it('fails hard when schema version claims v42 but a required canonical column is missing', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       seeded.close()
       const broken = new DatabaseCtor(databasePath)
       dropV42CanonicalArtifacts(broken)
@@ -823,13 +821,13 @@ describeIfNative('Memory native SQLite migration', () => {
       broken.exec('ALTER TABLE agent_memory DROP COLUMN embedding_state')
       broken.close()
 
-      expect(() => new SQLitePresenterCtor(databasePath)).toThrow(/embedding_state/)
+      expect(() => new MainDatabaseCtor(databasePath)).toThrow(/embedding_state/)
     })
   })
 
   it('fails hard when canonical columns exist without the v42 constraints', () => {
     withTemporaryDatabase((databasePath) => {
-      const seeded = new SQLitePresenterCtor(databasePath)
+      const seeded = new MainDatabaseCtor(databasePath)
       seeded.close()
       const broken = new DatabaseCtor(databasePath)
       dropV42CanonicalArtifacts(broken)
@@ -842,7 +840,7 @@ describeIfNative('Memory native SQLite migration', () => {
       `)
       broken.close()
 
-      expect(() => new SQLitePresenterCtor(databasePath)).toThrow(
+      expect(() => new MainDatabaseCtor(databasePath)).toThrow(
         /lifecycle_state constraints are incomplete/
       )
     })
@@ -853,7 +851,7 @@ describeIfNative('Memory native SQLite migration', () => {
     try {
       for (const missingColumns of [['embedding_state'], ['embedding_state', 'lifecycle_state']]) {
         const databasePath = join(directory, `${missingColumns.length}.db`)
-        const presenter = new SQLitePresenterCtor(databasePath)
+        const presenter = new MainDatabaseCtor(databasePath)
         const table = presenter.agentMemoryTable
         const db = presenter.getDatabase()
         table.insert({
@@ -930,7 +928,7 @@ describeIfNative('Memory native SQLite migration', () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-repair-rollback-'))
     const databasePath = join(directory, 'agent.db')
     try {
-      const presenter = new SQLitePresenterCtor(databasePath)
+      const presenter = new MainDatabaseCtor(databasePath)
       const db = presenter.getDatabase()
       presenter.agentMemoryTable.insert({
         id: 'malformed',

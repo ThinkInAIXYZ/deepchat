@@ -10,7 +10,7 @@ describe('sqlitePresenter migration SQL splitting', () => {
   })
 
   it('ignores line and block comments when splitting migration SQL blocks', async () => {
-    const { SQLitePresenter } = await import('../../../src/main/presenter/sqlitePresenter')
+    const { MainDatabase } = await import('../../../src/main/data/mainDatabase')
     const exec = vi.fn()
     const insertVersion = vi.fn()
     const transaction = vi.fn((callback: () => void) => callback)
@@ -24,7 +24,7 @@ describe('sqlitePresenter migration SQL splitting', () => {
       throw new Error(`Unexpected prepared statement: ${statement}`)
     })
 
-    const presenter = Object.create(SQLitePresenter.prototype) as any
+    const presenter = Object.create(MainDatabase.prototype) as any
     presenter.db = {
       exec,
       transaction,

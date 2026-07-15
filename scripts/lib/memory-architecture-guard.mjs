@@ -759,7 +759,7 @@ function hasLocalLineageCodec(sourceFile, checker) {
 
 function buildPaths(root) {
   const memoryRoot = path.join(root, 'src/main/memory')
-  const sqliteRoot = path.join(root, 'src/main/presenter/sqlitePresenter')
+  const mainDatabasePath = path.join(root, 'src/main/data/mainDatabase.ts')
   return {
     root,
     memoryRoot,
@@ -773,7 +773,7 @@ function buildPaths(root) {
     infraRoot: path.join(memoryRoot, 'infra'),
     servicesRoot: path.join(memoryRoot, 'services'),
     sharedRoot: path.join(root, 'src/shared'),
-    sqliteRoot,
+    mainDatabasePath,
     memoryTablePath: path.join(memoryRoot, 'data/tables/agentMemory.ts'),
     auditTablePath: path.join(memoryRoot, 'data/tables/agentMemoryAudit.ts'),
     sharedRoutePath: path.join(root, 'src/shared/contracts/routes/memory.routes.ts'),
@@ -845,7 +845,7 @@ export async function analyzeMemoryArchitecture({
     if (layer) {
       for (const specifier of moduleSpecifiers(sourceFile)) {
         const resolved = await resolveImport(specifier, filePath)
-        if (resolved && isUnder(resolved, paths.sqliteRoot)) {
+        if (resolved && path.resolve(resolved) === path.resolve(paths.mainDatabasePath)) {
           violations.push(
             `[memory-domain-sqlite-concrete] ${relativePath(root, filePath)} -> ${relativePath(root, resolved)}`
           )

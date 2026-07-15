@@ -11,20 +11,18 @@ import { createFakeRepository, FakeVectorStore } from './support/memoryFakes'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
-const presenterModule = Database
-  ? await import('@/presenter/sqlitePresenter').catch(() => null)
-  : null
-const SQLitePresenter = presenterModule?.SQLitePresenter
-const SQLitePresenterCtor = SQLitePresenter!
+const presenterModule = Database ? await import('@/data/mainDatabase').catch(() => null) : null
+const MainDatabase = presenterModule?.MainDatabase
+const MainDatabaseCtor = MainDatabase!
 const describeIfNative = nativeSqliteDescribeIf(
-  Boolean(SQLitePresenter),
+  Boolean(MainDatabase),
   'Native SQLite presenter is unavailable'
 )
 
 describeIfNative('Memory update SQLite integration', () => {
   it('rejects partial canonical insert state in fake and SQLite repositories', () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-insert-state-'))
-    const sqlite = new SQLitePresenterCtor(join(directory, 'agent.db'))
+    const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))
     const fake = createFakeRepository()
     const partialInput = {
       id: 'partial-canonical',
@@ -47,7 +45,7 @@ describeIfNative('Memory update SQLite integration', () => {
 
   it('keeps fake and SQLite archive transition guards in parity', () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-transition-parity-'))
-    const sqlite = new SQLitePresenterCtor(join(directory, 'agent.db'))
+    const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))
     const fake = createFakeRepository()
     try {
       for (const repository of [sqlite.agentMemoryTable, fake]) {
@@ -92,7 +90,7 @@ describeIfNative('Memory update SQLite integration', () => {
 
   it('retires the current head exactly once when a manual edit changes A to B and back to A', async () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-update-'))
-    const sqlite = new SQLitePresenterCtor(join(directory, 'agent.db'))
+    const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))
     const presenter = new MemoryService({
       repository: sqlite.agentMemoryTable,
       auditRepository: sqlite.agentMemoryAuditTable,
@@ -165,7 +163,7 @@ describeIfNative('Memory update SQLite integration', () => {
 
   it('rolls back a merged challenger when its provenance key is already owned', async () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-conflict-'))
-    const sqlite = new SQLitePresenterCtor(join(directory, 'agent.db'))
+    const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))
     const onMemoryChanged = vi.fn()
     const getEmbeddings = vi.fn(async () => [])
     const presenter = new MemoryService({

@@ -8,7 +8,7 @@ import {
 } from '@/agent/acp/compatibility/adapters'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/session/data/tape'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 
 const publishDeepchatEvent = vi.fn()
 
@@ -181,7 +181,7 @@ function createProjectionHarness() {
         tapeRows.filter((row) => row.session_id === sessionId)
       )
     }
-  } as unknown as SQLitePresenter
+  } as unknown as MainDatabase
   const messageStore = new SessionTranscript(sqlitePresenter)
   const tapeService = new SessionTape(sqlitePresenter)
   const adapter = new AcpCompatibilityProjectionAdapter({

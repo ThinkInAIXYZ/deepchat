@@ -28,7 +28,7 @@ const missingDraftIssue = {
 }
 
 async function createInitializerWithMocks(input: {
-  SQLitePresenter: ReturnType<typeof vi.fn>
+  MainDatabase: ReturnType<typeof vi.fn>
   repairSQLiteDatabaseFile?: ReturnType<typeof vi.fn>
   isDestructiveDatabaseError?: ReturnType<typeof vi.fn>
   classifySchemaError?: ReturnType<typeof vi.fn>
@@ -46,8 +46,8 @@ async function createInitializerWithMocks(input: {
       getPath: vi.fn().mockReturnValue('C:/Users/test/AppData/Roaming/DeepChat')
     }
   }))
-  vi.doMock('@/presenter/sqlitePresenter', () => ({
-    SQLitePresenter: input.SQLitePresenter,
+  vi.doMock('@/data/mainDatabase', () => ({
+    MainDatabase: input.MainDatabase,
     repairSQLiteDatabaseFile,
     isDestructiveDatabaseError
   }))
@@ -83,7 +83,7 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const SQLitePresenter = vi
+    const MainDatabase = vi
       .fn()
       .mockImplementationOnce(() => {
         throw new Error('table deepchat_sessions has no column named reasoning_visibility')
@@ -95,12 +95,12 @@ describe('DatabaseInitializer', () => {
     })
 
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
-      SQLitePresenter,
+      MainDatabase,
       classifySchemaError
     })
     const result = await initializer.initialize()
 
-    expect(SQLitePresenter).toHaveBeenCalledTimes(2)
+    expect(MainDatabase).toHaveBeenCalledTimes(2)
     expect(repairSQLiteDatabaseFile).toHaveBeenCalledTimes(1)
     expect(repairSQLiteDatabaseFile).toHaveBeenCalledWith('C:/tmp/deepchat-agent.db', undefined, {
       catalog: startupSchemaCatalog
@@ -117,13 +117,13 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const SQLitePresenter = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
-      SQLitePresenter
+      MainDatabase
     })
     const result = await initializer.initialize()
 
-    expect(SQLitePresenter).toHaveBeenCalledTimes(1)
+    expect(MainDatabase).toHaveBeenCalledTimes(1)
     expect(presenterInstance.diagnoseSchema).toHaveBeenCalledTimes(1)
     expect(presenterInstance.diagnoseSchema).toHaveBeenCalledWith(startupSchemaCatalog)
     expect(repairSQLiteDatabaseFile).not.toHaveBeenCalled()
@@ -137,13 +137,13 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const SQLitePresenter = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
-      SQLitePresenter
+      MainDatabase
     })
     const result = await initializer.initialize()
 
-    expect(SQLitePresenter).toHaveBeenCalledTimes(1)
+    expect(MainDatabase).toHaveBeenCalledTimes(1)
     expect(repairSQLiteDatabaseFile).not.toHaveBeenCalled()
     expect(presenterInstance.close).not.toHaveBeenCalled()
     expect(result).toBe(presenterInstance)
@@ -167,17 +167,17 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const SQLitePresenter = vi
+    const MainDatabase = vi
       .fn()
       .mockImplementationOnce(() => driftedPresenter)
       .mockImplementationOnce(() => repairedPresenter)
 
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
-      SQLitePresenter
+      MainDatabase
     })
     const result = await initializer.initialize()
 
-    expect(SQLitePresenter).toHaveBeenCalledTimes(2)
+    expect(MainDatabase).toHaveBeenCalledTimes(2)
     expect(driftedPresenter.diagnoseSchema).toHaveBeenCalledWith(startupSchemaCatalog)
     expect(driftedPresenter.close).toHaveBeenCalledTimes(1)
     expect(repairSQLiteDatabaseFile).toHaveBeenCalledTimes(1)
@@ -206,17 +206,17 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const SQLitePresenter = vi
+    const MainDatabase = vi
       .fn()
       .mockImplementationOnce(() => driftedPresenter)
       .mockImplementationOnce(() => stillDriftedPresenter)
 
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
-      SQLitePresenter
+      MainDatabase
     })
     const result = await initializer.initialize()
 
-    expect(SQLitePresenter).toHaveBeenCalledTimes(2)
+    expect(MainDatabase).toHaveBeenCalledTimes(2)
     expect(repairSQLiteDatabaseFile).toHaveBeenCalledTimes(1)
     expect(stillDriftedPresenter.close).not.toHaveBeenCalled()
     expect(result).toBe(stillDriftedPresenter)
@@ -244,19 +244,19 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const SQLitePresenter = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
-      SQLitePresenter
+      MainDatabase
     })
     const result = await initializer.initialize()
 
-    expect(SQLitePresenter).toHaveBeenCalledTimes(1)
+    expect(MainDatabase).toHaveBeenCalledTimes(1)
     expect(repairSQLiteDatabaseFile).not.toHaveBeenCalled()
     expect(result).toBe(presenterInstance)
   })
 
   it('does not attempt schema repair for destructive database errors', async () => {
-    const SQLitePresenter = vi.fn().mockImplementation(() => {
+    const MainDatabase = vi.fn().mockImplementation(() => {
       throw new Error('database disk image is malformed')
     })
     const isDestructiveDatabaseError = vi.fn().mockReturnValue(true)
@@ -266,13 +266,13 @@ describe('DatabaseInitializer', () => {
     })
 
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
-      SQLitePresenter,
+      MainDatabase,
       isDestructiveDatabaseError,
       classifySchemaError
     })
 
     await expect(initializer.initialize()).rejects.toThrow('database disk image is malformed')
-    expect(SQLitePresenter).toHaveBeenCalledTimes(1)
+    expect(MainDatabase).toHaveBeenCalledTimes(1)
     expect(repairSQLiteDatabaseFile).not.toHaveBeenCalled()
   })
 })

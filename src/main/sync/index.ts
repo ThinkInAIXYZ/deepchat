@@ -3,13 +3,12 @@ import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { zip, unzip, type AsyncZipOptions } from 'fflate'
-import type { ISQLitePresenter } from '@shared/presenter'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { DataImporter } from './dataImporter'
-import { ImportMode } from '../presenter/sqlitePresenter'
-import type { SQLitePresenter } from '../presenter/sqlitePresenter'
+import { ImportMode } from '../data/mainDatabase'
+import type { MainDatabase } from '../data/mainDatabase'
 import {
   CURRENT_SYNC_BACKUP_VERSION,
   CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
@@ -109,7 +108,7 @@ export interface SyncImportResult {
 }
 
 export class SyncService {
-  private sqlitePresenter: ISQLitePresenter
+  private sqlitePresenter: MainDatabase
   private isBackingUp = false
   private currentBackupStatus: BackupStatus = 'idle'
   private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
@@ -120,7 +119,7 @@ export class SyncService {
 
   constructor(
     private readonly settings: SyncSettings,
-    sqlitePresenter: ISQLitePresenter
+    sqlitePresenter: MainDatabase
   ) {
     this.sqlitePresenter = sqlitePresenter
   }
@@ -640,7 +639,7 @@ export class SyncService {
   }
 
   private createConfigImportService(): SyncConfigImportService {
-    const sqlitePresenter = this.sqlitePresenter as unknown as SQLitePresenter
+    const sqlitePresenter = this.sqlitePresenter as unknown as MainDatabase
     return new SyncConfigImportService(this.DB_PATH, (dbPath) =>
       sqlitePresenter.openDatabaseConnection(dbPath)
     )
@@ -656,7 +655,7 @@ export class SyncService {
   }
 
   private getActiveDatabasePassword(): string | undefined {
-    return (this.sqlitePresenter as unknown as Partial<SQLitePresenter>).getDatabasePassword?.()
+    return (this.sqlitePresenter as unknown as Partial<MainDatabase>).getDatabasePassword?.()
   }
 
   private resolveBackupDatabasePassword(
@@ -690,7 +689,7 @@ export class SyncService {
   }
 
   private ensureSqliteConfigStorageReady(): void {
-    const configTables = (this.sqlitePresenter as unknown as Partial<SQLitePresenter>).configTables
+    const configTables = (this.sqlitePresenter as unknown as Partial<MainDatabase>).configTables
     if (!configTables?.hasConfigMigration?.()) {
       throw new Error('sync.error.configNotExists')
     }
@@ -800,8 +799,7 @@ export class SyncService {
     }
 
     try {
-      const configTables = (this.sqlitePresenter as unknown as Partial<SQLitePresenter>)
-        .configTables
+      const configTables = (this.sqlitePresenter as unknown as Partial<MainDatabase>).configTables
       if (configTables) {
         for (const provider of configTables.listProviders()) {
           providerIds.add(provider.id)

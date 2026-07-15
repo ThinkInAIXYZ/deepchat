@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import type {
   ChatMessagePageResult,
   ChatMessageRecord,
@@ -127,9 +127,9 @@ function extractSearchableMessageContent(rawContent: string): string {
 }
 
 export class SessionTranscript {
-  private sqlitePresenter: SQLitePresenter
+  private sqlitePresenter: MainDatabase
 
-  constructor(sqlitePresenter: SQLitePresenter) {
+  constructor(sqlitePresenter: MainDatabase) {
     this.sqlitePresenter = sqlitePresenter
   }
 

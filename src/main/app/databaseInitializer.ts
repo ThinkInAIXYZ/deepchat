@@ -5,8 +5,8 @@ import path from 'path'
 import {
   isDestructiveDatabaseError,
   repairSQLiteDatabaseFile,
-  SQLitePresenter
-} from '@/presenter/sqlitePresenter'
+  MainDatabase
+} from '@/data/mainDatabase'
 import { getStartupSchemaCatalog } from '@/data/schemaCatalog'
 import { classifySchemaError } from '@/data/schemaErrorClassifier'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
@@ -20,7 +20,7 @@ type DatabaseInitializerOptions = {
  * Database initialization interface
  */
 export interface IDatabaseInitializer {
-  initialize(): Promise<SQLitePresenter>
+  initialize(): Promise<MainDatabase>
   migrate(): Promise<void>
   validateConnection(): Promise<boolean>
 }
@@ -31,7 +31,7 @@ export interface IDatabaseInitializer {
 export class DatabaseInitializer implements IDatabaseInitializer {
   private dbPath: string
   private password?: string
-  private database?: SQLitePresenter
+  private database?: MainDatabase
 
   constructor(options?: DatabaseInitializerOptions) {
     // Initialize database path
@@ -43,7 +43,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
   /**
    * Initialize the database connection and perform setup
    */
-  async initialize(): Promise<SQLitePresenter> {
+  async initialize(): Promise<MainDatabase> {
     let repairAttempted = false
 
     try {
@@ -51,7 +51,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
 
       while (true) {
         try {
-          this.database = new SQLitePresenter(this.dbPath, this.password)
+          this.database = new MainDatabase(this.dbPath, this.password)
 
           const isValid = await this.validateConnection()
           if (!isValid) {
@@ -134,7 +134,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
 
     try {
       logger.info('DatabaseInitializer: Starting database migration')
-      // Migration logic is already handled in SQLitePresenter constructor
+      // Migration logic is already handled in MainDatabase constructor
       // This method is here for future migration needs that might be separate
       logger.info('DatabaseInitializer: Database migration completed')
     } catch (error) {

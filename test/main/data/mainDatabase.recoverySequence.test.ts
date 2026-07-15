@@ -10,11 +10,11 @@ describe('sqlitePresenter destructive recovery sequence', () => {
   })
 
   it('backs up the live database before closing and cleaning up destructive failures', async () => {
-    const { SQLitePresenter } = await import('../../../src/main/presenter/sqlitePresenter')
+    const { MainDatabase } = await import('../../../src/main/data/mainDatabase')
     const callOrder: string[] = []
     const destructiveError = new Error('SQLITE_CORRUPT: malformed page')
 
-    vi.spyOn(SQLitePresenter.prototype as any, 'initializeDatabase')
+    vi.spyOn(MainDatabase.prototype as any, 'initializeDatabase')
       .mockImplementationOnce(function (this: any) {
         callOrder.push('initializeDatabase:first')
         this.db = {
@@ -28,17 +28,17 @@ describe('sqlitePresenter destructive recovery sequence', () => {
         callOrder.push('initializeDatabase:retry')
       })
 
-    vi.spyOn(SQLitePresenter.prototype as any, 'backupDatabase').mockImplementation(() => {
+    vi.spyOn(MainDatabase.prototype as any, 'backupDatabase').mockImplementation(() => {
       callOrder.push('backupDatabase')
     })
-    vi.spyOn(SQLitePresenter.prototype as any, 'closeDatabaseSilently').mockImplementation(() => {
+    vi.spyOn(MainDatabase.prototype as any, 'closeDatabaseSilently').mockImplementation(() => {
       callOrder.push('closeDatabaseSilently')
     })
-    vi.spyOn(SQLitePresenter.prototype as any, 'cleanupDatabaseFiles').mockImplementation(() => {
+    vi.spyOn(MainDatabase.prototype as any, 'cleanupDatabaseFiles').mockImplementation(() => {
       callOrder.push('cleanupDatabaseFiles')
     })
 
-    new SQLitePresenter('C:/tmp/deepchat-agent.db')
+    new MainDatabase('C:/tmp/deepchat-agent.db')
 
     expect(callOrder).toEqual([
       'initializeDatabase:first',
@@ -50,12 +50,12 @@ describe('sqlitePresenter destructive recovery sequence', () => {
   })
 
   it('attempts destructive recovery at most once when the retry also fails destructively', async () => {
-    const { SQLitePresenter } = await import('../../../src/main/presenter/sqlitePresenter')
+    const { MainDatabase } = await import('../../../src/main/data/mainDatabase')
     const callOrder: string[] = []
     const destructiveError = new Error('SQLITE_CORRUPT: malformed page')
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    vi.spyOn(SQLitePresenter.prototype as any, 'initializeDatabase')
+    vi.spyOn(MainDatabase.prototype as any, 'initializeDatabase')
       .mockImplementationOnce(function (this: any) {
         callOrder.push('initializeDatabase:first')
         this.db = {
@@ -76,22 +76,22 @@ describe('sqlitePresenter destructive recovery sequence', () => {
       })
 
     const backupSpy = vi
-      .spyOn(SQLitePresenter.prototype as any, 'backupDatabase')
+      .spyOn(MainDatabase.prototype as any, 'backupDatabase')
       .mockImplementation(() => {
         callOrder.push('backupDatabase')
       })
     const closeSpy = vi
-      .spyOn(SQLitePresenter.prototype as any, 'closeDatabaseSilently')
+      .spyOn(MainDatabase.prototype as any, 'closeDatabaseSilently')
       .mockImplementation(() => {
         callOrder.push('closeDatabaseSilently')
       })
     const cleanupSpy = vi
-      .spyOn(SQLitePresenter.prototype as any, 'cleanupDatabaseFiles')
+      .spyOn(MainDatabase.prototype as any, 'cleanupDatabaseFiles')
       .mockImplementation(() => {
         callOrder.push('cleanupDatabaseFiles')
       })
 
-    expect(() => new SQLitePresenter('C:/tmp/deepchat-agent.db')).toThrow(destructiveError)
+    expect(() => new MainDatabase('C:/tmp/deepchat-agent.db')).toThrow(destructiveError)
 
     expect(backupSpy).toHaveBeenCalledTimes(1)
     expect(cleanupSpy).toHaveBeenCalledTimes(1)

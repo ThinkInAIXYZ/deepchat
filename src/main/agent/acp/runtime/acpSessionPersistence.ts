@@ -7,9 +7,9 @@ import type {
   AcpTurnFinishPayload,
   AcpTurnStartPayload,
   AcpSessionEntity,
-  AgentSessionLifecycleStatus,
-  ISQLitePresenter
+  AgentSessionLifecycleStatus
 } from '@shared/presenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 
 export interface AcpRemoteSessionSyncInput {
   agentId: string
@@ -37,7 +37,7 @@ export class AcpSessionPersistence {
   private readonly remoteSessionSyncLocks = new Map<string, Promise<void>>()
   private readonly metadataMergeLocks = new Map<string, Promise<void>>()
 
-  constructor(private readonly sqlitePresenter: ISQLitePresenter) {}
+  constructor(private readonly sqlitePresenter: MainDatabase) {}
 
   async getSessionData(conversationId: string, agentId: string): Promise<AcpSessionEntity | null> {
     return this.sqlitePresenter.getAcpSession(conversationId, agentId)

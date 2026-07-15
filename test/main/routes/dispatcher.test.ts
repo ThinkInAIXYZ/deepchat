@@ -6,7 +6,6 @@ import type {
   McpServicePort,
   IProjectPresenter,
   RemoteServicePort,
-  ISQLitePresenter,
   IShortcutPresenter,
   SkillServicePort,
   ITabPresenter,
@@ -15,6 +14,7 @@ import type {
   IYoBrowserPresenter,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { DeviceServicePort } from '@shared/types/device'
@@ -1279,7 +1279,7 @@ function createRuntime() {
       getBySession: vi.fn(() => []),
       listMemoryViewManifestAnchorsByAgent: vi.fn(() => [])
     }
-  } as unknown as ISQLitePresenter
+  } as unknown as MainDatabase
   const cronJob = {
     id: 'cron-1',
     name: 'Cron smoke',
@@ -3238,7 +3238,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(logoutResult.status.state).toBe('signed-out')
   })
 
-  it('dispatches database schema repair through SQLitePresenter', async () => {
+  it('dispatches database schema repair through MainDatabase', async () => {
     const { runtime, sqlitePresenter } = createRuntime()
     const context = {
       webContentsId: 42,

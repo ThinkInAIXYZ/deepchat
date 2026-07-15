@@ -254,7 +254,7 @@ const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
 )
 const DEEPCHAT_RUNTIME_ROOT = path.join(ROOT, 'src/main/agent/deepchat/runtime')
 const MEMORY_ROOT = path.join(ROOT, 'src/main/memory')
-const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
+const MAIN_DATABASE_PATH = path.join(ROOT, 'src/main/data/mainDatabase.ts')
 const APP_COMPOSITION_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const DESKTOP_ROOT = path.join(ROOT, 'src/main/desktop')
@@ -299,7 +299,7 @@ const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
 const SESSION_OWNER_WHOLE_DEPENDENCY_NAMES = new Set([
   'Presenter',
   'IAgentSessionPresenter',
-  'SQLitePresenter'
+  'MainDatabase'
 ])
 const SESSION_COMBINED_FACADE_NAMES = new Set([
   'SessionApplicationServices',
@@ -2061,8 +2061,8 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
           if (path.resolve(resolved) === path.resolve(APP_COMPOSITION_ENTRY)) {
             wholeDependencies.add('Presenter')
           }
-          if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
-            wholeDependencies.add('SQLitePresenter')
+          if (path.resolve(resolved) === path.resolve(MAIN_DATABASE_PATH)) {
+            wholeDependencies.add('MainDatabase')
           }
         }
 
@@ -2348,7 +2348,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
             `[acp-direct-instance-presenter-root] ${relativePath(filePath)} -> ${specifier}`
           )
         }
-        if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
+        if (path.resolve(resolved) === path.resolve(MAIN_DATABASE_PATH)) {
           violations.push(`[acp-direct-instance-sqlite] ${relativePath(filePath)} -> ${specifier}`)
         }
       }
@@ -2369,7 +2369,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         )
         if (!resolved) continue
 
-        if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
+        if (path.resolve(resolved) === path.resolve(MAIN_DATABASE_PATH)) {
           violations.push(`[deepchat-loop-sqlite] ${relativePath(filePath)} -> ${specifier}`)
         } else if (isUnder(resolved, MAIN_PRESENTER_ROOT)) {
           violations.push(`[deepchat-loop-presenter] ${relativePath(filePath)} -> ${specifier}`)

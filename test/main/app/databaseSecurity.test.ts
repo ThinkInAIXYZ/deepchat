@@ -55,7 +55,7 @@ vi.mock('electron-store', () => ({
   }
 }))
 
-vi.mock('../../../src/main/presenter/sqlitePresenter', () => ({
+vi.mock('../../../src/main/data/mainDatabase', () => ({
   openSQLiteDatabase: mocks.openSQLiteDatabase
 }))
 

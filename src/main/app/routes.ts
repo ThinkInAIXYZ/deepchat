@@ -1,5 +1,6 @@
 import { app } from 'electron'
-import type { ConfigServicePort, ISQLitePresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
+import type { MainDatabase } from '@/data/mainDatabase'
 import {
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
@@ -15,14 +16,17 @@ import type { DatabaseSecurityService } from './databaseSecurity'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import type { SessionQuery } from '@/session/query'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
-import { createDebugMockChatSession } from './debug/createMockChatSession'
+import {
+  createDebugMockChatSession,
+  type DebugMockChatDatabase
+} from './debug/createMockChatSession'
 import type { ProjectService } from '@/project'
 
 export function createAppRoutes(deps: {
   config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
-  database: Pick<ISQLitePresenter, 'repairSchema' | 'getDatabase'>
+  database: Pick<MainDatabase, 'repairSchema'> & { getDatabase(): DebugMockChatDatabase }
   startupSession: Pick<SessionQuery, 'getLightweightByIds'>
   desktopSession: { getActiveId(webContentsId: number): string | null }
   startup: Pick<StartupWorkloadCoordinator, 'scheduleTask' | 'getRunId' | 'replayTarget'>

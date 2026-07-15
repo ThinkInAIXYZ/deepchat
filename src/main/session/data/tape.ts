@@ -1,4 +1,4 @@
-import { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import { MainDatabase } from '@/data/mainDatabase'
 import { nanoid } from 'nanoid'
 import { createHash } from 'crypto'
 import logger from 'electron-log'
@@ -860,14 +860,14 @@ function withReplaySliceHash(
 }
 
 export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
-  constructor(private readonly sqlitePresenter: SQLitePresenter) {}
+  constructor(private readonly sqlitePresenter: MainDatabase) {}
 
-  private get table(): SQLitePresenter['deepchatTapeEntriesTable'] | undefined {
+  private get table(): MainDatabase['deepchatTapeEntriesTable'] | undefined {
     return this.sqlitePresenter.deepchatTapeEntriesTable
   }
 
   private get searchProjectionTable():
-    | SQLitePresenter['deepchatTapeSearchProjectionTable']
+    | MainDatabase['deepchatTapeSearchProjectionTable']
     | undefined {
     return this.sqlitePresenter.deepchatTapeSearchProjectionTable
   }
@@ -1746,7 +1746,7 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     sessionId: string,
     rows: DeepChatTapeEntryRow[],
     effectiveRows: DeepChatTapeEntryRow[]
-  ): SQLitePresenter['deepchatTapeSearchProjectionTable'] | null {
+  ): MainDatabase['deepchatTapeSearchProjectionTable'] | null {
     const projectionTable = this.searchProjectionTable
     if (!projectionTable) return null
     const maxEntryId = rows.reduce((max, row) => Math.max(max, row.entry_id), 0)

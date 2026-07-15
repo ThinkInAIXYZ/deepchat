@@ -1,15 +1,7 @@
 import { nanoid } from 'nanoid'
+import type Database from 'better-sqlite3-multiple-ciphers'
 
-type StatementLike = {
-  all(...params: unknown[]): unknown[]
-  get(...params: unknown[]): unknown
-  run(...params: unknown[]): unknown
-}
-
-export type DebugMockChatDatabase = {
-  prepare(sql: string): StatementLike
-  transaction<T extends (...args: unknown[]) => unknown>(fn: T): T
-}
+export type DebugMockChatDatabase = Pick<Database.Database, 'prepare' | 'transaction'>
 
 export type DebugMockChatSessionResult = {
   created: boolean
