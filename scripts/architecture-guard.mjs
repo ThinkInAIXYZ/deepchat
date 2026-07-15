@@ -1592,6 +1592,24 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       isUnder(filePath, REGULAR_MAIN_TEST_ROOT)
     const sourceFile = scansRetiredSessionFacade ? sourceFileForAst(source, filePath) : null
 
+    if (isMainSource) {
+      if (
+        /import\s*\{[^}]*\b(?:presenter|getInstance)\b[^}]*\}\s*from/s.test(source)
+      ) {
+        violations.push(
+          `[main-global-presenter-import] ${relativePath(filePath)} must use explicit dependencies`
+        )
+      }
+      if (
+        path.resolve(filePath) === path.resolve(PRESENTER_ROOT_ENTRY) &&
+        /export\s+(?:(?:const|let|var)\s+presenter\b|function\s+getInstance\b)/s.test(source)
+      ) {
+        violations.push(
+          `[main-global-presenter-export] ${relativePath(filePath)} must not export a global module lookup`
+        )
+      }
+    }
+
     if (scansRetiredSessionFacade) {
       const retiredAppCompositionNames = findIdentifierNames(
         sourceFile,

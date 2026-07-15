@@ -258,6 +258,7 @@ Config runtime，并传入 floating UI、App restart、ACP refresh 和 hook test
 
 已完成：main process 直接创建唯一的 `Presenter` composition root，删除 `presenter` 全局变量和
 `getInstance()`。生产代码已没有通过 `@/presenter` 反向查找模块的路径。
+架构检查会拒绝 main 模块重新导入或导出这两个全局入口。
 
 ### A2：删除全局 route runtime
 

@@ -110,6 +110,10 @@ const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
   'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_arrow_fixture__.ts'
 )
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
+const GLOBAL_PRESENTER_IMPORT_FIXTURE = path.join(
+  ROOT,
+  'src/main/presenter/configPresenter/__architecture_guard_global_presenter_fixture__.ts'
+)
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const REMOTE_CONTROL_PRESENTER_PATH = path.join(
   ROOT,
@@ -560,6 +564,13 @@ const kindAliasProperty = ['agent', 'Type'].join('')
 const typeProperty = ['ty', 'pe'].join('')
 
 const virtualFiles = new Map<string, string>([
+  [
+    GLOBAL_PRESENTER_IMPORT_FIXTURE,
+    `
+      import { presenter } from '..'
+      export const config = presenter.configPresenter
+    `
+  ],
   ...SESSION_ARCHITECTURE_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
   ...SESSION_BOUNDARY_HOOK_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
   [DUPLICATE_MEMORY_COORDINATOR_FIXTURE, 'export class MemoryRuntimeCoordinator {}'],
@@ -940,6 +951,12 @@ describe('architecture guard', () => {
   beforeAll(async () => {
     violations = await runArchitectureGuard({ virtualFiles })
   }, 30_000)
+
+  it('rejects global Presenter imports in main process modules', () => {
+    expect(forFile(violations, GLOBAL_PRESENTER_IMPORT_FIXTURE)).toContain(
+      `[main-global-presenter-import] src/main/presenter/configPresenter/__architecture_guard_global_presenter_fixture__.ts must use explicit dependencies`
+    )
+  })
 
   it('guards the production Remote presenter path from retired session facade access', () => {
     const fixtureViolations = sessionViolationsForFile(
