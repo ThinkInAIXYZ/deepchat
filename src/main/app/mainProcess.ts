@@ -11,6 +11,7 @@ import { registerProtocols } from './protocols'
 import { SplashWindow } from './splashWindow'
 import { PrivacySettings } from './privacy'
 import { ProxySettings } from '@/platform/proxySettings'
+import { McpSettings } from '@/mcp/settings'
 
 export type { MainProcessControl } from './composition'
 
@@ -31,7 +32,8 @@ export async function startMainProcess(
     const secretStore = new SecretStore(settingsStore)
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
-    const configService = new ConfigService(settingsStore, privacySettings)
+    const mcpSettings = new McpSettings()
+    const configService = new ConfigService(settingsStore, privacySettings, mcpSettings)
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
 
@@ -63,6 +65,7 @@ export async function startMainProcess(
       secretStore,
       privacySettings,
       proxySettings,
+      mcpSettings,
       sqlitePresenter: database,
       databaseSecurityService,
       startupWorkloadCoordinator,

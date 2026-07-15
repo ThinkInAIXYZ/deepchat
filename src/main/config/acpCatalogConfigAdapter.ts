@@ -168,8 +168,8 @@ export class AcpCatalogConfigAdapter {
   private store: StoreLike<InternalStore & Record<string, unknown>>
   private readonly mcpSettings: McpSettings
 
-  constructor(options?: { mcpSettings?: McpSettings }) {
-    this.mcpSettings = options?.mcpSettings ?? new McpSettings()
+  constructor(options: { mcpSettings: McpSettings }) {
+    this.mcpSettings = options.mcpSettings
     this.store = new ElectronStore<InternalStore>({
       name: 'acp_agents',
       defaults: {

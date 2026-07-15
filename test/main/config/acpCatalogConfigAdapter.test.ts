@@ -89,7 +89,8 @@ describe('AcpCatalogConfigAdapter registry-first migration', () => {
     })
 
     const { AcpCatalogConfigAdapter } = await import('@/config/acpCatalogConfigAdapter')
-    const helper = new AcpCatalogConfigAdapter()
+    const { McpSettings } = await import('@/mcp/settings')
+    const helper = new AcpCatalogConfigAdapter({ mcpSettings: new McpSettings() })
 
     expect(helper.getAgentState('kimi')).toEqual(
       expect.objectContaining({
@@ -114,7 +115,8 @@ describe('AcpCatalogConfigAdapter registry-first migration', () => {
 
   it('persists registry env overrides and validates shared MCP selections', async () => {
     const { AcpCatalogConfigAdapter } = await import('@/config/acpCatalogConfigAdapter')
-    const helper = new AcpCatalogConfigAdapter()
+    const { McpSettings } = await import('@/mcp/settings')
+    const helper = new AcpCatalogConfigAdapter({ mcpSettings: new McpSettings() })
 
     helper.setAgentEnvOverride('claude-code-acp', {
       ANTHROPIC_AUTH_TOKEN: 'token',
@@ -166,7 +168,8 @@ describe('AcpCatalogConfigAdapter registry-first migration', () => {
     })
 
     const { AcpCatalogConfigAdapter } = await import('@/config/acpCatalogConfigAdapter')
-    const helper = new AcpCatalogConfigAdapter()
+    const { McpSettings } = await import('@/mcp/settings')
+    const helper = new AcpCatalogConfigAdapter({ mcpSettings: new McpSettings() })
 
     expect(helper.getSharedMcpSelections()).toEqual(['github', 'legacy-extra'])
     expect(helper.getAgentState('claude-acp')).toEqual(

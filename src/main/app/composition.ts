@@ -58,6 +58,7 @@ import { FileWatcherService } from '../platform/fileWatcher'
 import { LoggingService } from './logging'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
+import type { McpSettings } from '@/mcp/settings'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
@@ -196,6 +197,7 @@ export async function createMainProcessControl(dependencies: {
   secretStore: SecretStore
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
+  mcpSettings: McpSettings
   sqlitePresenter: ISQLitePresenter
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator

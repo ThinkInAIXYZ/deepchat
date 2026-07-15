@@ -433,7 +433,7 @@ export class ConfigService implements ConfigServicePort {
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
   private currentAppVersion: string
-  private mcpSettings: McpSettings // Use MCP configuration helper
+  private readonly mcpSettings: McpSettings
   private acpCatalogConfigAdapter: AcpCatalogConfigAdapter
   private acpRegistryService: AcpRegistryService
   private acpLaunchSpecService: AcpLaunchSpecService
@@ -470,7 +470,8 @@ export class ConfigService implements ConfigServicePort {
 
   constructor(
     private readonly store: SettingsStore,
-    private readonly privacy: PrivacySettingsPort
+    private readonly privacy: PrivacySettingsPort,
+    mcpSettings: McpSettings
   ) {
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
@@ -520,8 +521,7 @@ export class ConfigService implements ConfigServicePort {
       setSetting: this.setSetting.bind(this)
     })
 
-    // Initialize MCP configuration helper
-    this.mcpSettings = new McpSettings()
+    this.mcpSettings = mcpSettings
 
     this.acpCatalogConfigAdapter = new AcpCatalogConfigAdapter({
       mcpSettings: this.mcpSettings
