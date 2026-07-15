@@ -49,7 +49,7 @@ import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
-import { OAuthPresenter } from '../presenter/oauthPresenter'
+import { OAuthService } from '../provider/auth'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { KnowledgeService } from '../knowledge'
@@ -223,7 +223,7 @@ export async function createMainProcessControl(dependencies: {
   let notificationService: NotificationService
   let tabPresenter: ITabPresenter
   let trayPresenter: TrayPresenter
-  let oauthPresenter: OAuthPresenter
+  let oauthService: OAuthService
   let floatingButtonPresenter: FloatingButtonPresenter
   let knowledgeService: KnowledgeServicePort
   let workspaceService: WorkspaceServicePort
@@ -339,7 +339,7 @@ export async function createMainProcessControl(dependencies: {
   const hookSettings = new HookSettings(dependencies.settingsStore)
   syncService = new SyncService(syncSettings, sqlitePresenter)
   notificationService = new NotificationService(desktopSettings)
-  oauthPresenter = new OAuthPresenter(configService)
+  oauthService = new OAuthService(configService)
   trayPresenter = new TrayPresenter(configService, windowPresenter)
   dialogService = new DialogService()
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
@@ -1355,7 +1355,7 @@ export async function createMainProcessControl(dependencies: {
       providerRuntime,
       acpProviderAdminPort,
       providerImportService: new ProviderImportService(configService),
-      oauthPresenter,
+      oauthService,
       scheduler: createNodeScheduler(),
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
     })

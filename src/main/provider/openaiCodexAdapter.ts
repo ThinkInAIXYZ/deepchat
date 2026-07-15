@@ -3,8 +3,8 @@ import { proxyConfig } from '../platform/proxy'
 import {
   OPENAI_CODEX_API_BASE_URL,
   isOpenAICodexDisabled
-} from '../presenter/openaiCodexAuth/constants'
-import { getGlobalOpenAICodexAuth, type OpenAICodexBackendAuth } from '../presenter/openaiCodexAuth'
+} from '../provider/auth/openaiCodex/constants'
+import { getGlobalOpenAICodexAuth, type OpenAICodexBackendAuth } from '../provider/auth/openaiCodex'
 
 type FetchInitWithDispatcher = RequestInit & {
   dispatcher?: ProxyAgent

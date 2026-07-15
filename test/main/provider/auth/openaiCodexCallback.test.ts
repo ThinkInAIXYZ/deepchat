@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { resolveOpenAICodexCallbackUrl } from '../../../src/main/presenter/openaiCodexAuth'
+import { resolveOpenAICodexCallbackUrl } from '@/provider/auth/openaiCodex'
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()

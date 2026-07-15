@@ -1,4 +1,5 @@
-import type { ConfigServicePort, IOAuthPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
+import type { OAuthServicePort } from '@shared/types/oauth'
 import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
 import {
   modelsAddCustomRoute,
@@ -63,7 +64,7 @@ export function createProviderRoutes(deps: {
   providerRuntime: ProviderRuntimePort
   acpProviderAdminPort: AcpProviderAdminPort
   providerImportService: ProviderImportService
-  oauthPresenter: IOAuthPresenter
+  oauthService: OAuthServicePort
   scheduler: ProviderQueryScheduler
   recordSettingsActivity(input: SettingsActivityInput): Promise<unknown>
 }): DeepchatRouteMap {
@@ -72,7 +73,7 @@ export function createProviderRoutes(deps: {
     providerRuntime,
     acpProviderAdminPort,
     providerImportService,
-    oauthPresenter,
+    oauthService,
     scheduler
   } = deps
   const providerService = new ProviderService({
@@ -594,7 +595,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = oauthGithubCopilotStartLoginRoute.input.parse(rawInput)
         return oauthGithubCopilotStartLoginRoute.output.parse({
-          success: await oauthPresenter.startGitHubCopilotLogin(input.providerId)
+          success: await oauthService.startGitHubCopilotLogin(input.providerId)
         })
       }
     ],
@@ -603,7 +604,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = oauthGithubCopilotStartDeviceFlowLoginRoute.input.parse(rawInput)
         return oauthGithubCopilotStartDeviceFlowLoginRoute.output.parse({
-          success: await oauthPresenter.startGitHubCopilotDeviceFlowLogin(input.providerId)
+          success: await oauthService.startGitHubCopilotDeviceFlowLogin(input.providerId)
         })
       }
     ],
@@ -612,7 +613,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthOpenAICodexGetStatusRoute.input.parse(rawInput)
         return oauthOpenAICodexGetStatusRoute.output.parse({
-          status: await oauthPresenter.getOpenAICodexStatus()
+          status: await oauthService.getOpenAICodexStatus()
         })
       }
     ],
@@ -621,7 +622,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthOpenAICodexStartBrowserLoginRoute.input.parse(rawInput)
         return oauthOpenAICodexStartBrowserLoginRoute.output.parse({
-          status: await oauthPresenter.startOpenAICodexBrowserLogin()
+          status: await oauthService.startOpenAICodexBrowserLogin()
         })
       }
     ],
@@ -630,7 +631,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.input.parse(rawInput)
         return oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.output.parse({
-          status: await oauthPresenter.completeOpenAICodexBrowserLoginFromUrl(input.callbackUrl)
+          status: await oauthService.completeOpenAICodexBrowserLoginFromUrl(input.callbackUrl)
         })
       }
     ],
@@ -639,7 +640,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthOpenAICodexCancelLoginRoute.input.parse(rawInput)
         return oauthOpenAICodexCancelLoginRoute.output.parse({
-          status: await oauthPresenter.cancelOpenAICodexLogin()
+          status: await oauthService.cancelOpenAICodexLogin()
         })
       }
     ],
@@ -648,7 +649,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthOpenAICodexLogoutRoute.input.parse(rawInput)
         return oauthOpenAICodexLogoutRoute.output.parse({
-          status: await oauthPresenter.logoutOpenAICodex()
+          status: await oauthService.logoutOpenAICodex()
         })
       }
     ],
@@ -657,7 +658,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthXaiGrokGetStatusRoute.input.parse(rawInput)
         return oauthXaiGrokGetStatusRoute.output.parse({
-          status: await oauthPresenter.getXaiGrokStatus()
+          status: await oauthService.getXaiGrokStatus()
         })
       }
     ],
@@ -666,7 +667,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthXaiGrokStartDeviceLoginRoute.input.parse(rawInput)
         return oauthXaiGrokStartDeviceLoginRoute.output.parse({
-          status: await oauthPresenter.startXaiGrokDeviceLogin()
+          status: await oauthService.startXaiGrokDeviceLogin()
         })
       }
     ],
@@ -675,7 +676,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthXaiGrokCancelLoginRoute.input.parse(rawInput)
         return oauthXaiGrokCancelLoginRoute.output.parse({
-          status: await oauthPresenter.cancelXaiGrokLogin()
+          status: await oauthService.cancelXaiGrokLogin()
         })
       }
     ],
@@ -684,7 +685,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         oauthXaiGrokLogoutRoute.input.parse(rawInput)
         return oauthXaiGrokLogoutRoute.output.parse({
-          status: await oauthPresenter.logoutXaiGrok()
+          status: await oauthService.logoutXaiGrok()
         })
       }
     ]

@@ -164,6 +164,8 @@
   配置变化后的明确重排操作，不再持有 `SchedulerService`。
 - [x] 把 Provider OAuth route 合并到 `src/main/provider/routes.ts`，总 route runtime 不再持有
   `IOAuthPresenter`。
+- [x] 删除 `OAuthPresenter`、`IOAuthPresenter` 和 Presenter 下的各 Provider 登录实现；认证实现、类型
+  和测试统一移入 Provider 的 `auth/`，入口改为 `OAuthService`。
 - [x] 把 Memory route 和 DTO 转换移到 `src/main/memory/routes.ts`，只注入 Memory service、
   Agent 类型查询和所需的两组数据查询，不再让总 route runtime 持有 `MemoryServicePort`。
 - [x] 把 window、browser、tab 和 shortcut route 移到 `src/main/desktop/routes.ts`，总 route

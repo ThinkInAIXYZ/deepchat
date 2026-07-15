@@ -2,20 +2,14 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  XaiGrokAuth,
-  resetGlobalXaiGrokAuthForTests
-} from '../../../src/main/presenter/xaiGrokAuth'
-import { XaiGrokCredentialStore } from '../../../src/main/presenter/xaiGrokAuth/credentialStore'
+import { XaiGrokAuth, resetGlobalXaiGrokAuthForTests } from '@/provider/auth/xaiGrok'
+import { XaiGrokCredentialStore } from '@/provider/auth/xaiGrok/credentialStore'
 import {
   XAI_GROK_OAUTH_CLIENT_ID,
   isTrustedXaiApiEndpoint,
   isTrustedXaiOAuthEndpoint
-} from '../../../src/main/presenter/xaiGrokAuth/constants'
-import {
-  createXaiGrokFetch,
-  shouldUseXaiGrokOAuthFetch
-} from '../../../src/main/provider/xaiGrokAuthAdapter'
+} from '@/provider/auth/xaiGrok/constants'
+import { createXaiGrokFetch, shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()

@@ -4,22 +4,14 @@ import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
-import { getGlobalOpenAICodexAuth } from './openaiCodexAuth'
-import { getGlobalXaiGrokAuth } from './xaiGrokAuth'
+import { getGlobalOpenAICodexAuth } from './openaiCodex'
+import { getGlobalXaiGrokAuth } from './xaiGrok'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import type { ConfigServicePort } from '@shared/presenter'
+import type { OAuthConfig, OAuthServicePort } from '@shared/types/oauth'
 
-export interface OAuthConfig {
-  authUrl: string
-  redirectUri: string
-  clientId: string
-  clientSecret?: string
-  scope: string
-  responseType: string
-}
-
-export class OAuthPresenter {
+export class OAuthService implements OAuthServicePort {
   private authWindow: BrowserWindow | null = null
   private callbackServer: http.Server | null = null
   private callbackPort = 3000

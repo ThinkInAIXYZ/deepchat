@@ -4,7 +4,6 @@ import type {
   FileServicePort,
   ProviderRuntimePort,
   McpServicePort,
-  IOAuthPresenter,
   IProjectPresenter,
   RemoteServicePort,
   ISQLitePresenter,
@@ -16,6 +15,7 @@ import type {
   IYoBrowserPresenter,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { OAuthServicePort } from '@shared/types/oauth'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { DeviceServicePort } from '@shared/types/device'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
@@ -1127,7 +1127,7 @@ function createRuntime() {
     })
   } as unknown as SkillSyncServicePort
 
-  const oauthPresenter = {
+  const oauthService = {
     startGitHubCopilotLogin: vi.fn().mockResolvedValue(true),
     startGitHubCopilotDeviceFlowLogin: vi.fn().mockResolvedValue(false),
     getOpenAICodexStatus: vi.fn().mockResolvedValue({
@@ -1150,7 +1150,7 @@ function createRuntime() {
       authenticated: false,
       storage: 'safeStorage'
     })
-  } as unknown as IOAuthPresenter
+  } as unknown as OAuthServicePort
   const nowledgeMemConfig = {
     baseUrl: 'http://127.0.0.1:14242',
     apiKey: '',
@@ -1460,7 +1460,7 @@ function createRuntime() {
     providerRuntime,
     acpProviderAdminPort,
     providerImportService: new ProviderImportService(configService as any),
-    oauthPresenter,
+    oauthService,
     scheduler: createNodeScheduler(),
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
@@ -1649,7 +1649,7 @@ function createRuntime() {
     skillService,
     skillSyncService,
     exporter,
-    oauthPresenter,
+    oauthService,
     mcpService,
     remoteService,
     shortcutPresenter,
@@ -3169,8 +3169,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches GitHub Copilot OAuth routes through OAuthPresenter', async () => {
-    const { runtime, oauthPresenter } = createRuntime()
+  it('dispatches GitHub Copilot OAuth routes through OAuthService', async () => {
+    const { runtime, oauthService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3189,14 +3189,14 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(oauthPresenter.startGitHubCopilotLogin).toHaveBeenCalledWith('github-copilot')
-    expect(oauthPresenter.startGitHubCopilotDeviceFlowLogin).toHaveBeenCalledWith('github-copilot')
+    expect(oauthService.startGitHubCopilotLogin).toHaveBeenCalledWith('github-copilot')
+    expect(oauthService.startGitHubCopilotDeviceFlowLogin).toHaveBeenCalledWith('github-copilot')
     expect(loginResult).toEqual({ success: true })
     expect(deviceFlowResult).toEqual({ success: false })
   })
 
-  it('dispatches OpenAI Codex OAuth routes through OAuthPresenter', async () => {
-    const { runtime, oauthPresenter } = createRuntime()
+  it('dispatches OpenAI Codex OAuth routes through OAuthService', async () => {
+    const { runtime, oauthService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3227,10 +3227,10 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(oauthPresenter.getOpenAICodexStatus).toHaveBeenCalledTimes(1)
-    expect(oauthPresenter.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
-    expect(oauthPresenter.cancelOpenAICodexLogin).toHaveBeenCalledTimes(1)
-    expect(oauthPresenter.logoutOpenAICodex).toHaveBeenCalledTimes(1)
+    expect(oauthService.getOpenAICodexStatus).toHaveBeenCalledTimes(1)
+    expect(oauthService.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
+    expect(oauthService.cancelOpenAICodexLogin).toHaveBeenCalledTimes(1)
+    expect(oauthService.logoutOpenAICodex).toHaveBeenCalledTimes(1)
     expect(statusResult.status.state).toBe('signed-out')
     expect(browserResult.status.authenticated).toBe(true)
     expect(cancelResult.status.state).toBe('signed-out')

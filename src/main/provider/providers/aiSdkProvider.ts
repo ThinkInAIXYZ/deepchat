@@ -49,8 +49,8 @@ import {
 import type { AiSdkProviderKind } from '../aiSdk/providerFactory'
 import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../aiSdk/providerFactory'
 import { shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
-import { getGlobalXaiGrokAuth } from '../../presenter/xaiGrokAuth'
-import { isTrustedXaiApiEndpoint } from '../../presenter/xaiGrokAuth/constants'
+import { getGlobalXaiGrokAuth } from '../../provider/auth/xaiGrok'
+import { isTrustedXaiApiEndpoint } from '../../provider/auth/xaiGrok/constants'
 import { proxyConfig } from '../../platform/proxy'
 import {
   type AiSdkBehaviorPreset,

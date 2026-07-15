@@ -2,9 +2,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { OpenAICodexAuth } from '../../../src/main/presenter/openaiCodexAuth'
-import { OpenAICodexCredentialStore } from '../../../src/main/presenter/openaiCodexAuth/credentialStore'
-import { createOpenAICodexPkcePair } from '../../../src/main/presenter/openaiCodexAuth/pkce'
+import { OpenAICodexAuth } from '@/provider/auth/openaiCodex'
+import { OpenAICodexCredentialStore } from '@/provider/auth/openaiCodex/credentialStore'
+import { createOpenAICodexPkcePair } from '@/provider/auth/openaiCodex/pkce'
 
 const { startOAuthLoopbackCallbackSessionMock } = vi.hoisted(() => ({
   startOAuthLoopbackCallbackSessionMock: vi.fn()
@@ -14,9 +14,8 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
 }))
 
-vi.mock('../../../src/main/presenter/oauthLoopbackCallback', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../src/main/presenter/oauthLoopbackCallback')>()
+vi.mock('@/provider/auth/oauthLoopbackCallback', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/provider/auth/oauthLoopbackCallback')>()
   return {
     ...actual,
     startOAuthLoopbackCallbackSession: startOAuthLoopbackCallbackSessionMock
@@ -63,19 +62,17 @@ describe('OpenAI Codex auth', () => {
   it('falls back when the redirect port env value is not a TCP port', async () => {
     vi.resetModules()
     process.env.OPENAI_CODEX_REDIRECT_PORT = '1455.5'
-    const decimalPortConstants =
-      await import('../../../src/main/presenter/openaiCodexAuth/constants')
+    const decimalPortConstants = await import('@/provider/auth/openaiCodex/constants')
     expect(decimalPortConstants.OPENAI_CODEX_REDIRECT_PORT).toBe(1455)
 
     vi.resetModules()
     process.env.OPENAI_CODEX_REDIRECT_PORT = '70000'
-    const outOfRangePortConstants =
-      await import('../../../src/main/presenter/openaiCodexAuth/constants')
+    const outOfRangePortConstants = await import('@/provider/auth/openaiCodex/constants')
     expect(outOfRangePortConstants.OPENAI_CODEX_REDIRECT_PORT).toBe(1455)
 
     vi.resetModules()
     process.env.OPENAI_CODEX_REDIRECT_PORT = '65535'
-    const validPortConstants = await import('../../../src/main/presenter/openaiCodexAuth/constants')
+    const validPortConstants = await import('@/provider/auth/openaiCodex/constants')
     expect(validPortConstants.OPENAI_CODEX_REDIRECT_PORT).toBe(65535)
   })
 

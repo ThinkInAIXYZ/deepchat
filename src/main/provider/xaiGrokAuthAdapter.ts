@@ -1,11 +1,11 @@
 import { ProxyAgent } from 'undici'
 import { proxyConfig } from '../platform/proxy'
-import { getGlobalXaiGrokAuth } from '../presenter/xaiGrokAuth'
+import { getGlobalXaiGrokAuth } from '../provider/auth/xaiGrok'
 import {
   XAI_GROK_API_BASE_URL,
   XAI_GROK_PROVIDER_ID,
   isTrustedXaiApiEndpoint
-} from '../presenter/xaiGrokAuth/constants'
+} from '../provider/auth/xaiGrok/constants'
 import type { LLM_PROVIDER } from '@shared/presenter'
 
 type FetchInitWithDispatcher = RequestInit & { dispatcher?: ProxyAgent }

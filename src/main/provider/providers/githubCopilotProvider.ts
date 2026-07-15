@@ -14,7 +14,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
   getGlobalGitHubCopilotDeviceFlow,
   GitHubCopilotDeviceFlow
-} from '../../presenter/githubCopilotDeviceFlow'
+} from '../../provider/auth/githubCopilotDeviceFlow'
 
 // 扩展RequestInit类型以支持agent属性
 interface RequestInitWithAgent extends RequestInit {

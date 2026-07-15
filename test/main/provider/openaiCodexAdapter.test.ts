@@ -11,7 +11,7 @@ const proxyState = vi.hoisted(() => ({
   getProxyUrl: vi.fn()
 }))
 
-vi.mock('../../../src/main/presenter/openaiCodexAuth', () => ({
+vi.mock('../../../src/main/provider/auth/openaiCodex', () => ({
   getGlobalOpenAICodexAuth: () => authState
 }))
 

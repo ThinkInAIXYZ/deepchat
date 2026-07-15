@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GithubCopilotProvider } from '../../../src/main/provider/providers/githubCopilotProvider'
 import type { ConfigServicePort } from '../../../src/shared/presenter'
-import { getGlobalGitHubCopilotDeviceFlow } from '../../../src/main/presenter/githubCopilotDeviceFlow'
+import { getGlobalGitHubCopilotDeviceFlow } from '../../../src/main/provider/auth/githubCopilotDeviceFlow'
 
 vi.mock('../../../src/main/platform/proxy', () => ({
   proxyConfig: {
@@ -9,7 +9,7 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
-vi.mock('../../../src/main/presenter/githubCopilotDeviceFlow', () => ({
+vi.mock('../../../src/main/provider/auth/githubCopilotDeviceFlow', () => ({
   getGlobalGitHubCopilotDeviceFlow: vi.fn(() => ({
     getCopilotToken: vi.fn(),
     checkExistingAuth: vi.fn()

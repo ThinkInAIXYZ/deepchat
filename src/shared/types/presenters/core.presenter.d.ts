@@ -393,30 +393,6 @@ export interface ISQLitePresenter {
   migrateAcpAgentReferences(aliasMap: Record<string, string>): Promise<void>
 }
 
-export interface IOAuthPresenter {
-  startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
-  startGitHubCopilotLogin(providerId: string): Promise<boolean>
-  startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
-  getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus>
-  startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus>
-  completeOpenAICodexBrowserLoginFromUrl(callbackUrl: string): Promise<OpenAICodexAuthStatus>
-  cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
-  logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
-  getXaiGrokStatus(): Promise<XaiGrokAuthStatus>
-  startXaiGrokDeviceLogin(): Promise<XaiGrokAuthStatus>
-  cancelXaiGrokLogin(): Promise<XaiGrokAuthStatus>
-  logoutXaiGrok(): Promise<XaiGrokAuthStatus>
-}
-
-export interface OAuthConfig {
-  authUrl: string
-  redirectUri: string
-  clientId: string
-  clientSecret?: string
-  scope: string
-  responseType: string
-}
-
 import type { ReasoningPortrait } from '../model-db'
 
 export type ProviderDbRefreshResult = {
