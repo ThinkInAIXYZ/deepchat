@@ -185,13 +185,12 @@ describe('Agent tape tools', () => {
   })
 
   it('does not expose tape tools outside DeepChat sessions', async () => {
-    const manager = buildManager(
-      buildRuntimePort({
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue({
-          agentType: 'acp'
-        })
+    const runtimePort = buildRuntimePort({
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue({
+        agentType: 'acp'
       })
-    )
+    })
+    const manager = buildManager(runtimePort)
 
     const defs = await manager.getAllToolDefinitions({
       chatMode: 'agent',
@@ -201,7 +200,29 @@ describe('Agent tape tools', () => {
     })
 
     expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
+    await expect(
+      manager.callTool(TAPE_TOOL_NAMES.search, { query: 'needle' }, 'conv-1')
+    ).rejects.toThrow('Tape recall tools are not available for this conversation.')
+    expect(runtimePort.searchTape).not.toHaveBeenCalled()
   })
+
+  it.each([
+    [TAPE_TOOL_NAMES.search, { query: 'needle' }, 'getTapeContext'],
+    [TAPE_TOOL_NAMES.context, { entryIds: [1] }, 'searchTape']
+  ] as const)(
+    'rejects direct %s execution when the recall pair is incomplete',
+    async (toolName, args, missingPort) => {
+      const runtimePort = buildRuntimePort({ [missingPort]: undefined })
+      const manager = buildManager(runtimePort)
+
+      await expect(manager.callTool(toolName, args, 'conv-1')).rejects.toThrow(
+        'Tape recall tools are not available for this conversation.'
+      )
+      const targetPort =
+        toolName === TAPE_TOOL_NAMES.search ? runtimePort.searchTape : runtimePort.getTapeContext
+      expect(targetPort).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not expose recall tools without a conversation ID', async () => {
     const runtimePort = buildRuntimePort()

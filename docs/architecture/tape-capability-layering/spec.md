@@ -39,11 +39,22 @@ This behavior is reported by
 8. Runtime handoff requires a non-empty durable summary before advancing the reconstruction cursor.
 9. Persisted Tape names are removed from Agent and session disabled-tool lists without modifying
    messages, Tape entries, or replay manifests.
+10. A published per-conversation runtime catalog is authoritative for execution. A missing tool in
+    that catalog, or a missing/cleared mapper while the global snapshot belongs to another
+    conversation, cannot fall back across conversations. A global snapshot published without a
+    conversation ID remains available as the draft-to-persisted-session compatibility bridge.
+11. Tape recall execution revalidates the persisted DeepChat session and complete runtime pair so
+    stale, direct, or fabricated calls cannot bypass catalog availability.
+12. Capability cleanup changes only disabled-tool state; it preserves session activity timestamps,
+    conversation ordering, and environment recency.
+13. Every Agent tool assembly site declares its expected exposure and verifies it against the
+    shared exposure policy before adding definitions to a catalog.
 
 ## Acceptance Criteria
 
-- A new-thread draft and its persisted session show the same configurable Agent tool groups; no
-  `agent-tape` group appears in either state.
+- No `agent-tape` group appears in either a new-thread draft or a persisted session. Other
+  configurable Agent tool groups may continue to vary with session-scoped capabilities such as
+  Memory, image generation, subagents, and active Skills.
 - A DeepChat runtime session exposes exactly `tape_search` and `tape_context` from the Tape tool
   group, even when a legacy disabled list contains those names.
 - ACP sessions, missing conversation IDs, and incomplete recall ports expose no Tape model tools.
@@ -51,7 +62,10 @@ This behavior is reported by
   anchor or otherwise mutating Tape state.
 - Empty or whitespace-only runtime handoff summaries fail before an anchor is appended.
 - The disabled-tool cleanup is idempotent, preserves ordinary disabled tools, and yields while
-  processing large session sets.
+  processing large session sets without changing session or environment recency.
+- A request carrying a conversation ID cannot execute through another conversation's latest
+  mapping when its own catalog is missing, cleared, or does not contain the tool, while a draft
+  catalog published without an ID remains usable for the first persisted turn.
 - Memory enablement, memory extraction/injection, subagents, skills, MCP tools, and ordinary Agent
   tool switches retain their existing behavior.
 - Focused tests, typecheck, full tests, formatting, i18n validation, and lint pass.
@@ -70,6 +84,7 @@ This behavior is reported by
 - Implementing an anchor graph, cross-anchor traversal, or a second `TapeViewPolicy`.
 - Adding a Tape inspector or special-purpose Tape trace UI.
 - Reclassifying Memory, Subagent, Skill, Browser, or other non-Tape Agent tools.
+- Making every configurable Agent tool group identical between draft and persisted sessions.
 - Making Bub's current tool exposure policy a compatibility target.
 
 ## Open Questions

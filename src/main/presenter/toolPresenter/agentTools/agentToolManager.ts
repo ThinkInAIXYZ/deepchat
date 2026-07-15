@@ -43,9 +43,9 @@ import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
-  TAPE_TOOL_NAMES,
+  assertAgentToolExposure,
   isTapeToolName,
-  isUserConfigurableAgentTool
+  type AgentToolExposure
 } from '@shared/agentTools'
 import {
   CRON_JOB_TOOL_SERVER_NAME,
@@ -376,10 +376,18 @@ export class AgentToolManager {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
     const isConfigurableCatalog = context.catalogPurpose === 'configurable'
-    const acceptsToolName = (toolName: string): boolean =>
-      !isConfigurableCatalog || isUserConfigurableAgentTool(toolName)
-    const appendDefinitions = (definitions: MCPToolDefinition[]): void => {
-      defs.push(...definitions.filter((definition) => acceptsToolName(definition.function.name)))
+    const acceptsExposure = (exposure: AgentToolExposure): boolean =>
+      !isConfigurableCatalog || exposure === 'user-configurable'
+    const appendDefinitions = (
+      definitions: MCPToolDefinition[],
+      expectedExposure: AgentToolExposure
+    ): void => {
+      for (const definition of definitions) {
+        assertAgentToolExposure(definition.function.name, expectedExposure)
+      }
+      if (acceptsExposure(expectedExposure)) {
+        defs.push(...definitions)
+      }
     }
 
     if (!isConfigurableCatalog) {
@@ -389,23 +397,22 @@ export class AgentToolManager {
     // 1. FileSystem tools (agent mode only)
     if (isAgentMode && (isConfigurableCatalog || this.fileSystemHandler)) {
       const fsDefs = this.getFileSystemToolDefinitions()
-      appendDefinitions(fsDefs)
+      appendDefinitions(fsDefs, 'user-configurable')
     }
 
     // 2. Built-in question tool (all modes)
-    appendDefinitions(this.getQuestionToolDefinitions())
+    appendDefinitions(this.getQuestionToolDefinitions(), 'user-configurable')
 
     // 2.1. Progress checklist tool (deepchat regular sessions only)
     if (isAgentMode && this.planTool) {
-      appendDefinitions([this.planTool.getToolDefinition()])
+      appendDefinitions([this.planTool.getToolDefinition()], 'user-configurable')
     }
 
     // 2.15. Session tape tools (DeepChat sessions only)
-    const acceptsTapeTools = Object.values(TAPE_TOOL_NAMES).some(acceptsToolName)
-    if (isAgentMode && acceptsTapeTools && this.tapeToolHandler) {
+    if (isAgentMode && acceptsExposure('system-model') && this.tapeToolHandler) {
       try {
         if (await this.tapeToolHandler.canUse(context.conversationId)) {
-          appendDefinitions(this.tapeToolHandler.getToolDefinitions())
+          appendDefinitions(this.tapeToolHandler.getToolDefinitions(), 'system-model')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve tape tool availability', { error })
@@ -416,7 +423,7 @@ export class AgentToolManager {
     if (isAgentMode && this.memoryToolHandler) {
       try {
         if (await this.memoryToolHandler.canUse(context.conversationId)) {
-          appendDefinitions(this.memoryToolHandler.getToolDefinitions())
+          appendDefinitions(this.memoryToolHandler.getToolDefinitions(), 'user-configurable')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve memory tool availability', { error })
@@ -427,7 +434,7 @@ export class AgentToolManager {
     if (isAgentMode && this.imageGenerationTool) {
       try {
         if (await this.imageGenerationTool.canUse(context.conversationId)) {
-          appendDefinitions([this.imageGenerationTool.getToolDefinition()])
+          appendDefinitions([this.imageGenerationTool.getToolDefinition()], 'user-configurable')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve image generation tool availability', {
@@ -438,7 +445,7 @@ export class AgentToolManager {
 
     // 2.3. Scheduled task tool (disabled by default in DeepChat agent settings)
     if (isAgentMode && this.cronJobToolHandler?.canUse()) {
-      appendDefinitions([this.cronJobToolHandler.getToolDefinition()])
+      appendDefinitions([this.cronJobToolHandler.getToolDefinition()], 'user-configurable')
     }
 
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
@@ -448,7 +455,7 @@ export class AgentToolManager {
           context.conversationId
         )
         if (subagentToolDefinition) {
-          appendDefinitions([subagentToolDefinition])
+          appendDefinitions([subagentToolDefinition], 'user-configurable')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve subagent tool availability', { error })
@@ -458,13 +465,13 @@ export class AgentToolManager {
     // 3. Skill tools (agent mode only)
     if (isAgentMode && this.isSkillsEnabled()) {
       const skillDefs = this.getSkillToolDefinitions()
-      appendDefinitions(skillDefs)
+      appendDefinitions(skillDefs, 'user-configurable')
 
       if (
         context.conversationId &&
         (await this.hasRunnableSkillScripts(context.conversationId, context.activeSkillNames))
       ) {
-        appendDefinitions([this.getSkillRunToolDefinition()])
+        appendDefinitions([this.getSkillRunToolDefinition()], 'user-configurable')
       }
     }
 
@@ -491,7 +498,7 @@ export class AgentToolManager {
             : Array.from(new Set([...allowedTools, ...requiredSettingsTools]))
 
           const settingsDefs = buildChatSettingsToolDefinitions(effectiveAllowedTools)
-          appendDefinitions(settingsDefs)
+          appendDefinitions(settingsDefs, 'user-configurable')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to load DeepChat settings tools', { error })
@@ -501,7 +508,7 @@ export class AgentToolManager {
     // 5. YoBrowser CDP tools (agent mode only)
     if (isAgentMode) {
       try {
-        appendDefinitions(this.getYoBrowserToolHandler().getToolDefinitions())
+        appendDefinitions(this.getYoBrowserToolHandler().getToolDefinitions(), 'user-configurable')
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to load YoBrowser tools', { error })
       }

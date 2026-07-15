@@ -164,7 +164,9 @@ AgentSessionPresenter
 - Disabled-tool cleanup preserves the historical `agent-disabled-search-tool-cleanup-v1` record but
   uses the independent `agent-disabled-tool-capability-cleanup-v2` completion gate so users who
   completed v1 still receive Tape capability cleanup. Session and agent-config cleanup remains
-  idempotent, bounded, yielding, and retryable with completion/failure metadata.
+  idempotent, bounded, yielding, and retryable with completion/failure metadata. Session cleanup
+  updates the legacy JSON and normalized disabled-tool rows transactionally without changing
+  `updated_at` or environment recency.
 
 ### History search
 

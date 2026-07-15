@@ -24,8 +24,7 @@ export const sqliteMainlineNormalizationHook: LifecycleHook = {
           await runMainlineNormalizationMigration(
             {
               sqlitePresenter: presenter.sessionDataMigrationSQLite,
-              configPresenter: presenter.configPresenter,
-              appSessionService: presenter.appSessionService
+              configPresenter: presenter.configPresenter
             },
             taskContext
           )

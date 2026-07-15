@@ -30,5 +30,17 @@ export const getAgentToolExposure = (toolName: string): AgentToolExposure =>
     ? AGENT_TOOL_EXPOSURE_BY_NAME[toolName as TapeToolName]
     : 'user-configurable'
 
+export const assertAgentToolExposure = (
+  toolName: string,
+  expectedExposure: AgentToolExposure
+): void => {
+  const registeredExposure = getAgentToolExposure(toolName)
+  if (registeredExposure !== expectedExposure) {
+    throw new Error(
+      `Agent tool exposure mismatch for '${toolName}': expected '${expectedExposure}', registered '${registeredExposure}'.`
+    )
+  }
+}
+
 export const isUserConfigurableAgentTool = (toolName: string): boolean =>
   getAgentToolExposure(toolName) === 'user-configurable'

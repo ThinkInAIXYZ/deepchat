@@ -5,7 +5,6 @@ import type {
   UserMessageContent
 } from '@shared/types/agent-interface'
 import type { IConfigPresenter } from '@shared/presenter'
-import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '../startupWorkloadCoordinator'
@@ -33,7 +32,6 @@ export type SessionDataMigrationSQLitePort = Pick<
 type SessionDataMigrationDependencies = {
   sqlitePresenter: SessionDataMigrationSQLitePort
   configPresenter: IConfigPresenter
-  appSessionService: AppSessionService
 }
 
 const yieldToEventLoop = async (): Promise<void> => {
@@ -320,7 +318,7 @@ const areStringArraysEqual = (left: string[], right: string[]): boolean =>
   left.length === right.length && left.every((item, index) => item === right[index])
 
 export async function runDisabledAgentToolCapabilityCleanupMigration(
-  { sqlitePresenter, configPresenter, appSessionService }: SessionDataMigrationDependencies,
+  { sqlitePresenter, configPresenter }: SessionDataMigrationDependencies,
   taskContext?: StartupWorkloadTaskContext
 ): Promise<void> {
   const current =
@@ -378,6 +376,22 @@ export async function runDisabledAgentToolCapabilityCleanupMigration(
        ORDER BY id ASC
        LIMIT ?`
     )
+    const updateSessionDisabledTools = db.prepare<[string, string]>(
+      'UPDATE new_sessions SET disabled_agent_tools = ? WHERE id = ?'
+    )
+    const persistSessionDisabledTools = db.transaction(
+      (sessionId: string, disabledAgentTools: string[]): boolean => {
+        const result = updateSessionDisabledTools.run(JSON.stringify(disabledAgentTools), sessionId)
+        if (result.changes === 0) {
+          return false
+        }
+        sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(
+          sessionId,
+          disabledAgentTools
+        )
+        return true
+      }
+    )
     let sessionCursor: string | null = null
     while (true) {
       const sessionRows =
@@ -394,8 +408,9 @@ export async function runDisabledAgentToolCapabilityCleanupMigration(
           dropLegacySearchTools: true
         })
         if (!areStringArraysEqual(disabledAgentTools, normalized)) {
-          appSessionService.updateDisabledAgentTools(sessionRow.id, normalized)
-          updatedCount += 1
+          if (persistSessionDisabledTools(sessionRow.id, normalized)) {
+            updatedCount += 1
+          }
         }
         sessionCursor = sessionRow.id
         processedCount += 1

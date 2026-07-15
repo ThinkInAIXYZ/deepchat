@@ -20,8 +20,7 @@ const mocks = vi.hoisted(() => {
     runDisabledAgentToolCleanup: vi.fn(async () => undefined),
     rtkStart: vi.fn(async () => undefined),
     sessionDataMigrationSQLite: {},
-    configPresenter: {},
-    appSessionService: {}
+    configPresenter: {}
   }
 })
 
@@ -31,8 +30,7 @@ vi.mock('@/presenter', () => ({
     legacyChatImportService: { start: mocks.legacyStart },
     usageStatsService: { startBackfill: mocks.usageStart },
     sessionDataMigrationSQLite: mocks.sessionDataMigrationSQLite,
-    configPresenter: mocks.configPresenter,
-    appSessionService: mocks.appSessionService
+    configPresenter: mocks.configPresenter
   }
 }))
 
@@ -127,16 +125,14 @@ describe('startup maintenance hooks', () => {
     expect(mocks.runMainline).toHaveBeenCalledWith(
       {
         sqlitePresenter: mocks.sessionDataMigrationSQLite,
-        configPresenter: mocks.configPresenter,
-        appSessionService: mocks.appSessionService
+        configPresenter: mocks.configPresenter
       },
       mocks.taskContext
     )
     expect(mocks.runDisabledAgentToolCleanup).toHaveBeenCalledWith(
       {
         sqlitePresenter: mocks.sessionDataMigrationSQLite,
-        configPresenter: mocks.configPresenter,
-        appSessionService: mocks.appSessionService
+        configPresenter: mocks.configPresenter
       },
       mocks.taskContext
     )

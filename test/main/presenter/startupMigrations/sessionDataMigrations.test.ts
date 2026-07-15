@@ -14,34 +14,52 @@ function createFixture() {
   const sessionRows: Array<{ id: string }> = []
   const sessionDisabledTools = new Map<string, string[]>()
   const statements: string[] = []
+  const updateSessionDisabledTools = vi.fn((serialized: string, sessionId: string) => ({
+    changes: sessionRows.some((row) => row.id === sessionId) ? 1 : 0,
+    serialized
+  }))
+  const replaceSessionDisabledTools = vi.fn((sessionId: string, disabledAgentTools: string[]) => {
+    sessionDisabledTools.set(sessionId, disabledAgentTools)
+  })
+  const database = {
+    prepare: vi.fn((sql: string) => {
+      statements.push(sql)
+      return {
+        all: vi.fn((...params: unknown[]) => {
+          if (!sql.includes('FROM new_sessions') || !sql.includes('ORDER BY id ASC')) return []
+          const cursor = sql.includes('WHERE id > ?') ? String(params[0]) : null
+          const limit = Number(params.at(-1))
+          return sessionRows
+            .filter((row) => cursor === null || row.id > cursor)
+            .sort((left, right) => left.id.localeCompare(right.id))
+            .slice(0, limit)
+        }),
+        run: sql.startsWith('UPDATE new_sessions SET disabled_agent_tools')
+          ? updateSessionDisabledTools
+          : vi.fn()
+      }
+    }),
+    transaction: vi.fn(
+      (callback: (...args: any[]) => unknown) =>
+        (...args: any[]) =>
+          callback(...args)
+    )
+  }
   const sqlitePresenter = {
     configTables: {
       getAgentSetting: vi.fn((key: string) => settings.get(key)),
       setAgentSetting: vi.fn((key: string, value: unknown) => settings.set(key, value))
     },
-    getDatabase: vi.fn(() => ({
-      prepare: vi.fn((sql: string) => {
-        statements.push(sql)
-        return {
-          all: vi.fn((...params: unknown[]) => {
-            if (!sql.includes('FROM new_sessions') || !sql.includes('ORDER BY id ASC')) return []
-            const cursor = sql.includes('WHERE id > ?') ? String(params[0]) : null
-            const limit = Number(params.at(-1))
-            return sessionRows
-              .filter((row) => cursor === null || row.id > cursor)
-              .sort((left, right) => left.id.localeCompare(right.id))
-              .slice(0, limit)
-          })
-        }
-      })
-    })),
+    getDatabase: vi.fn(() => database),
     newSessionsTable: {
       get: vi.fn(() => null),
       getActiveSkills: vi.fn(() => []),
       getDisabledAgentTools: vi.fn((sessionId: string) => sessionDisabledTools.get(sessionId) ?? [])
     },
     newSessionActiveSkillsTable: { replaceForSession: vi.fn() },
-    newSessionDisabledAgentToolsTable: { replaceForSession: vi.fn() },
+    newSessionDisabledAgentToolsTable: {
+      replaceForSession: replaceSessionDisabledTools
+    },
     deepchatSearchDocumentsTable: { upsert: vi.fn() },
     deepchatUserMessagesTable: { upsert: vi.fn() },
     deepchatUserMessageFilesTable: { replaceForMessage: vi.fn() },
@@ -52,11 +70,6 @@ function createFixture() {
     listAgents: vi.fn(async () => []),
     getDeepChatAgentConfig: vi.fn(),
     updateDeepChatAgent: vi.fn()
-  }
-  const appSessionService = {
-    updateDisabledAgentTools: vi.fn((sessionId: string, disabledAgentTools: string[]) => {
-      sessionDisabledTools.set(sessionId, disabledAgentTools)
-    })
   }
   const taskContext = {
     reportProgress: vi.fn(),
@@ -70,7 +83,8 @@ function createFixture() {
     statements,
     sqlitePresenter,
     configPresenter,
-    appSessionService,
+    updateSessionDisabledTools,
+    replaceSessionDisabledTools,
     taskContext
   }
 }
@@ -150,11 +164,15 @@ describe('session data migrations', () => {
       fixture.taskContext as never
     )
 
-    expect(fixture.appSessionService.updateDisabledAgentTools).toHaveBeenCalledWith('session-1', [
+    expect(fixture.replaceSessionDisabledTools).toHaveBeenCalledWith('session-1', [
       'cdp_send',
       'custom_tool',
       'exec'
     ])
+    expect(fixture.updateSessionDisabledTools).toHaveBeenCalledWith(
+      JSON.stringify(['cdp_send', 'custom_tool', 'exec']),
+      'session-1'
+    )
     expect(fixture.configPresenter.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
       config: { disabledAgentTools: ['exec'] }
     })
@@ -174,6 +192,11 @@ describe('session data migrations', () => {
         expect.stringMatching(/WHERE id > \?\s+ORDER BY id ASC\s+LIMIT \?/)
       ])
     )
+    const sessionUpdate = fixture.statements.find((sql) =>
+      sql.startsWith('UPDATE new_sessions SET disabled_agent_tools')
+    )
+    expect(sessionUpdate).toBe('UPDATE new_sessions SET disabled_agent_tools = ? WHERE id = ?')
+    expect(sessionUpdate).not.toContain('updated_at')
   })
 
   it('uses bounded session batches and yields between them', async () => {
@@ -189,7 +212,7 @@ describe('session data migrations', () => {
       fixture.taskContext as never
     )
 
-    expect(fixture.appSessionService.updateDisabledAgentTools).toHaveBeenCalledTimes(125)
+    expect(fixture.replaceSessionDisabledTools).toHaveBeenCalledTimes(125)
     expect(fixture.taskContext.yield).toHaveBeenCalledTimes(3)
     expect(fixture.settings.get(DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY)).toMatchObject({
       status: 'completed',
@@ -210,7 +233,7 @@ describe('session data migrations', () => {
     fixture.sessionDisabledTools.set('session-1', [TAPE_TOOL_NAMES.search, 'read'])
     fixture.sessionDisabledTools.set('session-2', [TAPE_TOOL_NAMES.handoff, 'exec'])
     let updateCount = 0
-    fixture.appSessionService.updateDisabledAgentTools.mockImplementation(
+    fixture.replaceSessionDisabledTools.mockImplementation(
       (sessionId: string, disabledAgentTools: string[]) => {
         updateCount += 1
         if (updateCount === 2) throw new Error('write interrupted')
@@ -230,7 +253,7 @@ describe('session data migrations', () => {
       error: 'write interrupted'
     })
 
-    fixture.appSessionService.updateDisabledAgentTools.mockImplementation(
+    fixture.replaceSessionDisabledTools.mockImplementation(
       (sessionId: string, disabledAgentTools: string[]) => {
         fixture.sessionDisabledTools.set(sessionId, disabledAgentTools)
       }

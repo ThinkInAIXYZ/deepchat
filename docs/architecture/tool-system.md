@@ -54,7 +54,10 @@ graph LR
 2. 从 `AgentToolManager` 拉取本地 agent tools。
 3. 保留 built-in reserved names，拒绝同名 MCP definition；其他重名仍按现有 collision policy 处理。
 4. 只对 `user-configurable` definitions 应用 `disabledAgentTools`。
-5. 用 `ToolMapper` 记录最终来源，并为每个 conversation 维护独立映射。
+5. 用 `ToolMapper` 记录最终来源，并为每个 conversation 维护独立映射，同时记录兼容 mapping 的
+   conversation 来源。已发布的 conversation mapping 是执行边界；mapping 不含目标工具，或 mapping
+   缺失/已清理且兼容 snapshot 属于另一 conversation 时，不允许跨 conversation 回退。仅无 ID 的 draft
+   snapshot 可作为首轮持久化执行的兼容桥，并继续兼容不带 conversation ID 的旧调用。
 
 `ToolPresenter.getConfigurableAgentToolDefinitions()` 是 renderer settings 使用的 configurable
 catalog。它只返回 `user-configurable` Agent tools，不解析 MCP catalog、不发布 `ToolMapper`，也不修改
@@ -72,7 +75,9 @@ Tape 的 exposure matrix 为：
 | `tape_handoff` | `runtime-only` | 仅 runtime handoff 路径可写，模型 dispatcher 拒绝 |
 
 五个 Tape 名称全部 reserved，防止同名 MCP 工具劫持。`disabledAgentTools` 的持久化正规化会永久移除
-这些非配置能力；v2 startup cleanup 幂等清理旧 Session 和 DeepChat Agent Config。
+这些非配置能力；v2 startup cleanup 幂等清理旧 Session 和 DeepChat Agent Config，并且不更新
+Session activity timestamp 或 environment recency。Agent tool 装配点必须显式声明预期 exposure，且与
+共享 policy 不一致时拒绝发布 definition。
 
 这意味着 `DeepChatLoopEngine` 不知道 tool 的真实来源，只接收 `MCPToolDefinition[]` snapshot 和窄
 execution/result ports。`AgentRuntimePresenter` 保留 adapter wiring，但 tool mapping/collision/dispatch owner

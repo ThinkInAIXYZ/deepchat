@@ -225,6 +225,9 @@ export class AgentTapeToolHandler {
     if (!normalizedConversationId) {
       throw new Error(`${toolName} requires a conversation ID.`)
     }
+    if (!(await this.canUse(normalizedConversationId))) {
+      throw new Error('Tape recall tools are not available for this conversation.')
+    }
 
     if (toolName === TAPE_TOOL_NAMES.search) {
       if (!this.runtimePort.searchTape) {

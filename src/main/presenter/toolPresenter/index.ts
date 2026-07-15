@@ -117,6 +117,7 @@ type StoredMcpAccessContext = {
 export class ToolPresenter implements IToolPresenter {
   private readonly mapper: ToolMapper
   private readonly conversationMappers: Map<string, ToolMapper>
+  private globalMapperConversationId: string | null = null
   private readonly conversationMcpAccessContexts = new Map<string, StoredMcpAccessContext>()
   private readonly options: ToolPresenterOptions
   private agentToolManager: AgentToolManager | null = null
@@ -478,15 +479,18 @@ export class ToolPresenter implements IToolPresenter {
     for (const mapping of mapper.getAllMappings()) {
       this.mapper.registerTool(mapping.toolName, mapping.source, mapping.originalName)
     }
+    this.globalMapperConversationId = normalizedConversationId || null
   }
 
   private getToolSource(toolName: string, conversationId?: string): ToolSource | undefined {
     const normalizedConversationId = conversationId?.trim()
     if (normalizedConversationId) {
       const mapper = this.conversationMappers.get(normalizedConversationId)
-      const mappedSource = mapper?.getToolSource(toolName)
-      if (mappedSource) {
-        return mappedSource
+      if (mapper) {
+        return mapper.getToolSource(toolName)
+      }
+      if (this.globalMapperConversationId !== null) {
+        return undefined
       }
     }
 

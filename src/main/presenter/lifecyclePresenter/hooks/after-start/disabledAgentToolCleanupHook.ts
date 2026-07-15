@@ -24,8 +24,7 @@ export const disabledAgentToolCleanupHook: LifecycleHook = {
           await runDisabledAgentToolCapabilityCleanupMigration(
             {
               sqlitePresenter: presenter.sessionDataMigrationSQLite,
-              configPresenter: presenter.configPresenter,
-              appSessionService: presenter.appSessionService
+              configPresenter: presenter.configPresenter
             },
             taskContext
           )
