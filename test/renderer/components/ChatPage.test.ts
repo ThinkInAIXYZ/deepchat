@@ -1624,6 +1624,28 @@ describe('ChatPage', () => {
     ])
   })
 
+  it('does not apply a null result from a superseded compaction restore', async () => {
+    const { wrapper, messageStore, sessionStore } = await setup({
+      activeSessionPatch: {
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      }
+    })
+    const applyRestoredSession = vi.fn()
+    ;(
+      sessionStore as typeof sessionStore & {
+        applyRestoredSession: (session: unknown) => void
+      }
+    ).applyRestoredSession = applyRestoredSession
+    messageStore.loadMessages.mockResolvedValueOnce(null)
+
+    wrapper.findComponent({ name: 'ChatInputBox' }).vm.$emit('command-submit', '/compact')
+    await flushPromises()
+
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 100)
+    expect(applyRestoredSession).not.toHaveBeenCalled()
+  })
+
   it('shows a no-op notice when manual compaction has no eligible history', async () => {
     const { wrapper, sessionClient, toast, messageStore } = await setup({
       activeSessionPatch: {

@@ -908,7 +908,7 @@ export const useMessageStore = defineStore('message', () => {
     hydratingStreamMessageIds.delete(messageId)
   }
 
-  const cleanupIpcBindings = bindMessageStoreIpc({
+  const messageIpcBinding = bindMessageStoreIpc({
     getActiveSessionId: () => currentSessionId.value,
     getCurrentStreamIdentity: () => ({
       sessionId: currentStreamSessionId.value,
@@ -923,7 +923,15 @@ export const useMessageStore = defineStore('message', () => {
     applyStreamingBlocksToMessage,
     isEphemeralStreamMessageId
   })
-  registerStoreCleanup(cleanupIpcBindings)
+  registerStoreCleanup(messageIpcBinding.cleanup)
+
+  function purgeSessionTracking(sessionId: string): void {
+    recentSessionViews.delete(sessionId)
+    messageMutationRevisions.delete(sessionId)
+    recentViewInvalidationRevisions.delete(sessionId)
+    dirtyRecentSessionViews.delete(sessionId)
+    messageIpcBinding.purgeSessionTracking(sessionId)
+  }
 
   return {
     messageIds,
@@ -947,6 +955,7 @@ export const useMessageStore = defineStore('message', () => {
     getMessageMetadata,
     setCurrentSessionId,
     invalidateRecentSessionView,
+    purgeSessionTracking,
     activateRecentSessionView,
     loadMessages,
     loadOlderMessages,

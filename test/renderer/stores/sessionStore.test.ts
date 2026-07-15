@@ -304,10 +304,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   const clearStreamingState = vi.fn()
   const setCurrentSessionId = vi.fn()
   const invalidateRecentSessionView = vi.fn()
+  const purgeSessionTracking = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => ({
       clearStreamingState,
       invalidateRecentSessionView,
+      purgeSessionTracking,
       loadMessages: vi.fn(),
       setCurrentSessionId
     })
@@ -345,6 +347,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     configClient,
     clearStreamingState,
     invalidateRecentSessionView,
+    purgeSessionTracking,
     setCurrentSessionId,
     sessionClient,
     chatClient,
@@ -1272,6 +1275,21 @@ describe('sessionStore streaming cleanup', () => {
     })
 
     expect(store.activeSession.value?.status).toBe('none')
+  })
+
+  it('purges message tracking when a session is permanently removed', async () => {
+    const { store, emitSessionUpdate, invalidateRecentSessionView, purgeSessionTracking } =
+      await setupStore()
+    store.sessions.value = [createSession({ id: 'session-removed' })]
+
+    emitSessionUpdate({
+      reason: 'deleted',
+      sessionIds: ['session-removed']
+    })
+
+    expect(invalidateRecentSessionView).toHaveBeenCalledWith('session-removed')
+    expect(purgeSessionTracking).toHaveBeenCalledWith('session-removed')
+    expect(store.sessions.value).toEqual([])
   })
 })
 

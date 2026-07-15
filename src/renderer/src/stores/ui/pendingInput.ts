@@ -47,21 +47,33 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     }
   }
 
-  async function queueInput(sessionId: string, input: string | SendMessageInput): Promise<void> {
+  async function runSessionScopedMutation(
+    sessionId: string,
+    operation: () => Promise<unknown>,
+    failureMessage: string
+  ): Promise<void> {
     if (currentSessionId.value === sessionId) {
       error.value = null
     }
     try {
-      await sessionClient.queuePendingInput(sessionId, input)
+      await operation()
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
     } catch (e) {
       if (currentSessionId.value === sessionId) {
-        error.value = `Failed to queue message: ${e}`
+        error.value = `${failureMessage}: ${e}`
       }
       throw e
     }
+  }
+
+  async function queueInput(sessionId: string, input: string | SendMessageInput): Promise<void> {
+    return runSessionScopedMutation(
+      sessionId,
+      () => sessionClient.queuePendingInput(sessionId, input),
+      'Failed to queue message'
+    )
   }
 
   async function updateQueueInput(
@@ -69,71 +81,35 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     itemId: string,
     input: string | SendMessageInput
   ): Promise<void> {
-    if (currentSessionId.value === sessionId) {
-      error.value = null
-    }
-    try {
-      await sessionClient.updateQueuedInput(sessionId, itemId, input)
-      if (currentSessionId.value === sessionId) {
-        await loadPendingInputs(sessionId)
-      }
-    } catch (e) {
-      if (currentSessionId.value === sessionId) {
-        error.value = `Failed to update queued message: ${e}`
-      }
-      throw e
-    }
+    return runSessionScopedMutation(
+      sessionId,
+      () => sessionClient.updateQueuedInput(sessionId, itemId, input),
+      'Failed to update queued message'
+    )
   }
 
   async function moveQueueInput(sessionId: string, itemId: string, toIndex: number): Promise<void> {
-    if (currentSessionId.value === sessionId) {
-      error.value = null
-    }
-    try {
-      await sessionClient.moveQueuedInput(sessionId, itemId, toIndex)
-      if (currentSessionId.value === sessionId) {
-        await loadPendingInputs(sessionId)
-      }
-    } catch (e) {
-      if (currentSessionId.value === sessionId) {
-        error.value = `Failed to reorder queued message: ${e}`
-      }
-      throw e
-    }
+    return runSessionScopedMutation(
+      sessionId,
+      () => sessionClient.moveQueuedInput(sessionId, itemId, toIndex),
+      'Failed to reorder queued message'
+    )
   }
 
   async function steerPendingInput(sessionId: string, itemId: string): Promise<void> {
-    if (currentSessionId.value === sessionId) {
-      error.value = null
-    }
-    try {
-      await sessionClient.steerPendingInput(sessionId, itemId)
-      if (currentSessionId.value === sessionId) {
-        await loadPendingInputs(sessionId)
-      }
-    } catch (e) {
-      if (currentSessionId.value === sessionId) {
-        error.value = `Failed to steer queued message: ${e}`
-      }
-      throw e
-    }
+    return runSessionScopedMutation(
+      sessionId,
+      () => sessionClient.steerPendingInput(sessionId, itemId),
+      'Failed to steer queued message'
+    )
   }
 
   async function deleteInput(sessionId: string, itemId: string): Promise<void> {
-    if (currentSessionId.value === sessionId) {
-      error.value = null
-    }
-    try {
-      await sessionClient.deletePendingInput(sessionId, itemId)
-      if (currentSessionId.value === sessionId) {
-        await loadPendingInputs(sessionId)
-      }
-    } catch (e) {
-      if (currentSessionId.value === sessionId) {
-        error.value = `Failed to delete queued message: ${e}`
-      }
-      throw e
-    }
+    return runSessionScopedMutation(
+      sessionId,
+      () => sessionClient.deletePendingInput(sessionId, itemId),
+      'Failed to delete queued message'
+    )
   }
 
   function clear(): void {

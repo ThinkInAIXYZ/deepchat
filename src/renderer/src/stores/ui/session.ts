@@ -384,6 +384,7 @@ export const useSessionStore = defineStore('session', () => {
     for (const sessionId of targetIds) {
       agentPlanStore.purge(sessionId)
       messageStore.invalidateRecentSessionView(sessionId)
+      messageStore.purgeSessionTracking(sessionId)
     }
 
     if (bootstrapActiveSession.value && targetIds.has(bootstrapActiveSession.value.id)) {

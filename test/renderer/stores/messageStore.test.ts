@@ -931,6 +931,85 @@ describe('messageStore', () => {
     expect(store.messageCache.value.get('message-new')?.content).toContain('new')
   })
 
+  it('does not let a superseded request reclaim the stream with a later snapshot', async () => {
+    const { store, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    streamListeners.updated[0]({
+      kind: 'snapshot',
+      sessionId: 's1',
+      requestId: 'request-old',
+      messageId: 'message-old',
+      updatedAt: 1,
+      blocks: [{ type: 'content', content: 'old', status: 'pending', timestamp: 1 }]
+    })
+    streamListeners.updated[0]({
+      kind: 'snapshot',
+      sessionId: 's1',
+      requestId: 'request-new',
+      messageId: 'message-new',
+      updatedAt: 2,
+      blocks: [{ type: 'content', content: 'new', status: 'pending', timestamp: 2 }]
+    })
+    streamListeners.updated[0]({
+      kind: 'snapshot',
+      sessionId: 's1',
+      requestId: 'request-old',
+      messageId: 'message-old',
+      updatedAt: 3,
+      blocks: [{ type: 'content', content: 'late old', status: 'pending', timestamp: 3 }]
+    })
+
+    expect(store.currentStreamRequestId.value).toBe('request-new')
+    expect(store.currentStreamMessageId.value).toBe('message-new')
+    expect(store.streamingBlocks.value[0]).toMatchObject({ content: 'new' })
+    expect(store.messageCache.value.get('message-old')?.content).not.toContain('late old')
+  })
+
+  it('keeps settled request tombstones after many later terminals', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    streamListeners.updated[0]({
+      kind: 'snapshot',
+      sessionId: 's1',
+      requestId: 'request-settled',
+      messageId: 'message-settled',
+      updatedAt: 1,
+      blocks: [{ type: 'content', content: 'live', status: 'pending', timestamp: 1 }]
+    })
+    streamListeners.completed[0]({
+      sessionId: 's1',
+      requestId: 'request-settled',
+      messageId: 'message-settled',
+      completedAt: 2
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    for (let index = 0; index < 129; index += 1) {
+      streamListeners.completed[0]({
+        sessionId: `inactive-${index}`,
+        requestId: `request-${index}`,
+        messageId: `message-${index}`,
+        completedAt: index + 3
+      })
+    }
+
+    streamListeners.updated[0]({
+      kind: 'snapshot',
+      sessionId: 's1',
+      requestId: 'request-settled',
+      messageId: 'message-settled',
+      updatedAt: 500,
+      blocks: [{ type: 'content', content: 'resurrected', status: 'pending', timestamp: 500 }]
+    })
+
+    expect(sessionClient.restore).toHaveBeenCalledTimes(2)
+    expect(store.isStreaming.value).toBe(false)
+    expect(store.currentStreamRequestId.value).toBeNull()
+    expect(store.streamingBlocks.value).toEqual([])
+  })
+
   it('ignores stream snapshots that arrive after their terminal event', async () => {
     const { store, sessionClient, streamListeners } = await setupStore()
     sessionClient.restore

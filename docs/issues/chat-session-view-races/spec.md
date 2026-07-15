@@ -44,6 +44,9 @@ presentation problems.
    without checking which view owns them.
 8. History pagination writes records into the cache before it removes duplicate IDs, allowing an
    overlapping old page to replace a newer in-memory record.
+9. Stream request ordering retains only the current request and a bounded settled-key set. A known
+   superseded request can reclaim the stream with a later timestamp, and an evicted settled request
+   can be resurrected by a late snapshot.
 
 ## Required Invariants
 
@@ -62,6 +65,8 @@ presentation problems.
   different committed view.
 - Stream updates are monotonic per request, a request settles once, and a terminal event cannot
   settle a different request in the same session.
+- Superseded and settled stream request identities remain tombstoned for the tracked session
+  lifetime and are purged only when that session is permanently removed or the binding is disposed.
 - Selection and async submit guards use request generations, not session equality alone, so A-B-A
   cannot revive an earlier operation.
 - Pending-input mutations refresh only their matching active view, and overlapping history pages
@@ -83,6 +88,8 @@ presentation problems.
 - Add defensive session ownership checks around optimistic mutations and post-await submit paths.
 - Fence stream snapshots and terminals by request identity and monotonic event time, including
   duplicate terminal suppression and inactive-session cache invalidation.
+- Assign stream requests a per-session local generation so later updates from known older requests
+  cannot reclaim ownership, and purge generations when sessions are deleted.
 - Fence pending-input operations, session hydration, history pagination, and submit continuations
   against stale or ABA ownership.
 
@@ -93,6 +100,7 @@ presentation problems.
 - [x] Make recent-session cache activation and invalidation race-safe.
 - [x] Update ChatPage submit, stream, and restore integration.
 - [x] Fence stream terminals, pending-input mutations, history overlap, and session hydration.
+- [x] Preserve superseded and settled stream tombstones until permanent session removal.
 - [x] Add cold-start, first-turn completion, cached-refresh, cache-miss, and rapid-switch regressions.
 - [x] Update the retained chat scroll ownership contract.
 - [x] Run focused and full repository quality gates.
@@ -101,6 +109,8 @@ presentation problems.
 
 - Renderer store and ChatPage Vitest suites cover deterministic deferred-promise interleavings,
   including A-B-A selection, submit, pending-input, and hydration cycles.
+- Review hardening adds null compaction restore, superseded request reclamation, durable settled
+  tombstone, and permanent-session purge regressions; the four focused suites pass 171/171 tests.
 - Full `pnpm test` completed with 5,516 passing and 198 skipped tests. Its only three failures were
   Feishu loopback callback tests blocked from listening on `127.0.0.1` by the sandbox; the complete
   callback suite passed 22/22 when rerun with local-listen permission.

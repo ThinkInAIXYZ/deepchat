@@ -2540,7 +2540,7 @@ async function handleManualCompactionCommand(
     const result = await sessionClient.compactSession(sessionId)
     if (!canWriteSessionView(sessionId, restoreRequestId)) return true
     const restoredSession = await loadMessagesForSession(sessionId)
-    if (!canWriteSessionView(sessionId, restoreRequestId)) return true
+    if (!canWriteSessionView(sessionId, restoreRequestId) || restoredSession === null) return true
     applyRestoredSessionSummary(restoredSession)
     if (!result.compacted) {
       toast({

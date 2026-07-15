@@ -30,28 +30,60 @@ interface BindMessageStoreIpcOptions {
 type StreamCursor = {
   requestId: string
   updatedAt: number
+  generation: number
 }
 
-const MAX_SETTLED_STREAMS = 128
+type StreamRequestState = {
+  generation: number
+  settled: boolean
+}
 
-export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => void {
+type StreamSessionState = {
+  current: StreamCursor | null
+  latestAcceptedGeneration: number
+  nextGeneration: number
+  requests: Map<string, StreamRequestState>
+}
+
+type MessageStoreIpcBinding = {
+  cleanup: () => void
+  purgeSessionTracking: (sessionId: string) => void
+}
+
+export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): MessageStoreIpcBinding {
   const chatClient = createChatClient()
-  const latestStreamBySession = new Map<string, StreamCursor>()
-  const settledStreams = new Set<string>()
+  // Request entries are tombstones. Keep them until permanent session removal so
+  // a known older request cannot become current again after a newer request arrives.
+  const streamSessions = new Map<string, StreamSessionState>()
 
-  const streamKey = (sessionId: string, requestId: string) => `${sessionId}\u0000${requestId}`
+  const getStreamSessionState = (sessionId: string): StreamSessionState => {
+    const existing = streamSessions.get(sessionId)
+    if (existing) return existing
 
-  const markStreamSettled = (sessionId: string, requestId: string): boolean => {
-    const key = streamKey(sessionId, requestId)
-    if (settledStreams.has(key)) return false
-
-    settledStreams.add(key)
-    while (settledStreams.size > MAX_SETTLED_STREAMS) {
-      const oldestKey = settledStreams.keys().next().value
-      if (!oldestKey) break
-      settledStreams.delete(oldestKey)
+    const created: StreamSessionState = {
+      current: null,
+      latestAcceptedGeneration: 0,
+      nextGeneration: 0,
+      requests: new Map()
     }
-    return true
+    streamSessions.set(sessionId, created)
+    return created
+  }
+
+  const getStreamRequestState = (
+    session: StreamSessionState,
+    requestId: string
+  ): StreamRequestState => {
+    const existing = session.requests.get(requestId)
+    if (existing) return existing
+
+    session.nextGeneration += 1
+    const created: StreamRequestState = {
+      generation: session.nextGeneration,
+      settled: false
+    }
+    session.requests.set(requestId, created)
+    return created
   }
 
   const acceptStreamUpdate = (payload: {
@@ -59,24 +91,21 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
     requestId: string
     updatedAt: number
   }): boolean => {
-    if (settledStreams.has(streamKey(payload.sessionId, payload.requestId))) {
-      return false
+    const session = getStreamSessionState(payload.sessionId)
+    const request = getStreamRequestState(session, payload.requestId)
+    if (request.settled || request.generation < session.latestAcceptedGeneration) return false
+
+    if (request.generation === session.latestAcceptedGeneration) {
+      if (!session.current || session.current.requestId !== payload.requestId) return false
+      if (payload.updatedAt < session.current.updatedAt) return false
     }
 
-    const latest = latestStreamBySession.get(payload.sessionId)
-    if (latest) {
-      if (latest.requestId === payload.requestId && payload.updatedAt < latest.updatedAt) {
-        return false
-      }
-      if (latest.requestId !== payload.requestId && payload.updatedAt <= latest.updatedAt) {
-        return false
-      }
-    }
-
-    latestStreamBySession.set(payload.sessionId, {
+    session.latestAcceptedGeneration = request.generation
+    session.current = {
       requestId: payload.requestId,
-      updatedAt: payload.updatedAt
-    })
+      updatedAt: payload.updatedAt,
+      generation: request.generation
+    }
     return true
   }
 
@@ -95,17 +124,19 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
   const settleStream = (payload: { sessionId: string; requestId: string }) => {
     // requestId is the turn identity; messageId may move from an ephemeral
     // rate-limit row to the persisted assistant row within the same turn.
-    if (!markStreamSettled(payload.sessionId, payload.requestId)) {
-      return
-    }
+    const session = getStreamSessionState(payload.sessionId)
+    const request = getStreamRequestState(session, payload.requestId)
+    if (request.settled) return
+    request.settled = true
 
     options.invalidateRecentSessionView(payload.sessionId)
 
-    const latest = latestStreamBySession.get(payload.sessionId)
-    if (latest?.requestId === payload.requestId) {
-      latestStreamBySession.delete(payload.sessionId)
-    } else if (latest) {
+    if (session.current?.requestId === payload.requestId) {
+      session.current = null
+    } else if (session.current || request.generation < session.latestAcceptedGeneration) {
       return
+    } else {
+      session.latestAcceptedGeneration = request.generation
     }
 
     if (payload.sessionId !== options.getActiveSessionId()) {
@@ -178,9 +209,15 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
     })
   ]
 
-  return () => {
-    for (const cleanup of cleanups) {
-      cleanup()
+  return {
+    cleanup: () => {
+      for (const cleanup of cleanups) {
+        cleanup()
+      }
+      streamSessions.clear()
+    },
+    purgeSessionTracking: (sessionId: string) => {
+      streamSessions.delete(sessionId)
     }
   }
 }
