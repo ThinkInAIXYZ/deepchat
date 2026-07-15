@@ -103,7 +103,7 @@ import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
-} from '../hooksNotifications/config'
+} from '@/hook/config'
 import {
   AcpDbStore,
   AppSettingsDbBackedStore,

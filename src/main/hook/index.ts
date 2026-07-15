@@ -1,8 +1,7 @@
-import { spawn } from 'child_process'
+import { spawn, type ChildProcess } from 'child_process'
 import { app } from 'electron'
 import log from 'electron-log'
 import fs from 'fs'
-import type { IConfigPresenter } from '@shared/presenter'
 import type {
   HookCommandItem,
   HookCommandResult,
@@ -11,6 +10,7 @@ import type {
   HookTestResult,
   HooksNotificationsSettings
 } from '@shared/hooksNotifications'
+import type { HookNotification, HookObserver } from './observer'
 
 const HOOK_PAYLOAD_VERSION = 1 as const
 const COMMAND_TIMEOUT_MS = 30_000
@@ -59,7 +59,7 @@ export type HookDispatchContext = {
   isTest?: boolean
 }
 
-type HookConversationLookup = {
+type HookSessionLookup = {
   providerId?: string
   modelId?: string
   projectDir?: string | null
@@ -69,9 +69,13 @@ type HookMessageLookup = {
   content: unknown
 }
 
-type HooksNotificationsDeps = {
-  getSession?: (sessionId: string) => Promise<HookConversationLookup | null>
-  getMessage?: (messageId: string) => Promise<HookMessageLookup | null>
+export interface HookSettingsPort {
+  getHooksNotificationsConfig(): HooksNotificationsSettings
+}
+
+export interface HookQueryPort {
+  getSession(sessionId: string): Promise<HookSessionLookup | null>
+  getMessage(messageId: string): Promise<HookMessageLookup | null>
 }
 
 export const truncateText = (value: string, limit: number): string => {
@@ -153,21 +157,72 @@ const redactSensitiveText = (text: string, secrets: string[]): string => {
   return output
 }
 
-export class HooksNotificationsService {
+export class HookService implements HookObserver {
+  private accepting = true
+  private readonly activeChildren = new Set<ChildProcess>()
+  private readonly pendingDispatches = new Set<Promise<void>>()
+
   constructor(
-    private readonly configPresenter: IConfigPresenter,
-    private readonly deps: HooksNotificationsDeps
+    private readonly settings: HookSettingsPort,
+    private readonly query: HookQueryPort
   ) {}
 
   getConfigSnapshot(): HooksNotificationsSettings {
-    return this.configPresenter.getHooksNotificationsConfig()
+    return this.settings.getHooksNotificationsConfig()
+  }
+
+  start(): void {
+    this.accepting = true
+  }
+
+  async stop(): Promise<void> {
+    this.accepting = false
+    for (const child of this.activeChildren) {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        // Process may already be closing.
+      }
+    }
+    await Promise.allSettled(this.pendingDispatches)
+  }
+
+  notify(notification: HookNotification): void {
+    try {
+      const context = structuredClone(notification.context)
+      this.dispatchEvent(notification.event, {
+        conversationId: context.sessionId,
+        messageId: context.messageId,
+        promptPreview: context.promptPreview,
+        providerId: context.providerId,
+        modelId: context.modelId,
+        agentId: context.agentId ?? null,
+        workdir: context.projectDir ?? null,
+        tool: context.tool,
+        permission: context.permission ?? null,
+        stop: context.stop ?? null,
+        usage: context.usage ?? null,
+        error: context.error ?? null
+      })
+    } catch (error) {
+      log.warn('[Hook] Notification observer failed:', error)
+    }
   }
 
   dispatchEvent(event: HookEventName, context: HookDispatchContext): void {
+    if (!this.accepting) {
+      return
+    }
+    const snapshot = structuredClone(context)
     queueMicrotask(() => {
-      this.dispatchEventAsync(event, context).catch((error) => {
-        log.warn('[HooksNotifications] Dispatch failed:', error)
+      if (!this.accepting) {
+        return
+      }
+      const pending = this.dispatchEventAsync(event, snapshot).catch((error) => {
+        log.warn('[Hook] Dispatch failed:', error)
       })
+      this.pendingDispatches.add(pending)
+      void pending.finally(() => this.pendingDispatches.delete(pending))
     })
   }
 
@@ -233,7 +288,7 @@ export class HooksNotificationsService {
 
     if (conversationId && (!providerId || !modelId || !workdir)) {
       try {
-        const session = this.deps.getSession ? await this.deps.getSession(conversationId) : null
+        const session = await this.query.getSession(conversationId)
         if (session) {
           providerId = providerId ?? session.providerId
           modelId = modelId ?? session.modelId
@@ -250,7 +305,7 @@ export class HooksNotificationsService {
     let promptPreview = context.promptPreview
     if (!promptPreview && context.messageId) {
       try {
-        const message = this.deps.getMessage ? await this.deps.getMessage(context.messageId) : null
+        const message = await this.query.getMessage(context.messageId)
         if (message) {
           promptPreview = extractPromptPreview(message.content)
         }
@@ -366,6 +421,7 @@ export class HooksNotificationsService {
         env,
         windowsHide: true
       })
+      this.activeChildren.add(child)
 
       const finalize = (result: HookCommandResult) => {
         if (finished) {
@@ -385,6 +441,7 @@ export class HooksNotificationsService {
       }, COMMAND_TIMEOUT_MS)
 
       child.on('error', (error) => {
+        this.activeChildren.delete(child)
         clearTimeout(timeout)
         finalize({
           success: false,
@@ -404,6 +461,7 @@ export class HooksNotificationsService {
       })
 
       child.on('close', (code) => {
+        this.activeChildren.delete(child)
         clearTimeout(timeout)
         const secrets = [payload.session.conversationId ?? '', payload.session.workdir ?? '']
         finalize({

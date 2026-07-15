@@ -15,7 +15,7 @@ import {
   PRE_STREAM_STUCK_WARN_MS
 } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
 import logger from '@shared/logger'
-import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
+import type { HookNotification, HookObserver } from '@/hook/observer'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import {
   estimateToolReserveTokens,
@@ -33,6 +33,26 @@ import { createState } from '@/agent/deepchat/runtime/types'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
+
+const createHookObserver = (dispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }): HookObserver => ({
+  notify({ event, context }: HookNotification) {
+    dispatcher.dispatchEvent(event, {
+      conversationId: context.sessionId,
+      agentId: context.agentId,
+      workdir: context.projectDir,
+      messageId: context.messageId,
+      promptPreview: context.promptPreview,
+      providerId: context.providerId,
+      modelId: context.modelId,
+      tool: context.tool,
+      permission: context.permission,
+      stop: context.stop,
+      usage: context.usage,
+      error: context.error
+    })
+  }
+})
+const noopHookObserver: HookObserver = { notify: vi.fn() }
 import type { AcpAgentConfig } from '@shared/presenter'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
@@ -811,7 +831,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         sessionPermissionPort,
         resolveAgentPermission: llmProvider.resolveAgentPermission
       }),
-      new NewSessionHooksBridge(hookDispatcher)
+      createHookObserver(hookDispatcher)
     )
     transcriptMutations = new SessionTranscriptMutations({
       transcript: sessionData.transcript,
@@ -1749,7 +1769,8 @@ describe('DeepChatRuntimeCoordinator', () => {
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()
-        })
+        }),
+        noopHookObserver
       )
 
       expect(loggerInfoMock).toHaveBeenCalledWith(
@@ -1797,7 +1818,8 @@ describe('DeepChatRuntimeCoordinator', () => {
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()
-        })
+        }),
+        noopHookObserver
       )
 
       expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledTimes(1)
@@ -2325,7 +2347,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(userStopHooks).toHaveLength(1)
     })
 
-    it('dispatches lifecycle hooks through new session bridge', async () => {
+    it('dispatches lifecycle hooks through the required observer', async () => {
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => ({
         status: 'completed',
         stopReason: 'complete',
@@ -2338,7 +2360,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         modelId: 'gpt-4',
         projectDir: '/tmp/project'
       })
-      await agent.processMessage('s1', 'Hello bridge')
+      await agent.processMessage('s1', 'Hello observer')
 
       expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
         'UserPromptSubmit',
@@ -2346,7 +2368,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           conversationId: 's1',
           agentId: 'deepchat',
           workdir: '/tmp/project',
-          promptPreview: 'Hello bridge'
+          promptPreview: 'Hello observer'
         })
       )
       expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
@@ -7552,7 +7574,8 @@ describe('DeepChatRuntimeCoordinator', () => {
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()
-        })
+        }),
+        noopHookObserver
       )
       const compactionState = await reopenedAgent.getSessionCompactionState('s1')
 

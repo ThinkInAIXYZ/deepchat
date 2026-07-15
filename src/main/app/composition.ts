@@ -61,8 +61,7 @@ import { ConversationExporterService } from '../presenter/exporter'
 import { SkillService } from '../skill'
 import type { SkillSessionStatePort } from '../skill'
 import { SkillSyncService } from '../skill/sync'
-import { HooksNotificationsService } from '../presenter/hooksNotifications'
-import { NewSessionHooksBridge } from '../presenter/hooksNotifications/newSessionBridge'
+import { HookService } from '../hook'
 import { CronJobsService, createCronJobRunSessionStarter } from '../presenter/cronJobs'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
@@ -212,7 +211,7 @@ export async function createMainProcessControl(dependencies: {
   let remoteControlPresenter: IRemoteControlPresenter
   let remoteControlPresenterImpl: RemoteControlPresenterLike
   let pluginService: PluginServicePort
-  let hooksNotifications: HooksNotificationsService
+  let hookService: HookService
   let cronJobs: CronJobsService
   let commandPermissionService: CommandPermissionService
   let filePermissionService: FilePermissionService
@@ -549,8 +548,7 @@ export async function createMainProcessControl(dependencies: {
   // Initialize Skill Sync service
   skillSyncService = new SkillSyncService(skillService, configPresenter)
 
-  // Initialize new agent architecture presenters first (needed by hooksNotifications)
-  hooksNotifications = new HooksNotificationsService(configPresenter, {
+  hookService = new HookService(configPresenter, {
     getSession: (sessionId) => sessionQuery.getSession(sessionId),
     getMessage: (messageId) => sessionQuery.getMessage(messageId)
   })
@@ -558,7 +556,6 @@ export async function createMainProcessControl(dependencies: {
     sqlitePresenter: sqlitePresenter as unknown as SQLitePresenter,
     configPresenter: configPresenter
   })
-  const newSessionHooksBridge = new NewSessionHooksBridge(hooksNotifications)
   const providerCatalogPort: ProviderCatalogPort = {
     getProviderModels: (providerId) => configPresenter.getProviderModels(providerId),
     getCustomModels: (providerId) => configPresenter.getCustomModels(providerId),
@@ -718,7 +715,7 @@ export async function createMainProcessControl(dependencies: {
       cacheImage: (data) => devicePresenter.cacheImage(data),
       skillService: skillService
     },
-    newSessionHooksBridge
+    hookService
   )
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
@@ -1011,7 +1008,7 @@ export async function createMainProcessControl(dependencies: {
         console.error('[RAG] Error syncing knowledge configs:', error)
       })
     },
-    testHookCommand: async (hookId) => await hooksNotifications.testHookCommand(hookId)
+    testHookCommand: async (hookId) => await hookService.testHookCommand(hookId)
   })
 
   setDeepchatEventWindowPresenter(windowPresenter)
@@ -1243,6 +1240,8 @@ export async function createMainProcessControl(dependencies: {
     } catch (error) {
       console.error('CronJobsService.stop failed during main shutdown:', error)
     }
+
+    await runDestroyStep('hookService.stop', () => hookService.stop())
 
     try {
       await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
@@ -1589,6 +1588,7 @@ export async function createMainProcessControl(dependencies: {
     try {
       await cronJobs.stop()
       await remoteControlPresenterImpl.destroy()
+      await hookService.stop()
       const drain = await memoryIngestionObserver.drainAndFence()
       if (drain.timedOut) {
         throw new Error(
@@ -1625,6 +1625,7 @@ export async function createMainProcessControl(dependencies: {
       }
       memoryIngestionObserver.resumeIngestion()
       memoryService.startBackgroundMaintenance()
+      hookService.start()
       cronJobs.start()
       await remoteControlPresenterImpl.initialize()
       startupWorkloadCoordinator.createRun('main')

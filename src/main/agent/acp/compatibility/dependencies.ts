@@ -6,7 +6,7 @@ import type {
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { HookEventName } from '@shared/hooksNotifications'
-import type { NewSessionHookContext } from '@/presenter/hooksNotifications/newSessionBridge'
+import type { HookContext } from '@/hook/observer'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime'
 import type { AcpViewManifestInput } from '@/agent/acp/instance/ports'
@@ -56,7 +56,7 @@ export interface AcpCompatibilityDependencyBuilderDependencies {
     snapshot: RateLimitQueueSnapshot
   ): void
   clearRateLimitWaitingMessage(sessionId: string, messageId: string, requestId: string): void
-  dispatchHook(event: HookEventName, context: NewSessionHookContext): void
+  dispatchHook(event: HookEventName, context: HookContext): void
 }
 
 function throwIfAbortRequested(signal?: AbortSignal): void {

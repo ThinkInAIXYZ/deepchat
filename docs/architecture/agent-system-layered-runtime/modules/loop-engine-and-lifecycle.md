@@ -46,8 +46,8 @@
 > replaced the mixed `ProcessHooks` callback bag with a typed notification observer, control
 > collaborators, and an internal diagnostics seam. Notification delivery receives a detached
 > snapshot and never awaits observer promises or thenables; synchronous throws and asynchronous
-> rejection are logged without changing the loop outcome. `NewSessionHooksBridge` still delegates
-> to the existing `HooksNotificationsService`, whose `queueMicrotask`, payload, command timeout and
+> rejection are logged without changing the loop outcome. The required `HookObserver` is implemented
+> by `HookService`, whose `queueMicrotask`, payload, command timeout and
 > routing behavior remain unchanged. Interleaved-reasoning trace persistence remains an internal
 > diagnostic and is not exposed as an external hook event.
 

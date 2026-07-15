@@ -20,7 +20,7 @@ question tool 和 ACP protocol permission 可以共享 renderer decision/output 
 session-keyed maps。ACP permission 经过 `AcpProvider` 翻译后也在统一 runtime 周边汇合，但实际响应的是
 ACP protocol continuation。
 
-外部 `HooksNotificationsService` 同样叫 hook，却是 `queueMicrotask` fire-and-forget。它不能被混入
+外部 `HookService` 同样叫 hook，却是 `queueMicrotask` fire-and-forget。它不能被混入
 permission lifecycle，也不能让 shell command 阻塞 agent。
 
 ## 3. 两种 interaction owner
@@ -138,7 +138,7 @@ ASLR-057 的 production seam 是 `DeepChatLoopNotificationObserver`。`processSt
 的 sync throw、Promise/thenable reject 或 never-settling wait 都不会被 loop await，也不能改变 terminal
 outcome。auto-grant、auto-review、streaming permission continuation、skill activation 与 image cache 位于
 单独的 control collaborators；interleaved-reasoning trace 位于 internal diagnostics。现有
-`HooksNotificationsService` 仍是唯一 shell-command owner，route/config、agentId fallback、payload、顺序、
+`HookService` 仍是唯一 shell-command owner，route/config、agentId fallback、payload、顺序、
 `queueMicrotask` 和 30 秒 command timeout 均未改变。
 
 ## 9. 取消、关闭与 stale decision

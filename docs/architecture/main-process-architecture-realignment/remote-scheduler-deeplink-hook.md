@@ -188,7 +188,7 @@ interface HookObserver {
 }
 ```
 
-App 创建唯一的 `HookService` 并直接作为 observer 注入，不再创建
+App 已经创建唯一的 `HookService` 并直接作为 observer 注入，不再创建
 `NewSessionHooksBridge`。DeepChat 和 ACP 使用同一通知类型，不再从 Presenter 目录借类型。
 
 ### Hook 负责什么
@@ -203,8 +203,8 @@ App 创建唯一的 `HookService` 并直接作为 observer 注入，不再创建
 `getSession` 和 `getMessage` 是必需的查询接口，不再用 optional callback 表示“可能没有 Session
 能力”。没有配置 Hook 是正常配置状态，由空 Hook 列表表示，不是另一条运行路径。
 
-目标目录是 `src/main/hook/`。入口类叫 `HookService`，通知类型放在 `observer.ts`。删除
-`HooksNotificationsService`、`NewSessionHooksBridge` 和旧 Presenter 目录。
+实现已经放在 `src/main/hook/`。入口类叫 `HookService`，通知类型放在 `observer.ts`。
+`HooksNotificationsService`、`NewSessionHooksBridge` 和旧 Presenter 目录已经删除。
 
 ## App 启动和退出顺序
 

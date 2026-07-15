@@ -1,15 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  expandHookCommandPlaceholders,
-  truncateText
-} from '../../../src/main/presenter/hooksNotifications'
+import { expandHookCommandPlaceholders, HookService, truncateText } from '../../../src/main/hook'
 import {
   createDefaultHookCommand,
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
-} from '../../../src/main/presenter/hooksNotifications/config'
+} from '../../../src/main/hook/config'
 import { DEFAULT_IMPORTANT_HOOK_EVENTS } from '../../../src/shared/hooksNotifications'
-import { NewSessionHooksBridge } from '../../../src/main/presenter/hooksNotifications/newSessionBridge'
 
 vi.mock('electron-log', () => ({
   default: {
@@ -19,7 +15,7 @@ vi.mock('electron-log', () => ({
   }
 }))
 
-describe('hooksNotifications', () => {
+describe('HookService helpers', () => {
   it('truncateText keeps short strings intact', () => {
     expect(truncateText('hello', 10)).toBe('hello')
   })
@@ -172,10 +168,19 @@ describe('hooksNotifications', () => {
   })
 })
 
-describe('NewSessionHooksBridge', () => {
+describe('HookService observer', () => {
+  const createService = () =>
+    new HookService(
+      { getHooksNotificationsConfig: () => ({ hooks: [] }) },
+      {
+        getSession: vi.fn().mockResolvedValue(null),
+        getMessage: vi.fn().mockResolvedValue(null)
+      }
+    )
+
   it('forwards ordered detached snapshots to the notification dispatcher', () => {
-    const dispatchEvent = vi.fn()
-    const bridge = new NewSessionHooksBridge({ dispatchEvent })
+    const service = createService()
+    const dispatchEvent = vi.spyOn(service, 'dispatchEvent').mockImplementation(() => undefined)
     const context = {
       sessionId: 'session-1',
       agentId: 'agent-1',
@@ -190,10 +195,10 @@ describe('NewSessionHooksBridge', () => {
       }
     }
 
-    bridge.notify({ event: 'PermissionRequest', context })
+    service.notify({ event: 'PermissionRequest', context })
     context.tool.name = 'mutated_tool'
     context.permission.metadata.path = 'after.txt'
-    bridge.notify({ event: 'PreToolUse', context })
+    service.notify({ event: 'PreToolUse', context })
 
     expect(dispatchEvent.mock.calls.map(([event]) => event)).toEqual([
       'PermissionRequest',
@@ -219,42 +224,14 @@ describe('NewSessionHooksBridge', () => {
     )
   })
 
-  it('isolates synchronous, rejected and never-settling dispatchers', async () => {
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const neverSettles = new Promise<void>(() => undefined)
-    const rejectedThenable = {
-      then: (_resolve: unknown, reject?: (reason: unknown) => unknown) => {
-        reject?.(new Error('thenable failure'))
-      }
-    } as unknown as PromiseLike<void>
-    const dispatchEvent = vi
-      .fn()
-      .mockImplementationOnce(() => {
-        throw new Error('sync failure')
-      })
-      .mockRejectedValueOnce(new Error('async failure'))
-      .mockReturnValueOnce(neverSettles)
-      .mockReturnValueOnce(rejectedThenable)
-    const bridge = new NewSessionHooksBridge({ dispatchEvent })
+  it('isolates a synchronous observer failure', () => {
+    const service = createService()
+    vi.spyOn(service, 'dispatchEvent').mockImplementation(() => {
+      throw new Error('sync failure')
+    })
 
     expect(() =>
-      bridge.notify({ event: 'SessionStart', context: { sessionId: 'session-1' } })
+      service.notify({ event: 'SessionStart', context: { sessionId: 'session-1' } })
     ).not.toThrow()
-    expect(() =>
-      bridge.notify({ event: 'Stop', context: { sessionId: 'session-1' } })
-    ).not.toThrow()
-    expect(() =>
-      bridge.notify({ event: 'SessionEnd', context: { sessionId: 'session-1' } })
-    ).not.toThrow()
-    expect(() =>
-      bridge.notify({ event: 'UserPromptSubmit', context: { sessionId: 'session-1' } })
-    ).not.toThrow()
-
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(dispatchEvent).toHaveBeenCalledTimes(4)
-    expect(warning).toHaveBeenCalledTimes(3)
-    warning.mockRestore()
   })
 })

@@ -133,6 +133,8 @@
   renderer 预填行为，不擅自创建 Turn。
 - [x] 把 Deeplink 移到 `src/main/deeplink/`，删除旧 class 和 shared interface，并把 Window、
   Config、MCP 依赖收窄成三个明确操作接口。
+- [x] 把 Hook 移到 `src/main/hook/`，由唯一 `HookService` 直接实现必需的 `HookObserver`；删除
+  `NewSessionHooksBridge` 和 optional query，并把 child process 纳入 App 停止顺序。
 
 ## T7：Platform、Config、数据存储和通信
 

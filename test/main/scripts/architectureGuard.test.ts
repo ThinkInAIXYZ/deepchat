@@ -97,6 +97,10 @@ const RETIRED_DEEPLINK_FIXTURE = path.join(
   ROOT,
   'test/main/deeplink/__architecture_guard_retired_presenter_fixture__.ts'
 )
+const RETIRED_HOOK_FIXTURE = path.join(
+  ROOT,
+  'test/main/hook/__architecture_guard_retired_presenter_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -638,6 +642,13 @@ const virtualFiles = new Map<string, string>([
     `
       declare const deeplinkPresenter: IDeeplinkPresenter
       export const fixture = [DeeplinkPresenter, deeplinkPresenter]
+    `
+  ],
+  [
+    RETIRED_HOOK_FIXTURE,
+    `
+      declare const observer: NewSessionHookNotificationObserver
+      export const fixture = [HooksNotificationsService, NewSessionHooksBridge, observer]
     `
   ],
   [
@@ -1228,6 +1239,12 @@ describe('architecture guard', () => {
   it('keeps the retired Deeplink presenter entrypoint deleted', () => {
     expect(forFile(violations, RETIRED_DEEPLINK_FIXTURE).join('\n')).toContain(
       '[deeplink-retired-presenter]'
+    )
+  })
+
+  it('keeps the retired Hook presenter entrypoint deleted', () => {
+    expect(forFile(violations, RETIRED_HOOK_FIXTURE).join('\n')).toContain(
+      '[hook-retired-presenter]'
     )
   })
 

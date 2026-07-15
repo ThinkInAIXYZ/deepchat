@@ -90,7 +90,7 @@ import {
   type TurnStartContext
 } from './turnCoordinator'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
-import type { NewSessionHookNotificationObserver } from '@/presenter/hooksNotifications/newSessionBridge'
+import type { HookObserver } from '@/hook/observer'
 import type {
   AcpAsLlmProviderPermissionPort,
   ProviderCatalogPort,
@@ -196,7 +196,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly loopRunner: DeepChatLoopRunner
   private readonly turnCoordinator: TurnCoordinator
   private readonly interactionCoordinator: InteractionCoordinator
-  private readonly hookNotificationObserver?: NewSessionHookNotificationObserver
+  private readonly hookObserver: HookObserver
   private readonly providerCatalogPort: Pick<
     ProviderCatalogPort,
     'getProviderModels' | 'getCustomModels'
@@ -219,13 +219,13 @@ export class DeepChatRuntimeCoordinator {
     sessionData: SessionData,
     toolService: ToolServicePort,
     runtimePorts: DeepChatRuntimeDependencies,
-    hookNotificationObserver?: NewSessionHookNotificationObserver
+    hookObserver: HookObserver
   ) {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.sqlitePresenter = sqlitePresenter
     this.toolService = toolService
-    this.hookNotificationObserver = hookNotificationObserver
+    this.hookObserver = hookObserver
     this.providerCatalogPort = runtimePorts.providerCatalogPort
     this.sessionPermissionPort = runtimePorts.sessionPermissionPort
     this.acpAsLlmProviderPermission = runtimePorts.acpAsLlmProviderPermission
@@ -1339,7 +1339,7 @@ export class DeepChatRuntimeCoordinator {
     }
   ): void {
     try {
-      this.hookNotificationObserver?.notify({
+      this.hookObserver.notify({
         event,
         context: {
           ...context,

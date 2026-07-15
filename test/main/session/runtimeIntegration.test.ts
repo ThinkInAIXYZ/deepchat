@@ -2,7 +2,7 @@ import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DeepChatRuntimeCoordinator } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
-import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
+import type { HookNotification, HookObserver } from '@/hook/observer'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
@@ -18,6 +18,28 @@ vi.mock('nanoid', () => {
   let counter = 0
   return { nanoid: vi.fn(() => `id-${++counter}`) }
 })
+
+const createHookObserver = (dispatcher: {
+  dispatchEvent: ReturnType<typeof vi.fn>
+}): HookObserver => ({
+  notify({ event, context }: HookNotification) {
+    dispatcher.dispatchEvent(event, {
+      conversationId: context.sessionId,
+      agentId: context.agentId,
+      workdir: context.projectDir,
+      messageId: context.messageId,
+      promptPreview: context.promptPreview,
+      providerId: context.providerId,
+      modelId: context.modelId,
+      tool: context.tool,
+      permission: context.permission,
+      stop: context.stop,
+      usage: context.usage,
+      error: context.error
+    })
+  }
+})
+const noopHookObserver: HookObserver = { notify: vi.fn() }
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -749,7 +771,8 @@ describe('Integration: createSession end-to-end', () => {
       sqlitePresenter,
       sessionData,
       createMockToolService(),
-      createRuntimeDependencies()
+      createRuntimeDependencies(),
+      noopHookObserver
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
     const appSessionService = new AppSessionService(sqlitePresenter)
@@ -895,7 +918,7 @@ describe('Integration: createSession end-to-end', () => {
   })
 })
 
-describe('Integration: ACP hooks bridge', () => {
+describe('Integration: ACP hook observer', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
@@ -918,7 +941,7 @@ describe('Integration: ACP hooks bridge', () => {
       sessionData,
       createMockToolService(),
       createRuntimeDependencies(),
-      new NewSessionHooksBridge(hookDispatcher)
+      createHookObserver(hookDispatcher)
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
     const appSessionService = new AppSessionService(sqlitePresenter)
@@ -948,7 +971,7 @@ describe('Integration: ACP hooks bridge', () => {
     lifecycle = sessionApplications.lifecycle
   })
 
-  it('dispatches lifecycle hooks for ACP sessions through the new bridge', async () => {
+  it('dispatches lifecycle hooks for ACP sessions through the hook observer', async () => {
     const session = await lifecycle.createSession(
       {
         agentId: 'coder',
@@ -1023,7 +1046,8 @@ describe('Integration: multi-turn context', () => {
       sqlitePresenter,
       sessionData,
       createMockToolService(),
-      createRuntimeDependencies()
+      createRuntimeDependencies(),
+      noopHookObserver
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
     const appSessionService = new AppSessionService(sqlitePresenter)
@@ -1625,7 +1649,8 @@ describe('Integration: crash recovery', () => {
       sqlitePresenter,
       createSessionData(sqlitePresenter),
       createMockToolService(),
-      createRuntimeDependencies()
+      createRuntimeDependencies(),
+      noopHookObserver
     )
 
     expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
