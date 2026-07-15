@@ -75,7 +75,7 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 6. Provider、Tool、Skill、Plugin、Memory、Knowledge 和 Workspace 各自负责自己的状态，
    不再套一个新的总管理器。
 7. App 启动入口只创建、连接、启动和停止模块，不向业务代码提供全局模块查找能力。
-8. 分成可单独检查、可单独回退的小批次迁移，同时保持现有数据、route/event 约定和用户行为。
+8. 分成可单独检查的小批次迁移；需要撤销时回退整个 commit，同时保持现有数据、route/event 约定和用户行为。
 
 ## 不做什么
 
@@ -137,6 +137,7 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-024 | Session status 不持久化；已载入时由 Agent instance 提供，未载入时为 `idle`，Agent 不可用时执行操作明确失败。 | 已确定 |
 | D-025 | regular、detached、Remote-bound 和 forked 共用 `regular` 生命周期；只有 subagent 使用独立 `sessionKind`。 | 已确定 |
 | D-026 | 删除旧 `SessionPresenter`、window/status cache 和 aggregate facade；Session 内部按 Lifecycle、Turn、Assignment、Query 分文件，但调用方只依赖所需操作。 | 已确定 |
+| D-027 | 每批实施先删除旧代码和旧引用，再写唯一的新实现；不保留运行时 fallback、兼容层或新旧双轨。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 
@@ -348,6 +349,9 @@ App 只安排总体顺序。每个模块只停止自己的资源，同一清理�
 Session 的长期字段、data、settings、用词、状态变化、hydrate 条件、status 来源、入口绑定、最小
 操作、cache 删除和 runtime eviction 条件已经写入 [Session 实施边界](./session.md)。Session 阶段
 不再保留待确认项。
+
+App 的固定启动、ready、失败清理、普通退出、更新退出、强制退出、数据库维护状态和
+全局路径删除条件已经写入 [App 启动与退出边界](./app.md)。
 
 ## 必须保持兼容的内容
 
