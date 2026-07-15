@@ -1,7 +1,12 @@
 import logger from '@shared/logger'
 import { app, BrowserWindow } from 'electron'
-import { presenter } from '@/presenter'
-import { IDeeplinkPresenter, MCPServerConfig } from '@shared/presenter'
+import {
+  IConfigPresenter,
+  IDeeplinkPresenter,
+  IMCPPresenter,
+  IWindowPresenter,
+  MCPServerConfig
+} from '@shared/presenter'
 import path from 'path'
 import { DEEPLINK_EVENTS, MCP_EVENTS, WINDOW_EVENTS } from '@/events'
 import { eventBus } from '@/eventbus'
@@ -44,6 +49,12 @@ interface MCPInstallConfig {
 export class DeeplinkPresenter implements IDeeplinkPresenter {
   private startupUrl: string | null = null
   private pendingMcpInstallUrl: string | null = null
+
+  constructor(
+    private readonly windowPresenter: IWindowPresenter,
+    private readonly configPresenter: IConfigPresenter,
+    private readonly mcpPresenter: IMCPPresenter
+  ) {}
 
   init(): void {
     const startupDeepLinkUrl = consumeStartupDeepLink()
@@ -104,7 +115,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
 
       logger.info('Parsed deeplink - command:', command, 'subCommand:', subCommand)
 
-      if (command === 'mcp' && subCommand === 'install' && !presenter.mcpPresenter.isReady()) {
+      if (command === 'mcp' && subCommand === 'install' && !this.mcpPresenter.isReady()) {
         logger.info('MCP not ready yet, saving MCP install URL for later')
         this.pendingMcpInstallUrl = url
         return
@@ -186,7 +197,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     }
 
     await this.ensureChatWindowReady(targetWindow.id)
-    presenter.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.START, {
+    this.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.START, {
       msg,
       modelId,
       systemPrompt,
@@ -196,8 +207,8 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   private async resolveChatWindow(): Promise<BrowserWindow | null> {
-    const appWindows = presenter.windowPresenter.getAllWindows()
-    const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+    const appWindows = this.windowPresenter.getAllWindows()
+    const focusedWindow = this.windowPresenter.getFocusedWindow()
     const focusedChatWindow =
       focusedWindow && appWindows.some((window) => window.id === focusedWindow.id)
         ? focusedWindow
@@ -206,7 +217,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     let targetWindow: BrowserWindow | null | undefined = focusedChatWindow ?? appWindows[0]
 
     if (!targetWindow) {
-      const windowId = await presenter.windowPresenter.createAppWindow({
+      const windowId = await this.windowPresenter.createAppWindow({
         initialRoute: 'chat'
       })
       if (windowId == null) {
@@ -391,7 +402,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       }
 
       await this.ensureChatWindowReady(targetWindow.id)
-      presenter.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.MCP_INSTALL, {
+      this.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.MCP_INSTALL, {
         mcpConfig: JSON.stringify(completeMcpConfig)
       })
 
@@ -409,17 +420,17 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
 
     try {
       const preview = this.parseProviderInstallParams(params)
-      const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
+      const settingsWindowId = await this.windowPresenter.createSettingsWindow()
       if (!settingsWindowId) {
         this.notifyProviderImportError('Failed to open settings window for provider deeplink.')
         return
       }
 
-      presenter.windowPresenter.setPendingSettingsProviderInstall(preview)
-      presenter.windowPresenter.sendSettingsNavigation(settingsWindowId, {
+      this.windowPresenter.setPendingSettingsProviderInstall(preview)
+      this.windowPresenter.sendSettingsNavigation(settingsWindowId, {
         routeName: 'settings-provider'
       })
-      presenter.windowPresenter.sendToWindow(
+      this.windowPresenter.sendToWindow(
         settingsWindowId,
         DEEPCHAT_EVENT_CHANNEL,
         createDeepchatEventEnvelope('settings.providerInstallRequested', {})
@@ -455,7 +466,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         throw new Error('ACP provider deeplinks are not supported.')
       }
 
-      const provider = presenter.configPresenter.getProviderById(id)
+      const provider = this.configPresenter.getProviderById(id)
       if (!provider) {
         throw new Error(`Unknown provider id: ${id}`)
       }

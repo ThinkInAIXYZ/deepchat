@@ -244,6 +244,9 @@ Tray 不再用方法存在检查读取语言，`setupTray()` 也不再临时补�
 已完成：Window 构造时接收重启操作，并在 Tab 创建后完成一次明确绑定。Window 和
 FloatingChatWindow 不再从全局 `Presenter` 查找 Device、Tab 或 Window。
 
+已完成：Deeplink 在 MCP 创建后接收 Window、Config 和 MCP。链接处理不再从全局
+`Presenter` 判断 MCP 状态、选择窗口或读取 Provider 配置。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

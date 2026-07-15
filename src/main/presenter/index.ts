@@ -269,7 +269,6 @@ export class Presenter {
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter, this.windowPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)
-    this.deeplinkPresenter = new DeeplinkPresenter()
     this.notificationPresenter = new NotificationPresenter(this.configPresenter)
     this.oauthPresenter = new OAuthPresenter(this.configPresenter)
     this.trayPresenter = new TrayPresenter(this.configPresenter)
@@ -297,6 +296,11 @@ export class Presenter {
       }),
       this.llmproviderPresenter,
       (data) => this.devicePresenter.cacheImage(data)
+    )
+    this.deeplinkPresenter = new DeeplinkPresenter(
+      this.windowPresenter,
+      this.configPresenter,
+      this.mcpPresenter
     )
     devicePresenter.setResetRuntime({
       closeSqlite: () => this.sqlitePresenter.close(),
