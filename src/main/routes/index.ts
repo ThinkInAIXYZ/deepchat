@@ -220,11 +220,6 @@ import {
   remoteControlWaitForFeishuAuthRoute,
   remoteControlWaitForFeishuInstallRoute,
   remoteControlWaitForWeixinIlinkLoginRoute,
-  pluginsDisableRoute,
-  pluginsEnableRoute,
-  pluginsGetRoute,
-  pluginsInvokeActionRoute,
-  pluginsListRoute,
   projectArchiveEnvironmentRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
@@ -414,7 +409,6 @@ import {
   type SessionServiceProjectionPort
 } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
-import type { PluginServicePort } from '@/plugin'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SyncImportResult } from '@/presenter/syncPresenter'
 import type { MemoryServicePort } from '@/memory'
@@ -476,7 +470,6 @@ export type MainKernelRouteRuntime = {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
-  pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryService: MemoryServicePort
   cronJobs: SchedulerService
@@ -797,7 +790,6 @@ export function createMainKernelRouteRuntime(deps: {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
-  pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryService: MemoryServicePort
   cronJobs: SchedulerService
@@ -872,7 +864,6 @@ export function createMainKernelRouteRuntime(deps: {
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
-    pluginService: deps.pluginService,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     memoryService: deps.memoryService,
     cronJobs: deps.cronJobs,
@@ -1546,45 +1537,6 @@ export async function dispatchDeepchatRoute(
       const input = deviceSanitizeSvgRoute.input.parse(rawInput)
       return deviceSanitizeSvgRoute.output.parse({
         content: await runtime.devicePresenter.sanitizeSvgContent(input.svgContent)
-      })
-    }
-
-    case pluginsListRoute.name: {
-      pluginsListRoute.input.parse(rawInput)
-      return pluginsListRoute.output.parse({
-        plugins: await runtime.pluginService.listPlugins()
-      })
-    }
-
-    case pluginsGetRoute.name: {
-      const input = pluginsGetRoute.input.parse(rawInput)
-      return pluginsGetRoute.output.parse({
-        plugin: await runtime.pluginService.getPlugin(input.pluginId)
-      })
-    }
-
-    case pluginsEnableRoute.name: {
-      const input = pluginsEnableRoute.input.parse(rawInput)
-      return pluginsEnableRoute.output.parse({
-        result: await runtime.pluginService.enablePlugin(input.pluginId)
-      })
-    }
-
-    case pluginsDisableRoute.name: {
-      const input = pluginsDisableRoute.input.parse(rawInput)
-      return pluginsDisableRoute.output.parse({
-        result: await runtime.pluginService.disablePlugin(input.pluginId)
-      })
-    }
-
-    case pluginsInvokeActionRoute.name: {
-      const input = pluginsInvokeActionRoute.input.parse(rawInput)
-      return pluginsInvokeActionRoute.output.parse({
-        result: await runtime.pluginService.invokeAction(
-          input.pluginId,
-          input.actionId,
-          input.payload
-        )
       })
     }
 

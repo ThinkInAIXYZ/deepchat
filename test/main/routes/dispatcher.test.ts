@@ -30,6 +30,7 @@ import { createNodeScheduler } from '@/routes/scheduler'
 import { ProviderImportService } from '@/provider/providerImportService'
 import { createProviderRoutes } from '@/provider/routes'
 import { createToolRoutes } from '@/tool/routes'
+import { createPluginRoutes } from '@/plugin/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1336,6 +1337,15 @@ function createRuntime() {
   const toolService = {
     getAllToolDefinitions: vi.fn().mockResolvedValue([])
   }
+  const pluginService = {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    listPlugins: vi.fn().mockResolvedValue([]),
+    getPlugin: vi.fn().mockResolvedValue(undefined),
+    enablePlugin: vi.fn(),
+    disablePlugin: vi.fn(),
+    invokeAction: vi.fn()
+  }
 
   setDeepchatEventWindowPresenter(windowPresenter)
 
@@ -1348,6 +1358,7 @@ function createRuntime() {
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const toolRoutes = createToolRoutes(toolService)
+  const pluginRoutes = createPluginRoutes(pluginService)
 
   return {
     settings,
@@ -1355,7 +1366,7 @@ function createRuntime() {
       appDataReset,
       appDatabaseMaintenance,
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes],
+      routeMaps: [providerRoutes, toolRoutes, pluginRoutes],
       sessionLifecyclePort,
       sessionProjectionPort,
       desktopSessionBinding,

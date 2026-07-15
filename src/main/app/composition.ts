@@ -95,6 +95,7 @@ import { ProjectPresenter } from '../presenter/projectPresenter'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
+import { createPluginRoutes } from '../plugin/routes'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
@@ -1313,6 +1314,7 @@ export async function createMainProcessControl(dependencies: {
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
+    const pluginRoutes = createPluginRoutes(pluginService)
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1355,7 +1357,7 @@ export async function createMainProcessControl(dependencies: {
         pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
       },
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes],
+      routeMaps: [providerRoutes, toolRoutes, pluginRoutes],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
       desktopSessionBinding,
@@ -1382,7 +1384,6 @@ export async function createMainProcessControl(dependencies: {
       yoBrowserPresenter,
       tabPresenter,
       startupWorkloadCoordinator,
-      pluginService,
       databaseSecurityPresenter,
       memoryService,
       cronJobs,
