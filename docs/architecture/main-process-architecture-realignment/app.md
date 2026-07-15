@@ -67,6 +67,10 @@ Desktop。旧 `TRAY_EVENTS` 和 Window 内用于接收 Shortcut 命令的监听�
 当前 `startMainProcess()` 已经只返回 `MainProcessControl`。`appMain.ts` 只能请求聚焦主窗口、处理
 deeplink、清理权限、确认退出、取消退出、检查主窗口和停止 main 进程，不能再读取业务模块。
 
+旧 `src/main/presenter/index.ts` 和 `Presenter` 类已经删除。模块创建、route 注册、固定启动和固定
+退出现在位于 `src/main/app/composition.ts`，内部使用局部变量连接明确依赖，不返回模块列表。
+架构检查把旧入口列为禁止恢复的路径，并只允许 App composition 创建 Session owners。
+
 各业务模块是 App 创建过程中的局部变量。route 注册时直接捕获已创建的明确依赖。
 启动、退出和维护操作也使用这些明确依赖。不导出模块汇总对象，不提供按名称查找模块的方法。
 

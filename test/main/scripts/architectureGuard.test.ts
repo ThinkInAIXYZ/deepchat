@@ -109,7 +109,8 @@ const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
   ROOT,
   'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_arrow_fixture__.ts'
 )
-const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
+const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
+const RETIRED_PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
 const GLOBAL_PRESENTER_IMPORT_FIXTURE = path.join(
   ROOT,
   'src/main/presenter/configPresenter/__architecture_guard_global_presenter_fixture__.ts'
@@ -732,9 +733,9 @@ const virtualFiles = new Map<string, string>([
     `
       import type { LoopRun } from '../../deepchat/loop/loopRun'
       import type { MemoryPresenter } from '../../../presenter/memoryPresenter'
-      import type { Presenter } from '../../../presenter'
+      import type { MainProcessControl } from '../../../app/composition'
       import type { SQLitePresenter } from '../../../presenter/sqlitePresenter'
-      export type Fixture = LoopRun<unknown> | MemoryPresenter | Presenter | SQLitePresenter
+      export type Fixture = LoopRun<unknown> | MemoryPresenter | MainProcessControl | SQLitePresenter
     `
   ],
   [RETIRED_AGENT_RUNTIME_FIXTURE, retiredAgentRuntimeSource],
@@ -906,6 +907,7 @@ const virtualFiles = new Map<string, string>([
   ],
   [LEGACY_SESSION_PRESENTER_PATH, 'export class SessionPresenter {}'],
   [LEGACY_SESSION_PRESENTER_INTERFACE_PATH, 'export interface ISessionPresenter {}'],
+  [RETIRED_PRESENTER_ROOT_ENTRY, 'export class Presenter {}'],
   [LEGACY_SESSION_APPLICATION_PATH, 'export class SessionProjectionCoordinator {}'],
   [LEGACY_AGENT_SHARED_DATA_PATH, 'export interface AgentSharedDataPorts {}'],
 ])
@@ -955,6 +957,12 @@ describe('architecture guard', () => {
   it('rejects global Presenter imports in main process modules', () => {
     expect(forFile(violations, GLOBAL_PRESENTER_IMPORT_FIXTURE)).toContain(
       `[main-global-presenter-import] src/main/presenter/configPresenter/__architecture_guard_global_presenter_fixture__.ts must use explicit dependencies`
+    )
+  })
+
+  it('keeps the Presenter root entry retired', () => {
+    expect(violations.join('\n')).toContain(
+      '[main-retired-path] src/main/presenter/index.ts must remain deleted'
     )
   })
 

@@ -45,6 +45,7 @@ const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
   RENDERER_QUARANTINE_ROOT
 ]
 const RETIRED_MAIN_PATHS = [
+  path.join(ROOT, 'src/main/presenter/index.ts'),
   path.join(ROOT, 'src/main/lib/agentRuntime'),
   path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts'),
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
@@ -110,7 +111,7 @@ const AGENT_RUNTIME_PRESENTER_ROOT = path.join(
 )
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
-const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
+const APP_COMPOSITION_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const SESSION_OWNER_PATHS = new Set(
   [
@@ -216,7 +217,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
 const MIGRATED_RAW_CHANNEL_BASELINE = new Map()
 
 const HOT_PATH_FILES = [
-  path.join(ROOT, 'src/main/presenter/index.ts'),
+  APP_COMPOSITION_ENTRY,
   path.join(ROOT, 'src/main/eventbus.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
@@ -1601,7 +1602,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         )
       }
       if (
-        path.resolve(filePath) === path.resolve(PRESENTER_ROOT_ENTRY) &&
+        path.resolve(filePath) === path.resolve(APP_COMPOSITION_ENTRY) &&
         /export\s+(?:(?:const|let|var)\s+presenter\b|function\s+getInstance\b)/s.test(source)
       ) {
         violations.push(
@@ -1661,7 +1662,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       }
 
       const allowedOwnerConstructions =
-        path.resolve(filePath) === path.resolve(PRESENTER_ROOT_ENTRY) ? 1 : 0
+        path.resolve(filePath) === path.resolve(APP_COMPOSITION_ENTRY) ? 1 : 0
       for (const [owner, count] of findSessionOwnerConstructions(
         sourceFile,
         importRecords
@@ -1677,7 +1678,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const facade of findCombinedSessionFacadeDeclarations(
         sourceFile,
         importRecords,
-        path.resolve(filePath) !== path.resolve(PRESENTER_ROOT_ENTRY)
+        path.resolve(filePath) !== path.resolve(APP_COMPOSITION_ENTRY)
       )) {
         combinedFacades.add(facade)
       }
@@ -1720,7 +1721,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
             normalizedVirtualFiles
           )
           if (!resolved) continue
-          if (path.resolve(resolved) === path.resolve(PRESENTER_ROOT_ENTRY)) {
+          if (path.resolve(resolved) === path.resolve(APP_COMPOSITION_ENTRY)) {
             wholeDependencies.add('Presenter')
           }
           if (isUnder(resolved, SQLITE_PRESENTER_ROOT)) {
@@ -1974,7 +1975,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         if (isUnder(resolved, MEMORY_PRESENTER_ROOT)) {
           violations.push(`[acp-direct-instance-memory] ${relativePath(filePath)} -> ${specifier}`)
         }
-        if (path.resolve(resolved) === path.resolve(PRESENTER_ROOT_ENTRY)) {
+        if (path.resolve(resolved) === path.resolve(APP_COMPOSITION_ENTRY)) {
           violations.push(
             `[acp-direct-instance-presenter-root] ${relativePath(filePath)} -> ${specifier}`
           )
