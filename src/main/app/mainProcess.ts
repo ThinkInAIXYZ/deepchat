@@ -57,6 +57,7 @@ export async function startMainProcess(
       startupWorkloadCoordinator,
       startupRunId,
       requestUpdateInstall,
+      onWindowCreated: (isMainWindow) => splashWindow.handleWindowCreated(isMainWindow),
       bindControl: (control) => {
         mainProcess = control
       }

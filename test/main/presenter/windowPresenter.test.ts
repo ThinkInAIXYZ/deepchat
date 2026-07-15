@@ -35,6 +35,7 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
+      vi.fn(),
       vi.fn()
     )
 
@@ -79,6 +80,7 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
+      vi.fn(),
       vi.fn()
     )
 
@@ -111,6 +113,7 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
+      vi.fn(),
       vi.fn()
     )
 
@@ -147,6 +150,7 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
+      vi.fn(),
       vi.fn()
     )
 
@@ -185,6 +189,8 @@ describe('WindowPresenter', () => {
       },
       isDestroyed: vi.fn(() => false),
       isFullScreen: vi.fn(() => false),
+      isMaximized: vi.fn(() => false),
+      isFocused: vi.fn(() => true),
       isMinimized: vi.fn(() => false),
       setFullScreen: vi.fn(),
       setContentProtection: vi.fn(),
@@ -201,12 +207,14 @@ describe('WindowPresenter', () => {
     ;(BrowserWindow as any).fromId = vi.fn(() => appWindow)
 
     const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const onWindowCreated = vi.fn()
     const presenter = new WindowPresenter(
       {
         getContentProtectionEnabled: vi.fn(() => false),
         getCloseToQuit: vi.fn(() => false)
       } as any,
-      vi.fn()
+      vi.fn(),
+      onWindowCreated
     )
     const tabPresenter = {
       handleWindowSizeChanged: vi.fn(),
@@ -215,6 +223,12 @@ describe('WindowPresenter', () => {
     presenter.bindTabPresenter(tabPresenter as any)
 
     await presenter.createAppWindow({ x: 0, y: 0 })
+
+    windowHandlers.get('ready-to-show')?.()
+    expect(onWindowCreated).toHaveBeenCalledWith(true)
+    appWindow.show.mockClear()
+    appWindow.focus.mockClear()
+    activateAppOnMacMock.mockClear()
 
     windowHandlers.get('resize')?.()
     expect(tabPresenter.handleWindowSizeChanged).toHaveBeenCalledWith(7)
@@ -248,6 +262,7 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
+      vi.fn(),
       vi.fn()
     )
 

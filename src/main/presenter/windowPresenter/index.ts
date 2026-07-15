@@ -18,14 +18,7 @@ import {
   resolveSettingsNavigationPath,
   type SettingsNavigationPayload
 } from '@shared/settingsNavigation'
-import { eventBus } from '@/eventbus' // Event bus
-import {
-  DEEPLINK_EVENTS,
-  DEV_EVENTS,
-  SETTINGS_EVENTS,
-  SHORTCUT_EVENTS,
-  WINDOW_EVENTS
-} from '@/events' // System/Window/Config/Shortcut event constants
+import { DEEPLINK_EVENTS, DEV_EVENTS, SETTINGS_EVENTS, SHORTCUT_EVENTS } from '@/events' // System/Window/Config/Shortcut event constants
 import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
@@ -85,6 +78,7 @@ export class WindowPresenter implements IWindowPresenter {
   constructor(
     configPresenter: IConfigPresenter,
     restartApp: () => void,
+    private readonly onWindowCreated: (isMainWindow: boolean) => void,
     startupWorkloadCoordinator?: StartupWorkloadCoordinator
   ) {
     this.windows = new Map()
@@ -708,10 +702,7 @@ export class WindowPresenter implements IWindowPresenter {
         appWindow.show()
         appWindow.focus()
         activateAppOnMac()
-        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
-          windowId,
-          isMainWindow: windowId === this.mainWindowId
-        })
+        this.onWindowCreated(windowId === this.mainWindowId)
         this.publishWindowStateChanged(windowId)
       } else {
         console.warn(`Window ${windowId} was destroyed before ready-to-show.`)

@@ -185,6 +185,7 @@
 - [x] 删除 OAuth 保存 provider 后没有接收方的 `providerUpdated` 广播。
 - [x] 删除没有调用方的 zoom shortcut 常量和旧 channel 转换分支。
 - [x] 把 Window 到 Tab 的 resize、maximize、unmaximize 和 close 改成直接调用并删除旧 event。
+- [x] 把主窗口创建后关闭 splash 改成 App 明确连接，并删除最后一个 `WINDOW_EVENTS`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

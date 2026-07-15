@@ -24,11 +24,6 @@ export const PROVIDER_DB_EVENTS = {
   UPDATED: 'provider-db:updated' // 远端刷新成功
 }
 
-// 窗口相关事件
-export const WINDOW_EVENTS = {
-  WINDOW_CREATED: 'window:created'
-}
-
 // Settings related events
 export const SETTINGS_EVENTS = {
   NAVIGATE: 'settings:navigate'

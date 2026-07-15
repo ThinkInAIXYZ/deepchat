@@ -148,6 +148,7 @@ export async function createMainProcessControl(dependencies: {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
   requestUpdateInstall: (installAction: () => void) => Promise<void>
+  onWindowCreated: (isMainWindow: boolean) => void
   bindControl: (control: MainProcessControl) => void
 }) {
   const configPresenter = dependencies.configPresenter
@@ -236,6 +237,7 @@ export async function createMainProcessControl(dependencies: {
   windowPresenter = new WindowPresenter(
     configPresenter,
     () => devicePresenter.restartApp(),
+    dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
   const llmProviderPresenter = new LLMProviderPresenter(configPresenter, sqlitePresenter, {

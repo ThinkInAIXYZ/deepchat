@@ -194,14 +194,9 @@ App 只负责总体状态和先后顺序。Sync 或对应数据模块仍负责�
 
 | 类型 | 当前 event | 目标处理 |
 | --- | --- | --- |
-| 隐藏的操作请求 | `SHORTCUT_EVENTS.CREATE_NEW_WINDOW`、`SHORTCUT_EVENTS.GO_SETTINGS`、`TRAY_EVENTS.SHOW_HIDDEN_WINDOW`、`TRAY_EVENTS.CHECK_FOR_UPDATES` | Shortcut 或 Tray 直接调用 Desktop / Settings 提供的操作。 |
-| 隐藏的状态设置 | `WINDOW_EVENTS.SET_APPLICATION_QUITTING`、`UPDATE_EVENTS.STATE_CHANGED` | 由 App 直接设置退出或更新状态，并保持调用顺序。 |
-| 设置后必须执行的操作 | `CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED`、`FLOATING_BUTTON_EVENTS.ENABLED_CHANGED`、`CONFIG_EVENTS.PROXY_MODE_CHANGED`、`CONFIG_EVENTS.CUSTOM_PROXY_URL_CHANGED` | 对应模块负责自己的设置和实际操作；迁移过程中使用直接调用。发给 UI 的通知继续使用 typed event。 |
-| 真正的状态通知 | `WINDOW_EVENTS.APP_FOCUS`、MCP server/config/status 变化、Provider DB 载入或更新、Provider 配置变化 | 可以保留“事实已经发生”的含义。目标模块合并后，如果只剩模块内部调用，就不再经过全局 `EventBus`。 |
-| Desktop 内部事实 | `WINDOW_EVENTS.WINDOW_CREATED` | 当前只用于 App 关闭 splash；后续改成 App 与 Window 的明确调用。 |
-| 临时的生命周期通知 | `LIFECYCLE_EVENTS.PHASE_*`、`HOOK_*`、`ERROR_OCCURRED`、`PROGRESS_UPDATED` | 当前用于日志和 splash。固定启动流程替代 `LifecycleManager` 后一起删除或改成 App 直接更新 splash。 |
-| 只有接收方、没有发送方 | `WINDOW_EVENTS.FORCE_QUIT_APP`、`SYNC_EVENTS.DATA_CHANGED` | 删除无效 listener；如果以后确实需要该功能，从负责模块增加明确调用，不预留空 event。 |
-| 与 typed event 重复 | `eventPublishers.ts` 中大部分 language/theme/model/settings event 的 main `EventBus` 分支 | 没有 main 接收方的分支删除，只保留 typed renderer event。 |
+| MCP 状态变化 | server、config、status 和 client list 变化 | 当前有多个接收方，继续检查是否能由 MCP 直接通知明确模块。 |
+| Provider 状态变化 | Provider DB 载入或更新、Provider 配置变化 | 当前有明确接收方，继续检查 Config 与 Provider 的最终边界。 |
+| Config 设置变化 | `SETTING_CHANGED` | 当前只有 Tab 使用 language 变化，后续改成 Config 直接通知 Desktop。 |
 
 `FIRST_CONTENT_LOADED` 已删除。第一个 tab 加载完成后，Tab 直接调用 App 传入的操作，由
 Deeplink 只处理一次启动链接。`MCP_EVENTS.INITIALIZED` 和 startup proxy ready event 也已删除，
@@ -224,10 +219,13 @@ Config 原有的 provider 更新流程。
 window resize、maximize、unmaximize 和 close 只由 Tab 使用，已经改成 Window 直接调用 Tab。原来的
 四个 `WINDOW_EVENTS` 常量、发送和监听全部删除，调用顺序和 maximize 后 100ms 更新保持不变。
 
+`WINDOW_CREATED` 只用于阻止 splash 在主窗口显示后再次出现，已经改成 Window 经 App 直接调用
+Splash。最后一个 `WINDOW_EVENTS` 和 Splash 的 EventBus 监听已经删除。
+
 ### tab/window 关闭事件
 
-`TAB_EVENTS.CLOSED` 和 `WINDOW_EVENTS.WINDOW_CLOSED` 只表示 Desktop 资源已经关闭。Desktop 立即
-删除 renderer binding，但不通过这些 event 清理 ACP runtime、permission、Turn 或 Session 数据。
+tab 和 window 关闭后，Desktop 立即删除 renderer binding，但不清理 ACP runtime、permission、
+Turn 或 Session 数据。Window 直接调用 Tab 完成 Desktop 内部清理，不再发送 close event。
 正在生成、等待 Interaction 或被 Remote/Scheduler 使用的 Session 继续运行。显式 cancel、runtime
 eviction、Session delete 和 App stop 分别走自己的直接调用。详细规则见
 [Session 实施边界](./session.md)。

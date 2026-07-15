@@ -4,8 +4,6 @@
 
 import path from 'path'
 import { BrowserWindow, ipcMain, nativeImage } from 'electron'
-import { eventBus } from '../eventbus'
-import { WINDOW_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
@@ -20,14 +18,6 @@ import {
   type DatabaseUnlockReason
 } from '@shared/contracts/databaseSecurity'
 import { activateAppOnMac } from '@/lib/activateApp'
-
-type WindowCreatedPayload =
-  | number
-  | {
-      windowId?: number
-      isMainWindow?: boolean
-      windowType?: string
-    }
 
 const SPLASH_SHOW_DELAY_MS = 200
 
@@ -47,19 +37,18 @@ export class SplashWindow {
   private splashLoadCanceled = false
   private splashLoadPromise: Promise<void> | null = null
   private splashShowDelayTimer: ReturnType<typeof setTimeout> | null = null
-  private readonly onMainWindowCreated = (payload?: WindowCreatedPayload) => {
-    if (!this.shouldSuppressForWindowCreated(payload) || this.isVisible()) {
+  constructor() {
+    this.setupDatabaseUnlockListeners()
+  }
+
+  handleWindowCreated(isMainWindow: boolean): void {
+    if (!isMainWindow || this.isVisible()) {
       return
     }
 
     this.suppressSplashShow = true
     this.clearSplashShowDelayTimer()
-    eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
     this.closeHiddenSplashWindow()
-  }
-
-  constructor() {
-    this.setupDatabaseUnlockListeners()
   }
 
   /**
@@ -78,8 +67,6 @@ export class SplashWindow {
     this.splashLoadCanceled = false
     this.splashLoadPromise = null
     this.clearSplashShowDelayTimer()
-    eventBus.on(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
-
     this.splashShowDelayTimer = setTimeout(() => {
       this.splashShowDelayElapsed = true
       this.maybeShowSplash()
@@ -146,7 +133,6 @@ export class SplashWindow {
         this.closeHiddenSplashWindow()
       }
     } catch (error) {
-      eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
       this.clearSplashShowDelayTimer()
       console.error('Failed to create splash window:', error)
       throw error
@@ -188,8 +174,6 @@ export class SplashWindow {
    * Close the splash window
    */
   async close(): Promise<void> {
-    eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
-
     this.unlockRequest?.resolve(null)
     this.unlockRequest = null
     this.pendingUnlockProgress = null
@@ -564,14 +548,6 @@ export class SplashWindow {
       clearTimeout(this.splashShowDelayTimer)
       this.splashShowDelayTimer = null
     }
-  }
-
-  private shouldSuppressForWindowCreated(payload?: WindowCreatedPayload): boolean {
-    if (!payload || typeof payload === 'number') {
-      return false
-    }
-
-    return payload.isMainWindow === true || payload.windowType === 'main'
   }
 
   private closeHiddenSplashWindow(): void {

@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { eventBus } from '../../../src/main/eventbus'
-import { WINDOW_EVENTS } from '../../../src/main/events'
 
 const createdWindows = vi.hoisted(() => [] as MockBrowserWindow[])
 const mockIpcMain = vi.hoisted(() => ({
@@ -187,10 +185,7 @@ describe('SplashWindow display gating', () => {
     expect(splashWindow).toBeTruthy()
 
     splashWindow.emit('ready-to-show')
-    eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
-      windowId: 1,
-      isMainWindow: true
-    })
+    manager.handleWindowCreated(true)
     await vi.advanceTimersByTimeAsync(200)
 
     expect(splashWindow.close).toHaveBeenCalledTimes(1)
@@ -208,10 +203,7 @@ describe('SplashWindow display gating', () => {
     expect(splashWindow).toBeTruthy()
 
     splashWindow.emit('ready-to-show')
-    eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
-      windowId: 2,
-      isMainWindow: false
-    })
+    manager.handleWindowCreated(false)
     await vi.advanceTimersByTimeAsync(200)
 
     expect(splashWindow.close).not.toHaveBeenCalled()
@@ -334,10 +326,7 @@ describe('SplashWindow display gating', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     splashLoadMocks.loadURL = vi.fn(async () => {
-      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
-        windowId: 1,
-        isMainWindow: true
-      })
+      manager?.handleWindowCreated(true)
       throw new Error('dev renderer unavailable')
     })
     splashLoadMocks.loadFile = vi.fn(async () => {

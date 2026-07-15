@@ -172,10 +172,9 @@ Session 的依赖确定后：
    `await`、错误处理和先后顺序。
 4. `FIRST_CONTENT_LOADED`、`MCP_EVENTS.INITIALIZED` 和 startup proxy ready event 已改成直接
    调用；没有接收方的 `RENDERER_TAB_READY` 已整条删除。
-5. MCP、Provider、window 和 lifecycle 等“状态已经变化”的 event，先按目标负责模块重新检查：
+5. MCP 和 Provider 等“状态已经变化”的 event，先按目标负责模块重新检查：
    跨模块且确有观察者的通知保留；只在同一个模块内部使用的改成普通函数调用。
-6. 在 Session 阶段决定关闭 tab/window 后是否继续 Turn、保留 Agent runtime 或释放 runtime，
-   再处理 `TAB_EVENTS.CLOSED` 和 `WINDOW_EVENTS.WINDOW_CLOSED`。
+6. tab/window close 已改成 Desktop 内部直接调用；关闭后 Session 和 Turn 继续按 Session 文档处理。
 7. 所有调用迁移后，如果不再有真正的跨模块 main 通知，直接删除全局 `EventBus`；不为了形式
    保留空壳。
 
