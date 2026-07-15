@@ -30,7 +30,6 @@ function attachRuntimeEffects(
       restartApp: vi.fn(),
       applyProxyMode: vi.fn(),
       applyCustomProxyUrl: vi.fn(),
-      setFloatingButtonEnabled: vi.fn(),
       refreshAcpProviderAgents,
       testHookCommand: vi.fn()
     }

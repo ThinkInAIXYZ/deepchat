@@ -826,6 +826,7 @@ export async function createMainProcessControl(dependencies: {
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter as TabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
     configService,
+    desktopSettings,
     sessionQuery,
     desktopSessionBinding,
     windowPresenter as WindowPresenter,
@@ -1007,7 +1008,6 @@ export async function createMainProcessControl(dependencies: {
       proxyConfig.setCustomProxyUrl(url)
       if (proxyConfig.getProxyMode() === ProxyMode.CUSTOM) void proxyConfig.resolveProxy()
     },
-    setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
     refreshAcpProviderAgents: async (agentIds) => {
       const provider = providerRuntime.getProviderInstance('acp')
       if (provider) await (provider as AcpProvider).refreshAgents(agentIds)
@@ -1427,6 +1427,7 @@ export async function createMainProcessControl(dependencies: {
       applyContentProtection: (enabled) =>
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       projectService,
+      setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
         void sqlitePresenter.recordSettingsActivity(input).catch((error) => {

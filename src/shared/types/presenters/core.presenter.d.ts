@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ShowResponse } from 'ollama'
 import type { NewApiEndpointType } from '@shared/model'
-import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ImageGenerationOptions } from '../../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../../videoGenerationSettings'
@@ -470,11 +469,6 @@ export interface ConfigServicePort {
   setCodeFontFamily(fontFamily?: string | null): void
   resetFontSettings(): void
   getSystemFonts(): Promise<string[]>
-  // Floating button settings
-  getFloatingButtonEnabled(): boolean
-  setFloatingButtonEnabled(enabled: boolean): void
-  getFloatingButtonBounds(): FloatingButtonBounds | null
-  setFloatingButtonBounds(bounds: FloatingButtonBounds): void
   // Logging settings
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void

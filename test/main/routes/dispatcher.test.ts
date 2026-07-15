@@ -139,6 +139,7 @@ function createRuntime() {
     contentProtectionEnabled: false,
     privacyModeEnabled: false,
     notificationsEnabled: true,
+    floatingButtonEnabled: false,
     launchAtLoginEnabled: false,
     traceDebugEnabled: false,
     copyWithCotEnabled: true,
@@ -909,11 +910,16 @@ function createRuntime() {
     setContentProtectionEnabled: vi.fn((value: boolean) => {
       settings.contentProtectionEnabled = value
     }),
+    getFloatingButtonEnabled: vi.fn(() => settings.floatingButtonEnabled),
+    setFloatingButtonEnabled: vi.fn((value: boolean) => {
+      settings.floatingButtonEnabled = value
+    }),
     getShortcutKeys: vi.fn(() => ({})),
     setShortcutKeys: vi.fn(),
     resetShortcutKeys: vi.fn()
   }
   const applyContentProtection = vi.fn()
+  const setFloatingButtonEnabled = vi.fn()
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,
     durationMs: 10,
@@ -1511,6 +1517,7 @@ function createRuntime() {
     desktopSettings: desktopSettings as never,
     applyContentProtection,
     projectService: projectPresenter as never,
+    setFloatingButtonEnabled,
     testHookCommand,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)

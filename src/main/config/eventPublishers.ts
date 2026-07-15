@@ -30,13 +30,6 @@ export function emitSystemThemeChanged(isDark: boolean): void {
   })
 }
 
-export function emitFloatingButtonChanged(enabled: boolean): void {
-  publishDeepchatEvent('config.floatingButton.changed', {
-    enabled,
-    version: Date.now()
-  })
-}
-
 export function emitAgentCatalogChanged(
   configService: ConfigServicePort,
   agentIds?: string[]

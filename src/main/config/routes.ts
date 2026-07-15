@@ -42,6 +42,7 @@ export function createConfigRoutes(deps: {
   desktopSettings: DesktopSettings
   applyContentProtection(enabled: boolean): void
   projectService: ProjectService
+  setFloatingButtonEnabled(enabled: boolean): void
   testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -60,6 +61,7 @@ export function createConfigRoutes(deps: {
           deps.updateSettings,
           deps.desktopSettings,
           deps.projectService,
+          deps.setFloatingButtonEnabled,
           deps.testHookCommand,
           routeName,
           rawInput

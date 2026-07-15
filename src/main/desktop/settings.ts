@@ -3,6 +3,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { ShortcutKeySetting } from '@shared/presenter'
 import { defaultShortcutKey } from './shortcutKeySettings'
 import { app } from 'electron'
+import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 
 export class DesktopSettings {
   constructor(private readonly settings: SettingsStore) {}
@@ -50,6 +51,36 @@ export class DesktopSettings {
       version: Date.now(),
       values: { contentProtectionEnabled: value }
     })
+  }
+
+  getFloatingButtonEnabled(): boolean {
+    return this.settings.get<boolean>('floatingButtonEnabled') ?? false
+  }
+
+  setFloatingButtonEnabled(enabled: boolean): void {
+    const value = Boolean(enabled)
+    this.settings.set('floatingButtonEnabled', value)
+    publishDeepchatEvent('config.floatingButton.changed', {
+      enabled: value,
+      version: Date.now()
+    })
+  }
+
+  getFloatingButtonBounds(): FloatingButtonBounds | null {
+    const value = this.settings.get<FloatingButtonBounds>('floatingButtonBounds')
+    if (
+      !value ||
+      typeof value.x !== 'number' ||
+      typeof value.y !== 'number' ||
+      (value.dockSide !== 'left' && value.dockSide !== 'right')
+    ) {
+      return null
+    }
+    return value
+  }
+
+  setFloatingButtonBounds(bounds: FloatingButtonBounds): void {
+    this.settings.set('floatingButtonBounds', bounds)
   }
 
   getShortcutKeys(): ShortcutKeySetting {

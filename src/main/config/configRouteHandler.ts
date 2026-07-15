@@ -108,6 +108,7 @@ export async function dispatchConfigRoute(
   updateSettings: UpdateSettings,
   desktopSettings: DesktopSettings,
   projectService: ProjectService,
+  setFloatingButtonEnabled: (enabled: boolean) => void,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
   rawInput: unknown
@@ -155,15 +156,16 @@ export async function dispatchConfigRoute(
     case configGetFloatingButtonRoute.name: {
       configGetFloatingButtonRoute.input.parse(rawInput)
       return configGetFloatingButtonRoute.output.parse({
-        enabled: configService.getFloatingButtonEnabled()
+        enabled: desktopSettings.getFloatingButtonEnabled()
       })
     }
 
     case configSetFloatingButtonRoute.name: {
       const input = configSetFloatingButtonRoute.input.parse(rawInput)
-      configService.setFloatingButtonEnabled(input.enabled)
+      desktopSettings.setFloatingButtonEnabled(input.enabled)
+      setFloatingButtonEnabled(input.enabled)
       return configSetFloatingButtonRoute.output.parse({
-        enabled: configService.getFloatingButtonEnabled()
+        enabled: desktopSettings.getFloatingButtonEnabled()
       })
     }
 

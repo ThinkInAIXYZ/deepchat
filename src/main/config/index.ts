@@ -74,7 +74,6 @@ import {
   emitAcpAgentModelsChanged,
   emitAgentCatalogChanged,
   emitCustomPromptsChanged,
-  emitFloatingButtonChanged,
   emitLanguageChanged,
   emitModelConfigChanged,
   emitModelConfigReset,
@@ -91,7 +90,6 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import { createDefaultHooksNotificationsConfig } from '@/hook/config'
 import {
   AcpDbStore,
@@ -498,7 +496,6 @@ export class ConfigService implements ConfigServicePort {
     restartApp(): void
     applyProxyMode(mode: string): void
     applyCustomProxyUrl(url: string): void
-    setFloatingButtonEnabled(enabled: boolean): void
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
     replaceProviders(providers: LLM_PROVIDER[]): void
     applyProviderAtomicUpdate(change: ProviderChange): void
@@ -2193,43 +2190,6 @@ export class ConfigService implements ConfigServicePort {
 
   async getSystemFonts(): Promise<string[]> {
     return this.uiSettingsHelper.getSystemFonts()
-  }
-
-  // Get floating button switch status
-  getFloatingButtonEnabled(): boolean {
-    const value = this.getSetting<boolean>('floatingButtonEnabled') ?? false
-    return value === undefined || value === null ? false : value
-  }
-
-  // Set floating button switch status
-  setFloatingButtonEnabled(enabled: boolean): void {
-    this.setSetting('floatingButtonEnabled', enabled)
-    emitFloatingButtonChanged(enabled)
-
-    try {
-      this.runtimeEffects.setFloatingButtonEnabled(enabled)
-    } catch (error) {
-      console.error('Failed to directly call floatingButtonPresenter:', error)
-    }
-  }
-
-  // Get persisted floating button resting position (docked, fully on-screen)
-  getFloatingButtonBounds(): FloatingButtonBounds | null {
-    const value = this.getSetting<FloatingButtonBounds>('floatingButtonBounds')
-    if (
-      !value ||
-      typeof value.x !== 'number' ||
-      typeof value.y !== 'number' ||
-      (value.dockSide !== 'left' && value.dockSide !== 'right')
-    ) {
-      return null
-    }
-    return value
-  }
-
-  // Persist floating button resting position so it survives restarts
-  setFloatingButtonBounds(bounds: FloatingButtonBounds): void {
-    this.setSetting('floatingButtonBounds', bounds)
   }
 
   // ===================== MCP configuration related methods =====================

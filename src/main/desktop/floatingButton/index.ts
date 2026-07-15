@@ -21,6 +21,7 @@ import type { SessionQuery } from '@/session/query'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import type { WindowPresenter } from '../window'
 import type { TabPresenter } from '../tab'
+import type { DesktopSettings } from '../settings'
 
 const EMPTY_SNAPSHOT: FloatingWidgetSnapshot = {
   expanded: false,
@@ -74,6 +75,10 @@ export class FloatingButtonPresenter {
 
   constructor(
     configService: ConfigServicePort,
+    private readonly settings: Pick<
+      DesktopSettings,
+      'getFloatingButtonEnabled' | 'getFloatingButtonBounds' | 'setFloatingButtonBounds'
+    >,
     private readonly sessionQuery: SessionQuery,
     private readonly desktopSessionBinding: DesktopSessionBinding,
     private readonly windowPresenter: WindowPresenter,
@@ -92,7 +97,7 @@ export class FloatingButtonPresenter {
       return
     }
 
-    const floatingButtonEnabled = this.configService.getFloatingButtonEnabled()
+    const floatingButtonEnabled = this.settings.getFloatingButtonEnabled()
     try {
       this.config = {
         ...this.config,
@@ -226,7 +231,7 @@ export class FloatingButtonPresenter {
     this.registerIpcHandlers()
 
     if (!this.floatingWindow) {
-      const persistedBounds = this.configService.getFloatingButtonBounds()
+      const persistedBounds = this.settings.getFloatingButtonBounds()
       this.floatingWindow = new FloatingButtonWindow(this.config, persistedBounds)
       await this.floatingWindow.create()
     }
@@ -556,7 +561,7 @@ export class FloatingButtonPresenter {
 
   private persistFloatingBounds(snapped: WidgetRect & { dockSide: FloatingWidgetDockSide }): void {
     try {
-      this.configService.setFloatingButtonBounds({
+      this.settings.setFloatingButtonBounds({
         x: snapped.x,
         y: snapped.y,
         dockSide: snapped.dockSide
