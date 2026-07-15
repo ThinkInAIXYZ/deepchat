@@ -73,7 +73,7 @@ interface SpawnPlan {
 
 export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
-  private readonly configService?: Pick<ConfigServicePort, 'getSetting'>
+  private readonly configService: Pick<ConfigServicePort, 'getSetting'>
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
   constructor(
@@ -631,10 +631,6 @@ export class SkillExecutionService {
   }
 
   private async preparePlanForExecution(plan: SpawnPlan): Promise<SpawnPlan> {
-    if (!this.configService || typeof this.configService.getSetting !== 'function') {
-      return plan
-    }
-
     const prepared = await rtkRuntimeService.prepareShellCommand(
       plan.shellCommand,
       plan.env,

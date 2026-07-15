@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
-import type { ConfigServicePort } from '../../../src/shared/presenter'
+import type { SkillSettingsPort } from '@/skill/settings'
 import type { SkillMetadata } from '../../../src/shared/types/skill'
 import { app } from 'electron'
 
@@ -311,7 +311,7 @@ function createFakeWatcherService() {
 
 describe('SkillService', () => {
   let skillService: SkillService
-  let mockConfigService: ConfigServicePort
+  let mockConfigService: SkillSettingsPort
   let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
   let configSettings: Map<string, unknown>
 
@@ -322,12 +322,12 @@ describe('SkillService', () => {
     ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')
 
     mockConfigService = {
-      getSkillsPath: vi.fn().mockReturnValue(''),
-      getSetting: vi.fn((key: string) => configSettings.get(key)),
-      setSetting: vi.fn((key: string, value: unknown) => {
-        configSettings.set(key, value)
+      getPath: vi.fn().mockReturnValue(''),
+      getManagementState: vi.fn(() => configSettings.get('skills.managementState') as never),
+      setManagementState: vi.fn((value) => {
+        configSettings.set('skills.managementState', value)
       })
-    } as unknown as ConfigServicePort
+    } as unknown as SkillSettingsPort
     fakeWatcherService = createFakeWatcherService()
 
     // Setup default mocks
@@ -388,14 +388,14 @@ describe('SkillService', () => {
     })
 
     it('should use configured skills path when provided', async () => {
-      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue('/custom/skills/path')
+      ;(mockConfigService.getPath as Mock).mockReturnValue('/custom/skills/path')
 
       const presenter = new SkillService(
         mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
-      expect(mockConfigService.getSkillsPath).toHaveBeenCalled()
+      expect(mockConfigService.getPath).toHaveBeenCalled()
       await expect(presenter.getSkillsDir()).resolves.toBe('/custom/skills/path')
       presenter.destroy()
     })
@@ -432,7 +432,7 @@ describe('SkillService', () => {
     })
 
     it('should repair malformed .deepchat path segments', async () => {
-      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
+      ;(mockConfigService.getPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
       ;(app.getPath as Mock).mockImplementation((name: string) => {
         if (name === 'home') return '/mock/home'
         if (name === 'temp') return '/mock/temp'
@@ -449,9 +449,7 @@ describe('SkillService', () => {
     })
 
     it('should repair stale POSIX default skills paths from another user profile', async () => {
-      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue(
-        '/Users/legacy-user/.deepchat/skills'
-      )
+      ;(mockConfigService.getPath as Mock).mockReturnValue('/Users/legacy-user/.deepchat/skills')
       ;(app.getPath as Mock).mockImplementation((name: string) => {
         if (name === 'home') return '/mock/home'
         if (name === 'temp') return '/mock/temp'
@@ -468,7 +466,7 @@ describe('SkillService', () => {
     })
 
     it('should repair stale Windows default skills paths from another user profile', async () => {
-      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue(
+      ;(mockConfigService.getPath as Mock).mockReturnValue(
         'C:\\Users\\legacy-user\\.deepchat\\skills\\nested'
       )
       ;(app.getPath as Mock).mockImplementation((name: string) => {
@@ -2199,7 +2197,7 @@ describe('SkillService', () => {
         runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
         scriptOverrides: {}
       }
-      ;(mockConfigService.setSetting as Mock).mockImplementationOnce(() => {
+      ;(mockConfigService.setManagementState as Mock).mockImplementationOnce(() => {
         throw new Error('management state write failed')
       })
 
@@ -2288,8 +2286,7 @@ describe('SkillService', () => {
 
       const loaded = await skillService.getSkillExtension('test-skill')
 
-      expect(mockConfigService.setSetting).toHaveBeenCalledWith(
-        'skills.managementState',
+      expect(mockConfigService.setManagementState).toHaveBeenCalledWith(
         expect.objectContaining({
           skills: expect.objectContaining({
             'test-skill': expect.objectContaining({

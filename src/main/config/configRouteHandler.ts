@@ -101,9 +101,11 @@ import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
+import type { SkillSettingsPort } from '@/skill/settings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
+  skillSettings: SkillSettingsPort,
   syncSettings: SyncSettings,
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
@@ -234,15 +236,15 @@ export async function dispatchConfigRoute(
     case configGetSkillDraftSuggestionsRoute.name: {
       configGetSkillDraftSuggestionsRoute.input.parse(rawInput)
       return configGetSkillDraftSuggestionsRoute.output.parse({
-        enabled: configService.getSkillDraftSuggestionsEnabled()
+        enabled: skillSettings.isDraftSuggestionsEnabled()
       })
     }
 
     case configSetSkillDraftSuggestionsRoute.name: {
       const input = configSetSkillDraftSuggestionsRoute.input.parse(rawInput)
-      configService.setSkillDraftSuggestionsEnabled(input.enabled)
+      skillSettings.setDraftSuggestionsEnabled(input.enabled)
       return configSetSkillDraftSuggestionsRoute.output.parse({
-        enabled: configService.getSkillDraftSuggestionsEnabled()
+        enabled: skillSettings.isDraftSuggestionsEnabled()
       })
     }
 

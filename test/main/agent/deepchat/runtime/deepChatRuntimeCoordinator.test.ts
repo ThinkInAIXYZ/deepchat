@@ -585,7 +585,6 @@ function createMockConfigService() {
     }),
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
-    getSkillDraftSuggestionsEnabled: vi.fn().mockReturnValue(false),
     getMcpEnabled: vi.fn().mockResolvedValue(false),
     getMcpServers: vi.fn().mockResolvedValue({}),
     getReasoningPortrait: vi.fn().mockImplementation((providerId: string, modelId: string) => {
@@ -618,7 +617,6 @@ function createMockConfigService() {
     getCapabilityProviderId: vi
       .fn()
       .mockImplementation((providerId: string, _modelId: string) => providerId),
-    getSkillsEnabled: vi.fn().mockReturnValue(true),
     getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
     getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
@@ -661,7 +659,11 @@ function createRuntimeDependencies(
       isEnabled: vi.fn().mockReturnValue(false)
     } as any,
     cacheImage: vi.fn(async (data: string) => data),
-    skillService: options.skillService ?? getSkillServiceMock()
+    skillService: options.skillService ?? getSkillServiceMock(),
+    skillSettings: {
+      isEnabled: vi.fn(() => true),
+      isDraftSuggestionsEnabled: vi.fn(() => false)
+    }
   }
 }
 

@@ -23,9 +23,11 @@ describe('DeepChat system prompt builder', () => {
     const assertCurrent = vi.fn()
     const dependencies = {
       configService: {
-        getSkillsEnabled: () => false,
-        getSkillDraftSuggestionsEnabled: () => false
       } as unknown as ConfigServicePort,
+      skillSettings: {
+        isEnabled: () => false,
+        isDraftSuggestionsEnabled: () => false
+      },
       providerCatalogPort: {
         getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
         getCustomModels: () => []

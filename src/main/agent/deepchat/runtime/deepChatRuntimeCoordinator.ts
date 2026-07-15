@@ -108,6 +108,7 @@ import {
 } from './internalSessionEvents'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
+import type { SkillSettingsPort } from '@/skill/settings'
 import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
@@ -170,6 +171,7 @@ export interface DeepChatRuntimeDependencies {
   memoryPort: MemoryRuntimePort
   cacheImage(data: string): Promise<string>
   skillService: DeepChatSkillPort
+  skillSettings: SkillSettingsPort
 }
 
 export class DeepChatRuntimeCoordinator {
@@ -209,6 +211,7 @@ export class DeepChatRuntimeCoordinator {
   readonly memoryIngestionObserver: MemoryIngestionObserver
   private readonly cacheImage: (data: string) => Promise<string>
   private readonly skillService: DeepChatSkillPort
+  private readonly skillSettings: SkillSettingsPort
   private readonly publishEvent: DeepChatEventPublisher
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
@@ -232,6 +235,7 @@ export class DeepChatRuntimeCoordinator {
     this.sessionUiPort = runtimePorts.sessionUiPort
     this.cacheImage = runtimePorts.cacheImage
     this.skillService = runtimePorts.skillService
+    this.skillSettings = runtimePorts.skillSettings
     this.publishEvent = runtimePorts.publishEvent
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
@@ -242,6 +246,7 @@ export class DeepChatRuntimeCoordinator {
     )
     this.toolResolver = new DeepChatToolResolver({
       configService: this.configService,
+      skillSettings: this.skillSettings,
       sqlitePresenter: this.sqlitePresenter,
       toolService: this.toolService,
       skillService: this.skillService,
@@ -1960,6 +1965,7 @@ export class DeepChatRuntimeCoordinator {
     return await buildSystemPromptWithSkills(
       {
         configService: this.configService,
+        skillSettings: this.skillSettings,
         skillService: this.skillService,
         providerCatalogPort: this.providerCatalogPort,
         toolService: this.toolService,

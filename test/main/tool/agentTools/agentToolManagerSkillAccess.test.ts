@@ -54,6 +54,7 @@ describe('AgentToolManager skill file access', () => {
 
   const buildManager = () =>
     new AgentToolManager({
+      skillSettings: { isEnabled: () => true } as any,
       agentWorkspacePath: workspaceDir,
       configService,
       runtimePort: {
@@ -112,10 +113,7 @@ describe('AgentToolManager skill file access', () => {
         scriptOverrides: {}
       })
     }
-    configService = {
-      getSkillsEnabled: () => true,
-      getSkillsPath: () => skillsDir
-    }
+    configService = {}
   })
 
   afterEach(() => {

@@ -11,6 +11,7 @@ import type {
   SkillServicePort
 } from '@shared/presenter'
 import type { AgentToolRuntimePort } from '../runtimePorts'
+import type { SkillSettingsPort } from '@/skill/settings'
 
 export const CHAT_SETTINGS_SKILL_NAME = 'deepchat-settings'
 export const CHAT_SETTINGS_TOOL_NAMES = {
@@ -167,6 +168,7 @@ export class ChatSettingsToolHandler {
   constructor(
     private readonly options: {
       configService: ConfigServicePort
+      skillSettings: SkillSettingsPort
       skillService: SkillServicePort
       windowRuntime: Pick<
         AgentToolRuntimePort,
@@ -179,7 +181,7 @@ export class ChatSettingsToolHandler {
     if (!conversationId) {
       return buildError('skill_inactive', 'No conversation context to apply settings.')
     }
-    if (!this.options.configService.getSkillsEnabled()) {
+    if (!this.options.skillSettings.isEnabled()) {
       return buildError('skill_inactive', 'Skills are disabled.')
     }
     const activeSkills = await this.options.skillService.getActiveSkills(conversationId)

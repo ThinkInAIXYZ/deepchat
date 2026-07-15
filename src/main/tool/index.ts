@@ -34,6 +34,7 @@ import {
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../presenter/permission'
 import { YO_BROWSER_TOOL_NAMES } from '../desktop/browser/YoBrowserToolDefinitions'
+import type { SkillSettingsPort } from '@/skill/settings'
 
 type McpToolPort = Pick<
   McpServicePort,
@@ -43,6 +44,7 @@ type McpToolPort = Pick<
 interface ToolServiceOptions {
   mcpService: McpToolPort
   configService: ConfigServicePort
+  skillSettings: SkillSettingsPort
   commandPermissionHandler?: CommandPermissionService
   agentToolRuntime: AgentToolRuntimePort
 }
@@ -110,6 +112,7 @@ export class ToolService implements ToolServicePort {
       this.agentToolManager = new AgentToolManager({
         agentWorkspacePath,
         configService: this.options.configService,
+        skillSettings: this.options.skillSettings,
         commandPermissionHandler: this.options.commandPermissionHandler,
         runtimePort: this.options.agentToolRuntime
       })

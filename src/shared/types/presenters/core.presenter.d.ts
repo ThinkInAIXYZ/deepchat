@@ -485,16 +485,6 @@ export interface ConfigServicePort {
   setCustomProxyUrl(url: string): void
   getPrivacyModeEnabled(): boolean
   setPrivacyModeEnabled(enabled: boolean): void
-  // Skills settings
-  getSkillsEnabled(): boolean
-  getSkillDraftSuggestionsEnabled(): boolean
-  setSkillDraftSuggestionsEnabled(enabled: boolean): void
-  getSkillsPath(): string
-  getSkillSettings(): {
-    skillsPath: string
-    enableSkills: boolean
-    skillDraftSuggestionsEnabled: boolean
-  }
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>

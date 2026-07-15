@@ -654,7 +654,6 @@ function createMockConfigService() {
     supportsVerbosityCapability: vi.fn().mockReturnValue(false),
     getVerbosityDefault: vi.fn().mockReturnValue(undefined),
     supportsAudioInputCapability: vi.fn().mockReturnValue(false),
-    getSkillsEnabled: vi.fn().mockReturnValue(false),
     getSetting: vi.fn().mockReturnValue(undefined),
     getAcpAgents: vi.fn().mockResolvedValue([]),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
@@ -693,6 +692,10 @@ function createRuntimeDependencies() {
     sessionUiPort: { refreshSessionUi: vi.fn() },
     memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
     cacheImage: vi.fn(async (data: string) => data),
+    skillSettings: {
+      isEnabled: vi.fn(() => true),
+      isDraftSuggestionsEnabled: vi.fn(() => false)
+    },
     skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),

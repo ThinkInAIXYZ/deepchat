@@ -13,8 +13,11 @@ describe('ChatSettingsToolHandler', () => {
     getSetting: vi.fn(),
     setSetting: vi.fn(),
     setLanguage: vi.fn(),
-    setTheme: vi.fn(),
-    getSkillsEnabled: vi.fn()
+    setTheme: vi.fn()
+  } as any
+
+  const skillSettings = {
+    isEnabled: vi.fn()
   } as any
 
   const skillService = {
@@ -29,6 +32,7 @@ describe('ChatSettingsToolHandler', () => {
   const buildHandler = () =>
     new ChatSettingsToolHandler({
       configService,
+      skillSettings,
       skillService,
       windowRuntime: windowPresenter
     })
@@ -38,7 +42,7 @@ describe('ChatSettingsToolHandler', () => {
     configService.getCopyWithCotEnabled.mockReturnValue(true)
     configService.getSetting.mockReturnValue('chat')
     configService.setTheme.mockResolvedValue(false)
-    configService.getSkillsEnabled.mockReturnValue(true)
+    skillSettings.isEnabled.mockReturnValue(true)
     skillService.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
     windowPresenter.createSettingsWindow.mockResolvedValue(1)
     windowPresenter.sendSettingsNavigation.mockReturnValue(true)

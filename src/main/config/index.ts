@@ -1941,37 +1941,6 @@ export class ConfigService implements ConfigServicePort {
     this.runtimeEffects.applyCustomProxyUrl(url)
   }
 
-  // Skills settings
-  getSkillsEnabled(): boolean {
-    return this.getSetting<boolean>('enableSkills') ?? true
-  }
-
-  getSkillDraftSuggestionsEnabled(): boolean {
-    return this.getSetting<boolean>('skillDraftSuggestionsEnabled') ?? false
-  }
-
-  setSkillDraftSuggestionsEnabled(enabled: boolean): void {
-    this.setSetting('skillDraftSuggestionsEnabled', enabled)
-  }
-
-  getSkillsPath(): string {
-    return (
-      this.getSetting<string>('skillsPath') || path.join(app.getPath('home'), '.deepchat', 'skills')
-    )
-  }
-
-  getSkillSettings(): {
-    skillsPath: string
-    enableSkills: boolean
-    skillDraftSuggestionsEnabled: boolean
-  } {
-    return {
-      skillsPath: this.getSkillsPath(),
-      enableSkills: this.getSkillsEnabled(),
-      skillDraftSuggestionsEnabled: this.getSkillDraftSuggestionsEnabled()
-    }
-  }
-
   // Get search preview setting status
   getPrivacyModeEnabled(): boolean {
     return this.uiSettingsHelper.getPrivacyModeEnabled()

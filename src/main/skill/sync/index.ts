@@ -40,7 +40,8 @@ import type {
 } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import type { SkillServicePort, ConfigServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/presenter'
+import type { SkillSettingsPort } from '../settings'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'
 import type { SyncContext } from './types'
@@ -83,13 +84,13 @@ function publishSkillSyncEvent(
 
 export class SkillSyncService implements SkillSyncServicePort {
   private skillService: SkillServicePort
-  private configService: ConfigServicePort
+  private settings: SkillSettingsPort
   private syncContext: SyncContext = {}
   private initialized: boolean = false
 
-  constructor(skillService: SkillServicePort, configService: ConfigServicePort) {
+  constructor(skillService: SkillServicePort, settings: SkillSettingsPort) {
     this.skillService = skillService
-    this.configService = configService
+    this.settings = settings
   }
 
   /** Initialize the synchronization runtime. */
@@ -113,12 +114,7 @@ export class SkillSyncService implements SkillSyncServicePort {
    * Get cached scan results from config
    */
   async getScanCache(): Promise<ScanCache | null> {
-    try {
-      const cache = await this.configService.getSetting('skills.scanCache')
-      return cache as ScanCache | null
-    } catch {
-      return null
-    }
+    return this.settings.getScanCache()
   }
 
   /**
@@ -136,7 +132,7 @@ export class SkillSyncService implements SkillSyncServicePort {
         }))
       }))
     }
-    await this.configService.setSetting('skills.scanCache', cache)
+    this.settings.setScanCache(cache)
   }
 
   /**

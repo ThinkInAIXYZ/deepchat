@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { SkillSettingsPort } from './settings'
 import {
   createWatcherRequestId,
   type IFileWatcherService,
@@ -135,7 +135,6 @@ const DRAFT_ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'templates', 'script
 const DRAFT_CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ACTIVITY_MARKER = '.lastActivity'
-const SKILL_MANAGEMENT_STATE_KEY = 'skills.managementState'
 const DRAFT_INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /disregard\s+all\s+prior/i,
@@ -242,7 +241,7 @@ export class SkillService implements SkillServicePort {
   private legacySkillRetirementWarnings: Set<string> = new Set()
 
   constructor(
-    private readonly configService: ConfigServicePort,
+    private readonly settings: SkillSettingsPort,
     private readonly sessionStatePort: SkillSessionStatePort,
     private readonly watcherService: IFileWatcherService
   ) {
@@ -254,7 +253,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private resolveSkillsDir(): string {
-    const configuredPath = this.configService.getSkillsPath()
+    const configuredPath = this.settings.getPath()
     const normalized = configuredPath?.trim()
     const homePath = app.getPath('home')
     const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
@@ -511,7 +510,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private getStoredManagementState(): SkillManagementState {
-    const stored = this.configService.getSetting<unknown>(SKILL_MANAGEMENT_STATE_KEY)
+    const stored = this.settings.getManagementState()
     if (!stored || typeof stored !== 'object') {
       return this.createDefaultManagementState()
     }
@@ -564,7 +563,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private saveManagementState(state: SkillManagementState): void {
-    this.configService.setSetting(SKILL_MANAGEMENT_STATE_KEY, state)
+    this.settings.setManagementState(state)
   }
 
   private sanitizeSkillSource(value: unknown): SkillSource {

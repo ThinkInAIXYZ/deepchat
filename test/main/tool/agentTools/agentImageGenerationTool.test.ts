@@ -29,8 +29,6 @@ describe('Agent image generation tool', () => {
       agentType: 'deepchat'
     })
     configService = {
-      getSkillsEnabled: () => false,
-      getSkillsPath: () => os.tmpdir(),
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
         imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' }
       }),
@@ -45,6 +43,7 @@ describe('Agent image generation tool', () => {
       })
     }
     manager = new AgentToolManager({
+      skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: null,
       configService,
       runtimePort: {

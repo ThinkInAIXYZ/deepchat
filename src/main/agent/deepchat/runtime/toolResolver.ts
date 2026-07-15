@@ -15,11 +15,13 @@ import {
   type AgentExtensionPolicy
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import { createToolCatalogPort } from './toolAdapters'
+import type { SkillSettingsPort } from '@/skill/settings'
 
 type ToolResolverSkillPort = Pick<SkillServicePort, 'getActiveSkills' | 'setActiveSkills'>
 
 export interface DeepChatToolResolverDependencies {
   configService: ConfigServicePort
+  skillSettings: SkillSettingsPort
   sqlitePresenter: SQLitePresenter
   toolService: ToolServicePort
   skillService: ToolResolverSkillPort
@@ -127,7 +129,7 @@ export class DeepChatToolResolver {
     resourceInstance?: DeepChatAgentInstance
   ): Promise<{ kind: DeepChatToolProfileKind; fingerprint: string }> {
     const normalizedProjectDir = projectDir?.trim() || null
-    const skillsEnabled = this.dependencies.configService.getSkillsEnabled()
+    const skillsEnabled = this.dependencies.skillSettings.isEnabled()
     const policy =
       extensionPolicy ?? (await this.resolveAgentExtensionPolicy(sessionId, resourceInstance))
     const activeSkillNames = filterSkillNamesByPolicy(
@@ -168,9 +170,7 @@ export class DeepChatToolResolver {
     sessionId: string,
     resourceInstance?: DeepChatAgentInstance
   ): Promise<string[]> {
-    if (
-      !this.dependencies.configService.getSkillsEnabled()
-    ) {
+    if (!this.dependencies.skillSettings.isEnabled()) {
       return []
     }
 

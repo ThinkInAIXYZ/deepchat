@@ -84,6 +84,7 @@ import { ConversationExporterService } from '../exporter'
 import { createExporterRoutes } from '../exporter/routes'
 import { SkillService } from '../skill'
 import type { SkillSessionStatePort } from '../skill'
+import { SkillSettings } from '../skill/settings'
 import { SkillSyncService } from '../skill/sync'
 import { HookService } from '../hook'
 import { HookSettings } from '../hook/config'
@@ -279,6 +280,7 @@ export async function createMainProcessControl(dependencies: {
   usageStatsService = new UsageStatsService(concreteSQLitePresenter, configService)
   const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   const fontSettings = new FontSettings(dependencies.settingsStore)
+  const skillSettings = new SkillSettings(dependencies.settingsStore)
 
   // Initialize presenters and their dependencies.
   windowPresenter = new WindowPresenter(
@@ -552,6 +554,7 @@ export async function createMainProcessControl(dependencies: {
   toolService = new ToolService({
     mcpService: mcpService,
     configService: configService,
+    skillSettings,
     commandPermissionHandler,
     agentToolRuntime
   })
@@ -570,7 +573,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   // Initialize Skill service
-  skillService = new SkillService(configService, skillSessionStatePort, fileWatcherService)
+  skillService = new SkillService(skillSettings, skillSessionStatePort, fileWatcherService)
 
   // Initialize official plugin host. Plugins are activated before MCP startup so managed
   // MCP servers are present when the regular MCP presenter starts enabled servers.
@@ -583,7 +586,7 @@ export async function createMainProcessControl(dependencies: {
   })
 
   // Initialize Skill Sync service
-  skillSyncService = new SkillSyncService(skillService, configService)
+  skillSyncService = new SkillSyncService(skillService, skillSettings)
 
   hookService = new HookService(hookSettings, {
     getSession: (sessionId) => sessionQuery.getSession(sessionId),
@@ -746,7 +749,8 @@ export async function createMainProcessControl(dependencies: {
       sessionUiPort,
       memoryPort: memoryService,
       cacheImage: (data) => devicePresenter.cacheImage(data),
-      skillService: skillService
+      skillService: skillService,
+      skillSettings
     },
     hookService
   )
@@ -1173,8 +1177,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function initializeSkills() {
     try {
-      const { enableSkills } = configService.getSkillSettings()
-      if (!enableSkills) {
+      if (!skillSettings.isEnabled()) {
         logger.info('SkillService disabled by config')
         return
       }
@@ -1188,8 +1191,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function initializeSkillSyncScan() {
     try {
-      const { enableSkills } = configService.getSkillSettings()
-      if (!enableSkills) {
+      if (!skillSettings.isEnabled()) {
         return
       }
       await skillSyncService.initialize()
@@ -1437,6 +1439,7 @@ export async function createMainProcessControl(dependencies: {
     const configRoutes = createConfigRoutes({
       config: configService,
       agentDefaults,
+      skillSettings,
       syncSettings,
       hookSettings,
       updateSettings,

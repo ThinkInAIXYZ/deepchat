@@ -299,10 +299,6 @@ function createRuntime() {
     setCustomProxyUrl: vi.fn((url: string) => {
       settings.customProxyUrl = url
     }),
-    getSkillDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
-    setSkillDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
-      settings.skillDraftSuggestionsEnabled = enabled
-    }),
     refreshProviderDb: vi.fn().mockResolvedValue({
       status: 'updated',
       lastUpdated: 123,
@@ -879,6 +875,13 @@ function createRuntime() {
     getAutoCompactionRetainRecentPairs: vi.fn(() => settings.autoCompactionRetainRecentPairs),
     setAutoCompactionRetainRecentPairs: vi.fn((value: number) => {
       settings.autoCompactionRetainRecentPairs = value
+    })
+  }
+  const skillSettings = {
+    isEnabled: vi.fn(() => true),
+    isDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
+    setDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
+      settings.skillDraftSuggestionsEnabled = enabled
     })
   }
   const desktopSettings = {
@@ -1526,6 +1529,7 @@ function createRuntime() {
   const configRoutes = createConfigRoutes({
     config: configService,
     agentDefaults: agentDefaults as never,
+    skillSettings: skillSettings as never,
     syncSettings: syncSettings as never,
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
@@ -1606,6 +1610,7 @@ function createRuntime() {
       return runtime
     })(),
     configService,
+    skillSettings,
     hookSettings,
     updateSettings,
     desktopSettings,
@@ -3654,6 +3659,7 @@ describe('dispatchDeepchatRoute', () => {
       loggingService,
       hookSettings,
       updateSettings,
+      skillSettings,
       testHookCommand
     } = createRuntime()
     const context = {
@@ -3786,7 +3792,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(initialSkillDraftSuggestions).toEqual({
       enabled: false
     })
-    expect(configService.setSkillDraftSuggestionsEnabled).toHaveBeenCalledWith(true)
+    expect(skillSettings.setDraftSuggestionsEnabled).toHaveBeenCalledWith(true)
     expect(updatedSkillDraftSuggestions).toEqual({
       enabled: true
     })

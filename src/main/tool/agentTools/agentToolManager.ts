@@ -48,6 +48,7 @@ import {
   cronJobActionNeedsPermission
 } from './cronJobTool'
 import { isYoBrowserUnavailableError } from '../../desktop/browser/YoBrowserErrors'
+import type { SkillSettingsPort } from '@/skill/settings'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -95,6 +96,7 @@ export interface AgentToolCallResult {
 interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
   configService: ConfigServicePort
+  skillSettings: SkillSettingsPort
   commandPermissionHandler?: CommandPermissionService
   runtimePort: AgentToolRuntimePort
 }
@@ -138,6 +140,7 @@ export class AgentToolManager {
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configService: ConfigServicePort
+  private readonly skillSettings: SkillSettingsPort
   private readonly runtimePort: AgentToolRuntimePort
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
@@ -308,6 +311,7 @@ export class AgentToolManager {
   constructor(options: AgentToolManagerOptions) {
     this.agentWorkspacePath = options.agentWorkspacePath
     this.configService = options.configService
+    this.skillSettings = options.skillSettings
     this.commandPermissionHandler = options.commandPermissionHandler
     this.runtimePort = options.runtimePort
     this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
@@ -1786,7 +1790,7 @@ export class AgentToolManager {
   }
 
   private isSkillsEnabled(): boolean {
-    return this.configService.getSkillsEnabled()
+    return this.skillSettings.isEnabled()
   }
 
   private getSkillService() {
@@ -1824,6 +1828,7 @@ export class AgentToolManager {
     if (!this.chatSettingsHandler) {
       this.chatSettingsHandler = new ChatSettingsToolHandler({
         configService: this.configService,
+        skillSettings: this.skillSettings,
         skillService: this.getSkillService(),
         windowRuntime: {
           createSettingsWindow: () => this.runtimePort.createSettingsWindow(),

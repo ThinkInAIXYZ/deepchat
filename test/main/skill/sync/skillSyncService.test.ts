@@ -164,8 +164,8 @@ describe('SkillSyncService', () => {
   let presenter: SkillSyncService
   let mockSkillService: SkillServicePort
   let mockConfigService: {
-    getSetting: ReturnType<typeof vi.fn>
-    setSetting: ReturnType<typeof vi.fn>
+    getScanCache: ReturnType<typeof vi.fn>
+    setScanCache: ReturnType<typeof vi.fn>
   }
 
   beforeEach(async () => {
@@ -204,8 +204,8 @@ describe('SkillSyncService', () => {
 
     // Create mock config presenter
     mockConfigService = {
-      getSetting: vi.fn().mockResolvedValue(null),
-      setSetting: vi.fn().mockResolvedValue(undefined)
+      getScanCache: vi.fn().mockReturnValue(null),
+      setScanCache: vi.fn()
     }
 
     presenter = new SkillSyncService(mockSkillService, mockConfigService as any)

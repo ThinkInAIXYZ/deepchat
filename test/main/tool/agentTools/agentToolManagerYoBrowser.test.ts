@@ -25,10 +25,9 @@ describe('AgentToolManager YoBrowser routing', () => {
     vi.clearAllMocks()
     yoBrowserCallTool = vi.fn()
     manager = new AgentToolManager({
+      skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: null,
       configService: {
-        getSkillsEnabled: () => false,
-        getSkillsPath: () => os.tmpdir(),
         getModelConfig: vi.fn(),
         resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
       } as any,

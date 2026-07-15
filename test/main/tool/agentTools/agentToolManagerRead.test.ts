@@ -71,8 +71,6 @@ describe('AgentToolManager read routing', () => {
       modelId: 'gpt-4'
     })
     configService = {
-      getSkillsEnabled: () => false,
-      getSkillsPath: () => workspaceDir,
       isKnownModel: vi.fn().mockReturnValue(true),
       getModelConfig: vi.fn().mockReturnValue({
         temperature: 0.2,
@@ -82,6 +80,7 @@ describe('AgentToolManager read routing', () => {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
     }
     manager = new AgentToolManager({
+      skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: workspaceDir,
       configService,
       runtimePort: {
