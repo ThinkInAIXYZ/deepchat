@@ -97,11 +97,13 @@ import {
 import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
 import type { HookTestResult } from '@shared/hooksNotifications'
+import type { UpdateSettings } from '@/upgrade/settings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
   syncSettings: SyncSettings,
   hookSettings: HookSettings,
+  updateSettings: UpdateSettings,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
   rawInput: unknown
@@ -209,15 +211,15 @@ export async function dispatchConfigRoute(
     case configGetUpdateChannelRoute.name: {
       configGetUpdateChannelRoute.input.parse(rawInput)
       return configGetUpdateChannelRoute.output.parse({
-        channel: configService.getUpdateChannel()
+        channel: updateSettings.getChannel()
       })
     }
 
     case configSetUpdateChannelRoute.name: {
       const input = configSetUpdateChannelRoute.input.parse(rawInput)
-      configService.setUpdateChannel(input.channel)
+      updateSettings.setChannel(input.channel)
       return configSetUpdateChannelRoute.output.parse({
-        channel: configService.getUpdateChannel()
+        channel: updateSettings.getChannel()
       })
     }
 

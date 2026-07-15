@@ -62,10 +62,10 @@ vi.mock('electron-updater', () => ({
 }))
 
 import electronUpdater from 'electron-updater'
-import { UpgradePresenter } from '../../../src/main/presenter/upgradePresenter'
+import { UpgradeService } from '../../../src/main/upgrade'
 import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 
-describe('UpgradePresenter', () => {
+describe('UpgradeService', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     autoUpdaterState.reset()
@@ -94,14 +94,14 @@ describe('UpgradePresenter', () => {
   })
 
   it('asks App to stop before quitAndInstall during update restart', async () => {
-    const configService = {
-      getUpdateChannel: vi.fn(() => 'stable')
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
-    ;(presenter as any)._status = 'downloaded'
+    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
+    ;(service as any)._status = 'downloaded'
 
-    expect(presenter.restartToUpdate()).toBe(true)
+    expect(service.restartToUpdate()).toBe(true)
     expect(requestUpdateInstallMock).toHaveBeenCalledTimes(1)
     expect(sendToAllWindowsMock).toHaveBeenCalledWith(
       DEEPCHAT_EVENT_CHANNEL,
@@ -120,14 +120,14 @@ describe('UpgradePresenter', () => {
   })
 
   it('relaunches the app for mock downloaded updates without calling quitAndInstall', async () => {
-    const configService = {
-      getUpdateChannel: vi.fn(() => 'stable')
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
+    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
 
-    expect(presenter.mockDownloadedUpdate()).toBe(true)
-    expect(presenter.restartToUpdate()).toBe(true)
+    expect(service.mockDownloadedUpdate()).toBe(true)
+    expect(service.restartToUpdate()).toBe(true)
 
     expect(requestUpdateInstallMock).toHaveBeenCalledTimes(1)
     await Promise.resolve()
@@ -138,87 +138,82 @@ describe('UpgradePresenter', () => {
   })
 
   it('skips app-focus auto check when privacy mode is enabled', () => {
-    const configService = {
-      getUpdateChannel: vi.fn(() => 'stable'),
-      getPrivacyModeEnabled: vi.fn(() => true)
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
-    const checkSpy = vi.spyOn(presenter, 'checkUpdate').mockResolvedValue(undefined)
+    const service = new UpgradeService(settings, () => true, requestUpdateInstallMock)
+    const checkSpy = vi.spyOn(service, 'checkUpdate').mockResolvedValue(undefined)
 
-    presenter.handleAppFocus()
+    service.handleAppFocus()
 
     expect(checkSpy).not.toHaveBeenCalled()
     expect(electronUpdater.autoUpdater.checkForUpdates).not.toHaveBeenCalled()
   })
 
   it('keeps manual update checks available while privacy mode is enabled', async () => {
-    const configService = {
-      getUpdateChannel: vi.fn(() => 'stable'),
-      getPrivacyModeEnabled: vi.fn(() => true)
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
     } as any
 
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockResolvedValue(undefined as never)
 
-    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
+    const service = new UpgradeService(settings, () => true, requestUpdateInstallMock)
 
-    await presenter.checkUpdate()
+    await service.checkUpdate()
 
     expect(electronUpdater.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
   })
 
   it('ignores cross-channel downgrades when current install is a prerelease', () => {
     appGetVersionMock.mockReturnValue('1.0.5-beta.5')
-    const configService = {
-      getUpdateChannel: vi.fn(() => 'stable'),
-      getPrivacyModeEnabled: vi.fn(() => false)
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
+    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
     // 模拟 electron-updater 在 channel 错配下推送的旧正式版
     handler!({ version: '1.0.4', releaseDate: '2026-05-01', releaseNotes: '' })
 
-    expect((presenter as any)._status).toBe('not-available')
-    expect((presenter as any)._versionInfo).toBeNull()
+    expect((service as any)._status).toBe('not-available')
+    expect((service as any)._versionInfo).toBeNull()
     // 不应触发自动下载
     expect(electronUpdater.autoUpdater.downloadUpdate).not.toHaveBeenCalled()
   })
 
   it('accepts in-channel upgrades from one beta to a newer beta', () => {
     appGetVersionMock.mockReturnValue('1.0.5-beta.2')
-    const configService = {
-      getUpdateChannel: vi.fn(() => 'beta'),
-      getPrivacyModeEnabled: vi.fn(() => false)
+    const settings = {
+      getChannel: vi.fn(() => 'beta')
     } as any
 
-    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
+    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
     handler!({ version: '1.0.5-beta.5', releaseDate: '2026-05-15', releaseNotes: '' })
 
-    expect((presenter as any)._status).toBe('available')
-    expect((presenter as any)._versionInfo?.version).toBe('1.0.5-beta.5')
+    expect((service as any)._status).toBe('available')
+    expect((service as any)._versionInfo?.version).toBe('1.0.5-beta.5')
   })
 
   it('accepts beta to same-version stable release as a legitimate channel convergence', () => {
     // beta 测试完成，1.0.5 正式版发布；用户从 1.0.5-beta.5 升级到 1.0.5 应被允许
     appGetVersionMock.mockReturnValue('1.0.5-beta.5')
-    const configService = {
-      getUpdateChannel: vi.fn(() => 'stable'),
-      getPrivacyModeEnabled: vi.fn(() => false)
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
+    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
     handler!({ version: '1.0.5', releaseDate: '2026-06-01', releaseNotes: '' })
 
-    expect((presenter as any)._status).toBe('available')
-    expect((presenter as any)._versionInfo?.version).toBe('1.0.5')
+    expect((service as any)._status).toBe('available')
+    expect((service as any)._versionInfo?.version).toBe('1.0.5')
   })
 })

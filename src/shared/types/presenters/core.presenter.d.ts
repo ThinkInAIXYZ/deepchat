@@ -480,9 +480,6 @@ export interface ConfigServicePort {
   setFloatingButtonEnabled(enabled: boolean): void
   getFloatingButtonBounds(): FloatingButtonBounds | null
   setFloatingButtonBounds(bounds: FloatingButtonBounds): void
-  // Update channel settings
-  getUpdateChannel(): string
-  setUpdateChannel(channel: string): void
   // Logging settings
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void
@@ -1409,30 +1406,6 @@ export type LLMResponseStream = {
     completion_tokens: number
     total_tokens: number
   }
-}
-export interface IUpgradePresenter {
-  handleAppFocus(): void
-  checkUpdate(type?: string): Promise<void>
-  getUpdateStatus(): {
-    status: UpdateStatus | null
-    progress: UpdateProgress | null
-    error: string | null
-    updateInfo: {
-      version: string
-      releaseDate: string
-      releaseNotes: any
-      githubUrl: string | undefined
-      downloadUrl: string | undefined
-      isMock?: boolean
-    } | null
-  }
-  goDownloadUpgrade(type: 'github' | 'official'): Promise<void>
-  startDownloadUpdate(): boolean
-  mockDownloadedUpdate(): boolean
-  clearMockUpdate(): boolean
-  restartToUpdate(): boolean
-  restartApp(): void
-  isUpdatingInProgress(): boolean
 }
 // Update status types
 export type UpdateStatus =

@@ -344,10 +344,6 @@ function createRuntime() {
       settings.defaultProjectPath = projectPath
     }),
     openLoggingFolder: vi.fn().mockResolvedValue(undefined),
-    getUpdateChannel: vi.fn(() => settings.updateChannel),
-    setUpdateChannel: vi.fn((channel: 'stable' | 'beta') => {
-      settings.updateChannel = channel
-    }),
     getSkillDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
     setSkillDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
       settings.skillDraftSuggestionsEnabled = enabled
@@ -908,6 +904,12 @@ function createRuntime() {
     setHooksNotificationsConfig: vi.fn((config: typeof hooksNotifications) => {
       hooksNotifications.hooks = [...config.hooks]
       return hooksNotifications
+    })
+  }
+  const updateSettings = {
+    getChannel: vi.fn(() => settings.updateChannel),
+    setChannel: vi.fn((channel: 'stable' | 'beta') => {
+      settings.updateChannel = channel
     })
   }
   const testHookCommand = vi.fn().mockResolvedValue({
@@ -1499,6 +1501,7 @@ function createRuntime() {
     config: configService,
     syncSettings: syncSettings as never,
     hookSettings: hookSettings as never,
+    updateSettings: updateSettings as never,
     testHookCommand,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
@@ -1570,6 +1573,7 @@ function createRuntime() {
     })(),
     configService,
     hookSettings,
+    updateSettings,
     testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
@@ -3580,7 +3584,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches proxy, logging, update channel, skill draft, provider DB, and hook routes', async () => {
-    const { runtime, configService, hookSettings, testHookCommand } = createRuntime()
+    const { runtime, configService, hookSettings, updateSettings, testHookCommand } =
+      createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3704,7 +3709,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(initialUpdateChannel).toEqual({
       channel: 'stable'
     })
-    expect(configService.setUpdateChannel).toHaveBeenCalledWith('beta')
+    expect(updateSettings.setChannel).toHaveBeenCalledWith('beta')
     expect(updatedUpdateChannel).toEqual({
       channel: 'beta'
     })

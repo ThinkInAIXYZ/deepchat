@@ -1,4 +1,4 @@
-import type { IUpgradePresenter } from '@shared/presenter'
+import type { UpgradeService } from './index'
 import {
   upgradeCheckRoute,
   upgradeClearMockRoute,
@@ -10,7 +10,18 @@ import {
 } from '@shared/contracts/routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
-export function createUpgradeRoutes(upgrade: IUpgradePresenter): DeepchatRouteMap {
+export function createUpgradeRoutes(
+  upgrade: Pick<
+    UpgradeService,
+    | 'getUpdateStatus'
+    | 'checkUpdate'
+    | 'goDownloadUpgrade'
+    | 'startDownloadUpdate'
+    | 'mockDownloadedUpdate'
+    | 'clearMockUpdate'
+    | 'restartToUpdate'
+  >
+): DeepchatRouteMap {
   return createRouteMap([
     [
       upgradeGetStatusRoute.name,

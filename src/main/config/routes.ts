@@ -20,6 +20,7 @@ import { createSettingsRouteHandler } from './settingsHandler'
 import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
 import type { HookTestResult } from '@shared/hooksNotifications'
+import type { UpdateSettings } from '@/upgrade/settings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -35,6 +36,7 @@ export function createConfigRoutes(deps: {
   config: ConfigServicePort
   syncSettings: SyncSettings
   hookSettings: HookSettings
+  updateSettings: UpdateSettings
   testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -50,6 +52,7 @@ export function createConfigRoutes(deps: {
           deps.config,
           deps.syncSettings,
           deps.hookSettings,
+          deps.updateSettings,
           deps.testHookCommand,
           routeName,
           rawInput

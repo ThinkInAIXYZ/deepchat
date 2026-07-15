@@ -1,17 +1,13 @@
 import logger from '@shared/logger'
 import { app, shell } from 'electron'
-import {
-  IUpgradePresenter,
-  UpdateStatus,
-  UpdateProgress,
-  ConfigServicePort
-} from '@shared/presenter'
+import { UpdateStatus, UpdateProgress } from '@shared/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
 import { compare } from 'compare-versions'
 import fs from 'fs'
 import path from 'path'
+import type { UpdateSettings } from './settings'
 
 const { autoUpdater } = electronUpdater
 
@@ -83,7 +79,7 @@ const getUpdateMarkerFilePath = () => {
   return path.join(app.getPath('userData'), 'auto_update_marker.json')
 }
 
-export class UpgradePresenter implements IUpgradePresenter {
+export class UpgradeService {
   private _lock: boolean = false
   private _status: UpdateStatus = 'not-available'
   private _progress: UpdateProgress | null = null
@@ -93,7 +89,6 @@ export class UpgradePresenter implements IUpgradePresenter {
   private _lastCheckType?: string
   private _updateMarkerPath: string
   private _previousUpdateFailed: boolean = false // 标记上次更新是否失败
-  private _configService: ConfigServicePort // 配置presenter
   private _isUpdating: boolean = false // Flag to track if update installation is in progress
   private _isMockUpdate: boolean = false
   private readonly requestUpdateInstall: (installAction: () => void) => Promise<void>
@@ -131,10 +126,10 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   constructor(
-    configService: ConfigServicePort,
+    private readonly settings: UpdateSettings,
+    private readonly isPrivacyModeEnabled: () => boolean,
     requestUpdateInstall: (installAction: () => void) => Promise<void>
   ) {
-    this._configService = configService
     this.requestUpdateInstall = requestUpdateInstall
     this._updateMarkerPath = getUpdateMarkerFilePath()
 
@@ -377,7 +372,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   // 处理应用获得焦点事件
   handleAppFocus(): void {
-    if (this._configService.getPrivacyModeEnabled()) {
+    if (this.isPrivacyModeEnabled()) {
       return
     }
 
@@ -409,7 +404,7 @@ export class UpgradePresenter implements IUpgradePresenter {
         status: this._status
       })
 
-      const updateChannel = normalizeUpdateChannel(this._configService.getUpdateChannel())
+      const updateChannel = normalizeUpdateChannel(this.settings.getChannel())
       autoUpdater.allowPrerelease = updateChannel === UPDATE_CHANNEL_BETA
       autoUpdater.channel = updateChannel === UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_BETA : 'latest'
 

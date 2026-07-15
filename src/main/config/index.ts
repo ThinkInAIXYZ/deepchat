@@ -3184,24 +3184,6 @@ export class ConfigService implements ConfigServicePort {
     })
   }
 
-  // 获取更新渠道
-  getUpdateChannel(): string {
-    const raw = this.getSetting<string>('updateChannel')
-    if (raw === 'stable' || raw === 'beta') {
-      return raw
-    }
-    // 首次启动或值非法时，按当前应用版本号推断：含 -alpha/-beta/-rc/-canary 等预发后缀的安装包默认进入 beta 渠道
-    const isPrerelease = /-(?:alpha|beta|rc|canary)(?:[.-]\d+)?$/i.test(this.currentAppVersion)
-    const inferred = isPrerelease ? 'beta' : 'stable'
-    this.setSetting('updateChannel', inferred)
-    return inferred
-  }
-
-  // 设置更新渠道
-  setUpdateChannel(channel: string): void {
-    this.setSetting('updateChannel', channel)
-  }
-
   // 获取默认快捷键
   getDefaultShortcutKey(): ShortcutKeySetting {
     return {

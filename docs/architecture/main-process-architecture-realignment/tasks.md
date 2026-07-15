@@ -197,6 +197,8 @@
   `ConfigServicePort` 中的 Hook 方法和 Config runtime 对 `HookService` 的反向调用。
 - [x] 删除 `presenter/nowledgeMemPresenter/`；客户端移到 Exporter，并直接使用 `SettingsStore`
   保存自己的配置，删除 Config 中的 Nowledge Mem 配置方法。
+- [x] 删除 `presenter/upgradePresenter/` 和 `IUpgradePresenter`；实现与测试移到 Upgrade 模块，入口改为
+  `UpgradeService`，更新渠道由 `UpdateSettings` 负责，Config route 直接调用它。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；

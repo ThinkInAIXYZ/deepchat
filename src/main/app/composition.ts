@@ -18,7 +18,6 @@ import {
   ISQLitePresenter,
   ITabPresenter,
   IConversationExporter,
-  IUpgradePresenter,
   IWindowPresenter,
   WorkspaceServicePort,
   ToolServicePort,
@@ -37,7 +36,8 @@ import { providerDbLoader } from '../config/providerDbLoader'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../presenter/proxyConfig'
 import { DevicePresenter } from '../presenter/devicePresenter'
-import { UpgradePresenter } from '../presenter/upgradePresenter'
+import { UpgradeService } from '../upgrade'
+import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
 import { McpService } from '../mcp'
 import { SyncService, type SyncImportDatabasePort } from '../sync'
@@ -205,7 +205,7 @@ export async function createMainProcessControl(dependencies: {
   let acpProviderAdminPort: AcpProviderAdminPort
   let exporter: IConversationExporter
   let devicePresenter: DevicePresenter
-  let upgradePresenter: IUpgradePresenter
+  let upgradeService: UpgradeService
   let shortcutPresenter: IShortcutPresenter
   let fileService: FileServicePort
   let mcpService: McpService
@@ -300,7 +300,12 @@ export async function createMainProcessControl(dependencies: {
     sqlitePresenter: sqlitePresenter,
     settings: dependencies.settingsStore
   })
-  upgradePresenter = new UpgradePresenter(configService, dependencies.requestUpdateInstall)
+  const updateSettings = new UpdateSettings(dependencies.settingsStore)
+  upgradeService = new UpgradeService(
+    updateSettings,
+    () => configService.getPrivacyModeEnabled(),
+    dependencies.requestUpdateInstall
+  )
   shortcutPresenter = new ShortcutPresenter(configService, windowPresenter)
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
@@ -1397,7 +1402,7 @@ export async function createMainProcessControl(dependencies: {
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
     const onboardingRoutes = createOnboardingRoutes(configService)
-    const upgradeRoutes = createUpgradeRoutes(upgradePresenter)
+    const upgradeRoutes = createUpgradeRoutes(upgradeService)
     const exporterRoutes = createExporterRoutes(exporter)
     const syncRoutes = createSyncRoutes({
       sync: syncService,
@@ -1417,6 +1422,7 @@ export async function createMainProcessControl(dependencies: {
       config: configService,
       syncSettings,
       hookSettings,
+      updateSettings,
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
         void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
@@ -1525,7 +1531,7 @@ export async function createMainProcessControl(dependencies: {
 
     app.on('browser-window-focus', () => {
       shortcutPresenter.registerShortcuts()
-      upgradePresenter.handleAppFocus()
+      upgradeService.handleAppFocus()
     })
 
     app.on('browser-window-blur', () => {
