@@ -433,7 +433,7 @@ export interface IPresenter {
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
   filePresenter: IFilePresenter
-  mcpPresenter: IMCPPresenter
+  mcpService: McpServicePort
   syncPresenter: ISyncPresenter
   deeplinkPresenter: IDeeplinkPresenter
   notificationPresenter: INotificationPresenter
@@ -1742,7 +1742,7 @@ export interface MCPResourceContent {
   }
 }
 
-export interface IMCPPresenter {
+export interface McpServicePort {
   initialize(): Promise<void>
   shutdown(): Promise<void>
   isReady(): boolean
@@ -1757,6 +1757,7 @@ export interface IMCPPresenter {
   isServerActive(serverName: string): Promise<boolean>
   startServer(serverName: string): Promise<void>
   stopServer(serverName: string): Promise<void>
+  stopServerDuringShutdownByName(serverName: string): Promise<void>
   getServerLastError(serverName: string): string | undefined
   getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus>
   startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus>
@@ -1793,7 +1794,7 @@ export interface IMCPPresenter {
       enabledServerIds?: string[]
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }>
-  preCheckToolPermission?(
+  preCheckToolPermission(
     request: MCPToolCall,
     options?: {
       signal?: AbortSignal

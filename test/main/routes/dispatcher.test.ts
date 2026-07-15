@@ -5,7 +5,7 @@ import type {
   IFilePresenter,
   IKnowledgePresenter,
   ILlmProviderPresenter,
-  IMCPPresenter,
+  McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
   IRemoteControlPresenter,
@@ -636,7 +636,7 @@ function createRuntime() {
     config_name: 'Context7',
     server_url: 'https://mcp.context7.com/mcp'
   }
-  const mcpPresenter = {
+  const mcpService = {
     getNpmRegistryStatus: vi.fn().mockResolvedValue({
       currentRegistry: 'https://registry.npmjs.org/',
       isFromCache: false,
@@ -652,7 +652,7 @@ function createRuntime() {
     setMcpRouterApiKey: vi.fn().mockResolvedValue(undefined),
     isServerInstalled: vi.fn().mockResolvedValue(false),
     updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
-  } as unknown as IMCPPresenter
+  } as unknown as McpServicePort
   const remoteControlPresenter = {
     listRemoteChannels: vi.fn().mockResolvedValue([
       {
@@ -1353,7 +1353,7 @@ function createRuntime() {
       skillSyncPresenter,
       exporter,
       oauthPresenter,
-      mcpPresenter,
+      mcpService,
       remoteControlPresenter,
       shortcutPresenter,
       sqlitePresenter,
@@ -1385,7 +1385,7 @@ function createRuntime() {
     skillSyncPresenter,
     exporter,
     oauthPresenter,
-    mcpPresenter,
+    mcpService,
     remoteControlPresenter,
     shortcutPresenter,
     sqlitePresenter,
@@ -3088,8 +3088,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches MCP Router marketplace routes through McpPresenter', async () => {
-    const { runtime, mcpPresenter } = createRuntime()
+  it('dispatches MCP Router marketplace routes through McpService', async () => {
+    const { runtime, mcpService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3139,12 +3139,12 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(mcpPresenter.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
-    expect(mcpPresenter.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
-    expect(mcpPresenter.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
-    expect(mcpPresenter.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
-    expect(mcpPresenter.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
-    expect(mcpPresenter.installMcpRouterServer).toHaveBeenCalledWith('context7')
+    expect(mcpService.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
+    expect(mcpService.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
+    expect(mcpService.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
+    expect(mcpService.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
+    expect(mcpService.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
+    expect(mcpService.installMcpRouterServer).toHaveBeenCalledWith('context7')
     expect(listResult).toEqual({
       servers: [
         expect.objectContaining({
@@ -3160,8 +3160,8 @@ describe('dispatchDeepchatRoute', () => {
     expect(installResult).toEqual({ installed: true })
   })
 
-  it('dispatches NPM registry routes through McpPresenter', async () => {
-    const { runtime, mcpPresenter } = createRuntime()
+  it('dispatches NPM registry routes through McpService', async () => {
+    const { runtime, mcpService } = createRuntime()
     const context = { webContentsId: 42, windowId: 7 }
 
     await dispatchDeepchatRoute(runtime, 'mcp.getNpmRegistryStatus', {}, context)
@@ -3180,11 +3180,11 @@ describe('dispatchDeepchatRoute', () => {
     )
     await dispatchDeepchatRoute(runtime, 'mcp.clearNpmRegistryCache', {}, context)
 
-    expect(mcpPresenter.getNpmRegistryStatus).toHaveBeenCalledTimes(1)
-    expect(mcpPresenter.refreshNpmRegistry).toHaveBeenCalledTimes(1)
-    expect(mcpPresenter.setCustomNpmRegistry).toHaveBeenCalledWith('https://registry.example.com/')
-    expect(mcpPresenter.setAutoDetectNpmRegistry).toHaveBeenCalledWith(false)
-    expect(mcpPresenter.clearNpmRegistryCache).toHaveBeenCalledTimes(1)
+    expect(mcpService.getNpmRegistryStatus).toHaveBeenCalledTimes(1)
+    expect(mcpService.refreshNpmRegistry).toHaveBeenCalledTimes(1)
+    expect(mcpService.setCustomNpmRegistry).toHaveBeenCalledWith('https://registry.example.com/')
+    expect(mcpService.setAutoDetectNpmRegistry).toHaveBeenCalledWith(false)
+    expect(mcpService.clearNpmRegistryCache).toHaveBeenCalledTimes(1)
   })
 
   it('dispatches remote control routes through RemoteControlPresenter', async () => {

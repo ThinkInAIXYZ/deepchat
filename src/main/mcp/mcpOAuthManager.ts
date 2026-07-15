@@ -7,7 +7,7 @@ import {
   resolveOAuthLoopbackCallbackUrl,
   startOAuthLoopbackCallbackSession,
   type OAuthLoopbackCallbackSession
-} from '../oauthLoopbackCallback'
+} from '../presenter/oauthLoopbackCallback'
 import {
   MCP_OAUTH_CALLBACK_TIMEOUT_MS,
   MCP_OAUTH_REDIRECT_PATH,

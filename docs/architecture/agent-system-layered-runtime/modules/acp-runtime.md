@@ -228,7 +228,7 @@ ACP 通过 `AcpMcpDeliveryAdapter` 获取当前 agent/session 允许的 MCP serv
 protocol 所需配置。它不接收 DeepChat 的 `ToolDefinition[]`，也不调用 DeepChat local tool dispatcher。
 
 ```text
-McpPresenter (owner)
+McpService (owner)
   -> agent/session policy query
   -> AcpMcpDeliveryAdapter
   -> ACP session config / protocol

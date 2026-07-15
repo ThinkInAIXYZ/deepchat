@@ -25,7 +25,7 @@ vi.mock('@/presenter/proxyConfig', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/presenter/mcpPresenter/mcpClient', () => ({
+vi.mock('@/mcp/mcpClient', () => ({
   McpClient: vi.fn().mockImplementation(() => ({
     connect: clientMocks.connect,
     disconnect: clientMocks.disconnect,
@@ -35,11 +35,8 @@ vi.mock('../../../../src/main/presenter/mcpPresenter/mcpClient', () => ({
   McpConnectionCancelledError: clientMocks.McpConnectionCancelledError
 }))
 
-import { ServerManager } from '../../../../src/main/presenter/mcpPresenter/serverManager'
-import {
-  McpClient,
-  McpConnectionCancelledError
-} from '../../../../src/main/presenter/mcpPresenter/mcpClient'
+import { ServerManager } from '@/mcp/serverManager'
+import { McpClient, McpConnectionCancelledError } from '@/mcp/mcpClient'
 
 describe('ServerManager plugin MCP errors', () => {
   beforeEach(() => {

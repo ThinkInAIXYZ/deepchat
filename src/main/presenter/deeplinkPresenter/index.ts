@@ -3,7 +3,7 @@ import { app, BrowserWindow } from 'electron'
 import {
   IConfigPresenter,
   IDeeplinkPresenter,
-  IMCPPresenter,
+  McpServicePort,
   IWindowPresenter,
   MCPServerConfig
 } from '@shared/presenter'
@@ -53,7 +53,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   constructor(
     private readonly windowPresenter: IWindowPresenter,
     private readonly configPresenter: IConfigPresenter,
-    private readonly mcpPresenter: IMCPPresenter
+    private readonly mcpService: McpServicePort
   ) {}
 
   init(): void {
@@ -115,7 +115,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
 
       logger.info('Parsed deeplink - command:', command, 'subCommand:', subCommand)
 
-      if (command === 'mcp' && subCommand === 'install' && !this.mcpPresenter.isReady()) {
+      if (command === 'mcp' && subCommand === 'install' && !this.mcpService.isReady()) {
         logger.info('MCP not ready yet, saving MCP install URL for later')
         this.pendingMcpInstallUrl = url
         return

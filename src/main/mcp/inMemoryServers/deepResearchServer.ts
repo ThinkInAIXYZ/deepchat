@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-// src/main/presenter/mcpPresenter/inMemoryServers/deepResearchServer.ts
+// src/main/mcp/inMemoryServers/deepResearchServer.ts
 // 主要代码参考自 https://github.com/pinkpixel-dev/deep-research-mcp
 // 已替换搜索引擎为 Bocha，重写页面内容提取逻辑。
 // 采用基于反思的增量迭代研究模式。

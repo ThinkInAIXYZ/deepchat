@@ -23,7 +23,7 @@ vi.mock('@/eventbus', () => ({
 
 vi.mock('@/presenter', () => ({
   presenter: {
-    mcpPresenter: {
+    mcpService: {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn().mockResolvedValue({ content: '', rawData: {} })
     }

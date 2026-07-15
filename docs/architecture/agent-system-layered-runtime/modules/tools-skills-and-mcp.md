@@ -8,7 +8,7 @@
 > 广播失效。ASLR-055 已把 session-scoped catalog、execution 和 result-normalization ports 接入现有
 > loop/process/dispatch：catalog cache 仍按 profile fingerprint 和 registry revision 失效，最终 definitions
 > 只来自 `ToolService.getAllToolDefinitions()`；execution/result adapters 等价委托现有 pre-check、call、
-> screenshot normalization 和 output guard。SkillPresenter、ToolService、McpPresenter、configured
+> screenshot normalization 和 output guard。SkillPresenter、ToolService、McpService、configured
 > selection 与 collision policy 的 owner 均未移动。ASLR-056 已把四种合法 pause origin 映射为
 > ordered typed batch outcome，并由 instance 持有当前 batch execution state。
 
@@ -37,7 +37,7 @@ ownership。
 | 能力 | 数据/运行 owner | DeepChat delivery | ACP delivery |
 | --- | --- | --- | --- |
 | local built-in tools | `ToolService` | `DeepChatToolPort` | 不作为 direct ACP callable tools；regular direct ACP 与 DeepChat + ACP-provider 均保留当前 prompt descriptions |
-| MCP servers/tools | `McpPresenter` + `ToolService` aggregate | ToolService 返回最终 provider definitions + dispatcher | direct ACP session MCP config |
+| MCP servers/tools | `McpService` + `ToolService` aggregate | ToolService 返回最终 provider definitions + dispatcher | direct ACP session MCP config |
 | skill catalog/content | `SkillPresenter` | prompt sections、activation、skill tools | direct ACP 不新增 callable skill；regular/subagent 当前 system-prompt 差异保持 |
 | plugin-provided capabilities | `PluginPresenter`/对应 owner | 经 Tool/Skill adapter | 仅经 ACP 明确支持的 adapter |
 
@@ -112,7 +112,7 @@ agent-scoped extensions 的 enabled/disabled、global/agent/session 合并和 ex
 
 ## 7. MCP
 
-`McpPresenter` 继续拥有 server definitions、connectivity、tool discovery 和调用状态。两个 backend 使用
+`McpService` 继续拥有 server definitions、connectivity、tool discovery 和调用状态。两个 backend 使用
 不同 adapter：
 
 ```text
@@ -182,7 +182,7 @@ fresh resume。
 
 ## 12. 明确不做
 
-- 不合并 `McpPresenter`、`SkillPresenter`、`ToolService`；
+- 不合并 `McpService`、`SkillPresenter`、`ToolService`；
 - 不将 resources 注册到 generic lifecycle plugin bus；
 - 不给 direct `kind=acp` 自动新增可调用的 DeepChat-only tools/skills；不删除 regular ACP 或 DeepChat +
   ACP-provider 已有 system-prompt descriptions；

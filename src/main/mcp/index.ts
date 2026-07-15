@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import {
-  IMCPPresenter,
+  McpServicePort,
   IConfigPresenter,
   ILlmProviderPresenter,
   MCPServerConfig,
@@ -58,8 +58,7 @@ const normalizeToolAccessContext = (
   }
 }
 
-// Complete McpPresenter implementation
-export class McpPresenter implements IMCPPresenter {
+export class McpService implements McpServicePort {
   private serverManager: ServerManager
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
@@ -121,7 +120,7 @@ export class McpPresenter implements IMCPPresenter {
     onRegistryChanged: () => void,
     cacheImage?: (data: string) => Promise<string>
   ) {
-    logger.info('Initializing MCP Presenter')
+    logger.info('Initializing MCP service')
 
     this.configPresenter = configPresenter
     this.cacheImage = cacheImage

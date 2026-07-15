@@ -40,7 +40,7 @@ Current event families include:
 | `settings.*` | `settings.changed`, `settings.navigateRequested`, `settings.checkForUpdatesRequested` | config/settings/window flows |
 | `config.*` | language, theme, system prompts, agents, shortcut keys | `configPresenter` helpers |
 | `providers.*` and `models.*` | provider/model/rate-limit updates | provider runtime |
-| `mcp.*` | server status, config, sampling, tool results | `mcpPresenter` |
+| `mcp.*` | server status, config, sampling, tool results | `mcpService` |
 | `sync.*` and `skillSync.*` | backup/import/scan/export progress | sync presenters |
 | `browser.*` | status, activity, open requests | `YoBrowserPresenter` |
 | `window.*` and `appRuntime.*` | window state, shortcuts, deeplinks, notifications | window/app presenters |

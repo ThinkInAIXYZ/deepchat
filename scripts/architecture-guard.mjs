@@ -55,6 +55,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/sessionStore.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/tapeService.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/runtimePorts.ts'),
+  path.join(ROOT, 'src/main/presenter/mcpPresenter'),
   path.join(ROOT, 'src/main/presenter/toolPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
@@ -63,6 +64,9 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'test/main/presenter/sessionApplication'),
   path.join(ROOT, 'test/main/presenter/lifecyclePresenter'),
+  path.join(ROOT, 'test/main/presenter/mcpClient.test.ts'),
+  path.join(ROOT, 'test/main/presenter/mcpPresenter'),
+  path.join(ROOT, 'test/main/presenter/mcpPresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/toolPresenter')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
@@ -92,6 +96,11 @@ const RETIRED_TOOL_PRESENTER_NAMES = new Set([
   'ToolPresenter',
   'IToolPresenter',
   'toolPresenter'
+])
+const RETIRED_MCP_PRESENTER_NAMES = new Set([
+  'McpPresenter',
+  'IMCPPresenter',
+  'mcpPresenter'
 ])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
@@ -1637,6 +1646,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of retiredToolPresenters) {
         violations.push(
           `[tool-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      const retiredMcpPresenters = findIdentifierNames(
+        sourceFile,
+        RETIRED_MCP_PRESENTER_NAMES
+      )
+      for (const name of retiredMcpPresenters) {
+        violations.push(
+          `[mcp-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       const retiredAppCompositionNames = findIdentifierNames(

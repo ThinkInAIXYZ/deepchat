@@ -17,7 +17,7 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
 ## Current Evidence
 
 - DeepChat already creates `StreamableHTTPClientTransport` in
-  `src/main/presenter/mcpPresenter/mcpClient.ts`, but its current `SimpleOAuthProvider` only wraps
+  `src/main/mcp/mcpClient.ts`, but its current `SimpleOAuthProvider` only wraps
   an existing `Authorization: Bearer ...` header.
 - DeepChat already has reusable local auth pieces:
   - PKCE/state helpers in `src/main/presenter/openaiCodexAuth/pkce.ts`.

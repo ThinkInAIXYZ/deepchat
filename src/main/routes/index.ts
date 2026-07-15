@@ -7,7 +7,7 @@ import type {
   IFilePresenter,
   IKnowledgePresenter,
   ILlmProviderPresenter,
-  IMCPPresenter,
+  McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
   IRemoteControlPresenter,
@@ -473,7 +473,7 @@ export type MainKernelRouteRuntime = {
   skillSyncPresenter: ISkillSyncPresenter
   exporter: IConversationExporter
   oauthPresenter: IOAuthPresenter
-  mcpPresenter: IMCPPresenter
+  mcpService: McpServicePort
   remoteControlPresenter: IRemoteControlPresenter
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
@@ -801,7 +801,7 @@ export function createMainKernelRouteRuntime(deps: {
   skillSyncPresenter: ISkillSyncPresenter
   exporter: IConversationExporter
   oauthPresenter: IOAuthPresenter
-  mcpPresenter: IMCPPresenter
+  mcpService: McpServicePort
   remoteControlPresenter: IRemoteControlPresenter
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
@@ -862,7 +862,7 @@ export function createMainKernelRouteRuntime(deps: {
     skillSyncPresenter: deps.skillSyncPresenter,
     exporter: deps.exporter,
     oauthPresenter: deps.oauthPresenter,
-    mcpPresenter: deps.mcpPresenter,
+    mcpService: deps.mcpService,
     remoteControlPresenter: deps.remoteControlPresenter,
     shortcutPresenter: deps.shortcutPresenter,
     syncPresenter: deps.syncPresenter,
@@ -3595,7 +3595,7 @@ export async function dispatchDeepchatRoute(
     case mcpGetServersRoute.name: {
       return await runTrackedRouteTask(runtime, routeName, context, async () => {
         mcpGetServersRoute.input.parse(rawInput)
-        const servers = await runtime.mcpPresenter.getMcpServers()
+        const servers = await runtime.mcpService.getMcpServers()
         return mcpGetServersRoute.output.parse({ servers })
       })
     }
@@ -3603,7 +3603,7 @@ export async function dispatchDeepchatRoute(
     case mcpGetEnabledRoute.name: {
       return await runTrackedRouteTask(runtime, routeName, context, async () => {
         mcpGetEnabledRoute.input.parse(rawInput)
-        const enabled = await runtime.mcpPresenter.getMcpEnabled()
+        const enabled = await runtime.mcpService.getMcpEnabled()
         return mcpGetEnabledRoute.output.parse({ enabled })
       })
     }
@@ -3611,38 +3611,38 @@ export async function dispatchDeepchatRoute(
     case mcpGetClientsRoute.name: {
       return await runTrackedRouteTask(runtime, routeName, context, async () => {
         mcpGetClientsRoute.input.parse(rawInput)
-        const clients = await runtime.mcpPresenter.getMcpClients()
+        const clients = await runtime.mcpService.getMcpClients()
         return mcpGetClientsRoute.output.parse({ clients })
       })
     }
 
     case mcpListToolDefinitionsRoute.name: {
       const input = mcpListToolDefinitionsRoute.input.parse(rawInput)
-      const tools = await runtime.mcpPresenter.getAllToolDefinitions(input.enabledMcpTools)
+      const tools = await runtime.mcpService.getAllToolDefinitions(input.enabledMcpTools)
       return mcpListToolDefinitionsRoute.output.parse({ tools })
     }
 
     case mcpListPromptsRoute.name: {
       mcpListPromptsRoute.input.parse(rawInput)
-      const prompts = await runtime.mcpPresenter.getAllPrompts()
+      const prompts = await runtime.mcpService.getAllPrompts()
       return mcpListPromptsRoute.output.parse({ prompts })
     }
 
     case mcpListResourcesRoute.name: {
       mcpListResourcesRoute.input.parse(rawInput)
-      const resources = await runtime.mcpPresenter.getAllResources()
+      const resources = await runtime.mcpService.getAllResources()
       return mcpListResourcesRoute.output.parse({ resources })
     }
 
     case mcpCallToolRoute.name: {
       const input = mcpCallToolRoute.input.parse(rawInput)
-      const result = await runtime.mcpPresenter.callTool(input.request)
+      const result = await runtime.mcpService.callTool(input.request)
       return mcpCallToolRoute.output.parse(result)
     }
 
     case mcpAddServerRoute.name: {
       const input = mcpAddServerRoute.input.parse(rawInput)
-      const success = await runtime.mcpPresenter.addMcpServer(input.serverName, input.config)
+      const success = await runtime.mcpService.addMcpServer(input.serverName, input.config)
       if (success) {
         recordSettingsActivity(runtime, {
           category: 'mcp',
@@ -3662,7 +3662,7 @@ export async function dispatchDeepchatRoute(
 
     case mcpUpdateServerRoute.name: {
       const input = mcpUpdateServerRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.updateMcpServer(input.serverName, input.config)
+      await runtime.mcpService.updateMcpServer(input.serverName, input.config)
       recordSettingsActivity(runtime, {
         category: 'mcp',
         action: 'updated',
@@ -3680,7 +3680,7 @@ export async function dispatchDeepchatRoute(
 
     case mcpRemoveServerRoute.name: {
       const input = mcpRemoveServerRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.removeMcpServer(input.serverName)
+      await runtime.mcpService.removeMcpServer(input.serverName)
       recordSettingsActivity(runtime, {
         category: 'mcp',
         action: 'removed',
@@ -3698,7 +3698,7 @@ export async function dispatchDeepchatRoute(
 
     case mcpSetServerEnabledRoute.name: {
       const input = mcpSetServerEnabledRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.setMcpServerEnabled(input.serverName, input.enabled)
+      await runtime.mcpService.setMcpServerEnabled(input.serverName, input.enabled)
       recordSettingsActivity(runtime, {
         category: 'mcp',
         action: input.enabled ? 'enabled' : 'disabled',
@@ -3716,7 +3716,7 @@ export async function dispatchDeepchatRoute(
 
     case mcpSetEnabledRoute.name: {
       const input = mcpSetEnabledRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.setMcpEnabled(input.enabled)
+      await runtime.mcpService.setMcpEnabled(input.enabled)
       recordSettingsActivity(runtime, {
         category: 'mcp',
         action: input.enabled ? 'enabled' : 'disabled',
@@ -3734,13 +3734,13 @@ export async function dispatchDeepchatRoute(
 
     case mcpIsServerRunningRoute.name: {
       const input = mcpIsServerRunningRoute.input.parse(rawInput)
-      const running = await runtime.mcpPresenter.isServerRunning(input.serverName)
+      const running = await runtime.mcpService.isServerRunning(input.serverName)
       return mcpIsServerRunningRoute.output.parse({ running })
     }
 
     case mcpStartServerRoute.name: {
       const input = mcpStartServerRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.startServer(input.serverName)
+      await runtime.mcpService.startServer(input.serverName)
       recordSettingsActivity(runtime, {
         category: 'mcp',
         action: 'enabled',
@@ -3758,7 +3758,7 @@ export async function dispatchDeepchatRoute(
 
     case mcpStopServerRoute.name: {
       const input = mcpStopServerRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.stopServer(input.serverName)
+      await runtime.mcpService.stopServer(input.serverName)
       recordSettingsActivity(runtime, {
         category: 'mcp',
         action: 'disabled',
@@ -3777,21 +3777,21 @@ export async function dispatchDeepchatRoute(
     case mcpGetServerAuthStatusRoute.name: {
       const input = mcpGetServerAuthStatusRoute.input.parse(rawInput)
       return mcpGetServerAuthStatusRoute.output.parse({
-        status: await runtime.mcpPresenter.getMcpServerAuthStatus(input.serverName)
+        status: await runtime.mcpService.getMcpServerAuthStatus(input.serverName)
       })
     }
 
     case mcpStartServerAuthRoute.name: {
       const input = mcpStartServerAuthRoute.input.parse(rawInput)
       return mcpStartServerAuthRoute.output.parse({
-        status: await runtime.mcpPresenter.startMcpServerAuth(input.serverName)
+        status: await runtime.mcpService.startMcpServerAuth(input.serverName)
       })
     }
 
     case mcpCompleteServerAuthFromCallbackUrlRoute.name: {
       const input = mcpCompleteServerAuthFromCallbackUrlRoute.input.parse(rawInput)
       return mcpCompleteServerAuthFromCallbackUrlRoute.output.parse({
-        status: await runtime.mcpPresenter.completeMcpServerAuthFromCallbackUrl(
+        status: await runtime.mcpService.completeMcpServerAuthFromCallbackUrl(
           input.serverName,
           input.callbackUrl
         )
@@ -3801,45 +3801,45 @@ export async function dispatchDeepchatRoute(
     case mcpLogoutServerAuthRoute.name: {
       const input = mcpLogoutServerAuthRoute.input.parse(rawInput)
       return mcpLogoutServerAuthRoute.output.parse({
-        status: await runtime.mcpPresenter.logoutMcpServerAuth(input.serverName)
+        status: await runtime.mcpService.logoutMcpServerAuth(input.serverName)
       })
     }
 
     case mcpGetPromptRoute.name: {
       const input = mcpGetPromptRoute.input.parse(rawInput)
-      const result = await runtime.mcpPresenter.getPrompt(input.prompt, input.args)
+      const result = await runtime.mcpService.getPrompt(input.prompt, input.args)
       return mcpGetPromptRoute.output.parse({ result })
     }
 
     case mcpReadResourceRoute.name: {
       const input = mcpReadResourceRoute.input.parse(rawInput)
-      const resource = await runtime.mcpPresenter.readResource(input.resource)
+      const resource = await runtime.mcpService.readResource(input.resource)
       return mcpReadResourceRoute.output.parse({ resource })
     }
 
     case mcpSubmitSamplingDecisionRoute.name: {
       const input = mcpSubmitSamplingDecisionRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.submitSamplingDecision(input.decision)
+      await runtime.mcpService.submitSamplingDecision(input.decision)
       return mcpSubmitSamplingDecisionRoute.output.parse({ submitted: true })
     }
 
     case mcpCancelSamplingRequestRoute.name: {
       const input = mcpCancelSamplingRequestRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.cancelSamplingRequest(input.requestId, input.reason)
+      await runtime.mcpService.cancelSamplingRequest(input.requestId, input.reason)
       return mcpCancelSamplingRequestRoute.output.parse({ cancelled: true })
     }
 
     case mcpGetNpmRegistryStatusRoute.name: {
       return await runTrackedRouteTask(runtime, routeName, context, async () => {
         mcpGetNpmRegistryStatusRoute.input.parse(rawInput)
-        const status = await runtime.mcpPresenter.getNpmRegistryStatus()
+        const status = await runtime.mcpService.getNpmRegistryStatus()
         return mcpGetNpmRegistryStatusRoute.output.parse({ status })
       })
     }
 
     case mcpRefreshNpmRegistryRoute.name: {
       mcpRefreshNpmRegistryRoute.input.parse(rawInput)
-      const registry = await runtime.mcpPresenter.refreshNpmRegistry()
+      const registry = await runtime.mcpService.refreshNpmRegistry()
       recordSettingsActivity(runtime, {
         category: 'mcp',
         action: 'refreshed',
@@ -3855,25 +3855,25 @@ export async function dispatchDeepchatRoute(
 
     case mcpSetCustomNpmRegistryRoute.name: {
       const input = mcpSetCustomNpmRegistryRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.setCustomNpmRegistry(input.registry)
+      await runtime.mcpService.setCustomNpmRegistry(input.registry)
       return mcpSetCustomNpmRegistryRoute.output.parse({ updated: true })
     }
 
     case mcpSetAutoDetectNpmRegistryRoute.name: {
       const input = mcpSetAutoDetectNpmRegistryRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.setAutoDetectNpmRegistry(input.enabled)
+      await runtime.mcpService.setAutoDetectNpmRegistry(input.enabled)
       return mcpSetAutoDetectNpmRegistryRoute.output.parse({ enabled: input.enabled })
     }
 
     case mcpClearNpmRegistryCacheRoute.name: {
       mcpClearNpmRegistryCacheRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.clearNpmRegistryCache()
+      await runtime.mcpService.clearNpmRegistryCache()
       return mcpClearNpmRegistryCacheRoute.output.parse({ cleared: true })
     }
 
     case mcpRouterListServersRoute.name: {
       const input = mcpRouterListServersRoute.input.parse(rawInput)
-      const data = await runtime.mcpPresenter.listMcpRouterServers(input.page, input.limit)
+      const data = await runtime.mcpService.listMcpRouterServers(input.page, input.limit)
       return mcpRouterListServersRoute.output.parse({
         servers: data.servers
       })
@@ -3882,33 +3882,33 @@ export async function dispatchDeepchatRoute(
     case mcpRouterInstallServerRoute.name: {
       const input = mcpRouterInstallServerRoute.input.parse(rawInput)
       return mcpRouterInstallServerRoute.output.parse({
-        installed: await runtime.mcpPresenter.installMcpRouterServer(input.serverKey)
+        installed: await runtime.mcpService.installMcpRouterServer(input.serverKey)
       })
     }
 
     case mcpRouterGetApiKeyRoute.name: {
       mcpRouterGetApiKeyRoute.input.parse(rawInput)
       return mcpRouterGetApiKeyRoute.output.parse({
-        key: await runtime.mcpPresenter.getMcpRouterApiKey()
+        key: await runtime.mcpService.getMcpRouterApiKey()
       })
     }
 
     case mcpRouterSetApiKeyRoute.name: {
       const input = mcpRouterSetApiKeyRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.setMcpRouterApiKey(input.key)
+      await runtime.mcpService.setMcpRouterApiKey(input.key)
       return mcpRouterSetApiKeyRoute.output.parse({ saved: true })
     }
 
     case mcpRouterIsServerInstalledRoute.name: {
       const input = mcpRouterIsServerInstalledRoute.input.parse(rawInput)
       return mcpRouterIsServerInstalledRoute.output.parse({
-        installed: await runtime.mcpPresenter.isServerInstalled(input.source, input.sourceId)
+        installed: await runtime.mcpService.isServerInstalled(input.source, input.sourceId)
       })
     }
 
     case mcpRouterUpdateServersAuthRoute.name: {
       const input = mcpRouterUpdateServersAuthRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.updateMcpRouterServersAuth(input.apiKey)
+      await runtime.mcpService.updateMcpRouterServersAuth(input.apiKey)
       return mcpRouterUpdateServersAuthRoute.output.parse({ updated: true })
     }
 

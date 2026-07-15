@@ -241,7 +241,7 @@ checkpoint、关闭、按指定密码重开 SQLite，以及让 Config 使用重�
 已完成：MCP `ToolManager` 使用 Tool 调用已携带的 `agentId` 和 `providerId`
 检查 ACP MCP 权限，不再通过全局 `presenter.sessionQuery` 反向查 Session。
 
-已完成：`McpPresenter` 构造时必须直接接收 `IConfigPresenter`，不再从
+已完成：`McpService` 构造时必须直接接收 `IConfigPresenter`，不再从
 全局 `presenter` 补取 Config，也不再在 `initialize()` 中重建 manager 托底。
 
 已完成：conversation search MCP server 由创建它的工厂传入 SQLite、Session 记录、

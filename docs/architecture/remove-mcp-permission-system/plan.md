@@ -2,10 +2,10 @@
 
 ## Current Owners
 
-- MCP runtime permission checks: `src/main/presenter/mcpPresenter/toolManager.ts`
+- MCP runtime permission checks: `src/main/mcp/toolManager.ts`
 - MCP server config defaults and normalization: `src/main/presenter/configPresenter/mcpConfHelper.ts`
 - Deep link and marketplace MCP import defaults: `src/main/presenter/deeplinkPresenter/index.ts`,
-  `src/main/presenter/mcpPresenter/mcprouterManager.ts`,
+  `src/main/mcp/mcprouterManager.ts`,
   `src/main/presenter/llmProviderPresenter/modelScopeMcp.ts`
 - Plugin MCP manifest mapping: `src/main/presenter/pluginPresenter/index.ts`
 - MCP server form UI: `src/renderer/src/components/mcp-config/McpServerForm.vue`

@@ -69,7 +69,7 @@ src/
 │   │   ├── toolService/                # 工具路由
 │   │   │   └── agentTools/               # 本地 agent tools
 │   │   ├── llmProviderPresenter/         # provider 管理与 ACP provider adapter
-│   │   ├── mcpPresenter/                 # MCP tools/runtime
+│   │   ├── mcpService/                 # MCP tools/runtime
 │   │   └── ...
 │   ├── agent/
 │   │   ├── acp/                      # ACP catalog/client/runtime owner

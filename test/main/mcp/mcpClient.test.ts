@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { McpClient } from '../../../src/main/presenter/mcpPresenter/mcpClient'
+import { McpClient } from '../../../src/main/mcp/mcpClient'
 import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import path from 'path'
 import fs from 'fs'

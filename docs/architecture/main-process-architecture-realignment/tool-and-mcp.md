@@ -115,9 +115,8 @@ MCP 提供：
 
 ## 目录和依赖
 
-Tool 已移到 `src/main/tool/`，旧 Presenter 目录和名称已经删除。MCP 的目标目录是
-`src/main/mcp/`；迁移时同时移动对应代码和测试，旧 `presenter/mcpPresenter` 路径直接删除，不保留
-转发文件。
+Tool 和 MCP 已分别移到 `src/main/tool/` 与 `src/main/mcp/`。旧 Presenter 目录、名称和测试入口已经
+删除，没有保留转发文件。
 
 Tool 可以依赖 MCP 的窄 catalog/execution 接口、permission、Workspace/File 和 Session 操作；MCP
 可以依赖 Config 的底层设置、Knowledge、Provider sampling 和 Platform 网络能力。两者不能依赖

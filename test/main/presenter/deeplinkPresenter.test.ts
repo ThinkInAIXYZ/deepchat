@@ -24,7 +24,7 @@ const presenterMock = vi.hoisted(() => ({
   configPresenter: {
     getProviderById: vi.fn()
   },
-  mcpPresenter: {
+  mcpService: {
     isReady: vi.fn().mockReturnValue(true)
   }
 }))
@@ -45,7 +45,7 @@ describe('DeeplinkPresenter', () => {
     return new DeeplinkPresenter(
       presenterMock.windowPresenter as any,
       presenterMock.configPresenter as any,
-      presenterMock.mcpPresenter as any
+      presenterMock.mcpService as any
     )
   }
 
@@ -60,7 +60,7 @@ describe('DeeplinkPresenter', () => {
     presenterMock.windowPresenter.setPendingSettingsProviderInstall.mockReset()
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([])
     presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(null)
-    presenterMock.mcpPresenter.isReady.mockReturnValue(true)
+    presenterMock.mcpService.isReady.mockReturnValue(true)
     presenterMock.configPresenter.getProviderById.mockImplementation((providerId: string) => {
       if (providerId === 'openai') {
         return {
@@ -238,14 +238,14 @@ describe('DeeplinkPresenter', () => {
       }
     }
     const url = `deepchat:mcp/install?code=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
-    presenterMock.mcpPresenter.isReady.mockReturnValue(false)
+    presenterMock.mcpService.isReady.mockReturnValue(false)
 
     await deeplinkPresenter.handleDeepLink(url)
 
     expect((deeplinkPresenter as any).pendingMcpInstallUrl).toBe(url)
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
 
-    presenterMock.mcpPresenter.isReady.mockReturnValue(true)
+    presenterMock.mcpService.isReady.mockReturnValue(true)
     deeplinkPresenter.processPendingMcpInstall()
 
     expect(handleDeepLink).toHaveBeenNthCalledWith(2, url)

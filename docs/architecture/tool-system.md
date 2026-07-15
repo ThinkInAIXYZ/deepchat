@@ -19,7 +19,7 @@
 | `AgentPlanTool` | `src/main/tool/agentTools/agentPlanTool.ts` | `agent-core/update_plan` |
 | `AgentTapeToolHandler` | `src/main/tool/agentTools/agentTapeTools.ts` | tape read/merge/discard tools |
 | `AgentImageGenerationTool` | `src/main/tool/agentTools/agentImageGenerationTool.ts` | image generation tool |
-| `McpPresenter` | `src/main/presenter/mcpPresenter/` | 外部 MCP servers 与 tools |
+| `McpService` | `src/main/mcp/` | 外部 MCP servers 与 tools |
 | `ACP helpers` | `src/main/agent/acp/` | ACP runtime、workdir、config、MCP 映射 |
 
 ## 路由关系
@@ -30,7 +30,7 @@ graph LR
     Ports --> Adapters["DeepChat tool adapters"]
     Adapters --> ToolService["ToolService"]
     ToolService --> Mapper["ToolMapper"]
-    ToolService --> Mcp["McpPresenter"]
+    ToolService --> Mcp["McpService"]
     ToolService --> AgentTools["AgentToolManager"]
     AgentTools --> Fs["AgentFileSystemHandler"]
     AgentTools --> Bash["AgentBashHandler"]
@@ -46,7 +46,7 @@ graph LR
 
 `ToolService.getAllToolDefinitions()` 会按顺序做三件事：
 
-1. 从 `mcpPresenter` 拉取 MCP tools。
+1. 从 `mcpService` 拉取 MCP tools。
 2. 从 `AgentToolManager` 拉取本地 agent tools。
 3. 用 `ToolMapper` 记录来源，并在重名时优先保留 MCP tool。
 4. 过滤 disabled agent tools，并为每个 conversation 维护独立映射。
@@ -152,6 +152,6 @@ session-init MCP config/protocol callbacks，不经过 DeepChat ToolService/Loop
 3. `src/main/tool/index.ts`
 4. `src/main/tool/toolMapper.ts`
 5. `src/main/tool/agentTools/agentToolManager.ts`
-6. 具体 handler 或 `src/main/presenter/mcpPresenter/toolManager.ts`
+6. 具体 handler 或 `src/main/mcp/toolManager.ts`
 
 如果看到旧路径 `src/main/presenter/agentPresenter/acp/*`，那属于已经归档的历史实现。

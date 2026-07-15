@@ -40,7 +40,7 @@ vi.mock('@/presenter', () => ({
     },
     filePermissionService: { approve: vi.fn() },
     settingsPermissionService: { approve: vi.fn() },
-    mcpPresenter: {
+    mcpService: {
       grantPermission: vi.fn().mockResolvedValue(undefined)
     }
   }

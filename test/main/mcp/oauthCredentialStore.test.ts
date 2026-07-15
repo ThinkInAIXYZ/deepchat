@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { McpOAuthCredentialStore } from '../../../../src/main/presenter/mcpPresenter/oauthCredentialStore'
+import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 
 describe('McpOAuthCredentialStore', () => {
   let savedContent = ''

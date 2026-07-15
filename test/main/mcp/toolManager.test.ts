@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
+import { ToolManager } from '@/mcp/toolManager'
 
 function deferred<T>() {
   let resolve!: (value: T) => void

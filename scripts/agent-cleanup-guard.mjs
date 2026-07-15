@@ -24,7 +24,7 @@ const LEGACY_MAIN_DIRS = [
 const PRIMARY_MAIN_GUARD_PATHS = [
   path.join(ROOT, 'src/main/agent'),
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
-  path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
+  path.join(ROOT, 'src/main/mcp/toolManager.ts'),
   path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
 ]
 
@@ -41,7 +41,7 @@ const RENDERER_CHAT_GUARD_PATHS = [
 const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresenter')
 const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')
 const SKILL_PRESENTER_DIR = path.join(ROOT, 'src/main/presenter/skillPresenter')
-const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')
+const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/mcp/toolManager.ts')
 const DEEPCHAT_RUNTIME_COORDINATOR_FILE = path.join(
   ROOT,
   'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts'
@@ -160,7 +160,7 @@ async function findViolations() {
   const scanRoots = [
     path.join(ROOT, 'src/main/agent'),
     path.join(ROOT, 'src/main/presenter/skillPresenter'),
-    path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
+    path.join(ROOT, 'src/main/mcp/toolManager.ts'),
     path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
     path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'),
     path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),

@@ -147,7 +147,7 @@
 - [x] 删除 `AgentRuntimePresenter` 的 shared data compatibility。
 - [x] 删除 floating button 对全局 `Presenter` 的 Session 和 Desktop 查找。
 - [x] 删除 MCP `ToolManager` 对全局 Session 查询的托底，直接使用 Tool 调用上下文。
-- [x] 删除 `McpPresenter` 从全局 `Presenter` 补取 Config 的构造托底。
+- [x] 删除 `McpService` 从全局 `Presenter` 补取 Config 的构造托底。
 - [x] 让 conversation search MCP server 直接读取 Session 持久数据，删除全局 Session/SQLite 查找。
 - [x] 删除 `Presenter` 构造时对 `ILifecycleManager` 和 `LifecycleContext` 的读取，启动依赖全部明确传入。
 - [x] 删除 `LifecycleManager`、phase、priority、全部通用 hook 和 lifecycle event，改为 App 固定启动与退出顺序。
@@ -235,6 +235,9 @@
 - [x] 删除 `presenter/toolPresenter` 和对应旧测试目录；实现移到 `src/main/tool/`，类型移到
   `src/shared/types/tool.d.ts`，并把 `ToolPresenter` / `IToolPresenter` 改成 `ToolService` /
   `ToolServicePort`，不保留旧导出或转发文件。
+- [x] 删除 `presenter/mcpPresenter` 和对应旧测试入口；实现与测试移到 `src/main/mcp/` 和
+  `test/main/mcp/`，并把 `McpPresenter` / `IMCPPresenter` 改成 `McpService` / `McpServicePort`。
+  Tool 只接收 MCP catalog/execution/permission 接口，Plugin shutdown 不再检查可选停止方法。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

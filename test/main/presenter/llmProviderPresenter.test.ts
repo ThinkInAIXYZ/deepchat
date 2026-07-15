@@ -69,7 +69,7 @@ const presenterRuntimeMock = vi.hoisted(() => ({
     preCheckToolPermission: vi.fn().mockResolvedValue(null),
     callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
   },
-  mcpPresenter: {
+  mcpService: {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
     callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
   },

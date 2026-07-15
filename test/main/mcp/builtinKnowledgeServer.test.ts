@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { BuiltinKnowledgeServer } from '../../../../src/main/presenter/mcpPresenter/inMemoryServers/builtinKnowledgeServer'
+import { BuiltinKnowledgeServer } from '@/mcp/inMemoryServers/builtinKnowledgeServer'
 
 const serverInstances = vi.hoisted(() => [] as Array<{ handlers: Map<unknown, Function> }>)
 const mockGetKnowledgeConfigs = vi.hoisted(() => vi.fn())

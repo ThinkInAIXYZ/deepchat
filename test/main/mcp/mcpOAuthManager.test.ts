@@ -6,8 +6,8 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-import { McpOAuthManager } from '../../../../src/main/presenter/mcpPresenter/mcpOAuthManager'
-import type { McpOAuthCredentialStore } from '../../../../src/main/presenter/mcpPresenter/oauthCredentialStore'
+import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
+import type { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 
 const createStore = (entry: unknown): McpOAuthCredentialStore =>
   ({

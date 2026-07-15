@@ -65,7 +65,7 @@ const createPluginPresenter = async (
     }),
     getMcpEnabled: vi.fn().mockResolvedValue(options.mcpEnabled ?? true)
   }
-  const mcpPresenter = {
+  const mcpService = {
     isReady: vi.fn(() => true),
     isServerRunning: vi.fn().mockResolvedValue(false),
     isServerActive: vi.fn().mockResolvedValue(false),
@@ -85,13 +85,13 @@ const createPluginPresenter = async (
     isPackaged: options.isPackaged,
     resourcesPath: options.resourcesPath,
     configPresenter,
-    mcpPresenter,
+    mcpService,
     skillPresenter
   } as any)
   return Object.assign(presenter, {
     __mocks: {
       configPresenter,
-      mcpPresenter,
+      mcpService,
       skillPresenter
     }
   })
@@ -446,14 +446,14 @@ describe('PluginPresenter', () => {
       source: 'plugin',
       sourceId: pluginId
     })
-    presenter.__mocks.mcpPresenter.isServerActive.mockResolvedValue(true)
+    presenter.__mocks.mcpService.isServerActive.mockResolvedValue(true)
 
     await (presenter as any).loadOfficialPlugins()
 
     const resolvedPlugin = (presenter as any).officialPlugins.get(pluginId)
     expect(resolvedPlugin.manifest.name).toBe('CUA Windows X64')
     expect(fs.realpathSync(resolvedPlugin.sourcePath)).toBe(fs.realpathSync(winX64Package))
-    expect(presenter.__mocks.mcpPresenter.stopServer).not.toHaveBeenCalled()
+    expect(presenter.__mocks.mcpService.stopServer).not.toHaveBeenCalled()
     expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
   })
 
@@ -704,7 +704,7 @@ describe('PluginPresenter', () => {
     expect(servers['fixture-tools'].args.map((arg: string) => path.normalize(arg))).toEqual([
       path.join(fixture.installedRoot, 'mcp', 'serve.mjs')
     ])
-    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-tools')
+    expect(presenter.__mocks.mcpService.startServer).toHaveBeenCalledWith('fixture-tools')
   })
 
   it('syncs dev directory installs even when only the plugin files changed', async () => {
@@ -743,7 +743,7 @@ describe('PluginPresenter', () => {
 
     expect(serveScript).toBe('console.log("serve")\n')
     expect(configAfterRefresh).toMatchObject(config)
-    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-tools')
+    expect(presenter.__mocks.mcpService.startServer).toHaveBeenCalledWith('fixture-tools')
   })
 
   it('removes persisted plugin state when discovery rejects an installed official plugin', async () => {
@@ -957,7 +957,7 @@ describe('PluginPresenter', () => {
     expect(presenterSource).toContain('resolveAppHelperRelativePath')
     expect(presenterSource).toContain('resolvePluginTemplateRecord')
     expect(presenterSource).toContain('startPluginMcpServersIfReady')
-    expect(presenterSource).toContain('this.mcpPresenter.startServer(serverName)')
+    expect(presenterSource).toContain('this.mcpService.startServer(serverName)')
     expect(presenterSource).not.toContain('if (!(await this.configPresenter.getMcpEnabled()))')
   })
 
@@ -1014,7 +1014,7 @@ describe('PluginPresenter', () => {
     const result = await presenter.enablePlugin(fixture.pluginId)
 
     expect(result.ok).toBe(true)
-    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
+    expect(presenter.__mocks.mcpService.startServer).toHaveBeenCalledWith('fixture-runtime')
   })
 
   it('does not wait for plugin MCP auto-start to finish', async () => {
@@ -1025,7 +1025,7 @@ describe('PluginPresenter', () => {
     })
     let resolveStartServer!: () => void
     let startServerResolved = false
-    presenter.__mocks.mcpPresenter.startServer.mockImplementation(
+    presenter.__mocks.mcpService.startServer.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
           resolveStartServer = () => {
@@ -1038,7 +1038,7 @@ describe('PluginPresenter', () => {
     const result = await presenter.enablePlugin(fixture.pluginId)
 
     expect(result).toEqual(expect.objectContaining({ ok: true }))
-    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
+    expect(presenter.__mocks.mcpService.startServer).toHaveBeenCalledWith('fixture-runtime')
     expect(startServerResolved).toBe(false)
 
     resolveStartServer()
@@ -1059,17 +1059,17 @@ describe('PluginPresenter', () => {
       sourceId: 'com.deepchat.plugins.other',
       ownerPluginId: 'com.deepchat.plugins.other'
     })
-    presenter.__mocks.mcpPresenter.isServerActive.mockImplementation(
+    presenter.__mocks.mcpService.isServerActive.mockImplementation(
       async (serverName: string) => serverName !== 'plugin-stopped'
     )
 
     await presenter.shutdown()
 
-    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledTimes(1)
-    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledWith(
+    expect(presenter.__mocks.mcpService.stopServerDuringShutdownByName).toHaveBeenCalledTimes(1)
+    expect(presenter.__mocks.mcpService.stopServerDuringShutdownByName).toHaveBeenCalledWith(
       'plugin-running'
     )
-    expect(presenter.__mocks.mcpPresenter.stopServer).not.toHaveBeenCalled()
+    expect(presenter.__mocks.mcpService.stopServer).not.toHaveBeenCalled()
     expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
     expect(await presenter.__mocks.configPresenter.getMcpServers()).toMatchObject({
       'regular-server': {
@@ -1097,18 +1097,18 @@ describe('PluginPresenter', () => {
       source: 'plugin',
       sourceId: 'com.deepchat.plugins.second'
     })
-    presenter.__mocks.mcpPresenter.isServerActive.mockResolvedValue(true)
-    presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName
+    presenter.__mocks.mcpService.isServerActive.mockResolvedValue(true)
+    presenter.__mocks.mcpService.stopServerDuringShutdownByName
       .mockRejectedValueOnce(new Error('first failed'))
       .mockResolvedValueOnce(undefined)
 
     await presenter.shutdown()
 
-    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledTimes(2)
-    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledWith(
+    expect(presenter.__mocks.mcpService.stopServerDuringShutdownByName).toHaveBeenCalledTimes(2)
+    expect(presenter.__mocks.mcpService.stopServerDuringShutdownByName).toHaveBeenCalledWith(
       'plugin-first'
     )
-    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledWith(
+    expect(presenter.__mocks.mcpService.stopServerDuringShutdownByName).toHaveBeenCalledWith(
       'plugin-second'
     )
     expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()

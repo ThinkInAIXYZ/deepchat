@@ -32,14 +32,14 @@ stores.
 - `src/main/presenter/oauthLoopbackCallback.ts` or equivalent small helper
   - Own `node:http` loopback listener, callback-page HTML, timeout cleanup, and pasted URL parsing.
   - Must not know about MCP tokens, OpenAI Codex tokens, providers, or server configs.
-- `src/main/presenter/mcpPresenter/`
+- `src/main/mcp/`
   - Add a small OAuth manager, credential store, and SDK provider.
   - Wire auth status into `ServerManager` and `McpClient`.
 - `src/main/presenter/openaiCodexAuth/index.ts`
   - Replace embedded `BrowserWindow` auth with `shell.openExternal` + loopback callback.
   - Add fallback completion from pasted callback URL while a pending browser flow exists.
 - `src/shared/types/presenters/core.presenter.d.ts`
-  - Add auth status/result types and `IMCPPresenter` methods.
+  - Add auth status/result types and `McpServicePort` methods.
 - `src/shared/contracts/routes/mcp.routes.ts`
   - Add typed routes for auth status/start/logout.
 - `src/shared/contracts/events/mcp.events.ts`
@@ -118,7 +118,7 @@ unless the user removes that header in config.
 ```text
 Renderer Authenticate button
   -> mcp.startServerAuth(serverName)
-  -> McpPresenter.startServerAuth(serverName)
+  -> McpService.startServerAuth(serverName)
   -> McpOAuthManager.startAuth(serverName, serverConfig)
      -> start node:http loopback server on 127.0.0.1 random available port
      -> create MCP SDK OAuthClientProvider with redirect_uri from that port

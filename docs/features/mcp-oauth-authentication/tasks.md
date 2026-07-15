@@ -15,7 +15,7 @@ Status: implementation complete, manual external OAuth smoke pending.
 - [x] Add `McpOAuthProvider` implementing the SDK `OAuthClientProvider`.
 - [x] Add `McpOAuthManager` for discovery, status, loopback callback, SDK auth, logout, and event publish.
 - [x] Wire `ServerManager`/`McpClient` so startup detects OAuth requirement without opening a browser.
-- [x] Wire `McpPresenter` routes: get status, start auth, complete from callback URL, logout auth.
+- [x] Wire `McpService` routes: get status, start auth, complete from callback URL, logout auth.
 - [x] Move OpenAI Codex OAuth from embedded BrowserWindow to external browser + loopback callback.
 - [x] Add OpenAI Codex pasted callback URL fallback while auth is pending.
 - [x] Wire renderer `McpClient` API and Pinia MCP store auth-status merge.

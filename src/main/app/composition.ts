@@ -33,7 +33,7 @@ import { proxyConfig, ProxyMode } from '../presenter/proxyConfig'
 import { DevicePresenter } from '../presenter/devicePresenter'
 import { UpgradePresenter } from '../presenter/upgradePresenter'
 import { FilePresenter } from '../presenter/filePresenter/FilePresenter'
-import { McpPresenter } from '../presenter/mcpPresenter'
+import { McpService } from '../mcp'
 import { SyncPresenter, type SyncImportDatabasePort } from '../presenter/syncPresenter'
 import { DeeplinkPresenter } from '../presenter/deeplinkPresenter'
 import { NotificationPresenter } from '../presenter/notificationPresenter'
@@ -121,7 +121,7 @@ import type { SessionDataMigrationSQLitePort } from '../presenter/startupMigrati
 import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
 import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
 import { AgentSessionExportService } from '../presenter/exporter/agentSessionExporter'
-import { createInMemoryServerFactory } from '../presenter/mcpPresenter/inMemoryServers/builder'
+import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
@@ -178,7 +178,7 @@ export async function createMainProcessControl(dependencies: {
   let upgradePresenter: IUpgradePresenter
   let shortcutPresenter: IShortcutPresenter
   let filePresenter: IFilePresenter
-  let mcpPresenter: McpPresenter
+  let mcpService: McpService
   let syncPresenter: SyncPresenter
   let deeplinkPresenter: DeeplinkPresenter
   let notificationPresenter: INotificationPresenter
@@ -249,8 +249,8 @@ export async function createMainProcessControl(dependencies: {
     sessionPersistence: acpSessionPersistence,
     publishEvent: publishDeepchatEvent,
     registry: {
-      getNpmRegistry: () => mcpPresenter.getNpmRegistry(),
-      getUvRegistry: () => mcpPresenter.getUvRegistry()
+      getNpmRegistry: () => mcpService.getNpmRegistry(),
+      getUvRegistry: () => mcpService.getUvRegistry()
     }
   })
   const llmProviderPresenter = new LLMProviderPresenter(
@@ -290,7 +290,7 @@ export async function createMainProcessControl(dependencies: {
     dialogPresenter,
     llmproviderPresenter
   )
-  mcpPresenter = new McpPresenter(
+  mcpService = new McpService(
     configPresenter,
     createInMemoryServerFactory({
       sqlitePresenter,
@@ -304,7 +304,7 @@ export async function createMainProcessControl(dependencies: {
     () => deepChatRuntimeCoordinator.refreshToolRegistry(),
     (data) => devicePresenter.cacheImage(data)
   )
-  deeplinkPresenter = new DeeplinkPresenter(windowPresenter, configPresenter, mcpPresenter)
+  deeplinkPresenter = new DeeplinkPresenter(windowPresenter, configPresenter, mcpService)
 
   // Initialize generic Workspace presenter (for all Agent modes)
   workspacePresenter = new WorkspacePresenter(filePresenter)
@@ -485,7 +485,7 @@ export async function createMainProcessControl(dependencies: {
 
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
-    mcpPresenter: mcpPresenter,
+    mcpService: mcpService,
     configPresenter: configPresenter,
     commandPermissionHandler,
     agentToolRuntime
@@ -511,7 +511,7 @@ export async function createMainProcessControl(dependencies: {
   // MCP servers are present when the regular MCP presenter starts enabled servers.
   pluginPresenter = new PluginPresenter({
     configPresenter: configPresenter,
-    mcpPresenter: mcpPresenter,
+    mcpService: mcpService,
     skillPresenter: skillPresenter
   })
 
@@ -547,11 +547,11 @@ export async function createMainProcessControl(dependencies: {
       commandPermissionService.clearConversation(sessionId)
       filePermissionService.clearConversation(sessionId)
       settingsPermissionService.clearConversation(sessionId)
-      mcpPresenter.clearSessionPermissions(sessionId)
+      mcpService.clearSessionPermissions(sessionId)
     },
     cloneSessionPermissions: (sourceSessionId, targetSessionId) => {
       // MCP temporary approvals are intentionally never inherited.
-      mcpPresenter.clearSessionPermissions(targetSessionId)
+      mcpService.clearSessionPermissions(targetSessionId)
       commandPermissionService.cloneConversation(sourceSessionId, targetSessionId)
       filePermissionService.cloneConversation(sourceSessionId, targetSessionId)
       settingsPermissionService.cloneConversation(sourceSessionId, targetSessionId)
@@ -591,7 +591,7 @@ export async function createMainProcessControl(dependencies: {
         serverName &&
         (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
       ) {
-        await mcpPresenter.grantPermission(serverName, permissionType, false, sessionId)
+        await mcpService.grantPermission(serverName, permissionType, false, sessionId)
       }
     }
   }
@@ -975,7 +975,7 @@ export async function createMainProcessControl(dependencies: {
     applyProviderBatchUpdate: (batchUpdate) =>
       (llmproviderPresenter as LLMProviderPresenter).handleProviderBatchUpdate(batchUpdate),
     handleMcpConfigChanged: () => {
-      mcpPresenter.handleConfigChanged()
+      mcpService.handleConfigChanged()
       void (knowledgePresenter as KnowledgePresenter).syncConfigChanges().catch((error) => {
         console.error('[RAG] Error syncing knowledge configs:', error)
       })
@@ -1150,11 +1150,11 @@ export async function createMainProcessControl(dependencies: {
     }
 
     try {
-      await mcpPresenter.initialize()
+      await mcpService.initialize()
       deepChatRuntimeCoordinator.refreshToolRegistry()
       deeplinkPresenter.processPendingMcpInstall()
     } catch (error) {
-      console.error('Failed to initialize McpPresenter:', error)
+      console.error('Failed to initialize McpService:', error)
     }
   }
 
@@ -1219,9 +1219,9 @@ export async function createMainProcessControl(dependencies: {
     }
 
     try {
-      await runDestroyStep('mcpPresenter.shutdown', () => mcpPresenter.shutdown())
+      await runDestroyStep('mcpService.shutdown', () => mcpService.shutdown())
     } catch (error) {
-      console.error('McpPresenter.shutdown failed during main shutdown:', error)
+      console.error('McpService.shutdown failed during main shutdown:', error)
     }
 
     await runDestroyStep('destroyRemoteControl', () => destroyRemoteControl())
@@ -1345,7 +1345,7 @@ export async function createMainProcessControl(dependencies: {
       skillSyncPresenter,
       exporter,
       oauthPresenter,
-      mcpPresenter,
+      mcpService,
       remoteControlPresenter,
       shortcutPresenter,
       syncPresenter,

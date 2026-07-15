@@ -1,7 +1,7 @@
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
   IConfigPresenter,
-  IMCPPresenter,
+  McpServicePort,
   MCPToolDefinition,
   MCPToolCall,
   MCPToolResponse
@@ -35,8 +35,13 @@ import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../presenter/permission'
 import { YO_BROWSER_TOOL_NAMES } from '../desktop/browser/YoBrowserToolDefinitions'
 
+type McpToolPort = Pick<
+  McpServicePort,
+  'getAllToolDefinitions' | 'callTool' | 'preCheckToolPermission'
+>
+
 interface ToolServiceOptions {
-  mcpPresenter: IMCPPresenter
+  mcpService: McpToolPort
   configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
   agentToolRuntime: AgentToolRuntimePort
@@ -132,7 +137,7 @@ export class ToolService implements ToolServicePort {
     // 1. Get MCP tools
     const mcpDefs = withToolSource(
       (
-        await this.options.mcpPresenter.getAllToolDefinitions({
+        await this.options.mcpService.getAllToolDefinitions({
           enabledTools: context.enabledMcpTools,
           enabledServerIds: context.enabledMcpServerIds,
           agentId: context.agentId,
@@ -289,7 +294,7 @@ export class ToolService implements ToolServicePort {
 
     // Route to MCP (default)
     const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
-    return await this.options.mcpPresenter.callTool(request, {
+    return await this.options.mcpService.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
       enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
       signal: options?.signal
@@ -354,17 +359,12 @@ export class ToolService implements ToolServicePort {
     }
 
     // Route to MCP for permission pre-check
-    if (this.options.mcpPresenter.preCheckToolPermission) {
-      const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
-      return await this.options.mcpPresenter.preCheckToolPermission(request, {
-        agentId: storedAccess?.agentId,
-        enabledServerIds: storedAccess?.enabledMcpServerIds,
-        signal: options?.signal
-      })
-    }
-
-    // If MCP presenter doesn't support preCheckToolPermission, skip it
-    return null
+    const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
+    return await this.options.mcpService.preCheckToolPermission(request, {
+      agentId: storedAccess?.agentId,
+      enabledServerIds: storedAccess?.enabledMcpServerIds,
+      signal: options?.signal
+    })
   }
 
   private resolveAgentToolResponse(response: AgentToolCallResult | string): AgentToolCallResult {

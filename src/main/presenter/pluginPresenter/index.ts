@@ -8,7 +8,7 @@ import ElectronStore from 'electron-store'
 import { unzipSync } from 'fflate'
 import type {
   IConfigPresenter,
-  IMCPPresenter,
+  McpServicePort,
   ISkillPresenter,
   MCPServerConfig
 } from '@shared/presenter'
@@ -39,17 +39,13 @@ type PluginStoreShape = {
 
 type PluginPresenterDeps = {
   configPresenter: IConfigPresenter
-  mcpPresenter: IMCPPresenter
+  mcpService: McpServicePort
   skillPresenter: ISkillPresenter
   platform?: NodeJS.Platform
   arch?: NodeJS.Architecture
   appPath?: string
   isPackaged?: boolean
   resourcesPath?: string
-}
-
-type ShutdownAwareMcpPresenter = IMCPPresenter & {
-  stopServerDuringShutdownByName?: (serverName: string) => Promise<void>
 }
 
 type ResolvedOfficialPlugin = {
@@ -86,7 +82,7 @@ type SkillContributionPort = ISkillPresenter & {
 
 export class PluginPresenter {
   private readonly configPresenter: IConfigPresenter
-  private readonly mcpPresenter: IMCPPresenter
+  private readonly mcpService: McpServicePort
   private readonly skillPresenter: SkillContributionPort
   private readonly platform: NodeJS.Platform
   private readonly arch: NodeJS.Architecture
@@ -106,7 +102,7 @@ export class PluginPresenter {
 
   constructor(deps: PluginPresenterDeps) {
     this.configPresenter = deps.configPresenter
-    this.mcpPresenter = deps.mcpPresenter
+    this.mcpService = deps.mcpService
     this.skillPresenter = deps.skillPresenter as SkillContributionPort
     this.platform = deps.platform ?? process.platform
     this.arch = deps.arch ?? process.arch
@@ -170,12 +166,7 @@ export class PluginPresenter {
         const { serverName, pluginId } = servers[nextIndex++]
         try {
           if (await this.isMcpServerActive(serverName)) {
-            const mcpPresenter = this.mcpPresenter as ShutdownAwareMcpPresenter
-            if (mcpPresenter.stopServerDuringShutdownByName) {
-              await mcpPresenter.stopServerDuringShutdownByName(serverName)
-            } else {
-              await this.mcpPresenter.stopServer(serverName)
-            }
+            await this.mcpService.stopServerDuringShutdownByName(serverName)
           }
         } catch (error) {
           console.warn('[PluginHost] Failed to stop plugin-owned MCP server during shutdown:', {
@@ -192,7 +183,7 @@ export class PluginPresenter {
   }
 
   private async isMcpServerActive(serverName: string): Promise<boolean> {
-    return await this.mcpPresenter.isServerActive(serverName)
+    return await this.mcpService.isServerActive(serverName)
   }
 
   async listPlugins(): Promise<PluginListItem[]> {
@@ -358,7 +349,7 @@ export class PluginPresenter {
       if (this.isServerOwnedByPlugin(serverConfig, pluginId)) {
         try {
           if (await this.isMcpServerActive(serverName)) {
-            await this.mcpPresenter.stopServer(serverName)
+            await this.mcpService.stopServer(serverName)
           }
         } catch (error) {
           console.warn('[PluginHost] Failed to stop plugin-owned MCP server:', {
@@ -1620,14 +1611,14 @@ export class PluginPresenter {
     pluginId: string,
     serverNames: string[]
   ): Promise<void> {
-    if (serverNames.length === 0 || !this.mcpPresenter.isReady()) {
+    if (serverNames.length === 0 || !this.mcpService.isReady()) {
       return
     }
 
     for (const serverName of serverNames) {
       try {
         if (!(await this.isMcpServerActive(serverName))) {
-          void this.mcpPresenter.startServer(serverName).catch((error) => {
+          void this.mcpService.startServer(serverName).catch((error) => {
             console.warn('[PluginHost] Failed to auto-start plugin MCP server:', {
               pluginId,
               serverName,
@@ -1655,10 +1646,8 @@ export class PluginPresenter {
       statuses.push({
         serverId: server.id,
         enabled: Boolean(serverConfig?.enabled),
-        running: await this.mcpPresenter.isServerRunning(server.id),
-        lastError: serverConfig?.enabled
-          ? this.mcpPresenter.getServerLastError(server.id)
-          : undefined
+        running: await this.mcpService.isServerRunning(server.id),
+        lastError: serverConfig?.enabled ? this.mcpService.getServerLastError(server.id) : undefined
       })
     }
     return statuses
