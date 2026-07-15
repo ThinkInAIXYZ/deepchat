@@ -12,7 +12,8 @@
 - [x] T9: Run focused and full validation required by this architecture slice.
 - [x] T10: Update retained Tape contracts with only validated behavior.
 
-Validation completed on 2026-07-15: focused lineage suites, native SQLite cases under the repository
-Electron ABI, main-process tests, typecheck, i18n, lint, format, and format check passed. The full
-build was intentionally not run because this slice must not refresh unrelated provider or ACP
-registry artifacts.
+Validation repeated on 2026-07-16 after lifecycle retry, source-scaling, projection-freshness,
+fork-boundary, and Tape-incarnation hardening: focused lineage suites, native SQLite cases under
+the repository Electron ABI, main-process tests, typecheck, i18n, lint, format, and format check
+passed. The full build was intentionally not run because this slice must not refresh unrelated
+provider or ACP registry artifacts.
