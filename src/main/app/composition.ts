@@ -56,6 +56,7 @@ import { createSkillRoutes } from '../skill/routes'
 import { createMcpRoutes } from '../mcp/routes'
 import { createRemoteRoutes } from '../remote/routes'
 import { createSchedulerRoutes } from '../scheduler/routes'
+import { createMemoryRoutes } from '../memory/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1331,6 +1332,12 @@ export async function createMainProcessControl(dependencies: {
     })
     const remoteRoutes = createRemoteRoutes(remoteService)
     const schedulerRoutes = createSchedulerRoutes(cronJobs)
+    const memoryRoutes = createMemoryRoutes({
+      memoryService,
+      getAgentType: (agentId) => configPresenter.getAgentType(agentId),
+      getTapeEntries: () => sqlitePresenter.deepchatTapeEntriesTable,
+      getAuditEntries: () => sqlitePresenter.agentMemoryAuditTable
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1380,7 +1387,8 @@ export async function createMainProcessControl(dependencies: {
         skillRoutes,
         mcpRoutes,
         remoteRoutes,
-        schedulerRoutes
+        schedulerRoutes,
+        memoryRoutes
       ],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
@@ -1404,7 +1412,6 @@ export async function createMainProcessControl(dependencies: {
       tabPresenter,
       startupWorkloadCoordinator,
       databaseSecurityPresenter,
-      memoryService,
       reconcileSchedulerAfterAgentChange: async () => {
         await cronJobs.reconcileScheduler('agent-change')
       },

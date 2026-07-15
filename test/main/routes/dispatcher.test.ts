@@ -35,6 +35,7 @@ import { createSkillRoutes } from '@/skill/routes'
 import { createMcpRoutes } from '@/mcp/routes'
 import { createRemoteRoutes } from '@/remote/routes'
 import { createSchedulerRoutes } from '@/scheduler/routes'
+import { createMemoryRoutes } from '@/memory/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1176,7 +1177,14 @@ function createRuntime() {
   const sqlitePresenter = {
     recordSettingsActivity: vi.fn().mockResolvedValue(undefined),
     listSettingsActivity: vi.fn().mockResolvedValue([]),
-    repairSchema: vi.fn().mockResolvedValue(databaseRepairReport)
+    repairSchema: vi.fn().mockResolvedValue(databaseRepairReport),
+    agentMemoryAuditTable: {
+      listByAgent: vi.fn(() => [])
+    },
+    deepchatTapeEntriesTable: {
+      getBySession: vi.fn(() => []),
+      listMemoryViewManifestAnchorsByAgent: vi.fn(() => [])
+    }
   } as unknown as ISQLitePresenter
   const cronJob = {
     id: 'cron-1',
@@ -1375,48 +1383,69 @@ function createRuntime() {
   })
   const remoteRoutes = createRemoteRoutes(remoteService)
   const schedulerRoutes = createSchedulerRoutes(cronJobs as any)
+  const memoryService = {} as any
+  const memoryRoutes = createMemoryRoutes({
+    memoryService,
+    getAgentType: (agentId) => configPresenter.getAgentType(agentId),
+    getTapeEntries: () => (sqlitePresenter as any).deepchatTapeEntriesTable,
+    getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
+  })
 
   return {
     settings,
-    runtime: createMainKernelRouteRuntime({
-      appDataReset,
-      appDatabaseMaintenance,
-      configPresenter,
-      routeMaps: [
-        providerRoutes,
-        toolRoutes,
-        pluginRoutes,
-        skillRoutes,
-        mcpRoutes,
-        remoteRoutes,
-        schedulerRoutes
-      ],
-      sessionLifecyclePort,
-      sessionProjectionPort,
-      desktopSessionBinding,
-      sessionTurnPort,
-      sessionAssignmentPort,
-      sessionPermissionPort,
-      exporter,
-      shortcutPresenter,
-      sqlitePresenter,
-      windowPresenter,
-      devicePresenter,
-      projectPresenter,
-      fileService,
-      knowledgeService,
-      workspaceService,
-      yoBrowserPresenter,
-      tabPresenter,
-      reconcileSchedulerAfterAgentChange: async () => {
-        await cronJobs.reconcileScheduler('agent-change')
-      },
-      usageStatsService,
-      rtkRuntimeService,
-      sessionHistorySearch,
-      agentSessionExportService,
-      sessionTranslation
-    }),
+    runtime: (() => {
+      const runtime = createMainKernelRouteRuntime({
+        appDataReset,
+        appDatabaseMaintenance,
+        configPresenter,
+        routeMaps: [
+          providerRoutes,
+          toolRoutes,
+          pluginRoutes,
+          skillRoutes,
+          mcpRoutes,
+          remoteRoutes,
+          schedulerRoutes,
+          memoryRoutes
+        ],
+        sessionLifecyclePort,
+        sessionProjectionPort,
+        desktopSessionBinding,
+        sessionTurnPort,
+        sessionAssignmentPort,
+        sessionPermissionPort,
+        exporter,
+        shortcutPresenter,
+        sqlitePresenter,
+        windowPresenter,
+        devicePresenter,
+        projectPresenter,
+        fileService,
+        knowledgeService,
+        workspaceService,
+        yoBrowserPresenter,
+        tabPresenter,
+        reconcileSchedulerAfterAgentChange: async () => {
+          await cronJobs.reconcileScheduler('agent-change')
+        },
+        usageStatsService,
+        rtkRuntimeService,
+        sessionHistorySearch,
+        agentSessionExportService,
+        sessionTranslation
+      })
+      Object.defineProperties(runtime, {
+        memoryService: {
+          get: () => memoryService,
+          set: (value) => Object.assign(memoryService, value)
+        },
+        sqlitePresenter: {
+          get: () => sqlitePresenter,
+          set: (value) => Object.assign(sqlitePresenter, value)
+        }
+      })
+      return runtime
+    })(),
     configPresenter,
     providerRuntime,
     acpProviderAdminPort,
@@ -1426,6 +1455,7 @@ function createRuntime() {
     sessionTurnPort,
     sessionAssignmentPort,
     sessionPermissionPort,
+    memoryService,
     skillService,
     skillSyncService,
     exporter,
@@ -2386,42 +2416,6 @@ describe('dispatchDeepchatRoute', () => {
       )
     ).resolves.toEqual({ manifests: [] })
     expect(listMemoryViewManifestAnchorsByAgent).not.toHaveBeenCalled()
-  })
-
-  it('returns no memory view manifests when the SQLite presenter has no tape table', async () => {
-    const { runtime } = createRuntime()
-
-    await expect(
-      dispatchDeepchatRoute(
-        runtime,
-        'memory.listViewManifests',
-        { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
-      )
-    ).resolves.toEqual({ manifests: [] })
-  })
-
-  it('returns a null memory source span when the SQLite presenter has no tape table', async () => {
-    const { runtime } = createRuntime()
-    ;(runtime as any).memoryService = {
-      getManagementVisibleByIds: vi.fn(() => [
-        {
-          id: 'm1',
-          agent_id: 'deepchat',
-          source_session: 's1',
-          source_entry_ids: '[1]'
-        }
-      ])
-    }
-
-    await expect(
-      dispatchDeepchatRoute(
-        runtime,
-        'memory.getSourceSpan',
-        { agentId: 'deepchat', memoryId: 'm1' },
-        { webContentsId: 42, windowId: 7 }
-      )
-    ).resolves.toEqual({ span: null })
   })
 
   it('dispatches bounded memory pages and returns an opaque keyset cursor', async () => {

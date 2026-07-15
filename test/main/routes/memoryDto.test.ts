@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
+import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/memory/routes'
 import {
   createEmptyMemoryHealth,
   createEmptyMemoryRuntimeDiagnostics,

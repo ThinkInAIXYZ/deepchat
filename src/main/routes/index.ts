@@ -19,8 +19,6 @@ import type {
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
-import { isAgentMemoryCategory } from '@shared/types/agent-memory'
-import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { DEV_EVENTS } from '../events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
@@ -68,34 +66,6 @@ import {
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
   debugCreateMockChatSessionRoute,
-  memoryAddRoute,
-  memoryArchiveRoute,
-  memoryApprovePersonaDraftRoute,
-  memoryClearRoute,
-  memoryDeleteRoute,
-  memoryGetByIdsRoute,
-  memoryGetSourceSpanRoute,
-  memoryGetHealthRoute,
-  memoryGetArchiveCandidateLifecyclePreviewRoute,
-  memoryGetLifecycleRoute,
-  memoryGetStatusRoute,
-  memoryListAuditEventsRoute,
-  memoryListConflictsRoute,
-  memoryListPersonaDraftsRoute,
-  memoryListPersonaVersionsRoute,
-  memoryPageRoute,
-  memoryListRoute,
-  memoryListViewManifestsRoute,
-  memoryRejectPersonaDraftRoute,
-  memoryReindexRoute,
-  memoryResolveConflictRoute,
-  memoryRestoreRoute,
-  memoryRollbackPersonaRoute,
-  memorySearchRoute,
-  memorySetPersonaAnchorRoute,
-  memoryUpdateRoute,
-  decodeMemoryPageCursor,
-  encodeMemoryPageCursor,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -261,12 +231,6 @@ import {
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import {
-  createEmptyArchiveCandidateLifecyclePreview,
-  createEmptyMemoryHealth
-} from '@shared/contracts/routes/memory.routes'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { ChatService, type ChatServiceProjectionPort } from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import {
@@ -288,13 +252,6 @@ import {
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SyncImportResult } from '@/presenter/syncPresenter'
-import type { MemoryServicePort } from '@/memory'
-import type { MemoryWriteOutcome } from '@/memory/types'
-import type { CanonicalAgentMemoryRow as AgentMemoryRow } from '@/memory/domain/types'
-import { projectLegacyStatus } from '@/memory/domain/stateModel'
-import type { AgentMemoryAuditRow } from '@/memory/domain/audit'
-import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
-import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 import type { UsageStatsService } from '@/presenter/usageStatsService'
@@ -308,10 +265,6 @@ import type {
   SessionTurnPort
 } from '@/session/contracts'
 import type { SessionQuery } from '@/session/query'
-
-const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
-type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
-const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STATES)
 
 export type MainKernelRouteRuntime = {
   appDataReset: MainKernelAppDataResetPort
@@ -342,7 +295,6 @@ export type MainKernelRouteRuntime = {
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  memoryService: MemoryServicePort
   reconcileSchedulerAfterAgentChange(): Promise<void>
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
@@ -389,42 +341,6 @@ export interface MainKernelDesktopSessionPort extends SessionServiceDesktopPort 
   getActiveId(webContentsId: number): string | null
 }
 
-export function formatMemorySourceRecordContent(record: ChatMessageRecord): string {
-  try {
-    const parsed = JSON.parse(record.content) as unknown
-    if (record.role === 'user') {
-      const text = (parsed as { text?: unknown })?.text
-      return typeof text === 'string' ? text.trim() : ''
-    }
-    const blockText = (block: unknown): string => {
-      const b = block as {
-        type?: string
-        content?: unknown
-      }
-      if (b?.type === 'content' && typeof b.content === 'string') return b.content
-      return ''
-    }
-    if (Array.isArray(parsed)) {
-      return parsed.map(blockText).filter(Boolean).join(' ').trim()
-    }
-    const objectText = blockText(parsed)
-    return objectText.trim()
-  } catch {
-    return ''
-  }
-}
-
-function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null {
-  if (typeof value === 'string' && MEMORY_PERSONA_STATE_SET.has(value)) {
-    return value as MemoryPersonaState
-  }
-  return null
-}
-
-function normalizeMemoryCategory(value: unknown) {
-  return isAgentMemoryCategory(value) ? value : null
-}
-
 const CRON_JOB_AGENT_CHANGE_ROUTES: ReadonlySet<string> = new Set([
   configSetAcpEnabledRoute.name,
   configSetAcpAgentEnabledRoute.name,
@@ -447,187 +363,6 @@ async function reconcileCronJobsAfterAgentChange(
   } catch (error) {
     console.warn('[CronJobs] Failed to reconcile jobs after agent change:', error)
   }
-}
-
-export function toMemoryItemDto(row: AgentMemoryRow) {
-  return {
-    id: row.id,
-    agentId: row.agent_id,
-    kind: row.kind,
-    category: normalizeMemoryCategory(row.category),
-    content: row.content,
-    importance: row.importance,
-    status: projectLegacyStatus(row.lifecycle_state, row.embedding_state),
-    sourceSession: row.source_session,
-    sourceEntryIds: parseAgentMemorySourceEntryIds(row.source_entry_ids),
-    supersededBy: row.superseded_by,
-    createdAt: row.created_at,
-    confidence: row.confidence,
-    conflictState: row.conflict_state,
-    conflictWith: row.conflict_with,
-    personaState: normalizeMemoryPersonaState(row.persona_state),
-    isAnchor: row.is_anchor === 1
-  }
-}
-
-function toMemoryAddResultDto(outcome: MemoryWriteOutcome) {
-  switch (outcome.action) {
-    case 'created':
-      return { action: 'created' as const, memoryId: outcome.id }
-    case 'updated':
-      return { action: 'updated' as const, memoryId: outcome.id }
-    case 'superseded':
-      return {
-        action: 'superseded' as const,
-        memoryId: outcome.id,
-        supersededId: outcome.supersededId
-      }
-    case 'challenged':
-      return {
-        action: 'challenged' as const,
-        memoryId: outcome.challengerId,
-        conflictWith: outcome.targetId
-      }
-    case 'noop':
-      return { action: 'noop' as const, reason: outcome.reason }
-  }
-}
-
-function parseJsonRecord(raw: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
-  } catch {}
-  return {}
-}
-
-function sanitizeRouteRefs(record: Record<string, unknown>): Record<string, unknown> {
-  const safe: Record<string, unknown> = {}
-  const safeKey = /(id|ids|type|status|action|reason|policy|seq|count|hash)$/i
-  for (const [key, value] of Object.entries(record)) {
-    if (safeKey.test(key) || key === 'createdAt' || key === 'updatedAt') {
-      if (
-        typeof value === 'string' ||
-        typeof value === 'number' ||
-        typeof value === 'boolean' ||
-        value === null
-      ) {
-        safe[key] = value
-      } else if (Array.isArray(value)) {
-        safe[key] = value.filter(
-          (item) =>
-            typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
-        )
-      } else {
-        safe[key] = '{...}'
-      }
-    } else if (Array.isArray(value)) {
-      safe[key] = `[${value.length}]`
-    } else if (value && typeof value === 'object') {
-      safe[key] = '{...}'
-    } else if (value !== undefined) {
-      safe[key] = '[redacted]'
-    }
-  }
-  return safe
-}
-
-function toMemoryAuditEventDto(row: AgentMemoryAuditRow) {
-  return {
-    id: row.id,
-    agentId: row.agent_id,
-    eventType: row.event_type,
-    actorType: row.actor_type,
-    sessionId: row.session_id,
-    inputRefs: sanitizeRouteRefs(parseJsonRecord(row.input_refs_json)),
-    outputRefs: sanitizeRouteRefs(parseJsonRecord(row.output_refs_json)),
-    modelProviderId: row.model_provider_id,
-    modelId: row.model_id,
-    status: row.status,
-    reason: row.reason,
-    createdAt: row.created_at
-  }
-}
-
-function readNumber(value: unknown, fallback = 0): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
-}
-
-function deriveSelectedMemoryIds(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null
-  const ids: string[] = []
-  const seen = new Set<string>()
-  const pushId = (id: string): void => {
-    if (id.length === 0 || seen.has(id)) return
-    seen.add(id)
-    ids.push(id)
-  }
-  for (const item of value) {
-    if (typeof item === 'string' && item.length > 0) {
-      pushId(item)
-      continue
-    }
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const id = (item as Record<string, unknown>).id
-      if (typeof id === 'string') pushId(id)
-    }
-  }
-  return ids
-}
-
-function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
-  const payload = parseJsonRecord(row.payload_json)
-  const meta = parseJsonRecord(row.meta_json)
-  const state = payload.state
-  const manifest =
-    state && typeof state === 'object' && !Array.isArray(state)
-      ? (state as Record<string, unknown>)
-      : null
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-    return null
-  }
-  const record = manifest as Record<string, unknown>
-  const messageId = typeof meta.messageId === 'string' ? meta.messageId : null
-  return {
-    sessionId: row.session_id,
-    messageId,
-    entryId: row.entry_id,
-    policyVersion:
-      typeof record.policyVersion === 'number' && Number.isFinite(record.policyVersion)
-        ? record.policyVersion
-        : null,
-    tokenBudget: readNumber(record.tokenBudget),
-    estimatedTokens: readNumber(record.estimatedTokens),
-    selectedCount: Array.isArray(record.selected) ? record.selected.length : 0,
-    selectedIds: deriveSelectedMemoryIds(record.selected),
-    droppedCount: Array.isArray(record.dropped) ? record.dropped.length : 0,
-    queryHash: typeof record.queryHash === 'string' ? record.queryHash : null,
-    createdAt: row.created_at
-  }
-}
-
-function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, memoryId: string) {
-  const [row] = runtime.memoryService.getManagementVisibleByIds(agentId, [memoryId])
-  if (!row || row.agent_id !== agentId || !row.source_session) return null
-  const sourceEntryIds = parseAgentMemorySourceEntryIds(row.source_entry_ids)
-  if (!sourceEntryIds?.length) return null
-  const sourceSet = new Set(sourceEntryIds)
-  const tapeEntriesTable = getMemorySourceTapeEntriesTable(runtime)
-  if (!tapeEntriesTable) return null
-  const rows = tapeEntriesTable.getBySession(row.source_session)
-  const entries = buildEffectiveTapeView(rows)
-    .messageEntries.filter((entry) => sourceSet.has(entry.entryId))
-    .map((entry) => ({
-      entryId: entry.entryId,
-      role: entry.record.role,
-      content: formatMemorySourceRecordContent(entry.record),
-      orderSeq: entry.record.orderSeq
-    }))
-    .filter((entry) => entry.content.length > 0)
-  if (!entries.length) return null
-  return { sessionId: row.source_session, entries }
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -657,7 +392,6 @@ export function createMainKernelRouteRuntime(deps: {
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  memoryService: MemoryServicePort
   reconcileSchedulerAfterAgentChange(): Promise<void>
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
@@ -726,7 +460,6 @@ export function createMainKernelRouteRuntime(deps: {
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
-    memoryService: deps.memoryService,
     reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange,
     usageStatsService: deps.usageStatsService,
     rtkRuntimeService: deps.rtkRuntimeService,
@@ -778,30 +511,6 @@ function recordSettingsActivity(
   void runtime.sqlitePresenter.recordSettingsActivity(activity).catch((error) => {
     console.warn('[SettingsActivity] Failed to record settings activity:', error)
   })
-}
-
-function getMemorySourceTapeEntriesTable(
-  runtime: MainKernelRouteRuntime
-): SQLitePresenter['deepchatTapeEntriesTable'] | null {
-  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
-  if (!table || typeof table.getBySession !== 'function') return null
-  return table
-}
-
-function getMemoryViewManifestTapeEntriesTable(
-  runtime: MainKernelRouteRuntime
-): SQLitePresenter['deepchatTapeEntriesTable'] | null {
-  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
-  if (!table || typeof table.listMemoryViewManifestAnchorsByAgent !== 'function') return null
-  return table
-}
-
-function getMemoryAuditTable(
-  runtime: MainKernelRouteRuntime
-): SQLitePresenter['agentMemoryAuditTable'] | null {
-  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).agentMemoryAuditTable
-  if (!table || typeof table.listByAgent !== 'function') return null
-  return table
 }
 
 function readPromptUpdateName(input: unknown): string | null {
@@ -1876,277 +1585,6 @@ export async function dispatchDeepchatRoute(
       return databaseSecurityRepairSchemaRoute.output.parse({
         report: await runtime.sqlitePresenter.repairSchema()
       })
-    }
-
-    case memoryListRoute.name: {
-      const input = memoryListRoute.input.parse(rawInput)
-      const memories = runtime.memoryService.listMemories(input.agentId).map(toMemoryItemDto)
-      return memoryListRoute.output.parse({ memories })
-    }
-
-    case memoryPageRoute.name: {
-      const input = memoryPageRoute.input.parse(rawInput)
-      const cursor = input.cursor ? decodeMemoryPageCursor(input.cursor) : null
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryPageRoute.output.parse({ items: [], nextCursor: null })
-      }
-      const page = runtime.memoryService.pageMemories(input.agentId, cursor, input.limit)
-      return memoryPageRoute.output.parse({
-        items: page.rows.map(toMemoryItemDto),
-        nextCursor: page.nextCursor ? encodeMemoryPageCursor({ v: 1, ...page.nextCursor }) : null
-      })
-    }
-
-    case memorySearchRoute.name: {
-      const input = memorySearchRoute.input.parse(rawInput)
-      const hits = await runtime.memoryService.searchMemories(input.agentId, input.query, {
-        limit: input.limit
-      })
-      const results = hits.map((hit) => ({
-        ...toMemoryItemDto(hit.row),
-        score: hit.score,
-        sources: hit.sources,
-        similarity: hit.similarity
-      }))
-      return memorySearchRoute.output.parse({ results })
-    }
-
-    case memoryAddRoute.name: {
-      const input = memoryAddRoute.input.parse(rawInput)
-      const outcome = await runtime.memoryService.addUserMemory(
-        input.agentId,
-        {
-          content: input.content,
-          kind: input.kind,
-          category: input.category,
-          importance: input.importance
-        },
-        input.sessionId
-      )
-      return memoryAddRoute.output.parse({ result: toMemoryAddResultDto(outcome) })
-    }
-
-    case memoryUpdateRoute.name: {
-      const input = memoryUpdateRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryUpdateRoute.output.parse({ result: { action: 'noop' } })
-      }
-      const result = runtime.memoryService.updateMemory(input.agentId, input.memoryId, input.patch)
-      return memoryUpdateRoute.output.parse({ result })
-    }
-
-    case memoryGetByIdsRoute.name: {
-      const input = memoryGetByIdsRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryGetByIdsRoute.output.parse({ memories: [] })
-      }
-      const memories = runtime.memoryService
-        .getByIds(input.agentId, input.memoryIds)
-        .map(toMemoryItemDto)
-      return memoryGetByIdsRoute.output.parse({ memories })
-    }
-
-    case memoryGetStatusRoute.name: {
-      const input = memoryGetStatusRoute.input.parse(rawInput)
-      return memoryGetStatusRoute.output.parse({
-        status: runtime.memoryService.getStatus(input.agentId)
-      })
-    }
-
-    case memoryGetHealthRoute.name: {
-      const input = memoryGetHealthRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryGetHealthRoute.output.parse({ health: createEmptyMemoryHealth() })
-      }
-      return memoryGetHealthRoute.output.parse({
-        health: runtime.memoryService.getHealth(input.agentId)
-      })
-    }
-
-    case memoryReindexRoute.name: {
-      const input = memoryReindexRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat' || !runtime.memoryService.canReindex(input.agentId)) {
-        return memoryReindexRoute.output.parse({ started: false })
-      }
-      const already = runtime.memoryService.isReindexing(input.agentId)
-      void runtime.memoryService.reindexEmbeddings(input.agentId, true).catch((error) => {
-        console.warn(`[Memory] manual reindex failed for ${input.agentId}: ${String(error)}`)
-      })
-      return memoryReindexRoute.output.parse({ started: !already })
-    }
-
-    case memoryGetLifecycleRoute.name: {
-      const input = memoryGetLifecycleRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryGetLifecycleRoute.output.parse({ lifecycle: null })
-      }
-      return memoryGetLifecycleRoute.output.parse({
-        lifecycle: runtime.memoryService.getLifecycle(input.agentId, input.memoryId)
-      })
-    }
-
-    case memoryGetArchiveCandidateLifecyclePreviewRoute.name: {
-      const input = memoryGetArchiveCandidateLifecyclePreviewRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
-          preview: createEmptyArchiveCandidateLifecyclePreview()
-        })
-      }
-      return memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
-        preview: runtime.memoryService.getArchiveCandidateLifecyclePreview(input.agentId)
-      })
-    }
-
-    case memoryListAuditEventsRoute.name: {
-      const input = memoryListAuditEventsRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryListAuditEventsRoute.output.parse({ events: [] })
-      }
-      const auditTable = getMemoryAuditTable(runtime)
-      if (!auditTable) {
-        return memoryListAuditEventsRoute.output.parse({ events: [] })
-      }
-      const events = auditTable
-        .listByAgent(input.agentId, {
-          eventType: input.eventType,
-          actorType: input.actorType,
-          sessionId: input.sessionId,
-          status: input.status,
-          startCreatedAt: input.startCreatedAt,
-          endCreatedAt: input.endCreatedAt,
-          limit: input.limit
-        })
-        .map(toMemoryAuditEventDto)
-      return memoryListAuditEventsRoute.output.parse({ events })
-    }
-
-    case memoryListViewManifestsRoute.name: {
-      const input = memoryListViewManifestsRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
-      }
-      const tapeEntriesTable = getMemoryViewManifestTapeEntriesTable(runtime)
-      if (!tapeEntriesTable) {
-        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
-      }
-      const limit = input.limit ?? 100
-      const manifests = tapeEntriesTable
-        .listMemoryViewManifestAnchorsByAgent(input.agentId, {
-          sessionId: input.sessionId,
-          limit,
-          messageId: input.messageId
-        })
-        .map(toMemoryViewManifestDto)
-        .filter((manifest): manifest is NonNullable<typeof manifest> => Boolean(manifest))
-        .filter((manifest) => !input.messageId || manifest.messageId === input.messageId)
-        .slice(0, limit)
-      return memoryListViewManifestsRoute.output.parse({ manifests })
-    }
-
-    case memoryDeleteRoute.name: {
-      const input = memoryDeleteRoute.input.parse(rawInput)
-      const ok = await runtime.memoryService.deleteMemory(input.agentId, input.memoryId)
-      return memoryDeleteRoute.output.parse({ ok })
-    }
-
-    case memoryArchiveRoute.name: {
-      const input = memoryArchiveRoute.input.parse(rawInput)
-      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat') {
-        return memoryArchiveRoute.output.parse({ ok: false })
-      }
-      const ok = await runtime.memoryService.archiveUserMemory(input.agentId, input.memoryId)
-      return memoryArchiveRoute.output.parse({ ok })
-    }
-
-    case memoryClearRoute.name: {
-      const input = memoryClearRoute.input.parse(rawInput)
-      return memoryClearRoute.output.parse(
-        await runtime.memoryService.clearMemoriesWithCleanup(input.agentId)
-      )
-    }
-
-    case memoryRestoreRoute.name: {
-      const input = memoryRestoreRoute.input.parse(rawInput)
-      const ok = runtime.memoryService.restoreMemory(input.agentId, input.memoryId)
-      return memoryRestoreRoute.output.parse({ ok })
-    }
-
-    case memoryGetSourceSpanRoute.name: {
-      const input = memoryGetSourceSpanRoute.input.parse(rawInput)
-      const span = getMemorySourceSpan(runtime, input.agentId, input.memoryId)
-      return memoryGetSourceSpanRoute.output.parse({ span })
-    }
-
-    case memoryListConflictsRoute.name: {
-      const input = memoryListConflictsRoute.input.parse(rawInput)
-      const conflicts = runtime.memoryService.listConflicts(input.agentId).map((pair) => ({
-        challenger: toMemoryItemDto(pair.challenger),
-        target: toMemoryItemDto(pair.target)
-      }))
-      return memoryListConflictsRoute.output.parse({ conflicts })
-    }
-
-    case memoryResolveConflictRoute.name: {
-      const input = memoryResolveConflictRoute.input.parse(rawInput)
-      const ok = await runtime.memoryService.resolveConflict(
-        input.agentId,
-        input.challengerId,
-        input.outcome,
-        'user'
-      )
-      return memoryResolveConflictRoute.output.parse({ ok })
-    }
-
-    case memoryListPersonaVersionsRoute.name: {
-      const input = memoryListPersonaVersionsRoute.input.parse(rawInput)
-      const versions = runtime.memoryService.listPersonaVersions(input.agentId).map(toMemoryItemDto)
-      return memoryListPersonaVersionsRoute.output.parse({ versions })
-    }
-
-    case memoryRollbackPersonaRoute.name: {
-      const input = memoryRollbackPersonaRoute.input.parse(rawInput)
-      const ok = await runtime.memoryService.rollbackPersona(input.agentId, input.versionId)
-      return memoryRollbackPersonaRoute.output.parse({ ok })
-    }
-
-    case memoryListPersonaDraftsRoute.name: {
-      const input = memoryListPersonaDraftsRoute.input.parse(rawInput)
-      const drafts = runtime.memoryService
-        .listPersonaDrafts(input.agentId)
-        .map(({ row, needsReview }) => ({ ...toMemoryItemDto(row), needsReview }))
-      return memoryListPersonaDraftsRoute.output.parse({ drafts })
-    }
-
-    case memoryApprovePersonaDraftRoute.name: {
-      const input = memoryApprovePersonaDraftRoute.input.parse(rawInput)
-      const ok = await runtime.memoryService.approvePersonaDraft(input.agentId, input.draftId)
-      return memoryApprovePersonaDraftRoute.output.parse({ ok })
-    }
-
-    case memoryRejectPersonaDraftRoute.name: {
-      const input = memoryRejectPersonaDraftRoute.input.parse(rawInput)
-      const ok = await runtime.memoryService.rejectPersonaDraft(input.agentId, input.draftId)
-      return memoryRejectPersonaDraftRoute.output.parse({ ok })
-    }
-
-    case memorySetPersonaAnchorRoute.name: {
-      const input = memorySetPersonaAnchorRoute.input.parse(rawInput)
-      const ok = await runtime.memoryService.setPersonaAnchor(
-        input.agentId,
-        input.versionId,
-        input.anchored
-      )
-      return memorySetPersonaAnchorRoute.output.parse({ ok })
     }
 
     case onboardingGetStateRoute.name: {
