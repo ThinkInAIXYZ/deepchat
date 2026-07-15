@@ -74,6 +74,10 @@ export interface AgentTapeAnchorResult {
   createdAt: number
 }
 
+export type AgentTapeHandoffState = Record<string, unknown> & {
+  summary: string
+}
+
 export interface AgentTapeAnchorsOptions {
   limit?: number
 }

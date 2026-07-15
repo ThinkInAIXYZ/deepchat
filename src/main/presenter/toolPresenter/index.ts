@@ -18,6 +18,7 @@ import { ToolMapper, type ToolSource } from './toolMapper'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   TAPE_TOOL_NAMES,
+  getAgentToolExposure,
   isUserConfigurableAgentTool
 } from '@shared/agentTools'
 import {
@@ -714,17 +715,17 @@ export class ToolPresenter implements IToolPresenter {
   }
 
   private buildTapePrompt(tools: MCPToolDefinition[]): string {
-    if (tools.length === 0) {
+    const modelTools = tools.filter(
+      (tool) => getAgentToolExposure(tool.function.name) === 'system-model'
+    )
+    if (modelTools.length === 0) {
       return ''
     }
 
-    const toolNames = new Set(tools.map((tool) => tool.function.name))
-    const names = tools.map((tool) => `\`${tool.function.name}\``).join(', ')
+    const toolNames = new Set(modelTools.map((tool) => tool.function.name))
+    const names = modelTools.map((tool) => `\`${tool.function.name}\``).join(', ')
     const lines = ['## Tape Tools', `DeepChat tape tools are available in this session: ${names}.`]
 
-    if (toolNames.has(TAPE_TOOL_NAMES.info)) {
-      lines.push('`tape_info` inspects this DeepChat-scoped tape subset inspired by bub tape.info.')
-    }
     if (toolNames.has(TAPE_TOOL_NAMES.search)) {
       lines.push(
         '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped canonical tape lookup.'
@@ -735,15 +736,6 @@ export class ToolPresenter implements IToolPresenter {
         '`tape_context` expands selected `entryIds` from compact `tape_search` results into bounded evidence/context without dumping raw payloads.'
       )
     }
-    if (toolNames.has(TAPE_TOOL_NAMES.anchors)) {
-      lines.push('`tape_anchors` lists recent bub-style phase-transition anchors.')
-    }
-    if (toolNames.has(TAPE_TOOL_NAMES.handoff)) {
-      lines.push(
-        '`tape_handoff` writes a bub-style phase-transition anchor. Include a compact `summary` when earlier history must be preserved.'
-      )
-    }
-
     return lines.join('\n')
   }
 

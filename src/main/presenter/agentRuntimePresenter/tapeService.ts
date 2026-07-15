@@ -8,6 +8,7 @@ import type {
   AgentTapeContextEntry,
   AgentTapeContextOptions,
   AgentTapeContextResult,
+  AgentTapeHandoffState,
   AgentTapeSearchOptions,
   ChatMessageRecord
 } from '@shared/types/agent-interface'
@@ -652,6 +653,22 @@ function enrichHandoffState(
   }
 
   return enrichedState
+}
+
+export function normalizeTapeHandoffState(state: unknown): AgentTapeHandoffState {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    throw new Error('Tape handoff requires a non-empty summary.')
+  }
+
+  const summary = (state as Record<string, unknown>).summary
+  if (typeof summary !== 'string' || !summary.trim()) {
+    throw new Error('Tape handoff requires a non-empty summary.')
+  }
+
+  return {
+    ...(state as Record<string, unknown>),
+    summary: summary.trim()
+  }
 }
 
 function forkSessionId(parentSessionId: string, forkId: string): string {
@@ -1465,16 +1482,17 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
   handoff(
     sessionId: string,
     name: string,
-    state: Record<string, unknown> = {},
+    state: AgentTapeHandoffState,
     meta: Record<string, unknown> = {}
   ): DeepChatTapeEntryRow {
+    const normalizedState = normalizeTapeHandoffState(state)
     const table = this.table
     if (!table) {
       throw new Error('Tape table is not available.')
     }
 
     table.ensureBootstrapAnchor(sessionId)
-    const handoffState = enrichHandoffState(state, this.getMessageRecords(sessionId))
+    const handoffState = enrichHandoffState(normalizedState, this.getMessageRecords(sessionId))
     return table.appendAnchor({
       sessionId,
       name: normalizeHandoffName(name),
@@ -1494,7 +1512,7 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
   handoffResult(
     sessionId: string,
     name: string,
-    state: Record<string, unknown> = {},
+    state: AgentTapeHandoffState,
     meta: Record<string, unknown> = {}
   ): TapeAnchorResult {
     return this.toAnchorResult(this.handoff(sessionId, name, state, meta))

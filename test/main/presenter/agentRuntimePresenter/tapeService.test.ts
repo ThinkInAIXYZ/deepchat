@@ -541,7 +541,7 @@ describe('DeepChatTapeService', () => {
     }
 
     service.ensureSessionTapeReady('s1', messageStore as any)
-    service.handoff('s1', 'phase_done', { summary: 'done' })
+    service.handoff('s1', 'phase_done', { summary: '  done  ' })
     const handoffAnchor = entries.find((entry) => entry.name === 'handoff/phase_done')
 
     expect(service.info('s1')).toMatchObject({
@@ -2199,47 +2199,23 @@ describe('DeepChatTapeService', () => {
     expect(tapeOnlyStore.getMessages).not.toHaveBeenCalled()
   })
 
-  it('enriches handoff anchors without requiring a summary field', () => {
+  it('rejects handoff anchors without a non-empty summary before writing Tape state', () => {
     const { table, entries } = createTapeTableMock()
     const service = new DeepChatTapeService({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
-        createRecord({ id: 'u1', orderSeq: 1 }),
-        createRecord({
-          id: 'a1',
-          orderSeq: 2,
-          role: 'assistant',
-          content: JSON.stringify([
-            { type: 'content', content: 'answer', status: 'success', timestamp: 101 }
-          ]),
-          createdAt: 101,
-          updatedAt: 101
-        })
-      ])
-    }
 
-    service.ensureSessionTapeReady('s1', messageStore as any)
-    service.handoff('s1', 'phase_done', {
-      reason: 'phase complete',
-      nextSteps: ['verify parity']
-    })
+    expect(() => service.handoff('s1', 'phase_done', { summary: '   ' })).toThrow(
+      'Tape handoff requires a non-empty summary.'
+    )
+    expect(() => service.handoff('s1', 'phase_done', { reason: 'phase complete' } as any)).toThrow(
+      'Tape handoff requires a non-empty summary.'
+    )
 
-    const handoffAnchor = entries.find((entry) => entry.name === 'handoff/phase_done')
-    const state = JSON.parse(handoffAnchor.payload_json).state
-    expect(state).toMatchObject({
-      reason: 'phase complete',
-      nextSteps: ['verify parity'],
-      cursorOrderSeq: 3,
-      range: {
-        fromOrderSeq: 1,
-        toOrderSeq: 2
-      },
-      sourceMessageIds: ['u1', 'a1']
-    })
-    expect(state.summary).toBeUndefined()
+    expect(table.ensureBootstrapAnchor).not.toHaveBeenCalled()
+    expect(table.appendAnchor).not.toHaveBeenCalled()
+    expect(entries).toEqual([])
   })
 
   it('migrates legacy session summary into a tape anchor during backfill', () => {

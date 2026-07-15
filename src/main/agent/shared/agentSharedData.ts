@@ -3,6 +3,7 @@ import type {
   AgentTapeAnchorsOptions,
   AgentTapeContextOptions,
   AgentTapeContextResult,
+  AgentTapeHandoffState,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -85,7 +86,7 @@ export interface AgentTapePort {
   handoffTape(
     sessionId: string,
     name: string,
-    state?: Record<string, unknown>
+    state: AgentTapeHandoffState
   ): Promise<AgentTapeAnchorResult>
   listMessageViewManifests(
     sessionId: string,

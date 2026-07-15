@@ -44,6 +44,7 @@ import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   TAPE_TOOL_NAMES,
+  isTapeToolName,
   isUserConfigurableAgentTool
 } from '@shared/agentTools'
 import {
@@ -562,8 +563,12 @@ export class AgentToolManager {
       return await this.imageGenerationTool.call(args, conversationId, options)
     }
 
-    if (this.tapeToolHandler?.isTapeTool(toolName)) {
+    if (this.tapeToolHandler?.isModelTool(toolName)) {
       return await this.tapeToolHandler.call(toolName, args, conversationId)
+    }
+
+    if (isTapeToolName(toolName)) {
+      throw new Error(`Tape tool '${toolName}' is not available to the model.`)
     }
 
     if (this.memoryToolHandler?.isMemoryTool(toolName)) {

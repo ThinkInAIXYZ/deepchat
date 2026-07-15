@@ -188,6 +188,34 @@ describe('ToolPresenter', () => {
     expect(mcpPresenter.callTool).not.toHaveBeenCalled()
   })
 
+  it('keeps every Tape capability name reserved against same-name MCP tools', async () => {
+    const tapeToolNames = new Set<string>(Object.values(TAPE_TOOL_NAMES))
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue(
+            Object.values(TAPE_TOOL_NAMES).map((name) => buildToolDefinition(name, 'untrusted-mcp'))
+          )
+      } as any,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\workspace'
+    })
+
+    expect(defs.some((definition) => tapeToolNames.has(definition.function.name))).toBe(false)
+  })
+
   it('keeps ToolPresenter collision resolution behind the DeepChat catalog port', async () => {
     const mcpDefs = [buildToolDefinition('shared', 'mcp')]
     const mcpPresenter = {
@@ -454,7 +482,7 @@ describe('ToolPresenter', () => {
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
   })
 
-  it('keeps non-configurable Tape tools in the runtime catalog despite stale disabled values', async () => {
+  it('keeps the recall pair in the runtime catalog despite stale disabled values', async () => {
     const toolPresenter = new ToolPresenter({
       mcpPresenter: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -484,7 +512,10 @@ describe('ToolPresenter', () => {
     })
     const names = defs.map((tool) => tool.function.name)
 
-    expect(names).toEqual(expect.arrayContaining(Object.values(TAPE_TOOL_NAMES)))
+    expect(names).toEqual(expect.arrayContaining([TAPE_TOOL_NAMES.search, TAPE_TOOL_NAMES.context]))
+    expect(names).not.toContain(TAPE_TOOL_NAMES.info)
+    expect(names).not.toContain(TAPE_TOOL_NAMES.anchors)
+    expect(names).not.toContain(TAPE_TOOL_NAMES.handoff)
   })
 
   it('reads configurable definitions without publishing mappings or mutating runtime context', async () => {
@@ -1073,7 +1104,7 @@ describe('ToolPresenter', () => {
     expect(withProgress).toContain('Before ending the turn, reconcile the checklist')
   })
 
-  it('describes only enabled tape tools in the tape prompt', () => {
+  it('omits diagnostic and runtime-only Tape capabilities from the model prompt', () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
@@ -1101,16 +1132,18 @@ describe('ToolPresenter', () => {
         {
           ...buildToolDefinition(TAPE_TOOL_NAMES.anchors, 'agent-tape'),
           source: 'agent'
+        },
+        {
+          ...buildToolDefinition(TAPE_TOOL_NAMES.handoff, 'agent-tape'),
+          source: 'agent'
         }
       ]
     })
 
-    expect(prompt).toContain('## Tape Tools')
-    expect(prompt).toContain('`tape_info` inspects')
-    expect(prompt).toContain('`tape_anchors` lists')
-    expect(prompt).not.toContain('`tape_search` supports')
-    expect(prompt).not.toContain('`tape_context` expands')
-    expect(prompt).not.toContain('`tape_handoff` writes')
+    expect(prompt).not.toContain('## Tape Tools')
+    expect(prompt).not.toContain('tape_info')
+    expect(prompt).not.toContain('tape_anchors')
+    expect(prompt).not.toContain('tape_handoff')
   })
 
   it('describes tape_context only when the context tool is enabled', () => {

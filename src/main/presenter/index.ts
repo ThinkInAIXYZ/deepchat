@@ -355,9 +355,6 @@ export class Presenter implements IPresenter {
           availableSubagentSlots
         }
       },
-      getTapeInfo: async (conversationId) => {
-        return await this.sessionProjectionCoordinator.getTapeInfo(conversationId)
-      },
       searchTape: async (conversationId, query, options) => {
         return await this.sessionProjectionCoordinator.searchTape(conversationId, query, options)
       },
@@ -367,12 +364,6 @@ export class Presenter implements IPresenter {
           entryIds,
           options
         )
-      },
-      listTapeAnchors: async (conversationId, options) => {
-        return await this.sessionProjectionCoordinator.listTapeAnchors(conversationId, options)
-      },
-      handoffTape: async (conversationId, name, state) => {
-        return await this.sessionProjectionCoordinator.handoffTape(conversationId, name, state)
       },
       isMemoryEnabled: (agentId) => this.memoryPresenter.isEnabled(agentId),
       rememberMemory: async (agentId, input, sourceSession, model) =>

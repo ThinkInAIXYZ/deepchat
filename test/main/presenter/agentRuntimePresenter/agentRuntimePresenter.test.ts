@@ -10360,6 +10360,20 @@ describe('AgentRuntimePresenter', () => {
     })
   })
 
+  describe('tape handoff', () => {
+    it('rejects an empty summary before preparing or appending Tape state', async () => {
+      const ensureTapeReady = vi.spyOn((agent as any).tapeService, 'ensureSessionTapeReady')
+      const appendHandoff = vi.spyOn((agent as any).tapeService, 'handoff')
+
+      await expect(agent.handoffTape('s1', 'manual', { summary: '   ' })).rejects.toThrow(
+        'Tape handoff requires a non-empty summary.'
+      )
+
+      expect(ensureTapeReady).not.toHaveBeenCalled()
+      expect(appendHandoff).not.toHaveBeenCalled()
+    })
+  })
+
   describe('disabled tools', () => {
     it('returns a disabled error when a deferred tool call is no longer enabled', async () => {
       sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec'])
@@ -10379,6 +10393,29 @@ describe('AgentRuntimePresenter', () => {
           responseText: "Tool 'exec' is disabled for the current session."
         })
       )
+    })
+
+    it('does not re-execute deferred non-model Tape calls', async () => {
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['tape_handoff'])
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([])
+      toolPresenter.callTool.mockClear()
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-tape-handoff',
+        name: 'tape_handoff',
+        params: '{"name":"manual","summary":"done"}',
+        server_name: 'agent-tape'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: true,
+          responseText: "Tool 'tape_handoff' is no longer available in the current session."
+        })
+      )
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
     })
 
     it('returns a deferred tool-local AbortError as a tool failure while the run is active', async () => {

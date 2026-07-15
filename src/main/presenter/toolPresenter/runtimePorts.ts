@@ -7,11 +7,8 @@ import type {
 import type {
   DeepChatSubagentMeta,
   DeepChatSubagentSlot,
-  AgentTapeAnchorResult,
-  AgentTapeAnchorsOptions,
   AgentTapeContextOptions,
   AgentTapeContextResult,
-  AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
   PermissionMode,
@@ -72,7 +69,6 @@ export interface CreateSubagentSessionInput {
 export interface AgentToolRuntimePort {
   resolveConversationWorkdir(conversationId: string): Promise<string | null>
   resolveConversationSessionInfo(conversationId: string): Promise<ConversationSessionInfo | null>
-  getTapeInfo?(conversationId: string): Promise<AgentTapeInfo>
   searchTape?(
     conversationId: string,
     query: string,
@@ -83,15 +79,6 @@ export interface AgentToolRuntimePort {
     entryIds: number[],
     options?: AgentTapeContextOptions
   ): Promise<AgentTapeContextResult>
-  listTapeAnchors?(
-    conversationId: string,
-    options?: AgentTapeAnchorsOptions
-  ): Promise<AgentTapeAnchorResult[]>
-  handoffTape?(
-    conversationId: string,
-    name: string,
-    state?: Record<string, unknown>
-  ): Promise<AgentTapeAnchorResult>
   /** Returns whether long-term memory is enabled for the active agent. */
   isMemoryEnabled?(agentId: string): boolean
   /** Writes a long-term memory through the shared semantic coordinator. */

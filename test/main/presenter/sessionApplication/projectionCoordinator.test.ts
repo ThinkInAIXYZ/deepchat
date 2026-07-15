@@ -257,7 +257,7 @@ describe('SessionProjectionCoordinator', () => {
     await harness.coordinator.searchTape('s1', 'needle')
     await harness.coordinator.getTapeContext('s1', [1])
     await harness.coordinator.listTapeAnchors('s1')
-    await harness.coordinator.handoffTape('s1', 'handoff')
+    await harness.coordinator.handoffTape('s1', 'handoff', { summary: 'handoff summary' })
     await expect(harness.coordinator.listMessageViewManifests(' m1 ')).resolves.toEqual([
       { id: 'view-1' }
     ])

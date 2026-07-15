@@ -5,6 +5,7 @@ import type {
   AgentTapeAnchorsOptions,
   AgentTapeContextOptions,
   AgentTapeContextResult,
+  AgentTapeHandoffState,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -179,7 +180,7 @@ export class SessionProjectionCoordinator
   async handoffTape(
     sessionId: string,
     name: string,
-    state: Record<string, unknown> = {}
+    state: AgentTapeHandoffState
   ): Promise<AgentTapeAnchorResult> {
     this.requireSession(sessionId)
     return await this.dependencies.tape.handoffTape(sessionId, name, state)

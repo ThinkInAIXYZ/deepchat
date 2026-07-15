@@ -5,6 +5,7 @@ import type {
   AgentTapeAnchorsOptions,
   AgentTapeContextOptions,
   AgentTapeContextResult,
+  AgentTapeHandoffState,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -79,7 +80,7 @@ import {
 } from './compactionService'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
-import { DeepChatTapeService } from './tapeService'
+import { DeepChatTapeService, normalizeTapeHandoffState } from './tapeService'
 import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
 import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInputStore'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
@@ -1602,10 +1603,11 @@ export class AgentRuntimePresenter {
   async handoffTape(
     sessionId: string,
     name: string,
-    state: Record<string, unknown> = {}
+    state: AgentTapeHandoffState
   ): Promise<AgentTapeAnchorResult> {
+    const normalizedState = normalizeTapeHandoffState(state)
     this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    const row = this.tapeService.handoff(sessionId, name, state)
+    const row = this.tapeService.handoff(sessionId, name, normalizedState)
     return this.toTapeAnchorResult(row)
   }
 

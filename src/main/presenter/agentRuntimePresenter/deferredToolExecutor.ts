@@ -6,6 +6,7 @@ import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { PendingToolInteraction } from './types'
 import type { DeepChatToolResolver } from './toolResolver'
 import { toolContentToText } from './toolAdapters'
+import { isUserConfigurableAgentTool } from '@shared/agentTools'
 
 export type DeferredToolExecutionResult = {
   responseText: string
@@ -107,9 +108,10 @@ export class DeferredToolExecutor {
       if (!toolDefinition) {
         const disabledAgentTools = this.dependencies.toolResolver.getDisabledAgentTools(sessionId)
         return {
-          responseText: disabledAgentTools.includes(toolName)
-            ? `Tool '${toolName}' is disabled for the current session.`
-            : `Tool '${toolName}' is no longer available in the current session.`,
+          responseText:
+            isUserConfigurableAgentTool(toolName) && disabledAgentTools.includes(toolName)
+              ? `Tool '${toolName}' is disabled for the current session.`
+              : `Tool '${toolName}' is no longer available in the current session.`,
           isError: true
         }
       }

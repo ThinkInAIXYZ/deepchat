@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
-import { TAPE_TOOL_NAMES } from '@/presenter/toolPresenter/agentTools'
+import { AgentTapeToolHandler, TAPE_TOOL_NAMES } from '@/presenter/toolPresenter/agentTools'
 
 vi.mock('electron', () => ({
   app: {
@@ -142,7 +142,7 @@ const buildManager = (runtimePort = buildRuntimePort()) =>
   })
 
 describe('Agent tape tools', () => {
-  it('exposes tape tools for DeepChat sessions', async () => {
+  it('exposes only the atomic recall pair for DeepChat sessions', async () => {
     const manager = buildManager()
 
     const defs = await manager.getAllToolDefinitions({
@@ -152,25 +152,14 @@ describe('Agent tape tools', () => {
       conversationId: 'conv-1'
     })
 
-    expect(defs.map((def) => def.function.name)).toEqual(
-      expect.arrayContaining([
-        TAPE_TOOL_NAMES.info,
-        TAPE_TOOL_NAMES.search,
-        TAPE_TOOL_NAMES.context,
-        TAPE_TOOL_NAMES.anchors,
-        TAPE_TOOL_NAMES.handoff
-      ])
-    )
-    const handoffDef = defs.find((def) => def.function.name === TAPE_TOOL_NAMES.handoff)
-    const handoffParameters = handoffDef?.function.parameters as
-      | { additionalProperties?: unknown; properties?: Record<string, unknown> }
-      | undefined
-    expect(handoffParameters?.properties).toHaveProperty('summary')
-    expect(handoffParameters?.properties).not.toHaveProperty('state')
-    expect(handoffParameters?.additionalProperties).toBe(false)
+    const tapeNames = defs
+      .filter((def) => def.server.name === 'agent-tape')
+      .map((def) => def.function.name)
+
+    expect(tapeNames).toEqual([TAPE_TOOL_NAMES.search, TAPE_TOOL_NAMES.context])
   })
 
-  it('keeps base tape tools available when compact context is unsupported', async () => {
+  it('exposes neither recall tool when compact context is unsupported', async () => {
     const manager = buildManager(buildRuntimePort({ getTapeContext: undefined }))
 
     const defs = await manager.getAllToolDefinitions({
@@ -179,17 +168,20 @@ describe('Agent tape tools', () => {
       agentWorkspacePath: '/workspace',
       conversationId: 'conv-1'
     })
-    const names = defs.map((def) => def.function.name)
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
+  })
 
-    expect(names).toEqual(
-      expect.arrayContaining([
-        TAPE_TOOL_NAMES.info,
-        TAPE_TOOL_NAMES.search,
-        TAPE_TOOL_NAMES.anchors,
-        TAPE_TOOL_NAMES.handoff
-      ])
-    )
-    expect(names).not.toContain(TAPE_TOOL_NAMES.context)
+  it('exposes neither recall tool when search is unsupported', async () => {
+    const manager = buildManager(buildRuntimePort({ searchTape: undefined }))
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace',
+      conversationId: 'conv-1'
+    })
+
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
   })
 
   it('does not expose tape tools outside DeepChat sessions', async () => {
@@ -208,16 +200,35 @@ describe('Agent tape tools', () => {
       conversationId: 'conv-1'
     })
 
-    expect(defs.some((def) => def.function.name === TAPE_TOOL_NAMES.info)).toBe(false)
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
   })
 
-  it('routes tape tool calls through the runtime port', async () => {
+  it('does not expose recall tools without a conversation ID', async () => {
+    const runtimePort = buildRuntimePort()
+    const handler = new AgentTapeToolHandler(runtimePort)
+    const manager = buildManager(runtimePort)
+
+    await expect(handler.canUse('   ')).resolves.toBe(false)
+    expect(runtimePort.resolveConversationSessionInfo).not.toHaveBeenCalled()
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace',
+      conversationId: '   '
+    })
+
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
+    await expect(
+      manager.callTool(TAPE_TOOL_NAMES.search, { query: 'needle' }, '   ')
+    ).rejects.toThrow(`${TAPE_TOOL_NAMES.search} requires a conversation ID.`)
+    expect(runtimePort.searchTape).not.toHaveBeenCalled()
+  })
+
+  it('routes only recall calls through the runtime port', async () => {
     const runtimePort = buildRuntimePort()
     const manager = buildManager(runtimePort)
 
-    const info = (await manager.callTool(TAPE_TOOL_NAMES.info, {}, 'conv-1')) as {
-      content: string
-    }
     const search = (await manager.callTool(
       TAPE_TOOL_NAMES.search,
       {
@@ -231,13 +242,6 @@ describe('Agent tape tools', () => {
     )) as {
       content: string
     }
-    const handoff = (await manager.callTool(
-      TAPE_TOOL_NAMES.handoff,
-      { name: 'manual', summary: 'done' },
-      'conv-1'
-    )) as {
-      content: string
-    }
     const context = (await manager.callTool(
       TAPE_TOOL_NAMES.context,
       { entryIds: [2], before: 1, after: 1, limit: 10 },
@@ -245,11 +249,6 @@ describe('Agent tape tools', () => {
     )) as {
       content: string
     }
-    const anchors = (await manager.callTool(TAPE_TOOL_NAMES.anchors, { limit: 5 }, 'conv-1')) as {
-      content: string
-    }
-
-    expect(JSON.parse(info.content)).toMatchObject({ entries: 3, migrationState: 'ready' })
     expect(JSON.parse(search.content)).toHaveLength(1)
     expect(JSON.parse(search.content)[0]).not.toHaveProperty('payload')
     expect(JSON.parse(search.content)[0]).not.toHaveProperty('meta')
@@ -264,16 +263,6 @@ describe('Agent tape tools', () => {
       ]
     })
     expect(JSON.parse(context.content).entries[0]).not.toHaveProperty('payload')
-    expect(JSON.parse(handoff.content)).toEqual({
-      name: 'handoff/manual',
-      entryId: 4,
-      createdAt: 20
-    })
-    expect(JSON.parse(anchors.content)).toEqual([
-      { name: 'session/start', entryId: 1, createdAt: 1 }
-    ])
-    expect(JSON.parse(anchors.content)[0]).not.toHaveProperty('payload')
-    expect(runtimePort.getTapeInfo).toHaveBeenCalledWith('conv-1')
     expect(runtimePort.searchTape).toHaveBeenCalledWith('conv-1', 'auth', {
       limit: 5,
       kinds: ['message'],
@@ -287,22 +276,24 @@ describe('Agent tape tools', () => {
       maxBytesPerEntry: undefined,
       maxTotalBytes: undefined
     })
-    expect(runtimePort.listTapeAnchors).toHaveBeenCalledWith('conv-1', { limit: 5 })
-    expect(runtimePort.handoffTape).toHaveBeenCalledWith('conv-1', 'manual', { summary: 'done' })
-  })
-
-  it('rejects legacy tape_handoff state without writing an empty anchor', async () => {
-    const runtimePort = buildRuntimePort()
-    const manager = buildManager(runtimePort)
-
-    await expect(
-      manager.callTool(
-        TAPE_TOOL_NAMES.handoff,
-        { name: 'manual', state: { summary: 'done' } },
-        'conv-1'
-      )
-    ).rejects.toThrow('do not pass "state"')
-
+    expect(runtimePort.getTapeInfo).not.toHaveBeenCalled()
+    expect(runtimePort.listTapeAnchors).not.toHaveBeenCalled()
     expect(runtimePort.handoffTape).not.toHaveBeenCalled()
   })
+
+  it.each([TAPE_TOOL_NAMES.info, TAPE_TOOL_NAMES.anchors, TAPE_TOOL_NAMES.handoff])(
+    'rejects non-model Tape call %s without runtime side effects',
+    async (toolName) => {
+      const runtimePort = buildRuntimePort()
+      const manager = buildManager(runtimePort)
+
+      await expect(manager.callTool(toolName, {}, 'conv-1')).rejects.toThrow(
+        `Tape tool '${toolName}' is not available to the model.`
+      )
+
+      expect(runtimePort.getTapeInfo).not.toHaveBeenCalled()
+      expect(runtimePort.listTapeAnchors).not.toHaveBeenCalled()
+      expect(runtimePort.handoffTape).not.toHaveBeenCalled()
+    }
+  )
 })

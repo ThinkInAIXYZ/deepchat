@@ -22,8 +22,11 @@ const AGENT_TOOL_EXPOSURE_BY_NAME: Readonly<Record<TapeToolName, AgentToolExposu
     [TAPE_TOOL_NAMES.handoff]: 'runtime-only'
   })
 
-export const getAgentToolExposure = (toolName: string): AgentToolExposure =>
+export const isTapeToolName = (toolName: string): toolName is TapeToolName =>
   Object.prototype.hasOwnProperty.call(AGENT_TOOL_EXPOSURE_BY_NAME, toolName)
+
+export const getAgentToolExposure = (toolName: string): AgentToolExposure =>
+  isTapeToolName(toolName)
     ? AGENT_TOOL_EXPOSURE_BY_NAME[toolName as TapeToolName]
     : 'user-configurable'
 
