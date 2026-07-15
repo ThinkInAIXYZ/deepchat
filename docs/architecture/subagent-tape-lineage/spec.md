@@ -1,21 +1,21 @@
 # Subagent Tape Lineage - Specification
 
-> Status: **planned**
+> Status: **implemented and validated**
 
 ## Problem
 
-DeepChat uses two different lineage models under the word "merge":
+Before this change, DeepChat used the word "merge" for two different lineage models:
 
 1. `DeepChatTapeService.mergeFork()` copies a true fork's selected delta into its parent Tape.
-2. Production subagents run in independent sessions, but `mergeSubagentTape()` only appends a
+2. Production subagents ran in independent sessions, but `mergeSubagentTape()` only appended a
    `fork/merge` event containing child metadata and a textual result summary.
 
-The production operation is useful as an audit link, but it is not a Tape merge: child entries do
-not enter the parent Tape, the parent effective view remains unchanged, and current Tape recall can
-only query one session. Keeping the merge name makes the persistence contract and the model-facing
-capabilities disagree.
+The production operation was useful as an audit link, but it was not a Tape merge: child entries
+did not enter the parent Tape, the parent effective message view remained unchanged, and Tape
+recall could only query one session. Keeping the merge name made the persistence contract and the
+model-facing capabilities disagree.
 
-This specification supersedes the merge/discard wording in the implemented
+This implemented specification supersedes the merge/discard wording in the implemented
 `subagent-run-guardrails` acceptance criteria. It preserves that specification's cancellation
 settlement and retry ordering while replacing the misleading persistence operation.
 
@@ -147,7 +147,8 @@ deduplicated by source session and cutoff where appropriate.
 - Production subagent finalization uses link terminology and typed outcomes end to end.
 - A missing or failed link write remains retryable and is never reported as finalized.
 - True fork merge is atomic, idempotent, head-bounded, and excludes branch-local control anchors.
-- Current-only recall remains byte-for-byte compatible for callers that omit new fields.
+- Current-only source selection, filtering, and ordering remain compatible when callers omit new
+  fields; search/context outputs add explicit source identity.
 - Authorized linked recall returns source session IDs and never reads beyond a frozen head.
 - Sibling, grandchild, unrelated, deleted, and malformed legacy sources cannot leak data.
 - Cross-Tape search respects one global limit and context windows remain within one Tape.

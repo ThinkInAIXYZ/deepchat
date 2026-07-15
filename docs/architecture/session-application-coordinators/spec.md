@@ -138,7 +138,7 @@ Owns executable assignment and runtime-setting policy:
 - transfer impact, batch move/delete, and single-session transfer;
 - model, project, permission, generation settings, disabled tools, and subagent-enabled settings;
 - ACP config options and commands;
-- subagent Tape merge/discard.
+- subagent Tape link finalization.
 
 Session deletion remains a lifecycle transaction. Assignment may call a required narrow lifecycle
 deletion port, but the composition graph must not use optional setters or circular construction.
@@ -253,8 +253,8 @@ defined as `Pick<IAgentSessionPresenter, ...>` and must not be grouped under a r
 - Project updates retain their current non-transactional order; no rollback is introduced.
 - ACP model lock, workdir requirement, permission modes, generation settings, disabled tools, and
   config/command behavior remain unchanged.
-- Subagent parent/slot/agent validation, ACP forced runtime settings, and Tape merge/discard parent
-  checks remain unchanged.
+- Subagent parent/slot/agent validation, ACP forced runtime settings, and Tape link parent-child
+  checks remain explicit at finalization.
 
 ### Projection
 

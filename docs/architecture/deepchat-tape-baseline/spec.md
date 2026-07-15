@@ -5,8 +5,9 @@ Status: current implementation baseline. Retained Tape implementation specs are
 [deepchat-tape-replay-contract](../deepchat-tape-replay-contract/spec.md),
 [deepchat-tape-view-assembler](../deepchat-tape-view-assembler/spec.md),
 [deepchat-tape-view-policy](../deepchat-tape-view-policy/spec.md),
-[deepchat-tape-policy-provenance](../deepchat-tape-policy-provenance/spec.md), and
-[deepchat-tape-policy-selector](../deepchat-tape-policy-selector/spec.md).
+[deepchat-tape-policy-provenance](../deepchat-tape-policy-provenance/spec.md),
+[deepchat-tape-policy-selector](../deepchat-tape-policy-selector/spec.md), and
+[subagent-tape-lineage](../subagent-tape-lineage/spec.md).
 
 This document keeps the Tape vision aligned with the current DeepChat codebase. The implementation
 path is:
@@ -37,7 +38,8 @@ DeepChat already has the main Tape primitives.
 | View policy | `tapeViewPolicy.ts` | Registry and selector boundary; `legacy_context_v1` delegates to the current selector. |
 | Context selection | `contextBuilder.ts` | Legacy token-budget selector used by `legacy_context_v1`. |
 | Request trace | `deepchat_message_traces` | Stores redacted provider request previews for the trace dialog. |
-| Model recall tools | `agentTapeTools.ts` | Exposes the atomic `tape_search` / `tape_context` pair only when both runtime ports are available for a persisted DeepChat session. |
+| Tape lineage | `DeepChatTapeService` + `new_sessions` | Keeps true forks as copy-on-merge branches and production subagents as independently readable, frozen-head Tape links. |
+| Model recall tools | `agentTapeTools.ts` | Exposes the atomic `tape_search` / `tape_context` pair only when both runtime ports are available for a persisted DeepChat session; linked-subagent recall is an explicit scope on the same pair. |
 | Diagnostic/runtime APIs | `DeepChatTapeService` + `SessionProjectionCoordinator` | Retains info, anchor listing, and handoff below the model-tool boundary; these capabilities are not user-configurable Agent tools. |
 
 The first implementation step uses this baseline as the single runtime path. `DeepChatTapeService`
@@ -60,11 +62,14 @@ docs/architecture/deepchat-tape-policy-provenance/
 └── spec.md
 docs/architecture/deepchat-tape-policy-selector/
 └── spec.md
+docs/architecture/subagent-tape-lineage/
+└── spec.md
 ```
 
 The retained scopes are `Existing TapeService + ViewManifest shadow mode`, replay/export
 contracts, `TapeViewAssembler` as the production context assembly entry, and `TapeViewPolicy` as
-the policy replacement boundary, `ViewManifest` policy provenance, and policy selector registry.
+the policy replacement boundary, `ViewManifest` policy provenance, policy selector registry, and
+the distinction between true fork merge and production subagent Tape links.
 
 ## Scope Boundary
 
@@ -86,7 +91,8 @@ the policy replacement boundary, `ViewManifest` policy provenance, and policy se
 ### Deferred scope for the first increment
 
 - Creating a separate TapeStore abstraction.
-- Memory graph retrieval, embedding-backed topic clustering, and cross-session recall.
+- Memory graph retrieval, embedding-backed topic clustering, and unrestricted or recursive
+  cross-session recall. Explicit recall of finalized direct-subagent Tape links is implemented.
 - Live LLM replay in CI.
 - Full eval pipeline and training exports.
 
@@ -99,6 +105,22 @@ the policy replacement boundary, `ViewManifest` policy provenance, and policy se
    manifest.
 5. Keep old sessions compatible through existing lazy backfill and bootstrap anchors.
 6. Treat `ViewManifest` as an explanation and regression artifact until parity is proven.
+7. Treat persisted session ownership as the authorization source for linked Tape reads. Link events
+   freeze readable child heads but never copy child entries into the parent effective view.
+
+## Subagent Tape Lineage
+
+Production subagents own durable, independent Tapes. Finalization appends one idempotent
+`subagent/tape_linked` event to the parent with a closed lifecycle outcome and frozen child head;
+missing capability or failed persistence leaves finalization retryable. The parent can explicitly
+search finalized direct children through `linked_subagents` or `current_and_linked`, and can expand
+context within one authorized source Tape by `sourceSessionId`. These reads are bounded by the link
+head and do not bootstrap, backfill, repair projections, or mutate Memory state.
+
+True forks retain different semantics: their selected delta and `fork/merge` receipt append to the
+parent in one SQLite transaction, retries reuse the committed receipt, and branch-local control
+anchors are excluded. Legacy external `fork/merge` records remain readable as child links;
+`fork/discard` remains audit-only. No database schema migration or third model tool was added.
 
 ## Target Flow
 

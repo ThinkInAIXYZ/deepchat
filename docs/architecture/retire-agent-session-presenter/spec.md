@@ -81,7 +81,7 @@ No object may re-export all four capability groups.
 | --- | --- |
 | create, detached create, subagent create, draft ensure, fork, delete | Lifecycle |
 | send, steer, pending input, message mutation, compaction, cancel, interaction | Turn |
-| transfer, runtime settings, ACP config/commands, subagent Tape merge/discard | AgentAssignment |
+| transfer, runtime settings, ACP config/commands, subagent Tape link | AgentAssignment |
 | session/message/Tape reads, window activation, rename/pin, title/status events | Projection |
 | permission cleanup | existing `SessionPermissionPort` |
 

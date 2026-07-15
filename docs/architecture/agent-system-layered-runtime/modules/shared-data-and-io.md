@@ -120,7 +120,8 @@ interface AgentSharedDataPorts {
 - `AgentTranscriptReadPort` 服务 title/history/export/message lookup；
 - `AgentTranscriptMutationPort` 服务 clear/edit/delete/fork/retry preparation，retry preparation 继续执行原
   summary 与 Memory invalidation，再把合法 input 交给当前 backend；
-- `AgentTapePort` 服务 query/handoff/replay 与 subagent merge/discard。
+- `AgentTapePort` 服务 query/handoff/replay、显式 linked Tape view 与 production subagent link
+  finalization。
 
 当前这些 port 由 `AgentRuntimePresenter` 作为过渡 adapter 实现，但 direct ACP 的网络 prompt、pending、
 permission、generation 和 ACP control 不通过该 presenter 执行。后续 ownership slice 可以替换 adapter，

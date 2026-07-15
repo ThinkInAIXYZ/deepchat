@@ -117,7 +117,8 @@ Do not rename, merge or recreate these stores in this goal:
 
 - user/final/tool facts remain monotonic and idempotent by provenance;
 - edit/delete are replacement/retraction facts, not in-place Tape mutation;
-- effective view, bootstrap/backfill, anchors, handoff/fork/merge/discard remain compatible;
+- effective view, bootstrap/backfill, anchors, handoff, true-fork merge/discard, and production
+  subagent Tape links remain compatible;
 - one ViewManifest write is synchronously attempted before each actual provider request at the current point;
   write failure logs and remains fail-open, so a request may legally have no manifest;
 - trace/replay default remains metadata-only; raw payload inclusion stays opt-in;

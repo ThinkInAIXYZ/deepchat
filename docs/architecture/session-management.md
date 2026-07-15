@@ -110,7 +110,8 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 ## Subagent、remote 与 cron
 
 - Subagent 与普通 session 共享 app/message schema，用 `sessionKind`、`parentSessionId`、`subagentMeta`
-  区分；child backend 仍由 manager 选择，父 session 通过 Tape merge/discard 接收结果。
+  区分；child backend 仍由 manager 选择。子任务结算时父 session 记录 frozen-head Tape link；显式
+  cross-Tape View 只读 direct child，child entries 不复制进父 effective view。
 - Remote 通过四个 consumer-owned session ports 调用 coordinator；active-generation lookup/cancel 仍使用
   `AgentManagerGenerationPort`，不扫描 presenter runtime maps。
 - Cron 的 composition-owned starter 通过 Lifecycle 创建 detached app session、通过 Turn send/cancel；
