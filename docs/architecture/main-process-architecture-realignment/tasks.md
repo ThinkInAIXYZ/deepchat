@@ -281,6 +281,7 @@
 - [x] 删除旧 `SessionPresenter`、旧 thread 广播和 tab/window close compatibility；legacy export
   只保留 exporter 内的只读转换。
 - [x] 用量统计计算、回填服务和测试移入 Session；删除 Presenter 下的旧文件和旧测试路径。
+- [x] 删除 Presenter 下没有调用方的旧搜索提示词模板，不迁移无效代码。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
