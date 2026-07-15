@@ -6,7 +6,7 @@ import type {
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
-import type { IToolPresenter, ToolDefinitionContext } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import type { ToolOutputGuard } from './toolOutputGuard'
 
@@ -17,7 +17,7 @@ export interface ToolCatalogCacheEntry<TProfile extends string = string> {
 }
 
 export function createToolCatalogPort<TProfile extends string>(input: {
-  toolPresenter: IToolPresenter
+  toolService: ToolServicePort
   resolveContext(activeSkillNames?: string[]): Promise<{
     profile: TProfile
     fingerprint: string
@@ -33,14 +33,14 @@ export function createToolCatalogPort<TProfile extends string>(input: {
         resolved.cached?.profile === resolved.profile &&
         resolved.cached.fingerprint === resolved.fingerprint
       ) {
-        input.toolPresenter.syncAgentToolContext({
+        input.toolService.syncAgentToolContext({
           chatMode: resolved.context.chatMode,
           agentWorkspacePath: resolved.context.agentWorkspacePath
         })
         return resolved.cached.tools
       }
 
-      const tools = await input.toolPresenter.getAllToolDefinitions(resolved.context)
+      const tools = await input.toolService.getAllToolDefinitions(resolved.context)
       input.commitCache({
         profile: resolved.profile,
         fingerprint: resolved.fingerprint,
@@ -51,10 +51,10 @@ export function createToolCatalogPort<TProfile extends string>(input: {
   }
 }
 
-export function createToolExecutionPort(toolPresenter: IToolPresenter): ToolExecutionPort {
+export function createToolExecutionPort(toolService: ToolServicePort): ToolExecutionPort {
   return {
-    preCheck: (call, options) => toolPresenter.preCheckToolPermission(call, options),
-    execute: (call, options) => toolPresenter.callTool(call, options)
+    preCheck: (call, options) => toolService.preCheckToolPermission(call, options),
+    execute: (call, options) => toolService.callTool(call, options)
   }
 }
 

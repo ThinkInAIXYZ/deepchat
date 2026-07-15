@@ -22,7 +22,7 @@ flowchart LR
     DeepInstance --> Loop["DeepChatLoopEngine + LoopRun"]
     AcpBackend --> AcpRuntime["AcpAgentRuntime"]
     AcpRuntime --> AcpInstance["AcpAgentInstance"]
-    Loop --> Tools["ToolPresenter ports"]
+    Loop --> Tools["ToolService ports"]
     Loop --> Tape["TapeRecorder / message projection"]
     Loop --> Memory["MemoryRuntimeCoordinator"]
     AcpInstance --> Projection["ACP message/Tape/event/trace adapters"]
@@ -64,7 +64,7 @@ flowchart LR
 | startup maintenance | `src/main/presenter/startupMigrations/` | default legacy import and stateless session-data migrations |
 | shared session policies | `src/main/agent/shared/` | available-agent catalog and assistant-model selection |
 | `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | DeepChat 运行、provider/tool adapters；Session data 由外部注入 |
-| `ToolPresenter` | `src/main/presenter/toolPresenter/` | MCP/local tool 聚合、collision policy、权限预检查、调用路由 |
+| `ToolService` | `src/main/tool/` | MCP/local tool 聚合、collision policy、权限预检查、调用路由 |
 | `MemoryPresenter` | `src/main/presenter/memoryPresenter/` | Memory rows、retrieval、write、vector、maintenance kernel |
 | `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider/model runtime和 DeepChat ACP-provider compatibility adapter |
 | `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | remote channel control；session 操作走四个 narrow ports，generation control 走 manager port |

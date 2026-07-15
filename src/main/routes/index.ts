@@ -17,7 +17,7 @@ import type {
   ISkillPresenter,
   ISyncPresenter,
   ITabPresenter,
-  IToolPresenter,
+  ToolServicePort,
   IUpgradePresenter,
   IWindowPresenter,
   IWorkspacePresenter,
@@ -479,7 +479,7 @@ export type MainKernelRouteRuntime = {
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
-  toolPresenter: IToolPresenter
+  toolService: ToolServicePort
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
   sessionService: SessionService
@@ -807,7 +807,7 @@ export function createMainKernelRouteRuntime(deps: {
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
-  toolPresenter: IToolPresenter
+  toolService: ToolServicePort
   sqlitePresenter?: ISQLitePresenter
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
@@ -868,7 +868,7 @@ export function createMainKernelRouteRuntime(deps: {
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
     dialogPresenter: deps.dialogPresenter,
-    toolPresenter: deps.toolPresenter,
+    toolService: deps.toolService,
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sqlitePresenter:
       deps.sqlitePresenter ??
@@ -4244,7 +4244,7 @@ export async function dispatchDeepchatRoute(
 
     case toolsListDefinitionsRoute.name: {
       const input = toolsListDefinitionsRoute.input.parse(rawInput)
-      const tools = await runtime.toolPresenter.getAllToolDefinitions(input)
+      const tools = await runtime.toolService.getAllToolDefinitions(input)
       return toolsListDefinitionsRoute.output.parse({ tools })
     }
 

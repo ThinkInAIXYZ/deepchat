@@ -1,6 +1,6 @@
 import type { IConfigPresenter, ISkillPresenter } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type {
@@ -21,7 +21,7 @@ type ToolResolverSkillPort = Pick<ISkillPresenter, 'getActiveSkills' | 'setActiv
 export interface DeepChatToolResolverDependencies {
   configPresenter: IConfigPresenter
   sqlitePresenter: SQLitePresenter
-  toolPresenter: IToolPresenter
+  toolService: ToolServicePort
   skillPresenter: ToolResolverSkillPort
   deepChatRuntime: DeepChatAgentRuntime
   getDeepChatInstance(sessionId: string): DeepChatAgentInstance
@@ -57,7 +57,7 @@ export class DeepChatToolResolver {
     resourceInstance: DeepChatAgentInstance
   ): ToolCatalogPort {
     const catalog = createToolCatalogPort<DeepChatToolProfileKind>({
-      toolPresenter: this.dependencies.toolPresenter,
+      toolService: this.dependencies.toolService,
       resolveContext: async (activeSkillNamesOverride) => {
         this.dependencies.assertCurrent(sessionId, resourceInstance)
         const agentId =

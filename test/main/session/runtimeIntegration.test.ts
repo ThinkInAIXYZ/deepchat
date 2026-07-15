@@ -643,7 +643,7 @@ function createMockConfigPresenter() {
   } as any
 }
 
-function createMockToolPresenter() {
+function createMockToolService() {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
     callTool: vi.fn().mockResolvedValue({
@@ -748,7 +748,7 @@ describe('Integration: createSession end-to-end', () => {
       configPresenter,
       sqlitePresenter,
       sessionData,
-      createMockToolPresenter(),
+      createMockToolService(),
       createRuntimeDependencies()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
@@ -916,7 +916,7 @@ describe('Integration: ACP hooks bridge', () => {
       configPresenter,
       sqlitePresenter,
       sessionData,
-      createMockToolPresenter(),
+      createMockToolService(),
       createRuntimeDependencies(),
       new NewSessionHooksBridge(hookDispatcher)
     )
@@ -1022,7 +1022,7 @@ describe('Integration: multi-turn context', () => {
       configPresenter,
       sqlitePresenter,
       sessionData,
-      createMockToolPresenter(),
+      createMockToolService(),
       createRuntimeDependencies()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
@@ -1624,7 +1624,7 @@ describe('Integration: crash recovery', () => {
       configPresenter,
       sqlitePresenter,
       createSessionData(sqlitePresenter),
-      createMockToolPresenter(),
+      createMockToolService(),
       createRuntimeDependencies()
     )
 

@@ -123,7 +123,7 @@ const setup = async (options?: {
     }
   })
 
-  const toolPresenter = {
+  const toolService = {
     getAllToolDefinitions: vi
       .fn()
       .mockResolvedValue([
@@ -168,7 +168,7 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/ToolClient', () => ({
     createToolClient: vi.fn(() => ({
-      getAllToolDefinitions: toolPresenter.getAllToolDefinitions
+      getAllToolDefinitions: toolService.getAllToolDefinitions
     }))
   }))
   vi.doMock('@api/SessionClient', () => ({
@@ -270,7 +270,7 @@ const setup = async (options?: {
   return {
     wrapper,
     draftStore,
-    toolPresenter,
+    toolService,
     agentSessionPresenter,
     skillEvents
   }
@@ -363,7 +363,7 @@ describe('McpIndicator', () => {
   })
 
   it('renders MCP badge for ACP sessions and keeps built-in tools hidden', async () => {
-    const { wrapper, toolPresenter } = await setup({
+    const { wrapper, toolService } = await setup({
       hasActiveSession: true,
       activeAgentId: 'acp-coder'
     })
@@ -371,7 +371,7 @@ describe('McpIndicator', () => {
     const buttons = wrapper.findAll('button')
     expect(buttons[0].text()).toContain('MCP 1')
     expect(wrapper.text()).not.toContain('Tools')
-    expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+    expect(toolService.getAllToolDefinitions).not.toHaveBeenCalled()
   })
 
   it('renders plugin-owned MCP tools in a separate plugin section', async () => {
@@ -442,12 +442,12 @@ describe('McpIndicator', () => {
   })
 
   it('reloads deepchat tools when the active session emits skill activation changes', async () => {
-    const { toolPresenter, skillEvents } = await setup({
+    const { toolService, skillEvents } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
 
-    toolPresenter.getAllToolDefinitions.mockClear()
+    toolService.getAllToolDefinitions.mockClear()
     skillEvents.emitSessionChanged({
       conversationId: 's1',
       skills: ['deepchat-settings'],
@@ -455,8 +455,8 @@ describe('McpIndicator', () => {
     })
     await flushPromises()
 
-    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
-    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith({
+    expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+    expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith({
       chatMode: 'agent',
       conversationId: 's1',
       agentWorkspacePath: '/tmp/workspace'

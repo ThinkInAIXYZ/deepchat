@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
-import { AgentBashHandler } from '@/presenter/toolPresenter/agentTools/agentBashHandler'
+import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
+import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')

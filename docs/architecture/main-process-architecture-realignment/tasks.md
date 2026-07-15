@@ -232,6 +232,9 @@
   运行分支，无需权限时明确返回 `null`。
 - [x] 删除全部 main 内部 `MCP_EVENTS`；Config 直接通知 MCP 和 Knowledge，MCP client、server 和
   Tool 列表变化直接清理 Tool cache 并通知 Agent，不再通过全局 `EventBus` 控制刷新顺序。
+- [x] 删除 `presenter/toolPresenter` 和对应旧测试目录；实现移到 `src/main/tool/`，类型移到
+  `src/shared/types/tool.d.ts`，并把 `ToolPresenter` / `IToolPresenter` 改成 `ToolService` /
+  `ToolServicePort`，不保留旧导出或转发文件。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

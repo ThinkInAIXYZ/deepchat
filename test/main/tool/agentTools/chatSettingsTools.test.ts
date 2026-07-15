@@ -4,7 +4,7 @@ import {
   buildChatSettingsToolDefinitions,
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
-} from '@/presenter/toolPresenter/agentTools/chatSettingsTools'
+} from '@/tool/agentTools/chatSettingsTools'
 
 describe('ChatSettingsToolHandler', () => {
   const configPresenter = {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { MCPToolCall, MCPToolDefinition } from '@shared/types/core/mcp'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
 import {
   createToolCatalogPort,
@@ -23,7 +23,7 @@ function makeTool(name: string): MCPToolDefinition {
   }
 }
 
-function createToolPresenter(overrides: Partial<IToolPresenter> = {}): IToolPresenter {
+function createToolService(overrides: Partial<ToolServicePort> = {}): ToolServicePort {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
     syncAgentToolContext: vi.fn(),
@@ -46,7 +46,7 @@ describe('DeepChat tool adapters', () => {
     ['many', [makeTool('read'), makeTool('write')]]
   ])('resolves %s final definitions with the exact policy context', async (_case, tools) => {
     const getAllToolDefinitions = vi.fn().mockResolvedValue(tools)
-    const toolPresenter = createToolPresenter({ getAllToolDefinitions })
+    const toolService = createToolService({ getAllToolDefinitions })
     const commitCache = vi.fn()
     const resolveContext = vi.fn(async (activeSkillNames?: string[]) => ({
       profile: 'code' as const,
@@ -61,7 +61,7 @@ describe('DeepChat tool adapters', () => {
       }
     }))
     const port = createToolCatalogPort({
-      toolPresenter,
+      toolService,
       resolveContext,
       commitCache
     })
@@ -91,11 +91,11 @@ describe('DeepChat tool adapters', () => {
       .mockResolvedValueOnce(firstTools)
       .mockResolvedValueOnce(revisedTools)
     const syncAgentToolContext = vi.fn()
-    const toolPresenter = createToolPresenter({ getAllToolDefinitions, syncAgentToolContext })
+    const toolService = createToolService({ getAllToolDefinitions, syncAgentToolContext })
     let fingerprint = 'revision:1'
     let cached: ToolCatalogCacheEntry<'code'> | undefined
     const port = createToolCatalogPort({
-      toolPresenter,
+      toolService,
       resolveContext: async () => ({
         profile: 'code' as const,
         fingerprint,
@@ -141,7 +141,7 @@ describe('DeepChat tool adapters', () => {
       content: 'written',
       rawData: { toolCallId: 'call-1', content: 'written', isError: false }
     })
-    const port = createToolExecutionPort(createToolPresenter({ preCheckToolPermission, callTool }))!
+    const port = createToolExecutionPort(createToolService({ preCheckToolPermission, callTool }))!
     const call: MCPToolCall = {
       id: 'call-1',
       type: 'function',

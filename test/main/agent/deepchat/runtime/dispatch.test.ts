@@ -13,7 +13,7 @@ import type {
 import { createState } from '@/agent/deepchat/runtime/types'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import type { MCPToolDefinition } from '@shared/presenter'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
 import {
@@ -21,7 +21,7 @@ import {
   createToolResultPort
 } from '@/agent/deepchat/runtime/toolAdapters'
 import type { DeepChatLoopToolNotification, ToolResultPort } from '@/agent/deepchat/loop/ports'
-import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
+import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
@@ -122,7 +122,7 @@ function makeAgentImageGenerationTool(): MCPToolDefinition {
   }
 }
 
-function createMockToolPresenter(responses: Record<string, string> = {}): IToolPresenter {
+function createMockToolService(responses: Record<string, string> = {}): ToolServicePort {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
     syncAgentToolContext: vi.fn(),
@@ -142,7 +142,7 @@ function createMockToolPresenter(responses: Record<string, string> = {}): IToolP
     clearConversationToolMapping: vi.fn(),
     clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
-  } as unknown as IToolPresenter
+  } as unknown as ToolServicePort
 }
 
 const DEFAULT_INTERLEAVED_REASONING: InterleavedReasoningConfig = {
@@ -173,7 +173,7 @@ async function executeTools(
   conversation: any[],
   prevBlockCount: number,
   tools: MCPToolDefinition[],
-  toolPresenter: IToolPresenter,
+  toolService: ToolServicePort,
   modelId: string,
   io: IoParams,
   permissionMode: PermissionMode,
@@ -185,7 +185,7 @@ async function executeTools(
   interleavedReasoning: InterleavedReasoningConfig = DEFAULT_INTERLEAVED_REASONING,
   rendererFlushHandle?: Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 ) {
-  const toolExecution = createToolExecutionPort(toolPresenter)!
+  const toolExecution = createToolExecutionPort(toolService)!
   const toolResults = createToolResultPort({
     outputGuard: toolOutputGuard,
     normalize: hooks?.resultNormalizer ?? (async ({ content }) => content)
@@ -289,7 +289,7 @@ describe('dispatch', () => {
   describe('executeTools', () => {
     it('builds assistant message, calls tools, updates blocks', async () => {
       const tools = [makeTool('get_weather')]
-      const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+      const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
       const conversation = [{ role: 'user' as const, content: 'Hello' }]
 
       // Simulate accumulator having produced a tool_call block
@@ -313,7 +313,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -325,7 +325,7 @@ describe('dispatch', () => {
       )
 
       expect(executed.executed).toBe(1)
-      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+      expect(toolService.callTool).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'tc1',
           function: { name: 'get_weather', arguments: '{}' },
@@ -352,7 +352,7 @@ describe('dispatch', () => {
 
     it('rejects calls missing from the current session tool definitions', async () => {
       const tools = [makeAgentTool('read')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const conversation: any[] = []
       state.blocks.push({
         type: 'tool_call',
@@ -368,7 +368,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -378,7 +378,7 @@ describe('dispatch', () => {
       )
 
       expect(outcome.executed).toBe(1)
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(conversation.find((message: any) => message.role === 'tool')?.content).toBe(
         'Error: Tool is not available in the current session: exec'
       )
@@ -398,8 +398,8 @@ describe('dispatch', () => {
         revision: 1,
         updatedAt: '2026-05-18T00:00:00.000Z'
       }
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn(async (_request, options) => {
           options?.onProgress?.({
             kind: 'agent_plan',
@@ -415,7 +415,7 @@ describe('dispatch', () => {
             }
           }
         })
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
       const conversation = [{ role: 'user' as const, content: 'Plan this' }]
 
       state.blocks.push({
@@ -432,7 +432,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -492,8 +492,8 @@ describe('dispatch', () => {
           updatedAt: '2026-05-18T00:00:01.000Z'
         }
       ]
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn(async (_request, options) => {
           for (const snapshot of snapshots) {
             options?.onProgress?.({
@@ -511,7 +511,7 @@ describe('dispatch', () => {
             }
           }
         })
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
       const conversation = [{ role: 'user' as const, content: 'Plan this' }]
 
       state.blocks.push({
@@ -528,7 +528,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -554,8 +554,8 @@ describe('dispatch', () => {
 
     it('ignores agent plan progress from parallel read-only tool batches', async () => {
       const tools = [makeAgentTool('read')]
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn(async (request, options) => {
           options?.onProgress?.({
             kind: 'agent_plan',
@@ -577,7 +577,7 @@ describe('dispatch', () => {
             }
           }
         })
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
       const conversation = [{ role: 'user' as const, content: 'Read in parallel' }]
 
       state.blocks.push(
@@ -606,7 +606,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -634,8 +634,8 @@ describe('dispatch', () => {
       const firstReadReleasePromise = new Promise<void>((resolve) => {
         releaseFirstRead = resolve
       })
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn(async (request) => {
           started.push(request.id)
           if (request.id === 'tc-read-a') {
@@ -660,7 +660,7 @@ describe('dispatch', () => {
             }
           }
         })
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
       const conversation = [{ role: 'user' as const, content: 'Hello' }]
 
       state.blocks.push({
@@ -687,7 +687,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -711,8 +711,8 @@ describe('dispatch', () => {
 
     it('isolates parallel pre-check failures to the affected tool call', async () => {
       const tools = [makeAgentTool('read')]
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         preCheckToolPermission: vi.fn(async (request) => {
           if (request.id === 'tc-read-a') {
             throw new Error('pre-check failed')
@@ -727,7 +727,7 @@ describe('dispatch', () => {
             isError: false
           }
         }))
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
 
       state.blocks.push({
         type: 'tool_call',
@@ -753,7 +753,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -763,8 +763,8 @@ describe('dispatch', () => {
       )
 
       expect(executed.executed).toBe(2)
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
-      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+      expect(toolService.callTool).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-read-b' }),
         expect.any(Object)
       )
@@ -785,8 +785,8 @@ describe('dispatch', () => {
       const writeReleasePromise = new Promise<void>((resolve) => {
         releaseWrite = resolve
       })
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn(async (request) => {
           const name = request.function.name
           started.push(name)
@@ -804,7 +804,7 @@ describe('dispatch', () => {
             }
           }
         })
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
 
       state.blocks.push({
         type: 'tool_call',
@@ -830,7 +830,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -850,7 +850,7 @@ describe('dispatch', () => {
 
     it('persists final-only subagent tool payloads', async () => {
       const tools = [makeTool('subagent_orchestrator')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const subagentFinal = JSON.stringify({
         runId: 'run-1',
         mode: 'parallel',
@@ -864,7 +864,7 @@ describe('dispatch', () => {
         ]
       })
 
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         content: [{ type: 'text', text: 'Final summary' }],
         rawData: {
           toolCallId: 'tc1',
@@ -888,7 +888,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -915,7 +915,7 @@ describe('dispatch', () => {
 
     it('finalizes trailing narrative blocks before plain tool results run', async () => {
       const tools = [makeTool('get_weather')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const conversation = [{ role: 'user' as const, content: 'Hello' }]
       const trailingText = 'Working on it.'
 
@@ -938,7 +938,7 @@ describe('dispatch', () => {
       expect(trailingBlockBeforeExecution?.type).toBe('content')
       expect(trailingBlockBeforeExecution?.status).toBe('pending')
 
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
         const persistedBlocks = (
           io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>
         ).mock.calls.at(-1)?.[1] as StreamState['blocks'] | undefined
@@ -966,7 +966,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -984,8 +984,8 @@ describe('dispatch', () => {
 
     it('pauses with a skill draft confirmation question after successful draft creation', async () => {
       const tools = [makeTool('skill_manage')]
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn().mockResolvedValue({
           content:
             '{"success":true,"action":"create","draftId":"draft-1","skillName":"draft-skill"}',
@@ -1008,7 +1008,7 @@ describe('dispatch', () => {
             }
           }
         })
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
       const conversation: any[] = []
 
       state.blocks.push({
@@ -1032,7 +1032,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -1080,10 +1080,10 @@ describe('dispatch', () => {
     })
 
     it('returns all interaction origins in persisted action order with execution state', async () => {
-      const toolPresenter = createMockToolPresenter() as IToolPresenter & {
+      const toolService = createMockToolService() as ToolServicePort & {
         preCheckToolPermission: ReturnType<typeof vi.fn>
       }
-      toolPresenter.preCheckToolPermission = vi.fn(async (request) =>
+      toolService.preCheckToolPermission = vi.fn(async (request) =>
         request.function.name === 'precheck_tool'
           ? {
               needsPermission: true,
@@ -1092,7 +1092,7 @@ describe('dispatch', () => {
             }
           : null
       )
-      toolPresenter.callTool = vi.fn(async (request) => {
+      toolService.callTool = vi.fn(async (request) => {
         if (request.function.name === 'skill_manage') {
           return {
             content: 'draft created',
@@ -1157,7 +1157,7 @@ describe('dispatch', () => {
         [],
         0,
         calls.map((call) => makeTool(call.name)),
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'default',
@@ -1191,7 +1191,7 @@ describe('dispatch', () => {
           .filter((block) => block.type === 'action' && block.status === 'pending')
           .map((block) => block.tool_call?.id)
       ).toEqual(['tc-question', 'tc-post', 'tc-pre', 'tc-skill'])
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(toolService.callTool).toHaveBeenCalledTimes(2)
     })
 
     it('does not emit PreToolUse for question interactions that pause execution', async () => {
@@ -1201,7 +1201,7 @@ describe('dispatch', () => {
         onPostToolUse: vi.fn(),
         onPostToolUseFailure: vi.fn()
       }
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const rendererFlushHandle = {
         flush: vi.fn(),
         schedule: vi.fn(),
@@ -1231,7 +1231,7 @@ describe('dispatch', () => {
         [],
         0,
         [makeTool(QUESTION_TOOL_NAME)],
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -1247,7 +1247,7 @@ describe('dispatch', () => {
       expect(result.type).toBe('paused')
       expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
       expect(rendererFlushHandle.schedule).toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer.mock.invocationCallOrder[0]).toBeLessThan(
@@ -1262,7 +1262,7 @@ describe('dispatch', () => {
         onPostToolUse: vi.fn(),
         onPostToolUseFailure: vi.fn()
       }
-      const toolPresenter = createMockToolPresenter() as IToolPresenter & {
+      const toolService = createMockToolService() as ToolServicePort & {
         preCheckToolPermission: ReturnType<typeof vi.fn>
       }
       const rendererFlushHandle = {
@@ -1270,7 +1270,7 @@ describe('dispatch', () => {
         schedule: vi.fn(),
         rescheduleRenderer: vi.fn()
       }
-      toolPresenter.preCheckToolPermission = vi.fn().mockResolvedValue({
+      toolService.preCheckToolPermission = vi.fn().mockResolvedValue({
         needsPermission: true,
         permissionType: 'write',
         description: 'Need permission'
@@ -1290,7 +1290,7 @@ describe('dispatch', () => {
         [],
         0,
         [makeTool('write_file')],
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'default',
@@ -1307,7 +1307,7 @@ describe('dispatch', () => {
       expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
       expect(rendererFlushHandle.schedule).toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer.mock.invocationCallOrder[0]).toBeLessThan(
@@ -1323,7 +1323,7 @@ describe('dispatch', () => {
         })
       }
       const tools = [makeAgentTool('read')]
-      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+      const toolService = createMockToolService({ read: 'file content' })
 
       state.blocks.push({
         type: 'tool_call',
@@ -1346,7 +1346,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1374,7 +1374,7 @@ describe('dispatch', () => {
           })
         })
       )
-      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+      expect(toolService.callTool).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-read' }),
         expect.objectContaining({ permissionMode: 'full_access' })
       )
@@ -1383,8 +1383,8 @@ describe('dispatch', () => {
 
     it('does not stage success when full_access tool still requires permission after grant', async () => {
       const tools = [makeAgentTool('write')]
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn(async () => ({
           content: 'permission required',
           rawData: {
@@ -1398,7 +1398,7 @@ describe('dispatch', () => {
             }
           }
         }))
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
       const autoGrantPermission = vi.fn().mockResolvedValue(undefined)
 
       state.blocks.push({
@@ -1422,7 +1422,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -1435,7 +1435,7 @@ describe('dispatch', () => {
       expect(result.type).toBe('paused')
       if (result.type !== 'paused') throw new Error('Expected paused tool batch')
       expect(autoGrantPermission).toHaveBeenCalled()
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(toolService.callTool).toHaveBeenCalledTimes(2)
       expect(result.interactions).toEqual([
         expect.objectContaining({
           origin: 'post-call-permission',
@@ -1456,7 +1456,7 @@ describe('dispatch', () => {
         })
       }
       const tools = [makeAgentTool('exec')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
 
       state.blocks.push({
         type: 'tool_call',
@@ -1479,7 +1479,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1499,7 +1499,7 @@ describe('dispatch', () => {
           })
         })
       )
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(result.type).toBe('paused')
       expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
     })
@@ -1510,7 +1510,7 @@ describe('dispatch', () => {
         reviewToolPermission: vi.fn(() => reviewDecision.promise)
       }
       const tools = [makeAgentTool('read')]
-      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+      const toolService = createMockToolService({ read: 'file content' })
       const flushedBlocks: any[] = []
       const rendererFlushHandle = {
         flush: vi.fn(() => {
@@ -1541,7 +1541,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1558,7 +1558,7 @@ describe('dispatch', () => {
       expect(flushedBlocks[0][0].extra).toMatchObject({
         autoApproveReviewStatus: 'reviewing'
       })
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
 
       reviewDecision.resolve({ decision: 'auto_allow', riskLevel: 'low' })
       const result = await executePromise
@@ -1576,7 +1576,7 @@ describe('dispatch', () => {
         onPermissionRequest: vi.fn()
       }
       const tools = [makeAgentTool('read')]
-      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+      const toolService = createMockToolService({ read: 'file content' })
       const rendererFlushHandle = {
         flush: vi.fn(),
         schedule: vi.fn(),
@@ -1604,7 +1604,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1618,7 +1618,7 @@ describe('dispatch', () => {
       )
 
       expect(rendererFlushHandle.flush).not.toHaveBeenCalled()
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(result.type).toBe('paused')
       expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(
@@ -1636,7 +1636,7 @@ describe('dispatch', () => {
         })
       }
       const tools = [makeAgentTool('write')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
 
       state.blocks.push({
         type: 'tool_call',
@@ -1663,7 +1663,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1673,7 +1673,7 @@ describe('dispatch', () => {
         hooks
       )
 
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(result.executed).toBe(0)
       expect(result.type).toBe('paused')
       expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
@@ -1712,7 +1712,7 @@ describe('dispatch', () => {
         })
       }
       const tools = [makeAgentTool('write')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
 
       state.blocks.push({
         type: 'tool_call',
@@ -1739,7 +1739,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1750,7 +1750,7 @@ describe('dispatch', () => {
       )
 
       const toolBlock = state.blocks.find((block) => block.tool_call?.id === 'tc-write')
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(result.executed).toBe(1)
       expect(toolBlock?.status).toBe('error')
       expect(toolBlock?.tool_call?.response).toContain('blocked by reviewer')
@@ -1766,7 +1766,7 @@ describe('dispatch', () => {
         })
       }
       const tools = [makeAgentTool('write')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
 
       state.blocks.push({
         type: 'tool_call',
@@ -1793,7 +1793,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1803,7 +1803,7 @@ describe('dispatch', () => {
         hooks
       )
 
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(result.type).toBe('paused')
       expect(result.type === 'paused' ? result.interactions : []).toHaveLength(1)
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
@@ -1818,10 +1818,10 @@ describe('dispatch', () => {
         })
       }
       const tools = [makeAgentTool('write_file')]
-      const toolPresenter = createMockToolPresenter({ write_file: 'written' }) as IToolPresenter & {
+      const toolService = createMockToolService({ write_file: 'written' }) as ToolServicePort & {
         preCheckToolPermission: ReturnType<typeof vi.fn>
       }
-      toolPresenter.preCheckToolPermission = vi.fn().mockResolvedValue({
+      toolService.preCheckToolPermission = vi.fn().mockResolvedValue({
         needsPermission: true,
         permissionType: 'write',
         description: 'Need write permission',
@@ -1856,7 +1856,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'auto_approve',
@@ -1866,7 +1866,7 @@ describe('dispatch', () => {
         hooks
       )
 
-      expect(toolPresenter.preCheckToolPermission).toHaveBeenCalledWith(
+      expect(toolService.preCheckToolPermission).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-write' }),
         { permissionMode: 'full_access', signal: io.abortSignal }
       )
@@ -1885,7 +1885,7 @@ describe('dispatch', () => {
           paths: ['/tmp/outside.txt']
         })
       )
-      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+      expect(toolService.callTool).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-write' }),
         expect.objectContaining({ permissionMode: 'full_access' })
       )
@@ -1895,7 +1895,7 @@ describe('dispatch', () => {
 
     it('enriches tool_call blocks with server info', async () => {
       const tools = [makeTool('get_weather')]
-      const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
+      const toolService = createMockToolService({ get_weather: 'Sunny' })
 
       state.blocks.push({
         type: 'tool_call',
@@ -1911,7 +1911,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -1927,8 +1927,8 @@ describe('dispatch', () => {
 
     it('flags toolsChanged when skill_view activates a skill via main SKILL.md', async () => {
       const tools = [makeTool('skill_view')]
-      const toolPresenter = {
-        ...createMockToolPresenter(),
+      const toolService = {
+        ...createMockToolService(),
         callTool: vi.fn().mockResolvedValue({
           content:
             '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
@@ -1944,7 +1944,7 @@ describe('dispatch', () => {
             }
           }
         })
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
 
       state.blocks.push({
         type: 'tool_call',
@@ -1967,7 +1967,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -1981,7 +1981,7 @@ describe('dispatch', () => {
 
     it('includes reasoning_content when interleaved compatibility is enabled', async () => {
       const tools = [makeTool('search')]
-      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const toolService = createMockToolService({ search: 'result' })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -2004,7 +2004,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2026,7 +2026,7 @@ describe('dispatch', () => {
 
     it('adds empty reasoning_content for DeepSeek tool-only assistant messages when enabled', async () => {
       const tools = [makeTool('search')]
-      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const toolService = createMockToolService({ search: 'result' })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -2043,7 +2043,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'deepseek-v4',
         io,
         'full_access',
@@ -2067,7 +2067,7 @@ describe('dispatch', () => {
 
     it('does not add empty reasoning_content for non-DeepSeek tool-only assistant messages', async () => {
       const tools = [makeTool('search')]
-      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const toolService = createMockToolService({ search: 'result' })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -2084,7 +2084,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2108,7 +2108,7 @@ describe('dispatch', () => {
 
     it('preserves tool call provider options in the follow-up assistant message', async () => {
       const tools = [makeTool('exec')]
-      const toolPresenter = createMockToolPresenter({ exec: 'done' })
+      const toolService = createMockToolService({ exec: 'done' })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -2148,7 +2148,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gemini-3.1-flash-lite-preview',
         io,
         'full_access',
@@ -2174,7 +2174,7 @@ describe('dispatch', () => {
 
     it('does not include reasoning_content when compatibility is disabled', async () => {
       const tools = [makeTool('search')]
-      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const toolService = createMockToolService({ search: 'result' })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -2197,7 +2197,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2212,7 +2212,7 @@ describe('dispatch', () => {
 
     it('reports an interleaved reasoning gap when reasoning exists but compatibility is unavailable', async () => {
       const tools = [makeTool('search')]
-      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const toolService = createMockToolService({ search: 'result' })
       const conversation: any[] = []
       const hooks = {
         onInterleavedReasoningGap: vi.fn()
@@ -2238,7 +2238,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2267,8 +2267,8 @@ describe('dispatch', () => {
 
     it('handles tool error', async () => {
       const tools = [makeTool('bad_tool')]
-      const toolPresenter = createMockToolPresenter()
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockRejectedValue(
+      const toolService = createMockToolService()
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('Tool failed')
       )
       const conversation: any[] = []
@@ -2287,7 +2287,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2306,8 +2306,8 @@ describe('dispatch', () => {
 
     it('preserves raw tool error status when guard returns ok', async () => {
       const tools = [makeTool('bad_tool')]
-      const toolPresenter = createMockToolPresenter()
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
+      const toolService = createMockToolService()
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
         content: 'Upstream failure',
         rawData: {
           toolCallId: 'tc1',
@@ -2331,7 +2331,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2350,7 +2350,7 @@ describe('dispatch', () => {
 
     it('preserves recoverable YoBrowser unavailable errors as failed tool context', async () => {
       const tools = [makeTool('cdp_send')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const payload = {
         ok: false,
         error: {
@@ -2374,7 +2374,7 @@ describe('dispatch', () => {
         }
       }
       const content = JSON.stringify(payload)
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
         content,
         rawData: {
           toolCallId: 'tc1',
@@ -2405,7 +2405,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2426,10 +2426,10 @@ describe('dispatch', () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
       const tools = [makeAgentTool('read')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
 
       // Abort after first tool call
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
         abortController.abort()
         return { content: 'ok', rawData: { toolCallId: 'tc1', content: 'ok', isError: false } }
       })
@@ -2459,7 +2459,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         abortIo,
         'full_access',
@@ -2469,7 +2469,7 @@ describe('dispatch', () => {
       )
 
       await expect(executing).resolves.toMatchObject({ type: 'completed', executed: 1 })
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).toHaveBeenCalledTimes(1)
       expect(conversation).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ role: 'tool', tool_call_id: 'tc1', content: 'ok' })
@@ -2487,10 +2487,10 @@ describe('dispatch', () => {
 
     it('stages CanceledError from a parallel read batch when the run remains active', async () => {
       const tools = [makeAgentTool('read')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const canceledError = new Error('Canceled')
       canceledError.name = 'CanceledError'
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+      ;(toolService.callTool as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(canceledError)
         .mockResolvedValueOnce({
           content: 'second result',
@@ -2525,7 +2525,7 @@ describe('dispatch', () => {
           conversation,
           0,
           tools,
-          toolPresenter,
+          toolService,
           'gpt-4',
           io,
           'full_access',
@@ -2558,7 +2558,7 @@ describe('dispatch', () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
       const tools = [makeTool('tool_a')]
-      const toolPresenter = createMockToolPresenter({ tool_a: 'raw result' })
+      const toolService = createMockToolService({ tool_a: 'raw result' })
       const conversation: any[] = []
       const resultNormalizer = vi.fn(async () => {
         abortController.abort()
@@ -2580,7 +2580,7 @@ describe('dispatch', () => {
           conversation,
           0,
           tools,
-          toolPresenter,
+          toolService,
           'gpt-4',
           abortIo,
           'full_access',
@@ -2604,7 +2604,7 @@ describe('dispatch', () => {
 
     it('flushes to renderer and DB after each tool execution', async () => {
       const tools = [makeTool('tool_a')]
-      const toolPresenter = createMockToolPresenter({ tool_a: 'done' })
+      const toolService = createMockToolService({ tool_a: 'done' })
 
       state.blocks.push({
         type: 'tool_call',
@@ -2620,7 +2620,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2644,7 +2644,7 @@ describe('dispatch', () => {
 
     it('promotes image previews from structured tool output into assistant image blocks', async () => {
       const tools = [makeTool('tool_image')]
-      const toolPresenter = {
+      const toolService = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
@@ -2669,7 +2669,7 @@ describe('dispatch', () => {
           }
         })),
         buildToolSystemPrompt: vi.fn().mockReturnValue('')
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
 
       state.blocks.push({
         type: 'tool_call',
@@ -2685,7 +2685,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2722,7 +2722,7 @@ describe('dispatch', () => {
 
     it('promotes image_generate previews into assistant image blocks', async () => {
       const tools = [makeAgentImageGenerationTool()]
-      const toolPresenter = {
+      const toolService = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
@@ -2743,7 +2743,7 @@ describe('dispatch', () => {
           }
         })),
         buildToolSystemPrompt: vi.fn().mockReturnValue('')
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
 
       state.blocks.push({
         type: 'tool_call',
@@ -2759,7 +2759,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2797,7 +2797,7 @@ describe('dispatch', () => {
 
     it('promotes same-name MCP image_generate previews into assistant image blocks', async () => {
       const tools = [makeTool(IMAGE_GENERATE_TOOL_NAME)]
-      const toolPresenter = {
+      const toolService = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
@@ -2817,7 +2817,7 @@ describe('dispatch', () => {
           }
         })),
         buildToolSystemPrompt: vi.fn().mockReturnValue('')
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
 
       state.blocks.push({
         type: 'tool_call',
@@ -2833,7 +2833,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2870,7 +2870,7 @@ describe('dispatch', () => {
 
     it('does not promote image_generate previews when the tool result is an error', async () => {
       const tools = [makeAgentImageGenerationTool()]
-      const toolPresenter = {
+      const toolService = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
@@ -2890,7 +2890,7 @@ describe('dispatch', () => {
           }
         })),
         buildToolSystemPrompt: vi.fn().mockReturnValue('')
-      } as unknown as IToolPresenter
+      } as unknown as ToolServicePort
 
       state.blocks.push({
         type: 'tool_call',
@@ -2906,7 +2906,7 @@ describe('dispatch', () => {
         [],
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2933,7 +2933,7 @@ describe('dispatch', () => {
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ cdp_send: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -2961,7 +2961,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -2984,7 +2984,7 @@ describe('dispatch', () => {
     it('normalizes tool output through the result port before offload', async () => {
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ cdp_send: longScreenshot })
       const conversation: any[] = []
       const hooks = {
         resultNormalizer: vi.fn().mockResolvedValue('English screenshot summary')
@@ -3015,7 +3015,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -3050,7 +3050,7 @@ describe('dispatch', () => {
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ cdp_send: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -3078,7 +3078,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -3096,7 +3096,7 @@ describe('dispatch', () => {
 
     it('keeps the largest prefix of tool results and downgrades the overflow tail', async () => {
       const tools = [makeTool('read')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const hooks = {
         onPreToolUse: vi.fn(),
         onPermissionRequest: vi.fn(),
@@ -3105,7 +3105,7 @@ describe('dispatch', () => {
       }
       const conversation: any[] = []
 
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+      ;(toolService.callTool as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           content: 'a'.repeat(60),
           rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
@@ -3139,7 +3139,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -3164,10 +3164,10 @@ describe('dispatch', () => {
 
     it('keeps the fitting prefix when a short overflow tail is downgraded', async () => {
       const tools = [makeTool('read')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const conversation: any[] = []
 
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+      ;(toolService.callTool as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           content: 'a'.repeat(40),
           rawData: { toolCallId: 'tc1', content: 'a'.repeat(40), isError: false }
@@ -3233,7 +3233,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -3259,10 +3259,10 @@ describe('dispatch', () => {
       homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
       const tools = [makeTool('read'), makeTool('exec')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const conversation: any[] = []
 
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+      ;(toolService.callTool as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           content: 'a'.repeat(60),
           rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
@@ -3296,7 +3296,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -3313,7 +3313,7 @@ describe('dispatch', () => {
 
     it('drops search side effects for downgraded tail tool results', async () => {
       const tools = [makeTool('read'), makeTool('search_docs')]
-      const toolPresenter = createMockToolPresenter()
+      const toolService = createMockToolService()
       const conversation: any[] = []
       const searchResource = JSON.stringify({
         title: 'Example',
@@ -3322,7 +3322,7 @@ describe('dispatch', () => {
         description: 'x'.repeat(4000)
       })
 
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+      ;(toolService.callTool as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           content: 'a'.repeat(60),
           rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
@@ -3378,7 +3378,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -3399,7 +3399,7 @@ describe('dispatch', () => {
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ cdp_send: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -3427,7 +3427,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',
@@ -3448,7 +3448,7 @@ describe('dispatch', () => {
 
       const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ cdp_send: longScreenshot })
       const conversation: any[] = []
       const hooks = {
         onPreToolUse: vi.fn(),
@@ -3482,7 +3482,7 @@ describe('dispatch', () => {
         conversation,
         0,
         tools,
-        toolPresenter,
+        toolService,
         'gpt-4',
         io,
         'full_access',

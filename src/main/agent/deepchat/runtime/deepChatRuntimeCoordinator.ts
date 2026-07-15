@@ -23,7 +23,7 @@ import type {
   ModelConfig
 } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
@@ -176,7 +176,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly configPresenter: IConfigPresenter
   private readonly sqlitePresenter: SQLitePresenter
-  private readonly toolPresenter: IToolPresenter
+  private readonly toolService: ToolServicePort
   private readonly sessionStore: SessionData['settings']
   private readonly messageStore: SessionData['transcript']
   private readonly tapeService: SessionData['tapeStore']
@@ -217,14 +217,14 @@ export class DeepChatRuntimeCoordinator {
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
     sessionData: SessionData,
-    toolPresenter: IToolPresenter,
+    toolService: ToolServicePort,
     runtimePorts: DeepChatRuntimeDependencies,
     hookNotificationObserver?: NewSessionHookNotificationObserver
   ) {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.sqlitePresenter = sqlitePresenter
-    this.toolPresenter = toolPresenter
+    this.toolService = toolService
     this.hookNotificationObserver = hookNotificationObserver
     this.providerCatalogPort = runtimePorts.providerCatalogPort
     this.sessionPermissionPort = runtimePorts.sessionPermissionPort
@@ -243,7 +243,7 @@ export class DeepChatRuntimeCoordinator {
     this.toolResolver = new DeepChatToolResolver({
       configPresenter: this.configPresenter,
       sqlitePresenter: this.sqlitePresenter,
-      toolPresenter: this.toolPresenter,
+      toolService: this.toolService,
       skillPresenter: this.skillPresenter,
       deepChatRuntime: this.deepChatRuntime,
       getDeepChatInstance: (sessionId) => this.getDeepChatInstance(sessionId),
@@ -259,7 +259,7 @@ export class DeepChatRuntimeCoordinator {
       configPresenter: this.configPresenter,
       sessionStore: this.sessionStore,
       toolResolver: this.toolResolver,
-      toolPresenter: this.toolPresenter,
+      toolService: this.toolService,
       sessionPermissionPort: this.sessionPermissionPort,
       getRuntimeState: (sessionId) => this.getDeepChatRuntimeState(sessionId),
       getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
@@ -356,7 +356,7 @@ export class DeepChatRuntimeCoordinator {
       throwIfAbortRequested: (signal) => this.throwIfAbortRequested(signal)
     })
     this.toolOutputGuard = new ToolOutputGuard()
-    this.toolExecutionPort = createToolExecutionPort(this.toolPresenter)
+    this.toolExecutionPort = createToolExecutionPort(this.toolService)
     this.toolResultPort = createToolResultPort({
       outputGuard: this.toolOutputGuard,
       normalize: async (tool) =>
@@ -435,7 +435,7 @@ export class DeepChatRuntimeCoordinator {
     this.turnCoordinator = new TurnCoordinator({
       publishEvent: this.publishEvent,
       configPresenter: this.configPresenter,
-      toolPresenter: this.toolPresenter,
+      toolService: this.toolService,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
       tapeService: this.tapeService,
@@ -741,7 +741,7 @@ export class DeepChatRuntimeCoordinator {
     instance?.clearOwnedState()
     this.deepChatRuntime.evict(toAppSessionId(sessionId))
     this.memoryCoordinator.finishSessionDestroy(sessionId)
-    this.toolPresenter.clearConversationToolMapping(sessionId)
+    this.toolService.clearConversationToolMapping(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -1962,7 +1962,7 @@ export class DeepChatRuntimeCoordinator {
         configPresenter: this.configPresenter,
         skillPresenter: this.skillPresenter,
         providerCatalogPort: this.providerCatalogPort,
-        toolPresenter: this.toolPresenter,
+        toolService: this.toolService,
         assertCurrent: (id, instance) => this.throwIfStaleDeepChatInstance(id, instance),
         isAcpBackedSubagentSession: (id, providerId) =>
           this.isAcpBackedSubagentSession(id, providerId),

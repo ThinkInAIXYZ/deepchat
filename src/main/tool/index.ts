@@ -9,11 +9,12 @@ import type {
 import type {
   ToolCallOptions,
   ToolDefinitionContext,
-  ToolPermissionPreCheckResult
-} from '@shared/types/presenters/tool.presenter'
+  ToolPermissionPreCheckResult,
+  ToolServicePort
+} from '@shared/types/tool'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/agent/shared/storage/sessionPaths'
-import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
+import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
@@ -31,32 +32,10 @@ import {
   createAgentToolSuccessResult
 } from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
-import { CommandPermissionService } from '../permission'
-import { YO_BROWSER_TOOL_NAMES } from '../../desktop/browser/YoBrowserToolDefinitions'
+import { CommandPermissionService } from '../presenter/permission'
+import { YO_BROWSER_TOOL_NAMES } from '../desktop/browser/YoBrowserToolDefinitions'
 
-export interface IToolPresenter {
-  getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
-  syncAgentToolContext(context: {
-    chatMode?: 'agent' | 'acp agent'
-    agentWorkspacePath?: string | null
-  }): void
-  callTool(
-    request: MCPToolCall,
-    options?: ToolCallOptions
-  ): Promise<{ content: unknown; rawData: MCPToolResponse }>
-  preCheckToolPermission(
-    request: MCPToolCall,
-    options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
-  ): Promise<ToolPermissionPreCheckResult | null>
-  clearConversationToolMapping(conversationId: string): void
-  clearAgentPlanState(conversationId: string): void
-  buildToolSystemPrompt(context: {
-    conversationId?: string
-    toolDefinitions?: MCPToolDefinition[]
-  }): string
-}
-
-interface ToolPresenterOptions {
+interface ToolServiceOptions {
   mcpPresenter: IMCPPresenter
   configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
@@ -106,17 +85,16 @@ type StoredMcpAccessContext = {
 }
 
 /**
- * ToolPresenter - Unified tool routing presenter
- * Manages all tool sources (MCP, Agent) and provides unified interface
+ * Owns the merged Tool catalog and routes calls to MCP or built-in handlers.
  */
-export class ToolPresenter implements IToolPresenter {
+export class ToolService implements ToolServicePort {
   private readonly mapper: ToolMapper
   private readonly conversationMappers: Map<string, ToolMapper>
   private readonly conversationMcpAccessContexts = new Map<string, StoredMcpAccessContext>()
-  private readonly options: ToolPresenterOptions
+  private readonly options: ToolServiceOptions
   private agentToolManager: AgentToolManager | null = null
 
-  constructor(options: ToolPresenterOptions) {
+  constructor(options: ToolServiceOptions) {
     this.options = options
     this.mapper = new ToolMapper()
     this.conversationMappers = new Map()
@@ -183,9 +161,7 @@ export class ToolPresenter implements IToolPresenter {
       const disabledAgentToolSet = new Set(normalizeToolNames(context.disabledAgentTools))
       const dedupedAgentDefs = agentDefs.filter((tool) => {
         if (!mapper.hasTool(tool.function.name)) return true
-        console.warn(
-          `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
-        )
+        console.warn(`[Tool] Tool name conflict for '${tool.function.name}', preferring MCP tool.`)
         return false
       })
       const filteredAgentDefs = dedupedAgentDefs.filter(
@@ -194,7 +170,7 @@ export class ToolPresenter implements IToolPresenter {
       defs.push(...filteredAgentDefs)
       mapper.registerTools(filteredAgentDefs, 'agent')
     } catch (error) {
-      console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
+      console.warn('[Tool] Failed to load Agent tool definitions', error)
     }
 
     this.publishMapper(context.conversationId, mapper)
@@ -260,14 +236,11 @@ export class ToolPresenter implements IToolPresenter {
         try {
           args = JSON.parse(argsString) as Record<string, unknown>
         } catch (error) {
-          console.warn('[ToolPresenter] Failed to parse tool arguments, trying jsonrepair:', error)
+          console.warn('[Tool] Failed to parse tool arguments, trying jsonrepair:', error)
           try {
             args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
           } catch (error) {
-            console.warn(
-              '[ToolPresenter] Failed to repair tool arguments, using empty args.',
-              error
-            )
+            console.warn('[Tool] Failed to repair tool arguments, using empty args.', error)
             args = {}
           }
         }
@@ -336,7 +309,7 @@ export class ToolPresenter implements IToolPresenter {
     const source = this.getToolSource(toolName, request.conversationId)
 
     if (!source) {
-      console.warn(`[ToolPresenter] Tool ${toolName} not found for permission check`)
+      console.warn(`[Tool] Tool ${toolName} not found for permission check`)
       return null
     }
 
@@ -353,14 +326,14 @@ export class ToolPresenter implements IToolPresenter {
           args = JSON.parse(argsString) as Record<string, unknown>
         } catch (error) {
           console.warn(
-            '[ToolPresenter] Failed to parse tool arguments for pre-check, trying jsonrepair:',
+            '[Tool] Failed to parse tool arguments for pre-check, trying jsonrepair:',
             error
           )
           try {
             args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
           } catch (error) {
             console.warn(
-              '[ToolPresenter] Failed to repair tool arguments for pre-check, using empty args.',
+              '[Tool] Failed to repair tool arguments for pre-check, using empty args.',
               error
             )
             args = {}

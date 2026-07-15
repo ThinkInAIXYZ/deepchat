@@ -93,8 +93,8 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| 工具主入口 | `src/main/presenter/toolPresenter/index.ts` | `getAllToolDefinitions()` / `callTool()` |
-| agent tools | `src/main/presenter/toolPresenter/agentTools/` | 文件系统、命令、settings 等本地工具 |
+| 工具主入口 | `src/main/tool/index.ts` | `getAllToolDefinitions()` / `callTool()` |
+| agent tools | `src/main/tool/agentTools/` | 文件系统、命令、settings 等本地工具 |
 | MCP tools | `src/main/presenter/mcpPresenter/toolManager.ts` | 外部工具调用 |
 | provider facade | `src/main/presenter/llmProviderPresenter/index.ts` | provider instance + stream state |
 | ACP runtime | `src/main/agent/acp/` | process/session/persistence/protocol；provider adapter 仍在 `llmProviderPresenter` |

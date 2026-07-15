@@ -1,12 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
-import { ToolPresenter } from '@/presenter/toolPresenter'
+import { ToolService } from '@/tool'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
-import {
-  CronJobToolHandler,
-  TAPE_TOOL_NAMES,
-  UPDATE_PLAN_TOOL_NAME
-} from '@/presenter/toolPresenter/agentTools'
+import { CronJobToolHandler, TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools'
 import { CommandPermissionService } from '@/presenter/permission'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
@@ -130,7 +126,7 @@ const cronJobRunFixture = {
   updatedAt: 12
 } as any
 
-describe('ToolPresenter', () => {
+describe('ToolService', () => {
   it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi
@@ -145,14 +141,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const defs = await toolPresenter.getAllToolDefinitions({
+    const defs = await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: 'C:\\\\workspace'
@@ -163,11 +159,11 @@ describe('ToolPresenter', () => {
     expect(imageGenerateDefs[0].source).toBe('agent')
     expect(imageGenerateDefs[0].server.name).toBe('agent-image-generation')
 
-    const agentToolManager = (toolPresenter as any).agentToolManager
+    const agentToolManager = (toolService as any).agentToolManager
     const callToolSpy = vi.fn().mockResolvedValue('agent-image')
     agentToolManager.callTool = callToolSpy
 
-    await toolPresenter.callTool({
+    await toolService.callTool({
       id: 'tool-1',
       type: 'function',
       function: {
@@ -188,7 +184,7 @@ describe('ToolPresenter', () => {
     expect(mcpPresenter.callTool).not.toHaveBeenCalled()
   })
 
-  it('keeps ToolPresenter collision resolution behind the DeepChat catalog port', async () => {
+  it('keeps ToolService collision resolution behind the DeepChat catalog port', async () => {
     const mcpDefs = [buildToolDefinition('shared', 'mcp')]
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue(mcpDefs),
@@ -201,7 +197,7 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
@@ -216,7 +212,7 @@ describe('ToolPresenter', () => {
     })
 
     const catalog = createToolCatalogPort({
-      toolPresenter,
+      toolService,
       resolveContext: async () => ({
         profile: 'code' as const,
         fingerprint: 'revision:1',
@@ -240,7 +236,7 @@ describe('ToolPresenter', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
@@ -250,7 +246,7 @@ describe('ToolPresenter', () => {
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
-    const agentToolManager = (toolPresenter as any).ensureAgentToolManager('C:\\\\workspace')
+    const agentToolManager = (toolService as any).ensureAgentToolManager('C:\\\\workspace')
     let resolveFirst!: (tools: MCPToolDefinition[]) => void
     let resolveSecond!: (tools: MCPToolDefinition[]) => void
     const firstAgentTools = new Promise<MCPToolDefinition[]>((resolve) => {
@@ -270,8 +266,8 @@ describe('ToolPresenter', () => {
       conversationId: 'conversation-1'
     }
 
-    const firstResolution = toolPresenter.getAllToolDefinitions(context)
-    const secondResolution = toolPresenter.getAllToolDefinitions(context)
+    const firstResolution = toolService.getAllToolDefinitions(context)
+    const secondResolution = toolService.getAllToolDefinitions(context)
     await vi.waitFor(() => expect(getAgentToolDefinitions).toHaveBeenCalledTimes(2))
 
     const agentTools = [buildToolDefinition('read', 'agent-filesystem')]
@@ -286,7 +282,7 @@ describe('ToolPresenter', () => {
 
     const callTool = vi.fn().mockResolvedValue('ok')
     agentToolManager.callTool = callTool
-    await toolPresenter.callTool({
+    await toolService.callTool({
       id: 'tool-1',
       type: 'function',
       function: { name: 'read', arguments: '{}' },
@@ -312,21 +308,21 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
-    await toolPresenter.getAllToolDefinitions({
+    await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: 'C:\\\\workspace'
     })
-    const agentToolManager = (toolPresenter as any).agentToolManager
+    const agentToolManager = (toolService as any).agentToolManager
     agentToolManager.clearPlanState = vi.fn()
 
-    toolPresenter.clearAgentPlanState(' conv-1 ')
+    toolService.clearAgentPlanState(' conv-1 ')
 
     expect(agentToolManager.clearPlanState).toHaveBeenCalledWith('conv-1')
   })
@@ -346,24 +342,24 @@ describe('ToolPresenter', () => {
       previewCronSchedule: vi.fn().mockResolvedValue({ runs: [], error: null })
     })
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
 
-    await toolPresenter.getAllToolDefinitions({
+    await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: 'C:\\\\workspace'
     })
 
-    const agentToolManager = (toolPresenter as any).agentToolManager
+    const agentToolManager = (toolService as any).agentToolManager
     const callToolSpy = vi.fn().mockResolvedValue('ok')
     agentToolManager.callTool = callToolSpy
 
-    const result = await toolPresenter.callTool({
+    const result = await toolService.callTool({
       id: 'tool-1',
       type: 'function',
       function: {
@@ -385,7 +381,7 @@ describe('ToolPresenter', () => {
         content: 'from-raw'
       }
     })
-    const rawOnlyResult = await toolPresenter.callTool({
+    const rawOnlyResult = await toolService.callTool({
       id: 'tool-2',
       type: 'function',
       function: {
@@ -419,14 +415,14 @@ describe('ToolPresenter', () => {
     }
     const runtimePort = buildAgentToolRuntimeMock()
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
 
-    const defs = await toolPresenter.getAllToolDefinitions({
+    const defs = await toolService.getAllToolDefinitions({
       disabledAgentTools: ['read', 'exec'],
       chatMode: 'agent',
       supportsVision: false,
@@ -445,7 +441,7 @@ describe('ToolPresenter', () => {
   })
 
   it('exposes cronjob only when runtime ports are available and the tool is enabled', async () => {
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
       } as any,
@@ -461,7 +457,7 @@ describe('ToolPresenter', () => {
       })
     })
 
-    const defs = await toolPresenter.getAllToolDefinitions({
+    const defs = await toolService.getAllToolDefinitions({
       disabledAgentTools: [],
       chatMode: 'agent',
       supportsVision: false,
@@ -470,7 +466,7 @@ describe('ToolPresenter', () => {
 
     expect(defs.some((tool) => tool.function.name === CRON_JOB_AGENT_TOOL_NAME)).toBe(true)
 
-    const disabledCronJobDefs = await toolPresenter.getAllToolDefinitions({
+    const disabledCronJobDefs = await toolService.getAllToolDefinitions({
       disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME],
       chatMode: 'agent',
       supportsVision: false,
@@ -578,7 +574,7 @@ describe('ToolPresenter', () => {
 
   it('requires approval for cronjob write actions', async () => {
     const upsertCronJob = vi.fn()
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         callTool: vi.fn()
@@ -596,7 +592,7 @@ describe('ToolPresenter', () => {
       })
     })
 
-    await toolPresenter.getAllToolDefinitions({
+    await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: 'C:\\workspace',
@@ -604,7 +600,7 @@ describe('ToolPresenter', () => {
     })
 
     await expect(
-      toolPresenter.preCheckToolPermission({
+      toolService.preCheckToolPermission({
         id: 'tool-1',
         type: 'function',
         function: {
@@ -633,14 +629,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    await toolPresenter.getAllToolDefinitions({
+    await toolService.getAllToolDefinitions({
       agentId: 'agent-1',
       enabledMcpServerIds: ['server-a'],
       chatMode: 'agent',
@@ -664,7 +660,7 @@ describe('ToolPresenter', () => {
       callTool: vi.fn(),
       preCheckToolPermission: vi.fn().mockResolvedValue(null)
     } as any
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
@@ -675,7 +671,7 @@ describe('ToolPresenter', () => {
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
     const abortController = new AbortController()
-    await toolPresenter.getAllToolDefinitions({
+    await toolService.getAllToolDefinitions({
       agentId: 'agent-1',
       enabledMcpServerIds: ['server-a'],
       chatMode: 'agent',
@@ -688,7 +684,7 @@ describe('ToolPresenter', () => {
       conversationId: 'session-1'
     }
 
-    await toolPresenter.preCheckToolPermission(request, {
+    await toolService.preCheckToolPermission(request, {
       permissionMode: 'default',
       signal: abortController.signal
     })
@@ -709,7 +705,7 @@ describe('ToolPresenter', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
@@ -722,18 +718,18 @@ describe('ToolPresenter', () => {
     const abortController = new AbortController()
     const lateError = new Error('late permission failure')
     const unhandled = vi.fn()
-    await toolPresenter.getAllToolDefinitions({
+    await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       conversationId: 'permission-cancel-session'
     })
-    const agentToolManager = (toolPresenter as any).agentToolManager
+    const agentToolManager = (toolService as any).agentToolManager
     agentToolManager.preCheckToolPermission = vi.fn().mockImplementation(() => {
       abortController.abort()
       return permission
     })
 
     await expect(
-      toolPresenter.preCheckToolPermission(
+      toolService.preCheckToolPermission(
         {
           id: 'permission-sync-cancel',
           type: 'function',
@@ -769,7 +765,7 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
@@ -777,14 +773,14 @@ describe('ToolPresenter', () => {
     })
     const abortController = new AbortController()
 
-    await toolPresenter.getAllToolDefinitions({
+    await toolService.getAllToolDefinitions({
       agentId: 'agent-1',
       enabledMcpServerIds: undefined,
       chatMode: 'agent',
       conversationId: 'session-unrestricted'
     })
 
-    await toolPresenter.callTool(
+    await toolService.callTool(
       {
         id: 'tool-1',
         type: 'function',
@@ -821,14 +817,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const withoutYoBrowser = toolPresenter.buildToolSystemPrompt({
+    const withoutYoBrowser = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -837,7 +833,7 @@ describe('ToolPresenter', () => {
         }
       ]
     })
-    const withYoBrowser = toolPresenter.buildToolSystemPrompt({
+    const withYoBrowser = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -880,14 +876,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const withoutQuestion = toolPresenter.buildToolSystemPrompt({
+    const withoutQuestion = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -896,7 +892,7 @@ describe('ToolPresenter', () => {
         }
       ]
     })
-    const withQuestion = toolPresenter.buildToolSystemPrompt({
+    const withQuestion = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -933,14 +929,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const withoutProgress = toolPresenter.buildToolSystemPrompt({
+    const withoutProgress = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -949,7 +945,7 @@ describe('ToolPresenter', () => {
         }
       ]
     })
-    const withProgress = toolPresenter.buildToolSystemPrompt({
+    const withProgress = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -977,14 +973,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const prompt = toolPresenter.buildToolSystemPrompt({
+    const prompt = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -1017,14 +1013,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const prompt = toolPresenter.buildToolSystemPrompt({
+    const prompt = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -1056,14 +1052,14 @@ describe('ToolPresenter', () => {
     }
     const runtimePort = buildAgentToolRuntimeMock()
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
 
-    const defs = await toolPresenter.getAllToolDefinitions({
+    const defs = await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: 'C:\\\\workspace'
@@ -1085,7 +1081,7 @@ describe('ToolPresenter', () => {
     )
 
     await expect(
-      toolPresenter.callTool({
+      toolService.callTool({
         id: 'tool-1',
         type: 'function',
         function: {
@@ -1117,14 +1113,14 @@ describe('ToolPresenter', () => {
       getModelConfig: vi.fn()
     }
 
-    const toolPresenter = new ToolPresenter({
+    const toolService = new ToolService({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const promptWithoutFocusedTools = toolPresenter.buildToolSystemPrompt({
+    const promptWithoutFocusedTools = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -1172,7 +1168,7 @@ describe('ToolPresenter', () => {
     expect(promptWithoutFocusedTools).not.toContain('rg -n')
     expect(promptWithoutFocusedTools).not.toContain('rg --files')
 
-    const grepOnlyPrompt = toolPresenter.buildToolSystemPrompt({
+    const grepOnlyPrompt = toolService.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {

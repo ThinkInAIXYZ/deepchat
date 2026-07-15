@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
 
-import {
-  AgentMemoryToolHandler,
-  MEMORY_TOOL_NAMES
-} from '@/presenter/toolPresenter/agentTools/agentMemoryTools'
+import { AgentMemoryToolHandler, MEMORY_TOOL_NAMES } from '@/tool/agentTools/agentMemoryTools'
 
 const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
   ({

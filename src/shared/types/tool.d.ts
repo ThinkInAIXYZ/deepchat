@@ -1,6 +1,5 @@
 /**
- * Tool Presenter Types
- * Types for the unified tool routing presenter
+ * Tool runtime types.
  */
 
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
@@ -69,10 +68,9 @@ export interface ToolPermissionPreCheckResult {
 }
 
 /**
- * Tool Presenter interface
- * Unified interface for managing all tool sources (MCP, Agent)
+ * Interface for the merged Tool catalog and execution service.
  */
-export interface IToolPresenter {
+export interface ToolServicePort {
   /**
    * Get all tool definitions from all sources
    * @param context Context for tool definition retrieval

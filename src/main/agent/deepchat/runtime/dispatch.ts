@@ -7,14 +7,14 @@ import type {
 } from '@shared/types/core/mcp'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { SearchResult } from '@shared/types/core/search'
-import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
+import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import {
   parseQuestionToolArgs,
   QUESTION_TOOL_NAME
-} from '@/presenter/toolPresenter/agentTools/questionTool'
-import { UPDATE_PLAN_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/agentPlanTool'
+} from '@/tool/agentTools/questionTool'
+import { UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools/agentPlanTool'
 import type {
   InterleavedReasoningConfig,
   IoParams,

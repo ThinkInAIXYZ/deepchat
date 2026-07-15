@@ -104,7 +104,7 @@ type ToolClientMockSource = {
 
 const bindClientMocks = (
   projectPresenter: ProjectClientMockSource,
-  toolPresenter: ToolClientMockSource
+  toolService: ToolClientMockSource
 ) => {
   clientMocks.projectClient.listRecent.mockImplementation((limit?: number) =>
     projectPresenter.getRecentProjects(limit)
@@ -113,7 +113,7 @@ const bindClientMocks = (
     projectPresenter.selectDirectory()
   )
   clientMocks.toolClient.getAllToolDefinitions.mockImplementation((context: unknown) =>
-    toolPresenter.getAllToolDefinitions(context)
+    toolService.getAllToolDefinitions(context)
   )
 }
 
@@ -189,7 +189,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false }),
       ...options.configPresenter
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
     }
     const projectPresenter = options.projectPresenter ?? {
@@ -203,7 +203,7 @@ describe('DeepChatAgentsSettings', () => {
         findModelByIdOrName: vi.fn(() => null)
       } as const)
 
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
 
     vi.doMock('@api/ConfigClient', () => ({
       createConfigClient: () => configPresenter
@@ -265,7 +265,7 @@ describe('DeepChatAgentsSettings', () => {
     return {
       wrapper,
       configPresenter,
-      toolPresenter,
+      toolService,
       projectPresenter
     }
   }
@@ -345,7 +345,7 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([
         {
           source: 'agent',
@@ -363,7 +363,7 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [
         {
@@ -647,14 +647,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
 
     vi.doMock('@api/ConfigClient', () => ({
       createConfigClient: () => configPresenter
@@ -744,14 +744,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
@@ -855,14 +855,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
@@ -1028,12 +1028,12 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
+    const toolService = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = { allProviderModels: [], findModelByIdOrName: vi.fn(() => null) }
 
     vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configPresenter }))
@@ -1185,14 +1185,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
@@ -1303,14 +1303,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
@@ -1443,14 +1443,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
@@ -1580,14 +1580,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue('/workspaces/selected')
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
@@ -1755,14 +1755,14 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
+    const toolService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)

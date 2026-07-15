@@ -19,7 +19,7 @@ import {
   IUpgradePresenter,
   IWindowPresenter,
   IWorkspacePresenter,
-  IToolPresenter,
+  ToolServicePort,
   IYoBrowserPresenter,
   ISkillPresenter,
   ISkillSyncPresenter,
@@ -45,13 +45,13 @@ import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { KnowledgePresenter } from '../presenter/knowledgePresenter'
 import { WorkspacePresenter } from '../presenter/workspacePresenter'
-import { ToolPresenter } from '../presenter/toolPresenter'
+import { ToolService } from '../tool'
 import {
   CommandPermissionService,
   FilePermissionService,
   SettingsPermissionService
 } from '../presenter/permission'
-import type { AgentToolRuntimePort } from '../presenter/toolPresenter/runtimePorts'
+import type { AgentToolRuntimePort } from '../tool/runtimePorts'
 
 import { ConversationExporterService } from '../presenter/exporter'
 import { SkillPresenter } from '../presenter/skillPresenter'
@@ -188,7 +188,7 @@ export async function createMainProcessControl(dependencies: {
   let floatingButtonPresenter: FloatingButtonPresenter
   let knowledgePresenter: IKnowledgePresenter
   let workspacePresenter: IWorkspacePresenter
-  let toolPresenter: IToolPresenter
+  let toolService: ToolServicePort
   let deepChatRuntimeCoordinator: DeepChatRuntimeCoordinator
   let yoBrowserPresenter: IYoBrowserPresenter
   let dialogPresenter: IDialogPresenter
@@ -483,8 +483,8 @@ export async function createMainProcessControl(dependencies: {
       settingsPermissionService.consumeApproval(conversationId, toolName)
   }
 
-  // Initialize unified Tool presenter (for routing MCP and Agent tools)
-  toolPresenter = new ToolPresenter({
+  // Initialize the merged MCP and built-in Tool service.
+  toolService = new ToolService({
     mcpPresenter: mcpPresenter,
     configPresenter: configPresenter,
     commandPermissionHandler,
@@ -676,7 +676,7 @@ export async function createMainProcessControl(dependencies: {
     configPresenter,
     sqlitePresenter,
     sessionData,
-    toolPresenter,
+    toolService,
     {
       publishEvent: publishDeepchatEvent,
       providerCatalogPort,
@@ -1351,7 +1351,7 @@ export async function createMainProcessControl(dependencies: {
       syncPresenter,
       upgradePresenter,
       dialogPresenter,
-      toolPresenter,
+      toolService,
       sqlitePresenter,
       windowPresenter,
       devicePresenter,

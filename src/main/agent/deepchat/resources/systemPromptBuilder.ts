@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type { IConfigPresenter, ISkillPresenter } from "@shared/presenter";
 import type { MCPToolDefinition } from "@shared/types/core/mcp";
-import type { IToolPresenter } from "@shared/types/presenters/tool.presenter";
+import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";
 import type { ProviderCatalogPort } from "@/presenter/runtimePorts";
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
@@ -16,13 +16,13 @@ type SkillPresenterPort = Pick<
   ISkillPresenter,
   "getMetadataList" | "getActiveSkills" | "loadSkillContent"
 >;
-type ToolPromptPort = Pick<IToolPresenter, "buildToolSystemPrompt">;
+type ToolPromptPort = Pick<ToolServicePort, "buildToolSystemPrompt">;
 
 export interface SystemPromptBuilderDependencies {
   configPresenter: IConfigPresenter;
   skillPresenter: SkillPresenterPort;
   providerCatalogPort: Pick<ProviderCatalogPort, "getProviderModels" | "getCustomModels">;
-  toolPresenter: ToolPromptPort;
+  toolService: ToolPromptPort;
   assertCurrent(sessionId: string, instance: DeepChatAgentInstance): void;
   isAcpBackedSubagentSession(sessionId: string, providerId?: string): boolean;
   resolveProjectDir(
@@ -258,7 +258,7 @@ export async function buildSystemPromptWithSkills(
   let toolingPrompt = "";
   try {
     stepStartedAt = Date.now();
-    toolingPrompt = dependencies.toolPresenter.buildToolSystemPrompt({
+    toolingPrompt = dependencies.toolService.buildToolSystemPrompt({
       conversationId: sessionId,
       toolDefinitions,
     });

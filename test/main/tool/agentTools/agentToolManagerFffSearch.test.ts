@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
-import {
-  GLOB_TOOL_NAME,
-  GREP_TOOL_NAME
-} from '@/presenter/toolPresenter/agentTools/agentFffSearchHandler'
+import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
+import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
 
 const fffMock = vi.hoisted(() => ({
   finder: {

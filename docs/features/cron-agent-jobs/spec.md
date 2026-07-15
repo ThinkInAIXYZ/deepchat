@@ -141,6 +141,6 @@ The maintained behavior is covered by:
 
 - `test/main/presenter/cronJobs.test.ts`
 - `test/main/routes/dispatcher.test.ts`
-- `test/main/presenter/toolPresenter/toolPresenter.test.ts`
+- `test/main/tool/toolService.test.ts`
 - `test/renderer/api/cronJobsClient.test.ts`
 - the scheduled-task renderer component tests

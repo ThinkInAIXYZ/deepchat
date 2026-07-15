@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import os from 'os'
-import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
+import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import {
   YoBrowserUnavailableError,
   buildYoBrowserUnavailablePayload

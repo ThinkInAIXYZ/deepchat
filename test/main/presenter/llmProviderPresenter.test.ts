@@ -64,7 +64,7 @@ vi.mock('@/eventbus', () => ({
 }))
 
 const presenterRuntimeMock = vi.hoisted(() => ({
-  toolPresenter: {
+  toolService: {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
     preCheckToolPermission: vi.fn().mockResolvedValue(null),
     callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })

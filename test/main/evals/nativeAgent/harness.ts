@@ -4,7 +4,7 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolCall, MCPToolDefinition } from '@shared/types/core/mcp'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { processStream } from '@/agent/deepchat/runtime/process'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
@@ -164,8 +164,8 @@ interface EvalMessageStoreState {
   metadata: Record<string, unknown>
 }
 
-interface ToolPresenterHarness {
-  presenter: IToolPresenter
+interface ToolServiceHarness {
+  presenter: ToolServicePort
   calls: NativeAgentEvalToolCall[]
 }
 
@@ -254,9 +254,7 @@ function makeToolDefinition(name: string): MCPToolDefinition {
   }
 }
 
-function createToolPresenter(
-  behaviors: Record<string, ScriptedToolBehavior>
-): ToolPresenterHarness {
+function createToolService(behaviors: Record<string, ScriptedToolBehavior>): ToolServiceHarness {
   const calls: NativeAgentEvalToolCall[] = []
 
   const presenter = {
@@ -302,7 +300,7 @@ function createToolPresenter(
   }
 
   return {
-    presenter: presenter as unknown as IToolPresenter,
+    presenter: presenter as unknown as ToolServicePort,
     calls
   }
 }
@@ -448,7 +446,7 @@ export async function runNativeAgentEvalScenario(
 ): Promise<NativeAgentEvalReport> {
   const abortController = new AbortController()
   const { messageStore, state: messageState } = createMessageStore()
-  const toolHarness = createToolPresenter(scenario.tools ?? {})
+  const toolHarness = createToolService(scenario.tools ?? {})
   const providerInputs: ChatMessage[][] = []
   let providerRounds = 0
   let permissionRequests = 0

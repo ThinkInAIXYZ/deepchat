@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
+import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
 
 vi.mock('fs', async (importOriginal) => {

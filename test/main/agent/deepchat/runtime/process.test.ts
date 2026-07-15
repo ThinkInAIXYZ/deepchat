@@ -5,7 +5,7 @@ import path from 'path'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import type { ProcessParams } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
@@ -82,7 +82,7 @@ function makeTool(name: string): MCPToolDefinition {
   }
 }
 
-function createMockToolPresenter(responses: Record<string, string> = {}): IToolPresenter {
+function createMockToolService(responses: Record<string, string> = {}): ToolServicePort {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
     syncAgentToolContext: vi.fn(),
@@ -98,12 +98,12 @@ function createMockToolPresenter(responses: Record<string, string> = {}): IToolP
     clearConversationToolMapping: vi.fn(),
     clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
-  } as unknown as IToolPresenter
+  } as unknown as ToolServicePort
 }
 
-function createPostCallPermissionToolPresenter(): IToolPresenter {
-  const toolPresenter = createMockToolPresenter()
-  ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
+function createPostCallPermissionToolService(): ToolServicePort {
+  const toolService = createMockToolService()
+  ;(toolService.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
     content: 'permission required',
     rawData: {
       content: 'permission required',
@@ -118,7 +118,7 @@ function createPostCallPermissionToolPresenter(): IToolPresenter {
       }
     }
   })
-  return toolPresenter
+  return toolService
 }
 
 function makeStreamEvents(...events: LLMCoreStreamEvent[]): LLMCoreStreamEvent[] {
@@ -168,7 +168,7 @@ describe('processStream', () => {
       run: providedRun,
       ...processOverrides
     } = overrides
-    const toolPresenter = createMockToolPresenter()
+    const toolService = createMockToolService()
     const toolOutputGuard = new ToolOutputGuard()
 
     const coreStream = vi.fn(function* () {
@@ -193,7 +193,7 @@ describe('processStream', () => {
       toolCatalog: {
         resolve: vi.fn().mockResolvedValue(tools)
       },
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       toolResults: createToolResultPort({
         outputGuard: toolOutputGuard,
         normalize: async ({ content }) => content
@@ -411,7 +411,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
+          toolExecution: createToolExecutionPort(createMockToolService({ action: 'ok' })),
           tools: [makeTool('action')]
         })
       )
@@ -460,7 +460,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
+          toolExecution: createToolExecutionPort(createMockToolService({ action: 'ok' })),
           tools: [makeTool('action')]
         })
       )
@@ -549,12 +549,12 @@ describe('processStream', () => {
         } as LLMCoreStreamEvent
         yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
       }) as unknown as ProcessParams['coreStream']
-      const toolPresenter = createMockToolPresenter({ action: 'ok' })
+      const toolService = createMockToolService({ action: 'ok' })
 
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(toolPresenter),
+          toolExecution: createToolExecutionPort(toolService),
           tools: [makeTool('action'), makeTool('deepchat_question')]
         })
       )
@@ -563,7 +563,7 @@ describe('processStream', () => {
         status: 'paused',
         pendingInteractions: [expect.objectContaining({ toolCallId: 'question-1' })]
       })
-      expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+      expect(toolService.callTool).toHaveBeenCalledOnce()
       const finalPauseCall = messageStore.updateAssistantContent.mock.calls.findLast(
         (call) => typeof call[2] === 'string'
       )
@@ -577,12 +577,12 @@ describe('processStream', () => {
     })
 
     it('counts a post-call permission tool before persisting pause', async () => {
-      const toolPresenter = createPostCallPermissionToolPresenter()
+      const toolService = createPostCallPermissionToolService()
 
       const result = await processStream(
         createParams({
           coreStream: createToolRoundStream('action'),
-          toolExecution: createToolExecutionPort(toolPresenter),
+          toolExecution: createToolExecutionPort(toolService),
           tools: [makeTool('action')],
           permissionMode: 'default'
         })
@@ -592,7 +592,7 @@ describe('processStream', () => {
         status: 'paused',
         pendingInteractions: [expect.objectContaining({ origin: 'post-call-permission' })]
       })
-      expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+      expect(toolService.callTool).toHaveBeenCalledOnce()
       const finalPauseCall = messageStore.updateAssistantContent.mock.calls.findLast(
         (call) => typeof call[2] === 'string'
       )
@@ -606,12 +606,12 @@ describe('processStream', () => {
     })
 
     it('enforces the global tool-call cap after a post-call permission pause', async () => {
-      const pausedToolPresenter = createPostCallPermissionToolPresenter()
+      const pausedToolService = createPostCallPermissionToolService()
 
       const pausedResult = await processStream(
         createParams({
           coreStream: createToolRoundStream('action'),
-          toolExecution: createToolExecutionPort(pausedToolPresenter),
+          toolExecution: createToolExecutionPort(pausedToolService),
           tools: [makeTool('action')],
           permissionMode: 'default',
           initialAccounting: { providerRounds: 0, toolCalls: 127 }
@@ -630,18 +630,18 @@ describe('processStream', () => {
         runStopReason: 'interaction'
       })
 
-      const resumedToolPresenter = createMockToolPresenter({ action: 'should not run' })
+      const resumedToolService = createMockToolService({ action: 'should not run' })
       const resumedResult = await processStream(
         createParams({
           coreStream: createToolRoundStream('action'),
-          toolExecution: createToolExecutionPort(resumedToolPresenter),
+          toolExecution: createToolExecutionPort(resumedToolService),
           tools: [makeTool('action')],
           initialAccounting: pausedMetadata
         })
       )
 
       expect(resumedResult).toMatchObject({ status: 'completed', stopReason: 'max_tool_calls' })
-      expect(resumedToolPresenter.callTool).not.toHaveBeenCalled()
+      expect(resumedToolService.callTool).not.toHaveBeenCalled()
       expect(
         JSON.parse(messageStore.finalizeAssistantMessage.mock.calls.at(-1)?.[2])
       ).toMatchObject({
@@ -721,7 +721,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
+          toolExecution: createToolExecutionPort(createMockToolService({ action: 'ok' })),
           tools: [makeTool('action')],
           maxProviderRounds: 1
         })
@@ -739,7 +739,7 @@ describe('processStream', () => {
     it('does not snapshot an oversized tool batch that never executes', async () => {
       const order: string[] = []
       observeCommitOrder(order)
-      const toolPresenter = createMockToolPresenter({ action: 'ok' })
+      const toolService = createMockToolService({ action: 'ok' })
       const coreStream = vi.fn(async function* () {
         for (let index = 0; index < 129; index += 1) {
           yield {
@@ -759,7 +759,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(toolPresenter),
+          toolExecution: createToolExecutionPort(toolService),
           tools: [makeTool('action')]
         })
       )
@@ -772,7 +772,7 @@ describe('processStream', () => {
         'message:update',
         ...COMPLETED_TERMINAL_COMMIT_ORDER
       ])
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
     })
 
@@ -785,7 +785,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(createMockToolPresenter({ cdp_send: longOutput })),
+          toolExecution: createToolExecutionPort(createMockToolService({ cdp_send: longOutput })),
           tools: [makeTool('cdp_send')],
           modelConfig: { contextLength: 1 } as any,
           maxTokens: 1
@@ -821,8 +821,8 @@ describe('processStream', () => {
       const order: string[] = []
       observeCommitOrder(order)
       const abortController = new AbortController()
-      const toolPresenter = createMockToolPresenter()
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      const toolService = createMockToolService()
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
         abortController.abort()
         return {
           content: 'ok',
@@ -833,7 +833,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream: createToolRoundStream('action'),
-          toolExecution: createToolExecutionPort(toolPresenter),
+          toolExecution: createToolExecutionPort(toolService),
           tools: [makeTool('action')],
           abortController
         })
@@ -841,7 +841,7 @@ describe('processStream', () => {
 
       expect(result.status).toBe('aborted')
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).toHaveBeenCalledTimes(1)
       expect(messageStore.setMessageError).toHaveBeenCalled()
       expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
       expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
@@ -873,13 +873,13 @@ describe('processStream', () => {
       }) as unknown as ProcessParams['coreStream']
       const timeoutError = new Error('Model request timed out')
       timeoutError.name = 'AbortError'
-      const toolPresenter = createMockToolPresenter()
-      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(timeoutError)
+      const toolService = createMockToolService()
+      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(timeoutError)
 
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(toolPresenter),
+          toolExecution: createToolExecutionPort(toolService),
           tools: [makeTool('action')]
         })
       )
@@ -907,7 +907,7 @@ describe('processStream', () => {
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(createMockToolPresenter({ action: 'ok' })),
+          toolExecution: createToolExecutionPort(createMockToolService({ action: 'ok' })),
           tools: [makeTool('action')],
           shouldYieldForPendingInput
         })
@@ -1107,7 +1107,7 @@ describe('processStream', () => {
       } as LLMCoreStreamEvent
       yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
     }) as unknown as ProcessParams['coreStream']
-    const toolPresenter = createMockToolPresenter({ action: 'raw result' })
+    const toolService = createMockToolService({ action: 'raw result' })
     const toolResults = createToolResultPort({
       outputGuard: new ToolOutputGuard(),
       normalize: async () => {
@@ -1120,14 +1120,14 @@ describe('processStream', () => {
       createParams({
         abortController,
         coreStream,
-        toolExecution: createToolExecutionPort(toolPresenter),
+        toolExecution: createToolExecutionPort(toolService),
         toolResults,
         tools: [makeTool('action')]
       })
     )
 
     expect(result).toMatchObject({ status: 'aborted', stopReason: 'user_stop' })
-    expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+    expect(toolService.callTool).toHaveBeenCalledOnce()
     expect(JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])).toMatchObject({
       providerRounds: 1,
       toolCalls: 1,
@@ -1181,12 +1181,12 @@ describe('processStream', () => {
         yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
       })()
     }) as unknown as ProcessParams['coreStream']
-    const toolPresenter = createMockToolPresenter({ action: 'ok' })
+    const toolService = createMockToolService({ action: 'ok' })
 
     const result = await processStream(
       createParams({
         coreStream,
-        toolExecution: createToolExecutionPort(toolPresenter),
+        toolExecution: createToolExecutionPort(toolService),
         tools: [makeTool('action')],
         initialAccounting: {
           inputTokens: 10,
@@ -1212,7 +1212,7 @@ describe('processStream', () => {
         cacheWriteInputTokens: 9
       }
     })
-    expect(toolPresenter.callTool).toHaveBeenCalledOnce()
+    expect(toolService.callTool).toHaveBeenCalledOnce()
     const metadata = JSON.parse(messageStore.finalizeAssistantMessage.mock.calls.at(-1)?.[2])
     expect(metadata).toMatchObject({
       inputTokens: 16,
@@ -1386,10 +1386,10 @@ describe('processStream', () => {
       }
     }) as unknown as ProcessParams['coreStream']
 
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('get_weather')],
       onConversationMessagesChange: (messages) => {
         liveMessages = messages
@@ -1402,7 +1402,7 @@ describe('processStream', () => {
 
     expect(coreStream).toHaveBeenCalledTimes(2)
     expect(params.run.providerRoundCount).toBe(2)
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+    expect(toolService.callTool).toHaveBeenCalledTimes(1)
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
 
     // Second call should have tool result in messages
@@ -1415,10 +1415,10 @@ describe('processStream', () => {
 
   it('notifies in tool order with detached committed snapshots', async () => {
     const notifications: DeepChatLoopNotification[] = []
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
     const params = createParams({
       coreStream: createToolThenCompleteStream('get_weather'),
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('get_weather')],
       notificationObserver: {
         notify: (notification) => {
@@ -1462,13 +1462,13 @@ describe('processStream', () => {
 
   it('keeps the terminal outcome when a notification observer throws synchronously', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
 
     try {
       const result = await processStream(
         createParams({
           coreStream: createToolThenCompleteStream('get_weather'),
-          toolExecution: createToolExecutionPort(toolPresenter),
+          toolExecution: createToolExecutionPort(toolService),
           tools: [makeTool('get_weather')],
           notificationObserver: {
             notify: () => {
@@ -1479,7 +1479,7 @@ describe('processStream', () => {
       )
 
       expect(result.status).toBe('completed')
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).toHaveBeenCalledTimes(1)
       expect(warning).toHaveBeenCalledTimes(2)
     } finally {
       warning.mockRestore()
@@ -1500,11 +1500,11 @@ describe('processStream', () => {
     const notify = vi.fn((notification: DeepChatLoopNotification) =>
       notification.event === 'PreToolUse' ? neverSettlingUntilReleased : rejectedThenable
     )
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
     const processPromise = processStream(
       createParams({
         coreStream: createToolThenCompleteStream('get_weather'),
-        toolExecution: createToolExecutionPort(toolPresenter),
+        toolExecution: createToolExecutionPort(toolService),
         tools: [makeTool('get_weather')],
         notificationObserver: { notify }
       })
@@ -1564,8 +1564,8 @@ describe('processStream', () => {
     messageStore.updateAssistantContent.mockImplementation(() => {
       order.push('flush')
     })
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
-    ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async (request) => {
+    const toolService = createMockToolService({ get_weather: 'Sunny' })
+    ;(toolService.callTool as ReturnType<typeof vi.fn>).mockImplementation(async (request) => {
       order.push('tool')
       return {
         content: `result for ${request.function.name}`,
@@ -1583,7 +1583,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('get_weather')],
       onFirstProviderRoundReady
     })
@@ -1594,7 +1594,7 @@ describe('processStream', () => {
     expect(order.indexOf('flush')).toBeLessThan(order.indexOf('ready'))
     expect(order.indexOf('ready')).toBeLessThan(order.indexOf('tool'))
     expect(coreStream).toHaveBeenCalledTimes(2)
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+    expect(toolService.callTool).toHaveBeenCalledTimes(1)
   })
 
   it('yields after completed tool calls when a pending input should run next', async () => {
@@ -1615,10 +1615,10 @@ describe('processStream', () => {
     ) as unknown as ProcessParams['coreStream']
 
     const shouldYieldForPendingInput = vi.fn(() => true)
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('get_weather')],
       shouldYieldForPendingInput
     })
@@ -1628,7 +1628,7 @@ describe('processStream', () => {
     const result = await promise
 
     expect(coreStream).toHaveBeenCalledTimes(1)
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+    expect(toolService.callTool).toHaveBeenCalledTimes(1)
     expect(shouldYieldForPendingInput).toHaveBeenCalledTimes(1)
     expect(result).toMatchObject({
       status: 'completed',
@@ -1642,8 +1642,8 @@ describe('processStream', () => {
 
   it('refreshes tools and system prompt for the next loop iteration after skill_view activates a skill', async () => {
     let callCount = 0
-    const toolPresenter = {
-      ...createMockToolPresenter(),
+    const toolService = {
+      ...createMockToolService(),
       callTool: vi
         .fn()
         .mockResolvedValueOnce({
@@ -1669,7 +1669,7 @@ describe('processStream', () => {
             isError: false
           }
         })
-    } as unknown as IToolPresenter
+    } as unknown as ToolServicePort
     const activeSkillNames: string[] = []
     const activateSkill = vi.fn(async (skillName: string) => {
       if (!activeSkillNames.includes(skillName)) {
@@ -1731,7 +1731,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       toolCatalog: { resolve: resolveTools },
       tools: [makeTool('skill_view')],
       refreshSystemPrompt,
@@ -1760,13 +1760,13 @@ describe('processStream', () => {
       ]
     )
     expect(coreStream).toHaveBeenCalledTimes(3)
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+    expect(toolService.callTool).toHaveBeenCalledTimes(2)
   })
 
   it('does not refresh tools after linked-file skill_view reads', async () => {
     let callCount = 0
-    const toolPresenter = {
-      ...createMockToolPresenter(),
+    const toolService = {
+      ...createMockToolService(),
       callTool: vi.fn().mockResolvedValue({
         content:
           '{"success":true,"name":"deepchat-settings","filePath":"references/guide.md","isPinned":false}',
@@ -1781,7 +1781,7 @@ describe('processStream', () => {
           }
         }
       })
-    } as unknown as IToolPresenter
+    } as unknown as ToolServicePort
     const resolveTools = vi.fn().mockResolvedValue([makeTool('deepchat_settings_set_theme')])
 
     const coreStream = vi.fn(
@@ -1814,7 +1814,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       toolCatalog: { resolve: resolveTools },
       tools: [makeTool('skill_view')]
     })
@@ -1856,10 +1856,10 @@ describe('processStream', () => {
       })()
     }) as unknown as ProcessParams['coreStream']
 
-    const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
+    const toolService = createMockToolService({ cdp_send: longScreenshot })
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('cdp_send')]
     })
 
@@ -1878,7 +1878,7 @@ describe('processStream', () => {
 
   it('multiple tool calls in one turn', async () => {
     let callCount = 0
-    const toolPresenter = createMockToolPresenter({
+    const toolService = createMockToolService({
       get_weather: 'Sunny',
       get_time: '3:00 PM'
     })
@@ -1919,7 +1919,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('get_weather'), makeTool('get_time')]
     })
 
@@ -1927,15 +1927,15 @@ describe('processStream', () => {
     await vi.runAllTimersAsync()
     await promise
 
-    expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+    expect(toolService.callTool).toHaveBeenCalledTimes(2)
     expect(coreStream).toHaveBeenCalledTimes(2)
   })
 
   it('continues the next provider turn after downgrading an overflow tail tool result', async () => {
     let callCount = 0
-    const toolPresenter = createMockToolPresenter()
+    const toolService = createMockToolService()
 
-    ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+    ;(toolService.callTool as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         content: 'a'.repeat(60),
         rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
@@ -1981,7 +1981,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('read')],
       modelConfig: { contextLength: 260 } as any,
       maxTokens: 32
@@ -2002,7 +2002,7 @@ describe('processStream', () => {
 
   it('passes reasoning_content back after each interleaved tool-call loop', async () => {
     let callCount = 0
-    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
+    const toolService = createMockToolService({ get_weather: 'Sunny' })
 
     const coreStream = vi.fn(function () {
       callCount++
@@ -2035,7 +2035,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('get_weather')],
       interleavedReasoning: {
         ...DEFAULT_INTERLEAVED_REASONING,
@@ -2107,7 +2107,7 @@ describe('processStream', () => {
       finalWrites.push(structuredClone(blocks))
     })
     let callCount = 0
-    const toolPresenter = createMockToolPresenter({ action: 'done' })
+    const toolService = createMockToolService({ action: 'done' })
 
     const coreStream = vi.fn(function () {
       callCount++
@@ -2136,7 +2136,7 @@ describe('processStream', () => {
 
     const params = createParams({
       coreStream,
-      toolExecution: createToolExecutionPort(toolPresenter),
+      toolExecution: createToolExecutionPort(toolService),
       tools: [makeTool('action')],
       initialAccounting: { providerRounds: 0, toolCalls: 128 }
     })

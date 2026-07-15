@@ -27,7 +27,7 @@ import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
-} from '../../permission/commandPermissionService'
+} from '../../presenter/permission/commandPermissionService'
 
 const COMMAND_DEFAULT_TIMEOUT_MS = 120000
 const COMMAND_KILL_GRACE_MS = 5000

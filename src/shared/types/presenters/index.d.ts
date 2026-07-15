@@ -72,8 +72,8 @@ export type {
   IWorkspacePresenter
 } from './workspace'
 
-// Tool Presenter types
-export type { IToolPresenter } from './tool.presenter'
+// Tool runtime types
+export type { ToolServicePort } from '../tool'
 
 export type { FloatingChatWindowLike, IWindowPresenter, TabData } from './window.presenter'
 

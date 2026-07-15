@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import {
-  AgentFffSearchHandler,
-  GLOB_TOOL_NAME
-} from '@/presenter/toolPresenter/agentTools/agentFffSearchHandler'
+import { AgentFffSearchHandler, GLOB_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
 import { FffSearchUnavailableError } from '@/agent/shared/workspace/fffSearchService'
 
 vi.mock('@shared/logger', () => ({

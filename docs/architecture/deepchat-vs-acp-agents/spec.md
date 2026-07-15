@@ -34,7 +34,7 @@ kind=acp
 | Session state | `DeepChatAgentInstance` | `AcpAgentInstance` plus external ACP process state |
 | Turn loop | in-process `DeepChatLoopEngine` with per-turn `LoopRun` | external ACP process/protocol loop |
 | Provider | generic DeepChat `ProviderPort`; ACP provider remains available | ACP connection/session/prompt controllers |
-| Tool delivery | `ToolPresenter` through typed catalog/execution/result ports | ACP protocol callbacks and session-init MCP config |
+| Tool delivery | `ToolService` through typed catalog/execution/result ports | ACP protocol callbacks and session-init MCP config |
 | Permission | ordered DeepChat tool interactions and fresh resume run | ACP protocol permission promise/timeout/cancel settlement |
 | Transcript | existing structured message projection | same projection through ACP compatibility adapter |
 | Tape/trace | `TapeRecorder`, ViewManifest and provider trace | ACP projection adapter and request trace port |
@@ -134,7 +134,7 @@ Shared:
 
 Separate:
 
-- DeepChat `LoopRun`, provider rounds, ToolPresenter execution and Memory seam;
+- DeepChat `LoopRun`, provider rounds, ToolService execution and Memory seam;
 - ACP external process/session/protocol state, mode/config/commands and permission continuation;
 - kind-specific required facets and lifecycle cleanup.
 

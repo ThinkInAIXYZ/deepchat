@@ -158,7 +158,7 @@ outcome。auto-grant、auto-review、streaming permission continuation、skill a
 3. 把 DeepChat continuation 收敛到 instance ordered interaction state。（ASLR-044 已完成 state
    ownership；持久 blocks 仍是事实源，typed outcome 不在此 slice）
 4. 让 tool dispatcher 返回 typed `ToolBatchOutcome`，携带 interactions 和已发生的 execution state。
-5. 将 question tool 移到 ToolPresenter owner，但保留 dispatch interception；接入 post-call permission 和
+5. 将 question tool 移到 ToolService owner，但保留 dispatch interception；接入 post-call permission 和
    skill-draft origins。
 6. 把 ACP continuation 收敛到 `AcpPermissionBridge`。
 7. 删除 runtime 中 cross-backend permission maps 和 provider id 特判。

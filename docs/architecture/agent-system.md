@@ -204,6 +204,6 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 7. DeepChat session state：`src/main/agent/deepchat/instance/`
 8. provider/tool round：`src/main/agent/deepchat/loop/`，再看 retained presenter adapters
 9. direct ACP：`src/main/agent/acp/instance/` 与 `src/main/agent/acp/runtime/`
-10. tool source/dispatch：`src/main/presenter/toolPresenter/`
+10. tool source/dispatch：`src/main/tool/`
 11. Tape/message projection：`src/main/presenter/agentRuntimePresenter/{tapeService,messageStore}.ts`
 12. Memory runtime seam：`src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts`

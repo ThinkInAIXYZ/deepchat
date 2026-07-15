@@ -66,7 +66,7 @@ src/
 │   │   ├── exporter/                     # current agent-session export owner
 │   │   ├── startupMigrations/            # legacy import and session-data migrations
 │   │   ├── agentRuntimePresenter/        # 当前聊天 runtime
-│   │   ├── toolPresenter/                # 工具路由
+│   │   ├── toolService/                # 工具路由
 │   │   │   └── agentTools/               # 本地 agent tools
 │   │   ├── llmProviderPresenter/         # provider 管理与 ACP provider adapter
 │   │   ├── mcpPresenter/                 # MCP tools/runtime
@@ -112,7 +112,7 @@ src/
 
 当前活跃目录：
 
-1. `src/main/presenter/toolPresenter/agentTools/agentToolManager.ts`
+1. `src/main/tool/agentTools/agentToolManager.ts`
 2. 对应 handler：
    - `agentFileSystemHandler.ts`
    - `agentBashHandler.ts`

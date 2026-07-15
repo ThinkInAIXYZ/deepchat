@@ -158,8 +158,8 @@ flowchart TD
 | Runtime contracts | `agent/deepchat/memory/memoryPromptContributor.ts`, `memoryIngestionObserver.ts` | stable session handle, awaited prompt contribution, discriminated terminal/compaction ingestion outcomes, bounded drain result |
 | Runtime wiring | `agentRuntimePresenter/index.ts` | coordinator construction/dependencies and thin instance/lifecycle delegates; no duplicate orchestration maps |
 | Runtime | `session/data/tape.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
-| Tools | `toolPresenter/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
-| Tools | `toolPresenter/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
+| Tools | `toolService/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
+| Tools | `toolService/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
 | Skills | `resources/skills/memory-management/SKILL.md` | Discoverable guidance for recall/remember discipline and Memory vs Skill vs Scheduled Task routing |
 | Contracts | `shared/contracts/routes/memory.routes.ts` | All `memory.*` IPC routes + DTO schemas |
 | Contracts | `shared/contracts/events/memory.events.ts` | `memory.updated` event plus the schema-derived authoritative update-reason type |

@@ -37,8 +37,8 @@
 > algorithm/data adapters, while assistant placeholder creation and active-run registration remain
 > at their existing late boundary. ASLR-055 connected the session-scoped `ToolCatalogPort`,
 > `ToolExecutionPort`, and `ToolResultPort`: `processStream` and legacy dispatch now consume those
-> capabilities instead of `IToolPresenter`, a normalization callback, or concrete `ToolOutputGuard`.
-> ToolPresenter remains the sole merged/collision-resolved catalog and execution owner. ASLR-056
+> capabilities instead of `ToolServicePort`, a normalization callback, or concrete `ToolOutputGuard`.
+> ToolService remains the sole merged/collision-resolved catalog and execution owner. ASLR-056
 > made the retained dispatcher return a discriminated `ToolBatchOutcome`: only pre-check permission,
 > question interception, post-call permission, and post-success skill-draft confirmation can pause a
 > batch. The outcome carries ordered interactions plus the persisted call/invocation/result state;
@@ -95,7 +95,7 @@ registration 或第三方 stage insertion。
 
 - claim input；
 - set `status=generating` and register the pre-stream AbortController；
-- resolve effective config、session resource references、final ToolPresenter tool set；
+- resolve effective config、session resource references、final ToolService tool set；
 - assemble base/runtime/env/skill/tooling/permission prompt sections。
 
 此时尚未注册 externally visible active generation。
@@ -137,7 +137,7 @@ resume terminal fallback 继续由 `MEM-13` 决定。
 
 ### `beforeProviderRequest`
 
-- refresh prompt/final ToolPresenter tools for later rounds when current skill/resource rules require；
+- refresh prompt/final ToolService tools for later rounds when current skill/resource rules require；
 - context preflight / pressure recovery；
 - increment `requestSeq` once per actual provider attempt, including strict overflow retry in the same outer
   round；
@@ -237,7 +237,7 @@ fail-open/fail-closed policy 处理。pause 不保存 JavaScript call stack，�
 LoopEngine 只依赖以下能力类型：
 
 - `ProviderPort`：prepare/stream/cancel provider request；
-- `ToolCatalogPort`：只从 ToolPresenter aggregate 获取最终 merged/collision-resolved definitions；
+- `ToolCatalogPort`：只从 ToolService aggregate 获取最终 merged/collision-resolved definitions；
 - `ToolExecutionPort`：optional pre-check + execute，传递 exact options/current `AbortSignal` 并返回 raw
   result；没有 owner 不支持的第二条 cancel channel；
 - `ToolResultPort`：screenshot/result normalization、output preparation/offload 和 batch fitting；

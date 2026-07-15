@@ -35,7 +35,7 @@ describe('DeepChat system prompt builder', () => {
         getActiveSkills: vi.fn().mockResolvedValue([]),
         loadSkillContent: vi.fn()
       },
-      toolPresenter: {
+      toolService: {
         buildToolSystemPrompt: vi.fn().mockReturnValue('')
       },
       assertCurrent,

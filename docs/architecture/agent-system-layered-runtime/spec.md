@@ -152,7 +152,7 @@ session，具体实例管理自己的 session state，DeepChat loop 只负责 tu
 ### 6.5 Resources and cross-cutting behavior
 
 - Prompt section order is deterministic and equivalent to the baseline.
-- ToolPresenter remains the tool source aggregate and collision/dispatch owner.
+- ToolService remains the tool source aggregate and collision/dispatch owner.
 - DeepChat MCP delivery uses tool definitions; ACP MCP delivery uses ACP session-init config conversion.
 - Skill discovery, pinning, runtime activation and agent-scoped policy keep current semantics.
 - DeepChat ordered tool interactions and ACP protocol permission are separate continuations behind a shared UI

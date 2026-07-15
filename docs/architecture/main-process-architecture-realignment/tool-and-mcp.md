@@ -90,7 +90,7 @@ MCP shutdown 可以重复调用。MCP 不关闭 Session、Agent、Provider、SQL
 ## Direct ACP
 
 Direct ACP Agent 在创建远端 Session 时，把允许的 MCP server 转成 ACP 初始化配置。它只使用 MCP 的
-server 配置和 transport 过滤接口，不使用 `ToolPresenter` 的定义映射和调用路由。DeepChat 选择
+server 配置和 transport 过滤接口，不使用 `ToolService` 的定义映射和调用路由。DeepChat 选择
 `providerId=acp` 的兼容路径仍按原有 DeepChat Tool 快照执行。
 
 ## 对外接口
@@ -115,8 +115,9 @@ MCP 提供：
 
 ## 目录和依赖
 
-目标目录是 `src/main/tool/` 和 `src/main/mcp/`。迁移一批调用方时同时移动对应代码和测试，旧
-`presenter/toolPresenter`、`presenter/mcpPresenter` 路径直接删除，不保留转发文件。
+Tool 已移到 `src/main/tool/`，旧 Presenter 目录和名称已经删除。MCP 的目标目录是
+`src/main/mcp/`；迁移时同时移动对应代码和测试，旧 `presenter/mcpPresenter` 路径直接删除，不保留
+转发文件。
 
 Tool 可以依赖 MCP 的窄 catalog/execution 接口、permission、Workspace/File 和 Session 操作；MCP
 可以依赖 Config 的底层设置、Knowledge、Provider sampling 和 Platform 网络能力。两者不能依赖

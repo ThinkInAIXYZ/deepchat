@@ -32,7 +32,7 @@ vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
   }
 })
 
-import { AgentBashHandler } from '../../../../../src/main/presenter/toolPresenter/agentTools/agentBashHandler'
+import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 
 class MockStream extends EventEmitter {}
 

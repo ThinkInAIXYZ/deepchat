@@ -3,8 +3,8 @@ import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/int
 import {
   SubagentOrchestratorTool,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME
-} from '@/presenter/toolPresenter/agentTools/subagentOrchestratorTool'
-import type { ConversationSessionInfo } from '@/presenter/toolPresenter/runtimePorts'
+} from '@/tool/agentTools/subagentOrchestratorTool'
+import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 
 const buildSessionInfo = (
   overrides: Partial<ConversationSessionInfo> = {}

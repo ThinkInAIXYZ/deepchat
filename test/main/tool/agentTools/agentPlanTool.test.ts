@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from '@/presenter/toolPresenter/agentTools'
+import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools'
 
 describe('AgentPlanTool', () => {
   it('updates session plan state and emits a progress snapshot', () => {

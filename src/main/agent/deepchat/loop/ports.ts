@@ -3,10 +3,7 @@ import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/age
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolCall, MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
-import type {
-  ToolCallOptions,
-  ToolPermissionPreCheckResult
-} from '@shared/types/presenters/tool.presenter'
+import type { ToolCallOptions, ToolPermissionPreCheckResult } from '@shared/types/tool'
 import type { ModelConfig } from '@shared/presenter'
 import type { DeepChatTapeViewManifest } from '@shared/types/tape-view-manifest'
 import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'

@@ -166,7 +166,7 @@ exact TypeScript port shape 在 Phase 0 从当前 writer call sites 裁剪；没
 | --- | --- |
 | `backgroundExec*`、`shellEnvHelper`、`shellOutputEncoding`、`processTree`、`spawnGuard`、`rtk` | `src/main/agent/shared/process/` |
 | `fffSearchService` | `src/main/agent/shared/workspace/` |
-| `questionTool` | `src/main/presenter/toolPresenter/agentTools/questionTool.ts` |
+| `questionTool` | `src/main/tool/agentTools/questionTool.ts` |
 | `sessionPaths` | `src/main/agent/shared/storage/sessionPaths.ts` |
 | `systemEnvPromptBuilder` | `src/main/agent/deepchat/resources/systemEnvPromptBuilder.ts` |
 

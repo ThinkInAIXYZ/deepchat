@@ -5,7 +5,7 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import type { IConfigPresenter } from '@shared/presenter'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/deepChatAgentRepository'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
@@ -25,7 +25,7 @@ interface SessionSettingsCoordinatorDependencies {
   configPresenter: IConfigPresenter
   sessionStore: SessionSettingsStore
   toolResolver: DeepChatToolResolver
-  toolPresenter: IToolPresenter
+  toolService: ToolServicePort
   sessionPermissionPort: SessionPermissionPort
   getRuntimeState(sessionId: string): DeepChatSessionState | undefined
   getSessionAgentId(sessionId: string): string | undefined
@@ -146,7 +146,7 @@ export class SessionSettingsCoordinator {
       instance.setProjectDir(this.deps.normalizeProjectDir(config.projectDir))
       instance.setGenerationSettings(generationSettings)
       this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
-      this.deps.toolPresenter.clearAgentPlanState(sessionId)
+      this.deps.toolService.clearAgentPlanState(sessionId)
       instance.replaceRuntimeActivatedSkills([])
       await this.deps.toolResolver.refilterActiveSkillsForAgentPolicy(sessionId, nextAgentId)
       this.invalidateCaches(sessionId)

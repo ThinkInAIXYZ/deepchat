@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
-import { TAPE_TOOL_NAMES } from '@/presenter/toolPresenter/agentTools'
+import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
+import { TAPE_TOOL_NAMES } from '@/tool/agentTools'
 
 vi.mock('electron', () => ({
   app: {

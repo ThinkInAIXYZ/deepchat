@@ -55,12 +55,15 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/sessionStore.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/tapeService.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/runtimePorts.ts'),
+  path.join(ROOT, 'src/main/presenter/toolPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
+  path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
   path.join(ROOT, 'src/shared/lifecycle.ts'),
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'test/main/presenter/sessionApplication'),
-  path.join(ROOT, 'test/main/presenter/lifecyclePresenter')
+  path.join(ROOT, 'test/main/presenter/lifecyclePresenter'),
+  path.join(ROOT, 'test/main/presenter/toolPresenter')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -85,6 +88,11 @@ const RETIRED_SESSION_FACADE_NAMES = new Set([
 ])
 const RETIRED_SESSION_STATE_CACHE_NAMES = new Set(['sessionStatusSnapshots'])
 const RETIRED_MAIN_EVENT_NAMES = new Set(['MCP_EVENTS'])
+const RETIRED_TOOL_PRESENTER_NAMES = new Set([
+  'ToolPresenter',
+  'IToolPresenter',
+  'toolPresenter'
+])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
   'cachedMainKernelRouteRuntime'
@@ -1620,6 +1628,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of retiredMainEvents) {
         violations.push(
           `[main-retired-event] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      const retiredToolPresenters = findIdentifierNames(
+        sourceFile,
+        RETIRED_TOOL_PRESENTER_NAMES
+      )
+      for (const name of retiredToolPresenters) {
+        violations.push(
+          `[tool-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       const retiredAppCompositionNames = findIdentifierNames(

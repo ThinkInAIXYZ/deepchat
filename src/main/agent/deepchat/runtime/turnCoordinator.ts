@@ -12,7 +12,7 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IConfigPresenter, ModelConfig } from '@shared/presenter'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
@@ -91,7 +91,7 @@ type RuntimeHookContext = {
 export interface TurnCoordinatorPorts {
   publishEvent: DeepChatEventPublisher
   configPresenter: IConfigPresenter
-  toolPresenter: Pick<IToolPresenter, 'clearAgentPlanState'>
+  toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   tapeService: SessionTape
@@ -522,7 +522,7 @@ export class TurnCoordinator {
         'assistant-message-create',
         () => this.ports.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
       )
-      this.ports.toolPresenter.clearAgentPlanState(sessionId)
+      this.ports.toolService.clearAgentPlanState(sessionId)
       this.ports.throwIfAbortRequested(preStreamAbortSignal)
 
       if (context?.pendingQueueItemId && pendingInputSource === 'send') {

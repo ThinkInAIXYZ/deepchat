@@ -89,7 +89,7 @@ flowchart TD
 sequenceDiagram
     participant L as DeepChatLoopEngine
     participant PA as Presenter Tool Adapters
-    participant T as ToolPresenter
+    participant T as ToolService
     participant M as MCP Presenter
     participant AT as AgentToolManager
     participant P as Permission Services
@@ -116,7 +116,7 @@ sequenceDiagram
 
 当前本地 agent tools 包括文件系统、命令执行、chat settings、subagent orchestration 等能力。
 Subagent 会话以 `sessionKind='subagent'` 存储，父会话通过 tape merge/discard 处理子会话结果。
-MCP/Skill/ToolPresenter 继续拥有资源和执行策略；LoopEngine 只依赖窄 port，不 import presenter。
+MCP/Skill/ToolService 继续拥有资源和执行策略；LoopEngine 只依赖窄 port，不 import presenter。
 
 ## 4. 会话恢复、分页和搜索
 

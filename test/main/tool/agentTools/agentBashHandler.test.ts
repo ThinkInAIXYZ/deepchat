@@ -2,7 +2,7 @@ import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
-import { AgentBashHandler } from '../../../../../src/main/presenter/toolPresenter/agentTools/agentBashHandler'
+import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 
 describe('AgentBashHandler', () => {
   const workspaceRoot = path.resolve('/workspace')

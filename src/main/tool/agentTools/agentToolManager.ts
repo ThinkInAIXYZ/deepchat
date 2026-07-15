@@ -1,5 +1,5 @@
 import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
-import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
+import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import fs from 'fs'
@@ -20,8 +20,8 @@ import {
   FffGrepArgsSchema
 } from './agentFffSearchHandler'
 import { FffSearchService, type FffSearchMetadata } from '@/agent/shared/workspace/fffSearchService'
-import { SkillTools } from '../../skillPresenter/skillTools'
-import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
+import { SkillTools } from '../../presenter/skillPresenter/skillTools'
+import { SkillExecutionService } from '../../presenter/skillPresenter/skillExecutionService'
 import { questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
 import {
   ChatSettingsToolHandler,
@@ -30,7 +30,7 @@ import {
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
 import type { AgentToolRuntimePort } from '../runtimePorts'
-import { YO_BROWSER_TOOL_NAMES } from '../../../desktop/browser/YoBrowserToolDefinitions'
+import { YO_BROWSER_TOOL_NAMES } from '../../desktop/browser/YoBrowserToolDefinitions'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import {
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
@@ -47,17 +47,17 @@ import {
   CronJobToolHandler,
   cronJobActionNeedsPermission
 } from './cronJobTool'
-import { isYoBrowserUnavailableError } from '../../../desktop/browser/YoBrowserErrors'
+import { isYoBrowserUnavailableError } from '../../desktop/browser/YoBrowserErrors'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
-} from '../../permission/commandPermissionService'
+} from '../../presenter/permission/commandPermissionService'
 import {
   FilePermissionRequiredError,
   type FilePermissionLevel
-} from '../../permission/filePermissionService'
+} from '../../presenter/permission/filePermissionService'
 
 export interface AgentToolCallResult {
   content: string

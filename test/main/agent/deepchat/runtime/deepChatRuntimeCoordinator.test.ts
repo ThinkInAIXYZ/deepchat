@@ -645,7 +645,7 @@ function createRuntimeDependencies(
   }
 }
 
-function createMockToolPresenter(toolDefs: any[] = []) {
+function createMockToolService(toolDefs: any[] = []) {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue(toolDefs),
     syncAgentToolContext: vi.fn(),
@@ -719,7 +719,7 @@ describe('DeepChatRuntimeCoordinator', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let toolPresenter: ReturnType<typeof createMockToolPresenter>
+  let toolService: ReturnType<typeof createMockToolService>
   let sessionPermissionPort: {
     clearSessionPermissions: ReturnType<typeof vi.fn>
     approvePermission: ReturnType<typeof vi.fn>
@@ -793,7 +793,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
-    toolPresenter = createMockToolPresenter()
+    toolService = createMockToolService()
     sessionPermissionPort = {
       clearSessionPermissions: vi.fn(),
       approvePermission: vi.fn().mockResolvedValue(undefined)
@@ -805,7 +805,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       configPresenter,
       sqlitePresenter,
       sessionData,
-      toolPresenter,
+      toolService,
       createRuntimeDependencies({
         skillPresenter,
         sessionPermissionPort,
@@ -1746,7 +1746,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         configPresenter,
         sqlitePresenter,
         createSessionData(sqlitePresenter),
-        toolPresenter,
+        toolService,
         createRuntimeDependencies({
           skillPresenter: getSkillPresenterMock()
         })
@@ -1794,7 +1794,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         configPresenter,
         sqlitePresenter,
         createSessionData(sqlitePresenter),
-        toolPresenter,
+        toolService,
         createRuntimeDependencies({
           skillPresenter: getSkillPresenterMock()
         })
@@ -2047,8 +2047,8 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       await agent.processMessage('s1', 'Hello')
 
-      expect(toolPresenter.clearAgentPlanState).toHaveBeenCalledTimes(1)
-      expect(toolPresenter.clearAgentPlanState).toHaveBeenCalledWith('s1')
+      expect(toolService.clearAgentPlanState).toHaveBeenCalledTimes(1)
+      expect(toolService.clearAgentPlanState).toHaveBeenCalledWith('s1')
     })
 
     it('resolves first-turn readiness before processMessage completes', async () => {
@@ -2096,7 +2096,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
     it('queues steer during pre-stream setup and drains it as the next visible turn', async () => {
       let releaseTools: (() => void) | null = null
-      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+      toolService.getAllToolDefinitions.mockImplementationOnce(
         () =>
           new Promise((resolve) => {
             releaseTools = () => resolve([])
@@ -3139,7 +3139,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'Second message')
 
       expect(envBuilder).toHaveBeenCalledTimes(1)
-      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1)
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
@@ -3150,12 +3150,12 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Before MCP update')
 
-      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1)
 
       agent.refreshToolRegistry()
       await agent.processMessage('s1', 'After MCP update')
 
-      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(2)
     })
 
     it('does not let stale turn cleanup clear replacement instance resources', async () => {
@@ -3203,7 +3203,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      const toolContext = toolPresenter.getAllToolDefinitions.mock.calls[0][0]
+      const toolContext = toolService.getAllToolDefinitions.mock.calls[0][0]
       expect(toolContext.enabledMcpServerIds).toEqual([])
       expect(toolContext).not.toHaveProperty('enabledPluginIds')
     })
@@ -3217,7 +3217,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      const toolContext = toolPresenter.getAllToolDefinitions.mock.calls[0][0]
+      const toolContext = toolService.getAllToolDefinitions.mock.calls[0][0]
       expect(toolContext.enabledMcpServerIds).toEqual(['server-x', 'server-y'])
       expect(toolContext).not.toHaveProperty('enabledPluginIds')
     })
@@ -3276,7 +3276,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.run.messages[0].content).toContain('WORKDIR:/tmp/restored-workspace')
-      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({
           conversationId: 's-restored',
           agentWorkspacePath: '/tmp/restored-workspace'
@@ -3358,7 +3358,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         getActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           source: 'agent',
@@ -3390,7 +3390,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'agent-skills', icons: '', description: '' }
         }
       ])
-      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
+      toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
       skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
       skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
       skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A body' })
@@ -3447,7 +3447,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       ])
       skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
       skillPresenter.loadSkillContent.mockResolvedValue({ content: 'DIRECT_SKILL_BODY' })
-      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+      toolService.getAllToolDefinitions.mockResolvedValue([
         {
           type: 'function',
           source: 'agent',
@@ -3467,7 +3467,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'agent-skills', description: '' }
         }
       ])
-      toolPresenter.buildToolSystemPrompt.mockReturnValue('DIRECT_TOOLING')
+      toolService.buildToolSystemPrompt.mockReturnValue('DIRECT_TOOLING')
       llmProvider.executeWithRateLimit.mockImplementation(
         async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
           options?.onQueued?.({
@@ -3664,7 +3664,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         { name: 'skill-a', description: 'phase skill' }
       ])
       skillPresenter.loadSkillContent.mockResolvedValue({ content: 'SKILL_PHASE_CONTENT' })
-      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_PHASE_CONTENT')
+      toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_PHASE_CONTENT')
 
       const previousState = {
         summaryText: null,
@@ -3896,7 +3896,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
     it('derives runtime capabilities from the current enabled agent tools', async () => {
       const runtimeBuilder = buildRuntimeCapabilitiesPrompt as ReturnType<typeof vi.fn>
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           source: 'agent',
@@ -3927,7 +3927,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         hasExec: true,
         hasProcess: false
       })
-      expect(toolPresenter.buildToolSystemPrompt).toHaveBeenCalledWith({
+      expect(toolService.buildToolSystemPrompt).toHaveBeenCalledWith({
         conversationId: 's1',
         toolDefinitions: expect.arrayContaining([
           expect.objectContaining({
@@ -3946,7 +3946,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
       skillPresenter.getActiveSkills.mockResolvedValue([])
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           source: 'agent',
@@ -4064,7 +4064,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(parsed.files[0].name).toBe('a.md')
     })
 
-    it('passes tools from toolPresenter to processStream', async () => {
+    it('passes tools from toolService to processStream', async () => {
       const tools = [
         {
           type: 'function',
@@ -4076,7 +4076,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'test', icons: '', description: '' }
         }
       ]
-      toolPresenter.getAllToolDefinitions.mockResolvedValue(tools)
+      toolService.getAllToolDefinitions.mockResolvedValue(tools)
 
       await agent.initSession('s1', {
         providerId: 'openai',
@@ -4085,7 +4085,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
       await agent.processMessage('s1', 'Hello')
 
-      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({
           chatMode: 'agent',
           conversationId: 's1',
@@ -4116,7 +4116,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+      toolService.getAllToolDefinitions.mockResolvedValue([
         {
           type: 'function',
           function: {
@@ -4127,7 +4127,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'test', icons: '', description: '' }
         }
       ])
-      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
+      toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
 
       await agent.initSession('s-acp-subagent', {
         agentId: 'acp-reviewer',
@@ -4138,8 +4138,8 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
       await agent.processMessage('s-acp-subagent', 'Delegated task')
 
-      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
-      expect(toolPresenter.buildToolSystemPrompt).not.toHaveBeenCalled()
+      expect(toolService.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect(toolService.buildToolSystemPrompt).not.toHaveBeenCalled()
       expect(buildRuntimeCapabilitiesPrompt).not.toHaveBeenCalled()
       expect(buildSystemEnvPrompt).not.toHaveBeenCalled()
 
@@ -4174,8 +4174,8 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'test', icons: '', description: '' }
         }
       ]
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce(tools)
-      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
+      toolService.getAllToolDefinitions.mockResolvedValueOnce(tools)
+      toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
 
       await agent.initSession('s-acp-regular', {
         agentId: 'acp-reviewer',
@@ -4185,7 +4185,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
       await agent.processMessage('s-acp-regular', 'Hello')
 
-      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({
           chatMode: 'agent',
           conversationId: 's-acp-regular',
@@ -4194,15 +4194,15 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
       expect(buildRuntimeCapabilitiesPrompt).toHaveBeenCalled()
       expect(buildSystemEnvPrompt).toHaveBeenCalled()
-      expect(toolPresenter.buildToolSystemPrompt).toHaveBeenCalled()
+      expect(toolService.buildToolSystemPrompt).toHaveBeenCalled()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
       expect(callArgs.run.messages[0].role).toBe('system')
     })
 
-    it('passes empty tools when no toolPresenter or no tools', async () => {
-      toolPresenter.getAllToolDefinitions.mockResolvedValue([])
+    it('passes empty tools when no toolService or no tools', async () => {
+      toolService.getAllToolDefinitions.mockResolvedValue([])
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
@@ -5216,7 +5216,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       instance.replaceRuntimeActivatedSkills(['runtime-skill'])
-      const clearAgentPlanState = vi.spyOn(toolPresenter, 'clearAgentPlanState')
+      const clearAgentPlanState = vi.spyOn(toolService, 'clearAgentPlanState')
 
       await agent.setSessionAgentContext('s1', {
         agentId: 'strict-agent',
@@ -5817,9 +5817,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         expect(await agent.listPendingInputs('s1')).toEqual([])
       })
 
-      expect(toolPresenter.clearAgentPlanState).toHaveBeenCalledTimes(2)
-      expect(toolPresenter.clearAgentPlanState).toHaveBeenNthCalledWith(1, 's1')
-      expect(toolPresenter.clearAgentPlanState).toHaveBeenNthCalledWith(2, 's1')
+      expect(toolService.clearAgentPlanState).toHaveBeenCalledTimes(2)
+      expect(toolService.clearAgentPlanState).toHaveBeenNthCalledWith(1, 's1')
+      expect(toolService.clearAgentPlanState).toHaveBeenNthCalledWith(2, 's1')
 
       const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)
@@ -7156,7 +7156,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         (agent as any).compactionService,
         'prepareForManualCompaction'
       )
-      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+      toolService.getAllToolDefinitions.mockImplementationOnce(
         async () => await toolDefinitions.promise
       )
       await agent.initSession('s1', {
@@ -7169,7 +7169,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       const compaction = agent.compactSession('s1')
-      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1))
 
       await agent.cancelGeneration('s1')
 
@@ -7549,7 +7549,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         configPresenter,
         sqlitePresenter,
         createSessionData(sqlitePresenter),
-        toolPresenter,
+        toolService,
         createRuntimeDependencies({
           skillPresenter: getSkillPresenterMock()
         })
@@ -7919,7 +7919,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       await expect((agent as any).resumeAssistantMessage('s1', 'm1', [])).resolves.toBe(true)
 
-      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({ activeSkillNames: ['runtime-skill'] })
       )
       expect(streamParams.run.resources.activeSkillNames).toEqual(['runtime-skill'])
@@ -8170,14 +8170,14 @@ describe('DeepChatRuntimeCoordinator', () => {
 
     it('cancels resume while tool definitions are still loading', async () => {
       const toolDefinitions = deferred<[]>()
-      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+      toolService.getAllToolDefinitions.mockImplementationOnce(
         async () => await toolDefinitions.promise
       )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({ blocks: [] })
 
       const resume = (agent as any).resumeAssistantMessage('s1', 'm1', []) as Promise<boolean>
-      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1))
 
       await agent.cancelGeneration('s1')
 
@@ -8188,13 +8188,13 @@ describe('DeepChatRuntimeCoordinator', () => {
 
     it('does not continue a stale resume after resource loading rehydrates the session', async () => {
       const toolDefinitions = deferred<[]>()
-      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+      toolService.getAllToolDefinitions.mockImplementationOnce(
         async () => await toolDefinitions.promise
       )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
       const resume = (agent as any).resumeAssistantMessage('s1', 'm1', []) as Promise<boolean>
-      await vi.waitFor(() => expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1))
 
       const sessionId = toAppSessionId('s1')
       expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
@@ -8809,7 +8809,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           }
         }
       ]
-      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+      toolService.getAllToolDefinitions.mockResolvedValue([
         {
           type: 'function',
           source: 'agent',
@@ -8899,7 +8899,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         committedResultCallIds: ['tc-skill'],
         pendingInteractionCallIds: ['tc-post', 'tc-question', 'tc-skill']
       })
-      toolPresenter.callTool
+      toolService.callTool
         .mockResolvedValueOnce({
           content: 'post-call permission required',
           rawData: {
@@ -8931,7 +8931,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
 
       expect(preCheckResult).toEqual({ resumed: false })
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).toHaveBeenCalledTimes(1)
       expect(processStream).toHaveBeenCalledTimes(1)
       await agent.getSessionState('s1')
       expect(instance?.getFirstPendingInteraction()).toEqual({
@@ -8958,7 +8958,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
 
       expect(permissionResult).toEqual({ resumed: false })
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(toolService.callTool).toHaveBeenCalledTimes(2)
       expect(processStream).toHaveBeenCalledTimes(1)
       expect(instance?.getFirstPendingInteraction()).toEqual({
         messageId: started.messageId,
@@ -8984,7 +8984,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
 
       expect(questionResult).toEqual({ resumed: false })
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(toolService.callTool).toHaveBeenCalledTimes(2)
       expect(processStream).toHaveBeenCalledTimes(1)
       expect(instance?.getFirstPendingInteraction()).toEqual({
         messageId: started.messageId,
@@ -9011,7 +9011,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       expect(finalResult).toEqual({ resumed: true })
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+      expect(toolService.callTool).toHaveBeenCalledTimes(2)
       expect(processStream).toHaveBeenCalledTimes(2)
       expect(instance?.getPendingToolBatchState()).toBeUndefined()
     })
@@ -9047,11 +9047,11 @@ describe('DeepChatRuntimeCoordinator', () => {
           }
         ]
       })
-      toolPresenter.callTool.mockResolvedValueOnce({
+      toolService.callTool.mockResolvedValueOnce({
         content: 'done',
         rawData: { content: 'done', isError: false }
       })
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           source: 'agent',
@@ -9070,7 +9070,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       expect(result).toEqual({ resumed: true })
-      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).toHaveBeenCalledTimes(1)
       expect(processStream).toHaveBeenCalledTimes(1)
 
       const updatedBlocks = JSON.parse(
@@ -9121,7 +9121,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       expect(result).toEqual({ resumed: true })
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(processStream).toHaveBeenCalledTimes(1)
       expect(
         (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].initialAccounting
@@ -9189,7 +9189,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           }
         ]
       })
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -9200,7 +9200,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'yo-browser', icons: '', description: '' }
         }
       ])
-      toolPresenter.callTool.mockResolvedValueOnce({
+      toolService.callTool.mockResolvedValueOnce({
         content: JSON.stringify({ data: 'x'.repeat(7000) }),
         rawData: { content: JSON.stringify({ data: 'x'.repeat(7000) }), isError: false }
       })
@@ -9262,7 +9262,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           }
         ]
       })
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -9273,7 +9273,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'yo-browser', icons: '', description: '' }
         }
       ])
-      toolPresenter.callTool.mockResolvedValueOnce({
+      toolService.callTool.mockResolvedValueOnce({
         content: JSON.stringify({ data: 'x'.repeat(7000) }),
         rawData: { content: JSON.stringify({ data: 'x'.repeat(7000) }), isError: false }
       })
@@ -9536,7 +9536,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       expect(result).toEqual({ resumed: false })
       expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-req-1', true)
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(processStream).not.toHaveBeenCalled()
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
@@ -9623,7 +9623,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       expect(result).toEqual({ resumed: false })
       expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-req-2', false)
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(processStream).not.toHaveBeenCalled()
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
@@ -10008,7 +10008,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       expect(result).toEqual({ resumed: false })
       expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-stale-req', false)
-      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
       expect(processStream).not.toHaveBeenCalled()
       const errorWrite =
         sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
@@ -10294,7 +10294,7 @@ describe('DeepChatRuntimeCoordinator', () => {
   describe('disabled tools', () => {
     it('returns a disabled error when a deferred tool call is no longer enabled', async () => {
       sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec'])
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([])
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([])
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
@@ -10313,7 +10313,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('returns a deferred tool-local AbortError as a tool failure while the run is active', async () => {
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -10326,7 +10326,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       ])
       const timeoutError = new Error('Model request timed out')
       timeoutError.name = 'AbortError'
-      toolPresenter.callTool.mockRejectedValueOnce(timeoutError)
+      toolService.callTool.mockRejectedValueOnce(timeoutError)
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
@@ -10344,7 +10344,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('returns image previews from deferred tool execution', async () => {
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -10355,7 +10355,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'agent-filesystem', icons: '', description: '' }
         }
       ])
-      toolPresenter.callTool.mockResolvedValueOnce({
+      toolService.callTool.mockResolvedValueOnce({
         content: 'analysis',
         rawData: {
           toolCallId: 'tc1',
@@ -10472,7 +10472,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('passes providerId when executing a deferred MCP tool call', async () => {
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -10483,7 +10483,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'test-server', icons: '', description: '' }
         }
       ])
-      toolPresenter.callTool.mockResolvedValueOnce({
+      toolService.callTool.mockResolvedValueOnce({
         content: 'tool result',
         rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
       })
@@ -10496,7 +10496,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         params: '{}'
       })
 
-      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+      expect(toolService.callTool).toHaveBeenCalledWith(
         expect.objectContaining({
           conversationId: 's1',
           providerId: 'openai'
@@ -10508,7 +10508,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('registers a cancellable controller for deferred subagent tool calls', async () => {
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -10521,7 +10521,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       ])
 
       let capturedSignal: AbortSignal | undefined
-      toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+      toolService.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
         capturedSignal = options?.signal
 
         return await new Promise((_, reject) => {
@@ -10581,7 +10581,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         ]
       })
 
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -10592,7 +10592,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           server: { name: 'agent', icons: '', description: '' }
         }
       ])
-      toolPresenter.callTool.mockResolvedValueOnce({
+      toolService.callTool.mockResolvedValueOnce({
         content: 'Final summary',
         rawData: {
           content: 'Final summary',
@@ -10699,7 +10699,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           }
         ])
       }
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
           function: {
@@ -10713,7 +10713,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       const emitMessageRefreshSpy = vi
         .spyOn(agent as any, 'emitMessageRefresh')
         .mockImplementation(() => {})
-      toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+      toolService.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
         options?.onProgress?.({
           kind: 'subagent_orchestrator',
           toolCallId: 'tc1',
